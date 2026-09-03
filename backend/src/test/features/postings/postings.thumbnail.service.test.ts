@@ -2,6 +2,9 @@ import { PostingThumbnailService } from "@/features/postings/thumbnail/thumbnail
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { BlobService } from "@/features/blob/blob.service";
+import { testUuid } from "../../support/uuid";
+
+const POSTING_1_ID = testUuid(9000, 254272);
 
 class FakePostingsRepository {
   primaryPhoto = {
@@ -75,7 +78,7 @@ describe("PostingThumbnailService", () => {
       postingsPublicCacheService,
     );
 
-    await service.generateForPosting("posting-1");
+    await service.generateForPosting(POSTING_1_ID);
 
     expect(downloadBlob).toHaveBeenCalledWith("postings/photo-1.jpg");
     expect(buildPostingPhotoThumbnailBlobName).toHaveBeenCalledWith(
@@ -95,8 +98,8 @@ describe("PostingThumbnailService", () => {
     });
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("posting-1");
-    expect(repository.enqueuedSearchPostingId).toBe("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
+    expect(repository.enqueuedSearchPostingId).toBe(POSTING_1_ID);
   });
 
   it("bails out when a primary photo already has a thumbnail", async () => {
@@ -119,7 +122,7 @@ describe("PostingThumbnailService", () => {
       postingsPublicCacheService,
     );
 
-    await service.generateForPosting("posting-1");
+    await service.generateForPosting(POSTING_1_ID);
 
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(repository.updatedThumbnail).toBeNull();
@@ -140,7 +143,7 @@ describe("PostingThumbnailService", () => {
       postingsPublicCacheService,
     );
 
-    await service.generateForPosting("posting-1");
+    await service.generateForPosting(POSTING_1_ID);
 
     expect(downloadBlob).not.toHaveBeenCalled();
     expect(repository.updatedThumbnail).toBeNull();

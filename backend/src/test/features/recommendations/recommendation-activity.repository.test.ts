@@ -13,6 +13,14 @@ import type {
   PersistRecommendationActivityInput,
   UpsertRecommendationRefreshJobInput,
 } from "@/features/recommendations/recommendation-activity.model";
+import { testUuid } from "../../support/uuid";
+const MISSING_ID = testUuid(9000, 394917);
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const ACTIVITY_1_ID = testUuid(9000, 215442);
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 describe("RecommendationActivityRepository", () => {
   beforeEach(() => {
@@ -22,8 +30,8 @@ describe("RecommendationActivityRepository", () => {
 
   it("maps posting summaries when a posting exists", async () => {
     const findUnique = jest.fn(async () => ({
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       family: "place",
       subtype: "studio",
     }));
@@ -35,15 +43,15 @@ describe("RecommendationActivityRepository", () => {
       }) as any,
     );
 
-    await expect(repository.findPostingSummary("posting-1")).resolves.toEqual({
-      id: "posting-1",
-      organizationId: "org-1",
+    await expect(repository.findPostingSummary(POSTING_1_ID)).resolves.toEqual({
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       family: "place",
       subtype: "studio",
     });
     expect(findUnique).toHaveBeenCalledWith({
       where: {
-        id: "posting-1",
+        id: POSTING_1_ID,
       },
       select: {
         id: true,
@@ -63,7 +71,7 @@ describe("RecommendationActivityRepository", () => {
       }) as any,
     );
 
-    await expect(repository.findPostingSummary("missing")).resolves.toBeNull();
+    await expect(repository.findPostingSummary(MISSING_ID)).resolves.toBeNull();
   });
 
   it("coalesces activity records and creates or updates refresh jobs in one transaction", async () => {
@@ -72,7 +80,7 @@ describe("RecommendationActivityRepository", () => {
       .fn(async () => null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
-        dedupeKey: "user:user-1",
+        dedupeKey: `user:${USER_1_ID}`,
         processedAt: null,
         availableAt: new Date("2026-06-01T08:00:00.000Z"),
       } as any)
@@ -98,12 +106,12 @@ describe("RecommendationActivityRepository", () => {
 
     await repository.persistActivityAndRefreshJobs(createActivity(), [
       createRefreshJob({
-        dedupeKey: "user:user-2",
-        userId: "user-2",
+        dedupeKey: `user:${USER_2_ID}`,
+        userId: USER_2_ID,
       }),
       createRefreshJob({
-        dedupeKey: "user:user-1",
-        userId: "user-1",
+        dedupeKey: `user:${USER_1_ID}`,
+        userId: USER_1_ID,
         availableAt: new Date("2026-06-01T09:00:00.000Z"),
       }),
       createRefreshJob({
@@ -132,14 +140,14 @@ describe("RecommendationActivityRepository", () => {
         personalizationEligible: true,
       },
       create: {
-        id: "activity-1",
+        id: ACTIVITY_1_ID,
         aggregationKey: "agg-1",
         eventType: "search_click",
         source: "search_results",
         occurredAt: new Date("2026-06-01T12:00:00.000Z"),
-        postingId: "posting-1",
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         anonymousActorHash: "anon-1",
         deviceType: "desktop",
         requestId: "request-1",
@@ -158,8 +166,8 @@ describe("RecommendationActivityRepository", () => {
       data: {
         id: "refresh-job-1",
         jobType: "user_refresh",
-        dedupeKey: "user:user-2",
-        userId: "user-2",
+        dedupeKey: `user:${USER_2_ID}`,
+        userId: USER_2_ID,
         segmentType: null,
         segmentValue: null,
         availableAt: new Date("2026-06-01T08:30:00.000Z"),
@@ -167,7 +175,7 @@ describe("RecommendationActivityRepository", () => {
     });
     expect(jobUpdate).toHaveBeenNthCalledWith(1, {
       where: {
-        dedupeKey: "user:user-1",
+        dedupeKey: `user:${USER_1_ID}`,
       },
       data: {
         availableAt: new Date("2026-06-01T08:00:00.000Z"),
@@ -226,14 +234,14 @@ describe("RecommendationActivityRepository", () => {
         personalizationEligible: false,
       },
       create: {
-        id: "activity-1",
+        id: ACTIVITY_1_ID,
         aggregationKey: "agg-1",
         eventType: "search_click",
         source: "search_results",
         occurredAt: new Date("2026-06-01T12:00:00.000Z"),
-        postingId: "posting-1",
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         anonymousActorHash: "anon-1",
         deviceType: "desktop",
         requestId: null,
@@ -252,14 +260,14 @@ function createActivity(
   overrides: Partial<PersistRecommendationActivityInput> = {},
 ): PersistRecommendationActivityInput {
   return {
-    id: "activity-1",
+    id: ACTIVITY_1_ID,
     aggregationKey: "agg-1",
     eventType: "search_click",
     source: "search_results",
     occurredAt: new Date("2026-06-01T12:00:00.000Z"),
-    postingId: "posting-1",
-    organizationId: "org-1",
-    actorUserId: "user-1",
+    postingId: POSTING_1_ID,
+    organizationId: ORG_1_ID,
+    actorUserId: USER_1_ID,
     anonymousActorHash: "anon-1",
     deviceType: "desktop",
     requestId: "request-1",
@@ -281,8 +289,8 @@ function createRefreshJob(
 ): UpsertRecommendationRefreshJobInput {
   return {
     jobType: "user_refresh",
-    dedupeKey: "user:user-1",
-    userId: "user-1",
+    dedupeKey: `user:${USER_1_ID}`,
+    userId: USER_1_ID,
     availableAt: new Date("2026-06-01T08:30:00.000Z"),
     ...overrides,
   };

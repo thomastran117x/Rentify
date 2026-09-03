@@ -9,6 +9,11 @@ import type {
 import { PostingExpiryService } from "@/features/postings/posting-expiry.service";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+
+const ORG_1_ID = testUuid(9000, 9234);
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -16,18 +21,18 @@ function buildCandidate(
   overrides: Partial<PostingExpiryCandidate> = {},
 ): PostingExpiryCandidate {
   return {
-    id: "posting-1",
-    organizationId: "org-1",
+    id: POSTING_1_ID,
+    organizationId: ORG_1_ID,
     name: "Lakeside cabin",
     expiresAt: "2026-08-18T23:59:59.999Z",
     ...overrides,
   };
 }
 
-function buildPaused(id = "posting-1"): PostingRecord {
+function buildPaused(id = POSTING_1_ID): PostingRecord {
   return {
     id,
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "paused",
     name: "Lakeside cabin",
   } as PostingRecord;
@@ -163,12 +168,12 @@ describe("PostingExpiryService.expireDuePostings", () => {
     expect(processed).toBe(1);
     expect(repository.expireCalls).toEqual([candidate.id]);
     expect(publicCache.invalidated).toEqual([candidate.id]);
-    expect(cache.acquired).toEqual(["posting:posting-1:booking-window"]);
+    expect(cache.acquired).toEqual([`posting:${POSTING_1_ID}:booking-window`]);
     expect(cache.released).toBe(1);
     expect(audit.records).toHaveLength(1);
     expect(audit.records[0]).toMatchObject({
       action: "posting.expired",
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       resourceType: "posting",
       resourceId: candidate.id,
       // The sweeper is the system, not a user.
@@ -181,7 +186,7 @@ describe("PostingExpiryService.expireDuePostings", () => {
   it("does nothing beyond the attempt when the posting is no longer due", async () => {
     const { service, repository, publicCache, audit } = createService();
     repository.dueCandidates = [buildCandidate()];
-    repository.expireResults.set("posting-1", null);
+    repository.expireResults.set(POSTING_1_ID, null);
 
     const processed = await service.expireDuePostings(10);
 
@@ -193,13 +198,13 @@ describe("PostingExpiryService.expireDuePostings", () => {
   it("keeps processing the batch when one posting fails", async () => {
     const { service, repository, publicCache } = createService();
     repository.dueCandidates = [
-      buildCandidate({ id: "posting-1" }),
-      buildCandidate({ id: "posting-2" }),
+      buildCandidate({ id: POSTING_1_ID }),
+      buildCandidate({ id: POSTING_2_ID }),
     ];
-    repository.expireResults.set("posting-2", buildPaused("posting-2"));
+    repository.expireResults.set(POSTING_2_ID, buildPaused(POSTING_2_ID));
     const originalExpire = repository.expireIfDue.bind(repository);
     repository.expireIfDue = async (id: string) => {
-      if (id === "posting-1") {
+      if (id === POSTING_1_ID) {
         throw new Error("deadlock");
       }
 
@@ -209,29 +214,29 @@ describe("PostingExpiryService.expireDuePostings", () => {
     const processed = await service.expireDuePostings(10);
 
     expect(processed).toBe(2);
-    expect(publicCache.invalidated).toEqual(["posting-2"]);
+    expect(publicCache.invalidated).toEqual([POSTING_2_ID]);
   });
 
   it("does not abort the batch when the flow lock is held", async () => {
     const { service, repository, cache, publicCache } = createService();
     repository.dueCandidates = [
-      buildCandidate({ id: "posting-1" }),
-      buildCandidate({ id: "posting-2" }),
+      buildCandidate({ id: POSTING_1_ID }),
+      buildCandidate({ id: POSTING_2_ID }),
     ];
-    repository.expireResults.set("posting-2", buildPaused("posting-2"));
-    cache.failKeys.add("posting:posting-1:booking-window");
+    repository.expireResults.set(POSTING_2_ID, buildPaused(POSTING_2_ID));
+    cache.failKeys.add(`posting:${POSTING_1_ID}:booking-window`);
 
     const processed = await service.expireDuePostings(10);
 
     expect(processed).toBe(2);
-    expect(repository.expireCalls).toEqual(["posting-2"]);
-    expect(publicCache.invalidated).toEqual(["posting-2"]);
+    expect(repository.expireCalls).toEqual([POSTING_2_ID]);
+    expect(publicCache.invalidated).toEqual([POSTING_2_ID]);
   });
 
   it("still records the audit entry when cache invalidation fails", async () => {
     const { service, repository, audit, publicCache } = createService();
     repository.dueCandidates = [buildCandidate()];
-    repository.expireResults.set("posting-1", buildPaused());
+    repository.expireResults.set(POSTING_1_ID, buildPaused());
     publicCache.shouldThrow = true;
 
     await expect(service.expireDuePostings(10)).resolves.toBe(1);
@@ -244,11 +249,11 @@ describe("PostingExpiryService.expireDuePostings", () => {
   it("still completes the transition when the audit sink fails", async () => {
     const { service, repository, publicCache, audit } = createService();
     repository.dueCandidates = [buildCandidate()];
-    repository.expireResults.set("posting-1", buildPaused());
+    repository.expireResults.set(POSTING_1_ID, buildPaused());
     audit.shouldThrow = true;
 
     await expect(service.expireDuePostings(10)).resolves.toBe(1);
-    expect(publicCache.invalidated).toEqual(["posting-1"]);
+    expect(publicCache.invalidated).toEqual([POSTING_1_ID]);
   });
 });
 
@@ -321,7 +326,7 @@ describe("PostingExpiryService.sendDueExpiryReminders", () => {
     // Stamped anyway: leaving the latch open would re-select this orphaned row
     // on every poll.
     expect(repository.markCalls).toEqual([
-      { id: "posting-1", expiresAt: "2026-08-18T23:59:59.999Z" },
+      { id: POSTING_1_ID, expiresAt: "2026-08-18T23:59:59.999Z" },
     ]);
     expect(email.sent).toEqual([]);
   });
@@ -329,14 +334,14 @@ describe("PostingExpiryService.sendDueExpiryReminders", () => {
   it("keeps processing the batch when one reminder fails", async () => {
     const { service, repository, email } = createService();
     repository.reminderCandidates = [
-      buildCandidate({ id: "posting-1" }),
-      buildCandidate({ id: "posting-2" }),
+      buildCandidate({ id: POSTING_1_ID }),
+      buildCandidate({ id: POSTING_2_ID }),
     ];
     const originalSend = email.sendPostingExpiringSoonEmail.bind(email);
     email.sendPostingExpiringSoonEmail = async (
       input: Record<string, unknown>,
     ) => {
-      if (input.postingId === "posting-1") {
+      if (input.postingId === POSTING_1_ID) {
         throw new Error("broker unavailable");
       }
 

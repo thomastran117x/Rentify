@@ -1,4 +1,8 @@
 import { RecommendationActivityQueueService } from "@/features/recommendations/recommendation-activity.queue.service";
+import { testUuid } from "../../support/uuid";
+
+const DEAD_1_ID = testUuid(9000, 228295);
+const DEAD_2_ID = testUuid(9000, 228296);
 
 const mockCreateRabbitMqChannel = jest.fn();
 
@@ -170,7 +174,7 @@ describe("RecommendationActivityQueueService", () => {
         raw: true,
       },
       {
-        messageId: "dead-1",
+        messageId: DEAD_1_ID,
         reason: "invalid_schema",
         error: "Missing postingId",
         headers: {
@@ -184,7 +188,7 @@ describe("RecommendationActivityQueueService", () => {
       "dead-letter",
       expect.any(Buffer),
       expect.objectContaining({
-        messageId: "dead-1",
+        messageId: DEAD_1_ID,
         headers: expect.objectContaining({
           source: "consumer",
           deadLetterReason: "invalid_schema",
@@ -387,7 +391,7 @@ describe("RecommendationActivityQueueService", () => {
       service.publishDeadLetterPayload(
         { raw: "retry" },
         {
-          messageId: "dead-2",
+          messageId: DEAD_2_ID,
         },
       ),
     ).resolves.toBeUndefined();
@@ -398,7 +402,7 @@ describe("RecommendationActivityQueueService", () => {
       "dead-letter",
       expect.any(Buffer),
       expect.objectContaining({
-        messageId: "dead-2",
+        messageId: DEAD_2_ID,
       }),
     );
   });

@@ -27,7 +27,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
     sub: OWNER_ID,
-    email: "owner@example.com",
+    email: `${OWNER_ID}@example.com`,
     role: "owner",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -51,7 +51,7 @@ function createPostingBody() {
       family: "place",
       subtype: "entire_place",
     },
-    name: "Test posting",
+    name: `Test ${POSTING_ID}`,
     description: "Nice place",
     pricing: {
       currency: "cad",
@@ -575,7 +575,7 @@ describe("PostingsController", () => {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Updated posting",
+        name: `Updated ${POSTING_ID}`,
         description: "Still nice",
         pricing: {
           currency: "cad",
@@ -629,7 +629,7 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       body: {
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",
@@ -677,7 +677,7 @@ describe("PostingsController", () => {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",
@@ -733,7 +733,7 @@ describe("PostingsController", () => {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",

@@ -14,6 +14,10 @@ import type { OrganizationAccessService } from "@/features/organizations/organiz
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import type { SeasonalPricingRepository } from "@/features/postings/seasonal-pricing/seasonal-pricing.repository";
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import { testUuid } from "../../support/uuid";
+
+const R1_ID = testUuid(9000, 3583);
+const R2_ID = testUuid(9000, 3584);
 
 function createPostingRecord(
   overrides: Partial<PostingRecord> = {},
@@ -343,13 +347,13 @@ describe("BookingsService — pricing and constraint enforcement", () => {
     it("resolves overlapping seasonal rules by latest endDate wins", async () => {
       // Both rules cover 2099-05-01. 'Holiday' has the later endDate so it wins.
       const summer = buildSeasonalRule({
-        id: "r1",
+        id: R1_ID,
         startDate: "2026-04-01",
         endDate: "2099-05-15",
         dailyAmount: 150,
       });
       const holiday = buildSeasonalRule({
-        id: "r2",
+        id: R2_ID,
         startDate: "2099-05-01",
         endDate: "2099-05-31",
         dailyAmount: 250,

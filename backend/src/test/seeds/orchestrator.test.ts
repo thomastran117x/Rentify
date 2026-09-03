@@ -1,5 +1,8 @@
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import type { SeedModule } from "@/seeds/types";
+import { testUuid } from "../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createLogger() {
   return {
@@ -15,7 +18,7 @@ describe("runSeedOrchestrator", () => {
       name: "first",
       async run(context) {
         execution.push("first");
-        context.state.userIdsByEmail.set("owner@example.com", "user-1");
+        context.state.userIdsByEmail.set("owner@example.com", USER_1_ID);
       },
     };
     const secondModule: SeedModule = {
@@ -41,7 +44,7 @@ describe("runSeedOrchestrator", () => {
       source: "test",
     });
 
-    expect(execution).toEqual(["first", "second:user-1"]);
+    expect(execution).toEqual(["first", `second:${USER_1_ID}`]);
     expect(result).toMatchObject({
       executed: true,
       moduleNames: ["first", "second"],

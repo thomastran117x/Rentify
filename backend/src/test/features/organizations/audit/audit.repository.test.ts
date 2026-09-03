@@ -1,13 +1,17 @@
 import { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
+import { testUuid } from "../../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 describe("OrganizationAuditRepository", () => {
   it("lists and maps organization audit history with filters and pagination", async () => {
     const findMany = jest.fn(async () => [
       {
         id: "audit-1",
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         actor: {
-          id: "user-1",
+          id: USER_1_ID,
           email: "owner@example.com",
           profile: {
             username: "owner-one",
@@ -28,10 +32,10 @@ describe("OrganizationAuditRepository", () => {
           },
         ],
         beforeSnapshot: {
-          logoBlobName: "organizations/org-1/old-logo.png",
+          logoBlobName: `organizations/${ORG_1_ID}/old-logo.png`,
         },
         afterSnapshot: {
-          logoBlobName: "organizations/org-1/new-logo.png",
+          logoBlobName: `organizations/${ORG_1_ID}/new-logo.png`,
         },
         restorable: true,
         restoredFromAuditId: null,
@@ -48,8 +52,8 @@ describe("OrganizationAuditRepository", () => {
 
     await expect(
       repository.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 2,
         pageSize: 1,
         action: "organization.restored",
@@ -59,9 +63,9 @@ describe("OrganizationAuditRepository", () => {
       auditLogs: [
         {
           id: "audit-1",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           actor: {
-            id: "user-1",
+            id: USER_1_ID,
             email: "owner@example.com",
             username: "owner-one",
             avatarUrl: "https://example.test/avatar.png",
@@ -80,10 +84,10 @@ describe("OrganizationAuditRepository", () => {
             },
           ],
           beforeSnapshot: {
-            logoBlobName: "organizations/org-1/old-logo.png",
+            logoBlobName: `organizations/${ORG_1_ID}/old-logo.png`,
           },
           afterSnapshot: {
-            logoBlobName: "organizations/org-1/new-logo.png",
+            logoBlobName: `organizations/${ORG_1_ID}/new-logo.png`,
           },
           restorable: true,
           restoredFromAuditId: undefined,
@@ -101,7 +105,7 @@ describe("OrganizationAuditRepository", () => {
     });
     expect(findMany).toHaveBeenCalledWith({
       where: {
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         action: "organization.restored",
         resourceType: "organization",
       },
@@ -120,7 +124,7 @@ describe("OrganizationAuditRepository", () => {
     });
     expect(count).toHaveBeenCalledWith({
       where: {
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         action: "organization.restored",
         resourceType: "organization",
       },
@@ -131,14 +135,14 @@ describe("OrganizationAuditRepository", () => {
     const findMany = jest.fn(async () => [
       {
         beforeSnapshot: {
-          logoBlobName: "organizations/org-1/logo-a.png",
+          logoBlobName: `organizations/${ORG_1_ID}/logo-a.png`,
         },
         afterSnapshot: null,
       },
       {
         beforeSnapshot: null,
         afterSnapshot: {
-          logoBlobName: "organizations/org-1/logo-b.png",
+          logoBlobName: `organizations/${ORG_1_ID}/logo-b.png`,
         },
       },
     ]);
@@ -150,13 +154,13 @@ describe("OrganizationAuditRepository", () => {
 
     await expect(
       repository.hasRestorableOrganizationLogoReference({
-        organizationId: "org-1",
-        blobName: "organizations/org-1/logo-b.png",
+        organizationId: ORG_1_ID,
+        blobName: `organizations/${ORG_1_ID}/logo-b.png`,
       }),
     ).resolves.toBe(true);
     expect(findMany).toHaveBeenCalledWith({
       where: {
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         resourceType: "organization",
         restorable: true,
       },
@@ -173,7 +177,7 @@ describe("OrganizationAuditRepository", () => {
         findMany: jest.fn(async () => [
           {
             beforeSnapshot: {
-              logoBlobName: "organizations/org-1/other-logo.png",
+              logoBlobName: `organizations/${ORG_1_ID}/other-logo.png`,
             },
             afterSnapshot: {},
           },
@@ -183,8 +187,8 @@ describe("OrganizationAuditRepository", () => {
 
     await expect(
       repository.hasRestorableOrganizationLogoReference({
-        organizationId: "org-1",
-        blobName: "organizations/org-1/logo-a.png",
+        organizationId: ORG_1_ID,
+        blobName: `organizations/${ORG_1_ID}/logo-a.png`,
       }),
     ).resolves.toBe(false);
   });

@@ -7,6 +7,12 @@ import type {
 } from "@/features/auth/auth.model";
 import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import { testUuid } from "../../support/uuid";
+const OAUTH_IDENTITY_1_ID = testUuid(9000, 618144);
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 const BCRYPT_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
@@ -20,7 +26,7 @@ function createClient(): ClientRequestContext {
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 2,
@@ -31,8 +37,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -49,8 +55,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
 }
 
 const googleIdentity: OAuthIdentityRecord = {
-  id: "oauth-identity-1",
-  userId: "user-1",
+  id: OAUTH_IDENTITY_1_ID,
+  userId: USER_1_ID,
   provider: "google",
   providerUserId: "google-user-1",
   providerEmail: "user@example.com",
@@ -261,7 +267,7 @@ describe("OAuthAccountsService sign-in", () => {
 describe("OAuthAccountsService.linkOAuthProvider", () => {
   const linkInput = {
     ...oauthInput,
-    userId: "user-1",
+    userId: USER_1_ID,
     provider: "google" as const,
   };
 
@@ -280,7 +286,7 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
         hasPassword: true,
         providers: [
           {
-            id: "oauth-identity-1",
+            id: OAUTH_IDENTITY_1_ID,
             provider: "google",
             providerEmail: "user@example.com",
             emailVerified: true,
@@ -291,7 +297,7 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
       },
     );
     expect(harness.authRepository.linkOAuthIdentity).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       expect.objectContaining({ provider: "google" }),
     );
   });
@@ -302,7 +308,7 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
       createUser({ passwordHash: BCRYPT_HASH }),
     );
     harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ id: "user-2", email: "other@example.com" }),
+      createUser({ id: USER_2_ID, email: "other@example.com" }),
     );
 
     await expect(
@@ -352,7 +358,7 @@ describe("OAuthAccountsService.linkedOAuthProviders", () => {
     );
 
     await expect(
-      harness.service.linkedOAuthProviders({ userId: "user-1" }),
+      harness.service.linkedOAuthProviders({ userId: USER_1_ID }),
     ).resolves.toMatchObject({
       hasPassword: true,
       providers: [expect.objectContaining({ provider: "google" })],
@@ -369,7 +375,7 @@ describe("OAuthAccountsService.linkedOAuthProviders", () => {
     );
 
     await expect(
-      harness.service.linkedOAuthProviders({ userId: "user-1" }),
+      harness.service.linkedOAuthProviders({ userId: USER_1_ID }),
     ).resolves.toMatchObject({ hasPassword: false });
   });
 });
@@ -386,7 +392,7 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
 
     await expect(
       harness.service.unlinkOAuthProvider({
-        userId: "user-1",
+        userId: USER_1_ID,
         provider: "google",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -404,12 +410,12 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
 
     await expect(
       harness.service.unlinkOAuthProvider({
-        userId: "user-1",
+        userId: USER_1_ID,
         provider: "google",
       }),
     ).resolves.toEqual({ hasPassword: true, providers: [] });
     expect(harness.authRepository.unlinkOAuthIdentity).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "google",
     );
   });
@@ -422,7 +428,7 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
 
     await expect(
       harness.service.unlinkOAuthProvider({
-        userId: "user-1",
+        userId: USER_1_ID,
         provider: "google",
       }),
     ).resolves.toEqual({ hasPassword: true, providers: [] });

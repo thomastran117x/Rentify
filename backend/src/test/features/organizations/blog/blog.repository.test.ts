@@ -1,4 +1,9 @@
 import { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
+import { testUuid } from "../../../support/uuid";
+const BLOG_1_ID = testUuid(9000, 853730);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 // Builds a fake Prisma client whose $transaction runs its callback with the same
 // client, so create/update/delete (which now enqueue a transactional search
@@ -26,10 +31,10 @@ function buildTransactionalPrisma(
 
 function buildRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "blog-1",
-    organizationId: "org-1",
+    id: BLOG_1_ID,
+    organizationId: ORG_1_ID,
     author: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       profile: {
         username: "owner-one",
@@ -40,8 +45,8 @@ function buildRow(overrides: Record<string, unknown> = {}) {
     slug: "blog-title",
     excerpt: "Excerpt",
     body: "<p>Body</p>",
-    coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-    coverImageBlobName: "organizations/org-1/blog/c.png",
+    coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+    coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
     tags: ["news", "update"],
     status: "published",
     commentsEnabled: true,
@@ -59,14 +64,14 @@ describe("OrganizationBlogRepository", () => {
     const repository = new OrganizationBlogRepository(client as never);
 
     const result = await repository.create({
-      organizationId: "org-1",
-      authorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      authorUserId: USER_1_ID,
       title: "Blog title",
       slug: "blog-title",
       excerpt: "Excerpt",
       body: "<p>Body</p>",
-      coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-      coverImageBlobName: "organizations/org-1/blog/c.png",
+      coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+      coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
       tags: ["news", "update"],
       status: "published",
       commentsEnabled: true,
@@ -76,18 +81,18 @@ describe("OrganizationBlogRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          organizationId: "org-1",
-          authorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          authorUserId: USER_1_ID,
           slug: "blog-title",
           status: "published",
         }),
       }),
     );
     expect(result).toEqual({
-      id: "blog-1",
-      organizationId: "org-1",
+      id: BLOG_1_ID,
+      organizationId: ORG_1_ID,
       author: {
-        id: "user-1",
+        id: USER_1_ID,
         email: "owner@example.com",
         username: "owner-one",
         avatarUrl: "https://example.test/avatar.png",
@@ -96,8 +101,8 @@ describe("OrganizationBlogRepository", () => {
       slug: "blog-title",
       excerpt: "Excerpt",
       body: "<p>Body</p>",
-      coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-      coverImageBlobName: "organizations/org-1/blog/c.png",
+      coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+      coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
       tags: ["news", "update"],
       status: "published",
       commentsEnabled: true,
@@ -110,7 +115,7 @@ describe("OrganizationBlogRepository", () => {
       expect.objectContaining({
         data: expect.arrayContaining([
           expect.objectContaining({
-            blogPostId: "blog-1",
+            blogPostId: BLOG_1_ID,
             operation: "upsert",
           }),
         ]),
@@ -134,7 +139,7 @@ describe("OrganizationBlogRepository", () => {
       organizationBlogPost: { findFirst },
     } as never);
 
-    const result = await repository.findById("org-1", "blog-1");
+    const result = await repository.findById(ORG_1_ID, BLOG_1_ID);
 
     expect(result?.author).toBeUndefined();
     expect(result?.publishedAt).toBeUndefined();
@@ -150,12 +155,12 @@ describe("OrganizationBlogRepository", () => {
       organizationBlogPost: { findFirst },
     } as never);
 
-    await repository.findPublishedBySlug("org-1", "blog-title");
+    await repository.findPublishedBySlug(ORG_1_ID, "blog-title");
 
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           slug: "blog-title",
           status: "published",
         },
@@ -169,7 +174,9 @@ describe("OrganizationBlogRepository", () => {
       organizationBlogPost: { findFirst },
     } as never);
 
-    await expect(repository.findBySlug("org-1", "missing")).resolves.toBeNull();
+    await expect(
+      repository.findBySlug(ORG_1_ID, "missing"),
+    ).resolves.toBeNull();
   });
 
   it("updates only the provided fields", async () => {
@@ -177,14 +184,14 @@ describe("OrganizationBlogRepository", () => {
     const { client, outboxCreateMany } = buildTransactionalPrisma({ update });
     const repository = new OrganizationBlogRepository(client as never);
 
-    await repository.update("org-1", "blog-1", {
+    await repository.update(ORG_1_ID, BLOG_1_ID, {
       title: "Updated",
       tags: ["x"],
     });
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "blog-1", organizationId: "org-1" },
+        where: { id: BLOG_1_ID, organizationId: ORG_1_ID },
         data: { title: "Updated", tags: ["x"] },
       }),
     );
@@ -192,7 +199,7 @@ describe("OrganizationBlogRepository", () => {
       expect.objectContaining({
         data: expect.arrayContaining([
           expect.objectContaining({
-            blogPostId: "blog-1",
+            blogPostId: BLOG_1_ID,
             operation: "upsert",
           }),
         ]),
@@ -213,7 +220,7 @@ describe("OrganizationBlogRepository", () => {
     );
     const repository = new OrganizationBlogRepository(client as never);
 
-    await repository.update("org-1", "blog-1", { title: "Updated" });
+    await repository.update(ORG_1_ID, BLOG_1_ID, { title: "Updated" });
 
     const [firstCall] = outboxCreateMany.mock.calls as unknown as Array<
       [{ data: Array<Record<string, unknown>> }]
@@ -234,16 +241,16 @@ describe("OrganizationBlogRepository", () => {
     });
     const repository = new OrganizationBlogRepository(client as never);
 
-    await repository.delete("org-1", "blog-1");
+    await repository.delete(ORG_1_ID, BLOG_1_ID);
 
     expect(deleteFn).toHaveBeenCalledWith({
-      where: { id: "blog-1", organizationId: "org-1" },
+      where: { id: BLOG_1_ID, organizationId: ORG_1_ID },
     });
     expect(outboxCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.arrayContaining([
           expect.objectContaining({
-            blogPostId: "blog-1",
+            blogPostId: BLOG_1_ID,
             operation: "delete",
           }),
         ]),
@@ -259,7 +266,7 @@ describe("OrganizationBlogRepository", () => {
     } as never);
 
     const result = await repository.list({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       statuses: ["published"],
@@ -269,7 +276,7 @@ describe("OrganizationBlogRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: { in: ["published"] },
           tags: { array_contains: "news" },
         },
@@ -287,11 +294,11 @@ describe("OrganizationBlogRepository", () => {
       organizationBlogPost: { findMany, count },
     } as never);
 
-    await repository.list({ organizationId: "org-1", page: 1, pageSize: 20 });
+    await repository.list({ organizationId: ORG_1_ID, page: 1, pageSize: 20 });
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId: "org-1" },
+        where: { organizationId: ORG_1_ID },
         orderBy: { createdAt: "desc" },
       }),
     );

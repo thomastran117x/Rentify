@@ -250,9 +250,9 @@ describe("BookingMessageSocketServer", () => {
     installFakeContainer();
     const socket = await connected();
 
-    const received = nextEvent(socket, "message.created");
+    const received = nextEvent(socket, `${MESSAGE_ID}.created`);
     socketServer.publish({
-      type: "message.created",
+      type: `${MESSAGE_ID}.created`,
       bookingRequestId: BOOKING_ID,
       message: { id: "m1" },
     } as never);

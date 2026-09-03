@@ -4,6 +4,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import { ReportsController } from "@/features/reports/reports.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { testUuid } from "../../support/uuid";
+const ADMIN_1_ID = testUuid(9000, 185107);
 
 const REPORT_ID = testUuid(4400, 1);
 const MODERATOR_ONE_ID = testUuid(1000, 91);
@@ -221,7 +222,7 @@ describe("ReportsController", () => {
 
   it("updates a report status through the moderation service", async () => {
     mockRequireSessionAuth.mockResolvedValue({
-      ...createAuth({ sub: "admin-1", role: "admin" }),
+      ...createAuth({ sub: ADMIN_1_ID, role: "admin" }),
     });
     const updateStatus = jest.fn(async () => ({
       id: REPORT_ID,
@@ -246,7 +247,7 @@ describe("ReportsController", () => {
     );
 
     expect(updateStatus).toHaveBeenCalledWith({
-      actorUserId: "admin-1",
+      actorUserId: ADMIN_1_ID,
       actorRole: "admin",
       reportId: REPORT_ID,
       status: "resolved",

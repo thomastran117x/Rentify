@@ -1,4 +1,8 @@
 import { OrganizationLogoService } from "@/features/organizations/organization-logo.service";
+import { testUuid } from "../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createService(overrides?: {
   blobService?: Record<string, jest.Mock>;
@@ -32,9 +36,9 @@ describe("OrganizationLogoService", () => {
       const { service } = createService();
 
       expect(() =>
-        service.assertLogoInput("user-1", {
-          logoUrl: "https://cdn.test/postings/user-1/photo.png",
-          logoBlobName: "postings/user-1/photo.png",
+        service.assertLogoInput(USER_1_ID, {
+          logoUrl: `https://cdn.test/postings/${USER_1_ID}/photo.png`,
+          logoBlobName: `postings/${USER_1_ID}/photo.png`,
         }),
       ).toThrow("Organization logos must use an organizations-scoped blob.");
     });
@@ -47,7 +51,7 @@ describe("OrganizationLogoService", () => {
       });
 
       expect(() =>
-        service.assertLogoInput("user-1", {
+        service.assertLogoInput(USER_1_ID, {
           logoUrl: nextLogoUrl,
           logoBlobName: nextLogoBlobName,
         }),
@@ -58,7 +62,7 @@ describe("OrganizationLogoService", () => {
       const { service } = createService();
 
       expect(() =>
-        service.assertLogoInput("user-1", {
+        service.assertLogoInput(USER_1_ID, {
           logoUrl: null,
           logoBlobName: null,
         }),
@@ -67,11 +71,11 @@ describe("OrganizationLogoService", () => {
   });
 
   describe("cleanupReplacedLogo", () => {
-    const previousLogoBlobName = "organizations/user-1/logo-old.png";
+    const previousLogoBlobName = `organizations/${USER_1_ID}/logo-old.png`;
     const previousLogoUrl = `https://cdn.test/${previousLogoBlobName}`;
 
     it("preserves the previous managed logo when a restorable audit still references it", async () => {
-      const nextLogoBlobName = "organizations/user-1/logo-new.png";
+      const nextLogoBlobName = `organizations/${USER_1_ID}/logo-new.png`;
       const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
       const { service, blobService, organizationAuditRepository } =
         createService({
@@ -81,8 +85,8 @@ describe("OrganizationLogoService", () => {
         });
 
       await service.cleanupReplacedLogo({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         beforeSnapshot: {
           logoUrl: previousLogoUrl,
           logoBlobName: previousLogoBlobName,
@@ -100,7 +104,7 @@ describe("OrganizationLogoService", () => {
       expect(
         organizationAuditRepository.hasRestorableOrganizationLogoReference,
       ).toHaveBeenCalledWith({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         blobName: previousLogoBlobName,
       });
       expect(blobService.deleteBlob).not.toHaveBeenCalled();
@@ -112,8 +116,8 @@ describe("OrganizationLogoService", () => {
       });
 
       await service.cleanupReplacedLogo({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         beforeSnapshot: {
           logoUrl: previousLogoUrl,
           logoBlobName: previousLogoBlobName,
@@ -128,8 +132,8 @@ describe("OrganizationLogoService", () => {
       const { service, blobService } = createService();
 
       await service.cleanupReplacedLogo({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         beforeSnapshot: {
           logoUrl: previousLogoUrl,
           logoBlobName: previousLogoBlobName,

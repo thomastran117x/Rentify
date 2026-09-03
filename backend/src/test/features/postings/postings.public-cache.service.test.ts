@@ -8,6 +8,10 @@ import type {
   PublicPostingRecord,
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { testUuid } from "../../support/uuid";
+
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
 
 class InMemoryCacheService
   implements
@@ -71,7 +75,7 @@ function createPublicPosting(
   overrides: Partial<PublicPostingRecord> = {},
 ): PublicPostingRecord {
   return {
-    id: "posting-1",
+    id: POSTING_1_ID,
     ownerId: "owner-1",
     status: "published",
     variant: {
@@ -207,8 +211,8 @@ describe("PostingsPublicCacheService", () => {
       },
     });
 
-    const firstRead = service.getPublicById("posting-1");
-    const secondRead = service.getPublicById("posting-1");
+    const firstRead = service.getPublicById(POSTING_1_ID);
+    const secondRead = service.getPublicById(POSTING_1_ID);
 
     deferred.resolve(createBatchResult([createPublicPosting()]));
 
@@ -232,11 +236,11 @@ describe("PostingsPublicCacheService", () => {
       },
     });
     const externalLock = await cacheService.acquireLock(
-      "postings:public:rebuild:posting-1",
+      `postings:public:rebuild:${POSTING_1_ID}`,
       5_000,
     );
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "Follower read",
     });
 
@@ -254,14 +258,14 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      "postings:public:data:posting-1:0",
+      `postings:public:data:${POSTING_1_ID}:0`,
       createEnvelope(stalePosting, {
         freshOffsetMs: -1_000,
         staleOffsetMs: 10_000,
       }),
     );
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "Stale name",
     });
 
@@ -269,7 +273,7 @@ describe("PostingsPublicCacheService", () => {
       setTimeout(resolve, 20);
     });
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "Fresh name",
     });
     expect(batchFindPublic).toHaveBeenCalledTimes(1);
@@ -293,24 +297,24 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      "postings:public:data:posting-1:0",
+      `postings:public:data:${POSTING_1_ID}:0`,
       createEnvelope(stalePosting, {
         freshOffsetMs: -1_000,
         staleOffsetMs: 10_000,
       }),
     );
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "Stale name",
     });
 
-    await service.invalidatePublic("posting-1");
+    await service.invalidatePublic(POSTING_1_ID);
     refreshDeferred.resolve(createBatchResult([oldGenerationRefresh]));
     await new Promise((resolve) => {
       setTimeout(resolve, 20);
     });
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "New generation posting",
     });
     expect(batchFindPublic).toHaveBeenCalledTimes(2);
@@ -320,17 +324,17 @@ describe("PostingsPublicCacheService", () => {
     const { batchFindPublic, service } = createService({
       batchFindPublic: jest
         .fn()
-        .mockResolvedValueOnce(createBatchResult([], ["posting-1"]))
+        .mockResolvedValueOnce(createBatchResult([], [POSTING_1_ID]))
         .mockResolvedValueOnce(createBatchResult([createPublicPosting()])),
     });
 
-    await expect(service.getPublicById("posting-1")).resolves.toBeNull();
-    await expect(service.getPublicById("posting-1")).resolves.toBeNull();
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toBeNull();
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toBeNull();
 
-    await service.invalidatePublic("posting-1");
+    await service.invalidatePublic(POSTING_1_ID);
 
-    await expect(service.getPublicById("posting-1")).resolves.toMatchObject({
-      id: "posting-1",
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
+      id: POSTING_1_ID,
     });
     expect(batchFindPublic).toHaveBeenCalledTimes(2);
   });
@@ -351,21 +355,21 @@ describe("PostingsPublicCacheService", () => {
       ),
     });
 
-    const result = await service.getPublicByIds(["", "  ", "posting-1"]);
+    const result = await service.getPublicByIds(["", "  ", POSTING_1_ID]);
 
     expect(result.postings).toHaveLength(1);
-    expect(result.postings[0].id).toBe("posting-1");
+    expect(result.postings[0].id).toBe(POSTING_1_ID);
     expect(result.missingIds).toContain("");
     expect(result.missingIds).toContain("  ");
   });
 
   it("hydrates batches from a mix of cache hits and misses while preserving order", async () => {
     const cachedPosting = createPublicPosting({
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "Cached",
     });
     const fetchedPosting = createPublicPosting({
-      id: "posting-2",
+      id: POSTING_2_ID,
       name: "Fetched",
     });
     const { batchFindPublic, cacheService, service } = createService({
@@ -376,7 +380,7 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      "postings:public:data:posting-1:0",
+      `postings:public:data:${POSTING_1_ID}:0`,
       createEnvelope(cachedPosting, {
         freshOffsetMs: 10_000,
         staleOffsetMs: 20_000,
@@ -384,7 +388,7 @@ describe("PostingsPublicCacheService", () => {
     );
 
     await expect(
-      service.getPublicByIds(["posting-1", "posting-2", "posting-3"]),
+      service.getPublicByIds([POSTING_1_ID, POSTING_2_ID, "posting-3"]),
     ).resolves.toEqual({
       postings: [cachedPosting, fetchedPosting],
       missingIds: ["posting-3"],

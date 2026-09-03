@@ -1,4 +1,7 @@
 import { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createMembershipPersistence(overrides: Record<string, unknown> = {}) {
   return {
@@ -13,7 +16,7 @@ function createMembershipPersistence(overrides: Record<string, unknown> = {}) {
       updatedAt: new Date("2026-05-02T00:00:00.000Z"),
     },
     user: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       firstName: "Casey",
       lastName: "Doe",
@@ -49,11 +52,11 @@ describe("OrganizationsMembersRepository", () => {
       },
     } as any);
 
-    const result = await repository.listMembershipsByUserId("user-1", "org-2");
+    const result = await repository.listMembershipsByUserId(USER_1_ID, "org-2");
 
     expect(findMany).toHaveBeenCalledWith({
       where: {
-        userId: "user-1",
+        userId: USER_1_ID,
       },
       include: {
         organization: true,

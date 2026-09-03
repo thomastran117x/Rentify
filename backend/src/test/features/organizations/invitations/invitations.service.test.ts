@@ -1,13 +1,19 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { OrganizationInvitationsService } from "@/features/organizations/invitations/invitations.service";
+import { testUuid } from "../../../support/uuid";
+const INVITE_1_ID = testUuid(9000, 479992);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "owner@example.com",
     emailVerified: true,
-    preferredOrganizationId: "org-1",
+    preferredOrganizationId: ORG_1_ID,
     organizationMemberships: [],
     ...overrides,
   };
@@ -18,7 +24,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
     membershipId: "membership-1",
     role: "primary_manager",
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind",
       name: "Northwind",
     },
@@ -28,7 +34,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
 
 function createInvitation(overrides: Record<string, unknown> = {}) {
   return {
-    id: "invite-1",
+    id: INVITE_1_ID,
     email: "teammate@example.com",
     emailHint: "t***@example.com",
     role: "operator",
@@ -37,12 +43,12 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     invitedBy: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       username: "owner-one",
     },
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind",
       name: "Northwind",
     },
@@ -53,7 +59,7 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
 function createMember(overrides: Record<string, unknown> = {}) {
   return {
     membershipId: "membership-2",
-    userId: "user-2",
+    userId: USER_2_ID,
     email: "teammate@example.com",
     username: "teammate",
     role: "operator",
@@ -129,16 +135,16 @@ describe("OrganizationInvitationsService", () => {
     const { service, repository, emailService } = createService();
 
     const result = await service.createInvitation({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       email: "Teammate@Example.com",
       role: "manager",
     });
 
     expect(repository.reissueInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
-        invitedByUserId: "user-1",
+        organizationId: ORG_1_ID,
+        invitedByUserId: USER_1_ID,
         email: "teammate@example.com",
         role: "manager",
       }),
@@ -165,8 +171,8 @@ describe("OrganizationInvitationsService", () => {
 
     await expect(
       service.createInvitation({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         email: "teammate@example.com",
         role: "manager",
       }),
@@ -178,7 +184,7 @@ describe("OrganizationInvitationsService", () => {
       authRepository: {
         findUserById: jest.fn(async () =>
           createUser({
-            id: "user-2",
+            id: USER_2_ID,
             email: "teammate@example.com",
             emailVerified: true,
           }),
@@ -189,11 +195,11 @@ describe("OrganizationInvitationsService", () => {
     await expect(
       service.previewInvitation({
         token: "token-123",
-        userId: "user-2",
+        userId: USER_2_ID,
       }),
     ).resolves.toEqual({
       invitation: {
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         organizationName: "Northwind",
         emailHint: "t***@example.com",
         role: "operator",
@@ -233,7 +239,7 @@ describe("OrganizationInvitationsService", () => {
       authRepository: {
         findUserById: jest.fn(async () =>
           createUser({
-            id: "user-2",
+            id: USER_2_ID,
             email: "teammate@example.com",
             emailVerified: false,
             preferredOrganizationId: null,
@@ -243,7 +249,7 @@ describe("OrganizationInvitationsService", () => {
     });
 
     await expect(
-      service.acceptInvitation({ token: "token-123", userId: "user-2" }),
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -252,7 +258,7 @@ describe("OrganizationInvitationsService", () => {
       authRepository: {
         findUserById: jest.fn(async () =>
           createUser({
-            id: "user-2",
+            id: USER_2_ID,
             email: "other@example.com",
             preferredOrganizationId: null,
           }),
@@ -261,7 +267,7 @@ describe("OrganizationInvitationsService", () => {
     });
 
     await expect(
-      service.acceptInvitation({ token: "token-123", userId: "user-2" }),
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -270,7 +276,7 @@ describe("OrganizationInvitationsService", () => {
       authRepository: {
         findUserById: jest.fn(async () =>
           createUser({
-            id: "user-2",
+            id: USER_2_ID,
             email: "teammate@example.com",
             preferredOrganizationId: null,
           }),
@@ -280,7 +286,7 @@ describe("OrganizationInvitationsService", () => {
         listMembershipsByUserId: jest.fn(async () => [
           {
             membershipId: "membership-2",
-            id: "org-1",
+            id: ORG_1_ID,
             name: "Northwind",
             role: "operator",
             joinedAt: "2026-05-03T00:00:00.000Z",
@@ -291,18 +297,18 @@ describe("OrganizationInvitationsService", () => {
     });
 
     await expect(
-      service.acceptInvitation({ token: "token-123", userId: "user-2" }),
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
     ).resolves.toEqual({
       accepted: true,
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         slug: "northwind",
         name: "Northwind",
         role: "operator",
       },
       membership: {
         membershipId: "membership-2",
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Northwind",
         role: "operator",
         joinedAt: "2026-05-03T00:00:00.000Z",
@@ -310,8 +316,8 @@ describe("OrganizationInvitationsService", () => {
       },
     });
     expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
-      "user-2",
-      "org-1",
+      USER_2_ID,
+      ORG_1_ID,
     );
   });
 
@@ -319,7 +325,7 @@ describe("OrganizationInvitationsService", () => {
     const { service } = createService({
       authRepository: {
         findUserById: jest.fn(async () =>
-          createUser({ id: "user-2", email: "teammate@example.com" }),
+          createUser({ id: USER_2_ID, email: "teammate@example.com" }),
         ),
       },
       repository: {
@@ -330,7 +336,7 @@ describe("OrganizationInvitationsService", () => {
         listMembershipsByUserId: jest.fn(async () => [
           {
             membershipId: "membership-2",
-            id: "org-1",
+            id: ORG_1_ID,
             name: "Northwind",
             role: "operator",
             joinedAt: "2026-05-03T00:00:00.000Z",
@@ -341,18 +347,18 @@ describe("OrganizationInvitationsService", () => {
     });
 
     await expect(
-      service.acceptInvitation({ token: "token-123", userId: "user-2" }),
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
     ).resolves.toEqual({
       accepted: true,
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         slug: "northwind",
         name: "Northwind",
         role: "operator",
       },
       membership: {
         membershipId: "membership-2",
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Northwind",
         role: "operator",
         joinedAt: "2026-05-03T00:00:00.000Z",
@@ -375,18 +381,18 @@ describe("OrganizationInvitationsService", () => {
 
     await expect(
       service.revokeInvitation({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        invitationId: "invite-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        invitationId: INVITE_1_ID,
       }),
     ).resolves.toEqual({
       invitation: expect.objectContaining({
-        id: "invite-1",
+        id: INVITE_1_ID,
         status: "revoked",
       }),
     });
     expect(repository.revokeInvitation).toHaveBeenCalledWith(
-      "invite-1",
+      INVITE_1_ID,
       expect.any(Date),
     );
   });
@@ -402,9 +408,9 @@ describe("OrganizationInvitationsService", () => {
 
     await expect(
       service.revokeInvitation({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        invitationId: "invite-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        invitationId: INVITE_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
@@ -416,10 +422,10 @@ describe("OrganizationInvitationsService", () => {
     });
 
     await expect(
-      service.expirePendingInvitations("org-1", [expiredInvitation]),
+      service.expirePendingInvitations(ORG_1_ID, [expiredInvitation]),
     ).resolves.toBe(true);
     expect(repository.expireInvitation).toHaveBeenCalledWith(
-      "invite-1",
+      INVITE_1_ID,
       expect.any(Date),
     );
     expect(auditService.recordSafely).toHaveBeenCalledWith(
@@ -435,7 +441,7 @@ describe("OrganizationInvitationsService", () => {
     const { service, repository } = createService();
 
     await expect(
-      service.expirePendingInvitations("org-1", [createInvitation()]),
+      service.expirePendingInvitations(ORG_1_ID, [createInvitation()]),
     ).resolves.toBe(false);
     expect(repository.expireInvitation).not.toHaveBeenCalled();
   });

@@ -1,4 +1,7 @@
 import { PasswordRepository } from "@/features/auth/password/password.repository";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 describe("PasswordRepository", () => {
   it("writes a first password only while the account has none", async () => {
@@ -13,17 +16,17 @@ describe("PasswordRepository", () => {
     } as any);
 
     await expect(
-      repository.setPasswordHashIfUnset("user-1", "first-hash"),
+      repository.setPasswordHashIfUnset(USER_1_ID, "first-hash"),
     ).resolves.toBe(true);
     // A concurrent request already set one, so the conditional write matches
     // no rows and the caller must report a conflict.
     await expect(
-      repository.setPasswordHashIfUnset("user-1", "second-hash"),
+      repository.setPasswordHashIfUnset(USER_1_ID, "second-hash"),
     ).resolves.toBe(false);
 
     expect(updateMany).toHaveBeenNthCalledWith(1, {
       where: {
-        id: "user-1",
+        id: USER_1_ID,
         passwordHash: null,
       },
       data: {
@@ -40,7 +43,7 @@ describe("PasswordRepository", () => {
       },
     } as any);
 
-    await repository.updatePasswordHash("user-1", "new-hash");
+    await repository.updatePasswordHash(USER_1_ID, "new-hash");
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({

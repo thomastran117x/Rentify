@@ -19,6 +19,11 @@ import type {
   ContentReportSearchDocument,
   ListContentReportsInput,
 } from "@/features/reports/reports.model";
+import { testUuid } from "../../support/uuid";
+
+const MODERATOR_1_ID = testUuid(9000, 903590);
+const REPORT_1_ID = testUuid(9000, 265803);
+const USER_1_ID = testUuid(9000, 994257);
 
 describe("ReportsSearchIndexService", () => {
   afterEach(() => {
@@ -93,7 +98,7 @@ describe("ReportsSearchIndexService", () => {
     );
     expect(requestJson).toHaveBeenNthCalledWith(
       2,
-      "/custom-reports-index/_doc/report-1",
+      `/custom-reports-index/_doc/${REPORT_1_ID}`,
       {
         method: "PUT",
         body: JSON.stringify(createDocument()),
@@ -109,10 +114,10 @@ describe("ReportsSearchIndexService", () => {
       }) as any,
     );
 
-    await service.deleteDocument("report-1");
+    await service.deleteDocument(REPORT_1_ID);
 
     expect(requestJson).toHaveBeenCalledWith(
-      "/postings-test-reports/_doc/report-1",
+      `/postings-test-reports/_doc/${REPORT_1_ID}`,
       {
         method: "DELETE",
       },
@@ -156,7 +161,7 @@ describe("ReportsSearchIndexService", () => {
       expect.objectContaining({
         method: "POST",
         body:
-          '{"index":{"_index":"postings-test-reports","_id":"report-1"}}\n' +
+          `{"index":{"_index":"postings-test-reports","_id":"${REPORT_1_ID}"}}\n` +
           `${JSON.stringify(createDocument())}\n`,
       }),
       {
@@ -235,7 +240,7 @@ describe("ReportsSearchIndexService", () => {
           total: {
             value: 2,
           },
-          hits: [{ _id: "report-1" }, { _id: "report-2" }],
+          hits: [{ _id: REPORT_1_ID }, { _id: "report-2" }],
         },
       });
     const service = new ReportsSearchIndexService(
@@ -251,14 +256,14 @@ describe("ReportsSearchIndexService", () => {
       subjectType: "posting",
       reasonCode: "spam",
       assignedTo: "unassigned",
-      reporterId: "user-1",
+      reporterId: USER_1_ID,
       sort: "recentlyReviewed",
       page: 2,
       pageSize: 10,
     });
 
     expect(result).toEqual({
-      ids: ["report-1", "report-2"],
+      ids: [REPORT_1_ID, "report-2"],
       total: 2,
     });
 
@@ -312,7 +317,7 @@ describe("ReportsSearchIndexService", () => {
           },
           {
             term: {
-              reporterId: "user-1",
+              reporterId: USER_1_ID,
             },
           },
         ],
@@ -352,7 +357,7 @@ describe("ReportsSearchIndexService", () => {
     const result = await service.search({
       ...createSearchInput(),
       sort: "oldest",
-      assignedTo: "moderator-1",
+      assignedTo: MODERATOR_1_ID,
     });
 
     expect(result).toEqual({
@@ -373,7 +378,7 @@ describe("ReportsSearchIndexService", () => {
           filter: [
             {
               term: {
-                assignedModeratorId: "moderator-1",
+                assignedModeratorId: MODERATOR_1_ID,
               },
             },
           ],
@@ -402,7 +407,7 @@ function createDocument(
   overrides: Partial<ContentReportSearchDocument> = {},
 ): ContentReportSearchDocument {
   return {
-    id: "report-1",
+    id: REPORT_1_ID,
     subjectType: "posting",
     subjectId: "posting-1",
     reasonCode: "spam",
@@ -410,11 +415,11 @@ function createDocument(
     title: "Suspicious report",
     description: "This listing asks for money off platform.",
     subjectSnapshotText: "Snapshot text",
-    reporterId: "user-1",
+    reporterId: USER_1_ID,
     reporterEmail: "reporter@example.com",
     reporterUsername: "reporter-one",
     reporterRole: "user",
-    assignedModeratorId: "moderator-1",
+    assignedModeratorId: MODERATOR_1_ID,
     assignedModeratorEmail: "moderator@example.com",
     assignedModeratorUsername: "moderator-one",
     assignedModeratorRole: "moderator",

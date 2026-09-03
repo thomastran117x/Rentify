@@ -1,9 +1,20 @@
 import { Prisma } from "@/generated/prisma/client";
 import { ReportsRepository } from "@/features/reports/reports.repository";
+import { testUuid } from "../../support/uuid";
+const MISSING_ID = testUuid(9000, 394917);
+const POSTING_1_ID = testUuid(9000, 254272);
+const ORG_1_ID = testUuid(9000, 9234);
+
+const MODERATOR_1_ID = testUuid(9000, 903590);
+const MODERATOR_2_ID = testUuid(9000, 903591);
+const REPORT_1_ID = testUuid(9000, 265803);
+const REVIEW_1_ID = testUuid(9000, 118005);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_3_ID = testUuid(9000, 994259);
 
 function createUserPersistence(overrides: Record<string, unknown> = {}) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     role: "moderator",
     profile: {
@@ -16,10 +27,10 @@ function createUserPersistence(overrides: Record<string, unknown> = {}) {
 
 function createReportPersistence(overrides: Record<string, unknown> = {}) {
   return {
-    id: "report-1",
-    reporterId: "user-1",
+    id: REPORT_1_ID,
+    reporterId: USER_1_ID,
     subjectType: "posting",
-    subjectId: "posting-1",
+    subjectId: POSTING_1_ID,
     reasonCode: "spam",
     title: "Looks suspicious",
     description: "This listing asks for payment outside the platform.",
@@ -63,7 +74,7 @@ function createEventPersistence(overrides: Record<string, unknown> = {}) {
 function createOutboxPersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "outbox-1",
-    reportId: "report-1",
+    reportId: REPORT_1_ID,
     operation: "upsert",
     attempts: 0,
     availableAt: new Date("2026-05-04T00:00:00.000Z"),
@@ -100,9 +111,9 @@ describe("ReportsRepository", () => {
 
     const result = await repository.createReport(
       {
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting",
-        subjectId: "posting-1",
+        subjectId: POSTING_1_ID,
         reasonCode: "spam",
         title: "Looks suspicious",
         description: "This listing asks for payment outside the platform.",
@@ -111,11 +122,11 @@ describe("ReportsRepository", () => {
         subjectType: "posting",
         summaryText: "Posting snapshot",
         posting: {
-          id: "posting-1",
+          id: POSTING_1_ID,
           name: "Studio Loft",
           status: "published",
           organization: {
-            id: "org-1",
+            id: ORG_1_ID,
             name: "Northwind",
           },
         },
@@ -125,9 +136,9 @@ describe("ReportsRepository", () => {
     expect(createReport).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.any(String),
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting",
-        subjectId: "posting-1",
+        subjectId: POSTING_1_ID,
         reasonCode: "spam",
         title: "Looks suspicious",
         description: "This listing asks for payment outside the platform.",
@@ -138,15 +149,15 @@ describe("ReportsRepository", () => {
     expect(createEvent).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.any(String),
-        reportId: "report-1",
-        actorUserId: "user-1",
+        reportId: REPORT_1_ID,
+        actorUserId: USER_1_ID,
         eventType: "created",
       }),
     });
     expect(createOutbox).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.any(String),
-        reportId: "report-1",
+        reportId: REPORT_1_ID,
         operation: "upsert",
       }),
     });
@@ -171,7 +182,7 @@ describe("ReportsRepository", () => {
       subjectType: "posting",
       reasonCode: "spam",
       assignedTo: "unassigned",
-      reporterId: "user-1",
+      reporterId: USER_1_ID,
       sort: "recentlyReviewed",
     });
 
@@ -181,7 +192,7 @@ describe("ReportsRepository", () => {
         subjectType: "posting",
         reasonCode: "spam",
         assignedModeratorId: null,
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         OR: [
           {
             title: {
@@ -235,8 +246,8 @@ describe("ReportsRepository", () => {
       },
     } as any);
 
-    const detail = await repository.findById("report-1");
-    const indexDocs = await repository.listReportsForIndexing(["report-1"]);
+    const detail = await repository.findById(REPORT_1_ID);
+    const indexDocs = await repository.listReportsForIndexing([REPORT_1_ID]);
 
     expect(detail?.events).toEqual([
       {
@@ -247,7 +258,7 @@ describe("ReportsRepository", () => {
         assignmentUserId: undefined,
         note: "Escalated.",
         actor: {
-          id: "user-1",
+          id: USER_1_ID,
           email: "user@example.com",
           username: "moderator-one",
           avatarUrl: "https://example.test/avatar.png",
@@ -258,19 +269,19 @@ describe("ReportsRepository", () => {
     ]);
     expect(indexDocs).toEqual([
       {
-        id: "report-1",
+        id: REPORT_1_ID,
         subjectType: "posting",
-        subjectId: "posting-1",
+        subjectId: POSTING_1_ID,
         reasonCode: "spam",
         status: "open",
         title: "Looks suspicious",
         description: "This listing asks for payment outside the platform.",
         subjectSnapshotText: "Posting snapshot",
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         reporterEmail: "user@example.com",
         reporterUsername: "reporter-one",
         reporterRole: "user",
-        assignedModeratorId: "user-1",
+        assignedModeratorId: USER_1_ID,
         assignedModeratorEmail: "user@example.com",
         assignedModeratorUsername: "moderator-one",
         assignedModeratorRole: "moderator",
@@ -283,17 +294,17 @@ describe("ReportsRepository", () => {
 
   it("finds posting, review, and user subjects and maps user summaries", async () => {
     const postingFindUnique = jest.fn(async () => ({
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "Sunny Loft",
       status: "published",
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Studio Group",
       },
     }));
     const reviewFindUnique = jest.fn(async () => ({
-      id: "review-1",
+      id: REVIEW_1_ID,
       rating: 5,
       title: "Excellent stay",
       comment: "Clean and quiet.",
@@ -307,13 +318,13 @@ describe("ReportsRepository", () => {
         },
       }),
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "Sunny Loft",
       },
     }));
     const userFindUnique = jest.fn(async () =>
       createUserPersistence({
-        id: "user-3",
+        id: USER_3_ID,
         role: "admin",
       }),
     );
@@ -329,20 +340,20 @@ describe("ReportsRepository", () => {
       },
     } as any);
 
-    await expect(repository.findPostingSubject("posting-1")).resolves.toEqual({
-      id: "posting-1",
+    await expect(repository.findPostingSubject(POSTING_1_ID)).resolves.toEqual({
+      id: POSTING_1_ID,
       name: "Sunny Loft",
       status: "published",
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Studio Group",
       },
     });
     await expect(
-      repository.findPostingReviewSubject("review-1"),
+      repository.findPostingReviewSubject(REVIEW_1_ID),
     ).resolves.toEqual({
-      id: "review-1",
+      id: REVIEW_1_ID,
       rating: 5,
       title: "Excellent stay",
       comment: "Clean and quiet.",
@@ -352,18 +363,18 @@ describe("ReportsRepository", () => {
         email: "user@example.com",
       }),
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "Sunny Loft",
       },
     });
-    await expect(repository.findUserSubject("user-3")).resolves.toEqual(
+    await expect(repository.findUserSubject(USER_3_ID)).resolves.toEqual(
       expect.objectContaining({
-        id: "user-3",
+        id: USER_3_ID,
         role: "admin",
       }),
     );
-    await expect(repository.findUserSummaryById("user-3")).resolves.toEqual({
-      id: "user-3",
+    await expect(repository.findUserSummaryById(USER_3_ID)).resolves.toEqual({
+      id: USER_3_ID,
       email: "user@example.com",
       username: "moderator-one",
       avatarUrl: "https://example.test/avatar.png",
@@ -379,7 +390,7 @@ describe("ReportsRepository", () => {
         title: "Second",
       }),
       createReportPersistence({
-        id: "report-1",
+        id: REPORT_1_ID,
         title: "First",
       }),
     ]);
@@ -390,17 +401,17 @@ describe("ReportsRepository", () => {
       },
     } as any);
 
-    await expect(repository.findReportRecordById("report-1")).resolves.toEqual(
+    await expect(repository.findReportRecordById(REPORT_1_ID)).resolves.toEqual(
       expect.objectContaining({
-        id: "report-1",
+        id: REPORT_1_ID,
         title: "Looks suspicious",
       }),
     );
     await expect(
-      repository.findReportsByIds(["report-1", "missing", "report-2"]),
+      repository.findReportsByIds([REPORT_1_ID, MISSING_ID, "report-2"]),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "report-1",
+        id: REPORT_1_ID,
         title: "First",
       }),
       expect.objectContaining({
@@ -411,7 +422,7 @@ describe("ReportsRepository", () => {
   });
 
   it("returns null for missing assignment and status updates", async () => {
-    const missingError = new Prisma.PrismaClientKnownRequestError("missing", {
+    const missingError = new Prisma.PrismaClientKnownRequestError(MISSING_ID, {
       code: "P2025",
       clientVersion: "test",
     });
@@ -424,15 +435,15 @@ describe("ReportsRepository", () => {
 
     await expect(
       repository.updateAssignment({
-        reportId: "missing",
-        actorUserId: "user-1",
-        assignedModeratorId: "moderator-1",
+        reportId: MISSING_ID,
+        actorUserId: USER_1_ID,
+        assignedModeratorId: MODERATOR_1_ID,
       }),
     ).resolves.toBeNull();
     await expect(
       repository.updateStatus({
-        reportId: "missing",
-        actorUserId: "user-1",
+        reportId: MISSING_ID,
+        actorUserId: USER_1_ID,
         status: "resolved",
       }),
     ).resolves.toBeNull();
@@ -443,7 +454,7 @@ describe("ReportsRepository", () => {
       .fn(async () =>
         createReportPersistence({
           assignedModerator: createUserPersistence({
-            id: "moderator-2",
+            id: MODERATOR_2_ID,
             email: "assigned@example.com",
             profile: {
               username: "assigned-mod",
@@ -455,7 +466,7 @@ describe("ReportsRepository", () => {
       .mockResolvedValueOnce(
         createReportPersistence({
           assignedModerator: createUserPersistence({
-            id: "moderator-2",
+            id: MODERATOR_2_ID,
             email: "assigned@example.com",
             profile: {
               username: "assigned-mod",
@@ -513,20 +524,20 @@ describe("ReportsRepository", () => {
     const repository = new ReportsRepository(database as any);
 
     const assigned = await repository.updateAssignment({
-      reportId: "report-1",
-      actorUserId: "user-1",
-      assignedModeratorId: "moderator-2",
+      reportId: REPORT_1_ID,
+      actorUserId: USER_1_ID,
+      assignedModeratorId: MODERATOR_2_ID,
     });
     const resolved = await repository.updateStatus({
-      reportId: "report-1",
-      actorUserId: "user-1",
+      reportId: REPORT_1_ID,
+      actorUserId: USER_1_ID,
       status: "resolved",
       resolutionCode: "action_taken",
       resolutionSummary: "Listing removed.",
     });
     const noted = await repository.updateStatus({
-      reportId: "report-1",
-      actorUserId: "user-1",
+      reportId: REPORT_1_ID,
+      actorUserId: USER_1_ID,
       status: "resolved",
       note: "Follow-up note",
     });
@@ -534,7 +545,7 @@ describe("ReportsRepository", () => {
     expect(assigned).toEqual(
       expect.objectContaining({
         assignedModerator: {
-          id: "moderator-2",
+          id: MODERATOR_2_ID,
           email: "assigned@example.com",
           username: "assigned-mod",
           avatarUrl: undefined,
@@ -561,7 +572,7 @@ describe("ReportsRepository", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           eventType: "assigned",
-          assignmentUserId: "moderator-2",
+          assignmentUserId: MODERATOR_2_ID,
           note: "Moderator assignment updated.",
         }),
       }),
@@ -632,7 +643,7 @@ describe("ReportsRepository", () => {
     });
     expect(result[0]).toMatchObject({
       id: "outbox-1",
-      reportId: "report-1",
+      reportId: REPORT_1_ID,
       operation: "upsert",
       attempts: 0,
       availableAt: "2026-05-04T00:00:00.000Z",
@@ -655,7 +666,7 @@ describe("ReportsRepository", () => {
       },
     } as any);
 
-    const docs = await repository.listReportsForIndexing(["report-1"]);
+    const docs = await repository.listReportsForIndexing([REPORT_1_ID]);
     await repository.markSearchOutboxProcessed(["outbox-1"]);
     await repository.markSearchOutboxProcessed([]);
     await repository.retrySearchOutbox("outbox-1", 3, "x".repeat(3_000));
@@ -667,7 +678,7 @@ describe("ReportsRepository", () => {
 
     expect(docs).toEqual([
       expect.objectContaining({
-        id: "report-1",
+        id: REPORT_1_ID,
         reporterUsername: "reporter-one",
       }),
     ]);

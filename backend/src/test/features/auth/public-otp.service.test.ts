@@ -1,6 +1,10 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createClient(): ClientRequestContext {
   return {
@@ -11,7 +15,7 @@ function createClient(): ClientRequestContext {
 
 function createUser(): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 1,
@@ -21,8 +25,8 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,

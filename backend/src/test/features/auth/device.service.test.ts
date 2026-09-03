@@ -3,10 +3,16 @@ import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { DeviceService } from "@/features/auth/device/device.service";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { KnownDeviceRecord } from "@/features/auth/device/device.repository";
+import { testUuid } from "../../support/uuid";
+const KNOWN_DEVICE_1_ID = testUuid(9000, 135264);
+const KNOWN_DEVICE_2_ID = testUuid(9000, 135265);
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createUser(): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "hashed-password",
     tokenVersion: 2,
@@ -17,8 +23,8 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       phoneNumber: undefined,
       avatarUrl: undefined,
@@ -56,8 +62,8 @@ function createKnownDevice(
   overrides?: Partial<KnownDeviceRecord>,
 ): KnownDeviceRecord {
   return {
-    id: "known-device-1",
-    userId: "user-1",
+    id: KNOWN_DEVICE_1_ID,
+    userId: USER_1_ID,
     deviceId: "device-1",
     type: "desktop",
     platform: "macOS",
@@ -134,7 +140,7 @@ function createService(overrides?: {
       overrides?.listKnownDevices ??
         (async () => [
           createKnownDevice(),
-          createKnownDevice({ id: "known-device-2", deviceId: "device-2" }),
+          createKnownDevice({ id: KNOWN_DEVICE_2_ID, deviceId: "device-2" }),
         ]),
     ),
     removeKnownDevice: jest.fn(
@@ -186,7 +192,7 @@ describe("DeviceService", () => {
       knownByIp: true,
     });
     expect(deviceRepository.registerKnownDevice).toHaveBeenCalledWith({
-      userId: "user-1",
+      userId: USER_1_ID,
       deviceId: "device-9",
       type: "desktop",
       platform: "macOS",
@@ -229,7 +235,7 @@ describe("DeviceService", () => {
       knownByIp: true,
     });
     expect(deviceRepository.touchKnownDevice).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-1",
       "127.0.0.1",
     );
@@ -254,15 +260,15 @@ describe("DeviceService", () => {
       knownByIp: true,
     });
     expect(deviceRepository.findKnownDevice).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-2",
     );
     expect(deviceRepository.hasKnownIpAddress).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "127.0.0.1",
     );
     expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "127.0.0.1",
     );
     expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
@@ -286,7 +292,7 @@ describe("DeviceService", () => {
       knownByIp: true,
     });
     expect(deviceRepository.touchKnownIpAddress).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "127.0.0.1",
     );
     expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
@@ -330,10 +336,10 @@ describe("DeviceService", () => {
       knownByIp: false,
     });
     expect(cache.exists).toHaveBeenCalledWith(
-      "auth:unknown-device:user-1:new-device",
+      `auth:unknown-device:${USER_1_ID}:new-device`,
     );
     expect(cache.set).toHaveBeenCalledWith(
-      "auth:unknown-device:user-1:new-device",
+      `auth:unknown-device:${USER_1_ID}:new-device`,
       "1",
       1800,
     );
@@ -420,7 +426,7 @@ describe("DeviceService", () => {
     );
 
     expect(cache.exists).toHaveBeenCalledWith(
-      "auth:unknown-device:user-1:unknown-device",
+      `auth:unknown-device:${USER_1_ID}:unknown-device`,
     );
     expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -433,7 +439,7 @@ describe("DeviceService", () => {
     const { service } = createService();
 
     await expect(
-      service.listKnownDevices("user-1", "device-2"),
+      service.listKnownDevices(USER_1_ID, "device-2"),
     ).resolves.toEqual([
       {
         ...createKnownDevice(),
@@ -441,7 +447,7 @@ describe("DeviceService", () => {
       },
       {
         ...createKnownDevice({
-          id: "known-device-2",
+          id: KNOWN_DEVICE_2_ID,
           deviceId: "device-2",
         }),
         current: true,
@@ -455,7 +461,7 @@ describe("DeviceService", () => {
     });
 
     await expect(
-      service.removeKnownDevice("user-1", "missing-device"),
+      service.removeKnownDevice(USER_1_ID, "missing-device"),
     ).rejects.toMatchObject<Partial<BadRequestError>>({
       message: "Known device could not be found.",
     });
@@ -467,10 +473,10 @@ describe("DeviceService", () => {
     });
 
     await expect(
-      service.removeKnownDevice("user-1", "device-1"),
+      service.removeKnownDevice(USER_1_ID, "device-1"),
     ).resolves.toBeUndefined();
     expect(deviceRepository.removeKnownDevice).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-1",
     );
   });

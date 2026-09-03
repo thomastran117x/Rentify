@@ -4,6 +4,11 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { PostingsAnalyticsService } from "@/features/postings/analytics/analytics.service";
+import { testUuid } from "../../support/uuid";
+
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
 
 function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -11,7 +16,7 @@ function hashValue(value: string): string {
 
 function createPublicPosting(overrides: Record<string, unknown> = {}): any {
   return {
-    id: "posting-1",
+    id: POSTING_1_ID,
     organizationId: "org-1",
     status: "published",
     archivedAt: undefined,
@@ -55,7 +60,7 @@ describe("PostingsAnalyticsService", () => {
       })),
       requireMembership: jest.fn(
         async (userId: string, organizationId: string) => {
-          if (userId === "owner-1" && organizationId === "org-1") {
+          if (userId === OWNER_1_ID && organizationId === "org-1") {
             return {
               organizationId,
               userId,
@@ -69,7 +74,7 @@ describe("PostingsAnalyticsService", () => {
         },
       ),
       findMembership: jest.fn(async (userId: string, organizationId: string) =>
-        userId === "owner-1" && organizationId === "org-1"
+        userId === OWNER_1_ID && organizationId === "org-1"
           ? {
               organizationId,
               userId,
@@ -105,11 +110,11 @@ describe("PostingsAnalyticsService", () => {
     await service.trackPublicView(createPublicPosting(), client);
 
     expect(analyticsRepository.enqueuePostingViewedEvent).toHaveBeenCalledWith({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
       viewerHash: hashValue(
-        "posting:posting-1|day:2026-05-20|ip:203.0.113.10|ua:Mozilla/5.0|device:device-1",
+        `posting:${POSTING_1_ID}|day:2026-05-20|ip:203.0.113.10|ua:Mozilla/5.0|device:device-1`,
       ),
       userId: undefined,
       ipAddressHash: hashValue("ip:203.0.113.10"),
@@ -133,7 +138,7 @@ describe("PostingsAnalyticsService", () => {
     await service.trackPublicView(
       createPublicPosting(),
       createClient(),
-      "owner-1",
+      OWNER_1_ID,
     );
     await service.trackPublicView(
       createPublicPosting(),
@@ -172,7 +177,7 @@ describe("PostingsAnalyticsService", () => {
     await service.trackSearchImpressions([
       createPublicPosting(),
       createPublicPosting({
-        id: "posting-2",
+        id: POSTING_2_ID,
       }),
     ] as any);
 
@@ -182,7 +187,7 @@ describe("PostingsAnalyticsService", () => {
     expect(
       analyticsRepository.enqueueSearchImpressionEvent,
     ).toHaveBeenNthCalledWith(1, {
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
@@ -197,7 +202,7 @@ describe("PostingsAnalyticsService", () => {
         .fn()
         .mockResolvedValueOnce(createPublicPosting())
         .mockResolvedValueOnce({
-          id: "posting-2",
+          id: POSTING_2_ID,
           organizationId: "org-1",
           status: "paused",
         }),
@@ -208,8 +213,8 @@ describe("PostingsAnalyticsService", () => {
       createOrganizationAccessService(),
     );
 
-    await service.trackSearchClick("posting-1");
-    await service.trackSearchClick("posting-2");
+    await service.trackSearchClick(POSTING_1_ID);
+    await service.trackSearchClick(POSTING_2_ID);
 
     expect(postingsRepository.findPublicReadMetadataById).toHaveBeenCalledTimes(
       2,
@@ -218,7 +223,7 @@ describe("PostingsAnalyticsService", () => {
       1,
     );
     expect(analyticsRepository.enqueueSearchClickEvent).toHaveBeenCalledWith({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       organizationId: "org-1",
       occurredAt: "2026-05-20T14:30:00.000Z",
     });
@@ -235,12 +240,12 @@ describe("PostingsAnalyticsService", () => {
       createOrganizationAccessService(),
     );
 
-    await expect(service.getOwnerSummary("owner-1", "30d")).resolves.toEqual({
+    await expect(service.getOwnerSummary(OWNER_1_ID, "30d")).resolves.toEqual({
       window: "30d",
     });
     await expect(
       service.listOwnerPostingsAnalytics({
-        actorUserId: "owner-1",
+        actorUserId: OWNER_1_ID,
         organizationId: "org-1",
         window: "7d",
         page: 1,
@@ -254,7 +259,7 @@ describe("PostingsAnalyticsService", () => {
   it("enforces analytics detail existence, ownership, and hourly window rules", async () => {
     const analyticsRepository = {
       getPostingAnalyticsDetail: jest.fn(async () => ({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
       })),
     };
     const postingsRepository = {
@@ -276,8 +281,8 @@ describe("PostingsAnalyticsService", () => {
 
     await expect(
       service.getPostingAnalyticsDetail({
-        postingId: "posting-1",
-        actorUserId: "owner-1",
+        postingId: POSTING_1_ID,
+        actorUserId: OWNER_1_ID,
         organizationId: "org-1",
         window: "7d",
         granularity: "day",
@@ -286,20 +291,20 @@ describe("PostingsAnalyticsService", () => {
 
     await expect(
       service.getPostingAnalyticsDetail({
-        postingId: "posting-1",
-        actorUserId: "owner-1",
+        postingId: POSTING_1_ID,
+        actorUserId: OWNER_1_ID,
         organizationId: "org-1",
         window: "7d",
         granularity: "day",
       }),
     ).resolves.toEqual({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
     });
 
     await expect(
       service.getPostingAnalyticsDetail({
-        postingId: "posting-1",
-        actorUserId: "owner-1",
+        postingId: POSTING_1_ID,
+        actorUserId: OWNER_1_ID,
         organizationId: "org-1",
         window: "7d",
         granularity: "day",
@@ -308,8 +313,8 @@ describe("PostingsAnalyticsService", () => {
 
     await expect(
       service.getPostingAnalyticsDetail({
-        postingId: "posting-1",
-        actorUserId: "owner-1",
+        postingId: POSTING_1_ID,
+        actorUserId: OWNER_1_ID,
         organizationId: "org-1",
         window: "30d",
         granularity: "hour",

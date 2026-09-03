@@ -2,6 +2,10 @@
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ProfileController } from "@/features/profile/profile.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_USER_ID = testUuid(9000, 601112);
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -11,7 +15,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -144,7 +148,7 @@ describe("ProfileController", () => {
   });
 
   it("reads the authenticated user profile from context auth", async () => {
-    const claims = createClaims({ sub: "profile-user" });
+    const claims = createClaims({ sub: PROFILE_USER_ID });
     mockRequireJwtAuth.mockImplementation((async (request: any) => {
       request.auth = claims as any;
       return claims;
@@ -160,13 +164,13 @@ describe("ProfileController", () => {
 
     const response = await invoke(controller.getMe, context);
 
-    expect(getByUserId).toHaveBeenCalledWith("profile-user");
+    expect(getByUserId).toHaveBeenCalledWith(PROFILE_USER_ID);
     expect(context.get("auth")).toEqual(claims);
     expect(response.status).toBe(200);
   });
 
   it("validates update bodies, maps auth to userId, and returns a success message", async () => {
-    const claims = createClaims({ sub: "profile-user" });
+    const claims = createClaims({ sub: PROFILE_USER_ID });
     mockRequireJwtAuth.mockImplementation((async (request: any) => {
       request.auth = claims as any;
       return claims;
@@ -184,8 +188,8 @@ describe("ProfileController", () => {
         phoneNumber: "+1 555 0111",
         isPrivate: true,
         recommendationPersonalizationEnabled: false,
-        avatarUrl: "https://storage.example.com/avatars/user-1.png",
-        avatarBlobName: "avatars/user-1.png",
+        avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+        avatarBlobName: `avatars/${USER_1_ID}.png`,
         trustworthinessScore: 5,
         rentPostingsCount: 3,
         availableRentPostingsCount: 1,
@@ -195,13 +199,13 @@ describe("ProfileController", () => {
     const response = await invoke(controller.updateMe, context);
 
     expect(update).toHaveBeenCalledWith({
-      userId: "profile-user",
+      userId: PROFILE_USER_ID,
       username: "owner-one",
       phoneNumber: "+1 555 0111",
       isPrivate: true,
       recommendationPersonalizationEnabled: false,
-      avatarUrl: "https://storage.example.com/avatars/user-1.png",
-      avatarBlobName: "avatars/user-1.png",
+      avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+      avatarBlobName: `avatars/${USER_1_ID}.png`,
       trustworthinessScore: 5,
       rentPostingsCount: 3,
       availableRentPostingsCount: 1,
@@ -212,7 +216,7 @@ describe("ProfileController", () => {
       message: "Profile updated successfully.",
       data: {
         id: "profile-1",
-        userId: "profile-user",
+        userId: PROFILE_USER_ID,
       },
       meta: {
         requestId: "request-1",
@@ -221,7 +225,7 @@ describe("ProfileController", () => {
   });
 
   it("returns request validation errors for invalid update bodies", async () => {
-    const claims = createClaims({ sub: "profile-user" });
+    const claims = createClaims({ sub: PROFILE_USER_ID });
     mockRequireJwtAuth.mockImplementation((async (request: any) => {
       request.auth = claims as any;
       return claims;

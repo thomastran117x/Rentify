@@ -3,6 +3,11 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { OrganizationProfileService } from "@/features/organizations/profile/profile.service";
 import { OrganizationSlugTakenError } from "@/features/organizations/profile/profile.repository";
+import { testUuid } from "../../../support/uuid";
+
+const GHOST_ID = testUuid(9000, 332945);
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 const NULL_ORGANIZATION_PROFILE = {
   description: null,
@@ -22,10 +27,10 @@ const NULL_ORGANIZATION_PROFILE = {
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "owner@example.com",
     emailVerified: true,
-    preferredOrganizationId: "org-1",
+    preferredOrganizationId: ORG_1_ID,
     organizationMemberships: [],
     ...overrides,
   };
@@ -36,7 +41,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
     membershipId: "membership-1",
     role: "primary_manager",
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind",
       name: "Northwind",
       createdAt: "2026-05-01T00:00:00.000Z",
@@ -68,7 +73,7 @@ function createService(overrides?: {
     findMembershipAccess: jest.fn(async () => createMembership()),
     findOrganizationDetail: jest.fn(async () => ({
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Northwind",
         createdAt: "2026-05-01T00:00:00.000Z",
         updatedAt: "2026-05-01T00:00:00.000Z",
@@ -79,14 +84,14 @@ function createService(overrides?: {
     })),
     setPreferredOrganization: jest.fn(async () => undefined),
     updateOrganization: jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Renamed",
       role: "operator",
       ...NULL_ORGANIZATION_PROFILE,
     })),
     resolveBySlug: jest.fn(async () => null),
     changeOrganizationSlug: jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind-creative",
       name: "Northwind",
       role: "operator" as const,
@@ -171,7 +176,7 @@ describe("OrganizationProfileService", () => {
     });
 
     const result = await service.createOrganization({
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       name: "  Acme Rentals  ",
     });
 
@@ -179,10 +184,10 @@ describe("OrganizationProfileService", () => {
     expect(repository.createOrganizationWithOwner).toHaveBeenCalledWith({
       name: "Acme Rentals",
       slug: "acme-rentals",
-      ownerUserId: "user-1",
+      ownerUserId: USER_1_ID,
     });
     expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "org-9",
     );
     expect(result).toEqual({
@@ -209,7 +214,7 @@ describe("OrganizationProfileService", () => {
     });
 
     await expect(
-      service.createOrganization({ actorUserId: "ghost", name: "Acme" }),
+      service.createOrganization({ actorUserId: GHOST_ID, name: "Acme" }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
     expect(repository.createOrganizationWithOwner).not.toHaveBeenCalled();
   });
@@ -218,19 +223,19 @@ describe("OrganizationProfileService", () => {
     const { service, logoService } = createService();
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       name: "Northwind",
     });
 
     expect(logoService.assertLogoInput).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       expect.any(Object),
     );
     expect(logoService.cleanupReplacedLogo).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
       }),
     );
   });
@@ -240,17 +245,17 @@ describe("OrganizationProfileService", () => {
 
     await expect(
       service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         name: "  Better Northwind  ",
       }),
     ).resolves.toEqual({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Renamed",
       role: "primary_manager",
     });
     expect(repository.updateOrganization).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
       expect.objectContaining({ name: "Better Northwind" }),
     );
     expect(auditService.recordSafely).toHaveBeenCalledWith(
@@ -271,12 +276,12 @@ describe("OrganizationProfileService", () => {
     const { service, postingProjectionService } = createService();
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       name: "Renamed",
     });
 
-    expect(postingProjectionService.cascade).toHaveBeenCalledWith("org-1", {
+    expect(postingProjectionService.cascade).toHaveBeenCalledWith(ORG_1_ID, {
       reindex: true,
     });
   });
@@ -285,7 +290,7 @@ describe("OrganizationProfileService", () => {
     const { service, postingProjectionService } = createService({
       repository: {
         updateOrganization: jest.fn(async () => ({
-          id: "org-1",
+          id: ORG_1_ID,
           name: "Northwind",
           role: "operator",
           ...NULL_ORGANIZATION_PROFILE,
@@ -295,8 +300,8 @@ describe("OrganizationProfileService", () => {
     });
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       name: "Northwind",
       city: "Seattle",
     });
@@ -308,7 +313,7 @@ describe("OrganizationProfileService", () => {
     const { service, repository, auditService } = createService({
       repository: {
         updateOrganization: jest.fn(async () => ({
-          id: "org-1",
+          id: ORG_1_ID,
           name: "Northwind",
           role: "operator",
           ...NULL_ORGANIZATION_PROFILE,
@@ -319,15 +324,15 @@ describe("OrganizationProfileService", () => {
     });
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       name: "Northwind",
       description: "Now with a description",
       city: "Seattle",
     });
 
     expect(repository.updateOrganization).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
       expect.objectContaining({
         name: "Northwind",
         description: "Now with a description",
@@ -353,13 +358,13 @@ describe("OrganizationProfileService", () => {
     const { service, repository } = createService();
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       name: "Renamed",
     });
 
     expect(repository.updateOrganization).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
       expect.not.objectContaining({ slug: expect.anything() }),
     );
   });
@@ -367,7 +372,7 @@ describe("OrganizationProfileService", () => {
   it("expires pending invitations while loading organization details", async () => {
     const refreshedDetail = {
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Northwind",
         createdAt: "2026-05-01T00:00:00.000Z",
         updatedAt: "2026-05-01T00:00:00.000Z",
@@ -388,12 +393,14 @@ describe("OrganizationProfileService", () => {
       },
     });
 
-    await expect(service.getWorkspaceById("org-1", "user-1")).resolves.toEqual({
+    await expect(
+      service.getWorkspaceById(ORG_1_ID, USER_1_ID),
+    ).resolves.toEqual({
       ...refreshedDetail,
       viewerRole: "primary_manager",
     });
     expect(invitationsService.expirePendingInvitations).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
       [],
     );
     expect(repository.findOrganizationDetail).toHaveBeenCalledTimes(2);
@@ -402,7 +409,7 @@ describe("OrganizationProfileService", () => {
   it("does not reload organization details when nothing expired", async () => {
     const { service, repository } = createService();
 
-    await service.getWorkspaceById("org-1", "user-1");
+    await service.getWorkspaceById(ORG_1_ID, USER_1_ID);
 
     expect(repository.findOrganizationDetail).toHaveBeenCalledTimes(1);
   });
@@ -428,7 +435,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "Café Rentals",
       });
 
@@ -457,7 +464,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "Harbor Rentals",
       });
 
@@ -492,11 +499,11 @@ describe("OrganizationProfileService", () => {
 
       const [first, second] = await Promise.all([
         service.createOrganization({
-          actorUserId: "user-1",
+          actorUserId: USER_1_ID,
           name: "Harbor Rentals",
         }),
         service.createOrganization({
-          actorUserId: "user-1",
+          actorUserId: USER_1_ID,
           name: "Harbor Rentals",
         }),
       ]);
@@ -516,7 +523,7 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.createOrganization({
-          actorUserId: "user-1",
+          actorUserId: USER_1_ID,
           name: "Harbor Rentals",
         }),
       ).rejects.toBe(otherConflict);
@@ -549,7 +556,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "Harbor",
       });
 
@@ -574,7 +581,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "A",
       });
 
@@ -600,7 +607,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "00000000-0000-0000-1040-000000000001",
       });
 
@@ -625,7 +632,7 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.createOrganization({
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         name: "Invitations",
       });
 
@@ -638,7 +645,7 @@ describe("OrganizationProfileService", () => {
       const { service } = createService({
         repository: {
           resolveBySlug: jest.fn(async () => ({
-            organizationId: "org-1",
+            organizationId: ORG_1_ID,
             canonicalSlug: "northwind",
             name: "Northwind",
             matchedBy: "canonical-slug" as const,
@@ -647,7 +654,7 @@ describe("OrganizationProfileService", () => {
       });
 
       await expect(service.resolveBySlug("northwind")).resolves.toEqual({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         canonicalSlug: "northwind",
         name: "Northwind",
         matchedBy: "canonical-slug",
@@ -658,7 +665,7 @@ describe("OrganizationProfileService", () => {
       const { service } = createService({
         repository: {
           resolveBySlug: jest.fn(async () => ({
-            organizationId: "org-1",
+            organizationId: ORG_1_ID,
             canonicalSlug: "northwind-creative",
             name: "Northwind",
             matchedBy: "alias" as const,
@@ -686,7 +693,7 @@ describe("OrganizationProfileService", () => {
   describe("changeSlug", () => {
     it("retires the previous slug as an alias when the URL changes", async () => {
       const changeOrganizationSlug = jest.fn(async () => ({
-        id: "org-1",
+        id: ORG_1_ID,
         slug: "northwind-creative",
         name: "Northwind",
         role: "operator" as const,
@@ -700,13 +707,13 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.changeSlug({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         slug: "northwind-creative",
       });
 
       expect(changeOrganizationSlug).toHaveBeenCalledWith({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         nextSlug: "northwind-creative",
       });
       expect(result.slug).toBe("northwind-creative");
@@ -728,12 +735,12 @@ describe("OrganizationProfileService", () => {
       });
 
       await service.changeSlug({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         slug: "northwind-creative",
       });
 
-      expect(postingProjectionService.cascade).toHaveBeenCalledWith("org-1", {
+      expect(postingProjectionService.cascade).toHaveBeenCalledWith(ORG_1_ID, {
         reindex: false,
       });
     });
@@ -745,8 +752,8 @@ describe("OrganizationProfileService", () => {
       });
 
       const result = await service.changeSlug({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         slug: "northwind",
       });
 
@@ -771,8 +778,8 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.changeSlug({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           slug: "someone-elses-old-name",
         }),
       ).rejects.toBeInstanceOf(ConflictError);
@@ -788,7 +795,7 @@ describe("OrganizationProfileService", () => {
       const { service } = createService({
         repository: {
           resolveBySlug: jest.fn(async () => ({
-            organizationId: "org-1",
+            organizationId: ORG_1_ID,
             canonicalSlug: "northwind",
             name: "Northwind",
             matchedBy: "alias" as const,
@@ -799,8 +806,8 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.changeSlug({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           slug: "old-northwind",
         }),
       ).rejects.toBeInstanceOf(ConflictError);
@@ -819,8 +826,8 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.changeSlug({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           slug: "harbor-rentals",
         }),
       ).rejects.toBeInstanceOf(ConflictError);
@@ -839,8 +846,8 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.changeSlug({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           slug: "harbor-rentals",
         }),
       ).rejects.toBeInstanceOf(ForbiddenError);
@@ -858,8 +865,8 @@ describe("OrganizationProfileService", () => {
 
       await expect(
         service.changeSlug({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           slug: "harbor-rentals",
         }),
       ).rejects.toBeInstanceOf(ForbiddenError);

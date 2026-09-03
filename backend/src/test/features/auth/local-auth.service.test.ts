@@ -11,13 +11,17 @@ import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signu
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 const FAST_TEST_PASSWORD_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
 
 function createUser(): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 2,
@@ -28,8 +32,8 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       phoneNumber: undefined,
       avatarUrl: undefined,
@@ -292,7 +296,7 @@ function createService(overrides?: {
         oauthIdentities: [
           {
             id: "oauth-identity-1",
-            userId: "user-1",
+            userId: USER_1_ID,
             provider: profile.provider as "google" | "microsoft" | "apple",
             providerUserId: profile.providerUserId,
             providerEmail: profile.email,
@@ -355,7 +359,7 @@ function createService(overrides?: {
     verifyRefreshToken:
       overrides?.verifyRefreshToken ??
       (async () => ({
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-1",
         rememberMe: false,
         sessionId: "session-1",
@@ -1057,7 +1061,7 @@ describe("LocalAuthService", () => {
       lastName: "User",
       passwordHash: pendingPasswordHash,
     });
-    expect(markedVerifiedUserId).toBe("user-1");
+    expect(markedVerifiedUserId).toBe(USER_1_ID);
     expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
   });
 

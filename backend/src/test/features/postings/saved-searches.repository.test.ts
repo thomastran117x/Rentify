@@ -1,4 +1,12 @@
 import { SavedSearchesRepository } from "@/features/postings/saved-searches/saved-searches.repository";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+const POSTING_3_ID = testUuid(9000, 254274);
+
+const SEARCH_1_ID = testUuid(9000, 215277);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 function createRepository(prisma: Record<string, unknown>) {
   return new SavedSearchesRepository(prisma as never);
@@ -7,11 +15,11 @@ function createRepository(prisma: Record<string, unknown>) {
 describe("SavedSearchesRepository", () => {
   describe("create", () => {
     it("generates an identifier and stores the filters as JSON", async () => {
-      const create = jest.fn(async () => ({ id: "search-1" }));
+      const create = jest.fn(async () => ({ id: SEARCH_1_ID }));
       const repository = createRepository({ savedSearch: { create } });
 
       await repository.create({
-        userId: "user-1",
+        userId: USER_1_ID,
         name: "Kayaks",
         queryParams: { q: "kayak" } as never,
         queryHash: "hash",
@@ -23,7 +31,7 @@ describe("SavedSearchesRepository", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             id: expect.any(String),
-            userId: "user-1",
+            userId: USER_1_ID,
             queryParams: { q: "kayak" },
             queryHash: "hash",
             nextCheckAt: null,
@@ -38,11 +46,11 @@ describe("SavedSearchesRepository", () => {
       const findUnique = jest.fn(async () => null);
       const repository = createRepository({ savedSearch: { findUnique } });
 
-      await repository.findByHash("user-1", "hash");
+      await repository.findByHash(USER_1_ID, "hash");
 
       expect(findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { userId_queryHash: { userId: "user-1", queryHash: "hash" } },
+          where: { userId_queryHash: { userId: USER_1_ID, queryHash: "hash" } },
         }),
       );
     });
@@ -56,11 +64,11 @@ describe("SavedSearchesRepository", () => {
         savedSearch: { findMany, count },
       });
 
-      await repository.listPage("user-1", 3, 20);
+      await repository.listPage(USER_1_ID, 3, 20);
 
       expect(findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { userId: "user-1" },
+          where: { userId: USER_1_ID },
           skip: 40,
           take: 20,
           orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -76,11 +84,11 @@ describe("SavedSearchesRepository", () => {
         },
       });
 
-      await expect(repository.listPage("user-1", 1, 20)).resolves.toMatchObject(
-        {
-          pagination: { total: 0, totalPages: 1, hasNextPage: false },
-        },
-      );
+      await expect(
+        repository.listPage(USER_1_ID, 1, 20),
+      ).resolves.toMatchObject({
+        pagination: { total: 0, totalPages: 1, hasNextPage: false },
+      });
     });
   });
 
@@ -93,10 +101,10 @@ describe("SavedSearchesRepository", () => {
       });
 
       await expect(
-        repository.update("search-1", "user-2", { name: "Mine now" }),
+        repository.update(SEARCH_1_ID, USER_2_ID, { name: "Mine now" }),
       ).resolves.toBeNull();
       expect(updateMany).toHaveBeenCalledWith({
-        where: { id: "search-1", userId: "user-2" },
+        where: { id: SEARCH_1_ID, userId: USER_2_ID },
         data: { name: "Mine now" },
       });
       expect(findUnique).not.toHaveBeenCalled();
@@ -106,13 +114,13 @@ describe("SavedSearchesRepository", () => {
       const repository = createRepository({
         savedSearch: {
           updateMany: jest.fn(async () => ({ count: 1 })),
-          findUnique: jest.fn(async () => ({ id: "search-1" })),
+          findUnique: jest.fn(async () => ({ id: SEARCH_1_ID })),
         },
       });
 
       await expect(
-        repository.update("search-1", "user-1", { name: "Kayaks" }),
-      ).resolves.toMatchObject({ id: "search-1" });
+        repository.update(SEARCH_1_ID, USER_1_ID, { name: "Kayaks" }),
+      ).resolves.toMatchObject({ id: SEARCH_1_ID });
     });
   });
 
@@ -131,15 +139,17 @@ describe("SavedSearchesRepository", () => {
         },
       });
 
-      await expect(repository.remove("search-1", "user-1")).resolves.toBe(true);
-      await expect(repository.remove("search-1", "user-2")).resolves.toBe(
+      await expect(repository.remove(SEARCH_1_ID, USER_1_ID)).resolves.toBe(
+        true,
+      );
+      await expect(repository.remove(SEARCH_1_ID, USER_2_ID)).resolves.toBe(
         false,
       );
       await expect(
-        repository.resetNewMatchCount("search-1", "user-1"),
+        repository.resetNewMatchCount(SEARCH_1_ID, USER_1_ID),
       ).resolves.toBe(true);
       await expect(
-        repository.resetNewMatchCount("search-1", "user-2"),
+        repository.resetNewMatchCount(SEARCH_1_ID, USER_2_ID),
       ).resolves.toBe(false);
     });
   });
@@ -175,7 +185,7 @@ describe("SavedSearchesRepository", () => {
       const updateMany = jest.fn(async () => ({ count: 1 }));
       const repository = createRepository({
         savedSearch: {
-          findMany: jest.fn(async () => [{ id: "search-1" }]),
+          findMany: jest.fn(async () => [{ id: SEARCH_1_ID }]),
           updateMany,
         },
       });
@@ -183,7 +193,7 @@ describe("SavedSearchesRepository", () => {
       await repository.claimDueSearches(claimedAt, nextCheckAt, 25);
 
       expect(updateMany).toHaveBeenCalledWith({
-        where: { id: "search-1", nextCheckAt: { lte: claimedAt } },
+        where: { id: SEARCH_1_ID, nextCheckAt: { lte: claimedAt } },
         data: { nextCheckAt, lastCheckedAt: claimedAt },
       });
     });
@@ -192,7 +202,7 @@ describe("SavedSearchesRepository", () => {
       const repository = createRepository({
         savedSearch: {
           findMany: jest.fn(async () => [
-            { id: "search-1" },
+            { id: SEARCH_1_ID },
             { id: "search-2" },
           ]),
           updateMany: jest
@@ -226,10 +236,10 @@ describe("SavedSearchesRepository", () => {
       const repository = createRepository({ savedSearch: { updateMany } });
       const invalidatedAt = new Date("2026-08-25T12:00:00.000Z");
 
-      await repository.markInvalidated("search-1", invalidatedAt);
+      await repository.markInvalidated(SEARCH_1_ID, invalidatedAt);
 
       expect(updateMany).toHaveBeenCalledWith({
-        where: { id: "search-1" },
+        where: { id: SEARCH_1_ID },
         data: { invalidatedAt, nextCheckAt: null },
       });
     });
@@ -241,10 +251,10 @@ describe("SavedSearchesRepository", () => {
       const repository = createRepository({ savedSearch: { update } });
       const notifiedAt = new Date("2026-08-25T12:00:00.000Z");
 
-      await repository.recordAlert("search-1", notifiedAt, 3);
+      await repository.recordAlert(SEARCH_1_ID, notifiedAt, 3);
 
       expect(update).toHaveBeenCalledWith({
-        where: { id: "search-1" },
+        where: { id: SEARCH_1_ID },
         data: { lastNotifiedAt: notifiedAt, newMatchCount: { increment: 3 } },
       });
     });
@@ -254,17 +264,17 @@ describe("SavedSearchesRepository", () => {
     it("keeps the caller ordering so the newest match still leads", async () => {
       const repository = createRepository({
         savedSearchSeenPosting: {
-          findMany: jest.fn(async () => [{ postingId: "posting-2" }]),
+          findMany: jest.fn(async () => [{ postingId: POSTING_2_ID }]),
         },
       });
 
       await expect(
-        repository.filterUnseenPostingIds("search-1", [
-          "posting-1",
-          "posting-2",
-          "posting-3",
+        repository.filterUnseenPostingIds(SEARCH_1_ID, [
+          POSTING_1_ID,
+          POSTING_2_ID,
+          POSTING_3_ID,
         ]),
-      ).resolves.toEqual(["posting-1", "posting-3"]);
+      ).resolves.toEqual([POSTING_1_ID, POSTING_3_ID]);
     });
 
     it("short-circuits on an empty match set", async () => {
@@ -274,7 +284,7 @@ describe("SavedSearchesRepository", () => {
       });
 
       await expect(
-        repository.filterUnseenPostingIds("search-1", []),
+        repository.filterUnseenPostingIds(SEARCH_1_ID, []),
       ).resolves.toEqual([]);
       expect(findMany).not.toHaveBeenCalled();
     });
@@ -287,7 +297,7 @@ describe("SavedSearchesRepository", () => {
         savedSearchSeenPosting: { createMany },
       });
 
-      await repository.recordSeenPostings("search-1", ["posting-1"]);
+      await repository.recordSeenPostings(SEARCH_1_ID, [POSTING_1_ID]);
 
       expect(createMany).toHaveBeenCalledWith(
         expect.objectContaining({ skipDuplicates: true }),
@@ -300,9 +310,9 @@ describe("SavedSearchesRepository", () => {
         savedSearchSeenPosting: { createMany },
       });
 
-      await expect(repository.recordSeenPostings("search-1", [])).resolves.toBe(
-        0,
-      );
+      await expect(
+        repository.recordSeenPostings(SEARCH_1_ID, []),
+      ).resolves.toBe(0);
       expect(createMany).not.toHaveBeenCalled();
     });
   });
@@ -318,9 +328,9 @@ describe("SavedSearchesRepository", () => {
         },
       });
 
-      await expect(repository.pruneSeenPostings("search-1", 500)).resolves.toBe(
-        0,
-      );
+      await expect(
+        repository.pruneSeenPostings(SEARCH_1_ID, 500),
+      ).resolves.toBe(0);
       expect(deleteMany).not.toHaveBeenCalled();
     });
 
@@ -338,9 +348,9 @@ describe("SavedSearchesRepository", () => {
         },
       });
 
-      await expect(repository.pruneSeenPostings("search-1", 500)).resolves.toBe(
-        2,
-      );
+      await expect(
+        repository.pruneSeenPostings(SEARCH_1_ID, 500),
+      ).resolves.toBe(2);
       expect(findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           take: 2,

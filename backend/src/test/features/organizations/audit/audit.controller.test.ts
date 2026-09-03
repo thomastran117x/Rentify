@@ -1,6 +1,9 @@
 import { createTestContext, invoke } from "../../../support/mock-http";
 import { OrganizationAuditController } from "@/features/organizations/audit/audit.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockRequireJwtAuth = jest.fn();
 const mockGetOptionalJwtAuth = jest.fn();
@@ -18,7 +21,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -86,7 +89,7 @@ describe("OrganizationAuditController", () => {
 
     expect(list).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       page: 2,
       pageSize: 10,
       resourceType: "posting",
@@ -127,7 +130,7 @@ describe("OrganizationAuditController", () => {
 
     expect(restoreVersion).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       auditId: AUDIT_ID,
     });
     expect(response.status).toBe(200);

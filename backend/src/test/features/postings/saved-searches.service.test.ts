@@ -6,11 +6,16 @@ import {
   SAVED_SEARCH_SEEN_CAP,
 } from "@/features/postings/saved-searches/saved-searches.model";
 import { SavedSearchesService } from "@/features/postings/saved-searches/saved-searches.service";
+import { testUuid } from "../../support/uuid";
+const USER_2_ID = testUuid(9000, 994258);
+
+const SEARCH_1_ID = testUuid(9000, 215277);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "search-1",
-    userId: "user-1",
+    id: SEARCH_1_ID,
+    userId: USER_1_ID,
     name: "Kayaks",
     queryParams: { q: "kayak" },
     queryHash: "hash",
@@ -90,14 +95,14 @@ describe("SavedSearchesService", () => {
     it("saves a search and derives a name when none was given", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.create("user-1", {
+      await service.create(USER_1_ID, {
         queryParams: { q: "kayak", family: "equipment" },
         notifyFrequency: "instant",
       } as never);
 
       expect(savedSearchesRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: "user-1",
+          userId: USER_1_ID,
           name: "kayak · Equipment",
           notifyFrequency: "instant",
         }),
@@ -107,7 +112,7 @@ describe("SavedSearchesService", () => {
     it("keeps a name the caller supplied", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.create("user-1", {
+      await service.create(USER_1_ID, {
         name: "  Weekend kayaks  ",
         queryParams: { q: "kayak" },
         notifyFrequency: "instant",
@@ -124,7 +129,7 @@ describe("SavedSearchesService", () => {
       });
 
       await expect(
-        service.create("user-1", {
+        service.create(USER_1_ID, {
           queryParams: { q: "kayak" },
           notifyFrequency: "instant",
         } as never),
@@ -140,7 +145,7 @@ describe("SavedSearchesService", () => {
       });
 
       await expect(
-        service.create("user-1", {
+        service.create(USER_1_ID, {
           queryParams: { q: "kayak" },
           notifyFrequency: "instant",
         } as never),
@@ -158,7 +163,7 @@ describe("SavedSearchesService", () => {
           },
         });
 
-      await service.create("user-1", {
+      await service.create(USER_1_ID, {
         queryParams: { q: "kayak" },
         notifyFrequency: "instant",
       } as never);
@@ -167,7 +172,7 @@ describe("SavedSearchesService", () => {
         expect.objectContaining({ query: "kayak", sort: "newest" }),
       );
       expect(savedSearchesRepository.recordSeenPostings).toHaveBeenCalledWith(
-        "search-1",
+        SEARCH_1_ID,
         ["posting-1", "posting-2"],
       );
     });
@@ -181,7 +186,7 @@ describe("SavedSearchesService", () => {
           },
         });
 
-      await service.create("user-1", {
+      await service.create(USER_1_ID, {
         queryParams: { q: "kayak" },
         notifyFrequency: "instant",
       } as never);
@@ -207,17 +212,17 @@ describe("SavedSearchesService", () => {
       });
 
       await expect(
-        service.create("user-1", {
+        service.create(USER_1_ID, {
           queryParams: { q: "kayak" },
           notifyFrequency: "instant",
         } as never),
-      ).resolves.toMatchObject({ id: "search-1" });
+      ).resolves.toMatchObject({ id: SEARCH_1_ID });
     });
 
     it("leaves an off search unscheduled", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.create("user-1", {
+      await service.create(USER_1_ID, {
         queryParams: { q: "kayak" },
         notifyFrequency: "off",
       } as never);
@@ -232,9 +237,9 @@ describe("SavedSearchesService", () => {
     it("returns the searches with the per-account cap", async () => {
       const { service } = createDependencies();
 
-      await expect(service.list("user-1", 1, 20)).resolves.toMatchObject({
+      await expect(service.list(USER_1_ID, 1, 20)).resolves.toMatchObject({
         limit: MAX_SAVED_SEARCHES_PER_USER,
-        searches: [expect.objectContaining({ id: "search-1" })],
+        searches: [expect.objectContaining({ id: SEARCH_1_ID })],
       });
     });
   });
@@ -243,7 +248,7 @@ describe("SavedSearchesService", () => {
     it("re-arms the sweep when alerts are turned back on", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.update("search-1", "user-1", {
+      await service.update(SEARCH_1_ID, USER_1_ID, {
         notifyFrequency: "daily",
       } as never);
 
@@ -257,7 +262,7 @@ describe("SavedSearchesService", () => {
     it("disarms the sweep when alerts are turned off", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.update("search-1", "user-1", {
+      await service.update(SEARCH_1_ID, USER_1_ID, {
         notifyFrequency: "off",
       } as never);
 
@@ -270,7 +275,7 @@ describe("SavedSearchesService", () => {
     it("leaves the schedule alone for a rename", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.update("search-1", "user-1", { name: "Kayaks" } as never);
+      await service.update(SEARCH_1_ID, USER_1_ID, { name: "Kayaks" } as never);
 
       expect(
         (savedSearchesRepository.update as jest.Mock).mock.calls[0][2],
@@ -283,7 +288,7 @@ describe("SavedSearchesService", () => {
       });
 
       await expect(
-        service.update("search-1", "user-2", { name: "Mine now" } as never),
+        service.update(SEARCH_1_ID, USER_2_ID, { name: "Mine now" } as never),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
   });
@@ -294,20 +299,20 @@ describe("SavedSearchesService", () => {
         repository: { remove: jest.fn(async () => false) },
       });
 
-      await expect(service.remove("search-1", "user-2")).rejects.toBeInstanceOf(
-        ResourceNotFoundError,
-      );
+      await expect(
+        service.remove(SEARCH_1_ID, USER_2_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
     it("removes the caller's own search", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
       await expect(
-        service.remove("search-1", "user-1"),
+        service.remove(SEARCH_1_ID, USER_1_ID),
       ).resolves.toBeUndefined();
       expect(savedSearchesRepository.remove).toHaveBeenCalledWith(
-        "search-1",
-        "user-1",
+        SEARCH_1_ID,
+        USER_1_ID,
       );
     });
   });
@@ -316,11 +321,11 @@ describe("SavedSearchesService", () => {
     it("clears the badge for the owner", async () => {
       const { service, savedSearchesRepository } = createDependencies();
 
-      await service.markSeen("search-1", "user-1");
+      await service.markSeen(SEARCH_1_ID, USER_1_ID);
 
       expect(savedSearchesRepository.resetNewMatchCount).toHaveBeenCalledWith(
-        "search-1",
-        "user-1",
+        SEARCH_1_ID,
+        USER_1_ID,
       );
     });
 
@@ -330,7 +335,7 @@ describe("SavedSearchesService", () => {
       });
 
       await expect(
-        service.markSeen("search-1", "user-2"),
+        service.markSeen(SEARCH_1_ID, USER_2_ID),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
   });

@@ -12,11 +12,29 @@ import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import { testUuid } from "../../support/uuid";
+
+const BOOKING_1_ID = testUuid(9000, 996753);
+const BOOKING_AWAITING_ID = testUuid(9000, 946068);
+const BOOKING_CANCELLED_ID = testUuid(9000, 802537);
+const BOOKING_CONVERTED_ID = testUuid(9000, 97770);
+const BOOKING_CONVERT_ID = testUuid(9000, 410081);
+const BOOKING_FAILED_ID = testUuid(9000, 459196);
+const BOOKING_PAID_CONVERTED_ID = testUuid(9000, 5039);
+const BOOKING_PENDING_ID = testUuid(9000, 325160);
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+const POSTING_3_ID = testUuid(9000, 254274);
+const POSTING_4_ID = testUuid(9000, 254275);
+const RENTER_1_ID = testUuid(9000, 235000);
+const RENTING_1_ID = testUuid(9000, 915753);
+const RENTING_3_ID = testUuid(9000, 915755);
 
 function createPostingRecord(overrides: Partial<PostingRecord> = {}): any {
   return {
-    id: "posting-1",
-    ownerId: "owner-1",
+    id: POSTING_1_ID,
+    ownerId: OWNER_1_ID,
     organizationId: "org-1",
     status: "published",
     variant: {
@@ -59,10 +77,10 @@ function createBookingRequestRecord(
   overrides: Partial<BookingRequestRecord> = {},
 ): any {
   return {
-    id: "booking-1",
-    postingId: "posting-1",
-    renterId: "renter-1",
-    ownerId: "owner-1",
+    id: BOOKING_1_ID,
+    postingId: POSTING_1_ID,
+    renterId: RENTER_1_ID,
+    ownerId: OWNER_1_ID,
     organizationId: "org-1",
     status: "pending",
     startAt: "2099-05-01T00:00:00.000Z",
@@ -85,7 +103,7 @@ function createBookingRequestRecord(
     createdAt: "2026-04-20T00:00:00.000Z",
     updatedAt: "2026-04-20T00:00:00.000Z",
     posting: {
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "City loft",
       effectiveMaxBookingDurationDays: 30,
     },
@@ -95,11 +113,11 @@ function createBookingRequestRecord(
 
 function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    id: "renting-1",
-    postingId: "posting-1",
-    bookingRequestId: "booking-1",
-    renterId: "renter-1",
-    ownerId: "owner-1",
+    id: RENTING_1_ID,
+    postingId: POSTING_1_ID,
+    bookingRequestId: BOOKING_1_ID,
+    renterId: RENTER_1_ID,
+    ownerId: OWNER_1_ID,
     organizationId: "org-1",
     status: "confirmed",
     startAt: "2099-05-01T00:00:00.000Z",
@@ -119,7 +137,7 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
     createdAt: "2099-04-23T00:00:00.000Z",
     updatedAt: "2099-04-23T00:00:00.000Z",
     posting: {
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "City loft",
       primaryPhotoUrl: "https://example.test/loft.jpg",
     },
@@ -130,10 +148,10 @@ function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
 function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: "payment-1",
-    bookingRequestId: "booking-1",
-    postingId: "posting-1",
-    renterId: "renter-1",
-    ownerId: "owner-1",
+    bookingRequestId: BOOKING_1_ID,
+    postingId: POSTING_1_ID,
+    renterId: RENTER_1_ID,
+    ownerId: OWNER_1_ID,
     organizationId: "org-1",
     provider: "square",
     status: "succeeded",
@@ -142,7 +160,7 @@ function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
     platformFeeAmount: 30,
     totalAmount: 330,
     booking: {
-      id: "booking-1",
+      id: BOOKING_1_ID,
       status: "paid",
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
@@ -208,7 +226,7 @@ function createService(options?: {
     listDashboardPostingOptionsByOrganization: jest.fn(
       async () =>
         options?.dashboardOwnerPostingOptions ?? [
-          { id: "posting-1", name: "City loft" },
+          { id: POSTING_1_ID, name: "City loft" },
         ],
     ),
     cancel: jest.fn(async () => ({
@@ -286,7 +304,7 @@ function createService(options?: {
     })),
     requireMembership: jest.fn(
       async (userId: string, organizationId: string) => {
-        if (userId.startsWith("owner")) {
+        if (userId === OWNER_1_ID) {
           return {
             organizationId,
             userId,
@@ -298,7 +316,7 @@ function createService(options?: {
       },
     ),
     findMembership: jest.fn(async (userId: string, organizationId: string) =>
-      userId.startsWith("owner")
+      userId === OWNER_1_ID
         ? {
             organizationId,
             userId,
@@ -396,8 +414,8 @@ describe("BookingsService", () => {
     } = createService();
 
     const result = await service.create({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -410,8 +428,8 @@ describe("BookingsService", () => {
     expect(
       bookingsRepository.countActiveRequestsForRenterPosting,
     ).toHaveBeenCalledWith({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       excludeBookingRequestId: undefined,
     });
     expect(
@@ -424,20 +442,20 @@ describe("BookingsService", () => {
       analyticsRepository.enqueueBookingRequestedEvent,
     ).toHaveBeenCalledTimes(1);
     expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
-      "posting-1",
+      POSTING_1_ID,
     );
     expect(postingsRepository.enqueueSearchSync).toHaveBeenCalledWith(
-      "posting-1",
+      POSTING_1_ID,
     );
-    expect(result.id).toBe("booking-1");
+    expect(result.id).toBe(BOOKING_1_ID);
   });
 
   it("serializes booking creation on the posting booking-window lock before the renter cap lock", async () => {
     const { service, cacheService } = createService();
 
     await service.create({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -446,8 +464,8 @@ describe("BookingsService", () => {
     });
 
     expect(cacheService.acquireLock.mock.calls.map(([key]) => key)).toEqual([
-      "posting:posting-1:booking-window",
-      "booking-request-cap:posting-1:renter-1",
+      `posting:${POSTING_1_ID}:booking-window`,
+      `booking-request-cap:${POSTING_1_ID}:${RENTER_1_ID}`,
     ]);
   });
 
@@ -458,8 +476,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -477,15 +495,15 @@ describe("BookingsService", () => {
     const { service, bookingsRepository, rentingsRepository } = createService();
 
     const result = await service.quote({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
     });
 
     expect(result).toMatchObject({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       bookable: true,
       durationDays: 3,
       pricingCurrency: "CAD",
@@ -515,8 +533,8 @@ describe("BookingsService", () => {
     });
 
     const result = await service.quote({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -542,8 +560,8 @@ describe("BookingsService", () => {
     });
 
     const quote = await service.quote({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -556,8 +574,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -592,8 +610,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -619,8 +637,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -647,8 +665,8 @@ describe("BookingsService", () => {
     const { service, bookingsRepository } = createService() as any;
 
     await service.create({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -676,8 +694,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -703,8 +721,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.updateOwnPending({
-        bookingRequestId: "booking-1",
-        renterId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -714,8 +732,8 @@ describe("BookingsService", () => {
     ).rejects.toBeInstanceOf(ConflictError);
 
     expect(cacheService.acquireLock.mock.calls.map(([key]) => key)).toEqual([
-      "booking-request:booking-1:state",
-      "posting:posting-1:booking-window",
+      `booking-request:${BOOKING_1_ID}:state`,
+      `posting:${POSTING_1_ID}:booking-window`,
     ]);
   });
 
@@ -737,8 +755,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.updateOwnPending({
-        bookingRequestId: "booking-1",
-        renterId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: pastStart.toISOString(),
         endAt: pastEnd.toISOString(),
         guestCount: 2,
@@ -767,8 +785,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.updateOwnPending({
-        bookingRequestId: "booking-1",
-        renterId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -796,21 +814,21 @@ describe("BookingsService", () => {
     });
 
     await service.approve({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: OWNER_1_ID,
       note: "approved",
     });
 
     expect(cacheService.acquireLock.mock.calls.map(([key]) => key)).toEqual([
-      "booking-request:booking-1:decision",
-      "booking-request:booking-1:state",
-      "posting:posting-1:booking-window",
+      `booking-request:${BOOKING_1_ID}:decision`,
+      `booking-request:${BOOKING_1_ID}:state`,
+      `posting:${POSTING_1_ID}:booking-window`,
     ]);
     expect(
       analyticsRepository.enqueueBookingApprovedEvent,
     ).toHaveBeenCalledTimes(1);
     expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
-      "posting-1",
+      POSTING_1_ID,
     );
   });
 
@@ -827,8 +845,8 @@ describe("BookingsService", () => {
     });
 
     const approved = await service.approve({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: OWNER_1_ID,
       note: "approved",
     });
 
@@ -843,14 +861,14 @@ describe("BookingsService", () => {
     const { service, bookingsRepository } = createService() as any;
 
     const result = await service.listOwned({
-      actorUserId: "owner-1",
+      actorUserId: OWNER_1_ID,
       organizationId: "org-1",
       page: 1,
       pageSize: 20,
     });
 
     expect(bookingsRepository.listByOwner).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
+      actorUserId: OWNER_1_ID,
       organizationId: "org-1",
       page: 1,
       pageSize: 20,
@@ -861,29 +879,29 @@ describe("BookingsService", () => {
 
   it("builds a renter dashboard with action-needed, upcoming, past, and cancelled buckets", async () => {
     const pending = createBookingRequestRecord({
-      id: "booking-pending",
+      id: BOOKING_PENDING_ID,
       status: "pending",
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-03T00:00:00.000Z",
     });
     const awaitingPayment = createBookingRequestRecord({
-      id: "booking-awaiting",
+      id: BOOKING_AWAITING_ID,
       status: "awaiting_payment",
       holdExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       startAt: "2099-05-04T00:00:00.000Z",
       endAt: "2099-05-06T00:00:00.000Z",
     });
     const cancelled = createBookingRequestRecord({
-      id: "booking-cancelled",
+      id: BOOKING_CANCELLED_ID,
       status: "cancelled",
       startAt: "2099-05-07T00:00:00.000Z",
       endAt: "2099-05-08T00:00:00.000Z",
     });
     const paidConverted = createBookingRequestRecord({
-      id: "booking-paid-converted",
+      id: BOOKING_PAID_CONVERTED_ID,
       status: "paid",
       convertedAt: "2099-04-21T00:00:00.000Z",
-      rentingId: "renting-1",
+      rentingId: RENTING_1_ID,
     });
     const futureRenting = createRentingRecord({
       id: "renting-future",
@@ -912,18 +930,18 @@ describe("BookingsService", () => {
     });
 
     const result = await service.dashboardMine({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       page: 1,
       pageSize: 10,
       sort: "urgency",
     });
 
     expect(bookingsRepository.listDashboardByRenter).toHaveBeenCalledWith({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       status: undefined,
     });
     expect(rentingsRepository.listByRenterForDashboard).toHaveBeenCalledWith(
-      "renter-1",
+      RENTER_1_ID,
     );
     expect(result.summary).toEqual({
       upcoming: 1,
@@ -934,21 +952,21 @@ describe("BookingsService", () => {
       cancelled: 1,
     });
     expect(
-      result.items.find((item) => item.id === "booking-awaiting"),
+      result.items.find((item) => item.id === BOOKING_AWAITING_ID),
     ).toMatchObject({
       kind: "booking_request",
-      id: "booking-awaiting",
+      id: BOOKING_AWAITING_ID,
       actionNeededCategory: "payment",
       isExpiringHold: true,
     });
     expect(
-      result.items.some((item) => item.id === "booking-paid-converted"),
+      result.items.some((item) => item.id === BOOKING_PAID_CONVERTED_ID),
     ).toBe(false);
   });
 
   it("filters renter dashboards by status before merging rentings", async () => {
     const awaitingPayment = createBookingRequestRecord({
-      id: "booking-awaiting",
+      id: BOOKING_AWAITING_ID,
       status: "awaiting_payment",
     });
     const { service, bookingsRepository, rentingsRepository } = createService({
@@ -957,7 +975,7 @@ describe("BookingsService", () => {
     });
 
     const result = await service.dashboardMine({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       page: 1,
       pageSize: 10,
       sort: "urgency",
@@ -966,20 +984,20 @@ describe("BookingsService", () => {
     });
 
     expect(bookingsRepository.listDashboardByRenter).toHaveBeenCalledWith({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       status: "awaiting_payment",
     });
     expect(rentingsRepository.listByRenterForDashboard).not.toHaveBeenCalled();
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]?.id).toBe("booking-awaiting");
+    expect(result.items[0]?.id).toBe(BOOKING_AWAITING_ID);
   });
 
   it("builds owner dashboards with cross-posting scoping and action-needed filters", async () => {
     const pending = createBookingRequestRecord({
-      id: "booking-pending",
-      postingId: "posting-1",
+      id: BOOKING_PENDING_ID,
+      postingId: POSTING_1_ID,
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "City loft",
         effectiveMaxBookingDurationDays: 30,
       },
@@ -987,10 +1005,10 @@ describe("BookingsService", () => {
       holdExpiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     });
     const paymentFailed = createBookingRequestRecord({
-      id: "booking-failed",
-      postingId: "posting-2",
+      id: BOOKING_FAILED_ID,
+      postingId: POSTING_2_ID,
       posting: {
-        id: "posting-2",
+        id: POSTING_2_ID,
         name: "Studio set",
         effectiveMaxBookingDurationDays: 30,
       },
@@ -998,17 +1016,17 @@ describe("BookingsService", () => {
       holdExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
     });
     const converted = createBookingRequestRecord({
-      id: "booking-converted",
-      postingId: "posting-3",
+      id: BOOKING_CONVERTED_ID,
+      postingId: POSTING_3_ID,
       status: "paid",
       convertedAt: "2099-04-21T00:00:00.000Z",
-      rentingId: "renting-3",
+      rentingId: RENTING_3_ID,
     });
     const readyToConvert = createBookingRequestRecord({
-      id: "booking-convert",
-      postingId: "posting-4",
+      id: BOOKING_CONVERT_ID,
+      postingId: POSTING_4_ID,
       posting: {
-        id: "posting-4",
+        id: POSTING_4_ID,
         name: "Canal cottage",
         effectiveMaxBookingDurationDays: 30,
       },
@@ -1046,14 +1064,14 @@ describe("BookingsService", () => {
         ownerPastRenting,
       ],
       dashboardOwnerPostingOptions: [
-        { id: "posting-1", name: "City loft" },
-        { id: "posting-2", name: "Studio set" },
-        { id: "posting-4", name: "Canal cottage" },
+        { id: POSTING_1_ID, name: "City loft" },
+        { id: POSTING_2_ID, name: "Studio set" },
+        { id: POSTING_4_ID, name: "Canal cottage" },
       ],
     });
 
     const result = await service.dashboardOwned({
-      actorUserId: "owner-1",
+      actorUserId: OWNER_1_ID,
       organizationId: "org-1",
       page: 1,
       pageSize: 10,
@@ -1079,13 +1097,13 @@ describe("BookingsService", () => {
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toMatchObject({
-      id: "booking-convert",
+      id: BOOKING_CONVERT_ID,
       actionNeededCategory: "conversion",
     });
     expect(result.postings).toEqual([
-      { id: "posting-1", name: "City loft" },
-      { id: "posting-2", name: "Studio set" },
-      { id: "posting-4", name: "Canal cottage" },
+      { id: POSTING_1_ID, name: "City loft" },
+      { id: POSTING_2_ID, name: "Studio set" },
+      { id: POSTING_4_ID, name: "Canal cottage" },
     ]);
   });
 
@@ -1098,7 +1116,7 @@ describe("BookingsService", () => {
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
 
     expect(quote).toMatchObject({
       cancellable: true,
@@ -1122,7 +1140,7 @@ describe("BookingsService", () => {
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
 
     expect(quote).toMatchObject({
       cancellable: true,
@@ -1142,7 +1160,7 @@ describe("BookingsService", () => {
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
 
     expect(quote).toMatchObject({
       cancellable: true,
@@ -1169,26 +1187,26 @@ describe("BookingsService", () => {
 
     await expect(
       service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
       }),
     ).rejects.toMatchObject<Partial<BadRequestError>>({
       message: "Owners must provide a cancellation reason.",
     });
 
     const cancelled = await service.cancel({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: OWNER_1_ID,
       reason: "Pipe burst in the unit.",
     });
 
     expect(paymentsRepository.createRefundRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentId: "payment-1",
-        actorUserId: "owner-1",
+        actorUserId: OWNER_1_ID,
         amount: 330,
         reason: "Pipe burst in the unit.",
-        idempotencyKey: "booking-cancel-booking-1",
+        idempotencyKey: `booking-cancel-${BOOKING_1_ID}`,
       }),
     );
     expect(paymentProvider.createRefund).toHaveBeenCalledTimes(1);
@@ -1216,7 +1234,7 @@ describe("BookingsService", () => {
         createdBooking: booking,
       });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
     expect(quote).toMatchObject({
       cancellable: true,
       actor: "renter",
@@ -1225,8 +1243,8 @@ describe("BookingsService", () => {
     });
 
     await service.cancel({
-      bookingRequestId: "booking-1",
-      actorUserId: "renter-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: RENTER_1_ID,
       reason: "Schedule conflict",
     });
 
@@ -1248,18 +1266,18 @@ describe("BookingsService", () => {
         startAt: "2099-05-10T00:00:00.000Z",
         endAt: "2099-05-12T00:00:00.000Z",
         convertedAt: "2099-04-21T00:00:00.000Z",
-        rentingId: "renting-1",
+        rentingId: RENTING_1_ID,
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
     expect(quote.cancellable).toBe(false);
     expect(quote.failureReasons[0]?.code).toBe("booking_already_converted");
 
     await expect(
       service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: RENTER_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
@@ -1273,7 +1291,7 @@ describe("BookingsService", () => {
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
     expect(quote.cancellable).toBe(false);
     expect(quote.failureReasons[0]?.code).toBe("booking_status_ineligible");
   });
@@ -1287,7 +1305,7 @@ describe("BookingsService", () => {
       }),
     });
 
-    const quote = await service.getCancellationQuote("booking-1", "renter-1");
+    const quote = await service.getCancellationQuote(BOOKING_1_ID, RENTER_1_ID);
     expect(quote.cancellable).toBe(false);
     expect(quote.failureReasons[0]?.code).toBe(
       "payment_processing_in_progress",
@@ -1295,8 +1313,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: RENTER_1_ID,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -1316,13 +1334,13 @@ describe("BookingsService", () => {
     }));
 
     const result = await service.listMine({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       page: 2,
       pageSize: 5,
     } as any);
 
     expect(bookingsRepository.listByRenter).toHaveBeenCalledWith({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       page: 2,
       pageSize: 5,
     });
@@ -1335,8 +1353,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.create({
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         startAt: "2099-05-01T00:00:00.000Z",
         endAt: "2099-05-04T00:00:00.000Z",
         guestCount: 2,
@@ -1359,8 +1377,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.approve({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
         note: "approve",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -1369,8 +1387,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.decline({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
         note: "decline",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -1390,8 +1408,8 @@ describe("BookingsService", () => {
     );
 
     const unsupportedQuote = await missingPayment.service.getCancellationQuote(
-      "booking-1",
-      "renter-1",
+      BOOKING_1_ID,
+      RENTER_1_ID,
     );
 
     expect(unsupportedQuote).toMatchObject({
@@ -1400,8 +1418,8 @@ describe("BookingsService", () => {
     });
     await expect(
       missingPayment.service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "renter-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: RENTER_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
@@ -1416,8 +1434,8 @@ describe("BookingsService", () => {
 
     await expect(
       failedRefund.service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
         reason: "Pipe burst in the unit.",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -1444,8 +1462,8 @@ describe("BookingsService", () => {
 
     await expect(
       service.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
         reason: "Emergency maintenance",
       }),
     ).rejects.toThrow("Provider temporarily unavailable.");
@@ -1583,7 +1601,7 @@ describe("BookingsService", () => {
       (
         conflictContext.service as unknown as typeof helper
       ).assertNoBlockingAvailabilityOverlap(
-        "posting-1",
+        POSTING_1_ID,
         new Date("2099-05-01T00:00:00.000Z"),
         new Date("2099-05-04T00:00:00.000Z"),
       ),
@@ -1594,14 +1612,14 @@ describe("BookingsService", () => {
     await expect(
       (
         conflictContext.service as unknown as typeof helper
-      ).assertWithinPostingRequestCap("posting-1", "renter-1"),
+      ).assertWithinPostingRequestCap(POSTING_1_ID, RENTER_1_ID),
     ).rejects.toBeInstanceOf(BadRequestError);
     conflictContext.rentingsRepository.hasOverlap.mockResolvedValueOnce(true);
     await expect(
       (
         conflictContext.service as unknown as typeof helper
       ).assertNoRentingOverlap(
-        "posting-1",
+        POSTING_1_ID,
         new Date("2099-05-01T00:00:00.000Z"),
         new Date("2099-05-04T00:00:00.000Z"),
       ),

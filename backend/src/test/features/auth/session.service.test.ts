@@ -5,6 +5,10 @@ import type {
   AuthUserRecord,
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createClient(): ClientRequestContext {
   return {
@@ -15,7 +19,7 @@ function createClient(): ClientRequestContext {
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 7,
@@ -25,8 +29,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -48,7 +52,7 @@ function createAuthContext(
   return {
     auth: {
       authMethod: "jwt",
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-1",
       sessionId: "session-1",
       iat: 1,
@@ -72,7 +76,7 @@ function createHarness() {
       rememberMe ? 7_776_000 : 2_592_000,
     ),
     verifyRefreshToken: jest.fn(async () => ({
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-1",
       rememberMe: true,
       sessionId: "session-1",
@@ -138,7 +142,7 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
       refreshToken: "refresh-token",
       refreshTokenExpiresInSeconds: 2_592_000,
       device: { deviceId: "device-1", known: false, knownByIp: true },
-      user: { id: "user-1", username: "test-user" },
+      user: { id: USER_1_ID, username: "test-user" },
     });
   });
 
@@ -175,7 +179,7 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
     expect(harness.tokenService.createSession).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId,
-        userId: "user-1",
+        userId: USER_1_ID,
         tokenVersion: 7,
       }),
       2_592_000,
@@ -264,7 +268,7 @@ describe("AuthSessionService.localVerify", () => {
         createAuthContext({
           auth: {
             authMethod: "jwt",
-            sub: "user-1",
+            sub: USER_1_ID,
             role: "owner",
             deviceId: "device-99",
             iat: 1,
@@ -274,7 +278,7 @@ describe("AuthSessionService.localVerify", () => {
       ),
     ).resolves.toMatchObject({
       verified: true,
-      auth: { userId: "user-1", deviceId: "device-99", role: "owner" },
+      auth: { userId: USER_1_ID, deviceId: "device-99", role: "owner" },
     });
     expect(harness.authRepository.findUserById).not.toHaveBeenCalled();
   });
@@ -312,7 +316,7 @@ describe("AuthSessionService.refresh", () => {
     // and retires the old token instead.
     const harness = createHarness();
     harness.tokenService.verifyRefreshToken.mockResolvedValue({
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-1",
       rememberMe: false,
       sessionId: undefined,
@@ -334,7 +338,7 @@ describe("AuthSessionService.refresh", () => {
   it("falls back to the request device when the token carries none", async () => {
     const harness = createHarness();
     harness.tokenService.verifyRefreshToken.mockResolvedValue({
-      sub: "user-1",
+      sub: USER_1_ID,
       rememberMe: false,
       sessionId: "session-1",
     } as never);
@@ -374,7 +378,7 @@ describe("AuthSessionService.logout", () => {
       ),
     ).resolves.toMatchObject({
       loggedOut: true,
-      auth: { userId: "user-1", deviceId: "device-1" },
+      auth: { userId: USER_1_ID, deviceId: "device-1" },
     });
 
     expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
@@ -408,7 +412,7 @@ describe("AuthSessionService.logout", () => {
       createAuthContext({
         auth: {
           authMethod: "pat",
-          sub: "user-1",
+          sub: USER_1_ID,
           scopes: ["auth:read"],
           personalAccessTokenId: "pat-1",
           personalAccessTokenName: "CI token",
@@ -417,7 +421,7 @@ describe("AuthSessionService.logout", () => {
     );
 
     expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
     );
     expect(harness.tokenService.revokeSession).not.toHaveBeenCalled();
   });

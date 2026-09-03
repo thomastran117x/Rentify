@@ -1,6 +1,17 @@
 import ConflictError from "@/errors/http/conflict.error";
 import { SearchService } from "@/features/search/search.service";
 import { resetSearchTelemetry } from "@/features/search/search.telemetry";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+const RUN_1_ID = testUuid(9000, 875931);
+
+const BARRIER_1_ID = testUuid(9000, 557311);
+const OUTBOX_1_ID = testUuid(9000, 747639);
+const OUTBOX_2_ID = testUuid(9000, 747640);
+const OUTBOX_3_ID = testUuid(9000, 747641);
+const OUTBOX_DEAD_LETTER_FAILURE_ID = testUuid(9000, 577274);
+const OUTBOX_RETRY_FAILURE_ID = testUuid(9000, 371381);
 
 describe("SearchService", () => {
   beforeEach(() => {
@@ -9,7 +20,7 @@ describe("SearchService", () => {
 
   it("starts a reindex run while holding the start lock", async () => {
     const createSearchReindexRun = jest.fn(async (targetIndexName: string) => ({
-      id: "run-1",
+      id: RUN_1_ID,
       status: "pending" as const,
       targetIndexName,
       sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -52,14 +63,14 @@ describe("SearchService", () => {
     );
     expect(createSearchReindexRun).toHaveBeenCalledWith("postings_v2");
     expect(result).toMatchObject({
-      id: "run-1",
+      id: RUN_1_ID,
       targetIndexName: "postings_v2",
     });
   });
 
   it("starts a reindex run when the live index mapping is out of date", async () => {
     const createSearchReindexRun = jest.fn(async (targetIndexName: string) => ({
-      id: "run-1",
+      id: RUN_1_ID,
       status: "pending" as const,
       targetIndexName,
     }));
@@ -108,7 +119,7 @@ describe("SearchService", () => {
           async (operation: (helpers: unknown) => Promise<unknown>) =>
             operation({
               findActiveSearchReindexRun: async () => ({
-                id: "run-1",
+                id: RUN_1_ID,
                 status: "running" as const,
               }),
               createSearchReindexRun: jest.fn(),
@@ -157,7 +168,7 @@ describe("SearchService", () => {
       async (operation: (helpers: unknown) => Promise<unknown>) =>
         operation({
           findActiveSearchReindexRun: async () => ({
-            id: "run-1",
+            id: RUN_1_ID,
             status: "running" as const,
           }),
           createSearchReindexRun: jest.fn(),
@@ -419,10 +430,10 @@ describe("SearchService", () => {
     const postingsRepository = {
       claimSearchOutboxBatch: jest.fn(async () => [
         {
-          id: "outbox-1",
-          postingId: "posting-1",
+          id: OUTBOX_1_ID,
+          postingId: POSTING_1_ID,
           operation: "upsert",
-          dedupeKey: "outbox-1",
+          dedupeKey: OUTBOX_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -430,10 +441,10 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         },
         {
-          id: "outbox-2",
-          postingId: "posting-1",
+          id: OUTBOX_2_ID,
+          postingId: POSTING_1_ID,
           operation: "delete",
-          dedupeKey: "outbox-2",
+          dedupeKey: OUTBOX_2_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:01.000Z",
@@ -465,14 +476,14 @@ describe("SearchService", () => {
     expect(searchQueueService.publishIndexJob).toHaveBeenCalledTimes(1);
     expect(searchQueueService.publishIndexJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        outboxId: "outbox-2",
+        outboxId: OUTBOX_2_ID,
         operation: "delete",
       }),
     );
     expect(markSearchOutboxRelayed).toHaveBeenCalledWith(
-      "outbox-2",
-      ["outbox-1"],
-      "outbox-2",
+      OUTBOX_2_ID,
+      [OUTBOX_1_ID],
+      OUTBOX_2_ID,
     );
     expect(releaseSearchOutboxClaims).not.toHaveBeenCalled();
   });
@@ -487,10 +498,10 @@ describe("SearchService", () => {
     const postingsRepository = {
       claimSearchOutboxBatch: jest.fn(async () => [
         {
-          id: "outbox-2",
-          postingId: "posting-1",
+          id: OUTBOX_2_ID,
+          postingId: POSTING_1_ID,
           operation: "delete",
-          dedupeKey: "outbox-2",
+          dedupeKey: OUTBOX_2_ID,
           attempts: 0,
           publishAttempts: 2,
           availableAt: "2026-04-27T00:00:01.000Z",
@@ -523,12 +534,12 @@ describe("SearchService", () => {
     expect(processed).toBe(1);
     expect(searchQueueService.publishIndexJob).toHaveBeenCalledTimes(1);
     expect(markSearchOutboxRelayed).toHaveBeenCalledWith(
-      "outbox-2",
+      OUTBOX_2_ID,
       [],
-      "outbox-2",
+      OUTBOX_2_ID,
     );
     expect(releaseSearchOutboxClaims).toHaveBeenCalledWith(
-      ["outbox-2"],
+      [OUTBOX_2_ID],
       "database unavailable",
     );
     expect(markSearchOutboxDeadLettered).not.toHaveBeenCalled();
@@ -541,10 +552,10 @@ describe("SearchService", () => {
     const postingsRepository = {
       claimSearchOutboxBatch: jest.fn(async () => [
         {
-          id: "outbox-1",
-          postingId: "posting-1",
+          id: OUTBOX_1_ID,
+          postingId: POSTING_1_ID,
           operation: "upsert",
-          dedupeKey: "outbox-1",
+          dedupeKey: OUTBOX_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -582,7 +593,7 @@ describe("SearchService", () => {
       "broker unavailable",
     );
     expect(markSearchOutboxPublishRetry).toHaveBeenCalledWith(
-      "outbox-1",
+      OUTBOX_1_ID,
       1,
       "broker unavailable",
     );
@@ -642,11 +653,11 @@ describe("SearchService", () => {
     const markSearchOutboxIndexed = jest.fn(async () => undefined);
     const postingsRepository = {
       getSearchOutboxById: jest.fn(async () => ({
-        id: "outbox-1",
-        postingId: "posting-1",
+        id: OUTBOX_1_ID,
+        postingId: POSTING_1_ID,
         reindexRunId: undefined,
         operation: "delete",
-        dedupeKey: "outbox-1",
+        dedupeKey: OUTBOX_1_ID,
         attempts: 0,
         publishAttempts: 0,
         availableAt: "2026-04-27T00:00:00.000Z",
@@ -667,12 +678,12 @@ describe("SearchService", () => {
 
     await service.processIndexJob(
       {
-        outboxId: "outbox-1",
-        eventId: "outbox-1",
-        dedupeKey: "outbox-1",
+        outboxId: OUTBOX_1_ID,
+        eventId: OUTBOX_1_ID,
+        dedupeKey: OUTBOX_1_ID,
         operation: "delete",
         jobType: "delete",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 0,
@@ -681,7 +692,7 @@ describe("SearchService", () => {
     );
 
     expect(postingsSearchService.deleteDocument).not.toHaveBeenCalled();
-    expect(markSearchOutboxIndexed).toHaveBeenCalledWith("outbox-1");
+    expect(markSearchOutboxIndexed).toHaveBeenCalledWith(OUTBOX_1_ID);
   });
 
   it("marks barrier jobs indexed immediately during single-job processing", async () => {
@@ -689,11 +700,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
-          id: "barrier-1",
+          id: BARRIER_1_ID,
           postingId: undefined,
-          reindexRunId: "run-1",
+          reindexRunId: RUN_1_ID,
           operation: "barrier",
-          dedupeKey: "barrier-1",
+          dedupeKey: BARRIER_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -708,13 +719,13 @@ describe("SearchService", () => {
 
     await service.processIndexJob(
       {
-        outboxId: "barrier-1",
-        eventId: "barrier-1",
-        dedupeKey: "barrier-1",
+        outboxId: BARRIER_1_ID,
+        eventId: BARRIER_1_ID,
+        dedupeKey: BARRIER_1_ID,
         operation: "barrier",
         jobType: "barrier",
         postingId: undefined,
-        reindexRunId: "run-1",
+        reindexRunId: RUN_1_ID,
         targetIndexScope: "reindex",
         targetIndexName: "postings_v2",
         occurredAt: "2026-04-27T00:00:00.000Z",
@@ -723,7 +734,7 @@ describe("SearchService", () => {
       3,
     );
 
-    expect(markSearchOutboxIndexed).toHaveBeenCalledWith("barrier-1");
+    expect(markSearchOutboxIndexed).toHaveBeenCalledWith(BARRIER_1_ID);
   });
 
   it("requeues failed index jobs until the max attempts threshold", async () => {
@@ -735,11 +746,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
-          id: "outbox-1",
+          id: OUTBOX_1_ID,
           postingId: undefined,
           reindexRunId: undefined,
           operation: "upsert",
-          dedupeKey: "outbox-1",
+          dedupeKey: OUTBOX_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -755,9 +766,9 @@ describe("SearchService", () => {
 
     await service.processIndexJob(
       {
-        outboxId: "outbox-1",
-        eventId: "outbox-1",
-        dedupeKey: "outbox-1",
+        outboxId: OUTBOX_1_ID,
+        eventId: OUTBOX_1_ID,
+        dedupeKey: OUTBOX_1_ID,
         operation: "upsert",
         jobType: "upsert",
         postingId: undefined,
@@ -769,12 +780,12 @@ describe("SearchService", () => {
     );
 
     expect(incrementSearchOutboxAttempt).toHaveBeenCalledWith(
-      "outbox-1",
+      OUTBOX_1_ID,
       "Search outbox job is missing a posting id.",
     );
     expect(searchQueueService.publishRetryJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        outboxId: "outbox-1",
+        outboxId: OUTBOX_1_ID,
         attempt: 1,
       }),
       1,
@@ -791,11 +802,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
-          id: "outbox-3",
+          id: OUTBOX_3_ID,
           postingId: undefined,
           reindexRunId: undefined,
           operation: "delete",
-          dedupeKey: "outbox-3",
+          dedupeKey: OUTBOX_3_ID,
           attempts: 2,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -811,9 +822,9 @@ describe("SearchService", () => {
 
     await service.processIndexJob(
       {
-        outboxId: "outbox-3",
-        eventId: "outbox-3",
-        dedupeKey: "outbox-3",
+        outboxId: OUTBOX_3_ID,
+        eventId: OUTBOX_3_ID,
+        dedupeKey: OUTBOX_3_ID,
         operation: "delete",
         jobType: "delete",
         postingId: undefined,
@@ -826,12 +837,12 @@ describe("SearchService", () => {
 
     expect(searchQueueService.publishDeadLetterJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        outboxId: "outbox-3",
+        outboxId: OUTBOX_3_ID,
         attempt: 3,
       }),
     );
     expect(markSearchOutboxDeadLettered).toHaveBeenCalledWith(
-      "outbox-3",
+      OUTBOX_3_ID,
       "Search outbox job is missing a posting id.",
     );
     expect(searchQueueService.publishRetryJob).not.toHaveBeenCalled();
@@ -846,11 +857,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
-          id: "outbox-retry-failure",
+          id: OUTBOX_RETRY_FAILURE_ID,
           postingId: undefined,
           reindexRunId: undefined,
           operation: "upsert",
-          dedupeKey: "outbox-retry-failure",
+          dedupeKey: OUTBOX_RETRY_FAILURE_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -870,9 +881,9 @@ describe("SearchService", () => {
     await expect(
       service.processIndexJob(
         {
-          outboxId: "outbox-retry-failure",
-          eventId: "outbox-retry-failure",
-          dedupeKey: "outbox-retry-failure",
+          outboxId: OUTBOX_RETRY_FAILURE_ID,
+          eventId: OUTBOX_RETRY_FAILURE_ID,
+          dedupeKey: OUTBOX_RETRY_FAILURE_ID,
           operation: "upsert",
           jobType: "upsert",
           postingId: undefined,
@@ -885,12 +896,12 @@ describe("SearchService", () => {
     ).rejects.toThrow("retry queue unavailable");
 
     expect(incrementSearchOutboxAttempt).toHaveBeenCalledWith(
-      "outbox-retry-failure",
+      OUTBOX_RETRY_FAILURE_ID,
       "Search outbox job is missing a posting id.",
     );
     expect(publishRetryJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        outboxId: "outbox-retry-failure",
+        outboxId: OUTBOX_RETRY_FAILURE_ID,
         attempt: 1,
       }),
       1,
@@ -906,11 +917,11 @@ describe("SearchService", () => {
     const service = new SearchService(
       {
         getSearchOutboxById: jest.fn(async () => ({
-          id: "outbox-dead-letter-failure",
+          id: OUTBOX_DEAD_LETTER_FAILURE_ID,
           postingId: undefined,
           reindexRunId: undefined,
           operation: "delete",
-          dedupeKey: "outbox-dead-letter-failure",
+          dedupeKey: OUTBOX_DEAD_LETTER_FAILURE_ID,
           attempts: 2,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -930,9 +941,9 @@ describe("SearchService", () => {
     await expect(
       service.processIndexJob(
         {
-          outboxId: "outbox-dead-letter-failure",
-          eventId: "outbox-dead-letter-failure",
-          dedupeKey: "outbox-dead-letter-failure",
+          outboxId: OUTBOX_DEAD_LETTER_FAILURE_ID,
+          eventId: OUTBOX_DEAD_LETTER_FAILURE_ID,
+          dedupeKey: OUTBOX_DEAD_LETTER_FAILURE_ID,
           operation: "delete",
           jobType: "delete",
           postingId: undefined,
@@ -946,7 +957,7 @@ describe("SearchService", () => {
 
     expect(publishDeadLetterJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        outboxId: "outbox-dead-letter-failure",
+        outboxId: OUTBOX_DEAD_LETTER_FAILURE_ID,
         attempt: 3,
       }),
     );
@@ -961,7 +972,7 @@ describe("SearchService", () => {
       claimNextSearchReindexRun: jest
         .fn()
         .mockResolvedValueOnce({
-          id: "run-1",
+          id: RUN_1_ID,
           status: "running",
           targetIndexName: "postings_v2",
           sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -973,7 +984,7 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         })
         .mockResolvedValueOnce({
-          id: "run-1",
+          id: RUN_1_ID,
           status: "waiting_for_catchup",
           targetIndexName: "postings_v2",
           sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -991,10 +1002,10 @@ describe("SearchService", () => {
         .fn()
         .mockResolvedValueOnce([
           {
-            id: "posting-1",
+            id: POSTING_1_ID,
           },
           {
-            id: "posting-2",
+            id: POSTING_2_ID,
           },
         ])
         .mockResolvedValueOnce([]),
@@ -1031,14 +1042,14 @@ describe("SearchService", () => {
     expect(touchSearchReindexRunProcessing).toHaveBeenCalled();
     expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
     expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
-    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
+    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith(RUN_1_ID);
   });
 
   it("creates and marks pending reindex runs before indexing", async () => {
     const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
-        id: "run-1",
+        id: RUN_1_ID,
         status: "pending",
         targetIndexName: "postings_v2",
         sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -1077,9 +1088,9 @@ describe("SearchService", () => {
     expect(
       postingsRepository.countPublishedPostingsForIndexing,
     ).toHaveBeenCalledWith("2026-04-27T00:00:00.000Z");
-    expect(markSearchReindexRunRunning).toHaveBeenCalledWith("run-1", 2);
+    expect(markSearchReindexRunRunning).toHaveBeenCalledWith(RUN_1_ID, 2);
     expect(postingsRepository.enqueueSearchReindexBarrier).toHaveBeenCalledWith(
-      "run-1",
+      RUN_1_ID,
       "postings_v2",
     );
   });
@@ -1089,11 +1100,11 @@ describe("SearchService", () => {
     const clearSearchReindexRunProcessing = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
-        id: "run-1",
+        id: RUN_1_ID,
         status: "waiting_for_catchup",
         targetIndexName: "postings_v2",
         sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
-        barrierOutboxId: "barrier-1",
+        barrierOutboxId: BARRIER_1_ID,
         totalPostings: 2,
         indexedPostings: 2,
         failedPostings: 0,
@@ -1127,7 +1138,7 @@ describe("SearchService", () => {
 
     expect(processed).toBe(1);
     expect(markSearchReindexRunFailed).toHaveBeenCalledWith(
-      "run-1",
+      RUN_1_ID,
       "Search reindex barrier could not complete: broker publish retries exhausted.",
     );
     expect(clearSearchReindexRunProcessing).not.toHaveBeenCalled();
@@ -1140,7 +1151,7 @@ describe("SearchService", () => {
     const markSearchReindexRunRunning = jest.fn(async () => undefined);
     const postingsRepository = {
       claimNextSearchReindexRun: jest.fn(async () => ({
-        id: "run-1",
+        id: RUN_1_ID,
         status: "running",
         targetIndexName: "postings_v2",
         sourceSnapshotAt: "2026-04-27T00:00:00.000Z",
@@ -1157,7 +1168,7 @@ describe("SearchService", () => {
         .fn()
         .mockResolvedValueOnce([
           {
-            id: "posting-1",
+            id: POSTING_1_ID,
           },
         ])
         .mockResolvedValueOnce([]),
@@ -1189,7 +1200,7 @@ describe("SearchService", () => {
     expect(postingsSearchService.createVersionedIndex).not.toHaveBeenCalled();
     expect(countPublishedPostingsForIndexing).not.toHaveBeenCalled();
     expect(markSearchReindexRunRunning).not.toHaveBeenCalled();
-    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith("run-1");
+    expect(clearSearchReindexRunProcessing).toHaveBeenCalledWith(RUN_1_ID);
     expect(markSearchReindexRunFailed).not.toHaveBeenCalled();
   });
 
@@ -1198,10 +1209,10 @@ describe("SearchService", () => {
     const postingsRepository = {
       getSearchOutboxesByIds: jest.fn(async () => [
         {
-          id: "outbox-1",
-          postingId: "posting-1",
+          id: OUTBOX_1_ID,
+          postingId: POSTING_1_ID,
           operation: "upsert",
-          dedupeKey: "outbox-1",
+          dedupeKey: OUTBOX_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -1209,10 +1220,10 @@ describe("SearchService", () => {
           updatedAt: "2026-04-27T00:00:00.000Z",
         },
         {
-          id: "outbox-2",
-          postingId: "posting-2",
+          id: OUTBOX_2_ID,
+          postingId: POSTING_2_ID,
           operation: "delete",
-          dedupeKey: "outbox-2",
+          dedupeKey: OUTBOX_2_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:01.000Z",
@@ -1224,7 +1235,7 @@ describe("SearchService", () => {
       markSearchOutboxesIndexed,
       findByIdsForIndexing: jest.fn(async () => [
         {
-          id: "posting-1",
+          id: POSTING_1_ID,
           status: "published",
           photos: [],
           pricing: {
@@ -1250,23 +1261,23 @@ describe("SearchService", () => {
     await service.processIndexJobsBatch(
       [
         {
-          outboxId: "outbox-1",
-          eventId: "outbox-1",
-          dedupeKey: "outbox-1",
+          outboxId: OUTBOX_1_ID,
+          eventId: OUTBOX_1_ID,
+          dedupeKey: OUTBOX_1_ID,
           operation: "upsert",
           jobType: "upsert",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           targetIndexScope: "live",
           occurredAt: "2026-04-27T00:00:00.000Z",
           attempt: 0,
         },
         {
-          outboxId: "outbox-2",
-          eventId: "outbox-2",
-          dedupeKey: "outbox-2",
+          outboxId: OUTBOX_2_ID,
+          eventId: OUTBOX_2_ID,
+          dedupeKey: OUTBOX_2_ID,
           operation: "delete",
           jobType: "delete",
-          postingId: "posting-2",
+          postingId: POSTING_2_ID,
           targetIndexScope: "live",
           occurredAt: "2026-04-27T00:00:01.000Z",
           attempt: 0,
@@ -1276,11 +1287,11 @@ describe("SearchService", () => {
     );
 
     expect(postingsSearchService.bulkUpsertDocuments).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: "posting-1" })]),
+      expect.arrayContaining([expect.objectContaining({ id: POSTING_1_ID })]),
       "postings-write",
     );
     expect(postingsSearchService.bulkDeleteDocuments).toHaveBeenCalledWith(
-      ["posting-2"],
+      [POSTING_2_ID],
       "postings-write",
     );
     expect(markSearchOutboxesIndexed).toHaveBeenCalledTimes(2);
@@ -1289,13 +1300,13 @@ describe("SearchService", () => {
   it("falls back to per-job indexing when bulk group operations fail", async () => {
     const outboxById = new Map([
       [
-        "outbox-1",
+        OUTBOX_1_ID,
         {
-          id: "outbox-1",
-          postingId: "posting-1",
+          id: OUTBOX_1_ID,
+          postingId: POSTING_1_ID,
           operation: "upsert",
           targetIndexName: "postings_v2",
-          dedupeKey: "outbox-1",
+          dedupeKey: OUTBOX_1_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:00.000Z",
@@ -1304,13 +1315,13 @@ describe("SearchService", () => {
         },
       ],
       [
-        "outbox-2",
+        OUTBOX_2_ID,
         {
-          id: "outbox-2",
-          postingId: "posting-2",
+          id: OUTBOX_2_ID,
+          postingId: POSTING_2_ID,
           operation: "delete",
           targetIndexName: "postings_v2",
-          dedupeKey: "outbox-2",
+          dedupeKey: OUTBOX_2_ID,
           attempts: 0,
           publishAttempts: 0,
           availableAt: "2026-04-27T00:00:01.000Z",
@@ -1331,7 +1342,7 @@ describe("SearchService", () => {
         .fn()
         .mockResolvedValueOnce([
           {
-            id: "posting-1",
+            id: POSTING_1_ID,
             status: "published",
             photos: [],
             pricing: {
@@ -1344,7 +1355,7 @@ describe("SearchService", () => {
         ])
         .mockResolvedValueOnce([
           {
-            id: "posting-1",
+            id: POSTING_1_ID,
             status: "published",
             photos: [],
             pricing: {
@@ -1379,24 +1390,24 @@ describe("SearchService", () => {
     await service.processIndexJobsBatch(
       [
         {
-          outboxId: "outbox-1",
-          eventId: "outbox-1",
-          dedupeKey: "outbox-1",
+          outboxId: OUTBOX_1_ID,
+          eventId: OUTBOX_1_ID,
+          dedupeKey: OUTBOX_1_ID,
           operation: "upsert",
           jobType: "upsert",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           targetIndexScope: "reindex",
           targetIndexName: "postings_v2",
           occurredAt: "2026-04-27T00:00:00.000Z",
           attempt: 0,
         },
         {
-          outboxId: "outbox-2",
-          eventId: "outbox-2",
-          dedupeKey: "outbox-2",
+          outboxId: OUTBOX_2_ID,
+          eventId: OUTBOX_2_ID,
+          dedupeKey: OUTBOX_2_ID,
           operation: "delete",
           jobType: "delete",
-          postingId: "posting-2",
+          postingId: POSTING_2_ID,
           targetIndexScope: "reindex",
           targetIndexName: "postings_v2",
           occurredAt: "2026-04-27T00:00:01.000Z",
@@ -1407,18 +1418,18 @@ describe("SearchService", () => {
     );
 
     expect(postingsSearchService.upsertDocument).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "posting-1" }),
+      expect.objectContaining({ id: POSTING_1_ID }),
       "postings_v2",
     );
     expect(postingsSearchService.deleteDocument).toHaveBeenCalledWith(
-      "posting-2",
+      POSTING_2_ID,
       "postings_v2",
     );
     expect(postingsRepository.markSearchOutboxIndexed).toHaveBeenCalledWith(
-      "outbox-1",
+      OUTBOX_1_ID,
     );
     expect(postingsRepository.markSearchOutboxIndexed).toHaveBeenCalledWith(
-      "outbox-2",
+      OUTBOX_2_ID,
     );
   });
 
@@ -1445,7 +1456,7 @@ describe("SearchService", () => {
         state: "caught_up" as const,
       })),
       findLatestCompletedSearchReindexRun: jest.fn(async () => ({
-        id: "run-1",
+        id: RUN_1_ID,
         status: "completed" as const,
         targetIndexName: "postings_v2",
         retainedIndexName: "postings_v0",
@@ -1500,7 +1511,7 @@ describe("SearchService", () => {
       "postings_v0",
     );
     expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
-      "run-1",
+      RUN_1_ID,
     );
   });
 
@@ -1531,7 +1542,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       listRecentForIndexReconciliation: jest.fn(async () => [
         {
-          id: "posting-1",
+          id: POSTING_1_ID,
           status: "published",
           photos: [],
           pricing: {
@@ -1542,7 +1553,7 @@ describe("SearchService", () => {
           },
         },
         {
-          id: "posting-2",
+          id: POSTING_2_ID,
           status: "archived",
           photos: [],
           pricing: {
@@ -1572,11 +1583,11 @@ describe("SearchService", () => {
 
     expect(processed).toBe(2);
     expect(postingsSearchService.bulkUpsertDocuments).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: "posting-1" })]),
+      expect.arrayContaining([expect.objectContaining({ id: POSTING_1_ID })]),
       "postings-write",
     );
     expect(postingsSearchService.bulkDeleteDocuments).toHaveBeenCalledWith(
-      ["posting-2"],
+      [POSTING_2_ID],
       "postings-write",
     );
   });
@@ -1585,7 +1596,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       listRecentForIndexReconciliation: jest.fn(async () => [
         {
-          id: "posting-1",
+          id: POSTING_1_ID,
           status: "published",
           photos: [],
           pricing: {
@@ -1596,7 +1607,7 @@ describe("SearchService", () => {
           },
         },
         {
-          id: "posting-2",
+          id: POSTING_2_ID,
           status: "archived",
           photos: [],
           pricing: {
@@ -1632,10 +1643,10 @@ describe("SearchService", () => {
 
     expect(processed).toBe(2);
     expect(postingsSearchService.upsertDocument).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "posting-1" }),
+      expect.objectContaining({ id: POSTING_1_ID }),
     );
     expect(postingsSearchService.deleteDocument).toHaveBeenCalledWith(
-      "posting-2",
+      POSTING_2_ID,
     );
   });
 
@@ -1722,7 +1733,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       listCompletedSearchReindexRunsWithRetainedIndices: jest.fn(async () => [
         {
-          id: "run-1",
+          id: RUN_1_ID,
           status: "completed" as const,
           targetIndexName: "postings_v2",
           retainedIndexName: "postings_v0",
@@ -1777,7 +1788,7 @@ describe("SearchService", () => {
       "postings_v2",
     );
     expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
-      "run-1",
+      RUN_1_ID,
     );
     expect(clearSearchReindexRunRetainedIndexName).toHaveBeenCalledWith(
       "run-2",
@@ -1791,7 +1802,7 @@ describe("SearchService", () => {
     const postingsRepository = {
       listCompletedSearchReindexRunsWithRetainedIndices: jest.fn(async () => [
         {
-          id: "run-1",
+          id: RUN_1_ID,
           status: "completed" as const,
           targetIndexName: "postings_v2",
           retainedIndexName: null,

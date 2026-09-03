@@ -8,6 +8,12 @@ import {
   BLOG_COMMENT_EDIT_WINDOW_MS,
   type OrganizationBlogCommentRecord,
 } from "@/features/organizations/blog/comments/comments.model";
+import { testUuid } from "../../../../support/uuid";
+const COMMENT_1_ID = testUuid(9000, 73688);
+const RENTER_ONE_ID = testUuid(9000, 901918);
+
+const BLOG_OTHER_ID = testUuid(9000, 805264);
+const USER_9_ID = testUuid(9000, 994265);
 
 const ORG_ID = "org-1";
 const POST_ID = "blog-1";
@@ -19,10 +25,10 @@ function createComment(
   overrides: Partial<OrganizationBlogCommentRecord> = {},
 ): OrganizationBlogCommentRecord {
   return {
-    id: "comment-1",
+    id: COMMENT_1_ID,
     blogPostId: POST_ID,
     organizationId: ORG_ID,
-    author: { id: AUTHOR_ID, username: "renter-one" },
+    author: { id: AUTHOR_ID, username: RENTER_ONE_ID },
     body: "Great post.",
     createdAt: "2026-07-16T00:00:00.000Z",
     editedAt: null,
@@ -267,7 +273,7 @@ describe("OrganizationBlogCommentsService", () => {
           blogPostId: POST_ID,
         }),
       );
-      expect(result.id).toBe("comment-1");
+      expect(result.id).toBe(COMMENT_1_ID);
     });
 
     it("409s when comments are closed", async () => {
@@ -395,7 +401,7 @@ describe("OrganizationBlogCommentsService", () => {
       // The comment is already durably persisted; a Redis blip must not make
       // the author post it twice.
       await expect(service.create(createInput)).resolves.toMatchObject({
-        id: "comment-1",
+        id: COMMENT_1_ID,
       });
     });
   });
@@ -404,7 +410,7 @@ describe("OrganizationBlogCommentsService", () => {
     const updateInput = {
       organizationId: ORG_ID,
       slug: SLUG,
-      commentId: "comment-1",
+      commentId: COMMENT_1_ID,
       actorUserId: AUTHOR_ID,
       body: "Edited.",
     };
@@ -440,7 +446,7 @@ describe("OrganizationBlogCommentsService", () => {
       const { service } = createService();
 
       await expect(
-        service.update({ ...updateInput, actorUserId: "user-9" }),
+        service.update({ ...updateInput, actorUserId: USER_9_ID }),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -473,7 +479,7 @@ describe("OrganizationBlogCommentsService", () => {
 
     it("404s a comment belonging to a different post", async () => {
       const { service } = createService({
-        comment: createComment({ blogPostId: "blog-other" }),
+        comment: createComment({ blogPostId: BLOG_OTHER_ID }),
       });
 
       // Otherwise a comment id from another post would be actionable through
@@ -502,7 +508,7 @@ describe("OrganizationBlogCommentsService", () => {
     const deleteInput = {
       organizationId: ORG_ID,
       slug: SLUG,
-      commentId: "comment-1",
+      commentId: COMMENT_1_ID,
       actorUserId: AUTHOR_ID,
     };
 
@@ -552,7 +558,7 @@ describe("OrganizationBlogCommentsService", () => {
       const { service } = createService();
 
       await expect(
-        service.softDelete({ ...deleteInput, actorUserId: "user-9" }),
+        service.softDelete({ ...deleteInput, actorUserId: USER_9_ID }),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 

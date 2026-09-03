@@ -2,6 +2,7 @@
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { testUuid } from "../../support/uuid";
+const USER_3_ID = testUuid(9000, 994259);
 
 const BOOKING_ONE_ID = testUuid(1020, 1);
 const BOOKING_TWO_ID = testUuid(1020, 2);
@@ -22,7 +23,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
     sub: USER_ID,
-    email: "user@example.com",
+    email: `${USER_ID}@example.com`,
     role: "user",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -579,7 +580,7 @@ describe("BookingsController", () => {
   });
 
   it("wraps invalid booking query params in request validation errors", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-3" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_3_ID }));
     const listMine = jest.fn();
     const controller = new BookingsController(
       {

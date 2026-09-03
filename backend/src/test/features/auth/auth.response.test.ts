@@ -10,6 +10,9 @@ import {
   writeAuthSessionResponse,
 } from "@/features/auth/auth.response";
 import { createMockRequest, createMockResponse } from "../../support/mock-http";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createSessionResult(
   overrides: Partial<AuthSessionResult> = {},
@@ -20,7 +23,7 @@ function createSessionResult(
     refreshTokenExpiresInSeconds: 3600,
     device: { deviceId: "device-1", known: true, knownByIp: false },
     user: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "user@example.com",
       username: "test-user",
       avatarUrl: undefined,
@@ -84,7 +87,7 @@ describe("toAuthResponseBody", () => {
     expect(body.refreshToken).toBeUndefined();
     expect(body.accessToken).toBe("access-token");
     expect(body.user).toEqual({
-      id: "user-1",
+      id: USER_1_ID,
       email: "user@example.com",
       username: "test-user",
       avatarUrl: undefined,

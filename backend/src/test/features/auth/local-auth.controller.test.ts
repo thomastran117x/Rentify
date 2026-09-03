@@ -12,6 +12,10 @@ import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { createMockRequest, createMockResponse } from "../../support/mock-http";
+import { testUuid } from "../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockRequireJwtAuth = jest.fn();
 // Declared without a signature, like mockRequireJwtAuth above, so the module
@@ -60,7 +64,7 @@ function createClient(
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtAuthPrincipal {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     username: "test-user",
     role: "user",
     deviceId: "token-device-1",
@@ -76,7 +80,7 @@ function createAuthUser(
   overrides: Partial<AuthUserProfile> = {},
 ): AuthUserProfile {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     firstName: "Test",
     lastName: "User",
@@ -496,7 +500,7 @@ describe("LocalAuthController", () => {
           knownByIp: true,
         },
         user: {
-          id: "user-1",
+          id: USER_1_ID,
           email: "user@example.com",
           username: "test-user",
           role: "user",
@@ -544,7 +548,7 @@ describe("LocalAuthController", () => {
           knownByIp: true,
         },
         user: {
-          id: "user-1",
+          id: USER_1_ID,
           email: "user@example.com",
           username: "test-user",
           role: "user",
@@ -618,7 +622,7 @@ describe("LocalAuthController", () => {
             role: "owner",
             organizationMembershipCount: 2,
             activeOrganization: {
-              id: "org-1",
+              id: ORG_1_ID,
               name: "Northwind",
               role: "primary_manager",
             },
@@ -641,7 +645,7 @@ describe("LocalAuthController", () => {
           role: "owner",
           organizationMembershipCount: 2,
           activeOrganization: {
-            id: "org-1",
+            id: ORG_1_ID,
             name: "Northwind",
             role: "primary_manager",
           },

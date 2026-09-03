@@ -6,6 +6,14 @@ import type {
   ListOrganizationReviewsResult,
   OrganizationReviewRecord,
 } from "@/features/organizations/reviews/reviews.model";
+import { testUuid } from "../../../support/uuid";
+const MISSING_ID = testUuid(9000, 394917);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const REVIEW_1_ID = testUuid(9000, 118005);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
+const USER_3_ID = testUuid(9000, 994259);
 
 type Role = "primary_manager" | "manager" | "operator";
 
@@ -13,9 +21,9 @@ function createReview(
   overrides: Partial<OrganizationReviewRecord> = {},
 ): OrganizationReviewRecord {
   return {
-    id: "review-1",
-    organizationId: "org-1",
-    reviewerId: "user-2",
+    id: REVIEW_1_ID,
+    organizationId: ORG_1_ID,
+    reviewerId: USER_2_ID,
     rating: 5,
     title: "Great",
     comment: "Loved it",
@@ -72,7 +80,7 @@ function createService(options?: {
           ? {
               body: input.response,
               respondedAt: "2026-07-17T00:00:00.000Z",
-              author: { id: "user-1", username: "owner-one" },
+              author: { id: USER_1_ID, username: "owner-one" },
             }
           : undefined,
       }),
@@ -112,12 +120,12 @@ describe("OrganizationReviewService", () => {
     const { service, repository } = createService();
 
     const result = await service.list({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
     });
 
-    expect(repository.listByOrganization).toHaveBeenCalledWith("org-1", 1, 20);
+    expect(repository.listByOrganization).toHaveBeenCalledWith(ORG_1_ID, 1, 20);
     expect(result.summary.reviewCount).toBe(1);
   });
 
@@ -125,7 +133,7 @@ describe("OrganizationReviewService", () => {
     const { service } = createService({ organizationExists: false });
 
     await expect(
-      service.list({ organizationId: "missing", page: 1, pageSize: 20 }),
+      service.list({ organizationId: MISSING_ID, page: 1, pageSize: 20 }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -135,19 +143,19 @@ describe("OrganizationReviewService", () => {
     });
 
     const result = await service.getOwn({
-      organizationId: "org-1",
-      reviewerId: "user-2",
+      organizationId: ORG_1_ID,
+      reviewerId: USER_2_ID,
     });
 
-    expect(repository.findOwnReview).toHaveBeenCalledWith("org-1", "user-2");
-    expect(result?.id).toBe("review-1");
+    expect(repository.findOwnReview).toHaveBeenCalledWith(ORG_1_ID, USER_2_ID);
+    expect(result?.id).toBe(REVIEW_1_ID);
   });
 
   it("returns null when the viewer has no review", async () => {
     const { service } = createService({ existingOwnReview: null });
 
     await expect(
-      service.getOwn({ organizationId: "org-1", reviewerId: "user-2" }),
+      service.getOwn({ organizationId: ORG_1_ID, reviewerId: USER_2_ID }),
     ).resolves.toBeNull();
   });
 
@@ -155,7 +163,7 @@ describe("OrganizationReviewService", () => {
     const { service } = createService({ organizationExists: false });
 
     await expect(
-      service.getOwn({ organizationId: "missing", reviewerId: "user-2" }),
+      service.getOwn({ organizationId: MISSING_ID, reviewerId: USER_2_ID }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -166,8 +174,8 @@ describe("OrganizationReviewService", () => {
     });
 
     await service.create({
-      organizationId: "org-1",
-      reviewerId: "user-2",
+      organizationId: ORG_1_ID,
+      reviewerId: USER_2_ID,
       rating: 5,
       title: "Great",
       comment: "Loved it",
@@ -175,7 +183,7 @@ describe("OrganizationReviewService", () => {
 
     expect(repository.create).toHaveBeenCalled();
     expect(repository.updateOrganizationRatingStats).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
     );
   });
 
@@ -187,8 +195,8 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.create({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -199,8 +207,8 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.create({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -215,8 +223,8 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.create({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -229,14 +237,14 @@ describe("OrganizationReviewService", () => {
     });
 
     const result = await service.updateOwn({
-      organizationId: "org-1",
-      reviewerId: "user-2",
+      organizationId: ORG_1_ID,
+      reviewerId: USER_2_ID,
       rating: 4,
     });
 
     expect(repository.updateOwnReview).toHaveBeenCalled();
     expect(repository.updateOrganizationRatingStats).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
     );
     expect(result.rating).toBe(4);
   });
@@ -252,8 +260,8 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.updateOwn({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 4,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
@@ -265,19 +273,19 @@ describe("OrganizationReviewService", () => {
     });
 
     const result = await service.deleteOwn({
-      organizationId: "org-1",
-      reviewerId: "user-2",
+      organizationId: ORG_1_ID,
+      reviewerId: USER_2_ID,
     });
 
-    expect(repository.delete).toHaveBeenCalledWith("org-1", "review-1");
-    expect(result).toEqual({ deleted: true, reviewId: "review-1" });
+    expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, REVIEW_1_ID);
+    expect(result).toEqual({ deleted: true, reviewId: REVIEW_1_ID });
   });
 
   it("throws when deleting an own review that does not exist", async () => {
     const { service } = createService({ existingOwnReview: null });
 
     await expect(
-      service.deleteOwn({ organizationId: "org-1", reviewerId: "user-2" }),
+      service.deleteOwn({ organizationId: ORG_1_ID, reviewerId: USER_2_ID }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -287,18 +295,18 @@ describe("OrganizationReviewService", () => {
     });
 
     const result = await service.reply({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      reviewId: "review-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      reviewId: REVIEW_1_ID,
       body: "Thanks!",
     });
 
     expect(repository.setResponse).toHaveBeenCalledWith(
-      "org-1",
-      "review-1",
+      ORG_1_ID,
+      REVIEW_1_ID,
       expect.objectContaining({
         response: "Thanks!",
-        responseAuthorId: "user-1",
+        responseAuthorId: USER_1_ID,
       }),
     );
     expect(result.response?.body).toBe("Thanks!");
@@ -315,9 +323,9 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.reply({
-        organizationId: "org-1",
-        actorUserId: "user-3",
-        reviewId: "review-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_3_ID,
+        reviewId: REVIEW_1_ID,
         body: "Thanks!",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -328,9 +336,9 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.delete({
-        organizationId: "org-1",
-        actorUserId: "user-3",
-        reviewId: "review-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_3_ID,
+        reviewId: REVIEW_1_ID,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -341,14 +349,14 @@ describe("OrganizationReviewService", () => {
     });
 
     await service.removeReply({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      reviewId: "review-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      reviewId: REVIEW_1_ID,
     });
 
     expect(repository.setResponse).toHaveBeenCalledWith(
-      "org-1",
-      "review-1",
+      ORG_1_ID,
+      REVIEW_1_ID,
       expect.objectContaining({ response: null, responseAuthorId: null }),
     );
     expect(organizationAuditService.record).toHaveBeenCalledWith(
@@ -362,16 +370,16 @@ describe("OrganizationReviewService", () => {
     });
 
     const result = await service.delete({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      reviewId: "review-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      reviewId: REVIEW_1_ID,
     });
 
-    expect(repository.delete).toHaveBeenCalledWith("org-1", "review-1");
+    expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, REVIEW_1_ID);
     expect(repository.updateOrganizationRatingStats).toHaveBeenCalledWith(
-      "org-1",
+      ORG_1_ID,
     );
-    expect(result).toEqual({ deleted: true, reviewId: "review-1" });
+    expect(result).toEqual({ deleted: true, reviewId: REVIEW_1_ID });
     expect(organizationAuditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "review.deleted" }),
     );
@@ -385,9 +393,9 @@ describe("OrganizationReviewService", () => {
 
     await expect(
       service.reply({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        reviewId: "missing",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        reviewId: MISSING_ID,
         body: "Thanks!",
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);

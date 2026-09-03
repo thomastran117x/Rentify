@@ -5,6 +5,13 @@ import type {
 } from "@/configuration/http/bindings";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
+const USER_3_ID = testUuid(9000, 994259);
+const USER_4_ID = testUuid(9000, 994260);
+const USER_9_ID = testUuid(9000, 994265);
 
 const mockRequireSessionAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
@@ -40,7 +47,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -117,21 +124,21 @@ describe("MfaTotpController", () => {
   });
 
   it("returns whether TOTP is enabled for the authenticated user", async () => {
-    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: "user-9" }));
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_9_ID }));
     const { controller, mfaTotpService } = createController();
 
     const response = await invoke(controller.getStatus, createContext());
     const payload = await response.json();
 
     expect(mockRequireSessionAuth).toHaveBeenCalled();
-    expect(mfaTotpService.isEnabled).toHaveBeenCalledWith("user-9");
+    expect(mfaTotpService.isEnabled).toHaveBeenCalledWith(USER_9_ID);
     expect(response.status).toBe(200);
     expect(payload.data).toEqual({ enabled: true });
   });
 
   it("begins enrollment after recent verification, normalizes account names, and logs the change", async () => {
     mockRequireRecentMfaVerification.mockResolvedValue(
-      createAuth({ sub: "user-2", sessionId: "session-2" }),
+      createAuth({ sub: USER_2_ID, sessionId: "session-2" }),
     );
     const { controller, mfaTotpService } = createController();
     const context = createContext({
@@ -144,13 +151,13 @@ describe("MfaTotpController", () => {
 
     expect(mockRequireRecentMfaVerification).toHaveBeenCalled();
     expect(mfaTotpService.beginEnrollment).toHaveBeenCalledWith(
-      "user-2",
+      USER_2_ID,
       "Team Account",
     );
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP enrollment started",
       expect.objectContaining({
-        userId: "user-2",
+        userId: USER_2_ID,
         sessionId: "session-2",
         scope: "mfa-management",
         factor: "totp",
@@ -177,13 +184,13 @@ describe("MfaTotpController", () => {
     const payload = await response.json();
 
     expect(mfaTotpService.confirmEnrollment).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "123456",
     );
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP enrollment confirmed",
       expect.objectContaining({
-        userId: "user-1",
+        userId: USER_1_ID,
         factor: "totp",
       }),
     );
@@ -193,7 +200,7 @@ describe("MfaTotpController", () => {
 
   it("disables TOTP after recent verification and returns the disable message", async () => {
     mockRequireRecentMfaVerification.mockResolvedValue(
-      createAuth({ sub: "user-3", sessionId: "session-3" }),
+      createAuth({ sub: USER_3_ID, sessionId: "session-3" }),
     );
     const { controller, mfaTotpService } = createController();
 
@@ -205,7 +212,7 @@ describe("MfaTotpController", () => {
     );
     const payload = await response.json();
 
-    expect(mfaTotpService.disable).toHaveBeenCalledWith("user-3");
+    expect(mfaTotpService.disable).toHaveBeenCalledWith(USER_3_ID);
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP disabled",
       expect.objectContaining({
@@ -219,18 +226,18 @@ describe("MfaTotpController", () => {
 
   it("cancels pending enrollment after recent verification", async () => {
     mockRequireRecentMfaVerification.mockResolvedValue(
-      createAuth({ sub: "user-4", sessionId: "session-4" }),
+      createAuth({ sub: USER_4_ID, sessionId: "session-4" }),
     );
     const { controller, mfaTotpService } = createController();
 
     const response = await invoke(controller.cancelEnrollment, createContext());
     const payload = await response.json();
 
-    expect(mfaTotpService.cancelEnrollment).toHaveBeenCalledWith("user-4");
+    expect(mfaTotpService.cancelEnrollment).toHaveBeenCalledWith(USER_4_ID);
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "Pending TOTP enrollment cancelled",
       expect.objectContaining({
-        userId: "user-4",
+        userId: USER_4_ID,
         sessionId: "session-4",
       }),
     );

@@ -10,6 +10,12 @@ jest.mock("node:crypto", () => {
 });
 
 import { RecommendationPrecomputeRepository } from "@/features/recommendations/recommendation-precompute.repository";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_3_ID = testUuid(9000, 994259);
+const USER_9_ID = testUuid(9000, 994265);
 
 describe("RecommendationPrecomputeRepository", () => {
   beforeEach(() => {
@@ -22,7 +28,7 @@ describe("RecommendationPrecomputeRepository", () => {
       {
         id: "job-1",
         jobType: "user_refresh",
-        userId: "user-1",
+        userId: USER_1_ID,
         attempts: 0,
         availableAt: new Date("2026-05-07T12:00:00.000Z"),
         createdAt: new Date("2026-05-07T12:00:00.000Z"),
@@ -49,7 +55,7 @@ describe("RecommendationPrecomputeRepository", () => {
       expect.objectContaining({
         id: "job-1",
         jobType: "user_refresh",
-        userId: "user-1",
+        userId: USER_1_ID,
       }),
     ]);
   });
@@ -110,7 +116,7 @@ describe("RecommendationPrecomputeRepository", () => {
   it("maps personalized user activity rows and skips rows without postings", async () => {
     const findMany = jest.fn(async () => [
       {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         eventType: "search_click",
         count: "2",
         lastOccurredAt: new Date("2026-05-07T12:00:00.000Z"),
@@ -137,13 +143,13 @@ describe("RecommendationPrecomputeRepository", () => {
     );
 
     const rows = await repository.listUserActivityRows(
-      "user-1",
+      USER_1_ID,
       new Date("2026-05-01T00:00:00.000Z"),
     );
 
     expect(findMany).toHaveBeenCalledWith({
       where: {
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         personalizationEligible: true,
         lastOccurredAt: {
           gte: new Date("2026-05-01T00:00:00.000Z"),
@@ -173,7 +179,7 @@ describe("RecommendationPrecomputeRepository", () => {
     });
     expect(rows).toEqual([
       {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         eventType: "search_click",
         count: 2,
         lastOccurredAt: "2026-05-07T12:00:00.000Z",
@@ -243,7 +249,7 @@ describe("RecommendationPrecomputeRepository", () => {
   it("lists published recommendation candidates with filters and normalized tags", async () => {
     const findMany = jest.fn(async () => [
       {
-        id: "posting-1",
+        id: POSTING_1_ID,
         organizationId: "org-1",
         family: "place",
         subtype: "entire_place",
@@ -270,7 +276,7 @@ describe("RecommendationPrecomputeRepository", () => {
     );
 
     const rows = await repository.listPublishedRecommendationCandidates({
-      excludeUserId: "user-1",
+      excludeUserId: USER_1_ID,
       family: "place",
       subtype: "entire_place",
     });
@@ -282,7 +288,7 @@ describe("RecommendationPrecomputeRepository", () => {
           organization: {
             memberships: {
               some: {
-                userId: "user-1",
+                userId: USER_1_ID,
               },
             },
           },
@@ -302,7 +308,7 @@ describe("RecommendationPrecomputeRepository", () => {
     });
     expect(rows).toEqual([
       {
-        id: "posting-1",
+        id: POSTING_1_ID,
         organizationId: "org-1",
         family: "place",
         subtype: "entire_place",
@@ -429,8 +435,8 @@ describe("RecommendationPrecomputeRepository", () => {
     await repository.enqueueRefreshJobs([
       {
         jobType: "user_refresh",
-        dedupeKey: "user:user-9",
-        userId: "user-9",
+        dedupeKey: `user:${USER_9_ID}`,
+        userId: USER_9_ID,
         availableAt: new Date("2026-05-07T12:00:00.000Z"),
       },
     ]);
@@ -439,8 +445,8 @@ describe("RecommendationPrecomputeRepository", () => {
       data: {
         id: "generated-id-1",
         jobType: "user_refresh",
-        dedupeKey: "user:user-9",
-        userId: "user-9",
+        dedupeKey: `user:${USER_9_ID}`,
+        userId: USER_9_ID,
         segmentType: null,
         segmentValue: null,
         availableAt: new Date("2026-05-07T12:00:00.000Z"),
@@ -466,7 +472,7 @@ describe("RecommendationPrecomputeRepository", () => {
       candidateCount: 2,
       candidates: [
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           score: 0.9,
           reasonCodes: ["popular"],
         },
@@ -486,7 +492,7 @@ describe("RecommendationPrecomputeRepository", () => {
         candidateCount: 2,
         candidates: [
           {
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             score: 0.9,
             reasonCodes: ["popular"],
           },
@@ -501,7 +507,7 @@ describe("RecommendationPrecomputeRepository", () => {
         candidateCount: 2,
         candidates: [
           {
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             score: 0.9,
             reasonCodes: ["popular"],
           },
@@ -540,7 +546,7 @@ describe("RecommendationPrecomputeRepository", () => {
 
     await repository.upsertUserRecommendationArtifacts({
       profile: {
-        userId: "user-3",
+        userId: USER_3_ID,
         qualified: false,
         activityWindowStartAt: "2026-02-06T12:00:00.000Z",
         distinctPostingCount: 1,
@@ -560,7 +566,7 @@ describe("RecommendationPrecomputeRepository", () => {
     expect(profileUpsert).toHaveBeenCalledTimes(1);
     expect(snapshotDeleteMany).toHaveBeenCalledWith({
       where: {
-        userId: "user-3",
+        userId: USER_3_ID,
       },
     });
     expect(snapshotUpsert).not.toHaveBeenCalled();

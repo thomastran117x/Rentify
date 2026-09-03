@@ -3,11 +3,21 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import { ReportsService } from "@/features/reports/reports.service";
+import { testUuid } from "../../support/uuid";
+const ADMIN_1_ID = testUuid(9000, 185107);
+const MISSING_ID = testUuid(9000, 394917);
+
+const MODERATOR_1_ID = testUuid(9000, 903590);
+const MODERATOR_2_ID = testUuid(9000, 903591);
+const REPORT_1_ID = testUuid(9000, 265803);
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
+const USER_9_ID = testUuid(9000, 994265);
 
 function createReportRecord(overrides: Record<string, unknown> = {}) {
   return {
-    id: "report-1",
-    reporterId: "user-1",
+    id: REPORT_1_ID,
+    reporterId: USER_1_ID,
     subjectType: "posting",
     subjectId: "posting-1",
     reasonCode: "spam",
@@ -17,8 +27,8 @@ function createReportRecord(overrides: Record<string, unknown> = {}) {
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     reporter: {
-      id: "user-1",
-      email: "user1@example.com",
+      id: USER_1_ID,
+      email: `${USER_1_ID}@example.com`,
       role: "user",
     },
     subjectSnapshot: {
@@ -41,7 +51,7 @@ function createReportRecord(overrides: Record<string, unknown> = {}) {
 function createOutboxEntry(overrides: Record<string, unknown> = {}) {
   return {
     id: "outbox-1",
-    reportId: "report-1",
+    reportId: REPORT_1_ID,
     operation: "upsert",
     attempts: 0,
     ...overrides,
@@ -83,10 +93,10 @@ function createService(overrides?: {
       rating: 2,
       title: "Bad stay",
       comment: "Felt unsafe.",
-      reviewerId: "user-2",
+      reviewerId: USER_2_ID,
       reviewer: {
-        id: "user-2",
-        email: "user2@example.com",
+        id: USER_2_ID,
+        email: `${USER_2_ID}@example.com`,
         role: "user",
         profile: {
           username: "renter-two",
@@ -101,11 +111,11 @@ function createService(overrides?: {
     findOrganizationBlogCommentSubject: jest.fn(async () => ({
       id: "blog-comment-1",
       body: "Buy cheap followers at example.test",
-      authorUserId: "user-2",
+      authorUserId: USER_2_ID,
       deletedAt: null,
       author: {
-        id: "user-2",
-        email: "user2@example.com",
+        id: USER_2_ID,
+        email: `${USER_2_ID}@example.com`,
         role: "user",
         profile: {
           username: "renter-two",
@@ -123,8 +133,8 @@ function createService(overrides?: {
       },
     })),
     findUserSubject: jest.fn(async () => ({
-      id: "user-2",
-      email: "user2@example.com",
+      id: USER_2_ID,
+      email: `${USER_2_ID}@example.com`,
       role: "user",
       profile: {
         username: "renter-two",
@@ -158,7 +168,7 @@ function createService(overrides?: {
     findUserSummaryById: jest.fn(async (userId: string) => ({
       id: userId,
       email: `${userId}@example.com`,
-      role: userId === "moderator-1" ? "moderator" : "admin",
+      role: userId === MODERATOR_1_ID ? "moderator" : "admin",
     })),
     claimSearchOutboxBatch: jest.fn(async () => []),
     listReportsForIndexing: jest.fn(async () => [createReportRecord()]),
@@ -171,7 +181,7 @@ function createService(overrides?: {
   const search = {
     isElasticsearchEnabled: jest.fn(() => true),
     search: jest.fn(async () => ({
-      ids: ["report-1"],
+      ids: [REPORT_1_ID],
       total: 1,
     })),
     upsertDocument: jest.fn(async () => undefined),
@@ -204,7 +214,7 @@ describe("ReportsService", () => {
     const { service, repository } = createService();
 
     await service.create({
-      reporterId: "user-1",
+      reporterId: USER_1_ID,
       subjectType: "posting",
       subjectId: "posting-1",
       reasonCode: "spam",
@@ -214,7 +224,7 @@ describe("ReportsService", () => {
 
     expect(repository.createReport).toHaveBeenCalledWith(
       expect.objectContaining({
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting",
       }),
       {
@@ -247,7 +257,7 @@ describe("ReportsService", () => {
 
     await expect(
       service.create({
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting",
         subjectId: "posting-1",
         reasonCode: "spam",
@@ -263,7 +273,7 @@ describe("ReportsService", () => {
       organizationAccessService: {
         findMembership: jest.fn(
           async (userId: string, organizationId: string) =>
-            userId === "user-1" && organizationId === "org-1"
+            userId === USER_1_ID && organizationId === "org-1"
               ? {
                   organizationId,
                   userId,
@@ -276,7 +286,7 @@ describe("ReportsService", () => {
 
     await expect(
       service.create({
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting",
         subjectId: "posting-1",
         reasonCode: "spam",
@@ -290,7 +300,7 @@ describe("ReportsService", () => {
     const { service, repository } = createService();
 
     await service.create({
-      reporterId: "user-9",
+      reporterId: USER_9_ID,
       subjectType: "posting_review",
       subjectId: "review-1",
       reasonCode: "review_manipulation",
@@ -309,7 +319,7 @@ describe("ReportsService", () => {
           rating: 2,
           commentExcerpt: "Felt unsafe.",
           reviewer: expect.objectContaining({
-            id: "user-2",
+            id: USER_2_ID,
             username: "renter-two",
             role: "user",
           }),
@@ -322,7 +332,7 @@ describe("ReportsService", () => {
     const { service, repository } = createService();
 
     await service.create({
-      reporterId: "user-9",
+      reporterId: USER_9_ID,
       subjectType: "organization_blog_comment",
       subjectId: "blog-comment-1",
       reasonCode: "spam",
@@ -340,7 +350,7 @@ describe("ReportsService", () => {
           id: "blog-comment-1",
           bodyExcerpt: "Buy cheap followers at example.test",
           author: expect.objectContaining({
-            id: "user-2",
+            id: USER_2_ID,
             username: "renter-two",
           }),
           post: expect.objectContaining({
@@ -357,7 +367,7 @@ describe("ReportsService", () => {
 
     await expect(
       service.create({
-        reporterId: "user-2",
+        reporterId: USER_2_ID,
         subjectType: "organization_blog_comment",
         subjectId: "blog-comment-1",
         reasonCode: "spam",
@@ -373,11 +383,11 @@ describe("ReportsService", () => {
         findOrganizationBlogCommentSubject: jest.fn(async () => ({
           id: "blog-comment-1",
           body: "",
-          authorUserId: "user-2",
+          authorUserId: USER_2_ID,
           deletedAt: new Date("2026-07-17T00:00:00.000Z"),
           author: {
-            id: "user-2",
-            email: "user2@example.com",
+            id: USER_2_ID,
+            email: `${USER_2_ID}@example.com`,
             role: "user",
             profile: { username: "renter-two", avatarUrl: null },
           },
@@ -395,7 +405,7 @@ describe("ReportsService", () => {
     // for a moderator to act on.
     await expect(
       service.create({
-        reporterId: "user-9",
+        reporterId: USER_9_ID,
         subjectType: "organization_blog_comment",
         subjectId: "blog-comment-1",
         reasonCode: "spam",
@@ -414,9 +424,9 @@ describe("ReportsService", () => {
 
     await expect(
       service.create({
-        reporterId: "user-9",
+        reporterId: USER_9_ID,
         subjectType: "organization_blog_comment",
-        subjectId: "missing",
+        subjectId: MISSING_ID,
         reasonCode: "spam",
         title: "Spam comment",
         description: "This comment is advertising a follower-selling service.",
@@ -432,10 +442,10 @@ describe("ReportsService", () => {
           rating: 5,
           title: "Great stay",
           comment: "Loved it.",
-          reviewerId: "user-1",
+          reviewerId: USER_1_ID,
           reviewer: {
-            id: "user-1",
-            email: "user1@example.com",
+            id: USER_1_ID,
+            email: `${USER_1_ID}@example.com`,
             role: "user",
             profile: {
               username: "self-reviewer",
@@ -452,7 +462,7 @@ describe("ReportsService", () => {
 
     await expect(
       service.create({
-        reporterId: "user-1",
+        reporterId: USER_1_ID,
         subjectType: "posting_review",
         subjectId: "review-1",
         reasonCode: "other",
@@ -466,8 +476,8 @@ describe("ReportsService", () => {
     const { service, repository } = createService({
       repository: {
         findUserSubject: jest.fn(async () => ({
-          id: "user-2",
-          email: "user2@example.com",
+          id: USER_2_ID,
+          email: `${USER_2_ID}@example.com`,
           role: "owner",
           profile: {
             username: "renter-two",
@@ -478,9 +488,9 @@ describe("ReportsService", () => {
     });
 
     await service.create({
-      reporterId: "user-1",
+      reporterId: USER_1_ID,
       subjectType: "user",
-      subjectId: "user-2",
+      subjectId: USER_2_ID,
       reasonCode: "harassment_or_hate",
       title: "Abusive messages",
       description:
@@ -495,8 +505,8 @@ describe("ReportsService", () => {
         subjectType: "user",
         summaryText: "renter-two owner",
         user: {
-          id: "user-2",
-          email: "user2@example.com",
+          id: USER_2_ID,
+          email: `${USER_2_ID}@example.com`,
           role: "owner",
           username: "renter-two",
           avatarUrl: "https://example.test/avatar.png",
@@ -526,14 +536,14 @@ describe("ReportsService", () => {
     const { service, repository, search } = createService({
       search: {
         search: jest.fn(async () => ({
-          ids: ["report-2", "report-1"],
+          ids: ["report-2", REPORT_1_ID],
           total: 8,
         })),
       },
       repository: {
         findReportsByIds: jest.fn(async () => [
           createReportRecord({ id: "report-2" }),
-          createReportRecord({ id: "report-1" }),
+          createReportRecord({ id: REPORT_1_ID }),
         ]),
       },
     });
@@ -553,7 +563,7 @@ describe("ReportsService", () => {
     });
     expect(repository.findReportsByIds).toHaveBeenCalledWith([
       "report-2",
-      "report-1",
+      REPORT_1_ID,
     ]);
     expect(result).toMatchObject({
       source: "elasticsearch",
@@ -595,24 +605,24 @@ describe("ReportsService", () => {
       },
     });
 
-    await expect(service.getModerationDetail("missing")).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
+    await expect(
+      service.getModerationDetail(MISSING_ID),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("defaults undefined report assignment to the acting moderator", async () => {
     const { service, repository } = createService();
 
     await service.assign({
-      actorUserId: "moderator-1",
+      actorUserId: MODERATOR_1_ID,
       actorRole: "moderator",
-      reportId: "report-1",
+      reportId: REPORT_1_ID,
     });
 
     expect(repository.updateAssignment).toHaveBeenCalledWith({
-      reportId: "report-1",
-      actorUserId: "moderator-1",
-      assignedModeratorId: "moderator-1",
+      reportId: REPORT_1_ID,
+      actorUserId: MODERATOR_1_ID,
+      assignedModeratorId: MODERATOR_1_ID,
     });
   });
 
@@ -621,10 +631,10 @@ describe("ReportsService", () => {
 
     await expect(
       service.assign({
-        actorUserId: "moderator-1",
+        actorUserId: MODERATOR_1_ID,
         actorRole: "moderator",
-        reportId: "report-1",
-        assignedModeratorId: "moderator-2",
+        reportId: REPORT_1_ID,
+        assignedModeratorId: MODERATOR_2_ID,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -633,8 +643,8 @@ describe("ReportsService", () => {
     const { service } = createService({
       repository: {
         findUserSummaryById: jest.fn(async () => ({
-          id: "user-2",
-          email: "user2@example.com",
+          id: USER_2_ID,
+          email: `${USER_2_ID}@example.com`,
           role: "user",
         })),
       },
@@ -642,10 +652,10 @@ describe("ReportsService", () => {
 
     await expect(
       service.assign({
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
         actorRole: "admin",
-        reportId: "report-1",
-        assignedModeratorId: "user-2",
+        reportId: REPORT_1_ID,
+        assignedModeratorId: USER_2_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
@@ -659,10 +669,10 @@ describe("ReportsService", () => {
 
     await expect(
       service.assign({
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
         actorRole: "admin",
-        reportId: "report-1",
-        assignedModeratorId: "missing",
+        reportId: REPORT_1_ID,
+        assignedModeratorId: MISSING_ID,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -680,9 +690,9 @@ describe("ReportsService", () => {
 
     await expect(
       service.updateStatus({
-        actorUserId: "moderator-1",
+        actorUserId: MODERATOR_1_ID,
         actorRole: "moderator",
-        reportId: "report-1",
+        reportId: REPORT_1_ID,
         status: "resolved",
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
@@ -692,9 +702,9 @@ describe("ReportsService", () => {
     const { service, repository } = createService();
 
     await service.updateStatus({
-      actorUserId: "moderator-1",
+      actorUserId: MODERATOR_1_ID,
       actorRole: "moderator",
-      reportId: "report-1",
+      reportId: REPORT_1_ID,
       status: "resolved",
       resolutionCode: "action_taken",
       resolutionSummary: "  Listing removed  ",
@@ -702,8 +712,8 @@ describe("ReportsService", () => {
     });
 
     expect(repository.updateStatus).toHaveBeenCalledWith({
-      reportId: "report-1",
-      actorUserId: "moderator-1",
+      reportId: REPORT_1_ID,
+      actorUserId: MODERATOR_1_ID,
       status: "resolved",
       resolutionCode: "action_taken",
       resolutionSummary: "Listing removed",
@@ -725,9 +735,9 @@ describe("ReportsService", () => {
 
     await expect(
       service.updateStatus({
-        actorUserId: "moderator-1",
+        actorUserId: MODERATOR_1_ID,
         actorRole: "moderator",
-        reportId: "report-1",
+        reportId: REPORT_1_ID,
         status: "resolved",
         resolutionCode: "action_taken",
         note: "bad text",
@@ -751,7 +761,7 @@ describe("ReportsService", () => {
         claimSearchOutboxBatch: jest.fn(async () => [
           createOutboxEntry({
             id: "outbox-1",
-            reportId: "report-1",
+            reportId: REPORT_1_ID,
             operation: "upsert",
           }),
           createOutboxEntry({
@@ -766,7 +776,7 @@ describe("ReportsService", () => {
           }),
         ]),
         listReportsForIndexing: jest.fn(async () => [
-          createReportRecord({ id: "report-1" }),
+          createReportRecord({ id: REPORT_1_ID }),
         ]),
       },
     });
@@ -776,7 +786,7 @@ describe("ReportsService", () => {
     expect(result).toBe(3);
     expect(search.upsertDocument).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "report-1",
+        id: REPORT_1_ID,
       }),
     );
     expect(search.deleteDocument).toHaveBeenCalledWith("report-2");
@@ -798,7 +808,7 @@ describe("ReportsService", () => {
         claimSearchOutboxBatch: jest.fn(async () => [
           createOutboxEntry({
             id: "outbox-1",
-            reportId: "report-1",
+            reportId: REPORT_1_ID,
             operation: "delete",
             attempts: 1,
           }),

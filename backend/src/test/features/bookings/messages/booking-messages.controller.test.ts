@@ -20,7 +20,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
     sub: USER_ID,
-    email: "user@example.com",
+    email: `${USER_ID}@example.com`,
     role: "user",
     deviceId: "device-1",
     tokenVersion: 0,

@@ -2,15 +2,25 @@ import { Prisma } from "@/generated/prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
+import { testUuid } from "../../support/uuid";
+const BOOKING_1_ID = testUuid(9000, 996753);
+const OWNER_1_ID = testUuid(9000, 219201);
+const OWNER_USER_1_ID = testUuid(9000, 356340);
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+const RENTER_1_ID = testUuid(9000, 235000);
+const SOMEONE_ELSE_ID = testUuid(9000, 696130);
+
+const ORG_1_ID = testUuid(9000, 9234);
 
 function createBookingRequestPersistence(
   overrides: Record<string, unknown> = {},
 ) {
   return {
-    id: "booking-1",
-    postingId: "posting-1",
-    renterId: "renter-1",
-    organizationId: "org-1",
+    id: BOOKING_1_ID,
+    postingId: POSTING_1_ID,
+    renterId: RENTER_1_ID,
+    organizationId: ORG_1_ID,
     status: "pending",
     startAt: new Date("2026-05-01T00:00:00.000Z"),
     endAt: new Date("2026-05-04T00:00:00.000Z"),
@@ -52,12 +62,12 @@ function createBookingRequestPersistence(
     updatedAt: new Date("2026-04-21T00:00:00.000Z"),
     renting: null,
     posting: {
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "Sunny loft",
       maxBookingDurationDays: null,
       photos: [
         {
-          blobUrl: "https://example.test/posting-1.jpg",
+          blobUrl: `https://example.test/${POSTING_1_ID}.jpg`,
         },
       ],
     },
@@ -67,9 +77,9 @@ function createBookingRequestPersistence(
 
 function createBookingRequestInput(overrides: Record<string, unknown> = {}) {
   return {
-    postingId: "posting-1",
-    renterId: "renter-1",
-    organizationId: "org-1",
+    postingId: POSTING_1_ID,
+    renterId: RENTER_1_ID,
+    organizationId: ORG_1_ID,
     startAt: new Date("2026-05-01T00:00:00.000Z"),
     endAt: new Date("2026-05-04T00:00:00.000Z"),
     durationDays: 3,
@@ -115,9 +125,9 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.create({
-      postingId: "posting-1",
-      renterId: "renter-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
+      organizationId: ORG_1_ID,
       startAt: new Date("2026-05-01T00:00:00.000Z"),
       endAt: new Date("2026-05-04T00:00:00.000Z"),
       durationDays: 3,
@@ -141,24 +151,24 @@ describe("BookingsRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
-          renterId: "renter-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          renterId: RENTER_1_ID,
+          organizationId: ORG_1_ID,
           dailyPriceAmount: expect.any(Prisma.Decimal),
           estimatedTotal: expect.any(Prisma.Decimal),
         }),
       }),
     );
     expect(result).toMatchObject({
-      id: "booking-1",
+      id: BOOKING_1_ID,
       contactPhoneNumber: "555-0100",
       note: "Please confirm quickly",
       dailyPriceAmount: 120,
       estimatedTotal: 360,
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "Sunny loft",
-        primaryPhotoUrl: "https://example.test/posting-1.jpg",
+        primaryPhotoUrl: `https://example.test/${POSTING_1_ID}.jpg`,
         effectiveMaxBookingDurationDays: 30,
       },
     });
@@ -181,9 +191,9 @@ describe("BookingsRepository", () => {
     const repository = new BookingsRepository(database as any);
     const result = await repository.createIfWithinActiveRequestLimit(
       {
-        postingId: "posting-1",
-        renterId: "renter-1",
-        organizationId: "org-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
+        organizationId: ORG_1_ID,
         startAt: new Date("2026-05-01T00:00:00.000Z"),
         endAt: new Date("2026-05-04T00:00:00.000Z"),
         durationDays: 3,
@@ -240,8 +250,8 @@ describe("BookingsRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
-          renterId: "renter-1",
+          postingId: POSTING_1_ID,
+          renterId: RENTER_1_ID,
           dailyPriceAmount: expect.any(Prisma.Decimal),
           estimatedTotal: expect.any(Prisma.Decimal),
           contactPhoneNumber: "555-0100",
@@ -274,7 +284,7 @@ describe("BookingsRepository", () => {
     await expect(repository.findById("booking-found")).resolves.toMatchObject({
       id: "booking-found",
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "Sunny loft",
       },
     });
@@ -297,7 +307,7 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.listByRenter({
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       page: 2,
       pageSize: 2,
       status: "approved",
@@ -306,7 +316,7 @@ describe("BookingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          renterId: "renter-1",
+          renterId: RENTER_1_ID,
           status: "approved",
         },
         skip: 2,
@@ -332,8 +342,8 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          renterId: "renter-1",
+          id: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
           status: "pending",
           holdExpiresAt: new Date("2099-04-21T00:00:00.000Z"),
         })),
@@ -357,7 +367,7 @@ describe("BookingsRepository", () => {
     };
     const repository = new BookingsRepository(database as any);
 
-    const result = await repository.updatePending("booking-1", "renter-1", {
+    const result = await repository.updatePending(BOOKING_1_ID, RENTER_1_ID, {
       ...createBookingRequestInput({
         contactPhoneNumber: "555-0101",
         note: "Updated booking",
@@ -369,8 +379,8 @@ describe("BookingsRepository", () => {
 
     expect(transaction.bookingRequest.updateMany).toHaveBeenCalledWith({
       where: {
-        id: "booking-1",
-        renterId: "renter-1",
+        id: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         status: "pending",
         holdExpiresAt: {
           gt: new Date("2026-05-20T12:00:00.000Z"),
@@ -386,7 +396,7 @@ describe("BookingsRepository", () => {
       }),
     });
     expect(result).toMatchObject({
-      id: "booking-1",
+      id: BOOKING_1_ID,
       contactPhoneNumber: "555-0101",
       note: "Updated booking",
       dailyPriceAmount: 150,
@@ -398,20 +408,20 @@ describe("BookingsRepository", () => {
     const findUnique = jest
       .fn()
       .mockResolvedValueOnce({
-        id: "booking-1",
-        renterId: "someone-else",
+        id: BOOKING_1_ID,
+        renterId: SOMEONE_ELSE_ID,
         status: "pending",
         holdExpiresAt: new Date("2099-04-21T00:00:00.000Z"),
       })
       .mockResolvedValueOnce({
-        id: "booking-1",
-        renterId: "renter-1",
+        id: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         status: "approved",
         holdExpiresAt: new Date("2099-04-21T00:00:00.000Z"),
       })
       .mockResolvedValueOnce({
-        id: "booking-1",
-        renterId: "renter-1",
+        id: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
         status: "pending",
         holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
       });
@@ -433,13 +443,13 @@ describe("BookingsRepository", () => {
     const input = createBookingRequestInput({ holdExpiresAt: undefined });
 
     await expect(
-      repository.updatePending("booking-1", "renter-1", input),
+      repository.updatePending(BOOKING_1_ID, RENTER_1_ID, input),
     ).resolves.toBeNull();
     await expect(
-      repository.updatePending("booking-1", "renter-1", input),
+      repository.updatePending(BOOKING_1_ID, RENTER_1_ID, input),
     ).resolves.toBeNull();
     await expect(
-      repository.updatePending("booking-1", "renter-1", input),
+      repository.updatePending(BOOKING_1_ID, RENTER_1_ID, input),
     ).resolves.toBeNull();
     expect(updateMany).not.toHaveBeenCalled();
   });
@@ -447,19 +457,19 @@ describe("BookingsRepository", () => {
   it("deduplicates dashboard posting options by posting id", async () => {
     const findMany = jest.fn(async () => [
       {
-        postingId: "posting-2",
+        postingId: POSTING_2_ID,
         posting: {
           name: "Alpine cabin",
         },
       },
       {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         posting: {
           name: "City loft",
         },
       },
       {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         posting: {
           name: "City loft",
         },
@@ -472,22 +482,22 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result =
-      await repository.listDashboardPostingOptionsByOrganization("org-1");
+      await repository.listDashboardPostingOptionsByOrganization(ORG_1_ID);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
         },
       }),
     );
     expect(result).toEqual([
       {
-        id: "posting-2",
+        id: POSTING_2_ID,
         name: "Alpine cabin",
       },
       {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "City loft",
       },
     ]);
@@ -509,9 +519,9 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.listByOwnerAndPosting({
-      actorUserId: "owner-1",
-      organizationId: "org-1",
-      postingId: "posting-1",
+      actorUserId: OWNER_1_ID,
+      organizationId: ORG_1_ID,
+      postingId: POSTING_1_ID,
       page: 1,
       pageSize: 10,
       status: "pending",
@@ -520,8 +530,8 @@ describe("BookingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
-          postingId: "posting-1",
+          organizationId: ORG_1_ID,
+          postingId: POSTING_1_ID,
           status: "pending",
         },
       }),
@@ -547,8 +557,8 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.listByOwner({
-      actorUserId: "owner-1",
-      organizationId: "org-1",
+      actorUserId: OWNER_1_ID,
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 25,
     });
@@ -556,7 +566,7 @@ describe("BookingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
         },
       }),
     );
@@ -586,9 +596,9 @@ describe("BookingsRepository", () => {
         createBookingRequestPersistence({
           id: "dashboard-owner",
           status: "approved",
-          postingId: "posting-2",
+          postingId: POSTING_2_ID,
           posting: {
-            id: "posting-2",
+            id: POSTING_2_ID,
             name: "Lake house",
             maxBookingDurationDays: 14,
             photos: [],
@@ -603,22 +613,22 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.listDashboardByRenter({
-        renterId: "renter-1",
+        renterId: RENTER_1_ID,
         status: "pending",
       }),
     ).resolves.toMatchObject([{ id: "dashboard-renter", status: "pending" }]);
     await expect(
       repository.listDashboardByOwner({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         status: "approved",
-        postingId: "posting-2",
+        postingId: POSTING_2_ID,
       }),
     ).resolves.toMatchObject([
       {
         id: "dashboard-owner",
         status: "approved",
         posting: {
-          id: "posting-2",
+          id: POSTING_2_ID,
           effectiveMaxBookingDurationDays: 14,
         },
       },
@@ -627,7 +637,7 @@ describe("BookingsRepository", () => {
       1,
       expect.objectContaining({
         where: {
-          renterId: "renter-1",
+          renterId: RENTER_1_ID,
           status: "pending",
         },
       }),
@@ -636,9 +646,9 @@ describe("BookingsRepository", () => {
       2,
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: "approved",
-          postingId: "posting-2",
+          postingId: POSTING_2_ID,
         },
       }),
     );
@@ -655,9 +665,9 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.hasOfficialReservationOverlap({
-      postingId: "posting-1",
-      renterId: "renter-1",
-      excludeBookingRequestId: "booking-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
+      excludeBookingRequestId: BOOKING_1_ID,
       startAt: new Date("2026-06-01T00:00:00.000Z"),
       endAt: new Date("2026-06-03T00:00:00.000Z"),
     });
@@ -665,13 +675,13 @@ describe("BookingsRepository", () => {
     expect(result).toBe(true);
     expect(findFirst).toHaveBeenCalledWith({
       where: {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         status: "paid",
         convertedAt: null,
         id: {
-          not: "booking-1",
+          not: BOOKING_1_ID,
         },
-        renterId: "renter-1",
+        renterId: RENTER_1_ID,
         startAt: {
           lt: new Date("2026-06-03T00:00:00.000Z"),
         },
@@ -694,16 +704,16 @@ describe("BookingsRepository", () => {
     } as any);
 
     const result = await repository.countActiveRequestsForRenterPosting({
-      postingId: "posting-1",
-      renterId: "renter-1",
-      excludeBookingRequestId: "booking-1",
+      postingId: POSTING_1_ID,
+      renterId: RENTER_1_ID,
+      excludeBookingRequestId: BOOKING_1_ID,
     });
 
     expect(result).toBe(4);
     expect(count).toHaveBeenCalledWith({
       where: {
-        postingId: "posting-1",
-        renterId: "renter-1",
+        postingId: POSTING_1_ID,
+        renterId: RENTER_1_ID,
         status: {
           in: [
             "pending",
@@ -716,7 +726,7 @@ describe("BookingsRepository", () => {
         },
         convertedAt: null,
         id: {
-          not: "booking-1",
+          not: BOOKING_1_ID,
         },
       },
     });
@@ -726,8 +736,8 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          renterId: "renter-1",
+          id: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
           status: "pending",
           holdExpiresAt: new Date("2099-04-21T00:00:00.000Z"),
         })),
@@ -743,7 +753,7 @@ describe("BookingsRepository", () => {
     };
 
     const repository = new BookingsRepository(database as any);
-    const result = await repository.updatePending("booking-1", "renter-1", {
+    const result = await repository.updatePending(BOOKING_1_ID, RENTER_1_ID, {
       startAt: new Date("2026-05-01T00:00:00.000Z"),
       endAt: new Date("2026-05-04T00:00:00.000Z"),
       durationDays: 3,
@@ -788,8 +798,8 @@ describe("BookingsRepository", () => {
 
     const repository = new BookingsRepository(database as any);
     const result = await repository.approve(
-      "booking-1",
-      "org-1",
+      BOOKING_1_ID,
+      ORG_1_ID,
       "Approved",
       new Date("2026-05-21T12:00:00.000Z"),
     );
@@ -833,16 +843,16 @@ describe("BookingsRepository", () => {
 
     const repository = new BookingsRepository(database as any);
     const result = await repository.approve(
-      "booking-1",
-      "org-1",
+      BOOKING_1_ID,
+      ORG_1_ID,
       "Approved",
       newHoldExpiresAt,
     );
 
     expect(transaction.bookingRequest.updateMany).toHaveBeenCalledWith({
       where: {
-        id: "booking-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        organizationId: ORG_1_ID,
         status: "pending",
         holdExpiresAt: {
           gt: new Date("2026-05-20T12:00:00.000Z"),
@@ -859,7 +869,7 @@ describe("BookingsRepository", () => {
       },
     });
     expect(result).toMatchObject({
-      id: "booking-1",
+      id: BOOKING_1_ID,
       status: "awaiting_payment",
       decisionNote: "Approved",
       approvedAt: approvedAt.toISOString(),
@@ -908,24 +918,24 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.approve(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         "Approved",
         new Date("2026-05-21T12:00:00.000Z"),
       ),
     ).resolves.toBeNull();
     await expect(
       repository.approve(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         "Approved",
         new Date("2026-05-21T12:00:00.000Z"),
       ),
     ).resolves.toBeNull();
     await expect(
       repository.approve(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         "Approved",
         new Date("2026-05-21T12:00:00.000Z"),
       ),
@@ -958,8 +968,8 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.approve(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         null,
         new Date("2026-05-21T12:00:00.000Z"),
       ),
@@ -980,8 +990,8 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.approve(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         "Approved",
         new Date("2026-05-21T12:00:00.000Z"),
       ),
@@ -992,8 +1002,8 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          organizationId: "org-1",
+          id: BOOKING_1_ID,
+          organizationId: ORG_1_ID,
           status: "pending",
         })),
         updateMany: jest.fn(async () => ({
@@ -1008,7 +1018,7 @@ describe("BookingsRepository", () => {
     };
 
     const repository = new BookingsRepository(database as any);
-    const result = await repository.decline("booking-1", "org-1", "Declined");
+    const result = await repository.decline(BOOKING_1_ID, ORG_1_ID, "Declined");
 
     expect(result).toBeNull();
   });
@@ -1018,8 +1028,8 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          organizationId: "org-1",
+          id: BOOKING_1_ID,
+          organizationId: ORG_1_ID,
           status: "pending",
         })),
         updateMany: jest.fn(async () => ({
@@ -1041,10 +1051,10 @@ describe("BookingsRepository", () => {
     };
 
     const repository = new BookingsRepository(database as any);
-    const result = await repository.decline("booking-1", "org-1", "Declined");
+    const result = await repository.decline(BOOKING_1_ID, ORG_1_ID, "Declined");
 
     expect(result).toMatchObject({
-      id: "booking-1",
+      id: BOOKING_1_ID,
       status: "declined",
       decisionNote: "Declined",
       declinedAt: declinedAt.toISOString(),
@@ -1055,13 +1065,13 @@ describe("BookingsRepository", () => {
     const findUnique = jest
       .fn()
       .mockResolvedValueOnce({
-        id: "booking-1",
+        id: BOOKING_1_ID,
         organizationId: "org-2",
         status: "pending",
       })
       .mockResolvedValueOnce({
-        id: "booking-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        organizationId: ORG_1_ID,
         status: "approved",
       });
     const updateMany = jest.fn(async () => ({
@@ -1081,10 +1091,10 @@ describe("BookingsRepository", () => {
     const repository = new BookingsRepository(database as any);
 
     await expect(
-      repository.decline("booking-1", "org-1", null),
+      repository.decline(BOOKING_1_ID, ORG_1_ID, null),
     ).resolves.toBeNull();
     await expect(
-      repository.decline("booking-1", "org-1", null),
+      repository.decline(BOOKING_1_ID, ORG_1_ID, null),
     ).resolves.toBeNull();
     expect(updateMany).not.toHaveBeenCalled();
   });
@@ -1093,9 +1103,9 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          renterId: "renter-1",
-          organizationId: "org-1",
+          id: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          organizationId: ORG_1_ID,
           status: "pending",
           holdBlockId: null,
           convertedAt: null,
@@ -1116,8 +1126,8 @@ describe("BookingsRepository", () => {
 
     const repository = new BookingsRepository(database as any);
     const result = await repository.cancel({
-      bookingRequestId: "booking-1",
-      actorUserId: "renter-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: RENTER_1_ID,
       actor: "renter",
       expectedStatus: "pending",
       cancellationPolicyCode: "flexible",
@@ -1132,9 +1142,9 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
-          renterId: "renter-1",
-          organizationId: "org-1",
+          id: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          organizationId: ORG_1_ID,
           status: "awaiting_payment",
           holdBlockId: "block-1",
           convertedAt: null,
@@ -1146,7 +1156,7 @@ describe("BookingsRepository", () => {
           createBookingRequestPersistence({
             status: "cancelled",
             cancelledAt: new Date("2026-05-20T12:00:00.000Z"),
-            cancelledByUserId: "owner-user-1",
+            cancelledByUserId: OWNER_USER_1_ID,
             cancellationActor: "owner",
             cancellationReason: "Owner unavailable",
             cancellationPolicyCode: "strict",
@@ -1167,10 +1177,10 @@ describe("BookingsRepository", () => {
     const repository = new BookingsRepository(database as any);
 
     const result = await repository.cancel({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-user-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: OWNER_USER_1_ID,
       actor: "owner",
-      actorOrganizationId: "org-1",
+      actorOrganizationId: ORG_1_ID,
       expectedStatus: "awaiting_payment",
       reason: "Owner unavailable",
       cancellationPolicyCode: "strict",
@@ -1183,9 +1193,9 @@ describe("BookingsRepository", () => {
       },
     });
     expect(result).toMatchObject({
-      id: "booking-1",
+      id: BOOKING_1_ID,
       status: "cancelled",
-      cancelledByUserId: "owner-user-1",
+      cancelledByUserId: OWNER_USER_1_ID,
       cancellationActor: "owner",
       cancellationReason: "Owner unavailable",
       cancellationPolicyCode: "strict",
@@ -1198,17 +1208,17 @@ describe("BookingsRepository", () => {
       .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
-        id: "booking-1",
-        renterId: "renter-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        organizationId: ORG_1_ID,
         status: "awaiting_payment",
         holdBlockId: null,
         convertedAt: null,
       })
       .mockResolvedValueOnce({
-        id: "booking-1",
-        renterId: "renter-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        organizationId: ORG_1_ID,
         status: "awaiting_payment",
         holdBlockId: null,
         convertedAt: new Date("2026-05-20T11:00:00.000Z"),
@@ -1234,10 +1244,10 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-user-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_USER_1_ID,
         actor: "owner",
-        actorOrganizationId: "org-1",
+        actorOrganizationId: ORG_1_ID,
         expectedStatus: "awaiting_payment",
         cancellationPolicyCode: "strict",
         cancellationRefundAmount: 75,
@@ -1245,8 +1255,8 @@ describe("BookingsRepository", () => {
     ).resolves.toBeNull();
     await expect(
       repository.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "someone-else",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: SOMEONE_ELSE_ID,
         actor: "renter",
         expectedStatus: "awaiting_payment",
         cancellationPolicyCode: "strict",
@@ -1255,10 +1265,10 @@ describe("BookingsRepository", () => {
     ).resolves.toBeNull();
     await expect(
       repository.cancel({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-user-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_USER_1_ID,
         actor: "owner",
-        actorOrganizationId: "org-1",
+        actorOrganizationId: ORG_1_ID,
         expectedStatus: "awaiting_payment",
         cancellationPolicyCode: "strict",
         cancellationRefundAmount: 75,
@@ -1275,7 +1285,7 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
+          id: BOOKING_1_ID,
           status: "awaiting_payment",
           holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
           holdBlockId: "block-1",
@@ -1295,13 +1305,13 @@ describe("BookingsRepository", () => {
     };
 
     const repository = new BookingsRepository(database as any);
-    const result = await repository.expire("booking-1");
+    const result = await repository.expire(BOOKING_1_ID);
 
     expect(result).toBe(true);
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          id: "booking-1",
+          id: BOOKING_1_ID,
           status: "awaiting_payment",
         }),
         data: expect.objectContaining({
@@ -1322,15 +1332,15 @@ describe("BookingsRepository", () => {
   it("lists expired booking request candidates and normalizes nullable hold block ids", async () => {
     const findMany = jest.fn(async () => [
       {
-        id: "booking-1",
-        postingId: "posting-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
         status: "pending",
         holdBlockId: null,
       },
       {
         id: "booking-2",
-        postingId: "posting-2",
+        postingId: POSTING_2_ID,
         organizationId: "org-2",
         status: "payment_failed",
         holdBlockId: "block-2",
@@ -1357,14 +1367,14 @@ describe("BookingsRepository", () => {
     );
     expect(result).toEqual([
       {
-        id: "booking-1",
-        postingId: "posting-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
         status: "pending",
       },
       {
         id: "booking-2",
-        postingId: "posting-2",
+        postingId: POSTING_2_ID,
         organizationId: "org-2",
         status: "payment_failed",
         holdBlockId: "block-2",
@@ -1385,22 +1395,22 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.hasBlockingAvailabilityOverlap({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt: new Date("2026-06-01T00:00:00.000Z"),
         endAt: new Date("2026-06-03T00:00:00.000Z"),
-        excludeBookingRequestId: "booking-1",
+        excludeBookingRequestId: BOOKING_1_ID,
       }),
     ).resolves.toBe(true);
     await expect(
       repository.hasBlockingAvailabilityOverlap({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt: new Date("2026-06-01T00:00:00.000Z"),
         endAt: new Date("2026-06-03T00:00:00.000Z"),
       }),
     ).resolves.toBe(false);
     expect(findFirst).toHaveBeenNthCalledWith(1, {
       where: {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt: {
           lt: new Date("2026-06-03T00:00:00.000Z"),
         },
@@ -1416,7 +1426,7 @@ describe("BookingsRepository", () => {
               status: "paid",
               convertedAt: null,
               id: {
-                not: "booking-1",
+                not: BOOKING_1_ID,
               },
             },
           },
@@ -1433,7 +1443,7 @@ describe("BookingsRepository", () => {
     [
       "the booking request is already in a terminal status",
       {
-        id: "booking-1",
+        id: BOOKING_1_ID,
         status: "paid",
         holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
         holdBlockId: "block-1",
@@ -1444,7 +1454,7 @@ describe("BookingsRepository", () => {
     [
       "the booking request has already been converted",
       {
-        id: "booking-1",
+        id: BOOKING_1_ID,
         status: "pending",
         holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
         holdBlockId: "block-1",
@@ -1455,7 +1465,7 @@ describe("BookingsRepository", () => {
     [
       "the conversion reservation is still active",
       {
-        id: "booking-1",
+        id: BOOKING_1_ID,
         status: "pending",
         holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
         holdBlockId: "block-1",
@@ -1466,7 +1476,7 @@ describe("BookingsRepository", () => {
     [
       "the hold has not expired yet",
       {
-        id: "booking-1",
+        id: BOOKING_1_ID,
         status: "pending",
         holdExpiresAt: new Date("2026-05-20T12:05:00.000Z"),
         holdBlockId: "block-1",
@@ -1494,7 +1504,7 @@ describe("BookingsRepository", () => {
     };
     const repository = new BookingsRepository(database as any);
 
-    await expect(repository.expire("booking-1")).resolves.toBe(false);
+    await expect(repository.expire(BOOKING_1_ID)).resolves.toBe(false);
     expect(updateMany).not.toHaveBeenCalled();
   });
 
@@ -1506,7 +1516,7 @@ describe("BookingsRepository", () => {
     const transaction = {
       bookingRequest: {
         findUnique: jest.fn(async () => ({
-          id: "booking-1",
+          id: BOOKING_1_ID,
           status: "awaiting_payment",
           holdExpiresAt: new Date("2026-05-19T12:00:00.000Z"),
           holdBlockId: "block-1",
@@ -1527,7 +1537,7 @@ describe("BookingsRepository", () => {
 
     const repository = new BookingsRepository(database as any);
 
-    await expect(repository.expire("booking-1")).resolves.toBe(false);
+    await expect(repository.expire(BOOKING_1_ID)).resolves.toBe(false);
     expect(deleteMany).not.toHaveBeenCalled();
   });
 
@@ -1543,8 +1553,8 @@ describe("BookingsRepository", () => {
     const reservationExpiresAt = new Date("2026-05-20T12:05:00.000Z");
 
     const result = await repository.reserveForConversion(
-      "booking-1",
-      "org-1",
+      BOOKING_1_ID,
+      ORG_1_ID,
       reservationExpiresAt,
     );
 
@@ -1554,8 +1564,8 @@ describe("BookingsRepository", () => {
     });
     expect(updateMany).toHaveBeenCalledWith({
       where: {
-        id: "booking-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        organizationId: ORG_1_ID,
         status: "paid",
         convertedAt: null,
         OR: [
@@ -1587,8 +1597,8 @@ describe("BookingsRepository", () => {
 
     await expect(
       repository.reserveForConversion(
-        "booking-1",
-        "org-1",
+        BOOKING_1_ID,
+        ORG_1_ID,
         new Date("2026-05-20T12:05:00.000Z"),
       ),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -1609,15 +1619,15 @@ describe("BookingsRepository", () => {
     };
 
     await repository.releaseConversionReservation(
-      "booking-1",
-      "org-1",
+      BOOKING_1_ID,
+      ORG_1_ID,
       reservation,
     );
 
     expect(updateMany).toHaveBeenCalledWith({
       where: {
-        id: "booking-1",
-        organizationId: "org-1",
+        id: BOOKING_1_ID,
+        organizationId: ORG_1_ID,
         conversionReservedAt: reservation.reservedAt,
         conversionReservationExpiresAt: reservation.reservationExpiresAt,
       },

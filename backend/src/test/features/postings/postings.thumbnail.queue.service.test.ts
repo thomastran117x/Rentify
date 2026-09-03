@@ -1,5 +1,8 @@
 import type { Channel, ConsumeMessage } from "amqplib";
 import { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
+import { testUuid } from "../../support/uuid";
+
+const POSTING_1_ID = testUuid(9000, 254272);
 
 const mockCreateRabbitMqChannel = jest.fn();
 
@@ -51,7 +54,7 @@ describe("PostingThumbnailQueueService", () => {
     mockCreateRabbitMqChannel.mockResolvedValue(channel);
     const service = new PostingThumbnailQueueService();
 
-    await service.enqueuePostingThumbnailJob("posting-1");
+    await service.enqueuePostingThumbnailJob(POSTING_1_ID);
 
     expect(channel.assertExchange).toHaveBeenCalledWith(
       "postings.thumbnail.exchange",
@@ -95,7 +98,7 @@ describe("PostingThumbnailQueueService", () => {
 
     expect(publishedPayload).toEqual({
       jobId: expect.any(String),
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       attempt: 0,
       occurredAt: "2026-05-20T15:00:00.000Z",
     });
@@ -108,7 +111,7 @@ describe("PostingThumbnailQueueService", () => {
     const service = new PostingThumbnailQueueService();
     const payload = {
       jobId: "job-1",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       attempt: 0,
       occurredAt: "2026-05-20T15:00:00.000Z",
     };
@@ -153,7 +156,7 @@ describe("PostingThumbnailQueueService", () => {
       content: Buffer.from(
         JSON.stringify({
           jobId: "job-1",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           attempt: 0,
           occurredAt: "2026-05-20T15:00:00.000Z",
         }),
@@ -164,7 +167,7 @@ describe("PostingThumbnailQueueService", () => {
     expect(onMessage).toHaveBeenCalledWith(
       {
         jobId: "job-1",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         attempt: 0,
         occurredAt: "2026-05-20T15:00:00.000Z",
       },

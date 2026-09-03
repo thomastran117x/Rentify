@@ -7,6 +7,12 @@ import { RequestValidationError } from "@/configuration/validation/request";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
+const USER_3_ID = testUuid(9000, 994259);
+const USER_4_ID = testUuid(9000, 994260);
 
 const mockRequireSessionAuth = jest.fn();
 
@@ -19,7 +25,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -126,7 +132,7 @@ describe("MfaVerificationController", () => {
     const payload = await response.json();
 
     expect(mfaVerificationService.getOptions).toHaveBeenCalledWith({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: "mfa-management",
     });
@@ -138,7 +144,7 @@ describe("MfaVerificationController", () => {
   });
 
   it("issues a challenge with the request body and current client context", async () => {
-    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: "user-2" }));
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_2_ID }));
     const { controller, mfaVerificationService } = createController();
     const context = createContext({
       body: {
@@ -150,7 +156,7 @@ describe("MfaVerificationController", () => {
     const response = await invoke(controller.issueChallenge, context);
 
     expect(mfaVerificationService.issueChallenge).toHaveBeenCalledWith({
-      userId: "user-2",
+      userId: USER_2_ID,
       sessionId: "session-1",
       scope: "mfa-management",
       factor: "email",
@@ -160,7 +166,7 @@ describe("MfaVerificationController", () => {
   });
 
   it("confirms a challenge with the submitted code", async () => {
-    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: "user-3" }));
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_3_ID }));
     const { controller, mfaVerificationService } = createController();
     const context = createContext({
       body: {
@@ -174,7 +180,7 @@ describe("MfaVerificationController", () => {
     const payload = await response.json();
 
     expect(mfaVerificationService.confirmChallenge).toHaveBeenCalledWith({
-      userId: "user-3",
+      userId: USER_3_ID,
       sessionId: "session-1",
       scope: "mfa-management",
       factor: "totp",
@@ -189,7 +195,7 @@ describe("MfaVerificationController", () => {
   });
 
   it("previews the current email OTP for the authenticated session", async () => {
-    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: "user-4" }));
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_4_ID }));
     const { controller, mfaVerificationService } = createController();
     const context = createContext({
       query: {
@@ -200,7 +206,7 @@ describe("MfaVerificationController", () => {
     const response = await invoke(controller.previewCurrentEmailOtp, context);
 
     expect(mfaVerificationService.previewCurrentEmailOtp).toHaveBeenCalledWith({
-      userId: "user-4",
+      userId: USER_4_ID,
       sessionId: "session-1",
       scope: "mfa-management",
     });

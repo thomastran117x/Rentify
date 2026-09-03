@@ -1,10 +1,14 @@
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { SAVED_POSTING_IDS_LIMIT } from "@/features/postings/saved/saved-postings.model";
 import { SavedPostingsService } from "@/features/postings/saved/saved-postings.service";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createMetadata(overrides: Record<string, unknown> = {}) {
   return {
-    id: "posting-1",
+    id: POSTING_1_ID,
     organizationId: "org-1",
     status: "published",
     archivedAt: undefined,
@@ -74,14 +78,14 @@ describe("SavedPostingsService", () => {
     it("saves a publicly visible posting and returns the save time", async () => {
       const { service, savedPostingsRepository } = createDependencies();
 
-      await expect(service.save("posting-1", "user-1")).resolves.toEqual({
-        postingId: "posting-1",
+      await expect(service.save(POSTING_1_ID, USER_1_ID)).resolves.toEqual({
+        postingId: POSTING_1_ID,
         saved: true,
         savedAt: "2026-08-01T12:00:00.000Z",
       });
       expect(savedPostingsRepository.save).toHaveBeenCalledWith(
-        "user-1",
-        "posting-1",
+        USER_1_ID,
+        POSTING_1_ID,
       );
     });
 
@@ -92,9 +96,9 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.save("posting-1", "user-1")).rejects.toBeInstanceOf(
-        ResourceNotFoundError,
-      );
+      await expect(
+        service.save(POSTING_1_ID, USER_1_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
       expect(savedPostingsRepository.save).not.toHaveBeenCalled();
     });
 
@@ -107,9 +111,9 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.save("posting-1", "user-1")).rejects.toBeInstanceOf(
-        ResourceNotFoundError,
-      );
+      await expect(
+        service.save(POSTING_1_ID, USER_1_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
     it("rejects saving an archived posting", async () => {
@@ -121,16 +125,16 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.save("posting-1", "user-1")).rejects.toBeInstanceOf(
-        ResourceNotFoundError,
-      );
+      await expect(
+        service.save(POSTING_1_ID, USER_1_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
     it("is idempotent when the same posting is saved twice", async () => {
       const { service, savedPostingsRepository } = createDependencies();
 
-      const first = await service.save("posting-1", "user-1");
-      const second = await service.save("posting-1", "user-1");
+      const first = await service.save(POSTING_1_ID, USER_1_ID);
+      const second = await service.save(POSTING_1_ID, USER_1_ID);
 
       expect(second).toEqual(first);
       expect(savedPostingsRepository.save).toHaveBeenCalledTimes(2);
@@ -141,14 +145,14 @@ describe("SavedPostingsService", () => {
     it("removes the bookmark and reports the cleared state", async () => {
       const { service, savedPostingsRepository } = createDependencies();
 
-      await expect(service.unsave("posting-1", "user-1")).resolves.toEqual({
-        postingId: "posting-1",
+      await expect(service.unsave(POSTING_1_ID, USER_1_ID)).resolves.toEqual({
+        postingId: POSTING_1_ID,
         saved: false,
         savedAt: null,
       });
       expect(savedPostingsRepository.unsave).toHaveBeenCalledWith(
-        "user-1",
-        "posting-1",
+        USER_1_ID,
+        POSTING_1_ID,
       );
     });
 
@@ -160,8 +164,8 @@ describe("SavedPostingsService", () => {
         postings: { findPublicReadMetadataById },
       });
 
-      await expect(service.unsave("posting-1", "user-1")).resolves.toEqual({
-        postingId: "posting-1",
+      await expect(service.unsave(POSTING_1_ID, USER_1_ID)).resolves.toEqual({
+        postingId: POSTING_1_ID,
         saved: false,
         savedAt: null,
       });
@@ -176,8 +180,8 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.unsave("posting-1", "user-1")).resolves.toEqual({
-        postingId: "posting-1",
+      await expect(service.unsave(POSTING_1_ID, USER_1_ID)).resolves.toEqual({
+        postingId: POSTING_1_ID,
         saved: false,
         savedAt: null,
       });
@@ -188,7 +192,7 @@ describe("SavedPostingsService", () => {
     it("returns an empty page without hydrating postings", async () => {
       const { service, postingsPublicCacheService } = createDependencies();
 
-      const result = await service.list("user-1", 1, 20);
+      const result = await service.list(USER_1_ID, 1, 20);
 
       expect(result.postings).toEqual([]);
       expect(result.unavailablePostings).toEqual([]);
@@ -205,7 +209,7 @@ describe("SavedPostingsService", () => {
                 createdAt: new Date("2026-08-02T00:00:00.000Z"),
               },
               {
-                postingId: "posting-1",
+                postingId: POSTING_1_ID,
                 createdAt: new Date("2026-08-01T00:00:00.000Z"),
               },
             ],
@@ -223,18 +227,18 @@ describe("SavedPostingsService", () => {
           getPublicByIds: jest.fn(async () => ({
             postings: [
               { id: "posting-2", name: "Second" },
-              { id: "posting-1", name: "First" },
+              { id: POSTING_1_ID, name: "First" },
             ],
             missingIds: [],
           })),
         },
       });
 
-      const result = await service.list("user-1", 1, 20);
+      const result = await service.list(USER_1_ID, 1, 20);
 
       expect(postingsPublicCacheService.getPublicByIds).toHaveBeenCalledWith([
         "posting-2",
-        "posting-1",
+        POSTING_1_ID,
       ]);
       expect(result.postings).toEqual([
         {
@@ -243,7 +247,7 @@ describe("SavedPostingsService", () => {
           savedAt: "2026-08-02T00:00:00.000Z",
         },
         {
-          id: "posting-1",
+          id: POSTING_1_ID,
           name: "First",
           savedAt: "2026-08-01T00:00:00.000Z",
         },
@@ -256,7 +260,7 @@ describe("SavedPostingsService", () => {
           listPage: jest.fn(async () => ({
             entries: [
               {
-                postingId: "posting-1",
+                postingId: POSTING_1_ID,
                 createdAt: new Date("2026-08-01T00:00:00.000Z"),
               },
               {
@@ -285,13 +289,13 @@ describe("SavedPostingsService", () => {
         },
         publicCache: {
           getPublicByIds: jest.fn(async () => ({
-            postings: [{ id: "posting-1", name: "First" }],
+            postings: [{ id: POSTING_1_ID, name: "First" }],
             missingIds: ["posting-2"],
           })),
         },
       });
 
-      const result = await service.list("user-1", 1, 20);
+      const result = await service.list(USER_1_ID, 1, 20);
 
       expect(result.postings).toHaveLength(1);
       expect(result.unavailablePostings).toEqual([
@@ -345,7 +349,7 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      const result = await service.list("user-1", 1, 20);
+      const result = await service.list(USER_1_ID, 1, 20);
 
       expect(result.unavailablePostings).toEqual([
         {
@@ -390,7 +394,7 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      const result = await service.list("user-1", 1, 20);
+      const result = await service.list(USER_1_ID, 1, 20);
 
       expect(result.unavailablePostings).toEqual([
         {
@@ -415,12 +419,12 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.listIds("user-1")).resolves.toEqual({
+      await expect(service.listIds(USER_1_ID)).resolves.toEqual({
         postingIds,
         truncated: false,
       });
       expect(savedPostingsRepository.listIds).toHaveBeenCalledWith(
-        "user-1",
+        USER_1_ID,
         SAVED_POSTING_IDS_LIMIT + 1,
       );
     });
@@ -436,7 +440,7 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      const result = await service.listIds("user-1");
+      const result = await service.listIds(USER_1_ID);
 
       expect(result.postingIds).toHaveLength(SAVED_POSTING_IDS_LIMIT);
       expect(result.truncated).toBe(true);
@@ -445,29 +449,29 @@ describe("SavedPostingsService", () => {
 
   describe("identifier caching", () => {
     it("serves a cached set without touching the database", async () => {
-      const cached = { postingIds: ["posting-1"], truncated: false };
+      const cached = { postingIds: [POSTING_1_ID], truncated: false };
       const { service, savedPostingsRepository } = createDependencies({
         cache: {
           getJson: jest.fn(async () => cached),
         },
       });
 
-      await expect(service.listIds("user-1")).resolves.toEqual(cached);
+      await expect(service.listIds(USER_1_ID)).resolves.toEqual(cached);
       expect(savedPostingsRepository.listIds).not.toHaveBeenCalled();
     });
 
     it("caches the set it reads with a bounded lifetime", async () => {
       const { service, cacheService } = createDependencies({
         savedPostings: {
-          listIds: jest.fn(async () => ["posting-1"]),
+          listIds: jest.fn(async () => [POSTING_1_ID]),
         },
       });
 
-      await service.listIds("user-1");
+      await service.listIds(USER_1_ID);
 
       expect(cacheService.setJson).toHaveBeenCalledWith(
-        "postings:saved:ids:user-1",
-        { postingIds: ["posting-1"], truncated: false },
+        `postings:saved:ids:${USER_1_ID}`,
+        { postingIds: [POSTING_1_ID], truncated: false },
         expect.any(Number),
       );
       const [, , ttl] = (cacheService.setJson as jest.Mock).mock.calls[0]!;
@@ -475,15 +479,15 @@ describe("SavedPostingsService", () => {
     });
 
     it.each([
-      ["save", (service: any) => service.save("posting-1", "user-1")],
-      ["unsave", (service: any) => service.unsave("posting-1", "user-1")],
+      ["save", (service: any) => service.save(POSTING_1_ID, USER_1_ID)],
+      ["unsave", (service: any) => service.unsave(POSTING_1_ID, USER_1_ID)],
     ])("invalidates the cached set on %s", async (_label, act) => {
       const { service, cacheService } = createDependencies();
 
       await act(service);
 
       expect(cacheService.delete).toHaveBeenCalledWith(
-        "postings:saved:ids:user-1",
+        `postings:saved:ids:${USER_1_ID}`,
       );
     });
 
@@ -491,7 +495,7 @@ describe("SavedPostingsService", () => {
     it("falls back to the database when the cache read throws", async () => {
       const { service, savedPostingsRepository } = createDependencies({
         savedPostings: {
-          listIds: jest.fn(async () => ["posting-1"]),
+          listIds: jest.fn(async () => [POSTING_1_ID]),
         },
         cache: {
           getJson: jest.fn(async () => {
@@ -500,8 +504,8 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.listIds("user-1")).resolves.toEqual({
-        postingIds: ["posting-1"],
+      await expect(service.listIds(USER_1_ID)).resolves.toEqual({
+        postingIds: [POSTING_1_ID],
         truncated: false,
       });
       expect(savedPostingsRepository.listIds).toHaveBeenCalled();
@@ -519,7 +523,7 @@ describe("SavedPostingsService", () => {
         },
       });
 
-      await expect(service.save("posting-1", "user-1")).resolves.toEqual(
+      await expect(service.save(POSTING_1_ID, USER_1_ID)).resolves.toEqual(
         expect.objectContaining({ saved: true }),
       );
     });

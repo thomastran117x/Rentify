@@ -1,11 +1,15 @@
 import { Prisma } from "@/generated/prisma/client";
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const REVIEWER_1_ID = testUuid(9000, 136965);
 
 function createReviewPersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "review-1",
-    postingId: "posting-1",
-    reviewerId: "reviewer-1",
+    postingId: POSTING_1_ID,
+    reviewerId: REVIEWER_1_ID,
     rating: 5,
     title: "Great stay",
     comment: "Exactly as described.",
@@ -31,8 +35,8 @@ describe("PostingsReviewsRepository", () => {
     } as any);
 
     const result = await repository.create({
-      postingId: "posting-1",
-      reviewerId: "reviewer-1",
+      postingId: POSTING_1_ID,
+      reviewerId: REVIEWER_1_ID,
       rating: 5,
       title: "Great stay",
       comment: "Exactly as described.",
@@ -41,16 +45,16 @@ describe("PostingsReviewsRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
-          reviewerId: "reviewer-1",
+          postingId: POSTING_1_ID,
+          reviewerId: REVIEWER_1_ID,
           rating: 5,
         }),
       }),
     );
     expect(result).toEqual({
       id: "review-1",
-      postingId: "posting-1",
-      reviewerId: "reviewer-1",
+      postingId: POSTING_1_ID,
+      reviewerId: REVIEWER_1_ID,
       rating: 5,
       title: "Great stay",
       comment: "Exactly as described.",
@@ -83,8 +87,8 @@ describe("PostingsReviewsRepository", () => {
 
     await expect(
       repository.updateOwnReview({
-        postingId: "posting-1",
-        reviewerId: "reviewer-1",
+        postingId: POSTING_1_ID,
+        reviewerId: REVIEWER_1_ID,
         rating: 4,
       }),
     ).resolves.toBeNull();
@@ -107,11 +111,11 @@ describe("PostingsReviewsRepository", () => {
     } as any);
 
     await expect(
-      repository.findOwnReview("posting-1", "reviewer-1"),
+      repository.findOwnReview(POSTING_1_ID, REVIEWER_1_ID),
     ).resolves.toEqual({
       id: "review-1",
-      postingId: "posting-1",
-      reviewerId: "reviewer-1",
+      postingId: POSTING_1_ID,
+      reviewerId: REVIEWER_1_ID,
       rating: 5,
       title: undefined,
       comment: undefined,
@@ -150,12 +154,12 @@ describe("PostingsReviewsRepository", () => {
       },
     } as any);
 
-    const result = await repository.listByPosting("posting-1", 2, 3);
+    const result = await repository.listByPosting(POSTING_1_ID, 2, 3);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
         },
         skip: 3,
         take: 3,
@@ -190,7 +194,7 @@ describe("PostingsReviewsRepository", () => {
       },
     } as any);
 
-    await expect(repository.getSummary("posting-1")).resolves.toEqual({
+    await expect(repository.getSummary(POSTING_1_ID)).resolves.toEqual({
       averageRating: 0,
       reviewCount: 0,
     });

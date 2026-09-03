@@ -1,11 +1,17 @@
 import { OrganizationAnnouncementRepository } from "@/features/organizations/announcements/announcements.repository";
+import { testUuid } from "../../../support/uuid";
+const ANNOUNCEMENT_1_ID = testUuid(9000, 478450);
+const MISSING_ID = testUuid(9000, 394917);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function buildRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "announcement-1",
-    organizationId: "org-1",
+    id: ANNOUNCEMENT_1_ID,
+    organizationId: ORG_1_ID,
     author: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       profile: {
         username: "owner-one",
@@ -30,8 +36,8 @@ describe("OrganizationAnnouncementRepository", () => {
     } as never);
 
     const result = await repository.create({
-      organizationId: "org-1",
-      authorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      authorUserId: USER_1_ID,
       title: "Announcement title",
       body: "Announcement body",
       status: "published",
@@ -41,17 +47,17 @@ describe("OrganizationAnnouncementRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          organizationId: "org-1",
-          authorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          authorUserId: USER_1_ID,
           status: "published",
         }),
       }),
     );
     expect(result).toEqual({
-      id: "announcement-1",
-      organizationId: "org-1",
+      id: ANNOUNCEMENT_1_ID,
+      organizationId: ORG_1_ID,
       author: {
-        id: "user-1",
+        id: USER_1_ID,
         email: "owner@example.com",
         username: "owner-one",
         avatarUrl: "https://example.test/avatar.png",
@@ -73,11 +79,11 @@ describe("OrganizationAnnouncementRepository", () => {
       organizationAnnouncement: { findFirst },
     } as never);
 
-    const result = await repository.findById("org-1", "announcement-1");
+    const result = await repository.findById(ORG_1_ID, ANNOUNCEMENT_1_ID);
 
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "announcement-1", organizationId: "org-1" },
+        where: { id: ANNOUNCEMENT_1_ID, organizationId: ORG_1_ID },
       }),
     );
     expect(result?.author).toBeUndefined();
@@ -91,7 +97,7 @@ describe("OrganizationAnnouncementRepository", () => {
       organizationAnnouncement: { findFirst },
     } as never);
 
-    await expect(repository.findById("org-1", "missing")).resolves.toBeNull();
+    await expect(repository.findById(ORG_1_ID, MISSING_ID)).resolves.toBeNull();
   });
 
   it("updates only the provided fields", async () => {
@@ -100,11 +106,11 @@ describe("OrganizationAnnouncementRepository", () => {
       organizationAnnouncement: { update },
     } as never);
 
-    await repository.update("org-1", "announcement-1", { title: "Updated" });
+    await repository.update(ORG_1_ID, ANNOUNCEMENT_1_ID, { title: "Updated" });
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "announcement-1", organizationId: "org-1" },
+        where: { id: ANNOUNCEMENT_1_ID, organizationId: ORG_1_ID },
         data: { title: "Updated" },
       }),
     );
@@ -116,10 +122,10 @@ describe("OrganizationAnnouncementRepository", () => {
       organizationAnnouncement: { delete: deleteFn },
     } as never);
 
-    await repository.delete("org-1", "announcement-1");
+    await repository.delete(ORG_1_ID, ANNOUNCEMENT_1_ID);
 
     expect(deleteFn).toHaveBeenCalledWith({
-      where: { id: "announcement-1", organizationId: "org-1" },
+      where: { id: ANNOUNCEMENT_1_ID, organizationId: ORG_1_ID },
     });
   });
 
@@ -131,8 +137,8 @@ describe("OrganizationAnnouncementRepository", () => {
     } as never);
 
     const result = await repository.list({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       page: 2,
       pageSize: 1,
       status: "published",
@@ -140,7 +146,7 @@ describe("OrganizationAnnouncementRepository", () => {
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId: "org-1", status: { in: ["published"] } },
+        where: { organizationId: ORG_1_ID, status: { in: ["published"] } },
         skip: 1,
         take: 1,
       }),
@@ -164,8 +170,8 @@ describe("OrganizationAnnouncementRepository", () => {
     } as never);
 
     await repository.list({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       page: 1,
       pageSize: 20,
       statuses: ["published"],
@@ -173,7 +179,7 @@ describe("OrganizationAnnouncementRepository", () => {
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId: "org-1", status: { in: ["published"] } },
+        where: { organizationId: ORG_1_ID, status: { in: ["published"] } },
       }),
     );
   });

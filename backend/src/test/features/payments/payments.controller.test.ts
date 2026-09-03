@@ -17,7 +17,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
     sub: USER_ID,
-    email: "user@example.com",
+    email: `${USER_ID}@example.com`,
     role: "user",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -134,7 +134,7 @@ describe("PaymentsController", () => {
     const response = await invoke(
       controller.webhook,
       createContext({
-        text: '{"type":"payment.updated"}',
+        text: '{"type":`${PAYMENT_ID}.updated`}',
         headers: {
           "x-square-hmacsha256-signature": "signature-1",
         },
@@ -142,7 +142,7 @@ describe("PaymentsController", () => {
     );
 
     expect(processSquareWebhook).toHaveBeenCalledWith(
-      '{"type":"payment.updated"}',
+      '{"type":`${PAYMENT_ID}.updated`}',
       "signature-1",
     );
     await expect(response.json()).resolves.toMatchObject({

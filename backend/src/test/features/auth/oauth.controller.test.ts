@@ -7,6 +7,9 @@ import {
   invoke,
   type AuthTestContext,
 } from "../../support/auth-controller-harness";
+import { testUuid } from "../../support/uuid";
+
+const USER_15_ID = testUuid(9000, 822530);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -145,7 +148,7 @@ describe("OAuthController sign-in handlers", () => {
 
 describe("OAuthController link and unlink", () => {
   it("authenticates, then links the route provider to the caller", async () => {
-    const auth = createClaims({ sub: "user-15" });
+    const auth = createClaims({ sub: USER_15_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -161,7 +164,7 @@ describe("OAuthController link and unlink", () => {
 
     expect(mockRequireJwtAuth).toHaveBeenCalled();
     expect(oauthAccountsService.linkOAuthProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "google", userId: "user-15" }),
+      expect.objectContaining({ provider: "google", userId: USER_15_ID }),
     );
     await expect(response.json()).resolves.toMatchObject({
       message: "OAuth provider linked successfully.",
@@ -169,7 +172,7 @@ describe("OAuthController link and unlink", () => {
   });
 
   it("lists the providers linked to the caller", async () => {
-    const auth = createClaims({ sub: "user-15" });
+    const auth = createClaims({ sub: USER_15_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -184,7 +187,7 @@ describe("OAuthController link and unlink", () => {
     );
 
     expect(oauthAccountsService.linkedOAuthProviders).toHaveBeenCalledWith({
-      userId: "user-15",
+      userId: USER_15_ID,
     });
     await expect(response.json()).resolves.toMatchObject({
       data: { hasPassword: true },
@@ -192,7 +195,7 @@ describe("OAuthController link and unlink", () => {
   });
 
   it("unlinks the route provider from the caller", async () => {
-    const auth = createClaims({ sub: "user-15" });
+    const auth = createClaims({ sub: USER_15_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -208,7 +211,7 @@ describe("OAuthController link and unlink", () => {
 
     expect(oauthAccountsService.unlinkOAuthProvider).toHaveBeenCalledWith({
       provider: "microsoft",
-      userId: "user-15",
+      userId: USER_15_ID,
     });
     await expect(response.json()).resolves.toMatchObject({
       message: "OAuth provider unlinked successfully.",
@@ -216,7 +219,7 @@ describe("OAuthController link and unlink", () => {
   });
 
   it("rejects an unsupported provider in the route", async () => {
-    const auth = createClaims({ sub: "user-15" });
+    const auth = createClaims({ sub: USER_15_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;

@@ -1,12 +1,18 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import { OrganizationMembersService } from "@/features/organizations/members/members.service";
+import { testUuid } from "../../../support/uuid";
+
+const MEMBERSHIP_1_ID = testUuid(9000, 649718);
+const MEMBERSHIP_2_ID = testUuid(9000, 649719);
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createUser(overrides: Record<string, unknown> = {}) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "owner@example.com",
     emailVerified: true,
-    preferredOrganizationId: "org-1",
+    preferredOrganizationId: ORG_1_ID,
     organizationMemberships: [],
     ...overrides,
   };
@@ -14,10 +20,10 @@ function createUser(overrides: Record<string, unknown> = {}) {
 
 function createMembership(overrides: Record<string, unknown> = {}) {
   return {
-    membershipId: "membership-1",
+    membershipId: MEMBERSHIP_1_ID,
     role: "primary_manager",
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind",
       name: "Northwind",
     },
@@ -27,7 +33,7 @@ function createMembership(overrides: Record<string, unknown> = {}) {
 
 function createMember(overrides: Record<string, unknown> = {}) {
   return {
-    membershipId: "membership-2",
+    membershipId: MEMBERSHIP_2_ID,
     userId: "user-2",
     email: "teammate@example.com",
     username: "teammate",
@@ -48,7 +54,7 @@ function createService(overrides?: {
     setPreferredOrganization: jest.fn(async () => undefined),
     findMemberById: jest.fn(async () => null),
     updateMembershipRole: jest.fn(async () => ({
-      membershipId: "membership-2",
+      membershipId: MEMBERSHIP_2_ID,
       userId: "user-2",
       email: "teammate@example.com",
       username: "teammate",
@@ -84,8 +90,8 @@ describe("OrganizationMembersService", () => {
   it("lists memberships and resolves the active organization", async () => {
     const memberships = [
       {
-        membershipId: "membership-1",
-        id: "org-1",
+        membershipId: MEMBERSHIP_1_ID,
+        id: ORG_1_ID,
         slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
@@ -99,25 +105,25 @@ describe("OrganizationMembersService", () => {
       },
     });
 
-    await expect(service.listMine("user-1")).resolves.toEqual({
+    await expect(service.listMine(USER_1_ID)).resolves.toEqual({
       memberships,
       activeOrganization: {
-        id: "org-1",
+        id: ORG_1_ID,
         slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
       },
     });
     expect(repository.listMembershipsByUserId).toHaveBeenCalledWith(
-      "user-1",
-      "org-1",
+      USER_1_ID,
+      ORG_1_ID,
     );
   });
 
   it("returns no active organization when the user has no memberships", async () => {
     const { service } = createService();
 
-    await expect(service.listMine("user-1")).resolves.toEqual({
+    await expect(service.listMine(USER_1_ID)).resolves.toEqual({
       memberships: [],
       activeOrganization: undefined,
     });
@@ -128,20 +134,20 @@ describe("OrganizationMembersService", () => {
 
     await expect(
       service.setActiveOrganization({
-        userId: "user-1",
-        organizationId: "org-1",
+        userId: USER_1_ID,
+        organizationId: ORG_1_ID,
       }),
     ).resolves.toEqual({
       activeOrganization: {
-        id: "org-1",
+        id: ORG_1_ID,
         slug: "northwind",
         name: "Northwind",
         role: "primary_manager",
       },
     });
     expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
-      "user-1",
-      "org-1",
+      USER_1_ID,
+      ORG_1_ID,
     );
   });
 
@@ -154,19 +160,19 @@ describe("OrganizationMembersService", () => {
 
     await expect(
       service.updateMemberRole({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        membershipId: "membership-2",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        membershipId: MEMBERSHIP_2_ID,
         role: "manager",
       }),
     ).resolves.toEqual({
       member: expect.objectContaining({
-        membershipId: "membership-2",
+        membershipId: MEMBERSHIP_2_ID,
         role: "manager",
       }),
     });
     expect(repository.updateMembershipRole).toHaveBeenCalledWith(
-      "membership-2",
+      MEMBERSHIP_2_ID,
       "manager",
     );
   });
@@ -180,9 +186,9 @@ describe("OrganizationMembersService", () => {
 
     await expect(
       service.updateMemberRole({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        membershipId: "membership-2",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        membershipId: MEMBERSHIP_2_ID,
         role: "primary_manager",
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
@@ -207,7 +213,7 @@ describe("OrganizationMembersService", () => {
             createUser({
               id: "user-2",
               email: "teammate@example.com",
-              preferredOrganizationId: "org-1",
+              preferredOrganizationId: ORG_1_ID,
             }),
           ),
       },
@@ -215,13 +221,13 @@ describe("OrganizationMembersService", () => {
 
     await expect(
       service.removeMember({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        membershipId: "membership-2",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        membershipId: MEMBERSHIP_2_ID,
       }),
     ).resolves.toEqual({
       removed: true,
-      membershipId: "membership-2",
+      membershipId: MEMBERSHIP_2_ID,
     });
     expect(repository.setPreferredOrganization).toHaveBeenCalledWith(
       "user-2",
@@ -234,8 +240,8 @@ describe("OrganizationMembersService", () => {
       repository: {
         findMemberById: jest.fn(async () =>
           createMember({
-            membershipId: "membership-1",
-            userId: "user-1",
+            membershipId: MEMBERSHIP_1_ID,
+            userId: USER_1_ID,
             role: "primary_manager",
           }),
         ),
@@ -244,9 +250,9 @@ describe("OrganizationMembersService", () => {
 
     await expect(
       service.removeMember({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        membershipId: "membership-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        membershipId: MEMBERSHIP_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });

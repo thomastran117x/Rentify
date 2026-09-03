@@ -10,6 +10,11 @@ import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.servi
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PasswordService } from "@/features/auth/password/password.service";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import { testUuid } from "../../support/uuid";
+const IDENTITY_1_ID = testUuid(9000, 994443);
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 // Cost 4 keeps the suite fast; the production rounds are covered by
 // password-hashing.test.ts.
@@ -25,7 +30,7 @@ function createClient(): ClientRequestContext {
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 2,
@@ -35,8 +40,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -53,8 +58,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
 }
 
 const googleIdentity: OAuthIdentityRecord = {
-  id: "identity-1",
-  userId: "user-1",
+  id: IDENTITY_1_ID,
+  userId: USER_1_ID,
   provider: "google",
   providerUserId: "google-user-1",
   emailVerified: true,
@@ -247,7 +252,7 @@ describe("PasswordService.resetPassword", () => {
     });
     expect(harness.authRepository.updatePasswordHash).toHaveBeenCalled();
     expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
     );
     expect(session.accessToken).toBe("access-token");
   }, 20_000);
@@ -333,7 +338,7 @@ describe("PasswordService.changePassword", () => {
     harness.authRepository.findUserById.mockResolvedValue(await localUser());
 
     const session = await harness.service.changePassword({
-      userId: "user-1",
+      userId: USER_1_ID,
       client: createClient(),
       currentPassword: CURRENT_PASSWORD,
       newPassword: NEW_PASSWORD,
@@ -351,7 +356,7 @@ describe("PasswordService.changePassword", () => {
 
     await expect(
       harness.service.changePassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         currentPassword: "WrongPassword1!",
         newPassword: NEW_PASSWORD,
@@ -366,7 +371,7 @@ describe("PasswordService.changePassword", () => {
 
     await expect(
       harness.service.changePassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         currentPassword: CURRENT_PASSWORD,
         newPassword: CURRENT_PASSWORD,
@@ -385,7 +390,7 @@ describe("PasswordService.changePassword", () => {
 
     await expect(
       harness.service.changePassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         currentPassword: CURRENT_PASSWORD,
         newPassword: NEW_PASSWORD,
@@ -405,7 +410,7 @@ describe("PasswordService.setPassword", () => {
     );
 
     const session = await harness.service.setPassword({
-      userId: "user-1",
+      userId: USER_1_ID,
       client: createClient(),
       newPassword: NEW_PASSWORD,
       deviceId: "device-1",
@@ -431,7 +436,7 @@ describe("PasswordService.setPassword", () => {
 
     await expect(
       harness.service.setPassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         newPassword: NEW_PASSWORD,
       }),
@@ -445,7 +450,7 @@ describe("PasswordService.setPassword", () => {
 
     await expect(
       harness.service.setPassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         newPassword: NEW_PASSWORD,
       }),
@@ -460,7 +465,7 @@ describe("PasswordService.setPassword", () => {
 
     await expect(
       harness.service.setPassword({
-        userId: "user-1",
+        userId: USER_1_ID,
         client: createClient(),
         newPassword: NEW_PASSWORD,
       }),

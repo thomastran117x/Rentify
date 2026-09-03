@@ -1,4 +1,7 @@
 import { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 describe("FeedbacksService", () => {
   it("normalizes feedback input and returns a submission receipt", async () => {
@@ -21,7 +24,7 @@ describe("FeedbacksService", () => {
     } as any);
 
     const result = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "  Taylor Morgan  ",
       email: "TAYLOR@Example.com  ",
       category: "feature_request",
@@ -29,7 +32,7 @@ describe("FeedbacksService", () => {
     });
 
     expect(create).toHaveBeenCalledWith({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Taylor Morgan",
       email: "taylor@example.com",
       category: "feature_request",

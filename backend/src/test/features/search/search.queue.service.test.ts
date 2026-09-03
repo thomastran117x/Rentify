@@ -1,4 +1,12 @@
 import { SearchQueueService } from "@/features/search/search.queue.service";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_2_ID = testUuid(9000, 254273);
+const POSTING_3_ID = testUuid(9000, 254274);
+
+const OUTBOX_1_ID = testUuid(9000, 747639);
+const OUTBOX_2_ID = testUuid(9000, 747640);
+const OUTBOX_3_ID = testUuid(9000, 747641);
 
 const mockCreateRabbitMqChannel = jest.fn();
 
@@ -155,23 +163,23 @@ describe("SearchQueueService", () => {
     const service = new SearchQueueService("postings");
 
     await service.publishIndexJob({
-      outboxId: "outbox-1",
-      eventId: "outbox-1",
-      dedupeKey: "outbox-1",
+      outboxId: OUTBOX_1_ID,
+      eventId: OUTBOX_1_ID,
+      dedupeKey: OUTBOX_1_ID,
       operation: "upsert",
       jobType: "upsert",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:00.000Z",
       attempt: 0,
     });
     await service.publishIndexJob({
-      outboxId: "outbox-2",
-      eventId: "outbox-2",
-      dedupeKey: "outbox-2",
+      outboxId: OUTBOX_2_ID,
+      eventId: OUTBOX_2_ID,
+      dedupeKey: OUTBOX_2_ID,
       operation: "delete",
       jobType: "delete",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:01.000Z",
       attempt: 0,
@@ -188,12 +196,12 @@ describe("SearchQueueService", () => {
 
     await service.publishRetryJob(
       {
-        outboxId: "outbox-1",
-        eventId: "outbox-1",
-        dedupeKey: "outbox-1",
+        outboxId: OUTBOX_1_ID,
+        eventId: OUTBOX_1_ID,
+        dedupeKey: OUTBOX_1_ID,
         operation: "upsert",
         jobType: "upsert",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 1,
@@ -201,12 +209,12 @@ describe("SearchQueueService", () => {
       5,
     );
     await service.publishDeadLetterJob({
-      outboxId: "outbox-2",
-      eventId: "outbox-2",
-      dedupeKey: "outbox-2",
+      outboxId: OUTBOX_2_ID,
+      eventId: OUTBOX_2_ID,
+      dedupeKey: OUTBOX_2_ID,
       operation: "delete",
       jobType: "delete",
-      postingId: "posting-2",
+      postingId: POSTING_2_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:01.000Z",
       attempt: 3,
@@ -218,7 +226,7 @@ describe("SearchQueueService", () => {
       "retry.3",
       expect.any(Buffer),
       expect.objectContaining({
-        messageId: "outbox-1",
+        messageId: OUTBOX_1_ID,
       }),
     );
     expect(channel.publish).toHaveBeenNthCalledWith(
@@ -227,7 +235,7 @@ describe("SearchQueueService", () => {
       "dead-letter",
       expect.any(Buffer),
       expect.objectContaining({
-        messageId: "outbox-2",
+        messageId: OUTBOX_2_ID,
       }),
     );
   });
@@ -245,12 +253,12 @@ describe("SearchQueueService", () => {
 
     await expect(
       service.publishIndexJob({
-        outboxId: "outbox-1",
-        eventId: "outbox-1",
-        dedupeKey: "outbox-1",
+        outboxId: OUTBOX_1_ID,
+        eventId: OUTBOX_1_ID,
+        dedupeKey: OUTBOX_1_ID,
         operation: "upsert",
         jobType: "upsert",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 0,
@@ -258,12 +266,12 @@ describe("SearchQueueService", () => {
     ).rejects.toThrow("confirm failed");
 
     await service.publishIndexJob({
-      outboxId: "outbox-2",
-      eventId: "outbox-2",
-      dedupeKey: "outbox-2",
+      outboxId: OUTBOX_2_ID,
+      eventId: OUTBOX_2_ID,
+      dedupeKey: OUTBOX_2_ID,
       operation: "upsert",
       jobType: "upsert",
-      postingId: "posting-2",
+      postingId: POSTING_2_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:01.000Z",
       attempt: 0,
@@ -283,12 +291,12 @@ describe("SearchQueueService", () => {
     const service = new SearchQueueService("postings");
 
     await service.publishIndexJob({
-      outboxId: "outbox-1",
-      eventId: "outbox-1",
-      dedupeKey: "outbox-1",
+      outboxId: OUTBOX_1_ID,
+      eventId: OUTBOX_1_ID,
+      dedupeKey: OUTBOX_1_ID,
       operation: "upsert",
       jobType: "upsert",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:00.000Z",
       attempt: 0,
@@ -296,12 +304,12 @@ describe("SearchQueueService", () => {
     first.getEventHandler("close")?.();
 
     await service.publishIndexJob({
-      outboxId: "outbox-2",
-      eventId: "outbox-2",
-      dedupeKey: "outbox-2",
+      outboxId: OUTBOX_2_ID,
+      eventId: OUTBOX_2_ID,
+      dedupeKey: OUTBOX_2_ID,
       operation: "upsert",
       jobType: "upsert",
-      postingId: "posting-2",
+      postingId: POSTING_2_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:01.000Z",
       attempt: 0,
@@ -309,12 +317,12 @@ describe("SearchQueueService", () => {
     second.getEventHandler("error")?.();
 
     await service.publishIndexJob({
-      outboxId: "outbox-3",
-      eventId: "outbox-3",
-      dedupeKey: "outbox-3",
+      outboxId: OUTBOX_3_ID,
+      eventId: OUTBOX_3_ID,
+      dedupeKey: OUTBOX_3_ID,
       operation: "delete",
       jobType: "delete",
-      postingId: "posting-3",
+      postingId: POSTING_3_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:02.000Z",
       attempt: 0,
@@ -336,12 +344,12 @@ describe("SearchQueueService", () => {
 
     await expect(
       service.publishIndexJob({
-        outboxId: "outbox-1",
-        eventId: "outbox-1",
-        dedupeKey: "outbox-1",
+        outboxId: OUTBOX_1_ID,
+        eventId: OUTBOX_1_ID,
+        dedupeKey: OUTBOX_1_ID,
         operation: "upsert",
         jobType: "upsert",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         targetIndexScope: "live",
         occurredAt: "2026-04-27T00:00:00.000Z",
         attempt: 0,
@@ -349,12 +357,12 @@ describe("SearchQueueService", () => {
     ).rejects.toThrow("assert exchange failed");
 
     await service.publishIndexJob({
-      outboxId: "outbox-2",
-      eventId: "outbox-2",
-      dedupeKey: "outbox-2",
+      outboxId: OUTBOX_2_ID,
+      eventId: OUTBOX_2_ID,
+      dedupeKey: OUTBOX_2_ID,
       operation: "delete",
       jobType: "delete",
-      postingId: "posting-2",
+      postingId: POSTING_2_ID,
       targetIndexScope: "live",
       occurredAt: "2026-04-27T00:00:01.000Z",
       attempt: 0,
@@ -376,8 +384,8 @@ describe("SearchQueueService", () => {
       const handler = getConsumeHandler();
       expect(handler).toBeDefined();
 
-      await handler!(createJobMessage("outbox-1"));
-      await handler!(createJobMessage("outbox-2", "delete"));
+      await handler!(createJobMessage(OUTBOX_1_ID));
+      await handler!(createJobMessage(OUTBOX_2_ID, "delete"));
 
       await Promise.resolve();
 
@@ -398,7 +406,7 @@ describe("SearchQueueService", () => {
     });
 
     const handler = getConsumeHandler();
-    const message = createJobMessage("outbox-1");
+    const message = createJobMessage(OUTBOX_1_ID);
 
     await handler!(message);
 
@@ -455,9 +463,9 @@ describe("SearchQueueService", () => {
       const handler = getConsumeHandler();
       expect(handler).toBeDefined();
 
-      await handler!(createJobMessage("outbox-1"));
-      await handler!(createJobMessage("outbox-2"));
-      await handler!(createJobMessage("outbox-3"));
+      await handler!(createJobMessage(OUTBOX_1_ID));
+      await handler!(createJobMessage(OUTBOX_2_ID));
+      await handler!(createJobMessage(OUTBOX_3_ID));
       await handler!(createJobMessage("outbox-4"));
 
       await Promise.resolve();
@@ -465,8 +473,8 @@ describe("SearchQueueService", () => {
 
       expect(onBatch).toHaveBeenCalledTimes(2);
       expect(startedBatches).toEqual([
-        ["outbox-1", "outbox-2"],
-        ["outbox-3", "outbox-4"],
+        [OUTBOX_1_ID, OUTBOX_2_ID],
+        [OUTBOX_3_ID, "outbox-4"],
       ]);
 
       releaseFirstBatch.resolve();
@@ -488,7 +496,7 @@ describe("SearchQueueService", () => {
       const stop = await service.consumeIndexJobBatches(5, 2, 50, 1, onBatch);
       const handler = getConsumeHandler();
 
-      await handler!(createJobMessage("outbox-1"));
+      await handler!(createJobMessage(OUTBOX_1_ID));
       await stop();
 
       expect(onBatch).toHaveBeenCalledTimes(1);
@@ -512,8 +520,8 @@ describe("SearchQueueService", () => {
       });
 
       const handler = getConsumeHandler();
-      const first = createJobMessage("outbox-1");
-      const second = createJobMessage("outbox-2");
+      const first = createJobMessage(OUTBOX_1_ID);
+      const second = createJobMessage(OUTBOX_2_ID);
 
       await handler!(first);
       await handler!(second);

@@ -17,6 +17,9 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { testUuid } from "../../support/uuid";
+
+const OWNER_ID = testUuid(9000, 166717);
 
 const MUTABLE_POSTING_ID = "00000000-0000-0000-2000-000000000003";
 const RENTER_EMAIL = "viewer1@rentify.local";
@@ -501,7 +504,7 @@ describe("Booking message socket integration", () => {
 
     expect(socketServer.activeConnectionCount()).toBe(1);
     await expect(
-      socketServer.isSideOnline(bookingRequestId, "owner"),
+      socketServer.isSideOnline(bookingRequestId, OWNER_ID),
     ).resolves.toBe(true);
 
     socket.disconnect();
@@ -517,7 +520,7 @@ describe("Booking message socket integration", () => {
     // left behind for the adapter to answer with, so presence reads as offline
     // without any separate bookkeeping to clean up.
     await expect(
-      socketServer.isSideOnline(bookingRequestId, "owner"),
+      socketServer.isSideOnline(bookingRequestId, OWNER_ID),
     ).resolves.toBe(false);
   }, 60_000);
 });

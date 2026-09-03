@@ -1,6 +1,10 @@
 import { UsersRepository } from "@/features/auth/users/users.repository";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import ConflictError from "@/errors/http/conflict.error";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 function createOrganizationMembershipPersistence(
   overrides: Record<string, unknown> = {},
@@ -8,7 +12,7 @@ function createOrganizationMembershipPersistence(
   return {
     id: "membership-1",
     organizationId: "org-1",
-    userId: "user-1",
+    userId: USER_1_ID,
     role: "manager",
     createdAt: new Date("2026-05-01T00:00:00.000Z"),
     updatedAt: new Date("2026-05-02T00:00:00.000Z"),
@@ -25,7 +29,7 @@ function createOAuthIdentityPersistence(
 ) {
   return {
     id: "oauth-1",
-    userId: "user-1",
+    userId: USER_1_ID,
     provider: "google",
     providerUserId: "google-user-1",
     providerEmail: "user@example.com",
@@ -41,7 +45,7 @@ function createOAuthIdentityPersistence(
 function createProfilePersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "profile-1",
-    userId: "user-1",
+    userId: USER_1_ID,
     username: "jane-doe",
     phoneNumber: null,
     avatarUrl: null,
@@ -59,7 +63,7 @@ function createProfilePersistence(overrides: Record<string, unknown> = {}) {
 
 function createUserPersistence(overrides: Record<string, unknown> = {}) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "hashed-password",
     tokenVersion: 3,
@@ -116,7 +120,7 @@ describe("UsersRepository", () => {
       },
     } as any);
 
-    const byId = await repository.findUserById("user-1");
+    const byId = await repository.findUserById(USER_1_ID);
     const byEmail = await repository.findUserByEmail("User@Example.com");
 
     expect(findUnique).toHaveBeenNthCalledWith(
@@ -128,7 +132,7 @@ describe("UsersRepository", () => {
       }),
     );
     expect(byId).toMatchObject({
-      id: "user-1",
+      id: USER_1_ID,
       email: "user@example.com",
       role: "owner",
       emailVerified: true,
@@ -199,7 +203,7 @@ describe("UsersRepository", () => {
       },
       "password-hash",
     );
-    const activated = await repository.activatePendingLocalUser("user-2", {
+    const activated = await repository.activatePendingLocalUser(USER_2_ID, {
       username: "Pending-User",
       passwordHash: "fresh-hash",
       firstName: "Pending",
@@ -222,7 +226,7 @@ describe("UsersRepository", () => {
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          id: "user-2",
+          id: USER_2_ID,
         },
         data: expect.objectContaining({
           passwordHash: "fresh-hash",
@@ -289,7 +293,7 @@ describe("UsersRepository", () => {
         }),
       }),
     );
-    expect(found?.id).toBe("user-1");
+    expect(found?.id).toBe(USER_1_ID);
     expect(created.passwordHash).toBeUndefined();
   });
 
@@ -301,12 +305,12 @@ describe("UsersRepository", () => {
       },
     } as any);
 
-    await repository.markEmailVerified("user-1");
+    await repository.markEmailVerified(USER_1_ID);
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          id: "user-1",
+          id: USER_1_ID,
         },
         data: {
           emailVerified: true,

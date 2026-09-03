@@ -3,6 +3,9 @@ import { BookingMessageEmailComposer } from "@/features/bookings/messages/bookin
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { testUuid } from "../../../support/uuid";
+
+const RENTER_1_ID = testUuid(9000, 235000);
 
 const INPUT = {
   bookingRequestId: "booking-1",
@@ -14,13 +17,13 @@ function createMessageContext(overrides: Record<string, unknown> = {}) {
   return {
     id: "message-1",
     bookingRequestId: "booking-1",
-    authorId: "renter-1",
+    authorId: RENTER_1_ID,
     body: "Is the van available early?",
     createdAt: new Date("2026-08-10T12:00:00.000Z"),
     readAt: null,
     bookingRequest: {
       id: "booking-1",
-      renterId: "renter-1",
+      renterId: RENTER_1_ID,
       organizationId: "org-1",
       posting: { name: "Cargo van" },
     },
@@ -120,7 +123,7 @@ describe("BookingMessageEmailComposer", () => {
     // The renter is resolved from the booking's own `renterId`, so the
     // membership lookup is never reached for them.
     await expect(
-      composer.compose({ ...INPUT, recipientId: "renter-1" }),
+      composer.compose({ ...INPUT, recipientId: RENTER_1_ID }),
     ).resolves.toMatchObject({ to: "owner@example.com" });
   });
 

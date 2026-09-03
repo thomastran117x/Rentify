@@ -1,5 +1,9 @@
 import { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createClient(
   overrides: Partial<ClientRequestContext> = {},
@@ -43,7 +47,7 @@ describe("RecommendationActivityPublisher", () => {
 
     await publisher.publishPostingView({
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         ownerId: "owner-1",
         status: "published",
       } as any,
@@ -79,20 +83,20 @@ describe("RecommendationActivityPublisher", () => {
 
     await publisher.publishPostingView({
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         ownerId: "owner-1",
         status: "published",
       } as any,
       client: createClient(),
       requestId: "request-1",
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
     });
 
     expect(publishActivityEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "posting_view",
-        postingId: "posting-1",
-        actorUserId: "user-1",
+        postingId: POSTING_1_ID,
+        actorUserId: USER_1_ID,
         personalizationEnabled: true,
         anonymousActorHash: null,
       }),
@@ -114,7 +118,7 @@ describe("RecommendationActivityPublisher", () => {
 
     await publisher.publishPostingView({
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         ownerId: "owner-1",
         status: "published",
       } as any,
@@ -156,8 +160,8 @@ describe("RecommendationActivityPublisher", () => {
     await publisher.publishBookingRequestCreated({
       bookingRequest: {
         id: "booking-1",
-        postingId: "posting-1",
-        renterId: "user-1",
+        postingId: POSTING_1_ID,
+        renterId: USER_1_ID,
         createdAt: "2026-04-30T12:00:00.000Z",
         startAt: "2026-05-01T00:00:00.000Z",
         endAt: "2026-05-03T00:00:00.000Z",
@@ -170,7 +174,7 @@ describe("RecommendationActivityPublisher", () => {
     expect(publishActivityEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "booking_request_created",
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         personalizationEnabled: false,
       }),
     );
@@ -192,7 +196,7 @@ describe("RecommendationActivityPublisher", () => {
 
     await expect(
       publisher.publishSearchClick({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         client: createClient(),
         body: {
           searchSessionId: "search-1",
@@ -219,7 +223,7 @@ describe("RecommendationActivityPublisher", () => {
     );
 
     await publisher.publishSearchClick({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       client: createClient({
         device: {
           id: "bot-1",
@@ -255,7 +259,7 @@ describe("RecommendationActivityPublisher", () => {
     );
 
     await publisher.publishSearchClick({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       client: createClient({
         ip: "198.51.100.20",
         device: {
@@ -301,9 +305,9 @@ describe("RecommendationActivityPublisher", () => {
     await publisher.publishRentingConfirmed({
       renting: {
         id: "renting-1",
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         bookingRequestId: "booking-1",
-        renterId: "user-1",
+        renterId: USER_1_ID,
         confirmedAt: "2026-05-03T10:00:00.000Z",
         startAt: "2026-05-10T12:00:00.000Z",
         endAt: "2026-05-12T12:00:00.000Z",
@@ -316,7 +320,7 @@ describe("RecommendationActivityPublisher", () => {
     expect(publishActivityEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "renting_confirmed",
-        actorUserId: "user-1",
+        actorUserId: USER_1_ID,
         requestId: "request-9",
         source: "renting_flow",
         personalizationEnabled: true,
@@ -347,7 +351,7 @@ describe("RecommendationActivityPublisher", () => {
 
     await publisher.publishPostingLifecycle({
       posting: {
-        id: "posting-1",
+        id: POSTING_1_ID,
         ownerId: "owner-1",
         status: "archived",
       } as any,

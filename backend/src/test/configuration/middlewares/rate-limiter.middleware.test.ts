@@ -12,6 +12,9 @@ import type { Logger } from "@/configuration/logging";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { createTestApp } from "../../support/fetch-app";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function ok(_request: express.Request, response: express.Response): void {
   response.json({ ok: true });
@@ -64,7 +67,7 @@ class FakeContainer implements ServiceContainer {
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -438,7 +441,7 @@ describe("rateLimiterMiddleware", () => {
     expect(response.status).toBe(200);
     expect(verifyAccessToken).toHaveBeenCalledWith("valid-access-token");
     expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe(
-      "rate-limit:POST:/postings:user:user-1",
+      `rate-limit:POST:/postings:user:${USER_1_ID}`,
     );
   });
 

@@ -9,15 +9,23 @@ import type { RentingsRepository } from "@/features/rentings/rentings.repository
 import ForbiddenError from "@/errors/http/forbidden.error";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import { testUuid } from "../../support/uuid";
+
+const BOOKING_1_ID = testUuid(9000, 996753);
+const INTRUDER_1_ID = testUuid(9000, 223738);
+const MISSING_BOOKING_ID = testUuid(9000, 533840);
+const OWNER_1_ID = testUuid(9000, 219201);
+const RENTER_1_ID = testUuid(9000, 235000);
+const RENTING_1_ID = testUuid(9000, 915753);
 
 function createRentingRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    id: "renting-1",
+    id: RENTING_1_ID,
     postingId: "posting-1",
-    ownerId: "owner-1",
+    ownerId: OWNER_1_ID,
     organizationId: "org-1",
-    renterId: "renter-1",
-    bookingRequestId: "booking-1",
+    renterId: RENTER_1_ID,
+    bookingRequestId: BOOKING_1_ID,
     status: "confirmed",
     startAt: "2026-05-01T00:00:00.000Z",
     endAt: "2026-05-04T00:00:00.000Z",
@@ -53,7 +61,7 @@ describe("RentingsService", () => {
       })),
       requireMembership: jest.fn(
         async (userId: string, organizationId: string) => {
-          if (userId.startsWith("owner")) {
+          if (userId === OWNER_1_ID) {
             return {
               organizationId,
               userId,
@@ -67,7 +75,7 @@ describe("RentingsService", () => {
         },
       ),
       findMembership: jest.fn(async (userId: string, organizationId: string) =>
-        userId.startsWith("owner")
+        userId === OWNER_1_ID
           ? {
               organizationId,
               userId,
@@ -97,9 +105,9 @@ describe("RentingsService", () => {
     };
     const bookingsRepository = {
       findById: jest.fn(async () => ({
-        id: "booking-1",
+        id: BOOKING_1_ID,
         postingId: "posting-1",
-        ownerId: "owner-1",
+        ownerId: OWNER_1_ID,
         organizationId: "org-1",
       })),
       reserveForConversion: jest.fn(async () => reservation),
@@ -144,15 +152,15 @@ describe("RentingsService", () => {
 
     await expect(
       service.convertApprovedBookingRequest({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
       }),
     ).rejects.toThrow("boom");
 
     expect(
       (bookingsRepository.releaseConversionReservation as unknown as jest.Mock)
         .mock.calls[0],
-    ).toEqual(["booking-1", "org-1", reservation]);
+    ).toEqual([BOOKING_1_ID, "org-1", reservation]);
     expect(
       (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
     ).toEqual([["posting-1"], ["posting-1"]]);
@@ -165,7 +173,7 @@ describe("RentingsService", () => {
         ([key]) => key,
       ),
     ).toEqual([
-      "booking-request:booking-1:convert",
+      `booking-request:${BOOKING_1_ID}:convert`,
       "posting:posting-1:booking-window",
     ]);
   });
@@ -173,9 +181,9 @@ describe("RentingsService", () => {
   it("allows conversion to renting while the posting is paused", async () => {
     const bookingsRepository = {
       findById: jest.fn(async () => ({
-        id: "booking-1",
+        id: BOOKING_1_ID,
         postingId: "posting-1",
-        ownerId: "owner-1",
+        ownerId: OWNER_1_ID,
         organizationId: "org-1",
       })),
       reserveForConversion: jest.fn(async () => ({
@@ -186,12 +194,12 @@ describe("RentingsService", () => {
     } as unknown as BookingsRepository;
     const rentingsRepository = {
       convertApprovedBookingRequest: jest.fn(async () => ({
-        id: "renting-1",
+        id: RENTING_1_ID,
         postingId: "posting-1",
-        ownerId: "owner-1",
+        ownerId: OWNER_1_ID,
         organizationId: "org-1",
-        renterId: "renter-1",
-        bookingRequestId: "booking-1",
+        renterId: RENTER_1_ID,
+        bookingRequestId: BOOKING_1_ID,
         status: "confirmed",
         startAt: "2026-05-01T00:00:00.000Z",
         endAt: "2026-05-04T00:00:00.000Z",
@@ -249,14 +257,14 @@ describe("RentingsService", () => {
     );
 
     const renting = await service.convertApprovedBookingRequest({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_1_ID,
+      actorUserId: OWNER_1_ID,
     });
 
-    expect(renting.id).toBe("renting-1");
+    expect(renting.id).toBe(RENTING_1_ID);
     expect(
       rentingsRepository.convertApprovedBookingRequest as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("booking-1", "org-1");
+    ).toHaveBeenCalledWith(BOOKING_1_ID, "org-1");
     expect(
       (postingsRepository.enqueueSearchSync as unknown as jest.Mock).mock.calls,
     ).toEqual([["posting-1"], ["posting-1"]]);
@@ -282,8 +290,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.convertApprovedBookingRequest({
-        bookingRequestId: "missing-booking",
-        actorUserId: "owner-1",
+        bookingRequestId: MISSING_BOOKING_ID,
+        actorUserId: OWNER_1_ID,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -291,7 +299,7 @@ describe("RentingsService", () => {
   it("rejects conversion when the posting is archived", async () => {
     const bookingsRepository = {
       findById: jest.fn(async () => ({
-        id: "booking-1",
+        id: BOOKING_1_ID,
         postingId: "posting-1",
         organizationId: "org-1",
       })),
@@ -314,8 +322,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.convertApprovedBookingRequest({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -327,7 +335,7 @@ describe("RentingsService", () => {
     };
     const bookingsRepository = {
       findById: jest.fn(async () => ({
-        id: "booking-1",
+        id: BOOKING_1_ID,
         postingId: "posting-1",
         organizationId: "org-1",
       })),
@@ -360,14 +368,14 @@ describe("RentingsService", () => {
 
     await expect(
       service.convertApprovedBookingRequest({
-        bookingRequestId: "booking-1",
-        actorUserId: "owner-1",
+        bookingRequestId: BOOKING_1_ID,
+        actorUserId: OWNER_1_ID,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
 
     expect(
       bookingsRepository.releaseConversionReservation as unknown as jest.Mock,
-    ).toHaveBeenCalledWith("booking-1", "org-1", reservation);
+    ).toHaveBeenCalledWith(BOOKING_1_ID, "org-1", reservation);
   });
 
   it("promotes ended active rentings to return_due when reading a renting", async () => {
@@ -391,7 +399,7 @@ describe("RentingsService", () => {
       createOrganizationAccessService(),
     );
 
-    const result = await service.getById("renting-1", "renter-1", "user");
+    const result = await service.getById(RENTING_1_ID, RENTER_1_ID, "user");
 
     expect(
       rentingsRepository.promoteReturnDueForRenting as unknown as jest.Mock,
@@ -414,7 +422,7 @@ describe("RentingsService", () => {
     );
 
     await expect(
-      service.getById("missing-renting", "renter-1", "user"),
+      service.getById("missing-renting", RENTER_1_ID, "user"),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -433,7 +441,7 @@ describe("RentingsService", () => {
     );
 
     await expect(
-      service.getById("renting-1", "intruder-1", "user"),
+      service.getById(RENTING_1_ID, INTRUDER_1_ID, "user"),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -468,13 +476,13 @@ describe("RentingsService", () => {
     );
 
     const result = await service.listMine({
-      userId: "renter-1",
+      userId: RENTER_1_ID,
       page: 1,
       pageSize: 10,
     });
 
     expect(listMine).toHaveBeenCalledWith({
-      userId: "renter-1",
+      userId: RENTER_1_ID,
       page: 1,
       pageSize: 10,
       organizationId: undefined,
@@ -499,8 +507,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.updateInstructions({
-        rentingId: "renting-1",
-        actorUserId: "renter-1",
+        rentingId: RENTING_1_ID,
+        actorUserId: RENTER_1_ID,
         actorRole: "user",
         pickupInstructions: "Meet outside.",
         returnInstructions: "Leave with concierge.",
@@ -530,8 +538,8 @@ describe("RentingsService", () => {
     );
 
     const result = await service.updateInstructions({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: OWNER_1_ID,
       actorRole: "owner",
       pickupInstructions: "Call on arrival.",
       returnInstructions: "Leave with concierge.",
@@ -540,8 +548,8 @@ describe("RentingsService", () => {
     expect(
       rentingsRepository.updateInstructions as unknown as jest.Mock,
     ).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: OWNER_1_ID,
       actorRole: "owner",
       pickupInstructions: "Call on arrival.",
       returnInstructions: "Leave with concierge.",
@@ -570,8 +578,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.updateInstructions({
-        rentingId: "renting-1",
-        actorUserId: "owner-1",
+        rentingId: RENTING_1_ID,
+        actorUserId: OWNER_1_ID,
         actorRole: "owner",
         pickupInstructions: "Call on arrival.",
         returnInstructions: "Leave with concierge.",
@@ -597,8 +605,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.updateInstructions({
-        rentingId: "renting-1",
-        actorUserId: "owner-1",
+        rentingId: RENTING_1_ID,
+        actorUserId: OWNER_1_ID,
         actorRole: "owner",
         pickupInstructions: "Call on arrival.",
         returnInstructions: "Leave with concierge.",
@@ -627,8 +635,8 @@ describe("RentingsService", () => {
     );
 
     const result = await service.markCheckInReady({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: OWNER_1_ID,
       actorRole: "owner",
     });
 
@@ -660,8 +668,8 @@ describe("RentingsService", () => {
     );
 
     const result = await service.markCheckInComplete({
-      rentingId: "renting-1",
-      actorUserId: "renter-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: RENTER_1_ID,
       actorRole: "user",
     });
 
@@ -697,8 +705,8 @@ describe("RentingsService", () => {
     );
 
     const result = await service.markCompleted({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: OWNER_1_ID,
       actorRole: "owner",
     });
 
@@ -721,8 +729,8 @@ describe("RentingsService", () => {
           status: "disputed",
           dispute: {
             id: "dispute-1",
-            rentingId: "renting-1",
-            openedByUserId: "renter-1",
+            rentingId: RENTING_1_ID,
+            openedByUserId: RENTER_1_ID,
             reason: "damage",
             createdAt: "2026-05-04T00:00:00.000Z",
             updatedAt: "2026-05-04T00:00:00.000Z",
@@ -741,8 +749,8 @@ describe("RentingsService", () => {
     );
 
     const result = await service.createDispute({
-      rentingId: "renting-1",
-      actorUserId: "renter-1",
+      rentingId: RENTING_1_ID,
+      actorUserId: RENTER_1_ID,
       actorRole: "user",
       reason: "damage",
       details: "Broken lamp.",
@@ -777,8 +785,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.createDispute({
-        rentingId: "renting-1",
-        actorUserId: "renter-1",
+        rentingId: RENTING_1_ID,
+        actorUserId: RENTER_1_ID,
         actorRole: "user",
         reason: "Issue",
       }),
@@ -810,8 +818,8 @@ describe("RentingsService", () => {
 
     await expect(
       service.createDispute({
-        rentingId: "renting-1",
-        actorUserId: "renter-1",
+        rentingId: RENTING_1_ID,
+        actorUserId: RENTER_1_ID,
         actorRole: "user",
         reason: "Issue",
         details: "Too late",

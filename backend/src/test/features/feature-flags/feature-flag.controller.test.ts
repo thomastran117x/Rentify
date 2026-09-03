@@ -2,6 +2,9 @@
 import { createTestContext, invoke } from "../../support/mock-http";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import ForbiddenError from "@/errors/http/forbidden.error";
+import { testUuid } from "../../support/uuid";
+
+const ADMIN_1_ID = testUuid(9000, 185107);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -14,7 +17,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "admin-1",
+    sub: ADMIN_1_ID,
     email: "admin@example.com",
     role: "admin",
     deviceId: "device-1",
@@ -165,7 +168,7 @@ describe("FeatureFlagController", () => {
         expect.objectContaining({
           name: "my-flag",
           enabled: true,
-          actorUserId: "admin-1",
+          actorUserId: ADMIN_1_ID,
         }),
       );
     });
@@ -240,7 +243,7 @@ describe("FeatureFlagController", () => {
       expect(response.status).toBe(200);
       expect(body.data).toEqual(deleteResult);
       expect(deleteFlag).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "my-flag", actorUserId: "admin-1" }),
+        expect.objectContaining({ name: "my-flag", actorUserId: ADMIN_1_ID }),
       );
     });
 

@@ -6,13 +6,24 @@ import type {
   AuthUserRecord,
 } from "@/features/auth/auth.model";
 import { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { testUuid } from "../../support/uuid";
+const MISSING_USER_ID = testUuid(9000, 791594);
+const ORG_9_ID = testUuid(9000, 9242);
+
+const MEMBERSHIP_1_ID = testUuid(9000, 649718);
+const MEMBERSHIP_2_ID = testUuid(9000, 649719);
+const ORG_1_ID = testUuid(9000, 9234);
+const ORG_2_ID = testUuid(9000, 9235);
+const ORG_404_ID = testUuid(9000, 878433);
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createMembership(
   overrides: Partial<AuthUserOrganizationMembershipRecord> = {},
 ): AuthUserOrganizationMembershipRecord {
   return {
-    membershipId: "membership-1",
-    organizationId: "org-1",
+    membershipId: MEMBERSHIP_1_ID,
+    organizationId: ORG_1_ID,
     organizationName: "Northwind",
     role: "primary_manager",
     createdAt: "2026-05-01T00:00:00.000Z",
@@ -23,14 +34,14 @@ function createMembership(
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "owner@example.com",
     tokenVersion: 0,
     role: "owner",
     emailVerified: true,
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "northwind-owner",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -41,7 +52,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
       updatedAt: "2026-05-01T00:00:00.000Z",
     },
     oauthIdentities: [],
-    preferredOrganizationId: "org-1",
+    preferredOrganizationId: ORG_1_ID,
     organizationMemberships: [createMembership()],
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -62,37 +73,37 @@ function createService(user: AuthUserRecord | null) {
 
 describe("OrganizationAccessService", () => {
   it("returns the preferred organization membership when present", async () => {
-    const preferredMembership = createMembership({ organizationId: "org-2" });
+    const preferredMembership = createMembership({ organizationId: ORG_2_ID });
     const fallbackMembership = createMembership({
-      membershipId: "membership-2",
-      organizationId: "org-1",
+      membershipId: MEMBERSHIP_2_ID,
+      organizationId: ORG_1_ID,
     });
     const { service } = createService(
       createUser({
-        preferredOrganizationId: "org-2",
+        preferredOrganizationId: ORG_2_ID,
         organizationMemberships: [fallbackMembership, preferredMembership],
       }),
     );
 
-    await expect(service.requireActiveMembership("user-1")).resolves.toEqual(
+    await expect(service.requireActiveMembership(USER_1_ID)).resolves.toEqual(
       preferredMembership,
     );
   });
 
   it("falls back to the first membership when no preferred organization matches", async () => {
-    const firstMembership = createMembership({ organizationId: "org-1" });
+    const firstMembership = createMembership({ organizationId: ORG_1_ID });
     const secondMembership = createMembership({
-      membershipId: "membership-2",
-      organizationId: "org-2",
+      membershipId: MEMBERSHIP_2_ID,
+      organizationId: ORG_2_ID,
     });
     const { service } = createService(
       createUser({
-        preferredOrganizationId: "org-404",
+        preferredOrganizationId: ORG_404_ID,
         organizationMemberships: [firstMembership, secondMembership],
       }),
     );
 
-    await expect(service.requireActiveMembership("user-1")).resolves.toEqual(
+    await expect(service.requireActiveMembership(USER_1_ID)).resolves.toEqual(
       firstMembership,
     );
   });
@@ -105,7 +116,7 @@ describe("OrganizationAccessService", () => {
     );
 
     await expect(
-      service.requireActiveMembership("user-1", "Join a team first."),
+      service.requireActiveMembership(USER_1_ID, "Join a team first."),
     ).rejects.toMatchObject({
       message: "Join a team first.",
     });
@@ -115,33 +126,35 @@ describe("OrganizationAccessService", () => {
     const { service } = createService(null);
 
     await expect(
-      service.requireActiveMembership("missing-user"),
+      service.requireActiveMembership(MISSING_USER_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
   it("finds and requires memberships by organization id", async () => {
-    const membership = createMembership({ organizationId: "org-2" });
+    const membership = createMembership({ organizationId: ORG_2_ID });
     const { service, authRepository } = createService(
       createUser({
         organizationMemberships: [createMembership(), membership],
       }),
     );
 
-    await expect(service.findMembership("user-1", "org-2")).resolves.toEqual(
+    await expect(service.findMembership(USER_1_ID, ORG_2_ID)).resolves.toEqual(
       membership,
     );
-    await expect(service.requireMembership("user-1", "org-2")).resolves.toEqual(
-      membership,
-    );
-    expect(authRepository.findUserById).toHaveBeenCalledWith("user-1");
+    await expect(
+      service.requireMembership(USER_1_ID, ORG_2_ID),
+    ).resolves.toEqual(membership);
+    expect(authRepository.findUserById).toHaveBeenCalledWith(USER_1_ID);
   });
 
   it("returns null or throws ForbiddenError when the membership is missing", async () => {
     const { service } = createService(createUser());
 
-    await expect(service.findMembership("user-1", "org-9")).resolves.toBeNull();
     await expect(
-      service.requireMembership("user-1", "org-9", "No organization access."),
+      service.findMembership(USER_1_ID, ORG_9_ID),
+    ).resolves.toBeNull();
+    await expect(
+      service.requireMembership(USER_1_ID, ORG_9_ID, "No organization access."),
     ).rejects.toMatchObject({
       message: "No organization access.",
     });
