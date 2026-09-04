@@ -18,7 +18,11 @@ vi.mock("@/lib/auth/roles", () => ({
   canManageOrganizationPostings: () => false,
 }));
 vi.mock("@/components/navigation/theme-toggle", () => ({
-  ThemeToggle: () => <div>Theme</div>,
+  ThemeToggle: ({ className }: { className?: string }) => (
+    <div data-testid="theme-toggle" className={className}>
+      Theme
+    </div>
+  ),
 }));
 vi.mock("./site-header-navigation", () => ({
   SiteHeaderDesktopNav: () => <div>Nav</div>,
@@ -31,8 +35,17 @@ vi.mock("./site-header-account-panels", () => ({
   }) => <button onClick={() => void onLogout()}>Log out</button>,
 }));
 vi.mock("./site-header-mobile-menu", () => ({
-  SiteHeaderMobileMenu: ({ mobileCtaLabel }: { mobileCtaLabel: string }) => (
-    <div>{mobileCtaLabel}</div>
+  SiteHeaderMobileMenu: ({
+    mobileCtaLabel,
+    showThemeRow,
+  }: {
+    mobileCtaLabel: string;
+    showThemeRow: boolean;
+  }) => (
+    <div>
+      {mobileCtaLabel}
+      {showThemeRow ? <span>mobile theme row</span> : null}
+    </div>
   ),
 }));
 vi.mock("./site-header-search-form", () => ({
@@ -99,5 +112,34 @@ describe("SiteHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     await waitFor(() => expect(clearMock).toHaveBeenCalled());
     expect(pushMock).toHaveBeenCalledWith("/login");
+  });
+
+  // Exactly one theme control per auth state per breakpoint. Anonymous visitors
+  // have no account dropdown, so they need both surfaces — but the standalone
+  // toggle stays desktop-only, or a 320px header overflows.
+  it("gives anonymous visitors a desktop-only toggle plus a mobile menu row", () => {
+    authMock.mockReturnValue({
+      status: "anonymous",
+      session: null,
+      clearSession: clearMock,
+    });
+
+    render(<SiteHeader />);
+
+    expect(screen.getByTestId("theme-toggle")).toHaveClass("hidden", "md:flex");
+    expect(screen.getByText("mobile theme row")).toBeInTheDocument();
+  });
+
+  it("keeps the header and mobile menu free of theme controls once signed in", () => {
+    authMock.mockReturnValue({
+      status: "authenticated",
+      session: { user: { email: "person@example.com", role: "user" } },
+      clearSession: clearMock,
+    });
+
+    render(<SiteHeader />);
+
+    expect(screen.queryByTestId("theme-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByText("mobile theme row")).not.toBeInTheDocument();
   });
 });

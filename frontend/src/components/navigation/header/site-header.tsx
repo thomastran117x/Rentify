@@ -149,7 +149,14 @@ export function SiteHeader() {
             )}
           </button>
 
-          {status !== "authenticated" ? <ThemeToggle /> : null}
+          {/* Authenticated users get their theme control inside the account
+              dropdown, which renders at every width. Anonymous visitors have no
+              dropdown, so they keep the standalone toggle on desktop and a row
+              in the mobile menu — showing it here at every width would crowd a
+              320px header past overflow. */}
+          {status !== "authenticated" ? (
+            <ThemeToggle className="hidden md:flex" />
+          ) : null}
 
           <SiteHeaderDesktopAccount
             pathname={pathname}
@@ -162,6 +169,7 @@ export function SiteHeader() {
 
           <SiteHeaderMobileMenu
             pathname={pathname}
+            showThemeRow={status !== "authenticated"}
             mobileCtaHref={mobileCtaHref}
             mobileCtaLabel={mobileCtaLabel}
           />

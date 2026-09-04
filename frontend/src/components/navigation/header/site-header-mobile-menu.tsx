@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { theme } from "@/styles/theme";
 import { useDisclosureDetails } from "./use-disclosure-details";
 import { SiteHeaderMobileNavGrid } from "./site-header-navigation";
@@ -10,17 +11,21 @@ interface SiteHeaderMobileMenuProps {
   pathname: string;
   mobileCtaHref: string;
   mobileCtaLabel: string;
+  /** Anonymous visitors have no account dropdown to hold the theme control. */
+  showThemeRow: boolean;
 }
 
 /**
- * Small-screen menu for the public navigation only. Account actions and the
- * theme control live in the avatar dropdown, which renders at every width, and
- * workspace navigation lives in the app-shell sidebar.
+ * Small-screen menu for the public navigation. Account actions live in the
+ * avatar dropdown, which renders at every width, and workspace navigation lives
+ * in the app-shell sidebar — so this carries the theme control only for
+ * anonymous visitors, who have no dropdown.
  */
 export function SiteHeaderMobileMenu({
   pathname,
   mobileCtaHref,
   mobileCtaLabel,
+  showThemeRow,
 }: SiteHeaderMobileMenuProps) {
   const { ref, open, onToggle } = useDisclosureDetails();
 
@@ -41,6 +46,15 @@ export function SiteHeaderMobileMenu({
           </p>
 
           <SiteHeaderMobileNavGrid pathname={pathname} />
+
+          {showThemeRow ? (
+            <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3 flex items-center justify-between">
+              <span className="px-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+                Theme
+              </span>
+              <ThemeToggle />
+            </div>
+          ) : null}
 
           <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3">
             <Link href={mobileCtaHref} className={theme.header.mobileCta}>
