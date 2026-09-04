@@ -13,7 +13,7 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/src/app/$1",
   },
   transform: {
-    "^.+\\.ts$": [
+    "^.+\\.[cm]?[jt]s$": [
       "ts-jest",
       {
         useESM: true,
@@ -21,5 +21,9 @@ module.exports = {
       },
     ],
   },
+  // `cookie` v2 publishes ESM only. These suites execute as CommonJS, so that
+  // ESM has to be down-levelled on the way in, which means opting the package
+  // out of the default "never transform node_modules" rule.
+  transformIgnorePatterns: ["/node_modules/(?!(cookie)/)"],
   testPathIgnorePatterns: ["/node_modules/", "/dist/"],
 };

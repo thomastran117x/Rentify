@@ -1,5 +1,5 @@
 ﻿import {
-  serialize as serializeCookie,
+  stringifySetCookie,
   type SerializeOptions as CookieSerializeOptions,
 } from "cookie";
 import type { Request, Response } from "express";
@@ -289,19 +289,33 @@ export function createMockResponse(): MockResponse {
       // and a stub recording nothing lets all of that pass untested. Express
       // takes maxAge in milliseconds and emits Max-Age in seconds; the same
       // conversion happens here so assertions see what the wire would carry.
+      const { encode, ...attributes } = options;
+
       cookies.push(
-        serializeCookie(name, value, {
-          ...options,
-          ...(options.maxAge === undefined
-            ? {}
-            : { maxAge: Math.floor(options.maxAge / 1000) }),
-        }),
+        stringifySetCookie(
+          {
+            ...attributes,
+            name,
+            value,
+            ...(attributes.maxAge === undefined
+              ? {}
+              : { maxAge: Math.floor(attributes.maxAge / 1000) }),
+          },
+          { encode },
+        ),
       );
       headers["set-cookie"] = cookies.join(", ");
       return response;
     },
     clearCookie(name: string, options: CookieSerializeOptions = {}) {
-      cookies.push(serializeCookie(name, "", { ...options, maxAge: 0 }));
+      const { encode, ...attributes } = options;
+
+      cookies.push(
+        stringifySetCookie(
+          { ...attributes, name, value: "", maxAge: 0 },
+          { encode },
+        ),
+      );
       headers["set-cookie"] = cookies.join(", ");
       return response;
     },
