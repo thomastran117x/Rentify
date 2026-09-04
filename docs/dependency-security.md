@@ -6,11 +6,11 @@ This repository installs packages from the public npm registry across three inde
 
 Each check covers a different failure mode. They are complementary, not redundant.
 
-| Check                  | What it catches                                                                                                               | Where it runs        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `npm audit`            | Published advisories (CVEs/GHSAs) against the resolved dependency tree                                                        | CI gate, blocking    |
-| `npm audit signatures` | Packages whose tarball does not match the registry's signature or attestation — the tampered/compromised case                 | CI gate, blocking    |
-| Socket.dev GitHub App  | _Behavioral_ supply-chain risk: newly added install scripts, new network/filesystem/shell capability, typosquats, protestware | PR comment, advisory |
+| Check                  | What it catches                                                                                                               | Where it runs                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `npm audit`            | Published advisories (CVEs/GHSAs) against the resolved dependency tree                                                        | CI gate, blocking on findings |
+| `npm audit signatures` | Packages whose tarball does not match the registry's signature or attestation — the tampered/compromised case                 | CI gate, blocking on failures |
+| Socket.dev GitHub App  | _Behavioral_ supply-chain risk: newly added install scripts, new network/filesystem/shell capability, typosquats, protestware | PR comment, advisory          |
 
 `npm audit` only knows about vulnerabilities somebody has already reported. `npm audit signatures` verifies provenance but says nothing about whether the code is malicious. Socket.dev reads what the package actually does. A package can pass all three and still be bad, but each one closes a distinct gap.
 
@@ -24,9 +24,9 @@ npm run audit:signatures   # npm audit signatures
 npm run audit:all          # both, in order
 ```
 
-Run them from `backend/`, `frontend/`, or `mcp/`. CI invokes the two granular scripts separately so an advisory failure and a signature failure show up as distinct red steps; `audit:all` exists for local one-shot use.
+Run them from `backend/`, `frontend/`, or `mcp/`. CI invokes the two granular scripts through `scripts/npm-security-check.mjs` so an advisory failure and a signature failure show up as distinct steps; `audit:all` exists for local one-shot use.
 
-Because the threshold lives in the npm script rather than the workflow, `npm run audit` locally is exactly the gate CI applies.
+Because the threshold lives in the npm script rather than the workflow wrapper, `npm run audit` locally applies the same severity gate as CI. The wrapper only adds retry and event-specific handling for registry availability failures.
 
 ## The CI Gate
 
@@ -35,6 +35,23 @@ The `Dependency audit` job lives in its own workflow, [`.github/workflows/depend
 It is deliberately separate from [`ci.yml`](../.github/workflows/ci.yml) so the schedule can run the audit alone. Adding a `schedule` trigger to `ci.yml` would either drag the full build, unit, and service-backed integration suite along every night or require an `if: github.event_name != 'schedule'` guard on all seven other jobs.
 
 The job runs `npm ci` before auditing. This is partly to populate the tree, but it also gives a free lockfile-drift check: `npm ci` hard-fails when `package.json` and `package-lock.json` disagree, which is the exact failure a Dependabot PR or a hand-edited version pin can introduce.
+
+### Registry Availability Policy
+
+The npm CLI returns a non-zero status for both security findings and failures of the remote registry services. CI must distinguish those outcomes: an advisory or invalid signature is under the repository's control, while a `503 Service Unavailable` from npm is not.
+
+The workflow retries explicit availability failures up to three total attempts, waiting 5 seconds and then 15 seconds. Each npm request has a 30-second fetch timeout, and npm's nested fetch retries are disabled so the wrapper owns one predictable retry budget. Retryable failures are limited to HTTP 429/5xx responses and recognized transient DNS, connection, and socket error codes. Authentication failures, malformed responses, security findings, signature failures, and any unknown error fail immediately without retrying.
+
+One npm signature error needs special handling: Sigstore's TUF client normally reports an HTTP metadata download failure only as `npm error Failed to download`, hiding the status code. The wrapper retries that opaque error with verbose diagnostics enabled. It applies the availability policy only when npm then reveals a 429/5xx status; a 4xx or another unclassified result remains blocking.
+
+If npm remains unavailable after all three attempts:
+
+- Pull request and `main` push runs emit a GitHub warning and step-summary notice, then continue so an external outage cannot block a merge or deployment.
+- Scheduled and manually dispatched runs fail. A scheduled failure opens or updates the existing tracking issue, making a prolonged loss of audit coverage visible without blocking commit-triggered CI.
+
+This is intentionally fail-closed for unclassified errors. Only output that positively identifies a transient registry availability failure can use the non-blocking PR/push policy.
+
+`npm ci` remains blocking. If the registry is unavailable and the runner cannot install the locked dependencies, the application cannot be built or tested; the availability exception applies only to the advisory and signature services after installation.
 
 ### The Scheduled Run
 
