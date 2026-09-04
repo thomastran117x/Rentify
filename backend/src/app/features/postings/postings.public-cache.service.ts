@@ -8,6 +8,7 @@ import type {
   PublicPostingRecord,
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const POSTINGS_PUBLIC_CACHE_NAMESPACE = "postings:public";
 
@@ -40,7 +41,7 @@ export class PostingsPublicCacheService {
     );
   }
 
-  async getPublicById(postingId: string): Promise<PublicPostingRecord | null> {
+  async getPublicById(postingId: Uuid): Promise<PublicPostingRecord | null> {
     const normalizedPostingId = postingId.trim();
 
     if (!normalizedPostingId) {
@@ -50,7 +51,7 @@ export class PostingsPublicCacheService {
     return this.readThroughCacheService.get(
       POSTINGS_PUBLIC_CACHE_NAMESPACE,
       normalizedPostingId,
-      () => this.resolvePublicPosting(normalizedPostingId),
+      () => this.resolvePublicPosting(asUuid(normalizedPostingId)),
       this.getConfig(),
     );
   }
@@ -65,7 +66,7 @@ export class PostingsPublicCacheService {
 
     await Promise.all(
       normalizedIds.map(async (id) => {
-        const posting = await this.getPublicById(id);
+        const posting = await this.getPublicById(asUuid(id));
 
         if (posting) {
           byId.set(id, posting);
@@ -74,20 +75,20 @@ export class PostingsPublicCacheService {
     );
 
     const postings: PublicPostingRecord[] = [];
-    const missingIds: string[] = [];
+    const missingIds: Uuid[] = [];
 
     for (const id of ids) {
       const normalizedId = id.trim();
 
       if (!normalizedId) {
-        missingIds.push(id);
+        missingIds.push(asUuid(id));
         continue;
       }
 
       const posting = byId.get(normalizedId);
 
       if (!posting) {
-        missingIds.push(normalizedId);
+        missingIds.push(asUuid(normalizedId));
         continue;
       }
 
@@ -100,7 +101,7 @@ export class PostingsPublicCacheService {
     };
   }
 
-  async invalidatePublic(postingId: string): Promise<number> {
+  async invalidatePublic(postingId: Uuid): Promise<number> {
     return this.readThroughCacheService.invalidate(
       POSTINGS_PUBLIC_CACHE_NAMESPACE,
       postingId,
@@ -108,7 +109,7 @@ export class PostingsPublicCacheService {
   }
 
   private async resolvePublicPosting(
-    postingId: string,
+    postingId: Uuid,
   ): Promise<PublicPostingRecord | null> {
     const batch = await this.postingsRepository.batchFindPublic({
       ids: [postingId],

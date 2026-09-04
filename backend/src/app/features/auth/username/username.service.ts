@@ -8,6 +8,7 @@ import type {
   ForgotUsernameInput,
   UsernameAvailabilityResult,
 } from "@/features/auth/username/username.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 /**
  * Everything keyed by username: whether a name can be claimed, and reminding
@@ -32,7 +33,7 @@ export class UsernameService {
    */
   async isUsernameAvailable(
     username: string,
-    allowedUserId?: string,
+    allowedUserId?: Uuid,
     allowedPendingEmail?: string,
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
@@ -77,7 +78,7 @@ export class UsernameService {
    */
   async resolveUsernameAvailabilityHint(
     username: string,
-    allowedUserId?: string,
+    allowedUserId?: Uuid,
     allowedPendingEmail?: string,
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
@@ -102,7 +103,7 @@ export class UsernameService {
 
   async assertUsernameIsAvailable(
     username: string,
-    allowedUserId?: string,
+    allowedUserId?: Uuid,
     allowedPendingEmail?: string,
   ): Promise<void> {
     const result = await this.isUsernameAvailable(

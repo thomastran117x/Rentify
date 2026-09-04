@@ -12,6 +12,7 @@ import {
   waitForRabbitMqPayload,
   waitForRabbitMqPayloads,
 } from "../../support/live-rabbitmq-assertions";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const EMAIL_QUEUE_NAME = "email.delivery.main";
 // Posting 3 belongs to owner1's organization.
@@ -87,7 +88,7 @@ describe("Booking messages persistence integration", () => {
       },
     );
 
-    return { renter, bookingRequestId: booking.id };
+    return { renter, bookingRequestId: asUuid(booking.id) };
   }
 
   it("round-trips messages between the renter and the owner", async () => {
@@ -174,7 +175,7 @@ describe("Booking messages persistence integration", () => {
         body: JSON.stringify({ body: "Original text" }),
       },
     );
-    const created = await readData<{ id: string; authorUsername: string }>(
+    const created = await readData<{ id: Uuid; authorUsername: string }>(
       sendResponse,
     );
     expect(created.authorUsername).toBe("viewer-one");
@@ -600,7 +601,7 @@ describe("Booking messages persistence integration", () => {
         body: JSON.stringify({ body: "Delivered check" }),
       },
     );
-    const created = await readData<{ id: string }>(sendResponse);
+    const created = await readData<{ id: Uuid }>(sendResponse);
 
     const service = persistenceApp.container
       .createScope()

@@ -22,6 +22,7 @@ import {
   type UpdateSavedSearchRequest,
 } from "@/features/postings/saved-searches/saved-searches.model";
 import type { SavedSearchesService } from "@/features/postings/saved-searches/saved-searches.service";
+import { type Uuid } from "@/configuration/validation/uuid";
 
 export class SavedSearchesController {
   constructor(private readonly savedSearchesService: SavedSearchesService) {}
@@ -103,7 +104,7 @@ export class SavedSearchesController {
     }
   }
 
-  private requireRouteId(request: Request): string {
+  private requireRouteId(request: Request): Uuid {
     const value = requireSafeRouteParam(request, "id");
 
     try {

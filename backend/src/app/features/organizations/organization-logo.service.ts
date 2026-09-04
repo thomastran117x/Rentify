@@ -4,6 +4,7 @@ import type { BlobService } from "@/features/blob/blob.service";
 import type { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
 import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type { OrganizationProfileInput } from "@/features/organizations/organizations.model";
+import { type Uuid } from "@/configuration/validation/uuid";
 
 /**
  * Validates and cleans up the organization logo blob reference, shared by
@@ -21,10 +22,7 @@ export class OrganizationLogoService {
     private readonly organizationAuditRepository: OrganizationAuditRepository,
   ) {}
 
-  assertLogoInput(
-    actorUserId: string,
-    profile: OrganizationProfileInput,
-  ): void {
+  assertLogoInput(actorUserId: Uuid, profile: OrganizationProfileInput): void {
     const hasLogoUrl = profile.logoUrl !== undefined;
     const hasLogoBlobName = profile.logoBlobName !== undefined;
 
@@ -80,8 +78,8 @@ export class OrganizationLogoService {
   }
 
   async cleanupReplacedLogo(input: {
-    organizationId: string;
-    actorUserId: string;
+    organizationId: Uuid;
+    actorUserId: Uuid;
     beforeSnapshot: unknown;
     afterSnapshot: unknown;
   }): Promise<void> {

@@ -2,6 +2,11 @@ import type { BookingMessageEmailComposer } from "@/features/bookings/messages/b
 import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
+import { testUuid } from "../../support/uuid";
+const BOOKING_1_ID = testUuid(9200, 996753);
+const MESSAGE_1_ID = testUuid(9200, 597033);
+const SMTP_1_ID = testUuid(9200, 638718);
+const USER_1_ID = testUuid(9200, 994257);
 
 function createTransporterMock() {
   return {
@@ -458,9 +463,9 @@ describe("EmailDeliveryService", () => {
       jobId: "job-1",
       kind: "booking_message" as const,
       input: {
-        bookingRequestId: "booking-1",
-        recipientId: "user-1",
-        messageId: "message-1",
+        bookingRequestId: BOOKING_1_ID,
+        recipientId: USER_1_ID,
+        messageId: MESSAGE_1_ID,
       },
       attempt: 0,
       occurredAt: "2026-08-10T12:00:00.000Z",
@@ -468,7 +473,7 @@ describe("EmailDeliveryService", () => {
 
     it("delivers a hydrated payload that carries no recipient address", async () => {
       const transporter = createTransporterMock();
-      transporter.sendMail.mockResolvedValue({ messageId: "smtp-1" });
+      transporter.sendMail.mockResolvedValue({ messageId: SMTP_1_ID });
       const composer = createComposerMock();
       composer.compose.mockResolvedValue({
         to: "owner@example.com",
@@ -476,7 +481,7 @@ describe("EmailDeliveryService", () => {
         postingName: "Cargo van",
         authorName: "Jordan Lee",
         snippet: "Is the van available early?",
-        bookingRequestId: "booking-1",
+        bookingRequestId: BOOKING_1_ID,
       });
       const service = createService(transporter, {}, composer);
 
@@ -491,7 +496,7 @@ describe("EmailDeliveryService", () => {
       expect(message.to).toBe("owner@example.com");
       expect(message.subject).toBe("New message about Cargo van");
       expect(message.html).toContain(
-        "https://app.example.com/bookings/booking-1",
+        `https://app.example.com/bookings/${BOOKING_1_ID}`,
       );
       expect(message.html).toContain("Jordan Lee");
       expect(message.text).toContain("Is the van available early?");
@@ -515,7 +520,7 @@ describe("EmailDeliveryService", () => {
         postingName: "Cargo van",
         authorName: "Jordan Lee",
         snippet: "Hello",
-        bookingRequestId: "booking-1",
+        bookingRequestId: BOOKING_1_ID,
       });
       const service = createService(transporter, {}, composer);
 
@@ -525,14 +530,14 @@ describe("EmailDeliveryService", () => {
 
     it("escapes composed content in the rendered html", async () => {
       const transporter = createTransporterMock();
-      transporter.sendMail.mockResolvedValue({ messageId: "smtp-1" });
+      transporter.sendMail.mockResolvedValue({ messageId: SMTP_1_ID });
       const composer = createComposerMock();
       composer.compose.mockResolvedValue({
         to: "owner@example.com",
         postingName: "<script>alert(1)</script>",
         authorName: "Jordan & Co",
         snippet: "<b>bold</b>",
-        bookingRequestId: "booking-1",
+        bookingRequestId: BOOKING_1_ID,
       });
       const service = createService(transporter, {}, composer);
 

@@ -1,11 +1,20 @@
 import { Prisma } from "@/generated/prisma/client";
 import { PostingsRepository } from "@/features/postings/postings.repository";
+import { testUuid } from "../../support/uuid";
+const BLOCK_1_ID = testUuid(9000, 406415);
+const MISSING_BLOCK_ID = testUuid(9000, 793332);
+const POSTING_1_ID = testUuid(9000, 254272);
+const RUN_1_ID = testUuid(9000, 875931);
+
+const BLOCK_2_ID = testUuid(9000, 406416);
+const ORG_1_ID = testUuid(9000, 9234);
+const OUTBOX_1_ID = testUuid(9000, 747639);
 
 function createPostingPersistence(overrides: Record<string, unknown> = {}) {
   return {
-    id: "posting-1",
+    id: POSTING_1_ID,
     ownerId: "owner-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "published",
     family: "place",
     subtype: "entire_place",
@@ -49,8 +58,8 @@ function createPostingPersistence(overrides: Record<string, unknown> = {}) {
     ],
     availabilityBlocks: [
       {
-        id: "block-1",
-        postingId: "posting-1",
+        id: BLOCK_1_ID,
+        postingId: POSTING_1_ID,
         startAt: new Date("2026-05-21T00:00:00.000Z"),
         endAt: new Date("2026-05-22T00:00:00.000Z"),
         note: "Owner stay",
@@ -89,11 +98,11 @@ function createPostingPersistence(overrides: Record<string, unknown> = {}) {
 
 function createSearchOutboxRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "outbox-1",
-    postingId: "posting-1",
+    id: OUTBOX_1_ID,
+    postingId: POSTING_1_ID,
     reindexRunId: null,
     operation: "upsert",
-    dedupeKey: "outbox-1",
+    dedupeKey: OUTBOX_1_ID,
     targetIndexName: null,
     attempts: 0,
     publishAttempts: 0,
@@ -112,7 +121,7 @@ function createSearchOutboxRow(overrides: Record<string, unknown> = {}) {
 
 function createSearchReindexRunRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "run-1",
+    id: RUN_1_ID,
     status: "pending",
     targetIndexName: "postings-reindex-1",
     retainedIndexName: null,
@@ -134,7 +143,7 @@ function createSearchReindexRunRow(overrides: Record<string, unknown> = {}) {
 
 function createUpsertPostingInput(overrides: Record<string, unknown> = {}) {
   return {
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     variant: {
       family: "place",
       subtype: "entire_place",
@@ -202,7 +211,7 @@ describe("PostingsRepository", () => {
     } as any);
 
     const result = await repository.listByOwner({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 2,
       pageSize: 2,
       status: "published",
@@ -211,7 +220,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: "published",
         },
         skip: 2,
@@ -219,8 +228,8 @@ describe("PostingsRepository", () => {
       }),
     );
     expect(result.postings[0]).toMatchObject({
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       variant: {
         family: "place",
         subtype: "entire_place",
@@ -249,7 +258,7 @@ describe("PostingsRepository", () => {
     } as any);
 
     await repository.listByOwner({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 10,
       q: "studio",
@@ -258,7 +267,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           OR: [
             { name: { contains: "studio" } },
             { description: { contains: "studio" } },
@@ -280,12 +289,12 @@ describe("PostingsRepository", () => {
       },
     } as any);
 
-    const summary = await repository.countByOwnerStatus("org-1");
+    const summary = await repository.countByOwnerStatus(ORG_1_ID);
 
     expect(groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ["status"],
-        where: { organizationId: "org-1" },
+        where: { organizationId: ORG_1_ID },
       }),
     );
     expect(summary).toEqual({
@@ -300,7 +309,7 @@ describe("PostingsRepository", () => {
         id: "posting-2",
       }),
       createPostingPersistence({
-        id: "posting-1",
+        id: POSTING_1_ID,
       }),
     ]);
     const repository = new PostingsRepository({
@@ -310,14 +319,14 @@ describe("PostingsRepository", () => {
     } as any);
 
     const result = await repository.batchFindPublic({
-      ids: ["posting-1", "posting-3", "posting-2"],
+      ids: [POSTING_1_ID, "posting-3", "posting-2"],
     });
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           id: {
-            in: ["posting-1", "posting-3", "posting-2"],
+            in: [POSTING_1_ID, "posting-3", "posting-2"],
           },
           status: "published",
           archivedAt: null,
@@ -325,7 +334,7 @@ describe("PostingsRepository", () => {
       }),
     );
     expect(result.postings.map((posting) => posting.id)).toEqual([
-      "posting-1",
+      POSTING_1_ID,
       "posting-2",
     ]);
     expect(result.missingIds).toEqual(["posting-3"]);
@@ -337,7 +346,7 @@ describe("PostingsRepository", () => {
         findMany: jest.fn(async () => [
           createPostingPersistence({
             organization: {
-              id: "org-1",
+              id: ORG_1_ID,
               name: "North Studio",
               slug: "north-studio",
             },
@@ -346,10 +355,10 @@ describe("PostingsRepository", () => {
       },
     } as any);
 
-    const result = await repository.batchFindPublic({ ids: ["posting-1"] });
+    const result = await repository.batchFindPublic({ ids: [POSTING_1_ID] });
 
     expect(result.postings[0]?.organization).toEqual({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "North Studio",
       slug: "north-studio",
     });
@@ -357,7 +366,7 @@ describe("PostingsRepository", () => {
 
   it("enqueues an organization-wide reindex resolving the active run once", async () => {
     const findFirst = jest.fn(async () => ({
-      id: "run-1",
+      id: RUN_1_ID,
       targetIndexName: "postings_v2",
     }));
     const createMany = jest.fn(async (_args: { data: unknown[] }) => undefined);
@@ -368,7 +377,7 @@ describe("PostingsRepository", () => {
     const repository = new PostingsRepository({
       posting: {
         findMany: jest.fn(async () => [
-          { id: "posting-1" },
+          { id: POSTING_1_ID },
           { id: "posting-2" },
         ]),
       },
@@ -378,9 +387,9 @@ describe("PostingsRepository", () => {
     } as any);
 
     const postingIds =
-      await repository.enqueueSearchSyncForOrganization("org-1");
+      await repository.enqueueSearchSyncForOrganization(ORG_1_ID);
 
-    expect(postingIds).toEqual(["posting-1", "posting-2"]);
+    expect(postingIds).toEqual([POSTING_1_ID, "posting-2"]);
     // One lookup for the whole batch, not one per posting.
     expect(findFirst).toHaveBeenCalledTimes(1);
     expect(createMany).toHaveBeenCalledTimes(1);
@@ -389,17 +398,17 @@ describe("PostingsRepository", () => {
   });
 
   it("lists only publicly visible posting ids for an organization", async () => {
-    const findMany = jest.fn(async () => [{ id: "posting-1" }]);
+    const findMany = jest.fn(async () => [{ id: POSTING_1_ID }]);
     const repository = new PostingsRepository({
       posting: { findMany },
     } as any);
 
-    await repository.listPublicPostingIdsForOrganization("org-1");
+    await repository.listPublicPostingIdsForOrganization(ORG_1_ID);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: "published",
           archivedAt: null,
         },
@@ -411,8 +420,8 @@ describe("PostingsRepository", () => {
     const transaction = {
       postingAvailabilityBlock: {
         create: jest.fn(async () => ({
-          id: "block-1",
-          postingId: "posting-1",
+          id: BLOCK_1_ID,
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-06-01T00:00:00.000Z"),
           endAt: new Date("2026-06-03T00:00:00.000Z"),
           note: "Maintenance",
@@ -434,7 +443,7 @@ describe("PostingsRepository", () => {
       ) => callback(transaction),
     } as any);
 
-    const result = await repository.createOwnerAvailabilityBlock("posting-1", {
+    const result = await repository.createOwnerAvailabilityBlock(POSTING_1_ID, {
       startAt: "2026-06-01T00:00:00.000Z",
       endAt: "2026-06-03T00:00:00.000Z",
       note: "Maintenance",
@@ -443,7 +452,7 @@ describe("PostingsRepository", () => {
     expect(transaction.postingAvailabilityBlock.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           note: "Maintenance",
           source: "owner",
         }),
@@ -453,14 +462,14 @@ describe("PostingsRepository", () => {
       expect.objectContaining({
         data: [
           expect.objectContaining({
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             operation: "upsert",
           }),
         ],
       }),
     );
     expect(result).toEqual({
-      id: "block-1",
+      id: BLOCK_1_ID,
       startAt: "2026-06-01T00:00:00.000Z",
       endAt: "2026-06-03T00:00:00.000Z",
       note: "Maintenance",
@@ -471,7 +480,7 @@ describe("PostingsRepository", () => {
 
   it("checks owner-block, booking, and renting conflicts with the expected overlap filters", async () => {
     const postingAvailabilityBlockFindFirst = jest.fn(async () => ({
-      id: "block-1",
+      id: BLOCK_1_ID,
     }));
     const bookingRequestFindFirst = jest.fn(async () => ({
       id: "booking-1",
@@ -495,22 +504,22 @@ describe("PostingsRepository", () => {
 
     await expect(
       repository.hasOwnerAvailabilityBlockOverlap({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt,
         endAt,
-        excludeBlockId: "block-2",
+        excludeBlockId: BLOCK_2_ID,
       }),
     ).resolves.toBe(true);
     await expect(
       repository.hasActiveBookingAvailabilityConflict({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt,
         endAt,
       }),
     ).resolves.toBe(true);
     await expect(
       repository.hasRentingAvailabilityConflict({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         startAt,
         endAt,
       }),
@@ -520,7 +529,7 @@ describe("PostingsRepository", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: {
-            not: "block-2",
+            not: BLOCK_2_ID,
           },
           startAt: {
             lt: endAt,
@@ -534,7 +543,7 @@ describe("PostingsRepository", () => {
     expect(bookingRequestFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: {
             lt: endAt,
           },
@@ -547,7 +556,7 @@ describe("PostingsRepository", () => {
     expect(rentingFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: {
             lt: endAt,
           },
@@ -566,7 +575,7 @@ describe("PostingsRepository", () => {
     const transaction = {
       $queryRaw: jest.fn(async () => [
         {
-          id: "outbox-1",
+          id: OUTBOX_1_ID,
         },
         {
           id: "outbox-2",
@@ -595,7 +604,7 @@ describe("PostingsRepository", () => {
     expect(transaction.postingSearchOutbox.updateMany).toHaveBeenCalledWith({
       where: {
         id: {
-          in: ["outbox-1", "outbox-2"],
+          in: [OUTBOX_1_ID, "outbox-2"],
         },
       },
       data: {
@@ -604,8 +613,8 @@ describe("PostingsRepository", () => {
     });
     expect(result).toEqual([
       expect.objectContaining({
-        id: "outbox-1",
-        postingId: "posting-1",
+        id: OUTBOX_1_ID,
+        postingId: POSTING_1_ID,
         processingAt: "2026-05-20T12:00:00.000Z",
       }),
       expect.objectContaining({
@@ -661,7 +670,7 @@ describe("PostingsRepository", () => {
     } as any);
 
     await expect(
-      repository.getSearchReindexCatchUpState("run-1"),
+      repository.getSearchReindexCatchUpState(RUN_1_ID),
     ).resolves.toEqual({
       state: "failed",
       errorMessage:
@@ -706,7 +715,7 @@ describe("PostingsRepository", () => {
     } as any);
 
     await expect(
-      repository.findPrimaryPhotoForThumbnailing("posting-1"),
+      repository.findPrimaryPhotoForThumbnailing(POSTING_1_ID),
     ).resolves.toEqual({
       id: "photo-1",
       blobUrl: "https://example.test/photo-1.jpg",
@@ -746,7 +755,7 @@ describe("PostingsRepository", () => {
       },
       searchReindexRun: {
         findFirst: jest.fn(async () => ({
-          id: "run-1",
+          id: RUN_1_ID,
           targetIndexName: "postings-reindex-1",
         })),
       },
@@ -797,12 +806,12 @@ describe("PostingsRepository", () => {
       expect.objectContaining({
         data: expect.arrayContaining([
           expect.objectContaining({
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             operation: "delete",
           }),
           expect.objectContaining({
-            postingId: "posting-1",
-            reindexRunId: "run-1",
+            postingId: POSTING_1_ID,
+            reindexRunId: RUN_1_ID,
             operation: "delete",
             targetIndexName: "postings-reindex-1",
           }),
@@ -845,7 +854,7 @@ describe("PostingsRepository", () => {
     } as any);
 
     const result = await repository.update(
-      "posting-1",
+      POSTING_1_ID,
       createUpsertPostingInput({
         photos: [
           {
@@ -860,7 +869,7 @@ describe("PostingsRepository", () => {
     expect(transaction.posting.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          id: "posting-1",
+          id: POSTING_1_ID,
         },
         data: expect.objectContaining({
           photos: {
@@ -879,7 +888,7 @@ describe("PostingsRepository", () => {
       expect.objectContaining({
         data: [
           expect.objectContaining({
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             operation: "upsert",
           }),
         ],
@@ -954,22 +963,22 @@ describe("PostingsRepository", () => {
     });
 
     await expect(
-      publishCase.repository.publish("posting-1"),
+      publishCase.repository.publish(POSTING_1_ID),
     ).resolves.toMatchObject({
       status: "published",
     });
     await expect(
-      archiveCase.repository.archive("posting-1"),
+      archiveCase.repository.archive(POSTING_1_ID),
     ).resolves.toMatchObject({
       status: "archived",
     });
     await expect(
-      pauseCase.repository.pause("posting-1"),
+      pauseCase.repository.pause(POSTING_1_ID),
     ).resolves.toMatchObject({
       status: "paused",
     });
     await expect(
-      unpauseCase.repository.unpause("posting-1"),
+      unpauseCase.repository.unpause(POSTING_1_ID),
     ).resolves.toMatchObject({
       status: "published",
     });
@@ -1061,8 +1070,8 @@ describe("PostingsRepository", () => {
         }),
       )
       .mockResolvedValueOnce({
-        id: "posting-1",
-        organizationId: "org-1",
+        id: POSTING_1_ID,
+        organizationId: ORG_1_ID,
         status: "archived",
         archivedAt: new Date("2026-05-20T12:00:00.000Z"),
       });
@@ -1078,21 +1087,21 @@ describe("PostingsRepository", () => {
       },
     } as any);
 
-    await expect(repository.findById("posting-1")).resolves.toMatchObject({
-      id: "posting-1",
+    await expect(repository.findById(POSTING_1_ID)).resolves.toMatchObject({
+      id: POSTING_1_ID,
       status: "paused",
     });
     await expect(
-      repository.findPublicReadMetadataById("posting-1"),
+      repository.findPublicReadMetadataById(POSTING_1_ID),
     ).resolves.toEqual({
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       status: "archived",
       archivedAt: "2026-05-20T12:00:00.000Z",
     });
     await expect(
       repository.batchFindByOwner({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         ids: ["posting-3", "posting-2"],
       }),
     ).resolves.toEqual({
@@ -1107,7 +1116,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           id: {
             in: ["posting-3", "posting-2"],
           },
@@ -1119,7 +1128,7 @@ describe("PostingsRepository", () => {
   it("maps autocomplete fallback rows, including invalid tag payloads", async () => {
     const queryRaw = jest.fn(async () => [
       {
-        id: "posting-1",
+        id: POSTING_1_ID,
         name: "Sunny loft",
         tags: '["wifi","desk"]',
         city: "Toronto",
@@ -1176,13 +1185,13 @@ describe("PostingsRepository", () => {
   it("maps indexing documents, searchable attributes, and blocked ranges", async () => {
     const posting = createPostingPersistence({
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "North Studio",
       },
       availabilityBlocks: [
         {
           id: "block-open",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-21T00:00:00.000Z"),
           endAt: new Date("2026-05-22T00:00:00.000Z"),
           note: "Owner stay",
@@ -1193,7 +1202,7 @@ describe("PostingsRepository", () => {
         },
         {
           id: "block-held",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-23T00:00:00.000Z"),
           endAt: new Date("2026-05-24T00:00:00.000Z"),
           note: "Paid hold",
@@ -1209,7 +1218,7 @@ describe("PostingsRepository", () => {
         },
         {
           id: "block-expired",
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-25T00:00:00.000Z"),
           endAt: new Date("2026-05-26T00:00:00.000Z"),
           note: "Expired hold",
@@ -1257,10 +1266,10 @@ describe("PostingsRepository", () => {
 
     await expect(repository.findByIdsForIndexing([])).resolves.toEqual([]);
     await expect(
-      repository.findByIdsForIndexing(["posting-1"]),
+      repository.findByIdsForIndexing([POSTING_1_ID]),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "posting-1",
+        id: POSTING_1_ID,
         // Denormalized so Elasticsearch can match and sort on the owner.
         organizationName: "North Studio",
         searchableAttributes: {
@@ -1292,7 +1301,7 @@ describe("PostingsRepository", () => {
       repository.listRecentForIndexReconciliation(5),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "posting-1",
+        id: POSTING_1_ID,
       }),
     ]);
 
@@ -1322,7 +1331,7 @@ describe("PostingsRepository", () => {
         postingId: "posting-2",
       }),
       createSearchOutboxRow({
-        id: "outbox-1",
+        id: OUTBOX_1_ID,
       }),
     ]);
     const count = jest.fn(async () => 1);
@@ -1336,25 +1345,25 @@ describe("PostingsRepository", () => {
     } as any);
     const longError = "x".repeat(3000);
 
-    await repository.markSearchOutboxPublished("outbox-1", "broker-1");
-    await repository.markSearchOutboxPublishRetry("outbox-1", 20, longError);
-    await repository.markSearchOutboxIndexed("outbox-1");
+    await repository.markSearchOutboxPublished(OUTBOX_1_ID, "broker-1");
+    await repository.markSearchOutboxPublishRetry(OUTBOX_1_ID, 20, longError);
+    await repository.markSearchOutboxIndexed(OUTBOX_1_ID);
     await expect(
-      repository.incrementSearchOutboxAttempt("outbox-1", longError),
+      repository.incrementSearchOutboxAttempt(OUTBOX_1_ID, longError),
     ).resolves.toBe(3);
-    await repository.markSearchOutboxDeadLettered("outbox-1", longError);
-    await expect(repository.getSearchOutboxById("outbox-1")).resolves.toEqual(
+    await repository.markSearchOutboxDeadLettered(OUTBOX_1_ID, longError);
+    await expect(repository.getSearchOutboxById(OUTBOX_1_ID)).resolves.toEqual(
       expect.objectContaining({
-        id: "outbox-1",
-        postingId: "posting-1",
+        id: OUTBOX_1_ID,
+        postingId: POSTING_1_ID,
       }),
     );
     await expect(repository.getSearchOutboxesByIds([])).resolves.toEqual([]);
     await expect(
-      repository.getSearchOutboxesByIds(["outbox-1", "outbox-3", "outbox-2"]),
+      repository.getSearchOutboxesByIds([OUTBOX_1_ID, "outbox-3", "outbox-2"]),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "outbox-1",
+        id: OUTBOX_1_ID,
       }),
       expect.objectContaining({
         id: "outbox-2",
@@ -1362,15 +1371,15 @@ describe("PostingsRepository", () => {
     ]);
     await expect(
       repository.hasNewerSearchOutboxJob({
-        id: "outbox-1",
+        id: OUTBOX_1_ID,
         createdAt: "2026-05-20T11:00:00.000Z",
       } as any),
     ).resolves.toBe(false);
     await expect(
       repository.hasNewerSearchOutboxJob({
-        id: "outbox-1",
-        postingId: "posting-1",
-        reindexRunId: "run-1",
+        id: OUTBOX_1_ID,
+        postingId: POSTING_1_ID,
+        reindexRunId: RUN_1_ID,
         targetIndexName: "postings-reindex-1",
         createdAt: "2026-05-20T11:00:00.000Z",
       }),
@@ -1673,7 +1682,7 @@ describe("PostingsRepository", () => {
       ),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "posting-1",
+        id: POSTING_1_ID,
       }),
     ]);
     await expect(repository.getPendingSearchOutboxCount()).resolves.toBe(9);
@@ -1693,9 +1702,9 @@ describe("PostingsRepository", () => {
       },
     });
     await repository.markSearchOutboxesIndexed([]);
-    await repository.markSearchOutboxesIndexed(["outbox-1", "outbox-2"]);
+    await repository.markSearchOutboxesIndexed([OUTBOX_1_ID, "outbox-2"]);
     await repository.markSearchOutboxRelayed(
-      "outbox-1",
+      OUTBOX_1_ID,
       ["outbox-2"],
       "broker-1",
     );
@@ -1730,7 +1739,7 @@ describe("PostingsRepository", () => {
       expect.objectContaining({
         where: {
           id: {
-            in: ["outbox-1", "outbox-2"],
+            in: [OUTBOX_1_ID, "outbox-2"],
           },
         },
         data: {
@@ -1851,8 +1860,8 @@ describe("PostingsRepository", () => {
 
   it("restores only owner availability blocks from posting snapshots", async () => {
     const snapshot = {
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       status: "published",
       variant: {
         family: "place",
@@ -1934,7 +1943,7 @@ describe("PostingsRepository", () => {
     const transaction = {
       posting: {
         findUnique: jest.fn(async () => ({
-          id: "posting-1",
+          id: POSTING_1_ID,
           photos: [],
         })),
         findUniqueOrThrow: jest.fn(async () => createPostingPersistence()),
@@ -1959,7 +1968,7 @@ describe("PostingsRepository", () => {
 
     await expect(repository.restoreFromSnapshot(snapshot)).resolves.toEqual(
       expect.objectContaining({
-        id: "posting-1",
+        id: POSTING_1_ID,
       }),
     );
 
@@ -1967,7 +1976,7 @@ describe("PostingsRepository", () => {
       transaction.postingAvailabilityBlock.deleteMany,
     ).toHaveBeenCalledWith({
       where: {
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         source: "owner",
       },
     });
@@ -1994,7 +2003,7 @@ describe("PostingsRepository", () => {
             count: 0,
           }),
         findUniqueOrThrow: jest.fn(async () => ({
-          id: "block-1",
+          id: BLOCK_1_ID,
           startAt: new Date("2026-06-02T00:00:00.000Z"),
           endAt: new Date("2026-06-04T00:00:00.000Z"),
           note: null,
@@ -2011,7 +2020,7 @@ describe("PostingsRepository", () => {
           }),
         findMany: jest.fn(async () => [
           {
-            id: "block-1",
+            id: BLOCK_1_ID,
             startAt: new Date("2026-06-01T00:00:00.000Z"),
             endAt: new Date("2026-06-03T00:00:00.000Z"),
             note: "Owner stay",
@@ -2022,7 +2031,7 @@ describe("PostingsRepository", () => {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: "block-1",
+            id: BLOCK_1_ID,
             startAt: new Date("2026-06-01T00:00:00.000Z"),
             endAt: new Date("2026-06-03T00:00:00.000Z"),
             note: "Owner stay",
@@ -2046,10 +2055,10 @@ describe("PostingsRepository", () => {
     } as any);
 
     await expect(
-      repository.listOwnerAvailabilityBlocks("posting-1"),
+      repository.listOwnerAvailabilityBlocks(POSTING_1_ID),
     ).resolves.toEqual([
       {
-        id: "block-1",
+        id: BLOCK_1_ID,
         startAt: "2026-06-01T00:00:00.000Z",
         endAt: "2026-06-03T00:00:00.000Z",
         note: "Owner stay",
@@ -2058,9 +2067,9 @@ describe("PostingsRepository", () => {
       },
     ]);
     await expect(
-      repository.findOwnerAvailabilityBlock("posting-1", "block-1"),
+      repository.findOwnerAvailabilityBlock(POSTING_1_ID, BLOCK_1_ID),
     ).resolves.toEqual({
-      id: "block-1",
+      id: BLOCK_1_ID,
       startAt: "2026-06-01T00:00:00.000Z",
       endAt: "2026-06-03T00:00:00.000Z",
       note: "Owner stay",
@@ -2068,16 +2077,16 @@ describe("PostingsRepository", () => {
       updatedAt: "2026-05-20T12:00:00.000Z",
     });
     await expect(
-      repository.findOwnerAvailabilityBlock("posting-1", "missing-block"),
+      repository.findOwnerAvailabilityBlock(POSTING_1_ID, MISSING_BLOCK_ID),
     ).resolves.toBeNull();
 
     await expect(
-      repository.updateOwnerAvailabilityBlock("posting-1", "block-1", {
+      repository.updateOwnerAvailabilityBlock(POSTING_1_ID, BLOCK_1_ID, {
         startAt: "2026-06-02T00:00:00.000Z",
         endAt: "2026-06-04T00:00:00.000Z",
       }),
     ).resolves.toEqual({
-      id: "block-1",
+      id: BLOCK_1_ID,
       startAt: "2026-06-02T00:00:00.000Z",
       endAt: "2026-06-04T00:00:00.000Z",
       note: undefined,
@@ -2085,17 +2094,17 @@ describe("PostingsRepository", () => {
       updatedAt: "2026-05-20T12:10:00.000Z",
     });
     await expect(
-      repository.updateOwnerAvailabilityBlock("posting-1", "missing-block", {
+      repository.updateOwnerAvailabilityBlock(POSTING_1_ID, MISSING_BLOCK_ID, {
         startAt: "2026-06-02T00:00:00.000Z",
         endAt: "2026-06-04T00:00:00.000Z",
       }),
     ).resolves.toBeNull();
 
     await expect(
-      repository.deleteOwnerAvailabilityBlock("posting-1", "block-1"),
+      repository.deleteOwnerAvailabilityBlock(POSTING_1_ID, BLOCK_1_ID),
     ).resolves.toBe(true);
     await expect(
-      repository.deleteOwnerAvailabilityBlock("posting-1", "missing-block"),
+      repository.deleteOwnerAvailabilityBlock(POSTING_1_ID, MISSING_BLOCK_ID),
     ).resolves.toBe(false);
   });
 
@@ -2189,7 +2198,7 @@ describe("PostingsRepository", () => {
         availabilityBlocks: [
           {
             id: "block-owner",
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             startAt: new Date("2026-05-21T00:00:00.000Z"),
             endAt: new Date("2026-05-22T00:00:00.000Z"),
             note: "Owner stay",
@@ -2200,7 +2209,7 @@ describe("PostingsRepository", () => {
           },
           {
             id: "block-hold",
-            postingId: "posting-1",
+            postingId: POSTING_1_ID,
             startAt: new Date("2026-05-23T00:00:00.000Z"),
             endAt: new Date("2026-05-24T00:00:00.000Z"),
             note: null,
@@ -2385,16 +2394,16 @@ describe("PostingsRepository", () => {
     );
     expect(
       repository.orderBatchResult(
-        ["posting-2", "missing", "posting-1"],
+        ["posting-2", "missing", POSTING_1_ID],
         [
-          { id: "posting-1", name: "one" },
+          { id: POSTING_1_ID, name: "one" },
           { id: "posting-2", name: "two" },
         ],
       ),
     ).toEqual({
       postings: [
         { id: "posting-2", name: "two" },
-        { id: "posting-1", name: "one" },
+        { id: POSTING_1_ID, name: "one" },
       ],
       missingIds: ["missing"],
     });
@@ -2408,8 +2417,8 @@ describe("PostingsRepository", () => {
 
   it("selects lightweight posting fields for the availability calendar", async () => {
     const findUnique = jest.fn(async () => ({
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       status: "published",
       archivedAt: null,
       availabilityStatus: "available",
@@ -2421,11 +2430,11 @@ describe("PostingsRepository", () => {
     } as any);
 
     const result =
-      await repository.findAvailabilityCalendarPosting("posting-1");
+      await repository.findAvailabilityCalendarPosting(POSTING_1_ID);
 
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "posting-1" },
+        where: { id: POSTING_1_ID },
         select: expect.objectContaining({
           availabilityStatus: true,
           advanceNoticeDays: true,
@@ -2434,8 +2443,8 @@ describe("PostingsRepository", () => {
       }),
     );
     expect(result).toEqual({
-      id: "posting-1",
-      organizationId: "org-1",
+      id: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       status: "published",
       archivedAt: undefined,
       availabilityStatus: "available",
@@ -2483,7 +2492,7 @@ describe("PostingsRepository", () => {
     const startAt = new Date("2026-07-01T00:00:00.000Z");
     const endAt = new Date("2026-08-01T00:00:00.000Z");
     const blocks = await repository.findAvailabilityBlocksInRange({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       startAt,
       endAt,
     });
@@ -2491,7 +2500,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: { lt: endAt },
           endAt: { gt: startAt },
         },
@@ -2530,7 +2539,7 @@ describe("PostingsRepository", () => {
     const startAt = new Date("2026-07-01T00:00:00.000Z");
     const endAt = new Date("2026-08-01T00:00:00.000Z");
     const bookingRequests = await repository.findActiveBookingRequestsInRange({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       startAt,
       endAt,
     });
@@ -2538,7 +2547,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           status: {
             in: ["pending", "awaiting_payment", "payment_processing", "paid"],
           },
@@ -2571,7 +2580,7 @@ describe("PostingsRepository", () => {
     const startAt = new Date("2026-07-01T00:00:00.000Z");
     const endAt = new Date("2026-08-01T00:00:00.000Z");
     const rentings = await repository.findConfirmedRentingsInRange({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       startAt,
       endAt,
     });
@@ -2579,7 +2588,7 @@ describe("PostingsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           status: {
             in: ["confirmed", "check_in_ready", "active", "return_due"],
           },

@@ -10,6 +10,9 @@ import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { createMockRequest, createMockResponse } from "./mock-http";
+import { testUuid } from "../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 /**
  * Shared fixtures for the auth controller unit tests, which call handlers
@@ -40,7 +43,7 @@ export function createClaims(
   overrides: Partial<JwtClaims> = {},
 ): JwtAuthPrincipal {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     username: "test-user",
     role: "user",
     deviceId: "token-device-1",
@@ -56,7 +59,7 @@ export function createAuthUser(
   overrides: Partial<AuthUserProfile> = {},
 ): AuthUserProfile {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     firstName: "Test",
     lastName: "User",

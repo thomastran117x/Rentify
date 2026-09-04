@@ -11,6 +11,7 @@ import {
   updateOrganizationMemberRequestSchema,
 } from "@/features/organizations/members/members.model";
 import { OrganizationMembersService } from "@/features/organizations/members/members.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationMembersController {
   constructor(private readonly membersService: OrganizationMembersService) {}
@@ -28,7 +29,7 @@ export class OrganizationMembersController {
       setActiveOrganizationRequestSchema,
     );
     const result = await this.membersService.setActiveOrganization({
-      userId: auth.sub,
+      userId: asUuid(auth.sub),
       organizationId: body.organizationId,
     });
     ok(response, result, {
@@ -43,9 +44,9 @@ export class OrganizationMembersController {
       updateOrganizationMemberRequestSchema,
     );
     const result = await this.membersService.updateMemberRole({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      membershipId: requireResourceId(request, "memberId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      membershipId: asUuid(requireResourceId(request, "memberId")),
       role: body.role,
     });
     ok(response, result, {
@@ -56,9 +57,9 @@ export class OrganizationMembersController {
   remove = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.membersService.removeMember({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      membershipId: requireResourceId(request, "memberId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      membershipId: asUuid(requireResourceId(request, "memberId")),
     });
     ok(response, result, {
       message: "Organization member removed successfully.",

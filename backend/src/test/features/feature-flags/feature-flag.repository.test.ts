@@ -1,4 +1,7 @@
 import { FeatureFlagRepository } from "@/features/feature-flags/feature-flag.repository";
+import { testUuid } from "../../support/uuid";
+
+const ADMIN_1_ID = testUuid(9000, 185107);
 
 function makeDbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -120,8 +123,8 @@ describe("FeatureFlagRepository", () => {
           name: "my-flag",
           enabled: true,
           description: "test desc",
-          createdByUserId: "admin-1",
-          updatedByUserId: "admin-1",
+          createdByUserId: ADMIN_1_ID,
+          updatedByUserId: ADMIN_1_ID,
         }),
       );
       const repo = new FeatureFlagRepository(
@@ -132,8 +135,8 @@ describe("FeatureFlagRepository", () => {
         "my-flag",
         true,
         "test desc",
-        "admin-1",
-        "admin-1",
+        ADMIN_1_ID,
+        ADMIN_1_ID,
       );
 
       expect(upsert).toHaveBeenCalledWith(
@@ -221,7 +224,7 @@ describe("FeatureFlagRepository", () => {
         newEnabled: true,
         oldDescription: null,
         newDescription: "desc",
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
       });
 
       expect(create).toHaveBeenCalledWith({
@@ -231,7 +234,7 @@ describe("FeatureFlagRepository", () => {
           oldEnabled: false,
           newEnabled: true,
           newDescription: "desc",
-          actorUserId: "admin-1",
+          actorUserId: ADMIN_1_ID,
         }),
       });
     });

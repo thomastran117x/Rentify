@@ -10,6 +10,7 @@ import {
 } from "@/features/auth/auth.request-mappers";
 import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
 import { oauthAuthenticateRequestSchema } from "@/features/auth/oauth/oauth-accounts.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OAuthController {
   constructor(private readonly oauthAccountsService: OAuthAccountsService) {}
@@ -85,7 +86,7 @@ export class OAuthController {
   ): Promise<void> => {
     await requireJwtAuth(request);
     const result = await this.oauthAccountsService.linkedOAuthProviders({
-      userId: request.auth.sub,
+      userId: asUuid(request.auth.sub),
     });
     ok(response, result);
   };

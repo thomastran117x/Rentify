@@ -19,6 +19,7 @@ import type { OrganizationBlogSearchIndexService } from "@/features/organization
 import type { SearchFallbackReason } from "@/features/search/search.model";
 import { recordSearchFallback } from "@/features/search/search.telemetry";
 import { loggerFactory, type Logger } from "@/configuration/logging";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 // Elasticsearch caps deep pagination; keep the navigable window bounded so the
 // UI never requests an offset beyond what the cluster will serve.
@@ -31,7 +32,7 @@ interface BlogSearchParams {
   query?: string;
   tag?: string;
   sort?: OrganizationBlogSort;
-  organizationId?: string;
+  organizationId?: Uuid;
 }
 
 interface SearchIdsResult {

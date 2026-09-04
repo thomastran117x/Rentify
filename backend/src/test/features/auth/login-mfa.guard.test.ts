@@ -2,6 +2,9 @@ import { environment } from "@/configuration/environment";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createMfaTotpService(overrides: Partial<MfaTotpService> = {}) {
   return {
@@ -20,7 +23,7 @@ describe("requireLoginMfa", () => {
     const mfaTotpService = createMfaTotpService();
 
     await expect(
-      requireLoginMfa(mfaTotpService, "user-1", "user@example.com", undefined),
+      requireLoginMfa(mfaTotpService, USER_1_ID, "user@example.com", undefined),
     ).resolves.toBeUndefined();
     expect(mfaTotpService.verifyCode).not.toHaveBeenCalled();
   });
@@ -31,7 +34,7 @@ describe("requireLoginMfa", () => {
     } as Partial<MfaTotpService>);
 
     await expect(
-      requireLoginMfa(mfaTotpService, "user-1", "user@example.com", undefined),
+      requireLoginMfa(mfaTotpService, USER_1_ID, "user@example.com", undefined),
     ).rejects.toMatchObject({
       constructor: UnauthorizedError,
       details: { mfaRequired: true },
@@ -44,9 +47,9 @@ describe("requireLoginMfa", () => {
     } as Partial<MfaTotpService>);
 
     await expect(
-      requireLoginMfa(mfaTotpService, "user-1", "user@example.com", "123456"),
+      requireLoginMfa(mfaTotpService, USER_1_ID, "user@example.com", "123456"),
     ).resolves.toBeUndefined();
-    expect(mfaTotpService.verifyCode).toHaveBeenCalledWith("user-1", "123456");
+    expect(mfaTotpService.verifyCode).toHaveBeenCalledWith(USER_1_ID, "123456");
   });
 
   it("skips the check entirely for a bypass-eligible address", async () => {
@@ -64,7 +67,7 @@ describe("requireLoginMfa", () => {
     await expect(
       requireLoginMfa(
         mfaTotpService,
-        "user-1",
+        USER_1_ID,
         "bypass@rentify.local",
         undefined,
       ),

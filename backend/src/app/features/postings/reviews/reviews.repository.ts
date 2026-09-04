@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -7,6 +6,7 @@ import type {
   PostingReviewSummary,
   UpsertPostingReviewInput,
 } from "@/features/postings/reviews/reviews.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type PostingReviewPersistence = Prisma.PostingReviewGetPayload<{
   include: {
@@ -32,7 +32,7 @@ export class PostingsReviewsRepository extends BaseRepository {
     const review = await this.executeAsync(() =>
       this.prisma.postingReview.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           postingId: input.postingId,
           reviewerId: input.reviewerId,
           rating: input.rating,
@@ -93,8 +93,8 @@ export class PostingsReviewsRepository extends BaseRepository {
   }
 
   async findOwnReview(
-    postingId: string,
-    reviewerId: string,
+    postingId: Uuid,
+    reviewerId: Uuid,
   ): Promise<PostingReviewRecord | null> {
     const review = await this.executeAsync(() =>
       this.prisma.postingReview.findUnique({
@@ -118,7 +118,7 @@ export class PostingsReviewsRepository extends BaseRepository {
   }
 
   async listByPosting(
-    postingId: string,
+    postingId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListPostingReviewsResult> {
@@ -171,7 +171,7 @@ export class PostingsReviewsRepository extends BaseRepository {
     };
   }
 
-  async getSummary(postingId: string): Promise<PostingReviewSummary> {
+  async getSummary(postingId: Uuid): Promise<PostingReviewSummary> {
     const aggregate = await this.executeAsync(() =>
       this.prisma.postingReview.aggregate({
         where: {
@@ -191,9 +191,9 @@ export class PostingsReviewsRepository extends BaseRepository {
 
   private mapReview(review: PostingReviewPersistence): PostingReviewRecord {
     return {
-      id: review.id,
-      postingId: review.postingId,
-      reviewerId: review.reviewerId,
+      id: asUuid(review.id),
+      postingId: asUuid(review.postingId),
+      reviewerId: asUuid(review.reviewerId),
       rating: review.rating,
       title: review.title ?? undefined,
       comment: review.comment ?? undefined,
@@ -206,7 +206,7 @@ export class PostingsReviewsRepository extends BaseRepository {
     };
   }
 
-  async updatePostingRatingStats(postingId: string): Promise<void> {
+  async updatePostingRatingStats(postingId: Uuid): Promise<void> {
     await this.prisma.$executeRaw`
       UPDATE postings
       SET

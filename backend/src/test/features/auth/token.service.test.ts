@@ -4,10 +4,14 @@ import {
   TokenService,
   type JwtClaims,
 } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+const MISSING_USER_ID = testUuid(9000, 791594);
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -128,7 +132,7 @@ describe("TokenService", () => {
     });
 
     const token = service.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       email: "user@example.com",
       role: "owner",
       deviceId: "device-9",
@@ -138,7 +142,7 @@ describe("TokenService", () => {
     const claims = await service.verifyAccessToken(token);
 
     expect(claims).toMatchObject({
-      sub: "user-1",
+      sub: USER_1_ID,
       email: "user@example.com",
       role: "owner",
       deviceId: "device-9",
@@ -147,7 +151,7 @@ describe("TokenService", () => {
       exp: 1_700_000_900,
     });
     expect(authRepository.findSessionValidationByUserId).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
     );
   });
 
@@ -156,13 +160,13 @@ describe("TokenService", () => {
       role: "user",
     });
     const token = service.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       role: "admin",
       tokenVersion: 2,
     });
 
     await expect(service.verifyAccessToken(token)).resolves.toMatchObject({
-      sub: "user-1",
+      sub: USER_1_ID,
       role: "user",
       tokenVersion: 2,
     });
@@ -173,7 +177,7 @@ describe("TokenService", () => {
       tokenVersion: 3,
     });
     const token = service.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
 
@@ -189,7 +193,7 @@ describe("TokenService", () => {
       tokenVersion: null,
     });
     const token = service.createAccessToken({
-      sub: "missing-user",
+      sub: MISSING_USER_ID,
       tokenVersion: 2,
     });
 
@@ -218,7 +222,7 @@ describe("TokenService", () => {
       typ: "JWT",
     });
     const payload = toBase64Url({
-      sub: "user-1",
+      sub: USER_1_ID,
       email: "user@example.com",
       role: "user",
       deviceId: "device-1",
@@ -237,7 +241,7 @@ describe("TokenService", () => {
     jest.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
     const { service } = createService();
     const token = service.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
 
@@ -258,7 +262,7 @@ describe("TokenService", () => {
       audience: "rent-mobile",
     }).service;
     const token = issuerService.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
 
@@ -282,7 +286,7 @@ describe("TokenService", () => {
 
     const token = await service.createRefreshToken(
       {
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-1",
         rememberMe: true,
         tokenVersion: 2,
@@ -295,7 +299,7 @@ describe("TokenService", () => {
     const claims = await service.verifyRefreshToken(token);
 
     expect(claims).toMatchObject({
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-1",
       rememberMe: true,
       tokenVersion: 2,
@@ -304,7 +308,7 @@ describe("TokenService", () => {
     });
     expect(typeof claims.jti).toBe("string");
     expect(authRepository.findSessionValidationByUserId).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
     );
   });
 
@@ -313,7 +317,7 @@ describe("TokenService", () => {
       refreshTokenMode: "stateless",
     });
     const token = await service.createRefreshToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
     const parts = token.split(".");
@@ -342,7 +346,7 @@ describe("TokenService", () => {
     await service.createSession(
       {
         sessionId: "session-1",
-        userId: "user-1",
+        userId: USER_1_ID,
         deviceId: "device-7",
         tokenVersion: 2,
       },
@@ -350,7 +354,7 @@ describe("TokenService", () => {
     );
     const token = await service.createRefreshToken(
       {
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-7",
         sessionId: "session-1",
         tokenVersion: 2,
@@ -371,14 +375,14 @@ describe("TokenService", () => {
       2,
       `test:refresh:${body.jti}`,
       expect.objectContaining({
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-7",
       }),
       120,
     );
 
     await expect(service.verifyRefreshToken(token)).resolves.toMatchObject({
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-7",
       sessionId: "session-1",
       tokenVersion: 2,
@@ -398,7 +402,7 @@ describe("TokenService", () => {
       refreshTokenMode: "stateful",
     });
     const token = await service.createRefreshToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
     const parts = token.split(".");
@@ -414,7 +418,7 @@ describe("TokenService", () => {
       refreshTokenMode: "stateful",
     });
     const token = await service.createRefreshToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
     });
     const cacheKey = [...cache.store.keys()][0];
@@ -431,14 +435,14 @@ describe("TokenService", () => {
     await service.createSession(
       {
         sessionId: "session-123",
-        userId: "user-1",
+        userId: USER_1_ID,
         deviceId: "device-1",
         tokenVersion: 2,
       },
       300,
     );
     const token = service.createAccessToken({
-      sub: "user-1",
+      sub: USER_1_ID,
       tokenVersion: 2,
       sessionId: "session-123",
     });
@@ -458,7 +462,7 @@ describe("TokenService", () => {
     await service.createSession(
       {
         sessionId: "session-rotate",
-        userId: "user-1",
+        userId: USER_1_ID,
         deviceId: "device-1",
         tokenVersion: 2,
       },
@@ -466,7 +470,7 @@ describe("TokenService", () => {
     );
     const token = await service.createRefreshToken(
       {
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-1",
         sessionId: "session-rotate",
         tokenVersion: 2,
@@ -479,7 +483,7 @@ describe("TokenService", () => {
     const rotated = await service.rotateRefreshToken(
       token,
       {
-        sub: "user-1",
+        sub: USER_1_ID,
         deviceId: "device-1",
         sessionId: "session-rotate",
         tokenVersion: 2,
@@ -493,7 +497,7 @@ describe("TokenService", () => {
       service.rotateRefreshToken(
         token,
         {
-          sub: "user-1",
+          sub: USER_1_ID,
           deviceId: "device-1",
           sessionId: "session-rotate",
           tokenVersion: 2,
@@ -510,7 +514,7 @@ describe("TokenService", () => {
       service.rotateRefreshToken(
         token,
         {
-          sub: "user-1",
+          sub: USER_1_ID,
           deviceId: "device-1",
           sessionId: "session-rotate",
           tokenVersion: 2,

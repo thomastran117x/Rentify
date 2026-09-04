@@ -6,7 +6,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
   CreateRefundInput,
-  ListPayoutsInput,
+  ListPayoutsPersistenceInput,
   PaymentFailureCategory,
   PaymentRecord,
   PaymentRepairCandidate,
@@ -29,6 +29,12 @@ import {
   calculatePlatformFeeAmount,
   createExponentialBackoffDate,
 } from "@/features/payments/payments.utils";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type PaymentPersistence = Prisma.PaymentGetPayload<{
   include: {
@@ -51,13 +57,13 @@ type PayoutPersistence = Prisma.PayoutGetPayload<object>;
 
 export class PaymentsRepository extends BaseRepository {
   async createPaymentAttemptForBooking(input: {
-    bookingRequestId: string;
-    renterId: string;
+    bookingRequestId: Uuid;
+    renterId: Uuid;
     idempotencyKey: string;
     platformFeeBps?: number;
     depositBps?: number;
   }): Promise<{
-    paymentId: string;
+    paymentId: Uuid;
     attemptId: string;
     payment: PaymentRecord;
     amount: number;
@@ -134,7 +140,7 @@ export class PaymentsRepository extends BaseRepository {
 
           if (existingAttempt) {
             return {
-              paymentId: booking.payment.id,
+              paymentId: asUuid(booking.payment.id),
               attemptId: existingAttempt.id,
               amount: Number(booking.payment.totalAmount),
               currency: booking.payment.pricingCurrency,
@@ -158,7 +164,7 @@ export class PaymentsRepository extends BaseRepository {
           booking.payment ??
           (await transaction.payment.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               bookingRequestId: booking.id,
               postingId: booking.postingId,
               renterId: booking.renterId,
@@ -188,7 +194,7 @@ export class PaymentsRepository extends BaseRepository {
 
         const attempt = await transaction.paymentAttempt.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             paymentId: payment.id,
             idempotencyKey: input.idempotencyKey,
             status: "pending",
@@ -217,8 +223,8 @@ export class PaymentsRepository extends BaseRepository {
 
         await transaction.paymentLedgerEntry.create({
           data: {
-            id: randomUUID(),
-            paymentId: refreshed.id,
+            id: newUuid(),
+            paymentId: asUuid(refreshed.id),
             type: "charge_created",
             amount: refreshed.totalAmount,
             currency: refreshed.pricingCurrency,
@@ -229,7 +235,7 @@ export class PaymentsRepository extends BaseRepository {
         });
 
         return {
-          paymentId: payment.id,
+          paymentId: asUuid(payment.id),
           attemptId: attempt.id,
           amount: totalAmount,
           currency: booking.pricingCurrency,
@@ -242,7 +248,7 @@ export class PaymentsRepository extends BaseRepository {
   }
 
   async attachPaymentSession(
-    paymentId: string,
+    paymentId: Uuid,
     attemptId: string,
     session: ProviderPaymentSession,
   ): Promise<PaymentRecord> {
@@ -314,7 +320,7 @@ export class PaymentsRepository extends BaseRepository {
   }
 
   async recordAttemptFailure(
-    paymentId: string,
+    paymentId: Uuid,
     attemptId: string,
     errorInfo: ProviderErrorInfo,
   ): Promise<PaymentRecord> {
@@ -434,7 +440,7 @@ export class PaymentsRepository extends BaseRepository {
     return payment ? this.mapPayment(payment) : null;
   }
 
-  async findAccessibleById(id: string, userId: string): Promise<PaymentRecord> {
+  async findAccessibleById(id: string, userId: Uuid): Promise<PaymentRecord> {
     const payment = await this.findById(id);
 
     if (!payment) {
@@ -449,7 +455,7 @@ export class PaymentsRepository extends BaseRepository {
   }
 
   async findByBookingRequestId(
-    bookingRequestId: string,
+    bookingRequestId: Uuid,
   ): Promise<PaymentRecord | null> {
     const payment = await this.executeAsync(() =>
       this.prisma.payment.findUnique({
@@ -478,7 +484,7 @@ export class PaymentsRepository extends BaseRepository {
 
   async createRefundRecord(input: CreateRefundInput): Promise<{
     refundId: string;
-    paymentId: string;
+    paymentId: Uuid;
     providerPaymentId: string;
     pricingCurrency: string;
   }> {
@@ -510,7 +516,7 @@ export class PaymentsRepository extends BaseRepository {
         if (existing) {
           return {
             refundId: existing.id,
-            paymentId: payment.id,
+            paymentId: asUuid(payment.id),
             providerPaymentId: payment.squarePaymentId,
             pricingCurrency: payment.pricingCurrency,
           };
@@ -532,7 +538,7 @@ export class PaymentsRepository extends BaseRepository {
 
         const refund = await transaction.refund.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             paymentId: payment.id,
             issuedByUserId: input.actorUserId,
             status: "pending",
@@ -544,7 +550,7 @@ export class PaymentsRepository extends BaseRepository {
 
         return {
           refundId: refund.id,
-          paymentId: payment.id,
+          paymentId: asUuid(payment.id),
           providerPaymentId: payment.squarePaymentId,
           pricingCurrency: payment.pricingCurrency,
         };
@@ -670,7 +676,7 @@ export class PaymentsRepository extends BaseRepository {
 
         await transaction.paymentLedgerEntry.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             paymentId: paymentRow.id,
             type: "refund_issued",
             amount: refund.amount,
@@ -709,7 +715,7 @@ export class PaymentsRepository extends BaseRepository {
     eventType: string;
     signatureValid: boolean;
     payload: Record<string, unknown>;
-    paymentId?: string;
+    paymentId?: Uuid;
   }): Promise<{ alreadyProcessed: boolean }> {
     const existing = await this.executeAsync(() =>
       this.prisma.paymentWebhookEvent.findUnique({
@@ -728,7 +734,7 @@ export class PaymentsRepository extends BaseRepository {
     await this.executeAsync(() =>
       this.prisma.paymentWebhookEvent.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           paymentId: input.paymentId ?? null,
           provider: PAYMENT_PROVIDER,
           providerEventId: input.providerEventId,
@@ -951,7 +957,7 @@ export class PaymentsRepository extends BaseRepository {
             const holdBlock = await transaction.postingAvailabilityBlock.create(
               {
                 data: {
-                  id: randomUUID(),
+                  id: newUuid(),
                   postingId: booking.postingId,
                   startAt: booking.startAt,
                   endAt: booking.endAt,
@@ -986,7 +992,7 @@ export class PaymentsRepository extends BaseRepository {
         if (paymentJustSucceeded) {
           await transaction.paymentLedgerEntry.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               paymentId: payment.id,
               type: "charge_succeeded",
               amount: payment.totalAmount,
@@ -999,7 +1005,7 @@ export class PaymentsRepository extends BaseRepository {
         if (!payment.payout) {
           await transaction.payout.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               paymentId: payment.id,
               organizationId: payment.organizationId,
               status: "scheduled",
@@ -1010,7 +1016,7 @@ export class PaymentsRepository extends BaseRepository {
 
           await transaction.paymentLedgerEntry.create({
             data: {
-              id: randomUUID(),
+              id: newUuid(),
               paymentId: payment.id,
               type: "payout_scheduled",
               amount: payment.rentalSubtotalAmount,
@@ -1178,15 +1184,15 @@ export class PaymentsRepository extends BaseRepository {
 
     return rows.map((row) => ({
       attemptId: row.id,
-      paymentId: row.paymentId,
+      paymentId: asUuid(row.paymentId),
       idempotencyKey: row.idempotencyKey,
       retryCount: row.retryCount,
     }));
   }
 
   async markAttemptForRetry(attemptId: string): Promise<{
-    paymentId: string;
-    bookingRequestId: string;
+    paymentId: Uuid;
+    bookingRequestId: Uuid;
     idempotencyKey: string;
     amount: number;
     currency: string;
@@ -1239,8 +1245,8 @@ export class PaymentsRepository extends BaseRepository {
         });
 
         return {
-          paymentId: payment.id,
-          bookingRequestId: payment.bookingRequestId,
+          paymentId: asUuid(payment.id),
+          bookingRequestId: asUuid(payment.bookingRequestId),
           idempotencyKey: attempt.idempotencyKey,
           amount: Number(payment.totalAmount),
           currency: payment.pricingCurrency,
@@ -1289,15 +1295,15 @@ export class PaymentsRepository extends BaseRepository {
     );
 
     return rows.map((row) => ({
-      paymentId: row.id,
-      bookingRequestId: row.bookingRequestId,
+      paymentId: asUuid(row.id),
+      bookingRequestId: asUuid(row.bookingRequestId),
       squarePaymentId: row.squarePaymentId ?? undefined,
       status: row.status,
       bookingStatus: row.bookingRequest.status,
     }));
   }
 
-  async markBookingReconciliationRequired(paymentId: string): Promise<void> {
+  async markBookingReconciliationRequired(paymentId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.payment.update({
         where: {
@@ -1364,7 +1370,7 @@ export class PaymentsRepository extends BaseRepository {
 
         await transaction.paymentLedgerEntry.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             paymentId: payment.id,
             type: "payout_released",
             amount: payout.amount,
@@ -1394,7 +1400,7 @@ export class PaymentsRepository extends BaseRepository {
   }
 
   async listPayoutsForOrganization(
-    input: ListPayoutsInput,
+    input: ListPayoutsPersistenceInput,
   ): Promise<PayoutListResult> {
     const where: Prisma.PayoutWhereInput = {
       organizationId: input.organizationId,
@@ -1422,11 +1428,11 @@ export class PaymentsRepository extends BaseRepository {
 
   private mapPayment(payment: PaymentPersistence): PaymentRecord {
     return {
-      id: payment.id,
-      bookingRequestId: payment.bookingRequestId,
-      postingId: payment.postingId,
-      renterId: payment.renterId,
-      organizationId: payment.organizationId,
+      id: asUuid(payment.id),
+      bookingRequestId: asUuid(payment.bookingRequestId),
+      postingId: asUuid(payment.postingId),
+      renterId: asUuid(payment.renterId),
+      organizationId: asUuid(payment.organizationId),
       provider: PAYMENT_PROVIDER,
       status: payment.status,
       pricingCurrency: payment.pricingCurrency,
@@ -1444,7 +1450,7 @@ export class PaymentsRepository extends BaseRepository {
       createdAt: payment.createdAt.toISOString(),
       updatedAt: payment.updatedAt.toISOString(),
       booking: {
-        id: payment.bookingRequest.id,
+        id: asUuid(payment.bookingRequest.id),
         status: payment.bookingRequest.status,
         startAt: payment.bookingRequest.startAt.toISOString(),
         endAt: payment.bookingRequest.endAt.toISOString(),
@@ -1453,8 +1459,8 @@ export class PaymentsRepository extends BaseRepository {
           payment.bookingRequest.paymentReconciliationRequired,
       },
       attempts: payment.attempts.map((attempt) => ({
-        id: attempt.id,
-        paymentId: attempt.paymentId,
+        id: asUuid(attempt.id),
+        paymentId: asUuid(attempt.paymentId),
         idempotencyKey: attempt.idempotencyKey,
         status: attempt.status,
         retryCount: attempt.retryCount,
@@ -1468,8 +1474,8 @@ export class PaymentsRepository extends BaseRepository {
         updatedAt: attempt.updatedAt.toISOString(),
       })),
       refunds: payment.refunds.map((refund) => ({
-        id: refund.id,
-        paymentId: refund.paymentId,
+        id: asUuid(refund.id),
+        paymentId: asUuid(refund.paymentId),
         status: refund.status,
         amount: Number(refund.amount),
         reason: refund.reason ?? undefined,
@@ -1485,9 +1491,9 @@ export class PaymentsRepository extends BaseRepository {
 
   private mapPayout(payout: PayoutPersistence): PayoutRecord {
     return {
-      id: payout.id,
-      paymentId: payout.paymentId,
-      organizationId: payout.organizationId,
+      id: asUuid(payout.id),
+      paymentId: asUuid(payout.paymentId),
+      organizationId: asUuid(payout.organizationId),
       status: payout.status,
       amount: Number(payout.amount),
       dueAt: payout.dueAt.toISOString(),

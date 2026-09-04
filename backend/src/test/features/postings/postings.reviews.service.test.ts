@@ -10,10 +10,16 @@ import type { PostingsReviewsRepository } from "@/features/postings/reviews/revi
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { testUuid } from "../../support/uuid";
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_1_ID = testUuid(9000, 254272);
+const RENTER_1_ID = testUuid(9000, 235000);
+
+const REVIEW_1_ID = testUuid(9000, 118005);
 
 class FakePostingsRepository {
   posting = {
-    id: "posting-1",
+    id: POSTING_1_ID,
     organizationId: "org-1",
     status: "published",
     archivedAt: undefined,
@@ -79,7 +85,7 @@ class FakeRentingsRepository {
 }
 
 class FakeOrganizationAccessService {
-  memberships = new Map<string, string>([["owner-1", "org-1"]]);
+  memberships = new Map<string, string>([[OWNER_1_ID, "org-1"]]);
 
   async findMembership(userId: string, organizationId: string) {
     return this.memberships.get(userId) === organizationId
@@ -130,9 +136,9 @@ function buildReviewRequestBody(): CreatePostingReviewRequestBody {
 
 function buildReviewRecord(): PostingReviewRecord {
   return {
-    id: "review-1",
-    postingId: "posting-1",
-    reviewerId: "renter-1",
+    id: REVIEW_1_ID,
+    postingId: POSTING_1_ID,
+    reviewerId: RENTER_1_ID,
     rating: 5,
     title: "Excellent stay",
     comment: "Everything matched the listing.",
@@ -147,7 +153,7 @@ describe("PostingsReviewsService", () => {
     const service = createService();
 
     await expect(
-      service.create("posting-1", "owner-1", buildReviewRequestBody()),
+      service.create(POSTING_1_ID, OWNER_1_ID, buildReviewRequestBody()),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -155,7 +161,7 @@ describe("PostingsReviewsService", () => {
     const service = createService();
 
     await expect(
-      service.create("posting-1", "renter-1", buildReviewRequestBody()),
+      service.create(POSTING_1_ID, RENTER_1_ID, buildReviewRequestBody()),
     ).rejects.toMatchObject<Partial<ForbiddenError>>({
       message: "You can only review postings you have completed a rental for.",
     });
@@ -171,12 +177,12 @@ describe("PostingsReviewsService", () => {
     });
 
     const review = await service.create(
-      "posting-1",
-      "renter-1",
+      POSTING_1_ID,
+      RENTER_1_ID,
       buildReviewRequestBody(),
     );
 
-    expect(review.id).toBe("review-1");
+    expect(review.id).toBe(REVIEW_1_ID);
   });
 
   it("trims blank review title and comment fields to null", async () => {
@@ -188,7 +194,7 @@ describe("PostingsReviewsService", () => {
       rentingsRepository,
     });
 
-    await service.create("posting-1", "renter-1", {
+    await service.create(POSTING_1_ID, RENTER_1_ID, {
       rating: 4,
       title: "   ",
       comment: "   ",
@@ -213,7 +219,7 @@ describe("PostingsReviewsService", () => {
     });
 
     await expect(
-      service.create("posting-1", "renter-1", buildReviewRequestBody()),
+      service.create(POSTING_1_ID, RENTER_1_ID, buildReviewRequestBody()),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
@@ -228,12 +234,12 @@ describe("PostingsReviewsService", () => {
     });
 
     const review = await service.updateOwn(
-      "posting-1",
-      "renter-1",
+      POSTING_1_ID,
+      RENTER_1_ID,
       buildReviewRequestBody(),
     );
 
-    expect(review.id).toBe("review-1");
+    expect(review.id).toBe(REVIEW_1_ID);
   });
 
   it("returns not found when updating a review that does not exist", async () => {
@@ -244,7 +250,7 @@ describe("PostingsReviewsService", () => {
     });
 
     await expect(
-      service.updateOwn("posting-1", "renter-1", buildReviewRequestBody()),
+      service.updateOwn(POSTING_1_ID, RENTER_1_ID, buildReviewRequestBody()),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -254,7 +260,7 @@ describe("PostingsReviewsService", () => {
       rentingsRepository.eligible = true;
       const service = createService({ rentingsRepository });
 
-      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+      await expect(service.getOwn(POSTING_1_ID, RENTER_1_ID)).resolves.toEqual({
         eligible: true,
         review: null,
       });
@@ -270,7 +276,7 @@ describe("PostingsReviewsService", () => {
         rentingsRepository,
       });
 
-      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+      await expect(service.getOwn(POSTING_1_ID, RENTER_1_ID)).resolves.toEqual({
         eligible: true,
         review: buildReviewRecord(),
       });
@@ -279,7 +285,7 @@ describe("PostingsReviewsService", () => {
     it("reports ineligible without a completed eligible renting", async () => {
       const service = createService();
 
-      await expect(service.getOwn("posting-1", "renter-1")).resolves.toEqual({
+      await expect(service.getOwn(POSTING_1_ID, RENTER_1_ID)).resolves.toEqual({
         eligible: false,
         review: null,
       });
@@ -290,7 +296,7 @@ describe("PostingsReviewsService", () => {
       rentingsRepository.eligible = true;
       const service = createService({ rentingsRepository });
 
-      await expect(service.getOwn("posting-1", "owner-1")).resolves.toEqual({
+      await expect(service.getOwn(POSTING_1_ID, OWNER_1_ID)).resolves.toEqual({
         eligible: false,
         review: null,
       });
@@ -305,7 +311,7 @@ describe("PostingsReviewsService", () => {
       const service = createService({ postingsRepository });
 
       await expect(
-        service.getOwn("posting-1", "renter-1"),
+        service.getOwn(POSTING_1_ID, RENTER_1_ID),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
   });
@@ -320,7 +326,7 @@ describe("PostingsReviewsService", () => {
       postingsRepository,
     });
 
-    await expect(service.list("posting-1", 1, 20)).rejects.toBeInstanceOf(
+    await expect(service.list(POSTING_1_ID, 1, 20)).rejects.toBeInstanceOf(
       ResourceNotFoundError,
     );
   });
@@ -331,7 +337,7 @@ describe("PostingsReviewsService", () => {
       postingsReviewsRepository,
     });
 
-    const result = await service.list("posting-1", 2, 10);
+    const result = await service.list(POSTING_1_ID, 2, 10);
 
     expect(result).toEqual({
       reviews: [],

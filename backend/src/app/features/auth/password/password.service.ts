@@ -29,6 +29,7 @@ import type {
   ResetPasswordInput,
   SetPasswordInput,
 } from "@/features/auth/password/password.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -121,7 +122,7 @@ export class PasswordService {
     // decides the race, so concurrent submissions cannot both rotate the token
     // version and strand each other's session.
     const created = await this.passwordRepository.setPasswordHashIfUnset(
-      user.id,
+      asUuid(user.id),
       passwordHash,
     );
 
@@ -198,7 +199,7 @@ export class PasswordService {
     input: { client: ResetPasswordInput["client"]; deviceId?: string },
   ): Promise<AuthSessionResult> {
     const nextTokenVersion = await this.tokenRepository.rotateTokenVersion(
-      user.id,
+      asUuid(user.id),
     );
     await this.loginLockoutService.clearAttemptRecord(user.profile.username);
 

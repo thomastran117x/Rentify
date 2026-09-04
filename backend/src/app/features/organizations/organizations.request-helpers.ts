@@ -16,6 +16,7 @@ import {
   listPublicOrganizationsQuerySchema,
   type ListPublicOrganizationsInput,
 } from "@/features/organizations/profile/profile.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export function parseListPublicOrganizationsInput(
   request: Request,
@@ -83,7 +84,7 @@ export function requireRouteValue<TValue extends string>(
   }
 }
 
-export function requireResourceId(request: Request, name: string): string {
+export function requireResourceId(request: Request, name: string): Uuid {
   return requireRouteValue(
     request,
     name,
@@ -92,7 +93,7 @@ export function requireResourceId(request: Request, name: string): string {
   );
 }
 
-export function requireOrganizationId(request: Request): string {
+export function requireOrganizationId(request: Request): Uuid {
   return requireResourceId(request, "id");
 }
 

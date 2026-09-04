@@ -7,6 +7,7 @@ import {
   postingPricingSchema,
   type PostingCancellationPolicy,
 } from "@/features/postings/postings.model";
+import { uuidSchema, type Uuid } from "@/configuration/validation/uuid";
 
 export const MAX_BOOKING_NOTE_LENGTH = 1000;
 export const MAX_BOOKING_DECISION_NOTE_LENGTH = 1000;
@@ -190,7 +191,7 @@ export const ownerBookingDashboardQuerySchema = z.object({
   sort: bookingDashboardSortSchema.default("urgency"),
   status: bookingRequestStatusSchema.optional(),
   actionNeeded: ownerBookingDashboardActionNeededSchema.optional(),
-  postingId: z.string().trim().min(1).optional(),
+  postingId: z.string().trim().pipe(uuidSchema).optional(),
 });
 
 export type BookingRequestStatus = z.infer<typeof bookingRequestStatusSchema>;
@@ -234,17 +235,17 @@ export type OwnerBookingDashboardQuery = z.infer<
 >;
 
 export interface BookingRequestPostingSummary {
-  id: string;
+  id: Uuid;
   name: string;
   primaryPhotoUrl?: string;
   effectiveMaxBookingDurationDays: number;
 }
 
 export interface BookingRequestRecord {
-  id: string;
-  postingId: string;
-  renterId: string;
-  organizationId: string;
+  id: Uuid;
+  postingId: Uuid;
+  renterId: Uuid;
+  organizationId: Uuid;
   status: BookingRequestStatus;
   startAt: string;
   endAt: string;
@@ -263,7 +264,7 @@ export interface BookingRequestRecord {
   paymentRequiredAt?: string;
   paymentFailedAt?: string;
   cancelledAt?: string;
-  cancelledByUserId?: string;
+  cancelledByUserId?: Uuid;
   cancellationActor?: BookingCancellationActor;
   cancellationReason?: string;
   cancellationPolicyCode?: string;
@@ -275,9 +276,9 @@ export interface BookingRequestRecord {
   conversionReservedAt?: string;
   conversionReservationExpiresAt?: string;
   holdExpiresAt: string;
-  holdBlockId?: string;
+  holdBlockId?: Uuid;
   paymentReconciliationRequired?: boolean;
-  rentingId?: string;
+  rentingId?: Uuid;
   createdAt: string;
   updatedAt: string;
   posting: BookingRequestPostingSummary;
@@ -325,13 +326,13 @@ export interface BookingDashboardUrgency {
 }
 
 export interface BookingDashboardItem {
-  id: string;
+  id: Uuid;
   kind: "booking_request" | "renting";
-  bookingRequestId?: string;
-  rentingId?: string;
-  postingId: string;
-  renterId: string;
-  organizationId: string;
+  bookingRequestId?: Uuid;
+  rentingId?: Uuid;
+  postingId: Uuid;
+  renterId: Uuid;
+  organizationId: Uuid;
   status:
     | BookingRequestStatus
     | "confirmed"
@@ -382,7 +383,7 @@ export interface BookingDashboardItem {
 }
 
 export interface BookingDashboardPostingOption {
-  id: string;
+  id: Uuid;
   name: string;
 }
 
@@ -420,6 +421,12 @@ export interface RenterBookingDashboardResult {
   };
 }
 
+/** OwnerBookingDashboardInput once the service has resolved the organization. */
+export interface OwnerBookingDashboardPersistenceInput
+  extends OwnerBookingDashboardInput {
+  organizationId: Uuid;
+}
+
 export interface OwnerBookingDashboardResult {
   summary: OwnerBookingDashboardSummary;
   items: BookingDashboardItem[];
@@ -431,13 +438,13 @@ export interface OwnerBookingDashboardResult {
     sort: BookingDashboardSort;
     status?: BookingRequestStatus;
     actionNeeded?: OwnerBookingDashboardActionNeeded;
-    postingId?: string;
+    postingId?: Uuid;
   };
 }
 
 export interface CreateBookingRequestInput {
-  postingId: string;
-  renterId: string;
+  postingId: Uuid;
+  renterId: Uuid;
   startAt: string;
   endAt: string;
   guestCount?: number;
@@ -448,8 +455,8 @@ export interface CreateBookingRequestInput {
 }
 
 export interface BookingQuoteInput {
-  postingId: string;
-  renterId: string;
+  postingId: Uuid;
+  renterId: Uuid;
   startAt: string;
   endAt: string;
   guestCount?: number;
@@ -479,7 +486,7 @@ export interface BookingQuoteFailureReason {
 }
 
 export interface BookingQuoteResult {
-  postingId: string;
+  postingId: Uuid;
   bookable: boolean;
   durationDays: number | null;
   pricingCurrency: string;
@@ -495,20 +502,20 @@ export interface BookingQuoteResult {
 }
 
 export interface DecideBookingRequestInput {
-  bookingRequestId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  actorUserId: Uuid;
   note?: string | null;
 }
 
 export interface CancelBookingRequestInput {
-  bookingRequestId: string;
-  actorUserId: string;
+  bookingRequestId: Uuid;
+  actorUserId: Uuid;
   reason?: string | null;
 }
 
 export interface UpdateBookingRequestInput {
-  bookingRequestId: string;
-  renterId: string;
+  bookingRequestId: Uuid;
+  renterId: Uuid;
   startAt: string;
   endAt: string;
   guestCount?: number;
@@ -519,31 +526,41 @@ export interface UpdateBookingRequestInput {
 }
 
 export interface ListRenterBookingRequestsInput {
-  renterId: string;
+  renterId: Uuid;
   page: number;
   pageSize: number;
   status?: BookingRequestStatus;
 }
 
 export interface ListOwnedBookingRequestsInput {
-  actorUserId: string;
-  organizationId: string;
+  actorUserId: Uuid;
   page: number;
   pageSize: number;
   status?: BookingRequestStatus;
+}
+
+/** ListOwnedBookingRequestsInput once the service has resolved the owning organization. */
+export interface ListOwnedBookingRequestsPersistenceInput
+  extends ListOwnedBookingRequestsInput {
+  organizationId: Uuid;
 }
 
 export interface ListOwnerBookingRequestsInput {
-  actorUserId: string;
-  organizationId: string;
-  postingId: string;
+  actorUserId: Uuid;
+  postingId: Uuid;
   page: number;
   pageSize: number;
   status?: BookingRequestStatus;
 }
 
+/** ListOwnerBookingRequestsInput once the service has resolved the owning organization. */
+export interface ListOwnerBookingRequestsPersistenceInput
+  extends ListOwnerBookingRequestsInput {
+  organizationId: Uuid;
+}
+
 export interface RenterBookingDashboardInput {
-  renterId: string;
+  renterId: Uuid;
   page: number;
   pageSize: number;
   sort: BookingDashboardSort;
@@ -551,21 +568,22 @@ export interface RenterBookingDashboardInput {
   status?: BookingRequestStatus;
 }
 
+// The owning organization is resolved from the actor's active membership in
+// BookingsService, so callers neither know nor supply it.
 export interface OwnerBookingDashboardInput {
-  actorUserId: string;
-  organizationId: string;
+  actorUserId: Uuid;
   page: number;
   pageSize: number;
   sort: BookingDashboardSort;
   status?: BookingRequestStatus;
   actionNeeded?: OwnerBookingDashboardActionNeeded;
-  postingId?: string;
+  postingId?: Uuid;
 }
 
 export interface CreateBookingRequestPersistenceInput {
-  postingId: string;
-  renterId: string;
-  organizationId: string;
+  postingId: Uuid;
+  renterId: Uuid;
+  organizationId: Uuid;
   startAt: Date;
   endAt: Date;
   durationDays: number;
@@ -582,19 +600,19 @@ export interface CreateBookingRequestPersistenceInput {
 }
 
 export interface ActiveBookingOverlapInput {
-  postingId: string;
+  postingId: Uuid;
   startAt: Date;
   endAt: Date;
-  excludeBookingRequestId?: string;
-  renterId?: string;
+  excludeBookingRequestId?: Uuid;
+  renterId?: Uuid;
 }
 
 export interface BookingRequestExpirationRecord {
-  id: string;
-  postingId: string;
-  organizationId: string;
+  id: Uuid;
+  postingId: Uuid;
+  organizationId: Uuid;
   status: BookingRequestStatus;
-  holdBlockId?: string;
+  holdBlockId?: Uuid;
 }
 
 export type BookingCancellationFailureCode =
@@ -611,7 +629,7 @@ export interface BookingCancellationFailureReason {
 }
 
 export interface BookingCancellationQuoteResult {
-  bookingRequestId: string;
+  bookingRequestId: Uuid;
   cancellable: boolean;
   actor: BookingCancellationActor;
   bookingStatus: BookingRequestStatus;

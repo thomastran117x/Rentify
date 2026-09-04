@@ -1,10 +1,17 @@
 import { MAX_ALERT_MATCHES_PER_EMAIL } from "@/features/postings/saved-searches/saved-searches.model";
 import { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
+import { testUuid } from "../../support/uuid";
+const ORG_1_ID = testUuid(9200, 9234);
+const POSTING_1_ID = testUuid(9200, 254272);
+const POSTING_2_ID = testUuid(9200, 254273);
+const SEARCH_1_ID = testUuid(9200, 215277);
+const USER_1_ID = testUuid(9200, 994257);
+const USER_2_ID = testUuid(9200, 994258);
 
 const composeInput = {
-  savedSearchId: "search-1",
-  recipientId: "user-1",
-  postingIds: ["posting-1"],
+  savedSearchId: SEARCH_1_ID,
+  recipientId: USER_1_ID,
+  postingIds: [POSTING_1_ID],
   occurredAt: "2026-08-25T12:00:00.000Z",
 };
 
@@ -13,14 +20,14 @@ function createPosting(id: string) {
     id,
     name: `Sea kayak ${id}`,
     pricing: { currency: "AUD", daily: { amount: 45 } },
-    organization: { id: "org-1", name: "Harbour Rentals", slug: "harbour" },
+    organization: { id: ORG_1_ID, name: "Harbour Rentals", slug: "harbour" },
   };
 }
 
 function createRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "search-1",
-    userId: "user-1",
+    id: SEARCH_1_ID,
+    userId: USER_1_ID,
     name: "Kayaks",
     queryParams: { q: "kayak" },
     queryHash: "hash",
@@ -49,21 +56,21 @@ function createDependencies(
   };
   const postingsPublicCacheService = {
     getPublicByIds: jest.fn(async () => ({
-      postings: [createPosting("posting-1")],
+      postings: [createPosting(POSTING_1_ID)],
       missingIds: [],
     })),
     ...overrides.publicCache,
   };
   const postingsService = {
     searchPublic: jest.fn(async () => ({
-      postings: [createPosting("posting-1")],
+      postings: [createPosting(POSTING_1_ID)],
       pagination: { hasNextPage: false },
     })),
     ...overrides.postings,
   };
   const usersRepository = {
     findUserById: jest.fn(async () => ({
-      id: "user-1",
+      id: USER_1_ID,
       email: "renter@example.test",
       firstName: "Ada",
       emailVerified: true,
@@ -92,13 +99,13 @@ describe("SavedSearchEmailComposer", () => {
     await expect(composer.compose(composeInput)).resolves.toMatchObject({
       to: "renter@example.test",
       firstName: "Ada",
-      savedSearchId: "search-1",
+      savedSearchId: SEARCH_1_ID,
       savedSearchName: "Kayaks",
       queryParams: { q: "kayak" },
       additionalMatchCount: 0,
       matches: [
         {
-          id: "posting-1",
+          id: POSTING_1_ID,
           dailyPrice: 45,
           currency: "AUD",
           organizationName: "Harbour Rentals",
@@ -128,7 +135,7 @@ describe("SavedSearchEmailComposer", () => {
   it("refuses to send someone else's search to the job recipient", async () => {
     const { composer } = createDependencies({
       repository: {
-        findById: jest.fn(async () => createRow({ userId: "user-2" })),
+        findById: jest.fn(async () => createRow({ userId: USER_2_ID })),
       },
     });
 
@@ -154,7 +161,7 @@ describe("SavedSearchEmailComposer", () => {
       publicCache: {
         getPublicByIds: jest.fn(async () => ({
           postings: [],
-          missingIds: ["posting-1"],
+          missingIds: [POSTING_1_ID],
         })),
       },
     });
@@ -166,7 +173,7 @@ describe("SavedSearchEmailComposer", () => {
     const { composer } = createDependencies({
       users: {
         findUserById: jest.fn(async () => ({
-          id: "user-1",
+          id: USER_1_ID,
           email: "renter@example.test",
           emailVerified: false,
         })),
@@ -182,13 +189,13 @@ describe("SavedSearchEmailComposer", () => {
     const { composer } = createDependencies({
       publicCache: {
         getPublicByIds: jest.fn(async () => ({
-          postings: [createPosting("posting-1"), createPosting("posting-2")],
+          postings: [createPosting(POSTING_1_ID), createPosting(POSTING_2_ID)],
           missingIds: [],
         })),
       },
       postings: {
         searchPublic: jest.fn(async () => ({
-          postings: [{ id: "posting-2" }],
+          postings: [{ id: POSTING_2_ID }],
           pagination: { hasNextPage: false },
         })),
       },
@@ -196,7 +203,7 @@ describe("SavedSearchEmailComposer", () => {
 
     const content = await composer.compose(composeInput);
 
-    expect(content?.matches.map((match) => match.id)).toEqual(["posting-2"]);
+    expect(content?.matches.map((match) => match.id)).toEqual([POSTING_2_ID]);
   });
 
   it("skips the email when nothing carried by the job still matches", async () => {
@@ -239,7 +246,7 @@ describe("SavedSearchEmailComposer", () => {
     const { composer } = createDependencies({
       users: {
         findUserById: jest.fn(async () => ({
-          id: "user-1",
+          id: USER_1_ID,
           email: "renter@example.test",
           firstName: null,
           emailVerified: true,

@@ -3,6 +3,13 @@ import { RequestValidationError } from "@/configuration/validation/request";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { ReportsController } from "@/features/reports/reports.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { testUuid } from "../../support/uuid";
+const ADMIN_1_ID = testUuid(9000, 185107);
+
+const REPORT_ID = testUuid(4400, 1);
+const MODERATOR_ONE_ID = testUuid(1000, 91);
+const MODERATOR_TWO_ID = testUuid(1000, 92);
+const REPORTER_ID = testUuid(1000, 93);
 
 const mockRequireSessionAuth = jest.fn();
 
@@ -15,7 +22,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "moderator-1",
+    sub: MODERATOR_ONE_ID,
     email: "moderator@example.com",
     role: "moderator",
     deviceId: "device-1",
@@ -54,10 +61,10 @@ describe("ReportsController", () => {
 
   it("creates reports with trimmed fields and the authenticated reporter id", async () => {
     mockRequireSessionAuth.mockResolvedValue({
-      ...createAuth({ sub: "user-1", role: "user" }),
+      ...createAuth({ sub: REPORTER_ID, role: "user" }),
     });
     const create = jest.fn(async () => ({
-      id: "report-1",
+      id: REPORT_ID,
     }));
     const controller = new ReportsController({
       create,
@@ -77,7 +84,7 @@ describe("ReportsController", () => {
     );
 
     expect(create).toHaveBeenCalledWith({
-      reporterId: "user-1",
+      reporterId: REPORTER_ID,
       subjectType: "posting",
       subjectId: "posting-1",
       reasonCode: "spam",
@@ -110,7 +117,7 @@ describe("ReportsController", () => {
     const response = await invoke(
       controller.listModeration,
       createContext({
-        url: "https://example.test/reports/moderation?page=2&pageSize=5&q=spam&status=open&subjectType=posting&reasonCode=fraud_or_scam&assignedTo=moderator-1&reporterId=user-1&sort=newest",
+        url: `https://example.test/reports/moderation?page=2&pageSize=5&q=spam&status=open&subjectType=posting&reasonCode=fraud_or_scam&assignedTo=${MODERATOR_ONE_ID}&reporterId=${REPORTER_ID}&sort=newest`,
       }),
     );
     const payload = await response.json();
@@ -122,8 +129,8 @@ describe("ReportsController", () => {
       status: "open",
       subjectType: "posting",
       reasonCode: "fraud_or_scam",
-      assignedTo: "moderator-1",
-      reporterId: "user-1",
+      assignedTo: MODERATOR_ONE_ID,
+      reporterId: REPORTER_ID,
       sort: "newest",
     });
     expect(response.status).toBe(200);
@@ -162,7 +169,7 @@ describe("ReportsController", () => {
       ...createAuth({ role: "admin" }),
     });
     const getModerationDetail = jest.fn(async () => ({
-      id: "report-1",
+      id: REPORT_ID,
     }));
     const controller = new ReportsController({
       getModerationDetail,
@@ -172,21 +179,21 @@ describe("ReportsController", () => {
       controller.getModerationById,
       createContext({
         params: {
-          id: "report-1",
+          id: REPORT_ID,
         },
       }),
     );
 
-    expect(getModerationDetail).toHaveBeenCalledWith("report-1");
+    expect(getModerationDetail).toHaveBeenCalledWith(REPORT_ID);
     expect(response.status).toBe(200);
   });
 
   it("assigns a report using the moderator context and optional assignee", async () => {
     mockRequireSessionAuth.mockResolvedValue({
-      ...createAuth({ sub: "moderator-1", role: "moderator" }),
+      ...createAuth({ sub: MODERATOR_ONE_ID, role: "moderator" }),
     });
     const assign = jest.fn(async () => ({
-      id: "report-1",
+      id: REPORT_ID,
     }));
     const controller = new ReportsController({
       assign,
@@ -196,29 +203,29 @@ describe("ReportsController", () => {
       controller.assign,
       createContext({
         params: {
-          id: "report-1",
+          id: REPORT_ID,
         },
         body: {
-          assignedModeratorId: "moderator-2",
+          assignedModeratorId: MODERATOR_TWO_ID,
         },
       }),
     );
 
     expect(assign).toHaveBeenCalledWith({
-      actorUserId: "moderator-1",
+      actorUserId: MODERATOR_ONE_ID,
       actorRole: "moderator",
-      reportId: "report-1",
-      assignedModeratorId: "moderator-2",
+      reportId: REPORT_ID,
+      assignedModeratorId: MODERATOR_TWO_ID,
     });
     expect(response.status).toBe(200);
   });
 
   it("updates a report status through the moderation service", async () => {
     mockRequireSessionAuth.mockResolvedValue({
-      ...createAuth({ sub: "admin-1", role: "admin" }),
+      ...createAuth({ sub: ADMIN_1_ID, role: "admin" }),
     });
     const updateStatus = jest.fn(async () => ({
-      id: "report-1",
+      id: REPORT_ID,
     }));
     const controller = new ReportsController({
       updateStatus,
@@ -228,7 +235,7 @@ describe("ReportsController", () => {
       controller.updateStatus,
       createContext({
         params: {
-          id: "report-1",
+          id: REPORT_ID,
         },
         body: {
           status: "resolved",
@@ -240,9 +247,9 @@ describe("ReportsController", () => {
     );
 
     expect(updateStatus).toHaveBeenCalledWith({
-      actorUserId: "admin-1",
+      actorUserId: ADMIN_1_ID,
       actorRole: "admin",
-      reportId: "report-1",
+      reportId: REPORT_ID,
       status: "resolved",
       resolutionCode: "action_taken",
       resolutionSummary: "Listing removed",

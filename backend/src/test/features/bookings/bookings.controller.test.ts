@@ -1,6 +1,18 @@
 ﻿import { createTestContext, invoke } from "../../support/mock-http";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+const USER_3_ID = testUuid(9000, 994259);
+
+const BOOKING_ONE_ID = testUuid(1020, 1);
+const BOOKING_TWO_ID = testUuid(1020, 2);
+const POSTING_ID = testUuid(2000, 1);
+const POSTING_TWO_ID = testUuid(2000, 2);
+const RENTER_ONE_ID = testUuid(1000, 1);
+const RENTER_TWO_ID = testUuid(1000, 2);
+const OWNER_ONE_ID = testUuid(1000, 3);
+const OWNER_TWO_ID = testUuid(1000, 4);
+const USER_ID = testUuid(1000, 5);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -10,8 +22,8 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
-    email: "user@example.com",
+    sub: USER_ID,
+    email: `${USER_ID}@example.com`,
     role: "user",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -57,10 +69,10 @@ describe("BookingsController", () => {
   });
 
   it("creates booking requests for postings and publishes recommendation activity", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: RENTER_ONE_ID }));
     const create = jest.fn(async () => ({
-      id: "booking-1",
-      postingId: "posting-1",
+      id: BOOKING_ONE_ID,
+      postingId: POSTING_ID,
       status: "pending",
     }));
     const publishBookingRequestCreated = jest.fn(async () => undefined);
@@ -77,7 +89,7 @@ describe("BookingsController", () => {
       controller.createForPosting,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         body: {
           startAt: "2099-05-01T00:00:00.000Z",
@@ -92,8 +104,8 @@ describe("BookingsController", () => {
     );
 
     expect(create).toHaveBeenCalledWith({
-      postingId: "posting-1",
-      renterId: "renter-1",
+      postingId: POSTING_ID,
+      renterId: RENTER_ONE_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       guestCount: 2,
@@ -104,8 +116,8 @@ describe("BookingsController", () => {
     });
     expect(publishBookingRequestCreated).toHaveBeenCalledWith({
       bookingRequest: {
-        id: "booking-1",
-        postingId: "posting-1",
+        id: BOOKING_ONE_ID,
+        postingId: POSTING_ID,
         status: "pending",
       },
       client: expect.any(Object),
@@ -115,7 +127,7 @@ describe("BookingsController", () => {
   });
 
   it("quotes bookings for postings and normalizes nullable notes", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-2" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: RENTER_TWO_ID }));
     const quote = jest.fn(async () => ({
       bookingRequestId: "quote-1",
       estimatedTotal: 240,
@@ -131,7 +143,7 @@ describe("BookingsController", () => {
       controller.quoteForPosting,
       createContext({
         params: {
-          id: "posting-2",
+          id: POSTING_TWO_ID,
         },
         body: {
           startAt: "2099-06-01T00:00:00.000Z",
@@ -142,8 +154,8 @@ describe("BookingsController", () => {
     );
 
     expect(quote).toHaveBeenCalledWith({
-      postingId: "posting-2",
-      renterId: "renter-2",
+      postingId: POSTING_TWO_ID,
+      renterId: RENTER_TWO_ID,
       startAt: "2099-06-01T00:00:00.000Z",
       endAt: "2099-06-03T00:00:00.000Z",
       guestCount: 1,
@@ -154,7 +166,7 @@ describe("BookingsController", () => {
 
   it("lists owned booking requests for owner accounts", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ONE_ID, role: "owner" }),
     );
     const listOwned = jest.fn(async () => ({
       bookingRequests: [],
@@ -182,8 +194,7 @@ describe("BookingsController", () => {
     );
 
     expect(listOwned).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
+      actorUserId: OWNER_ONE_ID,
       page: 1,
       pageSize: 20,
       status: undefined,
@@ -192,7 +203,7 @@ describe("BookingsController", () => {
   });
 
   it("lists the caller's booking requests and owner-posting booking requests", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: RENTER_ONE_ID }));
     const listMine = jest.fn(async () => ({
       bookingRequests: [],
       pagination: {
@@ -233,22 +244,21 @@ describe("BookingsController", () => {
       controller.listForOwnerPosting,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         url: "https://example.test/postings/posting-1/booking-requests?page=1&pageSize=10&status=approved",
       }),
     );
 
     expect(listMine).toHaveBeenCalledWith({
-      renterId: "renter-1",
+      renterId: RENTER_ONE_ID,
       page: 2,
       pageSize: 5,
       status: "pending",
     });
     expect(listForOwnerPosting).toHaveBeenCalledWith({
-      actorUserId: "renter-1",
-      organizationId: "",
-      postingId: "posting-1",
+      actorUserId: RENTER_ONE_ID,
+      postingId: POSTING_ID,
       page: 1,
       pageSize: 10,
       status: "approved",
@@ -258,7 +268,7 @@ describe("BookingsController", () => {
   });
 
   it("maps renter dashboard query params into dashboardMine inputs", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "renter-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: RENTER_ONE_ID }));
     const dashboardMine = jest.fn(async () => ({
       summary: {
         upcoming: 0,
@@ -300,7 +310,7 @@ describe("BookingsController", () => {
     );
 
     expect(dashboardMine).toHaveBeenCalledWith({
-      renterId: "renter-1",
+      renterId: RENTER_ONE_ID,
       page: 2,
       pageSize: 5,
       sort: "urgency",
@@ -312,7 +322,7 @@ describe("BookingsController", () => {
 
   it("maps owner dashboard query params into dashboardOwned inputs", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ONE_ID, role: "owner" }),
     );
     const dashboardOwned = jest.fn(async () => ({
       summary: {
@@ -342,7 +352,7 @@ describe("BookingsController", () => {
         sort: "start_at",
         status: "pending",
         actionNeeded: "approval",
-        postingId: "posting-1",
+        postingId: POSTING_ID,
       },
     }));
     const controller = new BookingsController(
@@ -355,27 +365,26 @@ describe("BookingsController", () => {
     const response = await invoke(
       controller.dashboardOwned,
       createContext({
-        url: "https://example.test/booking-requests/owner/dashboard?sort=start_at&status=pending&actionNeeded=approval&postingId=posting-1",
+        url: `https://example.test/booking-requests/owner/dashboard?sort=start_at&status=pending&actionNeeded=approval&postingId=${POSTING_ID}`,
       }),
     );
 
     expect(dashboardOwned).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
+      actorUserId: OWNER_ONE_ID,
       page: 1,
       pageSize: 20,
       sort: "start_at",
       status: "pending",
       actionNeeded: "approval",
-      postingId: "posting-1",
+      postingId: POSTING_ID,
     });
     expect(response.status).toBe(200);
   });
 
   it("returns cancellation quotes for accessible booking requests", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_ID }));
     const getCancellationQuote = jest.fn(async () => ({
-      bookingRequestId: "booking-1",
+      bookingRequestId: BOOKING_ONE_ID,
       cancellable: true,
       actor: "renter",
       bookingStatus: "paid",
@@ -397,33 +406,33 @@ describe("BookingsController", () => {
       controller.getCancellationQuote,
       createContext({
         params: {
-          id: "booking-1",
+          id: BOOKING_ONE_ID,
         },
       }),
     );
 
-    expect(getCancellationQuote).toHaveBeenCalledWith("booking-1", "user-1");
+    expect(getCancellationQuote).toHaveBeenCalledWith(BOOKING_ONE_ID, USER_ID);
     expect(response.status).toBe(200);
   });
 
   it("gets, updates, approves, and declines booking requests", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-2", role: "owner" }),
+      createClaims({ sub: OWNER_TWO_ID, role: "owner" }),
     );
     const getById = jest.fn(async () => ({
-      id: "booking-2",
+      id: BOOKING_TWO_ID,
       status: "pending",
     }));
     const updateOwnPending = jest.fn(async () => ({
-      id: "booking-2",
+      id: BOOKING_TWO_ID,
       status: "pending",
     }));
     const approve = jest.fn(async () => ({
-      id: "booking-2",
+      id: BOOKING_TWO_ID,
       status: "approved",
     }));
     const decline = jest.fn(async () => ({
-      id: "booking-2",
+      id: BOOKING_TWO_ID,
       status: "declined",
     }));
     const controller = new BookingsController(
@@ -440,7 +449,7 @@ describe("BookingsController", () => {
       controller.getById,
       createContext({
         params: {
-          id: "booking-2",
+          id: BOOKING_TWO_ID,
         },
       }),
     );
@@ -448,7 +457,7 @@ describe("BookingsController", () => {
       controller.updateOwn,
       createContext({
         params: {
-          id: "booking-2",
+          id: BOOKING_TWO_ID,
         },
         body: {
           startAt: "2099-07-01T00:00:00.000Z",
@@ -464,7 +473,7 @@ describe("BookingsController", () => {
       controller.approve,
       createContext({
         params: {
-          id: "booking-2",
+          id: BOOKING_TWO_ID,
         },
         body: {
           note: "Approved quickly",
@@ -475,16 +484,16 @@ describe("BookingsController", () => {
       controller.decline,
       createContext({
         params: {
-          id: "booking-2",
+          id: BOOKING_TWO_ID,
         },
         body: {},
       }),
     );
 
-    expect(getById).toHaveBeenCalledWith("booking-2", "owner-2");
+    expect(getById).toHaveBeenCalledWith(BOOKING_TWO_ID, OWNER_TWO_ID);
     expect(updateOwnPending).toHaveBeenCalledWith({
-      bookingRequestId: "booking-2",
-      renterId: "owner-2",
+      bookingRequestId: BOOKING_TWO_ID,
+      renterId: OWNER_TWO_ID,
       startAt: "2099-07-01T00:00:00.000Z",
       endAt: "2099-07-04T00:00:00.000Z",
       guestCount: 3,
@@ -494,13 +503,13 @@ describe("BookingsController", () => {
       contactPhoneNumber: null,
     });
     expect(approve).toHaveBeenCalledWith({
-      bookingRequestId: "booking-2",
-      actorUserId: "owner-2",
+      bookingRequestId: BOOKING_TWO_ID,
+      actorUserId: OWNER_TWO_ID,
       note: "Approved quickly",
     });
     expect(decline).toHaveBeenCalledWith({
-      bookingRequestId: "booking-2",
-      actorUserId: "owner-2",
+      bookingRequestId: BOOKING_TWO_ID,
+      actorUserId: OWNER_TWO_ID,
       note: null,
     });
     expect(getResponse.status).toBe(200);
@@ -511,19 +520,19 @@ describe("BookingsController", () => {
 
   it("routes booking cancellation reason and actor user id", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ONE_ID, role: "owner" }),
     );
     const cancel = jest.fn(async () => ({
-      id: "booking-1",
+      id: BOOKING_ONE_ID,
       status: "cancelled",
       posting: {
-        id: "posting-1",
+        id: POSTING_ID,
         name: "Loft",
         effectiveMaxBookingDurationDays: 30,
       },
-      postingId: "posting-1",
-      renterId: "renter-1",
-      ownerId: "owner-1",
+      postingId: POSTING_ID,
+      renterId: RENTER_ONE_ID,
+      ownerId: OWNER_ONE_ID,
       startAt: "2099-05-01T00:00:00.000Z",
       endAt: "2099-05-04T00:00:00.000Z",
       durationDays: 3,
@@ -554,7 +563,7 @@ describe("BookingsController", () => {
       controller.cancel,
       createContext({
         params: {
-          id: "booking-1",
+          id: BOOKING_ONE_ID,
         },
         body: {
           reason: "Pipe burst in the unit.",
@@ -563,15 +572,15 @@ describe("BookingsController", () => {
     );
 
     expect(cancel).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_ONE_ID,
+      actorUserId: OWNER_ONE_ID,
       reason: "Pipe burst in the unit.",
     });
     expect(response.status).toBe(200);
   });
 
   it("wraps invalid booking query params in request validation errors", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-3" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_3_ID }));
     const listMine = jest.fn();
     const controller = new BookingsController(
       {

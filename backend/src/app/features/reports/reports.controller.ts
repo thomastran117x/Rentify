@@ -12,7 +12,10 @@ import {
   parseRequestBody,
   RequestValidationError,
 } from "@/configuration/validation/request";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import {
+  requireSafeRouteParam,
+  requireUuidRouteParam,
+} from "@/configuration/validation/input-sanitization";
 import { getAuthRole, requireAnyRole } from "@/features/auth/authorization";
 import type { ReportsService } from "@/features/reports/reports.service";
 import {
@@ -21,6 +24,7 @@ import {
   listContentReportsQuerySchema,
   updateContentReportStatusRequestSchema,
 } from "@/features/reports/reports.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -32,7 +36,7 @@ export class ReportsController {
       createContentReportRequestSchema,
     );
     const result = await this.reportsService.create({
-      reporterId: auth.sub,
+      reporterId: asUuid(auth.sub),
       subjectType: body.subjectType,
       subjectId: body.subjectId,
       reasonCode: body.reasonCode,
@@ -81,9 +85,9 @@ export class ReportsController {
       assignContentReportRequestSchema,
     );
     const result = await this.reportsService.assign({
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
       actorRole: getAuthRole(auth),
-      reportId: this.requireRouteId(request),
+      reportId: asUuid(this.requireRouteId(request)),
       assignedModeratorId:
         body.assignedModeratorId === undefined
           ? undefined
@@ -104,9 +108,9 @@ export class ReportsController {
       updateContentReportStatusRequestSchema,
     );
     const result = await this.reportsService.updateStatus({
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
       actorRole: getAuthRole(auth),
-      reportId: this.requireRouteId(request),
+      reportId: asUuid(this.requireRouteId(request)),
       status: body.status,
       resolutionCode: body.resolutionCode,
       resolutionSummary: body.resolutionSummary,
@@ -123,8 +127,8 @@ export class ReportsController {
     return auth;
   }
 
-  private requireRouteId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireRouteId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
   private parseListInput(request: Request) {

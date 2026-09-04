@@ -3,6 +3,18 @@ import { RequestValidationError } from "@/configuration/validation/request";
 import type { AppBindings } from "@/configuration/http/bindings";
 import { PostingsController } from "@/features/postings/postings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+
+const POSTING_ID = testUuid(2000, 1);
+const POSTING_TWO_ID = testUuid(2000, 2);
+const POSTING_THREE_ID = testUuid(2000, 3);
+const POSTING_FOUR_ID = testUuid(2000, 4);
+const POSTING_FIVE_ID = testUuid(2000, 5);
+const OWNER_ID = testUuid(1000, 1);
+const USER_ID = testUuid(1000, 2);
+const BLOCK_ID = testUuid(2100, 1);
+const RULE_ID = testUuid(2100, 9);
+const SAVED_SEARCH_ID = testUuid(2200, 1);
 
 const mockRequireJwtAuth = jest.fn();
 const mockGetOptionalJwtAuth = jest.fn();
@@ -14,8 +26,8 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "owner-1",
-    email: "owner@example.com",
+    sub: OWNER_ID,
+    email: `${OWNER_ID}@example.com`,
     role: "owner",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -39,7 +51,7 @@ function createPostingBody() {
       family: "place",
       subtype: "entire_place",
     },
-    name: "Test posting",
+    name: `Test ${POSTING_ID}`,
     description: "Nice place",
     pricing: {
       currency: "cad",
@@ -515,7 +527,7 @@ describe("PostingsController", () => {
   it("creates drafts from validated request bodies", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const createDraft = jest.fn(async () => ({
-      id: "posting-1",
+      id: POSTING_ID,
       status: "draft",
     }));
     const controller = createController({
@@ -528,9 +540,8 @@ describe("PostingsController", () => {
     const response = await invoke(controller.create, context);
 
     expect(createDraft).toHaveBeenCalledWith(
-      "owner-1",
+      OWNER_ID,
       expect.objectContaining({
-        organizationId: "",
         availabilityBlocks: [
           {
             startAt: "2026-05-01T00:00:00.000Z",
@@ -549,7 +560,7 @@ describe("PostingsController", () => {
   it("updates drafts from validated request bodies and omits availability blocks", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const update = jest.fn(async () => ({
-      id: "posting-1",
+      id: POSTING_ID,
       status: "draft",
     }));
     const controller = createController({
@@ -557,14 +568,14 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       body: {
         variant: {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Updated posting",
+        name: `Updated ${POSTING_ID}`,
         description: "Still nice",
         pricing: {
           currency: "cad",
@@ -598,8 +609,8 @@ describe("PostingsController", () => {
     const response = await invoke(controller.update, context);
 
     expect(update).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
+      POSTING_ID,
+      OWNER_ID,
       expect.objectContaining({
         availabilityBlocks: [],
         location: expect.objectContaining({
@@ -618,7 +629,7 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       body: {
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",
@@ -666,7 +677,7 @@ describe("PostingsController", () => {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",
@@ -715,14 +726,14 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       body: {
         variant: {
           family: "place",
           subtype: "entire_place",
         },
-        name: "Test posting",
+        name: `Test ${POSTING_ID}`,
         description: "Nice place",
         pricing: {
           currency: "cad",
@@ -761,7 +772,7 @@ describe("PostingsController", () => {
   it("routes duplicate with posting id and owner id", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const duplicate = jest.fn(async () => ({
-      id: "posting-2",
+      id: POSTING_TWO_ID,
       status: "draft",
     }));
     const controller = createController({
@@ -769,20 +780,20 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
     });
 
     const response = await invoke(controller.duplicate, context);
 
-    expect(duplicate).toHaveBeenCalledWith("posting-1", "owner-1");
+    expect(duplicate).toHaveBeenCalledWith(POSTING_ID, OWNER_ID);
     expect(response.status).toBe(201);
   });
 
   it("routes availability block creation with posting id and owner id", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const createOwnerAvailabilityBlock = jest.fn(async () => ({
-      id: "block-1",
+      id: BLOCK_ID,
       startAt: "2026-05-01T00:00:00.000Z",
       endAt: "2026-05-03T00:00:00.000Z",
       createdAt: "2026-04-18T00:00:00.000Z",
@@ -793,7 +804,7 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       body: {
         startAt: "2026-05-01T00:00:00.000Z",
@@ -805,8 +816,8 @@ describe("PostingsController", () => {
     const response = await invoke(controller.createAvailabilityBlock, context);
 
     expect(createOwnerAvailabilityBlock).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
+      POSTING_ID,
+      OWNER_ID,
       {
         startAt: "2026-05-01T00:00:00.000Z",
         endAt: "2026-05-03T00:00:00.000Z",
@@ -819,7 +830,7 @@ describe("PostingsController", () => {
   it("routes availability block update with block id", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const updateOwnerAvailabilityBlock = jest.fn(async () => ({
-      id: "block-1",
+      id: BLOCK_ID,
       startAt: "2026-05-02T00:00:00.000Z",
       endAt: "2026-05-04T00:00:00.000Z",
       createdAt: "2026-04-18T00:00:00.000Z",
@@ -830,8 +841,8 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
-        blockId: "block-1",
+        id: POSTING_ID,
+        blockId: BLOCK_ID,
       },
       body: {
         startAt: "2026-05-02T00:00:00.000Z",
@@ -842,9 +853,9 @@ describe("PostingsController", () => {
     const response = await invoke(controller.updateAvailabilityBlock, context);
 
     expect(updateOwnerAvailabilityBlock).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
-      "block-1",
+      POSTING_ID,
+      OWNER_ID,
+      BLOCK_ID,
       {
         startAt: "2026-05-02T00:00:00.000Z",
         endAt: "2026-05-04T00:00:00.000Z",
@@ -862,17 +873,17 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
-        blockId: "block-1",
+        id: POSTING_ID,
+        blockId: BLOCK_ID,
       },
     });
 
     const response = await invoke(controller.deleteAvailabilityBlock, context);
 
     expect(deleteOwnerAvailabilityBlock).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
-      "block-1",
+      POSTING_ID,
+      OWNER_ID,
+      BLOCK_ID,
     );
     expect(response.status).toBe(204);
   });
@@ -880,11 +891,11 @@ describe("PostingsController", () => {
   it("routes pause and unpause with posting id and owner id", async () => {
     mockRequireJwtAuth.mockResolvedValue(createClaims());
     const pause = jest.fn(async () => ({
-      id: "posting-1",
+      id: POSTING_ID,
       status: "paused",
     }));
     const unpause = jest.fn(async () => ({
-      id: "posting-1",
+      id: POSTING_ID,
       status: "published",
     }));
     const controller = createController(
@@ -900,15 +911,15 @@ describe("PostingsController", () => {
     );
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
     });
 
     const pauseResponse = await invoke(controller.pause, context);
     const unpauseResponse = await invoke(controller.unpause, context);
 
-    expect(pause).toHaveBeenCalledWith("posting-1", "owner-1");
-    expect(unpause).toHaveBeenCalledWith("posting-1", "owner-1");
+    expect(pause).toHaveBeenCalledWith(POSTING_ID, OWNER_ID);
+    expect(unpause).toHaveBeenCalledWith(POSTING_ID, OWNER_ID);
     expect(pauseResponse.status).toBe(200);
     expect(unpauseResponse.status).toBe(200);
   });
@@ -919,11 +930,11 @@ describe("PostingsController", () => {
     const controller = createController(
       {
         publish: jest.fn(async () => ({
-          id: "posting-1",
+          id: POSTING_ID,
           status: "published",
         })),
         archive: jest.fn(async () => ({
-          id: "posting-1",
+          id: POSTING_ID,
           status: "archived",
         })),
       },
@@ -935,7 +946,7 @@ describe("PostingsController", () => {
     );
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
     });
 
@@ -946,7 +957,7 @@ describe("PostingsController", () => {
       1,
       expect.objectContaining({
         eventType: "posting_published",
-        actorUserId: "owner-1",
+        actorUserId: OWNER_ID,
         requestId: "request-1",
       }),
     );
@@ -954,7 +965,7 @@ describe("PostingsController", () => {
       2,
       expect.objectContaining({
         eventType: "posting_archived",
-        actorUserId: "owner-1",
+        actorUserId: OWNER_ID,
         requestId: "request-1",
       }),
     );
@@ -972,7 +983,7 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
     });
 
@@ -980,8 +991,8 @@ describe("PostingsController", () => {
 
     expect(response.status).toBe(200);
     expect(listOwnerAvailabilityBlocks).toHaveBeenCalledWith(
-      "posting-1",
-      "owner-1",
+      POSTING_ID,
+      OWNER_ID,
     );
   });
 
@@ -1007,7 +1018,7 @@ describe("PostingsController", () => {
 
     const response = await invoke(controller.listMine, context);
 
-    expect(listByOwner).toHaveBeenCalledWith("owner-1", {
+    expect(listByOwner).toHaveBeenCalledWith(OWNER_ID, {
       page: 2,
       pageSize: 5,
       status: "paused",
@@ -1043,13 +1054,13 @@ describe("PostingsController", () => {
     const mineResponse = await invoke(
       controller.batchMine,
       createContext({
-        url: "https://example.test/postings/mine/batch?ids=posting-1,posting-2&ids=posting-3",
+        url: `https://example.test/postings/mine/batch?ids=${POSTING_ID},${POSTING_TWO_ID}&ids=${POSTING_THREE_ID}`,
       }),
     );
     const publicResponse = await invoke(
       controller.batchPublic,
       createContext({
-        url: "https://example.test/postings/batch?ids=posting-4&ids=posting-5",
+        url: `https://example.test/postings/batch?ids=${POSTING_FOUR_ID}&ids=${POSTING_FIVE_ID}`,
       }),
     );
     const autocompleteResponse = await invoke(
@@ -1059,12 +1070,15 @@ describe("PostingsController", () => {
       }),
     );
 
-    expect(batchByOwner).toHaveBeenCalledWith("owner-1", [
-      "posting-1",
-      "posting-2",
-      "posting-3",
+    expect(batchByOwner).toHaveBeenCalledWith(OWNER_ID, [
+      POSTING_ID,
+      POSTING_TWO_ID,
+      POSTING_THREE_ID,
     ]);
-    expect(batchPublic).toHaveBeenCalledWith(["posting-4", "posting-5"]);
+    expect(batchPublic).toHaveBeenCalledWith([
+      POSTING_FOUR_ID,
+      POSTING_FIVE_ID,
+    ]);
     expect(autocompletePublic).toHaveBeenCalledWith({
       query: "loft",
       family: "place",
@@ -1091,7 +1105,7 @@ describe("PostingsController", () => {
       },
     }));
     const getPostingAnalyticsDetail = jest.fn(async () => ({
-      postingId: "posting-1",
+      postingId: POSTING_ID,
       window: "all",
       granularity: "hour",
       buckets: [],
@@ -1147,7 +1161,7 @@ describe("PostingsController", () => {
       controller.analyticsById,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         url: "https://example.test/postings/posting-1/analytics?window=all&granularity=hour",
       }),
@@ -1156,7 +1170,7 @@ describe("PostingsController", () => {
       controller.listReviews,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         url: "https://example.test/postings/posting-1/reviews?page=2&pageSize=4",
       }),
@@ -1165,7 +1179,7 @@ describe("PostingsController", () => {
       controller.createReview,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         body: {
           rating: 5,
@@ -1178,7 +1192,7 @@ describe("PostingsController", () => {
       controller.updateOwnReview,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
         body: {
           rating: 4,
@@ -1191,38 +1205,36 @@ describe("PostingsController", () => {
       controller.getOwnReview,
       createContext({
         params: {
-          id: "posting-1",
+          id: POSTING_ID,
         },
       }),
     );
 
-    expect(getOwnerSummary).toHaveBeenCalledWith("owner-1", "30d");
+    expect(getOwnerSummary).toHaveBeenCalledWith(OWNER_ID, "30d");
     expect(listOwnerPostingsAnalytics).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
+      actorUserId: OWNER_ID,
       page: 3,
       pageSize: 7,
       window: "all",
     });
     expect(getPostingAnalyticsDetail).toHaveBeenCalledWith({
-      actorUserId: "owner-1",
-      organizationId: "",
-      postingId: "posting-1",
+      actorUserId: OWNER_ID,
+      postingId: POSTING_ID,
       window: "all",
       granularity: "hour",
     });
-    expect(list).toHaveBeenCalledWith("posting-1", 2, 4);
-    expect(create).toHaveBeenCalledWith("posting-1", "owner-1", {
+    expect(list).toHaveBeenCalledWith(POSTING_ID, 2, 4);
+    expect(create).toHaveBeenCalledWith(POSTING_ID, OWNER_ID, {
       rating: 5,
       title: "Great stay",
       comment: "Exactly as described.",
     });
-    expect(updateOwn).toHaveBeenCalledWith("posting-1", "owner-1", {
+    expect(updateOwn).toHaveBeenCalledWith(POSTING_ID, OWNER_ID, {
       rating: 4,
       title: "Updated",
       comment: "Still good.",
     });
-    expect(getOwn).toHaveBeenCalledWith("posting-1", "owner-1");
+    expect(getOwn).toHaveBeenCalledWith(POSTING_ID, OWNER_ID);
     expect(summaryResponse.status).toBe(200);
     expect(analyticsResponse.status).toBe(200);
     expect(detailResponse.status).toBe(200);
@@ -1245,10 +1257,10 @@ describe("PostingsController", () => {
     });
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       body: {
-        searchSessionId: "search-1",
+        searchSessionId: SAVED_SEARCH_ID,
         page: 1,
         position: 0,
         hasGeoFilter: false,
@@ -1260,7 +1272,7 @@ describe("PostingsController", () => {
 
     expect(publishSearchClick).toHaveBeenCalledWith(
       expect.objectContaining({
-        postingId: "posting-1",
+        postingId: POSTING_ID,
         actorUserId: undefined,
         requestId: "request-1",
       }),
@@ -1275,8 +1287,8 @@ describe("PostingsController", () => {
     const controller = createController(
       {
         getById: jest.fn(async () => ({
-          id: "posting-1",
-          ownerId: "owner-1",
+          id: POSTING_ID,
+          ownerId: OWNER_ID,
           status: "published",
         })),
       },
@@ -1291,7 +1303,7 @@ describe("PostingsController", () => {
     );
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       url: "https://example.test/postings/posting-1",
     });
@@ -1310,7 +1322,7 @@ describe("PostingsController", () => {
     const controller = createController(
       {
         getById: jest.fn(async () => ({
-          id: "posting-1",
+          id: POSTING_ID,
           organizationId: "org-1",
           status: "draft",
         })),
@@ -1326,7 +1338,7 @@ describe("PostingsController", () => {
     );
     const context = createContext({
       params: {
-        id: "posting-1",
+        id: POSTING_ID,
       },
       url: "https://example.test/postings/posting-1",
     });
@@ -1349,7 +1361,7 @@ describe("PostingsController", () => {
 
       const response = await invoke(controller.exportAnalytics, context);
 
-      expect(exportAsCsv).toHaveBeenCalledWith("owner-1", "7d");
+      expect(exportAsCsv).toHaveBeenCalledWith(OWNER_ID, "7d");
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toBe(
         "text/csv; charset=utf-8",
@@ -1374,8 +1386,8 @@ describe("PostingsController", () => {
 
   describe("seasonal pricing handlers", () => {
     const rule = {
-      id: "rule-1",
-      postingId: "posting-1",
+      id: RULE_ID,
+      postingId: POSTING_ID,
       name: "Peak",
       startDate: "2026-06-01",
       endDate: "2026-08-31",
@@ -1398,11 +1410,11 @@ describe("PostingsController", () => {
     it("listSeasonalPricing — returns 200 with the rule list", async () => {
       const list = jest.fn(async () => [rule]);
       const controller = createController({}, { seasonalPricing: { list } });
-      const context = createContext({ params: { id: "posting-1" } });
+      const context = createContext({ params: { id: POSTING_ID } });
 
       const response = await invoke(controller.listSeasonalPricing, context);
 
-      expect(list).toHaveBeenCalledWith("posting-1", "owner-1");
+      expect(list).toHaveBeenCalledWith(POSTING_ID, OWNER_ID);
       expect(response.status).toBe(200);
     });
 
@@ -1410,7 +1422,7 @@ describe("PostingsController", () => {
       const create = jest.fn(async () => rule);
       const controller = createController({}, { seasonalPricing: { create } });
       const context = createContext({
-        params: { id: "posting-1" },
+        params: { id: POSTING_ID },
         body: ruleBody,
       });
 
@@ -1420,8 +1432,8 @@ describe("PostingsController", () => {
       );
 
       expect(create).toHaveBeenCalledWith(
-        "posting-1",
-        "owner-1",
+        POSTING_ID,
+        OWNER_ID,
         expect.objectContaining({ name: "Peak" }),
       );
       expect(response.status).toBe(201);
@@ -1431,7 +1443,7 @@ describe("PostingsController", () => {
       const update = jest.fn(async () => ({ ...rule, name: "Updated" }));
       const controller = createController({}, { seasonalPricing: { update } });
       const context = createContext({
-        params: { id: "posting-1", ruleId: "rule-1" },
+        params: { id: POSTING_ID, ruleId: RULE_ID },
         body: { ...ruleBody, name: "Updated" },
       });
 
@@ -1441,9 +1453,9 @@ describe("PostingsController", () => {
       );
 
       expect(update).toHaveBeenCalledWith(
-        "posting-1",
-        "rule-1",
-        "owner-1",
+        POSTING_ID,
+        RULE_ID,
+        OWNER_ID,
         expect.objectContaining({ name: "Updated" }),
       );
       expect(response.status).toBe(200);
@@ -1456,7 +1468,7 @@ describe("PostingsController", () => {
         { seasonalPricing: { delete: del } },
       );
       const context = createContext({
-        params: { id: "posting-1", ruleId: "rule-1" },
+        params: { id: POSTING_ID, ruleId: RULE_ID },
       });
 
       const response = await invoke(
@@ -1464,14 +1476,14 @@ describe("PostingsController", () => {
         context,
       );
 
-      expect(del).toHaveBeenCalledWith("posting-1", "rule-1", "owner-1");
+      expect(del).toHaveBeenCalledWith(POSTING_ID, RULE_ID, OWNER_ID);
       expect(response.status).toBe(204);
     });
   });
 
   describe("saved postings", () => {
     beforeEach(() => {
-      mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
+      mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_ID }));
     });
 
     it("listSaved — forwards the parsed page and exposes pagination meta", async () => {
@@ -1495,7 +1507,7 @@ describe("PostingsController", () => {
 
       const response = await invoke(controller.listSaved, context);
 
-      expect(list).toHaveBeenCalledWith("user-1", 2, 5);
+      expect(list).toHaveBeenCalledWith(USER_ID, 2, 5);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual(
         expect.objectContaining({
@@ -1524,7 +1536,7 @@ describe("PostingsController", () => {
         createContext({ url: "https://example.test/postings/saved" }),
       );
 
-      expect(list).toHaveBeenCalledWith("user-1", 1, 20);
+      expect(list).toHaveBeenCalledWith(USER_ID, 1, 20);
     });
 
     it.each([
@@ -1542,29 +1554,29 @@ describe("PostingsController", () => {
 
     it("listSavedIds — forwards the caller identifier", async () => {
       const listIds = jest.fn(async () => ({
-        postingIds: ["posting-1"],
+        postingIds: [POSTING_ID],
         truncated: false,
       }));
       const controller = createController({}, { savedPostings: { listIds } });
 
       const response = await invoke(controller.listSavedIds, createContext());
 
-      expect(listIds).toHaveBeenCalledWith("user-1");
+      expect(listIds).toHaveBeenCalledWith(USER_ID);
       expect(response.status).toBe(200);
     });
 
     it("save — returns 200 with the saved state", async () => {
       const save = jest.fn(async () => ({
-        postingId: "posting-1",
+        postingId: POSTING_ID,
         saved: true,
         savedAt: "2026-08-01T12:00:00.000Z",
       }));
       const controller = createController({}, { savedPostings: { save } });
-      const context = createContext({ params: { id: "posting-1" } });
+      const context = createContext({ params: { id: POSTING_ID } });
 
       const response = await invoke(controller.save, context);
 
-      expect(save).toHaveBeenCalledWith("posting-1", "user-1");
+      expect(save).toHaveBeenCalledWith(POSTING_ID, USER_ID);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual(
         expect.objectContaining({
@@ -1575,16 +1587,16 @@ describe("PostingsController", () => {
 
     it("unsave — returns 200 with the cleared state", async () => {
       const unsave = jest.fn(async () => ({
-        postingId: "posting-1",
+        postingId: POSTING_ID,
         saved: false,
         savedAt: null,
       }));
       const controller = createController({}, { savedPostings: { unsave } });
-      const context = createContext({ params: { id: "posting-1" } });
+      const context = createContext({ params: { id: POSTING_ID } });
 
       const response = await invoke(controller.unsave, context);
 
-      expect(unsave).toHaveBeenCalledWith("posting-1", "user-1");
+      expect(unsave).toHaveBeenCalledWith(POSTING_ID, USER_ID);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual(
         expect.objectContaining({

@@ -1,5 +1,4 @@
 import bcrypt from "bcrypt";
-import { randomUUID } from "node:crypto";
 import { createFixtureId } from "@/seeds/types";
 import {
   SEED_DEVICES,
@@ -13,6 +12,7 @@ import {
   slugify,
   toRouteSafeSlug,
 } from "@/features/organizations/organization-slug";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -158,8 +158,8 @@ export const usersSeedModule: SeedModule = {
     const passwordHashes = await hashPasswords();
     let ownerOrganizationIndex = 1;
     const commentTargets: Array<{
-      blogPostId: string;
-      organizationId: string;
+      blogPostId: Uuid;
+      organizationId: Uuid;
     }> = [];
 
     for (const fixtureUser of SEED_USERS) {
@@ -197,7 +197,7 @@ export const usersSeedModule: SeedModule = {
         },
       });
 
-      state.userIdsByEmail.set(fixtureUser.email, user.id);
+      state.userIdsByEmail.set(fixtureUser.email, asUuid(user.id));
 
       const usernameChangedAt = resolveUsernameChangedAt(fixtureUser);
 
@@ -216,7 +216,7 @@ export const usersSeedModule: SeedModule = {
           trustworthinessScore: fixtureUser.trustworthinessScore ?? 1,
         },
         create: {
-          id: randomUUID(),
+          id: newUuid(),
           userId: user.id,
           username: fixtureUser.username,
           usernameChangedAt,
@@ -326,7 +326,7 @@ export const usersSeedModule: SeedModule = {
             role: "primary_manager",
           },
           create: {
-            id: randomUUID(),
+            id: newUuid(),
             organizationId,
             userId: user.id,
             role: "primary_manager",
@@ -530,7 +530,7 @@ export const usersSeedModule: SeedModule = {
             role: membershipFixture.role,
           },
           create: {
-            id: randomUUID(),
+            id: newUuid(),
             organizationId,
             userId,
             role: membershipFixture.role,

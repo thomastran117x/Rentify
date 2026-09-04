@@ -18,6 +18,7 @@ import type {
   PostingRecord,
   PublicPostingRecord,
   UpsertPostingInput,
+  UpsertPostingPersistenceInput,
 } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -33,10 +34,32 @@ import { OrganizationAccessService } from "@/features/organizations/organization
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { testUuid } from "../../support/uuid";
+import type { Uuid } from "@/configuration/validation/uuid";
+const OWNER_BLOCK_1_ID = testUuid(9000, 630648);
+const HOLD_1_ID = testUuid(9500, 900);
+const CREATED_BLOCK_ID = testUuid(9200, 843316);
+const ORG_1_ID = testUuid(9200, 9234);
+const REVIEW_1_ID = testUuid(9200, 118005);
+const BLOCK_1_ID = testUuid(9000, 406415);
+const BOOKING_HOLD_1_ID = testUuid(9000, 727880);
+const OWNER_2_ID = testUuid(9000, 219202);
+const RENTER_1_ID = testUuid(9000, 235000);
+const MANAGER_1_ID = testUuid(9000, 836503);
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_123_ID = testUuid(9000, 361141);
+const POSTING_1_ID = testUuid(9000, 254272);
+const POSTING_SOURCE_ID = testUuid(9000, 905210);
+
+const GHOST_USER_ID = testUuid(9000, 883810);
+const MEMBERLESS_1_ID = testUuid(9000, 772440);
+const OPERATOR_1_ID = testUuid(9000, 402986);
+const ORG_2_ID = testUuid(9000, 9235);
+const ORG_9_ID = testUuid(9000, 9242);
 
 class FakePostingsRepository {
   createCalls = 0;
-  lastCreateInput: UpsertPostingInput | null = null;
+  lastCreateInput: UpsertPostingPersistenceInput | null = null;
   lastListInput: {
     organizationId: string;
     page: number;
@@ -57,7 +80,7 @@ class FakePostingsRepository {
   rentingConflict = false;
   posting = buildPostingRecord(createValidInput());
   ownerBlocks: PostingAvailabilityBlockRecord[] = [
-    buildAvailabilityBlockRecord("block-1", {
+    buildAvailabilityBlockRecord(BLOCK_1_ID, {
       startAt: "2026-05-01T00:00:00.000Z",
       endAt: "2026-05-03T00:00:00.000Z",
     }),
@@ -65,13 +88,16 @@ class FakePostingsRepository {
   blockLookup: PostingAvailabilityBlockRecord | null = this.ownerBlocks[0]!;
   deleteResult = true;
 
-  async create(input: UpsertPostingInput): Promise<PostingRecord> {
+  async create(input: UpsertPostingPersistenceInput): Promise<PostingRecord> {
     this.createCalls += 1;
     this.lastCreateInput = input;
     return buildPostingRecord(input);
   }
 
-  async update(id: string, input: UpsertPostingInput): Promise<PostingRecord> {
+  async update(
+    id: Uuid,
+    input: UpsertPostingPersistenceInput,
+  ): Promise<PostingRecord> {
     this.updateCalls += 1;
     return {
       ...buildPostingRecord(input),
@@ -79,7 +105,7 @@ class FakePostingsRepository {
     };
   }
 
-  async findById(id: string): Promise<PostingRecord> {
+  async findById(id: Uuid): Promise<PostingRecord> {
     this.findByIdCalls += 1;
 
     return {
@@ -88,7 +114,7 @@ class FakePostingsRepository {
     };
   }
 
-  async findPublicReadMetadataById(id: string): Promise<{
+  async findPublicReadMetadataById(id: Uuid): Promise<{
     id: string;
     organizationId: string;
     status: PostingRecord["status"];
@@ -112,7 +138,7 @@ class FakePostingsRepository {
     null;
 
   async findAvailabilityCalendarPosting(
-    id: string,
+    id: Uuid,
   ): Promise<AvailabilityCalendarPostingFields | null> {
     if (this.calendarPostingMissing) {
       return null;
@@ -165,7 +191,7 @@ class FakePostingsRepository {
     return this.calendarBookingRequests;
   }
 
-  async publish(id: string): Promise<PostingRecord> {
+  async publish(id: Uuid): Promise<PostingRecord> {
     this.publishCalls += 1;
     this.posting = {
       ...this.posting,
@@ -178,7 +204,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async pause(id: string): Promise<PostingRecord> {
+  async pause(id: Uuid): Promise<PostingRecord> {
     this.pauseCalls += 1;
     this.posting = {
       ...this.posting,
@@ -191,7 +217,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async unpause(id: string): Promise<PostingRecord> {
+  async unpause(id: Uuid): Promise<PostingRecord> {
     this.unpauseCalls += 1;
     this.posting = {
       ...this.posting,
@@ -203,7 +229,7 @@ class FakePostingsRepository {
     return this.posting;
   }
 
-  async archive(id: string): Promise<PostingRecord> {
+  async archive(id: Uuid): Promise<PostingRecord> {
     this.archiveCalls += 1;
     this.posting = {
       ...this.posting,
@@ -245,7 +271,7 @@ class FakePostingsRepository {
 
   lastCountOrganizationId: string | null = null;
 
-  async countByOwnerStatus(organizationId: string) {
+  async countByOwnerStatus(organizationId: Uuid) {
     this.lastCountOrganizationId = organizationId;
     return {
       total: 1,
@@ -262,12 +288,12 @@ class FakePostingsRepository {
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     this.createOwnerAvailabilityBlockCalls += 1;
-    return buildAvailabilityBlockRecord("created-block", input);
+    return buildAvailabilityBlockRecord(CREATED_BLOCK_ID, input);
   }
 
   async updateOwnerAvailabilityBlock(
     _postingId: string,
-    blockId: string,
+    blockId: Uuid,
     input: PostingAvailabilityBlockInput,
   ): Promise<PostingAvailabilityBlockRecord> {
     this.updateOwnerAvailabilityBlockCalls += 1;
@@ -282,7 +308,7 @@ class FakePostingsRepository {
   async hasOwnerAvailabilityBlockOverlap(input: {
     excludeBlockId?: string;
   }): Promise<boolean> {
-    if (input.excludeBlockId === "block-1") {
+    if (input.excludeBlockId === BLOCK_1_ID) {
       return false;
     }
 
@@ -323,8 +349,8 @@ class FakePostingsPublicCacheService {
   }
 
   async getPublicByIds(
-    ids: string[],
-  ): Promise<{ postings: PublicPostingRecord[]; missingIds: string[] }> {
+    ids: Uuid[],
+  ): Promise<{ postings: PublicPostingRecord[]; missingIds: Uuid[] }> {
     if (!this.posting) {
       return {
         postings: [],
@@ -332,7 +358,9 @@ class FakePostingsPublicCacheService {
       };
     }
 
-    const byId = new Map([[this.posting.id, this.posting]]);
+    const byId = new Map<Uuid, PublicPostingRecord>([
+      [this.posting.id, this.posting],
+    ]);
 
     return {
       postings: ids
@@ -342,7 +370,7 @@ class FakePostingsPublicCacheService {
     };
   }
 
-  async invalidatePublic(postingId: string): Promise<number> {
+  async invalidatePublic(postingId: Uuid): Promise<number> {
     this.invalidatedPostingIds.push(postingId);
     return this.invalidatedPostingIds.length;
   }
@@ -351,11 +379,11 @@ class FakePostingsPublicCacheService {
 class FakeAuthRepository {
   membershipsByUserId = new Map([
     [
-      "owner-1",
+      OWNER_1_ID,
       [
         {
           membershipId: "membership-1",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "primary_manager" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -364,11 +392,11 @@ class FakeAuthRepository {
       ],
     ],
     [
-      "manager-1",
+      MANAGER_1_ID,
       [
         {
           membershipId: "membership-2",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "manager" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -377,11 +405,11 @@ class FakeAuthRepository {
       ],
     ],
     [
-      "operator-1",
+      OPERATOR_1_ID,
       [
         {
           membershipId: "membership-3",
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           organizationName: "Org 1",
           role: "operator" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -390,11 +418,11 @@ class FakeAuthRepository {
       ],
     ],
     [
-      "owner-2",
+      OWNER_2_ID,
       [
         {
           membershipId: "membership-4",
-          organizationId: "org-2",
+          organizationId: ORG_2_ID,
           organizationName: "Org 2",
           role: "primary_manager" as const,
           createdAt: "2026-04-18T00:00:00.000Z",
@@ -404,13 +432,13 @@ class FakeAuthRepository {
     ],
   ]);
   preferredOrganizationIdByUserId = new Map<string, string>([
-    ["owner-1", "org-1"],
-    ["manager-1", "org-1"],
-    ["operator-1", "org-1"],
-    ["owner-2", "org-2"],
+    [OWNER_1_ID, ORG_1_ID],
+    [MANAGER_1_ID, ORG_1_ID],
+    [OPERATOR_1_ID, ORG_1_ID],
+    [OWNER_2_ID, ORG_2_ID],
   ]);
 
-  async findUserById(userId: string) {
+  async findUserById(userId: Uuid) {
     const organizationMemberships = this.membershipsByUserId.get(userId) ?? [];
 
     if (
@@ -551,9 +579,9 @@ function createServiceHarness(
   };
 }
 
-function createValidInput(): UpsertPostingInput {
+function createValidInput(): UpsertPostingPersistenceInput {
   return {
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     variant: {
       family: "place",
       subtype: "entire_place",
@@ -603,9 +631,11 @@ function createValidInput(): UpsertPostingInput {
   };
 }
 
-function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
+function buildPostingRecord(
+  input: UpsertPostingPersistenceInput,
+): PostingRecord {
   return {
-    id: "posting-1",
+    id: POSTING_1_ID,
     organizationId: input.organizationId,
     status: "draft",
     variant: input.variant,
@@ -614,7 +644,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
     pricing: input.pricing,
     pricingCurrency: input.pricing.currency,
     photos: input.photos.map((photo, index) => ({
-      id: `photo-${index + 1}`,
+      id: testUuid(9400, index + 1),
       blobUrl: photo.blobUrl,
       blobName: photo.blobName,
       thumbnailBlobUrl: photo.thumbnailBlobUrl,
@@ -630,7 +660,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
     maxBookingDurationDays: input.maxBookingDurationDays ?? undefined,
     effectiveMaxBookingDurationDays: input.maxBookingDurationDays ?? 30,
     availabilityBlocks: input.availabilityBlocks.map((block, index) => ({
-      id: `block-${index + 1}`,
+      id: testUuid(9500, index + 1),
       startAt: block.startAt,
       endAt: block.endAt,
       note: block.note ?? undefined,
@@ -649,7 +679,7 @@ function buildPostingRecord(input: UpsertPostingInput): PostingRecord {
 }
 
 function buildAvailabilityBlockRecord(
-  id: string,
+  id: Uuid,
   input: PostingAvailabilityBlockInput,
 ): PostingAvailabilityBlockRecord {
   return {
@@ -691,7 +721,7 @@ describe("PostingsService", () => {
     input.description = "<script>alert('boom')</script>";
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -711,7 +741,7 @@ describe("PostingsService", () => {
     input.availabilityBlocks[0]!.note = "javascript:alert('x')";
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -729,14 +759,14 @@ describe("PostingsService", () => {
     const service = createService(repository);
     const input = {
       ...createValidInput(),
-      organizationId: "org-2",
+      organizationId: ORG_2_ID,
     };
 
-    const created = await service.createDraft("manager-1", input);
+    const created = await service.createDraft(MANAGER_1_ID, input);
 
-    expect(created.organizationId).toBe("org-1");
+    expect(created.organizationId).toBe(ORG_1_ID);
     expect(repository.lastCreateInput).toMatchObject({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
     });
   });
 
@@ -746,7 +776,7 @@ describe("PostingsService", () => {
     const input = createValidInput();
 
     await expect(
-      service.createDraft("operator-1", input),
+      service.createDraft(OPERATOR_1_ID, input),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repository.createCalls).toBe(0);
   });
@@ -755,14 +785,14 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    await service.listByOwner("manager-1", {
+    await service.listByOwner(MANAGER_1_ID, {
       page: 1,
       pageSize: 20,
       status: "draft",
     });
 
     expect(repository.lastListInput).toEqual({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       status: "draft",
@@ -773,14 +803,14 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    await service.listByOwner("manager-1", {
+    await service.listByOwner(MANAGER_1_ID, {
       page: 1,
       pageSize: 20,
       q: "studio",
     });
 
     expect(repository.lastListInput).toEqual({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       q: "studio",
@@ -791,9 +821,9 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    const summary = await service.getOwnerStatusSummary("manager-1");
+    const summary = await service.getOwnerStatusSummary(MANAGER_1_ID);
 
-    expect(repository.lastCountOrganizationId).toBe("org-1");
+    expect(repository.lastCountOrganizationId).toBe(ORG_1_ID);
     expect(summary).toEqual({
       total: 1,
       byStatus: { draft: 1, published: 0, paused: 0, archived: 0 },
@@ -807,7 +837,7 @@ describe("PostingsService", () => {
     input.tags = ["safe", "' OR 1=1 --"];
 
     const error = await service
-      .update("posting-123", "owner-1", input)
+      .update(POSTING_123_ID, OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -828,14 +858,14 @@ describe("PostingsService", () => {
     const input = createValidInput();
     input.tags = ["  Loft  ", "loft", "Transit"];
 
-    const created = await service.createDraft("owner-1", input);
+    const created = await service.createDraft(OWNER_1_ID, input);
 
     expect(repository.createCalls).toBe(1);
     expect(
       postingThumbnailQueueService.enqueuePostingThumbnailJob,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
     expect(created.tags).toEqual(["loft", "transit"]);
   });
@@ -851,7 +881,7 @@ describe("PostingsService", () => {
       cancellationPolicyNotes: "50% refund within 48h.",
     };
 
-    await service.createDraft("owner-1", input);
+    await service.createDraft(OWNER_1_ID, input);
 
     expect(repository.lastCreateInput).toMatchObject({
       minBookingDurationDays: 3,
@@ -871,7 +901,7 @@ describe("PostingsService", () => {
     };
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -890,7 +920,7 @@ describe("PostingsService", () => {
       maxBookingDurationDays: 7,
     };
 
-    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    await expect(service.createDraft(OWNER_1_ID, input)).resolves.toBeDefined();
     expect(repository.createCalls).toBe(1);
   });
 
@@ -903,7 +933,7 @@ describe("PostingsService", () => {
       maxBookingDurationDays: null,
     };
 
-    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    await expect(service.createDraft(OWNER_1_ID, input)).resolves.toBeDefined();
     expect(repository.createCalls).toBe(1);
   });
 
@@ -916,7 +946,7 @@ describe("PostingsService", () => {
     };
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -932,7 +962,7 @@ describe("PostingsService", () => {
       advanceNoticeDays: 0,
     };
 
-    await expect(service.createDraft("owner-1", input)).resolves.toBeDefined();
+    await expect(service.createDraft(OWNER_1_ID, input)).resolves.toBeDefined();
     expect(repository.createCalls).toBe(1);
   });
 
@@ -940,7 +970,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-source",
+      id: POSTING_SOURCE_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
       photos: repository.posting.photos.map((photo) => ({
@@ -950,7 +980,7 @@ describe("PostingsService", () => {
           "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
       })),
       availabilityBlocks: [
-        buildAvailabilityBlockRecord("hold-1", {
+        buildAvailabilityBlockRecord(HOLD_1_ID, {
           startAt: "2026-06-10T00:00:00.000Z",
           endAt: "2026-06-12T00:00:00.000Z",
           note: "Temporary booking hold",
@@ -958,7 +988,7 @@ describe("PostingsService", () => {
       ],
     };
     repository.ownerBlocks = [
-      buildAvailabilityBlockRecord("owner-block-1", {
+      buildAvailabilityBlockRecord(OWNER_BLOCK_1_ID, {
         startAt: "2026-07-01T00:00:00.000Z",
         endAt: "2026-07-03T00:00:00.000Z",
         note: "Owner stay",
@@ -970,12 +1000,12 @@ describe("PostingsService", () => {
       postingsPublicCacheService,
     } = createServiceHarness(repository);
 
-    const duplicated = await service.duplicate("posting-source", "owner-1");
+    const duplicated = await service.duplicate(POSTING_SOURCE_ID, OWNER_1_ID);
 
     expect(repository.findByIdCalls).toBe(1);
     expect(repository.createCalls).toBe(1);
     expect(repository.lastCreateInput).toMatchObject({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       variant: repository.posting.variant,
       name: repository.posting.name,
       description: repository.posting.description,
@@ -1002,7 +1032,7 @@ describe("PostingsService", () => {
         note: block.note,
       })),
     });
-    expect(duplicated.id).toBe("posting-1");
+    expect(duplicated.id).toBe(POSTING_1_ID);
     expect(duplicated.status).toBe("draft");
     expect(duplicated.publishedAt).toBeUndefined();
     expect(duplicated.photos).toHaveLength(repository.posting.photos.length);
@@ -1025,12 +1055,12 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      organizationId: "org-2",
+      organizationId: ORG_2_ID,
     };
     const service = createService(repository);
 
     await expect(
-      service.duplicate("posting-1", "owner-1"),
+      service.duplicate(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(ForbiddenError);
     expect(repository.createCalls).toBe(0);
   });
@@ -1039,21 +1069,21 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const { service, postingsPublicCacheService } =
       createServiceHarness(repository);
 
-    const paused = await service.pause("posting-1", "owner-1");
+    const paused = await service.pause(POSTING_1_ID, OWNER_1_ID);
 
     expect(paused.status).toBe("paused");
     expect(paused.publishedAt).toBe("2026-04-21T00:00:00.000Z");
     expect(paused.pausedAt).toBeDefined();
     expect(repository.pauseCalls).toBe(1);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1061,7 +1091,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "paused",
       publishedAt: "2026-04-21T00:00:00.000Z",
       pausedAt: "2026-04-23T00:00:00.000Z",
@@ -1072,7 +1102,7 @@ describe("PostingsService", () => {
       postingsPublicCacheService,
     } = createServiceHarness(repository);
 
-    const unpaused = await service.unpause("posting-1", "owner-1");
+    const unpaused = await service.unpause(POSTING_1_ID, OWNER_1_ID);
 
     expect(unpaused.status).toBe("published");
     expect(unpaused.publishedAt).toBe("2026-04-21T00:00:00.000Z");
@@ -1080,9 +1110,9 @@ describe("PostingsService", () => {
     expect(repository.unpauseCalls).toBe(1);
     expect(
       postingThumbnailQueueService.enqueuePostingThumbnailJob,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1090,7 +1120,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "draft",
     };
     const {
@@ -1099,15 +1129,15 @@ describe("PostingsService", () => {
       postingsPublicCacheService,
     } = createServiceHarness(repository);
 
-    const published = await service.publish("posting-1", "owner-1");
+    const published = await service.publish(POSTING_1_ID, OWNER_1_ID);
 
     expect(published.status).toBe("published");
     expect(repository.publishCalls).toBe(1);
     expect(
       postingThumbnailQueueService.enqueuePostingThumbnailJob,
-    ).toHaveBeenCalledWith("posting-1");
+    ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1120,23 +1150,23 @@ describe("PostingsService", () => {
       status: "paused",
     };
     await expect(
-      service.publish("posting-1", "owner-1"),
+      service.publish(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     repository.posting = {
       ...repository.posting,
       status: "draft",
     };
-    await expect(service.pause("posting-1", "owner-1")).rejects.toBeInstanceOf(
-      BadRequestError,
-    );
+    await expect(
+      service.pause(POSTING_1_ID, OWNER_1_ID),
+    ).rejects.toBeInstanceOf(BadRequestError);
 
     repository.posting = {
       ...repository.posting,
       status: "published",
     };
     await expect(
-      service.unpause("posting-1", "owner-1"),
+      service.unpause(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 
@@ -1144,7 +1174,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "paused",
       publishedAt: "2026-04-21T00:00:00.000Z",
       pausedAt: "2026-04-23T00:00:00.000Z",
@@ -1152,10 +1182,10 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     await expect(
-      service.getById("posting-1", "renter-1"),
+      service.getById(POSTING_1_ID, RENTER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
 
-    const ownerView = await service.getById("posting-1", "owner-1");
+    const ownerView = await service.getById(POSTING_1_ID, OWNER_1_ID);
     expect(ownerView.status).toBe("paused");
   });
 
@@ -1163,14 +1193,14 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "draft",
     };
     const { service, postingsPublicCacheService } =
       createServiceHarness(repository);
     postingsPublicCacheService.posting = null;
 
-    const posting = await service.getById("posting-1", "owner-1");
+    const posting = await service.getById(POSTING_1_ID, OWNER_1_ID);
 
     expect(posting.status).toBe("draft");
     expect(repository.findByIdCalls).toBe(1);
@@ -1180,7 +1210,7 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
@@ -1191,10 +1221,10 @@ describe("PostingsService", () => {
       name: "Cached name",
     };
 
-    const posting = await service.getById("posting-1");
+    const posting = await service.getById(POSTING_1_ID);
 
     expect(posting).toMatchObject({
-      id: "posting-1",
+      id: POSTING_1_ID,
       name: "Cached name",
     });
     expect(repository.findByIdCalls).toBe(0);
@@ -1204,12 +1234,12 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const postingsReviewsRepository = new FakePostingsReviewsRepository();
-    postingsReviewsRepository.ownReview = { id: "review-1" };
+    postingsReviewsRepository.ownReview = { id: REVIEW_1_ID };
     const rentingsRepository = new FakeRentingsRepository();
     rentingsRepository.eligibleReviewRenting = true;
     const service = createService(
@@ -1218,7 +1248,7 @@ describe("PostingsService", () => {
       rentingsRepository,
     );
 
-    const posting = await service.getById("posting-1", "renter-1");
+    const posting = await service.getById(POSTING_1_ID, RENTER_1_ID);
 
     expect("viewerReviewState" in posting).toBe(true);
     expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual(
@@ -1233,13 +1263,13 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const service = createService(repository);
 
-    const posting = await service.getById("posting-1");
+    const posting = await service.getById(POSTING_1_ID);
 
     expect("viewerReviewState" in posting).toBe(false);
   });
@@ -1248,13 +1278,13 @@ describe("PostingsService", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "published",
       publishedAt: "2026-04-21T00:00:00.000Z",
     };
     const service = createService(repository);
 
-    const posting = await service.getById("posting-1", "renter-1");
+    const posting = await service.getById(POSTING_1_ID, RENTER_1_ID);
 
     expect("viewerReviewState" in posting && posting.viewerReviewState).toEqual(
       {
@@ -1274,7 +1304,7 @@ describe("PostingsService", () => {
     };
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -1290,7 +1320,7 @@ describe("PostingsService", () => {
     (input.details as Record<string, unknown>).guest_capacity = "four";
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -1308,7 +1338,7 @@ describe("PostingsService", () => {
     });
 
     const error = await service
-      .createDraft("owner-1", input)
+      .createDraft(OWNER_1_ID, input)
       .catch((caughtError: unknown) => caughtError);
 
     expect(error).toBeInstanceOf(BadRequestError);
@@ -1328,7 +1358,7 @@ describe("PostingsService", () => {
       ownerNote: "  Bring ID  ",
     };
 
-    const created = await service.createDraft("owner-1", input);
+    const created = await service.createDraft(OWNER_1_ID, input);
 
     expect(created.details).toEqual({
       guest_capacity: 4,
@@ -1396,8 +1426,8 @@ describe("PostingsService", () => {
     const searchPublic = jest.fn(async () => createEmptySearchResponse());
     const findOrganizationNameMatches = jest.fn(async () => ({
       matches: [
-        { id: "org-1", name: "Maya Santos Organization", slug: "maya-santos" },
-        { id: "org-2", name: "Maya Santos Rentals", slug: "maya-santos-2" },
+        { id: ORG_1_ID, name: "Maya Santos Organization", slug: "maya-santos" },
+        { id: ORG_2_ID, name: "Maya Santos Rentals", slug: "maya-santos-2" },
       ],
       truncated: true,
     }));
@@ -1422,7 +1452,7 @@ describe("PostingsService", () => {
     expect(findOrganizationNameMatches).toHaveBeenCalledWith("Maya Santos", 25);
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationIds: ["org-1", "org-2"],
+        organizationIds: [ORG_1_ID, ORG_2_ID],
         organizationFilter: expect.objectContaining({
           query: "Maya Santos",
           truncated: true,
@@ -1439,7 +1469,7 @@ describe("PostingsService", () => {
       truncated: false,
     }));
     const findOrganizationSummariesByIds = jest.fn(async () => [
-      { id: "org-9", name: "Elliot Chen Organization", slug: "elliot-chen" },
+      { id: ORG_9_ID, name: "Elliot Chen Organization", slug: "elliot-chen" },
     ]);
     const organizationsRepository = createOrganizationsRepositoryStub({
       findOrganizationNameMatches,
@@ -1458,14 +1488,14 @@ describe("PostingsService", () => {
       pageSize: 10,
       sort: "relevance",
       organizationQuery: "Maya Santos",
-      organizationId: "org-9",
+      organizationId: ORG_9_ID,
     });
 
-    expect(findOrganizationSummariesByIds).toHaveBeenCalledWith(["org-9"]);
+    expect(findOrganizationSummariesByIds).toHaveBeenCalledWith([ORG_9_ID]);
     expect(findOrganizationNameMatches).not.toHaveBeenCalled();
     expect(searchPublic).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationIds: ["org-9"],
+        organizationIds: [ORG_9_ID],
       }),
     );
   });
@@ -1691,8 +1721,8 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     const result = await service.listOwnerAvailabilityBlocks(
-      "posting-1",
-      "owner-1",
+      POSTING_1_ID,
+      OWNER_1_ID,
     );
 
     expect(result.availabilityBlocks).toEqual(repository.ownerBlocks);
@@ -1705,8 +1735,8 @@ describe("PostingsService", () => {
       createServiceHarness(repository);
 
     const created = await service.createOwnerAvailabilityBlock(
-      "posting-1",
-      "owner-1",
+      POSTING_1_ID,
+      OWNER_1_ID,
       {
         startAt: "2026-06-01T00:00:00.000Z",
         endAt: "2026-06-03T00:00:00.000Z",
@@ -1715,12 +1745,12 @@ describe("PostingsService", () => {
     );
 
     expect(created).toMatchObject({
-      id: "created-block",
+      id: CREATED_BLOCK_ID,
       note: "maintenance",
     });
     expect(repository.createOwnerAvailabilityBlockCalls).toBe(1);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1730,7 +1760,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     const error = await service
-      .createOwnerAvailabilityBlock("posting-1", "owner-1", {
+      .createOwnerAvailabilityBlock(POSTING_1_ID, OWNER_1_ID, {
         startAt: "2026-05-02T00:00:00.000Z",
         endAt: "2026-05-04T00:00:00.000Z",
       })
@@ -1746,7 +1776,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     const error = await service
-      .createOwnerAvailabilityBlock("posting-1", "owner-1", {
+      .createOwnerAvailabilityBlock(POSTING_1_ID, OWNER_1_ID, {
         startAt: "2026-06-01T00:00:00.000Z",
         endAt: "2026-06-03T00:00:00.000Z",
       })
@@ -1762,7 +1792,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     const error = await service
-      .createOwnerAvailabilityBlock("posting-1", "owner-1", {
+      .createOwnerAvailabilityBlock(POSTING_1_ID, OWNER_1_ID, {
         startAt: "2026-06-01T00:00:00.000Z",
         endAt: "2026-06-03T00:00:00.000Z",
       })
@@ -1779,19 +1809,19 @@ describe("PostingsService", () => {
       createServiceHarness(repository);
 
     const updated = await service.updateOwnerAvailabilityBlock(
-      "posting-1",
-      "owner-1",
-      "block-1",
+      POSTING_1_ID,
+      OWNER_1_ID,
+      BLOCK_1_ID,
       {
         startAt: "2026-05-01T00:00:00.000Z",
         endAt: "2026-05-04T00:00:00.000Z",
       },
     );
 
-    expect(updated.id).toBe("block-1");
+    expect(updated.id).toBe(BLOCK_1_ID);
     expect(repository.updateOwnerAvailabilityBlockCalls).toBe(1);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1803,9 +1833,9 @@ describe("PostingsService", () => {
 
     await expect(
       service.updateOwnerAvailabilityBlock(
-        "posting-1",
-        "owner-1",
-        "booking-hold-1",
+        POSTING_1_ID,
+        OWNER_1_ID,
+        BOOKING_HOLD_1_ID,
         {
           startAt: "2026-05-01T00:00:00.000Z",
           endAt: "2026-05-04T00:00:00.000Z",
@@ -1815,9 +1845,9 @@ describe("PostingsService", () => {
 
     await expect(
       service.deleteOwnerAvailabilityBlock(
-        "posting-1",
-        "owner-1",
-        "booking-hold-1",
+        POSTING_1_ID,
+        OWNER_1_ID,
+        BOOKING_HOLD_1_ID,
       ),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -1864,7 +1894,7 @@ describe("PostingsService", () => {
     );
 
     await expect(
-      service.createOwnerAvailabilityBlock("posting-1", "owner-1", {
+      service.createOwnerAvailabilityBlock(POSTING_1_ID, OWNER_1_ID, {
         startAt: "2026-06-01T00:00:00.000Z",
         endAt: "2026-06-03T00:00:00.000Z",
       }),
@@ -1876,12 +1906,12 @@ describe("PostingsService", () => {
     const { service, postingsPublicCacheService } =
       createServiceHarness(repository);
 
-    const archived = await service.archive("posting-1", "owner-1");
+    const archived = await service.archive(POSTING_1_ID, OWNER_1_ID);
 
     expect(archived.status).toBe("archived");
     expect(repository.archiveCalls).toBe(1);
     expect(postingsPublicCacheService.invalidatedPostingIds).toEqual([
-      "posting-1",
+      POSTING_1_ID,
     ]);
   });
 
@@ -1891,7 +1921,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     await expect(
-      service.archive("posting-1", "owner-1"),
+      service.archive(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -1906,15 +1936,15 @@ describe("PostingsService", () => {
     }));
     const service = createService(repository);
 
-    const result = await service.batchByOwner("owner-1", [
-      " posting-1 ",
-      "posting-1",
+    const result = await service.batchByOwner(OWNER_1_ID, [
+      ` ${POSTING_1_ID} `,
+      POSTING_1_ID,
       "posting-3",
     ]);
 
     expect(repository.batchFindByOwner).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      ids: ["posting-1", "posting-3"],
+      organizationId: ORG_1_ID,
+      ids: [POSTING_1_ID, "posting-3"],
     });
     expect(result.missingIds).toEqual(["posting-3"]);
   });
@@ -1929,13 +1959,13 @@ describe("PostingsService", () => {
     const { service } = createServiceHarness(repository);
 
     const result = await service.batchPublic([
-      " posting-1 ",
-      "posting-1",
+      ` ${POSTING_1_ID} `,
+      POSTING_1_ID,
       "posting-missing",
     ]);
 
     expect(result.postings).toHaveLength(1);
-    expect(result.postings[0]?.id).toBe("posting-1");
+    expect(result.postings[0]?.id).toBe(POSTING_1_ID);
     expect(result.missingIds).toEqual(["posting-missing"]);
   });
 
@@ -1951,11 +1981,14 @@ describe("PostingsService", () => {
   it("requires an active membership when listing owner postings", async () => {
     const repository = new FakePostingsRepository();
     const { service, authRepository } = createServiceHarness(repository);
-    authRepository.membershipsByUserId.set("memberless-1", []);
-    authRepository.preferredOrganizationIdByUserId.set("memberless-1", "org-1");
+    authRepository.membershipsByUserId.set(MEMBERLESS_1_ID, []);
+    authRepository.preferredOrganizationIdByUserId.set(
+      MEMBERLESS_1_ID,
+      ORG_1_ID,
+    );
 
     await expect(
-      service.listByOwner("memberless-1", {
+      service.listByOwner(MEMBERLESS_1_ID, {
         page: 1,
         pageSize: 10,
       }),
@@ -1965,11 +1998,11 @@ describe("PostingsService", () => {
   it("rejects owner reads when the user record cannot be found", async () => {
     const repository = new FakePostingsRepository();
     const { service, authRepository } = createServiceHarness(repository);
-    authRepository.membershipsByUserId.delete("ghost-user");
-    authRepository.preferredOrganizationIdByUserId.delete("ghost-user");
+    authRepository.membershipsByUserId.delete(GHOST_USER_ID);
+    authRepository.preferredOrganizationIdByUserId.delete(GHOST_USER_ID);
 
     await expect(
-      service.listByOwner("ghost-user", {
+      service.listByOwner(GHOST_USER_ID, {
         page: 1,
         pageSize: 10,
       }),
@@ -1982,7 +2015,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     await expect(
-      service.getById("posting-1", "owner-1"),
+      service.getById(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -1992,7 +2025,7 @@ describe("PostingsService", () => {
     const service = createService(repository);
 
     await expect(
-      service.getById("posting-1", "owner-1"),
+      service.getById(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -2002,7 +2035,7 @@ describe("PostingsService", () => {
       createServiceHarness(repository);
     postingsPublicCacheService.posting = null;
 
-    await expect(service.getById("posting-1")).rejects.toBeInstanceOf(
+    await expect(service.getById(POSTING_1_ID)).rejects.toBeInstanceOf(
       ResourceNotFoundError,
     );
   });
@@ -2056,9 +2089,9 @@ describe("PostingsService", () => {
     );
 
     await expect(
-      service.createDraft("owner-1", createValidInput()),
+      service.createDraft(OWNER_1_ID, createValidInput()),
     ).resolves.toMatchObject({
-      id: "posting-1",
+      id: POSTING_1_ID,
     });
     expect(repository.createCalls).toBe(1);
   });
@@ -2197,7 +2230,7 @@ describe("PostingsService", () => {
     const updateService = createService(updateRepository);
 
     await expect(
-      updateService.update("posting-1", "owner-1", createValidInput()),
+      updateService.update(POSTING_1_ID, OWNER_1_ID, createValidInput()),
     ).rejects.toThrow("Posting could not be found.");
 
     const blockRepository = new FakePostingsRepository();
@@ -2208,9 +2241,9 @@ describe("PostingsService", () => {
 
     await expect(
       blockService.updateOwnerAvailabilityBlock(
-        "posting-1",
-        "owner-1",
-        "block-1",
+        POSTING_1_ID,
+        OWNER_1_ID,
+        BLOCK_1_ID,
         {
           startAt: "2026-05-04T00:00:00.000Z",
           endAt: "2026-05-05T00:00:00.000Z",
@@ -2226,9 +2259,9 @@ describe("PostingsService", () => {
 
     await expect(
       deleteService.deleteOwnerAvailabilityBlock(
-        "posting-1",
-        "owner-1",
-        "block-1",
+        POSTING_1_ID,
+        OWNER_1_ID,
+        BLOCK_1_ID,
       ),
     ).rejects.toThrow("Availability block could not be found.");
 
@@ -2237,7 +2270,7 @@ describe("PostingsService", () => {
     const publishService = createService(publishRepository);
 
     await expect(
-      publishService.publish("posting-1", "owner-1"),
+      publishService.publish(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toThrow("Posting could not be found.");
 
     const pauseRepository = new FakePostingsRepository();
@@ -2249,7 +2282,7 @@ describe("PostingsService", () => {
     pauseRepository.pause = jest.fn(async () => null) as any;
     const pauseService = createService(pauseRepository);
 
-    await expect(pauseService.pause("posting-1", "owner-1")).rejects.toThrow(
+    await expect(pauseService.pause(POSTING_1_ID, OWNER_1_ID)).rejects.toThrow(
       "Posting could not be found.",
     );
 
@@ -2264,7 +2297,7 @@ describe("PostingsService", () => {
     const unpauseService = createService(unpauseRepository);
 
     await expect(
-      unpauseService.unpause("posting-1", "owner-1"),
+      unpauseService.unpause(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toThrow("Posting could not be found.");
   });
 
@@ -2277,7 +2310,7 @@ describe("PostingsService", () => {
       assertManagedBlob: (blobUrl: string, blobName: string) => void;
       assertCanPublish: (posting: PostingRecord) => void;
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
-      normalizeBatchIds: (ids: string[]) => string[];
+      normalizeBatchIds: (ids: Uuid[]) => string[];
     };
 
     expect(() => service.normalizePhotos([])).toThrow(
@@ -2451,9 +2484,8 @@ describe("PostingsService", () => {
     );
     expect(() =>
       service.normalizeBatchIds(
-        Array.from(
-          { length: MAX_BATCH_IDS + 1 },
-          (_, index) => `posting-${index}`,
+        Array.from({ length: MAX_BATCH_IDS + 1 }, (_, index) =>
+          testUuid(9700, index),
         ),
       ),
     ).toThrow("At most");
@@ -2860,7 +2892,7 @@ describe("PostingsService availability calendar", () => {
     const repository = createPublishedRepository();
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -2888,7 +2920,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -2916,9 +2948,9 @@ describe("PostingsService availability calendar", () => {
     const service = createService(repository);
 
     const calendar = await service.getAvailabilityCalendar(
-      "posting-1",
+      POSTING_1_ID,
       { year: 2099, month: 7 },
-      "owner-1",
+      OWNER_1_ID,
     );
 
     expect(calendar["2099-07-05"]).toEqual({
@@ -2938,7 +2970,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -2959,7 +2991,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -2985,7 +3017,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3008,7 +3040,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3030,7 +3062,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3058,7 +3090,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3074,7 +3106,7 @@ describe("PostingsService availability calendar", () => {
     };
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3102,7 +3134,7 @@ describe("PostingsService availability calendar", () => {
       };
       const service = createService(repository);
 
-      const calendar = await service.getAvailabilityCalendar("posting-1", {
+      const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
         year: 2099,
         month: 7,
       });
@@ -3126,7 +3158,7 @@ describe("PostingsService availability calendar", () => {
       // the past cutoff is the only thing keeping elapsed days off the calendar.
       const service = createService(repository);
 
-      const calendar = await service.getAvailabilityCalendar("posting-1", {
+      const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
         year: 2099,
         month: 7,
       });
@@ -3161,7 +3193,7 @@ describe("PostingsService availability calendar", () => {
       ];
       const service = createService(repository);
 
-      const calendar = await service.getAvailabilityCalendar("posting-1", {
+      const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
         year: 2099,
         month: 7,
       });
@@ -3194,7 +3226,7 @@ describe("PostingsService availability calendar", () => {
       };
       const service = createService(repository);
 
-      const calendar = await service.getAvailabilityCalendar("posting-1", {
+      const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
         year: 2099,
         month: 7,
         tz: "America/Toronto",
@@ -3228,7 +3260,7 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const calendar = await service.getAvailabilityCalendar("posting-1", {
+    const calendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
@@ -3260,18 +3292,21 @@ describe("PostingsService availability calendar", () => {
     ];
     const service = createService(repository);
 
-    const utcCalendar = await service.getAvailabilityCalendar("posting-1", {
+    const utcCalendar = await service.getAvailabilityCalendar(POSTING_1_ID, {
       year: 2099,
       month: 7,
     });
     // The renting falls on July 1 in UTC.
     expect(utcCalendar["2099-07-01"].status).toBe("booked");
 
-    const torontoCalendar = await service.getAvailabilityCalendar("posting-1", {
-      year: 2099,
-      month: 7,
-      tz: "America/Toronto",
-    });
+    const torontoCalendar = await service.getAvailabilityCalendar(
+      POSTING_1_ID,
+      {
+        year: 2099,
+        month: 7,
+        tz: "America/Toronto",
+      },
+    );
     // In America/Toronto the same instant is late on June 30, so July 1 is free.
     expect(torontoCalendar["2099-07-01"].status).toBe("available");
   });
@@ -3281,7 +3316,7 @@ describe("PostingsService availability calendar", () => {
     const service = createService(repository);
 
     await expect(
-      service.getAvailabilityCalendar("posting-1", {
+      service.getAvailabilityCalendar(POSTING_1_ID, {
         year: 2099,
         month: 7,
         tz: "Not/AZone",
@@ -3295,7 +3330,7 @@ describe("PostingsService availability calendar", () => {
     const service = createService(repository);
 
     await expect(
-      service.getAvailabilityCalendar("posting-1", { year: 2099, month: 7 }),
+      service.getAvailabilityCalendar(POSTING_1_ID, { year: 2099, month: 7 }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -3304,7 +3339,7 @@ describe("PostingsService availability calendar", () => {
     const service = createService(repository);
 
     await expect(
-      service.getAvailabilityCalendar("posting-1", { year: 2099, month: 7 }),
+      service.getAvailabilityCalendar(POSTING_1_ID, { year: 2099, month: 7 }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -3314,9 +3349,9 @@ describe("PostingsService availability calendar", () => {
 
     await expect(
       service.getAvailabilityCalendar(
-        "posting-1",
+        POSTING_1_ID,
         { year: 2099, month: 7 },
-        "owner-2",
+        OWNER_2_ID,
       ),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -3326,9 +3361,9 @@ describe("PostingsService availability calendar", () => {
     const service = createService(repository);
 
     const calendar = await service.getAvailabilityCalendar(
-      "posting-1",
+      POSTING_1_ID,
       { year: 2099, month: 7 },
-      "owner-1",
+      OWNER_1_ID,
     );
 
     expect(Object.keys(calendar)).toHaveLength(31);
@@ -3364,7 +3399,7 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    await service.createDraft("owner-1", {
+    await service.createDraft(OWNER_1_ID, {
       ...createValidInput(),
       expiresAt: FUTURE,
     });
@@ -3376,7 +3411,7 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     const service = createService(repository);
 
-    await service.createDraft("owner-1", createValidInput());
+    await service.createDraft(OWNER_1_ID, createValidInput());
 
     expect(repository.createCalls).toBe(1);
   });
@@ -3386,7 +3421,7 @@ describe("PostingsService posting expiry", () => {
     const service = createService(repository);
 
     await expect(
-      service.createDraft("owner-1", {
+      service.createDraft(OWNER_1_ID, {
         ...createValidInput(),
         expiresAt: PAST,
       }),
@@ -3402,7 +3437,7 @@ describe("PostingsService posting expiry", () => {
     ).toISOString();
 
     await expect(
-      service.createDraft("owner-1", {
+      service.createDraft(OWNER_1_ID, {
         ...createValidInput(),
         expiresAt: farFuture,
       }),
@@ -3414,7 +3449,7 @@ describe("PostingsService posting expiry", () => {
     const service = createService(repository);
 
     await expect(
-      service.createDraft("owner-1", {
+      service.createDraft(OWNER_1_ID, {
         ...createValidInput(),
         expiresAt: "not-a-date",
       }),
@@ -3425,14 +3460,14 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "draft",
       expiresAt: PAST,
     };
     const service = createService(repository);
 
     await expect(
-      service.publish("posting-1", "owner-1"),
+      service.publish(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(BadRequestError);
     expect(repository.publishCalls).toBe(0);
   });
@@ -3441,13 +3476,13 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "draft",
       expiresAt: FUTURE,
     };
     const service = createService(repository);
 
-    const published = await service.publish("posting-1", "owner-1");
+    const published = await service.publish(POSTING_1_ID, OWNER_1_ID);
 
     expect(published.status).toBe("published");
   });
@@ -3456,7 +3491,7 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "paused",
       expiresAt: PAST,
     };
@@ -3464,7 +3499,7 @@ describe("PostingsService posting expiry", () => {
 
     // Allowing this would let the sweeper re-pause it within one poll.
     await expect(
-      service.unpause("posting-1", "owner-1"),
+      service.unpause(POSTING_1_ID, OWNER_1_ID),
     ).rejects.toBeInstanceOf(BadRequestError);
     expect(repository.unpauseCalls).toBe(0);
   });
@@ -3473,13 +3508,13 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "paused",
       expiresAt: FUTURE,
     };
     const service = createService(repository);
 
-    const unpaused = await service.unpause("posting-1", "owner-1");
+    const unpaused = await service.unpause(POSTING_1_ID, OWNER_1_ID);
 
     expect(unpaused.status).toBe("published");
   });
@@ -3488,14 +3523,14 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       status: "paused",
       expiresAt: undefined,
     };
     const service = createService(repository);
 
     await expect(
-      service.unpause("posting-1", "owner-1"),
+      service.unpause(POSTING_1_ID, OWNER_1_ID),
     ).resolves.toMatchObject({
       status: "published",
     });
@@ -3507,7 +3542,7 @@ describe("PostingsService posting expiry", () => {
     const midday = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
     midday.setUTCHours(12, 30, 0, 0);
 
-    await service.createDraft("owner-1", {
+    await service.createDraft(OWNER_1_ID, {
       ...createValidInput(),
       expiresAt: midday.toISOString(),
     });
@@ -3536,7 +3571,7 @@ describe("PostingsService posting expiry", () => {
 
     // Normalizing before the future check is deliberate: the client means
     // "expire at the end of this day", which is still ahead.
-    await service.createDraft("owner-1", {
+    await service.createDraft(OWNER_1_ID, {
       ...createValidInput(),
       expiresAt: earlierToday.toISOString(),
     });
@@ -3550,7 +3585,7 @@ describe("PostingsService posting expiry", () => {
     const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     await expect(
-      service.createDraft("owner-1", {
+      service.createDraft(OWNER_1_ID, {
         ...createValidInput(),
         expiresAt: lastWeek.toISOString(),
       }),
@@ -3561,12 +3596,12 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       expiresAt: PAST,
     };
     const service = createService(repository);
 
-    await service.duplicate("posting-1", "owner-1");
+    await service.duplicate(POSTING_1_ID, OWNER_1_ID);
 
     // A past date would otherwise make the fresh draft unpublishable on arrival.
     expect(repository.lastCreateInput?.expiresAt).toBeNull();
@@ -3576,12 +3611,12 @@ describe("PostingsService posting expiry", () => {
     const repository = new FakePostingsRepository();
     repository.posting = {
       ...repository.posting,
-      id: "posting-1",
+      id: POSTING_1_ID,
       instantBooking: true,
     };
     const service = createService(repository);
 
-    await service.duplicate("posting-1", "owner-1");
+    await service.duplicate(POSTING_1_ID, OWNER_1_ID);
 
     expect(repository.lastCreateInput?.instantBooking).toBe(true);
   });

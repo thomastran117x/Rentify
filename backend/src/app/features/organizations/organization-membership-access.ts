@@ -5,6 +5,7 @@ import type {
   OrganizationsMembersRepository,
 } from "@/features/organizations/members/members.repository";
 import type { OrganizationRole } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 /**
  * Loads the full membership+organization record backing a management action
@@ -14,8 +15,8 @@ import type { OrganizationRole } from "@/features/organizations/organizations.mo
  */
 export async function requireOrganizationMembershipAccess(
   organizationsMembersRepository: OrganizationsMembersRepository,
-  userId: string,
-  organizationId: string,
+  userId: Uuid,
+  organizationId: Uuid,
 ): Promise<OrganizationMembershipAccessRecord> {
   const membership = await organizationsMembersRepository.findMembershipAccess(
     userId,

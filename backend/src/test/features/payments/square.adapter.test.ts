@@ -19,6 +19,16 @@ jest.mock("@/features/payments/payments.utils", () => {
 });
 
 import { SquarePaymentAdapter } from "@/features/payments/square.adapter";
+import { testUuid } from "../../support/uuid";
+
+const BOOKING_1_ID = testUuid(9000, 996753);
+const BOOKING_INVALID_JSON_502_ID = testUuid(9000, 956718);
+const BOOKING_INVALID_JSON_ID = testUuid(9000, 214540);
+const BOOKING_NETWORK_ID = testUuid(9000, 400774);
+const PAYMENT_1_ID = testUuid(9000, 132102);
+const PAYMENT_INVALID_JSON_502_ID = testUuid(9000, 256570);
+const PAYMENT_INVALID_JSON_ID = testUuid(9000, 168514);
+const PAYMENT_NETWORK_ID = testUuid(9000, 422596);
 
 function createFetchResponse(options: {
   ok: boolean;
@@ -86,8 +96,8 @@ describe("SquarePaymentAdapter", () => {
       idempotencyKey: "idem-1",
       amount: 123.45,
       currency: "CAD",
-      bookingRequestId: "booking-1",
-      paymentId: "payment-1",
+      bookingRequestId: BOOKING_1_ID,
+      paymentId: PAYMENT_1_ID,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -107,7 +117,7 @@ describe("SquarePaymentAdapter", () => {
       idempotency_key: "idem-1",
       order: {
         location_id: "square-location-1",
-        reference_id: "booking-1",
+        reference_id: BOOKING_1_ID,
         line_items: [
           {
             quantity: "1",
@@ -119,7 +129,7 @@ describe("SquarePaymentAdapter", () => {
         ],
       },
       checkout_options: {
-        redirect_url: "http://localhost:3040/payments/payment-1/return",
+        redirect_url: `http://localhost:3040/payments/${PAYMENT_1_ID}/return`,
       },
     });
     expect(result).toEqual({
@@ -395,8 +405,8 @@ describe("SquarePaymentAdapter", () => {
         idempotencyKey: "idem-1",
         amount: 10,
         currency: "CAD",
-        bookingRequestId: "booking-1",
-        paymentId: "payment-1",
+        bookingRequestId: BOOKING_1_ID,
+        paymentId: PAYMENT_1_ID,
       }),
     ).rejects.toThrow("Square rejected the checkout request.");
   });
@@ -415,8 +425,8 @@ describe("SquarePaymentAdapter", () => {
         idempotencyKey: "idem-network",
         amount: 10,
         currency: "CAD",
-        bookingRequestId: "booking-network",
-        paymentId: "payment-network",
+        bookingRequestId: BOOKING_NETWORK_ID,
+        paymentId: PAYMENT_NETWORK_ID,
       });
     } catch (error) {
       thrown = error;
@@ -448,8 +458,8 @@ describe("SquarePaymentAdapter", () => {
         idempotencyKey: "idem-invalid-json",
         amount: 10,
         currency: "CAD",
-        bookingRequestId: "booking-invalid-json",
-        paymentId: "payment-invalid-json",
+        bookingRequestId: BOOKING_INVALID_JSON_ID,
+        paymentId: PAYMENT_INVALID_JSON_ID,
       });
     } catch (error) {
       thrown = error;
@@ -481,8 +491,8 @@ describe("SquarePaymentAdapter", () => {
         idempotencyKey: "idem-invalid-json-502",
         amount: 10,
         currency: "CAD",
-        bookingRequestId: "booking-invalid-json-502",
-        paymentId: "payment-invalid-json-502",
+        bookingRequestId: BOOKING_INVALID_JSON_502_ID,
+        paymentId: PAYMENT_INVALID_JSON_502_ID,
       });
     } catch (error) {
       thrown = error;

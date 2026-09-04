@@ -6,6 +6,9 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { UserMfaTotp } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { TotpService } from "@/features/auth/mfa/totp/totp.service";
+import { testUuid } from "../../../support/uuid";
+
+const USER_ID_ID = testUuid(9000, 824313);
 
 const TEST_ENCRYPTION_KEY = randomBytes(32);
 const TEST_PLAIN_SECRET = "TESTSECRET";
@@ -28,7 +31,7 @@ const EXISTING_UPDATED_AT = new Date("2024-01-01T00:00:00Z");
 function makeRecord(overrides: Partial<UserMfaTotp> = {}): UserMfaTotp {
   return {
     id: "record-id",
-    userId: "user-id",
+    userId: USER_ID_ID,
     secretEncrypted: ENCRYPTED_TEST_SECRET,
     status: "pending",
     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
@@ -102,7 +105,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
       const result = await service.beginEnrollment(
-        "user-id",
+        USER_ID_ID,
         "user@example.com",
       );
 
@@ -110,7 +113,7 @@ describe("MfaTotpService", () => {
         "user@example.com",
       );
       expect(mfaTotpRepository.createPending).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "user-id" }),
+        expect.objectContaining({ userId: USER_ID_ID }),
       );
       expect(result).toEqual({
         secret: TEST_PLAIN_SECRET,
@@ -122,7 +125,7 @@ describe("MfaTotpService", () => {
       const { service, mfaTotpRepository } = createMocks();
       const before = Date.now();
 
-      await service.beginEnrollment("user-id", "user@example.com");
+      await service.beginEnrollment(USER_ID_ID, "user@example.com");
 
       const { expiresAt } = mfaTotpRepository.createPending.mock.calls[0][0];
       const after = Date.now();
@@ -140,7 +143,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.beginEnrollment("user-id", "user@example.com"),
+        service.beginEnrollment(USER_ID_ID, "user@example.com"),
       ).rejects.toMatchObject<Partial<ConflictError>>({
         message: "MFA is already enabled.",
       });
@@ -156,7 +159,7 @@ describe("MfaTotpService", () => {
       );
       mfaTotpRepository.replacePending.mockResolvedValue(1);
 
-      await service.beginEnrollment("user-id", "user@example.com");
+      await service.beginEnrollment(USER_ID_ID, "user@example.com");
 
       expect(mfaTotpRepository.replacePending).toHaveBeenCalledWith(
         "existing-id",
@@ -172,7 +175,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.replacePending.mockResolvedValue(0);
 
       await expect(
-        service.beginEnrollment("user-id", "user@example.com"),
+        service.beginEnrollment(USER_ID_ID, "user@example.com"),
       ).rejects.toMatchObject<Partial<ConflictError>>({
         message: "Enrollment was updated concurrently. Please try again.",
       });
@@ -192,7 +195,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.createPending.mockRejectedValue(p2002);
 
       await expect(
-        service.beginEnrollment("user-id", "user@example.com"),
+        service.beginEnrollment(USER_ID_ID, "user@example.com"),
       ).rejects.toMatchObject<Partial<ConflictError>>({
         message: "MFA enrollment is already in progress. Please try again.",
       });
@@ -204,7 +207,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.createPending.mockRejectedValue(new Error("DB down"));
 
       await expect(
-        service.beginEnrollment("user-id", "user@example.com"),
+        service.beginEnrollment(USER_ID_ID, "user@example.com"),
       ).rejects.toThrow("DB down");
     });
   });
@@ -214,7 +217,7 @@ describe("MfaTotpService", () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
 
-      await service.confirmEnrollment("user-id", "123456");
+      await service.confirmEnrollment(USER_ID_ID, "123456");
 
       // activate must receive the matched counter so the enrollment code cannot
       // be replayed against verifyCode before the first login MFA check.
@@ -230,7 +233,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
       await expect(
-        service.confirmEnrollment("user-id", "123456"),
+        service.confirmEnrollment(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<BadRequestError>>({
         message: "No pending MFA setup found.",
       });
@@ -243,7 +246,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.confirmEnrollment("user-id", "123456"),
+        service.confirmEnrollment(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<BadRequestError>>({
         message: "No pending MFA setup found.",
       });
@@ -256,7 +259,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.confirmEnrollment("user-id", "123456"),
+        service.confirmEnrollment(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<BadRequestError>>({
         message: "MFA setup has expired. Please start over.",
       });
@@ -271,7 +274,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.confirmEnrollment("user-id", "123456"),
+        service.confirmEnrollment(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<BadRequestError>>({
         message: "MFA setup has expired. Please start over.",
       });
@@ -283,7 +286,7 @@ describe("MfaTotpService", () => {
       totpService.verifyCode.mockReturnValue(null);
 
       await expect(
-        service.confirmEnrollment("user-id", "000000"),
+        service.confirmEnrollment(USER_ID_ID, "000000"),
       ).rejects.toMatchObject<Partial<BadRequestError>>({
         message: "Verification code is incorrect.",
       });
@@ -300,7 +303,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.verifyCode("user-id", "123456"),
+        service.verifyCode(USER_ID_ID, "123456"),
       ).resolves.toBeUndefined();
 
       expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
@@ -314,7 +317,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
       await expect(
-        service.verifyCode("user-id", "123456"),
+        service.verifyCode(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<UnauthorizedError>>({
         message: "MFA verification failed.",
       });
@@ -327,7 +330,7 @@ describe("MfaTotpService", () => {
       );
 
       await expect(
-        service.verifyCode("user-id", "123456"),
+        service.verifyCode(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<UnauthorizedError>>({
         message: "MFA verification failed.",
       });
@@ -341,7 +344,7 @@ describe("MfaTotpService", () => {
       totpService.verifyCode.mockReturnValue(null);
 
       await expect(
-        service.verifyCode("user-id", "000000"),
+        service.verifyCode(USER_ID_ID, "000000"),
       ).rejects.toMatchObject<Partial<UnauthorizedError>>({
         message: "MFA verification failed.",
       });
@@ -357,7 +360,7 @@ describe("MfaTotpService", () => {
       totpService.verifyCode.mockReturnValue(56374060);
 
       await expect(
-        service.verifyCode("user-id", "123456"),
+        service.verifyCode(USER_ID_ID, "123456"),
       ).rejects.toMatchObject<Partial<UnauthorizedError>>({
         message: "MFA verification failed.",
       });
@@ -373,7 +376,7 @@ describe("MfaTotpService", () => {
       totpService.verifyCode.mockReturnValue(56374060);
 
       await expect(
-        service.verifyCode("user-id", "123456"),
+        service.verifyCode(USER_ID_ID, "123456"),
       ).resolves.toBeUndefined();
 
       expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
@@ -387,16 +390,16 @@ describe("MfaTotpService", () => {
     it("deletes the TOTP record for the user", async () => {
       const { service, mfaTotpRepository } = createMocks();
 
-      await service.disable("user-id");
+      await service.disable(USER_ID_ID);
 
-      expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith("user-id");
+      expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith(USER_ID_ID);
     });
 
     it("is idempotent — does not throw when no record exists", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.deleteByUserId.mockResolvedValue(undefined);
 
-      await expect(service.disable("user-id")).resolves.toBeUndefined();
+      await expect(service.disable(USER_ID_ID)).resolves.toBeUndefined();
     });
   });
 
@@ -404,10 +407,10 @@ describe("MfaTotpService", () => {
     it("deletes only the pending record, leaving active records untouched", async () => {
       const { service, mfaTotpRepository } = createMocks();
 
-      await service.cancelEnrollment("user-id");
+      await service.cancelEnrollment(USER_ID_ID);
 
       expect(mfaTotpRepository.deleteByUserIdIfPending).toHaveBeenCalledWith(
-        "user-id",
+        USER_ID_ID,
       );
       expect(mfaTotpRepository.deleteByUserId).not.toHaveBeenCalled();
     });
@@ -417,7 +420,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.deleteByUserIdIfPending.mockResolvedValue(undefined);
 
       await expect(
-        service.cancelEnrollment("user-id"),
+        service.cancelEnrollment(USER_ID_ID),
       ).resolves.toBeUndefined();
     });
   });
@@ -429,7 +432,7 @@ describe("MfaTotpService", () => {
         makeRecord({ status: "active" }),
       );
 
-      expect(await service.isEnabled("user-id")).toBe(true);
+      expect(await service.isEnabled(USER_ID_ID)).toBe(true);
     });
 
     it("returns false when the user has a pending record", async () => {
@@ -438,14 +441,14 @@ describe("MfaTotpService", () => {
         makeRecord({ status: "pending" }),
       );
 
-      expect(await service.isEnabled("user-id")).toBe(false);
+      expect(await service.isEnabled(USER_ID_ID)).toBe(false);
     });
 
     it("returns false when no record exists", async () => {
       const { service, mfaTotpRepository } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(null);
 
-      expect(await service.isEnabled("user-id")).toBe(false);
+      expect(await service.isEnabled(USER_ID_ID)).toBe(false);
     });
   });
 
@@ -466,12 +469,12 @@ describe("MfaTotpService", () => {
           : null,
       );
 
-      await service.beginEnrollment("user-id", "user@example.com");
+      await service.beginEnrollment(USER_ID_ID, "user@example.com");
 
       expect(storedEncryptedSecret).toBeDefined();
       expect(storedEncryptedSecret).not.toContain(TEST_PLAIN_SECRET);
 
-      await service.confirmEnrollment("user-id", "123456");
+      await service.confirmEnrollment(USER_ID_ID, "123456");
 
       expect(totpService.verifyCode).toHaveBeenCalledWith(
         TEST_PLAIN_SECRET,

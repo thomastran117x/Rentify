@@ -1,4 +1,7 @@
 import { OrganizationPostingProjectionService } from "@/features/organizations/organization-posting-projection.service";
+import { testUuid } from "../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
 
 function createService(overrides?: {
   postingsRepository?: Record<string, jest.Mock>;
@@ -36,11 +39,11 @@ describe("OrganizationPostingProjectionService", () => {
         },
       });
 
-    await service.cascade("org-1", { reindex: true });
+    await service.cascade(ORG_1_ID, { reindex: true });
 
     expect(
       postingsRepository.enqueueSearchSyncForOrganization,
-    ).toHaveBeenCalledWith("org-1");
+    ).toHaveBeenCalledWith(ORG_1_ID);
     // Invalidation is per key: the cache has no namespace-wide bump.
     expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
       "posting-1",
@@ -60,7 +63,7 @@ describe("OrganizationPostingProjectionService", () => {
         },
       });
 
-    await service.cascade("org-1", { reindex: false });
+    await service.cascade(ORG_1_ID, { reindex: false });
 
     expect(postingsPublicCacheService.invalidatePublic).toHaveBeenCalledWith(
       "posting-1",
@@ -80,7 +83,7 @@ describe("OrganizationPostingProjectionService", () => {
     });
 
     await expect(
-      service.cascade("org-1", { reindex: true }),
+      service.cascade(ORG_1_ID, { reindex: true }),
     ).resolves.toBeUndefined();
     expect(
       postingsRepository.enqueueSearchSyncForOrganization,

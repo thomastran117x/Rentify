@@ -1,4 +1,8 @@
 import { RecommendationQueryService } from "@/features/recommendations/recommendation-query.service";
+import { testUuid } from "../../support/uuid";
+const PAT_1_ID = testUuid(9300, 1);
+const POSTING_1_ID = testUuid(9200, 254272);
+const USER_1_ID = testUuid(9200, 994257);
 
 describe("RecommendationQueryService", () => {
   beforeEach(() => {
@@ -17,7 +21,7 @@ describe("RecommendationQueryService", () => {
         recommendationPersonalizationEnabled: true,
         profile: createProfile(),
         snapshot: createUserSnapshot("2026-05-08T10:00:00.000Z", [
-          createCandidate("posting-1", ["matched_tag"]),
+          createCandidate(POSTING_1_ID, ["matched_tag"]),
         ]),
       })),
       getPopularSnapshot: jest.fn(async () => null),
@@ -33,7 +37,7 @@ describe("RecommendationQueryService", () => {
     expect(result.items).toEqual([
       expect.objectContaining({
         posting: expect.objectContaining({
-          id: "posting-1",
+          id: POSTING_1_ID,
         }),
         reasonCodes: ["matched_tag"],
       }),
@@ -78,7 +82,7 @@ describe("RecommendationQueryService", () => {
           qualified: false,
         }),
         snapshot: createUserSnapshot("2026-05-08T10:00:00.000Z", [
-          createCandidate("posting-1", ["matched_family"]),
+          createCandidate(POSTING_1_ID, ["matched_family"]),
         ]),
       })),
       getPopularSnapshot: jest.fn(
@@ -143,7 +147,7 @@ describe("RecommendationQueryService", () => {
         recommendationPersonalizationEnabled: false,
         profile: createProfile(),
         snapshot: createUserSnapshot("2026-05-08T10:00:00.000Z", [
-          createCandidate("posting-1", ["matched_tag"]),
+          createCandidate(POSTING_1_ID, ["matched_tag"]),
         ]),
       })),
       getPopularSnapshot: jest.fn(async () =>
@@ -365,7 +369,7 @@ describe("RecommendationQueryService", () => {
     const service = createService({
       getPopularSnapshot: jest.fn(async () =>
         createPopularSnapshot("global", "global", "2026-05-08T09:00:00.000Z", [
-          createCandidate("posting-1", ["popular"]),
+          createCandidate(POSTING_1_ID, ["popular"]),
           createCandidate("posting-2", ["popular"]),
           createCandidate("posting-3", ["popular"]),
         ]),
@@ -445,7 +449,7 @@ function createInput(
 function createJwtAuth() {
   return {
     authMethod: "jwt" as const,
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user" as const,
     deviceId: "device-1",
@@ -457,9 +461,9 @@ function createJwtAuth() {
 function createPatAuth() {
   return {
     authMethod: "pat" as const,
-    sub: "user-1",
+    sub: USER_1_ID,
     scopes: ["mcp:read"],
-    personalAccessTokenId: "pat-1",
+    personalAccessTokenId: PAT_1_ID,
     personalAccessTokenName: "test",
   };
 }
@@ -470,7 +474,7 @@ function createProfile(
   }> = {},
 ) {
   return {
-    userId: "user-1",
+    userId: USER_1_ID,
     qualified: overrides.qualified ?? true,
     activityWindowStartAt: "2026-02-08T12:00:00.000Z",
     lastSignalAt: "2026-05-08T09:00:00.000Z",
@@ -493,7 +497,7 @@ function createUserSnapshot(
   candidates: Array<ReturnType<typeof createCandidate>>,
 ) {
   return {
-    userId: "user-1",
+    userId: USER_1_ID,
     generatedAt,
     sourceLastSignalAt: generatedAt,
     candidateCount: candidates.length,

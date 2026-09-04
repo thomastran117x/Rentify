@@ -1,6 +1,9 @@
 import { createTestContext, invoke } from "../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { SavedSearchesController } from "@/features/postings/saved-searches/saved-searches.controller";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -11,7 +14,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "renter@example.com",
     role: "user",
     deviceId: "device-1",
@@ -99,7 +102,7 @@ describe("SavedSearchesController", () => {
 
       const response = await invoke(controller.list, context);
 
-      expect(service.list).toHaveBeenCalledWith("user-1", 2, 5);
+      expect(service.list).toHaveBeenCalledWith(USER_1_ID, 2, 5);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({
         meta: expect.objectContaining({ pagination: expect.anything() }),
@@ -112,7 +115,7 @@ describe("SavedSearchesController", () => {
 
       await invoke(controller.list, context);
 
-      expect(service.list).toHaveBeenCalledWith("user-1", 1, 20);
+      expect(service.list).toHaveBeenCalledWith(USER_1_ID, 1, 20);
     });
 
     it("rejects a page size beyond the maximum", async () => {
@@ -138,7 +141,7 @@ describe("SavedSearchesController", () => {
       const response = await invoke(controller.create, context);
 
       expect(service.create).toHaveBeenCalledWith(
-        "user-1",
+        USER_1_ID,
         expect.objectContaining({ notifyFrequency: "instant" }),
       );
       expect(response.status).toBe(201);
@@ -183,7 +186,7 @@ describe("SavedSearchesController", () => {
 
       expect(service.update).toHaveBeenCalledWith(
         "00000000-0000-0000-2400-000000000001",
-        "user-1",
+        USER_1_ID,
         { notifyFrequency: "daily" },
       );
       expect(response.status).toBe(200);
@@ -229,7 +232,7 @@ describe("SavedSearchesController", () => {
 
       expect(service.remove).toHaveBeenCalledWith(
         "00000000-0000-0000-2400-000000000001",
-        "user-1",
+        USER_1_ID,
       );
       expect(response.status).toBe(204);
     });
@@ -248,7 +251,7 @@ describe("SavedSearchesController", () => {
 
       expect(service.markSeen).toHaveBeenCalledWith(
         "00000000-0000-0000-2400-000000000001",
-        "user-1",
+        USER_1_ID,
       );
       expect(response.status).toBe(204);
     });

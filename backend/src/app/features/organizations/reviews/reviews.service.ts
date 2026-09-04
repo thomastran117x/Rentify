@@ -19,6 +19,7 @@ import type {
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { CreateOrganizationAuditLogInput } from "@/features/organizations/audit/audit.model";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class OrganizationReviewService {
   private readonly logger = loggerFactory.forClass(
@@ -202,7 +203,7 @@ export class OrganizationReviewService {
     return { deleted: true, reviewId: existing.id };
   }
 
-  private async requireOrganization(organizationId: string): Promise<void> {
+  private async requireOrganization(organizationId: Uuid): Promise<void> {
     const exists = await this.repository.organizationExists(organizationId);
 
     if (!exists) {
@@ -211,8 +212,8 @@ export class OrganizationReviewService {
   }
 
   private async requireReview(
-    organizationId: string,
-    reviewId: string,
+    organizationId: Uuid,
+    reviewId: Uuid,
   ): Promise<OrganizationReviewRecord> {
     const review = await this.repository.findById(organizationId, reviewId);
 
@@ -224,8 +225,8 @@ export class OrganizationReviewService {
   }
 
   private async assertReviewerIsNotMember(
-    organizationId: string,
-    reviewerId: string,
+    organizationId: Uuid,
+    reviewerId: Uuid,
   ): Promise<void> {
     const membership = await this.organizationAccessService.findMembership(
       reviewerId,
@@ -240,13 +241,13 @@ export class OrganizationReviewService {
   }
 
   private async assertReviewerIsEligible(
-    organizationId: string,
-    reviewerId: string,
+    organizationId: Uuid,
+    reviewerId: Uuid,
   ): Promise<void> {
     const eligible =
       await this.rentingsRepository.hasEligibleReviewRentingForOrganization({
         organizationId,
-        renterId: reviewerId,
+        renterId: asUuid(reviewerId),
         now: new Date(),
       });
 
@@ -258,8 +259,8 @@ export class OrganizationReviewService {
   }
 
   private async requireManager(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<void> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,

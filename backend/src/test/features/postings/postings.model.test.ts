@@ -10,6 +10,7 @@ import {
   isPostingSearchIndexable,
   type PostingRecord,
 } from "@/features/postings/postings.model";
+import { testUuid } from "../../support/uuid";
 
 function createBaseUpsertBody(
   overrides: Record<string, unknown> = {},
@@ -292,12 +293,21 @@ describe("postings.model", () => {
       ]),
     );
 
+    const firstId = testUuid(2000, 1);
+    const secondId = testUuid(2000, 2);
+
     expect(
-      postingBatchIdsQuerySchema.parse(["posting-1", "posting-1", "posting_2"]),
-    ).toEqual(["posting-1", "posting_2"]);
+      postingBatchIdsQuerySchema.parse([firstId, firstId, secondId]),
+    ).toEqual([firstId, secondId]);
 
     const invalidIds = postingBatchIdsQuerySchema.safeParse(["posting 1"]);
     expect(invalidIds.success).toBe(false);
+
+    // Batch ids go through the same identifier schema as the route param, so a
+    // syntactically safe but non-identifier value is rejected too.
+    expect(postingBatchIdsQuerySchema.safeParse(["posting-1"]).success).toBe(
+      false,
+    );
   });
 
   it("builds a public posting projection with rounded coordinates and primary media", () => {

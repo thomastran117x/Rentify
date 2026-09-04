@@ -10,13 +10,18 @@ import {
   requireEligibleLocalPasswordUser,
   requirePasswordlessLinkedUser,
 } from "@/features/auth/local-account-eligibility";
+import { testUuid } from "../../support/uuid";
+const IDENTITY_1_ID = testUuid(9000, 994443);
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 const BCRYPT_HASH =
   "$2b$12$1M7NQyWNh5v3NFg4cTQdUeVUI5BvR9f0vAOVeI3E1FQfQ0rFJz0Vy";
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: BCRYPT_HASH,
     tokenVersion: 1,
@@ -25,8 +30,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -43,8 +48,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
 }
 
 const googleIdentity: OAuthIdentityRecord = {
-  id: "identity-1",
-  userId: "user-1",
+  id: IDENTITY_1_ID,
+  userId: USER_1_ID,
   provider: "google",
   providerUserId: "google-user-1",
   emailVerified: true,

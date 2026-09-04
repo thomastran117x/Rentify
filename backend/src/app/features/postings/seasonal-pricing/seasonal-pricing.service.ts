@@ -11,6 +11,7 @@ import type {
   SeasonalPricingRecord,
   UpsertSeasonalPricingBody,
 } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const MAX_SEASONAL_PRICING_RULES = 20;
 
@@ -28,16 +29,16 @@ export class SeasonalPricingService {
   ) {}
 
   async list(
-    postingId: string,
-    actorUserId: string,
+    postingId: Uuid,
+    actorUserId: Uuid,
   ): Promise<SeasonalPricingRecord[]> {
     await this.requireManagedPosting(postingId, actorUserId);
     return this.seasonalPricingRepository.listByPosting(postingId);
   }
 
   async create(
-    postingId: string,
-    actorUserId: string,
+    postingId: Uuid,
+    actorUserId: Uuid,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
     const posting = await this.requireManagedPosting(
@@ -78,9 +79,9 @@ export class SeasonalPricingService {
   }
 
   async update(
-    postingId: string,
+    postingId: Uuid,
     ruleId: string,
-    actorUserId: string,
+    actorUserId: Uuid,
     body: UpsertSeasonalPricingBody,
   ): Promise<SeasonalPricingRecord> {
     const posting = await this.requireManagedPosting(
@@ -127,9 +128,9 @@ export class SeasonalPricingService {
   }
 
   async delete(
-    postingId: string,
+    postingId: Uuid,
     ruleId: string,
-    actorUserId: string,
+    actorUserId: Uuid,
   ): Promise<void> {
     const posting = await this.requireManagedPosting(
       postingId,
@@ -182,8 +183,8 @@ export class SeasonalPricingService {
   }
 
   private async requireManagedPosting(
-    postingId: string,
-    actorUserId: string,
+    postingId: Uuid,
+    actorUserId: Uuid,
     access: "read" | "write" = "read",
   ) {
     const posting = await this.postingsRepository.findById(postingId);

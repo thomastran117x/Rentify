@@ -1,5 +1,12 @@
 import { Prisma } from "@/generated/prisma/client";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
+import { testUuid } from "../../support/uuid";
+const BOOKING_1_ID = testUuid(9000, 996753);
+const MANAGER_1_ID = testUuid(9000, 836503);
+const PAYMENT_1_ID = testUuid(9000, 132102);
+const RENTER_1_ID = testUuid(9000, 235000);
+
+const ORG_1_ID = testUuid(9000, 9234);
 
 const FUTURE_HOLD_EXPIRES_AT = new Date("2099-04-21T00:00:00.000Z");
 
@@ -7,9 +14,9 @@ function createBookingPersistence(
   overrides?: Partial<Record<string, unknown>>,
 ) {
   return {
-    id: "booking-1",
+    id: BOOKING_1_ID,
     postingId: "posting-1",
-    renterId: "renter-1",
+    renterId: RENTER_1_ID,
     ownerId: "owner-1",
     status: "awaiting_payment",
     startAt: new Date("2026-05-01T00:00:00.000Z"),
@@ -41,10 +48,10 @@ function createPaymentPersistence(
   overrides?: Partial<Record<string, unknown>>,
 ) {
   return {
-    id: "payment-1",
-    bookingRequestId: "booking-1",
+    id: PAYMENT_1_ID,
+    bookingRequestId: BOOKING_1_ID,
     postingId: "posting-1",
-    renterId: "renter-1",
+    renterId: RENTER_1_ID,
     ownerId: "owner-1",
     provider: "square",
     status: "awaiting_method",
@@ -63,7 +70,7 @@ function createPaymentPersistence(
     createdAt: new Date("2026-04-20T00:00:00.000Z"),
     updatedAt: new Date("2026-04-20T00:00:00.000Z"),
     bookingRequest: {
-      id: "booking-1",
+      id: BOOKING_1_ID,
       status: "awaiting_payment",
       startAt: new Date("2026-05-01T00:00:00.000Z"),
       endAt: new Date("2026-05-04T00:00:00.000Z"),
@@ -81,8 +88,8 @@ function createPaymentPersistence(
 function createPayoutPersistence(overrides?: Partial<Record<string, unknown>>) {
   return {
     id: "payout-1",
-    paymentId: "payment-1",
-    organizationId: "org-1",
+    paymentId: PAYMENT_1_ID,
+    organizationId: ORG_1_ID,
     status: "scheduled",
     amount: new Prisma.Decimal(75),
     dueAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -135,8 +142,8 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     const result = await repository.createPaymentAttemptForBooking({
-      bookingRequestId: "booking-1",
-      renterId: "renter-1",
+      bookingRequestId: BOOKING_1_ID,
+      renterId: RENTER_1_ID,
       idempotencyKey: "idem-1",
     });
 
@@ -335,7 +342,7 @@ describe("PaymentsRepository", () => {
       succeededAt: new Date("2026-04-20T01:00:00.000Z"),
       payout: {
         id: "payout-1",
-        paymentId: "payment-1",
+        paymentId: PAYMENT_1_ID,
         ownerId: "owner-1",
         status: "scheduled",
         amount: new Prisma.Decimal(100),
@@ -409,7 +416,7 @@ describe("PaymentsRepository", () => {
     const deletedBlocks: string[] = [];
     const refund = {
       id: "refund-1",
-      paymentId: "payment-1",
+      paymentId: PAYMENT_1_ID,
       amount: new Prisma.Decimal(110),
       status: "pending",
       reason: null,
@@ -504,7 +511,7 @@ describe("PaymentsRepository", () => {
     const bookingUpdates: Array<Record<string, unknown>> = [];
     const refund = {
       id: "refund-1",
-      paymentId: "payment-1",
+      paymentId: PAYMENT_1_ID,
       amount: new Prisma.Decimal(110),
       status: "pending",
       reason: null,
@@ -598,7 +605,7 @@ describe("PaymentsRepository", () => {
     const deletedBlocks: string[] = [];
     const refund = {
       id: "refund-1",
-      paymentId: "payment-1",
+      paymentId: PAYMENT_1_ID,
       amount: new Prisma.Decimal(110),
       status: "pending",
       reason: null,
@@ -708,7 +715,7 @@ describe("PaymentsRepository", () => {
       attempts: [
         {
           id: "attempt-1",
-          paymentId: "payment-1",
+          paymentId: PAYMENT_1_ID,
           idempotencyKey: "idem-1",
           status: "processing",
           retryCount: 0,
@@ -734,7 +741,7 @@ describe("PaymentsRepository", () => {
         findUniqueOrThrow: jest
           .fn()
           .mockResolvedValueOnce({
-            bookingRequestId: "booking-1",
+            bookingRequestId: BOOKING_1_ID,
           })
           .mockResolvedValueOnce(paymentRow),
       },
@@ -750,7 +757,7 @@ describe("PaymentsRepository", () => {
     } as any);
 
     const result = await repository.attachPaymentSession(
-      "payment-1",
+      PAYMENT_1_ID,
       "attempt-1",
       {
         providerRequestId: "provider-request-1",
@@ -766,7 +773,7 @@ describe("PaymentsRepository", () => {
 
     expect(bookingRequestUpdate).toHaveBeenCalledWith({
       where: {
-        id: "booking-1",
+        id: BOOKING_1_ID,
       },
       data: {
         status: "payment_processing",
@@ -788,7 +795,7 @@ describe("PaymentsRepository", () => {
       attempts: [
         {
           id: "attempt-1",
-          paymentId: "payment-1",
+          paymentId: PAYMENT_1_ID,
           idempotencyKey: "idem-1",
           status: "failed_retryable",
           retryCount: 1,
@@ -825,7 +832,7 @@ describe("PaymentsRepository", () => {
         findUniqueOrThrow: jest
           .fn()
           .mockResolvedValueOnce({
-            bookingRequestId: "booking-1",
+            bookingRequestId: BOOKING_1_ID,
           })
           .mockResolvedValueOnce(paymentRow),
       },
@@ -841,7 +848,7 @@ describe("PaymentsRepository", () => {
     } as any);
 
     const result = await repository.recordAttemptFailure(
-      "payment-1",
+      PAYMENT_1_ID,
       "attempt-1",
       {
         category: "transient",
@@ -874,7 +881,7 @@ describe("PaymentsRepository", () => {
     } as any);
 
     await expect(
-      repository.findAccessibleById("payment-1", "renter-1"),
+      repository.findAccessibleById(PAYMENT_1_ID, RENTER_1_ID),
     ).rejects.toThrow("You do not have access to this payment.");
   });
 
@@ -888,7 +895,7 @@ describe("PaymentsRepository", () => {
         callback({
           payment: {
             findUnique: jest.fn(async () => ({
-              id: "payment-1",
+              id: PAYMENT_1_ID,
               squarePaymentId: "square-pay-1",
               pricingCurrency: "CAD",
               totalAmount: new Prisma.Decimal(110),
@@ -906,15 +913,15 @@ describe("PaymentsRepository", () => {
     } as any);
 
     const result = await repository.createRefundRecord({
-      paymentId: "payment-1",
-      actorUserId: "renter-1",
+      paymentId: PAYMENT_1_ID,
+      actorUserId: RENTER_1_ID,
       amount: 10,
       idempotencyKey: "refund-idem-1",
     });
 
     expect(result).toEqual({
       refundId: "refund-1",
-      paymentId: "payment-1",
+      paymentId: PAYMENT_1_ID,
       providerPaymentId: "square-pay-1",
       pricingCurrency: "CAD",
     });
@@ -930,7 +937,7 @@ describe("PaymentsRepository", () => {
         callback({
           payment: {
             findUnique: jest.fn(async () => ({
-              id: "payment-1",
+              id: PAYMENT_1_ID,
               squarePaymentId: "square-pay-1",
               pricingCurrency: "CAD",
               totalAmount: new Prisma.Decimal(110),
@@ -949,8 +956,8 @@ describe("PaymentsRepository", () => {
 
     await expect(
       repository.createRefundRecord({
-        paymentId: "payment-1",
-        actorUserId: "renter-1",
+        paymentId: PAYMENT_1_ID,
+        actorUserId: RENTER_1_ID,
         amount: 20,
       }),
     ).rejects.toThrow(
@@ -967,7 +974,7 @@ describe("PaymentsRepository", () => {
       attempts: [
         {
           id: "attempt-1",
-          paymentId: "payment-1",
+          paymentId: PAYMENT_1_ID,
           idempotencyKey: "idem-1",
           status: "failed_retryable",
           retryCount: 1,
@@ -1047,7 +1054,7 @@ describe("PaymentsRepository", () => {
         findMany: jest.fn(async () => [
           {
             id: "attempt-1",
-            paymentId: "payment-1",
+            paymentId: PAYMENT_1_ID,
             idempotencyKey: "idem-1",
             retryCount: 2,
           },
@@ -1060,7 +1067,7 @@ describe("PaymentsRepository", () => {
     expect(result).toEqual([
       {
         attemptId: "attempt-1",
-        paymentId: "payment-1",
+        paymentId: PAYMENT_1_ID,
         idempotencyKey: "idem-1",
         retryCount: 2,
       },
@@ -1073,7 +1080,7 @@ describe("PaymentsRepository", () => {
       paymentAttempt: {
         findUnique: jest.fn(async () => ({
           id: "attempt-1",
-          paymentId: "payment-1",
+          paymentId: PAYMENT_1_ID,
           idempotencyKey: "idem-1",
           status: "failed_retryable",
         })),
@@ -1081,8 +1088,8 @@ describe("PaymentsRepository", () => {
       },
       payment: {
         findUniqueOrThrow: jest.fn(async () => ({
-          id: "payment-1",
-          bookingRequestId: "booking-1",
+          id: PAYMENT_1_ID,
+          bookingRequestId: BOOKING_1_ID,
           totalAmount: new Prisma.Decimal(110),
           pricingCurrency: "CAD",
         })),
@@ -1107,8 +1114,8 @@ describe("PaymentsRepository", () => {
       lastAttemptedAt: expect.any(Date),
     });
     expect(result).toEqual({
-      paymentId: "payment-1",
-      bookingRequestId: "booking-1",
+      paymentId: PAYMENT_1_ID,
+      bookingRequestId: BOOKING_1_ID,
       idempotencyKey: "idem-1",
       amount: 110,
       currency: "CAD",
@@ -1120,8 +1127,8 @@ describe("PaymentsRepository", () => {
       payment: {
         findMany: jest.fn(async () => [
           {
-            id: "payment-1",
-            bookingRequestId: "booking-1",
+            id: PAYMENT_1_ID,
+            bookingRequestId: BOOKING_1_ID,
             squarePaymentId: "square-pay-1",
             status: "processing",
             bookingRequest: {
@@ -1136,8 +1143,8 @@ describe("PaymentsRepository", () => {
 
     expect(result).toEqual([
       {
-        paymentId: "payment-1",
-        bookingRequestId: "booking-1",
+        paymentId: PAYMENT_1_ID,
+        bookingRequestId: BOOKING_1_ID,
         squarePaymentId: "square-pay-1",
         status: "processing",
         bookingStatus: "payment_processing",
@@ -1153,11 +1160,11 @@ describe("PaymentsRepository", () => {
       },
     } as any);
 
-    await repository.markBookingReconciliationRequired("payment-1");
+    await repository.markBookingReconciliationRequired(PAYMENT_1_ID);
 
     expect(update).toHaveBeenCalledWith({
       where: {
-        id: "payment-1",
+        id: PAYMENT_1_ID,
       },
       data: {
         bookingRequest: {
@@ -1178,7 +1185,7 @@ describe("PaymentsRepository", () => {
       },
       payment: {
         findUniqueOrThrow: jest.fn(async () => ({
-          id: "payment-1",
+          id: PAYMENT_1_ID,
           pricingCurrency: "CAD",
         })),
       },
@@ -1197,7 +1204,7 @@ describe("PaymentsRepository", () => {
     await repository.markPayoutReleased("payout-1");
 
     expect(createdLedgerEntries[0]).toMatchObject({
-      paymentId: "payment-1",
+      paymentId: PAYMENT_1_ID,
       type: "payout_released",
       currency: "CAD",
       metadata: {
@@ -1222,8 +1229,8 @@ describe("PaymentsRepository", () => {
     } as any);
 
     const result = await repository.listPayoutsForOrganization({
-      actorUserId: "manager-1",
-      organizationId: "org-1",
+      actorUserId: MANAGER_1_ID,
+      organizationId: ORG_1_ID,
       page: 2,
       pageSize: 2,
       status: "released",
@@ -1232,7 +1239,7 @@ describe("PaymentsRepository", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           status: "released",
         },
         skip: 2,

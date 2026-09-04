@@ -1,4 +1,9 @@
 import { TokenRepository } from "@/features/auth/token/token.repository";
+import { testUuid } from "../../../support/uuid";
+const MISSING_USER_ID = testUuid(9000, 791594);
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 describe("TokenRepository", () => {
   it("finds session validation data and token versions", async () => {
@@ -20,15 +25,15 @@ describe("TokenRepository", () => {
     } as any);
 
     await expect(
-      repository.findSessionValidationByUserId("user-1"),
+      repository.findSessionValidationByUserId(USER_1_ID),
     ).resolves.toEqual({
       tokenVersion: 7,
       role: "admin",
     });
     await expect(
-      repository.findSessionValidationByUserId("missing-user"),
+      repository.findSessionValidationByUserId(MISSING_USER_ID),
     ).resolves.toBeNull();
-    await expect(repository.findTokenVersionByUserId("user-2")).resolves.toBe(
+    await expect(repository.findTokenVersionByUserId(USER_2_ID)).resolves.toBe(
       9,
     );
   });
@@ -43,7 +48,7 @@ describe("TokenRepository", () => {
       },
     } as any);
 
-    await expect(repository.rotateTokenVersion("user-1")).resolves.toBe(12);
+    await expect(repository.rotateTokenVersion(USER_1_ID)).resolves.toBe(12);
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({

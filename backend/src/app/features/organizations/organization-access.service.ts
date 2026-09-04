@@ -6,12 +6,13 @@ import type {
   AuthUserRecord,
 } from "@/features/auth/auth.model";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export class OrganizationAccessService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
   async requireActiveMembership(
-    userId: string,
+    userId: Uuid,
     errorMessage = "Select or join an organization before continuing.",
   ): Promise<AuthUserOrganizationMembershipRecord> {
     const user = await this.requireUser(userId);
@@ -25,8 +26,8 @@ export class OrganizationAccessService {
   }
 
   async findMembership(
-    userId: string,
-    organizationId: string,
+    userId: Uuid,
+    organizationId: Uuid,
   ): Promise<AuthUserOrganizationMembershipRecord | null> {
     const user = await this.usersRepository.findUserById(userId);
 
@@ -42,8 +43,8 @@ export class OrganizationAccessService {
   }
 
   async requireMembership(
-    userId: string,
-    organizationId: string,
+    userId: Uuid,
+    organizationId: Uuid,
     errorMessage = "You do not have access to this organization.",
   ): Promise<AuthUserOrganizationMembershipRecord> {
     const membership = await this.findMembership(userId, organizationId);
@@ -70,7 +71,7 @@ export class OrganizationAccessService {
     return role === "primary_manager" || role === "manager";
   }
 
-  private async requireUser(userId: string): Promise<AuthUserRecord> {
+  private async requireUser(userId: Uuid): Promise<AuthUserRecord> {
     const user = await this.usersRepository.findUserById(userId);
 
     if (!user) {

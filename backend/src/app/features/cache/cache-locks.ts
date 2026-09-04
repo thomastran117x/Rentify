@@ -1,19 +1,20 @@
 import ConflictError from "@/errors/http/conflict.error";
 import type { CacheService } from "@/features/cache/cache.service";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const FLOW_LOCK_TTL_MS = 15_000;
 
 export const flowLockKeys = {
-  bookingRequestDecision: (bookingRequestId: string) =>
+  bookingRequestDecision: (bookingRequestId: Uuid) =>
     `booking-request:${bookingRequestId}:decision`,
-  bookingRequestState: (bookingRequestId: string) =>
+  bookingRequestState: (bookingRequestId: Uuid) =>
     `booking-request:${bookingRequestId}:state`,
-  bookingRequestConvert: (bookingRequestId: string) =>
+  bookingRequestConvert: (bookingRequestId: Uuid) =>
     `booking-request:${bookingRequestId}:convert`,
-  bookingRequestCap: (postingId: string, renterId: string) =>
+  bookingRequestCap: (postingId: Uuid, renterId: Uuid) =>
     `booking-request-cap:${postingId}:${renterId}`,
-  rentingState: (rentingId: string) => `renting:${rentingId}:state`,
-  postingBookingWindow: (postingId: string) =>
+  rentingState: (rentingId: Uuid) => `renting:${rentingId}:state`,
+  postingBookingWindow: (postingId: Uuid) =>
     `posting:${postingId}:booking-window`,
 };
 

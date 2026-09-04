@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { optionalTrimmedString } from "@/features/auth/auth.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const refreshRequestSchema = z.object({
   refreshToken: optionalTrimmedString,
@@ -16,7 +17,7 @@ export interface RefreshInput {
 export interface LocalVerifyResult {
   verified: true;
   auth: {
-    userId: string;
+    userId: Uuid;
     deviceId?: string;
     role?: string;
   };
@@ -26,7 +27,7 @@ export interface LocalVerifyResult {
 export interface LogoutResult {
   loggedOut: true;
   auth: {
-    userId: string;
+    userId: Uuid;
     deviceId?: string;
   };
   client: ClientRequestContext;

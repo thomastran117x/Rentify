@@ -1,6 +1,9 @@
 import { createTestContext, invoke } from "../../../support/mock-http";
 import { OrganizationAnnouncementsController } from "@/features/organizations/announcements/announcements.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockRequireJwtAuth = jest.fn();
 const mockGetOptionalJwtAuth = jest.fn();
@@ -18,7 +21,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -82,7 +85,7 @@ describe("OrganizationAnnouncementsController", () => {
 
     expect(list).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       page: 1,
       pageSize: 20,
       status: "published",
@@ -117,7 +120,7 @@ describe("OrganizationAnnouncementsController", () => {
 
     expect(create).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       title: "New announcement",
       body: "Announcement body text",
       status: "published",
@@ -150,7 +153,7 @@ describe("OrganizationAnnouncementsController", () => {
 
     expect(update).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       announcementId: ANNOUNCEMENT_ID,
       status: "draft",
     });
@@ -177,7 +180,7 @@ describe("OrganizationAnnouncementsController", () => {
 
     expect(deleteAnnouncement).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
-      actorUserId: "user-1",
+      actorUserId: USER_1_ID,
       announcementId: ANNOUNCEMENT_ID,
     });
     expect(response.status).toBe(200);

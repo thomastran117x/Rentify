@@ -4,6 +4,7 @@ import {
   MAX_PAGE_SIZE,
   type PublicPostingRecord,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const listSavedPostingsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -24,7 +25,7 @@ export type ListSavedPostingsQuery = z.infer<
  * canonical state to reconcile its optimistic toggle against.
  */
 export interface SavedPostingState {
-  postingId: string;
+  postingId: Uuid;
   saved: boolean;
   savedAt: string | null;
 }
@@ -50,7 +51,7 @@ export interface SavedPostingsPagination {
 export type SavedPostingUnavailableReason = "paused" | "unavailable";
 
 export interface UnavailableSavedPosting {
-  postingId: string;
+  postingId: Uuid;
   /** Null when the posting record itself has gone. */
   name: string | null;
   reason: SavedPostingUnavailableReason;
@@ -77,12 +78,12 @@ export interface ListSavedPostingsResult {
 export const SAVED_POSTING_IDS_LIMIT = 500;
 
 export interface ListSavedPostingIdsResult {
-  postingIds: string[];
+  postingIds: Uuid[];
   truncated: boolean;
 }
 
 export interface SavedPostingEntry {
-  postingId: string;
+  postingId: Uuid;
   createdAt: Date;
 }
 

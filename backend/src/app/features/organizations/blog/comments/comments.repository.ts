@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -6,6 +5,7 @@ import type {
   OrganizationBlogCommentPostContext,
   OrganizationBlogCommentRecord,
 } from "@/features/organizations/blog/comments/comments.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const AUTHOR_INCLUDE = {
   author: {
@@ -25,14 +25,14 @@ type OrganizationBlogCommentPersistence =
   }>;
 
 export interface CreateOrganizationBlogCommentPersistence {
-  blogPostId: string;
-  organizationId: string;
-  authorUserId: string;
+  blogPostId: Uuid;
+  organizationId: Uuid;
+  authorUserId: Uuid;
   body: string;
 }
 
 export interface ListOrganizationBlogCommentsPersistenceInput {
-  blogPostId: string;
+  blogPostId: Uuid;
   page: number;
   pageSize: number;
 }
@@ -48,10 +48,10 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
    * dependency that exists only to run one `findUnique`.
    */
   async findPostForComments(
-    organizationId: string,
+    organizationId: Uuid,
     slug: string,
   ): Promise<OrganizationBlogCommentPostContext | null> {
-    return this.executeAsync(() =>
+    const row = await this.executeAsync(() =>
       this.prisma.organizationBlogPost.findUnique({
         where: { organizationId_slug: { organizationId, slug } },
         select: {
@@ -62,13 +62,15 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
         },
       }),
     );
+
+    return row ? this.toPostContext(row) : null;
   }
 
   /** The same context, by post id — the shape the socket handshake holds. */
   async findPostForCommentsById(
-    blogPostId: string,
+    blogPostId: Uuid,
   ): Promise<OrganizationBlogCommentPostContext | null> {
-    return this.executeAsync(() =>
+    const row = await this.executeAsync(() =>
       this.prisma.organizationBlogPost.findUnique({
         where: { id: blogPostId },
         select: {
@@ -79,6 +81,8 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
         },
       }),
     );
+
+    return row ? this.toPostContext(row) : null;
   }
 
   async listByPost(
@@ -143,7 +147,7 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
 
         return transaction.organizationBlogComment.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             blogPostId: input.blogPostId,
             organizationId: input.organizationId,
             authorUserId: input.authorUserId,
@@ -158,7 +162,7 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
   }
 
   async findById(
-    commentId: string,
+    commentId: Uuid,
   ): Promise<OrganizationBlogCommentRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationBlogComment.findUnique({
@@ -178,9 +182,9 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
    * restore a body while leaving `deletedAt` set.
    */
   async updateBodyIfEligible(input: {
-    commentId: string;
-    blogPostId: string;
-    authorUserId: string;
+    commentId: Uuid;
+    blogPostId: Uuid;
+    authorUserId: Uuid;
     body: string;
     editedAt: Date;
     notBefore: Date;
@@ -227,7 +231,7 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
    */
   private async isPostOpenForWrites(
     transaction: Pick<typeof this.prisma, "$queryRaw">,
-    blogPostId: string,
+    blogPostId: Uuid,
   ): Promise<boolean> {
     const rows = await transaction.$queryRaw<
       Array<{ status: string; comments_enabled: number | boolean }>
@@ -255,10 +259,10 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
    * rather than silently rewriting the tombstone's timestamp and attribution.
    */
   async softDeleteIfEligible(input: {
-    commentId: string;
-    blogPostId: string;
+    commentId: Uuid;
+    blogPostId: Uuid;
     deletedAt: Date;
-    deletedByUserId: string;
+    deletedByUserId: Uuid;
     asModerator: boolean;
   }): Promise<OrganizationBlogCommentRecord | null> {
     const where: Prisma.OrganizationBlogCommentWhereInput = {
@@ -292,11 +296,11 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
     row: OrganizationBlogCommentPersistence,
   ): OrganizationBlogCommentRecord {
     return {
-      id: row.id,
-      blogPostId: row.blogPostId,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      blogPostId: asUuid(row.blogPostId),
+      organizationId: asUuid(row.organizationId),
       author: {
-        id: row.authorUserId,
+        id: asUuid(row.authorUserId),
         // Falls back to a label, never to the email: this record is served on a
         // public page, so an address must not leak through a missing profile.
         username: row.author?.profile?.username ?? "Member",
@@ -339,6 +343,21 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
       totalPages,
       hasNextPage: page < totalPages,
       hasPreviousPage: page > 1,
+    };
+  }
+
+  /** Brands the identifier columns on the narrow post-context projection. */
+  private toPostContext(row: {
+    id: string;
+    organizationId: string;
+    status: string;
+    commentsEnabled: boolean;
+  }): OrganizationBlogCommentPostContext {
+    return {
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
+      status: row.status,
+      commentsEnabled: row.commentsEnabled,
     };
   }
 }

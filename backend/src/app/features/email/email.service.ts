@@ -1,4 +1,5 @@
 import type { EmailQueueService } from "@/features/email/email.queue.service";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export interface SendVerificationEmailInput {
   to: string;
@@ -56,9 +57,9 @@ export interface SendOrganizationInviteEmailInput {
  * processes the job, so the email always reflects current data.
  */
 export interface SendBookingMessageNotificationEmailInput {
-  bookingRequestId: string;
-  recipientId: string;
-  messageId: string;
+  bookingRequestId: Uuid;
+  recipientId: Uuid;
+  messageId: Uuid;
 }
 
 /**
@@ -69,20 +70,20 @@ export interface SendBookingMessageNotificationEmailInput {
  * posting that is no longer expiring is actively misleading.
  */
 export interface SendPostingExpiringSoonEmailInput {
-  postingId: string;
-  recipientId: string;
+  postingId: Uuid;
+  recipientId: Uuid;
   expiresAt: string;
 }
 
 export interface SendSavedSearchMatchesEmailInput {
-  savedSearchId: string;
-  recipientId: string;
+  savedSearchId: Uuid;
+  recipientId: Uuid;
   /**
    * Identifiers only. The queue job may sit for minutes behind a retry, by
    * which time a posting can be paused or removed, so the composer re-reads
    * every one of these at send time instead of trusting a snapshot.
    */
-  postingIds: string[];
+  postingIds: Uuid[];
   occurredAt: string;
 }
 

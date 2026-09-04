@@ -1,5 +1,9 @@
 import { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
 import { ElasticsearchCircuitOpenError } from "@/configuration/resources/elasticsearch";
+import { testUuid } from "../../../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const ORG_42_ID = testUuid(9000, 286397);
 
 function createPublishedPost(id: string) {
   return {
@@ -99,7 +103,7 @@ describe("OrganizationBlogPublicSearchService", () => {
     const { service, requestJson } = createHarness();
 
     await service.searchByOrganization({
-      organizationId: "org-42",
+      organizationId: ORG_42_ID,
       page: 1,
       pageSize: 20,
     });
@@ -107,7 +111,7 @@ describe("OrganizationBlogPublicSearchService", () => {
     const body = JSON.parse(
       (requestJson.mock.calls[0]![1] as { body: string }).body,
     );
-    expect(JSON.stringify(body.query.bool.filter)).toContain("org-42");
+    expect(JSON.stringify(body.query.bool.filter)).toContain(ORG_42_ID);
     expect(JSON.stringify(body.query.bool.filter)).toContain("published");
   });
 
@@ -168,7 +172,7 @@ describe("OrganizationBlogPublicSearchService", () => {
     const { service, searchPublicFallback } = createHarness({ requestJson });
 
     const result = await service.searchByOrganization({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       page: 1,
       pageSize: 20,
       q: "depot",
@@ -177,7 +181,9 @@ describe("OrganizationBlogPublicSearchService", () => {
     expect(searchPublicFallback).toHaveBeenCalledTimes(1);
     expect(result.source).toBe("database");
     // The fallback is scoped to the organization.
-    expect(searchPublicFallback.mock.calls[0]![0].organizationId).toBe("org-1");
+    expect(searchPublicFallback.mock.calls[0]![0].organizationId).toBe(
+      ORG_1_ID,
+    );
   });
 
   it.each([["relevance"], ["newest"], ["oldest"]] as const)(

@@ -3,6 +3,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const PAYMENT_PROVIDER = "square" as const;
 export const DEFAULT_PLATFORM_FEE_BPS = 1000;
@@ -78,8 +79,8 @@ export type CreateRefundBody = z.infer<typeof createRefundSchema>;
 export type ListPayoutsQuery = z.infer<typeof listPayoutsQuerySchema>;
 
 export interface PaymentAttemptRecord {
-  id: string;
-  paymentId: string;
+  id: Uuid;
+  paymentId: Uuid;
   idempotencyKey: string;
   status: PaymentAttemptStatus;
   retryCount: number;
@@ -94,8 +95,8 @@ export interface PaymentAttemptRecord {
 }
 
 export interface RefundRecord {
-  id: string;
-  paymentId: string;
+  id: Uuid;
+  paymentId: Uuid;
   status: RefundStatus;
   amount: number;
   reason?: string;
@@ -107,9 +108,9 @@ export interface RefundRecord {
 }
 
 export interface PayoutRecord {
-  id: string;
-  paymentId: string;
-  organizationId: string;
+  id: Uuid;
+  paymentId: Uuid;
+  organizationId: Uuid;
   status: PayoutStatus;
   amount: number;
   dueAt: string;
@@ -122,11 +123,11 @@ export interface PayoutRecord {
 }
 
 export interface PaymentRecord {
-  id: string;
-  bookingRequestId: string;
-  postingId: string;
-  renterId: string;
-  organizationId: string;
+  id: Uuid;
+  bookingRequestId: Uuid;
+  postingId: Uuid;
+  renterId: Uuid;
+  organizationId: Uuid;
   provider: typeof PAYMENT_PROVIDER;
   status: PaymentStatus;
   pricingCurrency: string;
@@ -144,7 +145,7 @@ export interface PaymentRecord {
   createdAt: string;
   updatedAt: string;
   booking: {
-    id: string;
+    id: Uuid;
     status: string;
     startAt: string;
     endAt: string;
@@ -170,31 +171,35 @@ export interface PayoutListResult {
 }
 
 export interface CreatePaymentSessionInput {
-  bookingRequestId: string;
-  renterId: string;
+  bookingRequestId: Uuid;
+  renterId: Uuid;
   idempotencyKey?: string;
 }
 
 export interface RetryPaymentInput {
-  paymentId: string;
-  renterId: string;
+  paymentId: Uuid;
+  renterId: Uuid;
   idempotencyKey?: string;
 }
 
 export interface CreateRefundInput {
-  paymentId: string;
-  actorUserId: string;
+  paymentId: Uuid;
+  actorUserId: Uuid;
   amount: number;
   reason?: string | null;
   idempotencyKey?: string;
 }
 
 export interface ListPayoutsInput {
-  actorUserId: string;
-  organizationId: string;
+  actorUserId: Uuid;
   page: number;
   pageSize: number;
   status?: PayoutStatus;
+}
+
+/** ListPayoutsInput once the service has resolved the owning organization. */
+export interface ListPayoutsPersistenceInput extends ListPayoutsInput {
+  organizationId: Uuid;
 }
 
 export interface ProviderPaymentSession {
@@ -232,14 +237,14 @@ export interface ProviderErrorInfo {
 
 export interface PaymentRetryCandidate {
   attemptId: string;
-  paymentId: string;
+  paymentId: Uuid;
   idempotencyKey: string;
   retryCount: number;
 }
 
 export interface PaymentRepairCandidate {
-  paymentId: string;
-  bookingRequestId: string;
+  paymentId: Uuid;
+  bookingRequestId: Uuid;
   squarePaymentId?: string;
   status: PaymentStatus;
   bookingStatus: string;

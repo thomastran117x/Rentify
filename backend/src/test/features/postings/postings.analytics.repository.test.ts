@@ -1,10 +1,17 @@
 import { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
+import { testUuid } from "../../support/uuid";
+const MISSING_POSTING_ID = testUuid(9000, 758870);
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createAnalyticsOutboxRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "outbox-1",
-    postingId: "posting-1",
-    organizationId: "org-1",
+    postingId: POSTING_1_ID,
+    organizationId: ORG_1_ID,
     eventType: "posting_viewed",
     payload: {
       occurredAt: "2026-05-20T12:00:00.000Z",
@@ -38,11 +45,11 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     await repository.enqueuePostingViewedEvent({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T12:00:00.000Z",
       viewerHash: "viewer-hash",
-      userId: "user-1",
+      userId: USER_1_ID,
       ipAddressHash: "ip-hash",
       userAgentHash: "ua-hash",
       deviceType: "desktop",
@@ -51,13 +58,13 @@ describe("PostingsAnalyticsRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           eventType: "posting_viewed",
           payload: {
             occurredAt: "2026-05-20T12:00:00.000Z",
             viewerHash: "viewer-hash",
-            userId: "user-1",
+            userId: USER_1_ID,
             ipAddressHash: "ip-hash",
             userAgentHash: "ua-hash",
             deviceType: "desktop",
@@ -79,8 +86,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueSearchImpressionEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "search_impression",
@@ -91,8 +98,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueSearchClickEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "search_click",
@@ -103,8 +110,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueBookingRequestedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
           estimatedTotal: 225,
         },
@@ -117,8 +124,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueBookingApprovedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "booking_approved",
@@ -129,8 +136,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueBookingDeclinedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "booking_declined",
@@ -141,8 +148,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueBookingExpiredEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "booking_expired",
@@ -153,8 +160,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueBookingCancelledEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "booking_cancelled",
@@ -165,8 +172,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueuePaymentFailedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
         },
         eventType: "payment_failed",
@@ -177,8 +184,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueRefundRecordedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
           refundedAmount: 40,
         },
@@ -191,8 +198,8 @@ describe("PostingsAnalyticsRepository", () => {
       {
         method: "enqueueRentingConfirmedEvent",
         input: {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           occurredAt: "2026-05-20T12:00:00.000Z",
           estimatedTotal: 180,
         },
@@ -214,8 +221,8 @@ describe("PostingsAnalyticsRepository", () => {
         index + 1,
         expect.objectContaining({
           data: expect.objectContaining({
-            postingId: "posting-1",
-            organizationId: "org-1",
+            postingId: POSTING_1_ID,
+            organizationId: ORG_1_ID,
             eventType: testCase.eventType,
             payload: testCase.payload,
           }),
@@ -251,8 +258,8 @@ describe("PostingsAnalyticsRepository", () => {
     await expect(repository.claimOutboxBatch(10)).resolves.toEqual([
       {
         id: "outbox-1",
-        postingId: "posting-1",
-        organizationId: "org-1",
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
         eventType: "posting_viewed",
         payload: {
           occurredAt: "2026-05-20T12:00:00.000Z",
@@ -345,13 +352,13 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     await repository.processPostingViewedEvent({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T10:45:00.000Z",
       eventDate: "2026-05-20T00:00:00.000Z",
       eventHour: "2026-05-20T10:00:00.000Z",
       viewerHash: "viewer-hash",
-      userId: "user-1",
+      userId: USER_1_ID,
       ipAddressHash: "ip-hash",
       userAgentHash: "ua-hash",
       deviceType: "desktop",
@@ -360,8 +367,8 @@ describe("PostingsAnalyticsRepository", () => {
     expect(transaction.postingViewEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           viewerHash: "viewer-hash",
         }),
       }),
@@ -371,8 +378,8 @@ describe("PostingsAnalyticsRepository", () => {
     ).toHaveBeenCalledWith({
       data: [
         {
-          postingId: "posting-1",
-          organizationId: "org-1",
+          postingId: POSTING_1_ID,
+          organizationId: ORG_1_ID,
           viewerHash: "viewer-hash",
           eventDate: new Date("2026-05-20T00:00:00.000Z"),
         },
@@ -429,13 +436,13 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     await repository.processPostingViewedEvent({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T10:45:00.000Z",
       eventDate: "2026-05-20T00:00:00.000Z",
       eventHour: "2026-05-20T10:00:00.000Z",
       viewerHash: "viewer-hash",
-      userId: "user-1",
+      userId: USER_1_ID,
       ipAddressHash: "ip-hash",
       userAgentHash: "ua-hash",
       deviceType: "desktop",
@@ -507,8 +514,8 @@ describe("PostingsAnalyticsRepository", () => {
       } as any) as unknown as Record<string, (input: unknown) => Promise<void>>;
 
       await repository[testCase.method]({
-        postingId: "posting-1",
-        organizationId: "org-1",
+        postingId: POSTING_1_ID,
+        organizationId: ORG_1_ID,
         occurredAt: "2026-05-20T10:45:00.000Z",
         eventDate: "2026-05-20T00:00:00.000Z",
         eventHour: "2026-05-20T10:00:00.000Z",
@@ -549,8 +556,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     await refundRepository.processRefundRecordedEvent({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T10:45:00.000Z",
       eventDate: "2026-05-20T00:00:00.000Z",
       eventHour: "2026-05-20T10:00:00.000Z",
@@ -581,8 +588,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     await rentingRepository.processRentingConfirmedEvent({
-      postingId: "posting-1",
-      organizationId: "org-1",
+      postingId: POSTING_1_ID,
+      organizationId: ORG_1_ID,
       occurredAt: "2026-05-20T10:45:00.000Z",
       eventDate: "2026-05-20T00:00:00.000Z",
       eventHour: "2026-05-20T10:00:00.000Z",
@@ -622,7 +629,7 @@ describe("PostingsAnalyticsRepository", () => {
       ])
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           status: "published",
           publishedAt: new Date("2026-05-18T00:00:00.000Z"),
           pausedAt: null,
@@ -631,14 +638,14 @@ describe("PostingsAnalyticsRepository", () => {
       ])
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-19T00:00:00.000Z"),
           endAt: new Date("2026-05-20T00:00:00.000Z"),
         },
       ])
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-18T12:00:00.000Z"),
           endAt: new Date("2026-05-19T12:00:00.000Z"),
         },
@@ -648,8 +655,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     const result = await repository.getOwnerSummary({
-      actorUserId: "owner-1",
-      organizationId: "org-1",
+      actorUserId: OWNER_1_ID,
+      organizationId: ORG_1_ID,
       window: "7d",
     });
 
@@ -680,7 +687,7 @@ describe("PostingsAnalyticsRepository", () => {
       .fn()
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           name: "Sunny loft",
           status: "published",
           primaryPhotoUrl: "https://example.test/photo.jpg",
@@ -710,7 +717,7 @@ describe("PostingsAnalyticsRepository", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-19T00:00:00.000Z"),
           endAt: new Date("2026-05-20T00:00:00.000Z"),
         },
@@ -720,8 +727,8 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     const result = await repository.listOwnerPostingsAnalytics({
-      actorUserId: "owner-1",
-      organizationId: "org-1",
+      actorUserId: OWNER_1_ID,
+      organizationId: ORG_1_ID,
       window: "7d",
       page: 1,
       pageSize: 20,
@@ -736,7 +743,7 @@ describe("PostingsAnalyticsRepository", () => {
       hasPreviousPage: false,
     });
     expect(result.postings[0]).toMatchObject({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       primaryPhotoUrl: "https://example.test/photo.jpg",
       totals: expect.objectContaining({
         confirmedBookedDays: 1,
@@ -749,7 +756,7 @@ describe("PostingsAnalyticsRepository", () => {
       .fn()
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           name: "Sunny loft",
           status: "published",
           primaryPhotoUrl: null,
@@ -795,7 +802,7 @@ describe("PostingsAnalyticsRepository", () => {
       ])
       .mockResolvedValueOnce([
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           startAt: new Date("2026-05-19T00:00:00.000Z"),
           endAt: new Date("2026-05-20T00:00:00.000Z"),
         },
@@ -806,15 +813,15 @@ describe("PostingsAnalyticsRepository", () => {
     } as any);
 
     const result = await repository.getPostingAnalyticsDetail({
-      actorUserId: "owner-1",
-      organizationId: "org-1",
-      postingId: "posting-1",
+      actorUserId: OWNER_1_ID,
+      organizationId: ORG_1_ID,
+      postingId: POSTING_1_ID,
       window: "7d",
       granularity: "hour",
     });
 
     expect(result).toMatchObject({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       name: "Sunny loft",
       granularity: "hour",
       totals: expect.objectContaining({
@@ -839,9 +846,9 @@ describe("PostingsAnalyticsRepository", () => {
 
     await expect(
       repository.getPostingAnalyticsDetail({
-        actorUserId: "owner-1",
-        organizationId: "org-1",
-        postingId: "missing-posting",
+        actorUserId: OWNER_1_ID,
+        organizationId: ORG_1_ID,
+        postingId: MISSING_POSTING_ID,
         window: "7d",
         granularity: "day",
       }),
@@ -1008,14 +1015,14 @@ describe("PostingsAnalyticsRepository", () => {
     });
     expect(
       repository.toOperationalState({
-        postingId: "posting-1",
+        postingId: POSTING_1_ID,
         status: "paused",
         publishedAt: new Date("2026-05-18T00:00:00.000Z"),
         pausedAt: new Date("2026-05-20T00:00:00.000Z"),
         archivedAt: null,
       }),
     ).toEqual({
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       status: "paused",
       publishedAt: new Date("2026-05-18T00:00:00.000Z"),
       pausedAt: new Date("2026-05-20T00:00:00.000Z"),
@@ -1024,7 +1031,7 @@ describe("PostingsAnalyticsRepository", () => {
     expect(
       repository.calculateActiveDaysPublished(
         {
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           status: "paused",
           publishedAt: new Date("2026-05-18T00:00:00.000Z"),
           pausedAt: new Date("2026-05-20T00:00:00.000Z"),

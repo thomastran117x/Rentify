@@ -2,6 +2,13 @@
 import { RequestValidationError } from "@/configuration/validation/request";
 import { RentingsController } from "@/features/rentings/rentings.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../support/uuid";
+
+const RENTING_ID = testUuid(3100, 1);
+const OWNER_ID = testUuid(1000, 1);
+const USER_ID = testUuid(1000, 2);
+const RENTER_ID = testUuid(1000, 3);
+const BOOKING_ID = testUuid(1020, 1);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -11,8 +18,8 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
-    email: "user@example.com",
+    sub: USER_ID,
+    email: `${USER_ID}@example.com`,
     role: "user",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -59,10 +66,10 @@ describe("RentingsController", () => {
 
   it("publishes renting confirmation after converting a booking request", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ID, role: "owner" }),
     );
     const convertApprovedBookingRequest = jest.fn(async () => ({
-      id: "renting-1",
+      id: RENTING_ID,
     }));
     const publishRentingConfirmed = jest.fn(async () => undefined);
     const controller = new RentingsController(
@@ -78,18 +85,18 @@ describe("RentingsController", () => {
       controller.convertBookingRequest,
       createContext({
         params: {
-          id: "booking-1",
+          id: BOOKING_ID,
         },
       }),
     );
 
     expect(convertApprovedBookingRequest).toHaveBeenCalledWith({
-      bookingRequestId: "booking-1",
-      actorUserId: "owner-1",
+      bookingRequestId: BOOKING_ID,
+      actorUserId: OWNER_ID,
     });
     expect(publishRentingConfirmed).toHaveBeenCalledWith({
       renting: {
-        id: "renting-1",
+        id: RENTING_ID,
       },
       client: expect.objectContaining({
         ip: "127.0.0.1",
@@ -101,10 +108,10 @@ describe("RentingsController", () => {
 
   it("loads an accessible renting by id for the authenticated user", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "user-1", role: "user" }),
+      createClaims({ sub: USER_ID, role: "user" }),
     );
     const getById = jest.fn(async () => ({
-      id: "renting-1",
+      id: RENTING_ID,
     }));
     const controller = new RentingsController(
       {
@@ -117,17 +124,17 @@ describe("RentingsController", () => {
       controller.getById,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
       }),
     );
 
-    expect(getById).toHaveBeenCalledWith("renting-1", "user-1", "user");
+    expect(getById).toHaveBeenCalledWith(RENTING_ID, USER_ID, "user");
     expect(response.status).toBe(200);
   });
 
   it("maps list query params into listMine inputs", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_ID }));
     const listMine = jest.fn(async () => ({
       rentings: [],
       pagination: {
@@ -155,7 +162,7 @@ describe("RentingsController", () => {
     );
 
     expect(listMine).toHaveBeenCalledWith({
-      userId: "user-1",
+      userId: USER_ID,
       page: 2,
       pageSize: 5,
       status: "active",
@@ -164,7 +171,7 @@ describe("RentingsController", () => {
   });
 
   it("rejects invalid renting list queries", async () => {
-    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: "user-1" }));
+    mockRequireJwtAuth.mockResolvedValue(createClaims({ sub: USER_ID }));
     const controller = new RentingsController({} as any, {} as any);
 
     await expect(
@@ -179,9 +186,9 @@ describe("RentingsController", () => {
 
   it("routes renting instruction updates to the service", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ID, role: "owner" }),
     );
-    const updateInstructions = jest.fn(async () => ({ id: "renting-1" }));
+    const updateInstructions = jest.fn(async () => ({ id: RENTING_ID }));
     const controller = new RentingsController(
       {
         updateInstructions,
@@ -193,7 +200,7 @@ describe("RentingsController", () => {
       controller.updateInstructions,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
         body: {
           pickupInstructions: "Meet outside.",
@@ -203,8 +210,8 @@ describe("RentingsController", () => {
     );
 
     expect(updateInstructions).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_ID,
+      actorUserId: OWNER_ID,
       actorRole: "owner",
       pickupInstructions: "Meet outside.",
       returnInstructions: "Return to concierge.",
@@ -214,9 +221,9 @@ describe("RentingsController", () => {
 
   it("marks a renting as check-in ready through the service", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ID, role: "owner" }),
     );
-    const markCheckInReady = jest.fn(async () => ({ id: "renting-1" }));
+    const markCheckInReady = jest.fn(async () => ({ id: RENTING_ID }));
     const controller = new RentingsController(
       {
         markCheckInReady,
@@ -228,14 +235,14 @@ describe("RentingsController", () => {
       controller.markCheckInReady,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
       }),
     );
 
     expect(markCheckInReady).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_ID,
+      actorUserId: OWNER_ID,
       actorRole: "owner",
     });
     expect(response.status).toBe(200);
@@ -243,9 +250,9 @@ describe("RentingsController", () => {
 
   it("marks a renting check-in as complete through the service", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ID, role: "owner" }),
     );
-    const markCheckInComplete = jest.fn(async () => ({ id: "renting-1" }));
+    const markCheckInComplete = jest.fn(async () => ({ id: RENTING_ID }));
     const controller = new RentingsController(
       {
         markCheckInComplete,
@@ -257,14 +264,14 @@ describe("RentingsController", () => {
       controller.markCheckInComplete,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
       }),
     );
 
     expect(markCheckInComplete).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_ID,
+      actorUserId: OWNER_ID,
       actorRole: "owner",
     });
     expect(response.status).toBe(200);
@@ -272,9 +279,9 @@ describe("RentingsController", () => {
 
   it("marks a renting return as complete through the service", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "owner-1", role: "owner" }),
+      createClaims({ sub: OWNER_ID, role: "owner" }),
     );
-    const markCompleted = jest.fn(async () => ({ id: "renting-1" }));
+    const markCompleted = jest.fn(async () => ({ id: RENTING_ID }));
     const controller = new RentingsController(
       {
         markCompleted,
@@ -286,14 +293,14 @@ describe("RentingsController", () => {
       controller.markCompleted,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
       }),
     );
 
     expect(markCompleted).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "owner-1",
+      rentingId: RENTING_ID,
+      actorUserId: OWNER_ID,
       actorRole: "owner",
     });
     expect(response.status).toBe(200);
@@ -301,9 +308,9 @@ describe("RentingsController", () => {
 
   it("routes dispute creation through the renting service", async () => {
     mockRequireJwtAuth.mockResolvedValue(
-      createClaims({ sub: "renter-1", role: "user" }),
+      createClaims({ sub: RENTER_ID, role: "user" }),
     );
-    const createDispute = jest.fn(async () => ({ id: "renting-1" }));
+    const createDispute = jest.fn(async () => ({ id: RENTING_ID }));
     const controller = new RentingsController(
       {
         createDispute,
@@ -315,7 +322,7 @@ describe("RentingsController", () => {
       controller.createDispute,
       createContext({
         params: {
-          id: "renting-1",
+          id: RENTING_ID,
         },
         body: {
           reason: "Condition mismatch",
@@ -325,8 +332,8 @@ describe("RentingsController", () => {
     );
 
     expect(createDispute).toHaveBeenCalledWith({
-      rentingId: "renting-1",
-      actorUserId: "renter-1",
+      rentingId: RENTING_ID,
+      actorUserId: RENTER_ID,
       actorRole: "user",
       reason: "Condition mismatch",
       details: "The item arrived damaged.",

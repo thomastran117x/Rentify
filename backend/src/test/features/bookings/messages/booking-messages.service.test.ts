@@ -9,10 +9,16 @@ import type { EmailService } from "@/features/email/email.service";
 import type { TokenService } from "@/features/auth/token/token.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationsMembersRepository } from "@/features/organizations/members/members.repository";
+import { testUuid } from "../../../support/uuid";
+const MANAGER_2_ID = testUuid(9000, 836504);
 
-const RENTER_ID = "renter-1";
+const MESSAGE_1_ID = testUuid(9000, 597033);
+const OPERATOR_1_ID = testUuid(9000, 402986);
+const OUTSIDER_1_ID = testUuid(9000, 796024);
+
+const RENTER_ID = testUuid(9100, 235000);
 const ORG_ID = "org-1";
-const BOOKING_ID = "booking-1";
+const BOOKING_ID = testUuid(9100, 996753);
 const PRIMARY_MANAGER_ID = "manager-1";
 
 function createBookingRequest(overrides: Record<string, unknown> = {}) {
@@ -26,7 +32,7 @@ function createBookingRequest(overrides: Record<string, unknown> = {}) {
 
 function createMessage(overrides: Record<string, unknown> = {}) {
   return {
-    id: "message-1",
+    id: MESSAGE_1_ID,
     bookingRequestId: BOOKING_ID,
     authorId: RENTER_ID,
     authorSide: "renter",
@@ -204,7 +210,7 @@ describe("BookingMessagesService", () => {
           authorId: RENTER_ID,
           body: "hello",
         }),
-      ).resolves.toMatchObject({ id: "message-1", authorSide: "renter" });
+      ).resolves.toMatchObject({ id: MESSAGE_1_ID, authorSide: "renter" });
 
       expect(bookingMessagesRepository.create).toHaveBeenCalledWith({
         bookingRequestId: BOOKING_ID,
@@ -220,7 +226,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.send({
           bookingRequestId: BOOKING_ID,
-          authorId: "operator-1",
+          authorId: OPERATOR_1_ID,
           body: "hello",
         }),
       ).rejects.toMatchObject({
@@ -240,7 +246,7 @@ describe("BookingMessagesService", () => {
           authorId: RENTER_ID,
           body: "hello",
         }),
-      ).resolves.toMatchObject({ id: "message-1" });
+      ).resolves.toMatchObject({ id: MESSAGE_1_ID });
 
       expect(realtimeGateway.publish).toHaveBeenCalled();
     });
@@ -256,7 +262,7 @@ describe("BookingMessagesService", () => {
           authorId: RENTER_ID,
           body: "hello",
         }),
-      ).resolves.toMatchObject({ id: "message-1" });
+      ).resolves.toMatchObject({ id: MESSAGE_1_ID });
 
       expect(
         emailService.sendBookingMessageNotificationEmail,
@@ -276,7 +282,7 @@ describe("BookingMessagesService", () => {
       expect(event).toMatchObject({
         type: "message.created",
         bookingRequestId: BOOKING_ID,
-        message: { id: "message-1" },
+        message: { id: MESSAGE_1_ID },
       });
     });
 
@@ -299,7 +305,7 @@ describe("BookingMessagesService", () => {
       ).toHaveBeenCalledWith({
         bookingRequestId: BOOKING_ID,
         recipientId: PRIMARY_MANAGER_ID,
-        messageId: "message-1",
+        messageId: MESSAGE_1_ID,
       });
     });
 
@@ -307,12 +313,12 @@ describe("BookingMessagesService", () => {
       const { service, emailService, bookingMessagesRepository } =
         createService();
       (bookingMessagesRepository.create as jest.Mock).mockResolvedValue(
-        createMessage({ authorId: "manager-2", authorSide: "owner" }),
+        createMessage({ authorId: MANAGER_2_ID, authorSide: "owner" }),
       );
 
       await service.send({
         bookingRequestId: BOOKING_ID,
-        authorId: "manager-2",
+        authorId: MANAGER_2_ID,
         body: "hello",
       });
 
@@ -413,7 +419,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.list({
           bookingRequestId: BOOKING_ID,
-          actorUserId: "operator-1",
+          actorUserId: OPERATOR_1_ID,
           page: 1,
           pageSize: 20,
         }),
@@ -441,7 +447,7 @@ describe("BookingMessagesService", () => {
       await expect(
         manager.service.list({
           bookingRequestId: BOOKING_ID,
-          actorUserId: "manager-2",
+          actorUserId: MANAGER_2_ID,
           page: 1,
           pageSize: 20,
         }),
@@ -451,7 +457,7 @@ describe("BookingMessagesService", () => {
       await expect(
         operator.service.list({
           bookingRequestId: BOOKING_ID,
-          actorUserId: "operator-1",
+          actorUserId: OPERATOR_1_ID,
           page: 1,
           pageSize: 20,
         }),
@@ -467,7 +473,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.list({
           bookingRequestId: BOOKING_ID,
-          actorUserId: "outsider-1",
+          actorUserId: OUTSIDER_1_ID,
           page: 1,
           pageSize: 20,
         }),
@@ -489,7 +495,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.edit({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
           body: "Corrected",
         }),
@@ -508,7 +514,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.remove({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
         }),
       ).resolves.toMatchObject({ body: "", deletedAt: expect.any(String) });
@@ -523,7 +529,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.edit({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
           body: "Not mine",
         }),
@@ -539,7 +545,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.edit({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
           body: "Too late",
         }),
@@ -558,7 +564,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.remove({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
         }),
       ).rejects.toMatchObject({ status: 400 });
@@ -595,7 +601,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.edit({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
           body: "Too late",
         }),
@@ -611,7 +617,7 @@ describe("BookingMessagesService", () => {
       await expect(
         service.remove({
           bookingRequestId: BOOKING_ID,
-          messageId: "message-1",
+          messageId: MESSAGE_1_ID,
           actorUserId: RENTER_ID,
         }),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
@@ -641,7 +647,7 @@ describe("BookingMessagesService", () => {
         markedCount: 1,
       });
 
-      await service.markRead(BOOKING_ID, "manager-2");
+      await service.markRead(BOOKING_ID, MANAGER_2_ID);
 
       expect(bookingMessagesRepository.markReadForSide).toHaveBeenCalledWith(
         expect.objectContaining({ side: "owner" }),
@@ -677,7 +683,7 @@ describe("BookingMessagesService", () => {
       const { service } = createService({ role: "operator" });
 
       await expect(
-        service.markRead(BOOKING_ID, "operator-1"),
+        service.markRead(BOOKING_ID, OPERATOR_1_ID),
       ).rejects.toMatchObject({
         status: 403,
         message: "You do not have permission to manage this booking request.",
@@ -732,7 +738,7 @@ describe("BookingMessagesService", () => {
       const { service } = createService({ membershipError });
 
       await expect(
-        service.createSocketTicket(BOOKING_ID, "outsider-1"),
+        service.createSocketTicket(BOOKING_ID, OUTSIDER_1_ID),
       ).rejects.toBe(membershipError);
     });
 
@@ -831,17 +837,17 @@ describe("BookingMessagesService", () => {
   describe("markDelivered", () => {
     it("publishes only the rows it actually marked", async () => {
       const { service, cacheService, realtimeGateway } = createService({
-        deliveredIds: ["message-1"],
+        deliveredIds: [MESSAGE_1_ID],
       });
 
       await expect(
-        service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
-      ).resolves.toEqual(["message-1"]);
+        service.markDelivered(BOOKING_ID, RENTER_ID, [MESSAGE_1_ID]),
+      ).resolves.toEqual([MESSAGE_1_ID]);
 
       const [event] = (realtimeGateway.publish as jest.Mock).mock.calls[0];
       expect(event).toMatchObject({
         type: "messages.delivered",
-        messageIds: ["message-1"],
+        messageIds: [MESSAGE_1_ID],
       });
     });
 
@@ -851,7 +857,7 @@ describe("BookingMessagesService", () => {
       });
 
       await expect(
-        service.markDelivered(BOOKING_ID, RENTER_ID, ["message-1"]),
+        service.markDelivered(BOOKING_ID, RENTER_ID, [MESSAGE_1_ID]),
       ).resolves.toEqual([]);
       expect(realtimeGateway.publish).not.toHaveBeenCalled();
     });
@@ -861,12 +867,12 @@ describe("BookingMessagesService", () => {
       // apply: an operator still receives the messages.
       const { service } = createService({
         role: "operator",
-        deliveredIds: ["message-1"],
+        deliveredIds: [MESSAGE_1_ID],
       });
 
       await expect(
-        service.markDelivered(BOOKING_ID, "operator-1", ["message-1"]),
-      ).resolves.toEqual(["message-1"]);
+        service.markDelivered(BOOKING_ID, OPERATOR_1_ID, [MESSAGE_1_ID]),
+      ).resolves.toEqual([MESSAGE_1_ID]);
     });
   });
 
@@ -893,7 +899,7 @@ describe("BookingMessagesService", () => {
       });
 
       await expect(
-        service.authorizeStream(BOOKING_ID, "operator-1"),
+        service.authorizeStream(BOOKING_ID, OPERATOR_1_ID),
       ).resolves.toEqual({
         bookingRequestId: BOOKING_ID,
         side: "owner",
@@ -916,7 +922,7 @@ describe("BookingMessagesService", () => {
       const { service } = createService({ membershipError });
 
       await expect(
-        service.authorizeStream(BOOKING_ID, "outsider-1"),
+        service.authorizeStream(BOOKING_ID, OUTSIDER_1_ID),
       ).rejects.toBe(membershipError);
     });
   });

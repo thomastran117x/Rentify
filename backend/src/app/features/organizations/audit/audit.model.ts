@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const organizationAuditActionSchema = z.enum([
   "organization.created",
@@ -81,7 +82,7 @@ export type ListOrganizationAuditQuery = z.infer<
 >;
 
 export interface OrganizationAuditActorSummary {
-  id: string;
+  id: Uuid;
   email: string;
   username: string;
   avatarUrl?: string;
@@ -124,8 +125,8 @@ export function createAuditChanges(
 }
 
 export interface OrganizationAuditRecord {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   actor?: OrganizationAuditActorSummary;
   action: OrganizationAuditAction;
   resourceType: OrganizationAuditResourceType;
@@ -137,7 +138,7 @@ export interface OrganizationAuditRecord {
   beforeSnapshot?: unknown;
   afterSnapshot?: unknown;
   restorable: boolean;
-  restoredFromAuditId?: string;
+  restoredFromAuditId?: Uuid;
   createdAt: string;
 }
 
@@ -151,8 +152,8 @@ export interface OrganizationAuditPagination {
 }
 
 export interface ListOrganizationAuditInput extends ListOrganizationAuditQuery {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
 }
 
 export interface ListOrganizationAuditResult {
@@ -161,9 +162,9 @@ export interface ListOrganizationAuditResult {
 }
 
 export interface RestoreOrganizationVersionInput {
-  organizationId: string;
-  actorUserId: string;
-  auditId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  auditId: Uuid;
 }
 
 export interface RestoreOrganizationVersionResult {
@@ -172,8 +173,8 @@ export interface RestoreOrganizationVersionResult {
 }
 
 export interface CreateOrganizationAuditLogInput {
-  organizationId: string;
-  actorUserId?: string | null;
+  organizationId: Uuid;
+  actorUserId?: Uuid | null;
   action: OrganizationAuditAction;
   resourceType: OrganizationAuditResourceType;
   resourceId?: string | null;
@@ -182,5 +183,5 @@ export interface CreateOrganizationAuditLogInput {
   beforeSnapshot?: unknown;
   afterSnapshot?: unknown;
   restorable?: boolean;
-  restoredFromAuditId?: string | null;
+  restoredFromAuditId?: Uuid | null;
 }

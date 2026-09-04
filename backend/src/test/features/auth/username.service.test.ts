@@ -4,6 +4,10 @@ import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { UsernameService } from "@/features/auth/username/username.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createClient(): ClientRequestContext {
   return {
@@ -14,7 +18,7 @@ function createClient(): ClientRequestContext {
 
 function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 1,
@@ -24,8 +28,8 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -137,10 +141,10 @@ describe("UsernameService.isUsernameAvailable", () => {
 
   it("exempts the caller's own username so settings does not flag it", async () => {
     const harness = createHarness();
-    harness.authRepository.findUserIdByUsername.mockResolvedValue("user-1");
+    harness.authRepository.findUserIdByUsername.mockResolvedValue(USER_1_ID);
 
     await expect(
-      harness.service.isUsernameAvailable("casey-doe", "user-1"),
+      harness.service.isUsernameAvailable("casey-doe", USER_1_ID),
     ).resolves.toMatchObject({ available: true, reason: null });
   });
 
@@ -246,10 +250,10 @@ describe("UsernameService.resolveUsernameAvailabilityHint", () => {
 
   it("still exempts the caller's own username on the fallback path", async () => {
     const harness = createHarness();
-    harness.authRepository.findUserIdByUsername.mockResolvedValue("user-1");
+    harness.authRepository.findUserIdByUsername.mockResolvedValue(USER_1_ID);
 
     await expect(
-      harness.service.resolveUsernameAvailabilityHint("casey-doe", "user-1"),
+      harness.service.resolveUsernameAvailabilityHint("casey-doe", USER_1_ID),
     ).resolves.toMatchObject({ available: true });
   });
 });

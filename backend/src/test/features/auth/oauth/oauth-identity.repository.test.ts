@@ -1,13 +1,16 @@
 import { Prisma } from "@/generated/prisma/client";
 import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createOAuthIdentityPersistence(
   overrides: Record<string, unknown> = {},
 ) {
   return {
     id: "oauth-1",
-    userId: "user-1",
+    userId: USER_1_ID,
     provider: "google",
     providerUserId: "google-user-1",
     providerEmail: "user@example.com",
@@ -52,7 +55,7 @@ describe("OAuthIdentityRepository", () => {
       },
     } as any);
 
-    const identities = await repository.listOAuthIdentitiesByUserId("user-1");
+    const identities = await repository.listOAuthIdentitiesByUserId(USER_1_ID);
 
     expect(identities).toEqual([
       expect.objectContaining({
@@ -80,7 +83,7 @@ describe("OAuthIdentityRepository", () => {
     } as any);
 
     const linked = await repository.linkOAuthIdentity(
-      "user-1",
+      USER_1_ID,
       createOAuthProfile({
         provider: "microsoft",
         providerUserId: "ms-user-1",
@@ -109,7 +112,7 @@ describe("OAuthIdentityRepository", () => {
     } as any);
 
     await expect(
-      duplicateRepository.linkOAuthIdentity("user-1", createOAuthProfile()),
+      duplicateRepository.linkOAuthIdentity(USER_1_ID, createOAuthProfile()),
     ).rejects.toThrow("This OAuth provider is already linked to an account.");
   });
 
@@ -124,12 +127,12 @@ describe("OAuthIdentityRepository", () => {
     } as any);
 
     await expect(
-      repository.unlinkOAuthIdentity("user-1", "google"),
+      repository.unlinkOAuthIdentity(USER_1_ID, "google"),
     ).resolves.toBe(true);
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: {
-        userId: "user-1",
+        userId: USER_1_ID,
         provider: "google",
       },
     });

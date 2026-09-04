@@ -1,6 +1,9 @@
 ﻿import { createTestContext, invoke } from "../../../support/mock-http";
 import { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
 import type { JwtClaims } from "@/features/auth/token/token.service";
+import { testUuid } from "../../../support/uuid";
+
+const ADMIN_1_ID = testUuid(9000, 185107);
 
 const mockRequireJwtAuth = jest.fn();
 
@@ -10,7 +13,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "admin-1",
+    sub: ADMIN_1_ID,
     email: "admin@example.com",
     role: "admin",
     tokenVersion: 0,

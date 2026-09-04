@@ -3,6 +3,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const optionalReviewTextSchema = z
   .string()
@@ -42,9 +43,9 @@ export type ListPostingReviewsQuery = z.infer<
 >;
 
 export interface PostingReviewRecord {
-  id: string;
-  postingId: string;
-  reviewerId: string;
+  id: Uuid;
+  postingId: Uuid;
+  reviewerId: Uuid;
   rating: number;
   title?: string;
   comment?: string;
@@ -80,8 +81,8 @@ export interface GetOwnPostingReviewResult {
 }
 
 export interface UpsertPostingReviewInput {
-  postingId: string;
-  reviewerId: string;
+  postingId: Uuid;
+  reviewerId: Uuid;
   rating: number;
   title?: string | null;
   comment?: string | null;

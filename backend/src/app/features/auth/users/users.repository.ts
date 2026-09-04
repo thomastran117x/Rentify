@@ -12,6 +12,12 @@ import {
 } from "@/features/auth/auth.model";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
 import ConflictError from "@/errors/http/conflict.error";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type AuthUserPersistence = {
   id: string;
@@ -162,7 +168,7 @@ export class UsersRepository extends BaseRepository {
     const user = await this.executeAsync(() =>
       this.prisma.user.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           email: input.email.toLowerCase(),
           passwordHash,
           firstName: input.firstName ?? null,
@@ -171,7 +177,7 @@ export class UsersRepository extends BaseRepository {
           emailVerified: false,
           profile: {
             create: {
-              id: randomUUID(),
+              id: newUuid(),
               username: input.username.toLowerCase(),
             },
           },
@@ -195,7 +201,7 @@ export class UsersRepository extends BaseRepository {
     const user = await this.executeAsync(() =>
       this.prisma.user.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           email: input.email.toLowerCase(),
           passwordHash: null,
           firstName: input.firstName ?? null,
@@ -204,7 +210,7 @@ export class UsersRepository extends BaseRepository {
           emailVerified: input.emailVerified,
           oauthIdentities: {
             create: {
-              id: randomUUID(),
+              id: newUuid(),
               provider: input.provider,
               providerUserId: input.providerUserId,
               providerEmail: input.email.toLowerCase(),
@@ -214,7 +220,7 @@ export class UsersRepository extends BaseRepository {
           },
           profile: {
             create: {
-              id: randomUUID(),
+              id: newUuid(),
               username,
               // Derived from the email local part, not chosen. Replacing it is
               // a claim rather than a change, so it does not start the rename
@@ -253,7 +259,7 @@ export class UsersRepository extends BaseRepository {
     return identity ? this.mapUser(identity.user) : null;
   }
 
-  async markEmailVerified(userId: string): Promise<void> {
+  async markEmailVerified(userId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({
         where: {
@@ -267,7 +273,7 @@ export class UsersRepository extends BaseRepository {
   }
 
   async activatePendingLocalUser(
-    userId: string,
+    userId: Uuid,
     input: {
       username: string;
       passwordHash: string;
@@ -306,7 +312,7 @@ export class UsersRepository extends BaseRepository {
     }
 
     return {
-      id: user.id,
+      id: asUuid(user.id),
       email: user.email,
       passwordHash: user.passwordHash ?? undefined,
       tokenVersion: user.tokenVersion,
@@ -318,7 +324,7 @@ export class UsersRepository extends BaseRepository {
       oauthIdentities: user.oauthIdentities.map((identity) =>
         this.mapOAuthIdentity(identity),
       ),
-      preferredOrganizationId: user.preferredOrganizationId ?? undefined,
+      preferredOrganizationId: asOptionalUuid(user.preferredOrganizationId),
       organizationMemberships: user.organizationMemberships.map((membership) =>
         this.mapOrganizationMembership(membership),
       ),
@@ -331,8 +337,8 @@ export class UsersRepository extends BaseRepository {
     identity: OAuthIdentityPersistence,
   ): OAuthIdentityRecord {
     return {
-      id: identity.id,
-      userId: identity.userId,
+      id: asUuid(identity.id),
+      userId: asUuid(identity.userId),
       provider: oauthProviderSchema.parse(identity.provider),
       providerUserId: identity.providerUserId,
       providerEmail: identity.providerEmail ?? undefined,
@@ -346,8 +352,8 @@ export class UsersRepository extends BaseRepository {
 
   private mapProfile(profile: AuthProfilePersistence): UserProfileRecord {
     return {
-      id: profile.id,
-      userId: profile.userId,
+      id: asUuid(profile.id),
+      userId: asUuid(profile.userId),
       username: profile.username,
       phoneNumber: profile.phoneNumber ?? undefined,
       avatarUrl: profile.avatarUrl ?? undefined,
@@ -437,8 +443,8 @@ export class UsersRepository extends BaseRepository {
     membership: OrganizationMembershipPersistence,
   ): AuthUserOrganizationMembershipRecord {
     return {
-      membershipId: membership.id,
-      organizationId: membership.organizationId,
+      membershipId: asUuid(membership.id),
+      organizationId: asUuid(membership.organizationId),
       organizationName: membership.organization.name,
       role: membership.role as AuthUserOrganizationMembershipRecord["role"],
       createdAt: membership.createdAt.toISOString(),

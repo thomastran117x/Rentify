@@ -1,11 +1,18 @@
 import { Prisma } from "@/generated/prisma/client";
 import { OrganizationReviewRepository } from "@/features/organizations/reviews/reviews.repository";
+import { testUuid } from "../../../support/uuid";
+const MISSING_ID = testUuid(9000, 394917);
+const USER_1_ID = testUuid(9000, 994257);
+const REVIEW_1_ID = testUuid(9000, 118005);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_2_ID = testUuid(9000, 994258);
 
 function buildRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "review-1",
-    organizationId: "org-1",
-    reviewerId: "user-2",
+    id: REVIEW_1_ID,
+    organizationId: ORG_1_ID,
+    reviewerId: USER_2_ID,
     rating: 5,
     title: "Great",
     comment: "Loved it",
@@ -13,7 +20,7 @@ function buildRow(overrides: Record<string, unknown> = {}) {
     responseAuthorId: null,
     respondedAt: null,
     reviewer: {
-      id: "user-2",
+      id: USER_2_ID,
       profile: {
         username: "renter-two",
         avatarUrl: "https://example.test/avatar.png",
@@ -34,8 +41,8 @@ describe("OrganizationReviewRepository", () => {
     } as never);
 
     const result = await repository.create({
-      organizationId: "org-1",
-      reviewerId: "user-2",
+      organizationId: ORG_1_ID,
+      reviewerId: USER_2_ID,
       rating: 5,
       title: "Great",
       comment: "Loved it",
@@ -44,15 +51,15 @@ describe("OrganizationReviewRepository", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          organizationId: "org-1",
-          reviewerId: "user-2",
+          organizationId: ORG_1_ID,
+          reviewerId: USER_2_ID,
           rating: 5,
         }),
       }),
     );
     expect(result).toEqual(
       expect.objectContaining({
-        id: "review-1",
+        id: REVIEW_1_ID,
         rating: 5,
         reviewer: {
           username: "renter-two",
@@ -69,7 +76,7 @@ describe("OrganizationReviewRepository", () => {
         response: "Thanks!",
         respondedAt: new Date("2026-07-17T00:00:00.000Z"),
         responseAuthor: {
-          id: "user-1",
+          id: USER_1_ID,
           profile: { username: "owner-one", avatarUrl: null },
         },
       }),
@@ -78,18 +85,18 @@ describe("OrganizationReviewRepository", () => {
       organizationReview: { findFirst },
     } as never);
 
-    const result = await repository.findById("org-1", "review-1");
+    const result = await repository.findById(ORG_1_ID, REVIEW_1_ID);
 
     expect(result?.response).toEqual({
       body: "Thanks!",
       respondedAt: "2026-07-17T00:00:00.000Z",
-      author: { id: "user-1", username: "owner-one", avatarUrl: undefined },
+      author: { id: USER_1_ID, username: "owner-one", avatarUrl: undefined },
     });
   });
 
   it("returns null when updating a review that no longer exists", async () => {
     const update = jest.fn(async () => {
-      throw new Prisma.PrismaClientKnownRequestError("missing", {
+      throw new Prisma.PrismaClientKnownRequestError(MISSING_ID, {
         code: "P2025",
         clientVersion: "6.0.0",
       });
@@ -100,8 +107,8 @@ describe("OrganizationReviewRepository", () => {
 
     await expect(
       repository.updateOwnReview({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 4,
         title: null,
         comment: null,
@@ -119,8 +126,8 @@ describe("OrganizationReviewRepository", () => {
 
     await expect(
       repository.updateOwnReview({
-        organizationId: "org-1",
-        reviewerId: "user-2",
+        organizationId: ORG_1_ID,
+        reviewerId: USER_2_ID,
         rating: 4,
         title: null,
         comment: null,
@@ -139,7 +146,7 @@ describe("OrganizationReviewRepository", () => {
       organizationReview: { findMany, count, aggregate },
     } as never);
 
-    const result = await repository.listByOrganization("org-1", 1, 20);
+    const result = await repository.listByOrganization(ORG_1_ID, 1, 20);
 
     expect(result.summary).toEqual({ averageRating: 4.5, reviewCount: 1 });
     expect(result.reviews).toHaveLength(1);
@@ -155,7 +162,7 @@ describe("OrganizationReviewRepository", () => {
       organizationReview: { aggregate },
     } as never);
 
-    const summary = await repository.getSummary("org-1");
+    const summary = await repository.getSummary(ORG_1_ID);
 
     expect(summary).toEqual({ averageRating: 0, reviewCount: 0 });
   });
@@ -165,22 +172,22 @@ describe("OrganizationReviewRepository", () => {
       buildRow({
         response: "Thanks!",
         respondedAt: new Date("2026-07-17T00:00:00.000Z"),
-        responseAuthor: { id: "user-1", profile: { username: "owner-one" } },
+        responseAuthor: { id: USER_1_ID, profile: { username: "owner-one" } },
       }),
     );
     const repository = new OrganizationReviewRepository({
       organizationReview: { update },
     } as never);
 
-    await repository.setResponse("org-1", "review-1", {
+    await repository.setResponse(ORG_1_ID, REVIEW_1_ID, {
       response: "Thanks!",
-      responseAuthorId: "user-1",
+      responseAuthorId: USER_1_ID,
       respondedAt: new Date("2026-07-17T00:00:00.000Z"),
     });
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "review-1", organizationId: "org-1" },
+        where: { id: REVIEW_1_ID, organizationId: ORG_1_ID },
         data: expect.objectContaining({ response: "Thanks!" }),
       }),
     );
@@ -192,23 +199,25 @@ describe("OrganizationReviewRepository", () => {
       organizationReview: { delete: deleteFn },
     } as never);
 
-    await repository.delete("org-1", "review-1");
+    await repository.delete(ORG_1_ID, REVIEW_1_ID);
 
     expect(deleteFn).toHaveBeenCalledWith({
-      where: { id: "review-1", organizationId: "org-1" },
+      where: { id: REVIEW_1_ID, organizationId: ORG_1_ID },
     });
   });
 
   it("reports whether an organization exists", async () => {
-    const findUnique = jest.fn(async () => ({ id: "org-1" }));
+    const findUnique = jest.fn(async () => ({ id: ORG_1_ID }));
     const repository = new OrganizationReviewRepository({
       organization: { findUnique },
     } as never);
 
-    await expect(repository.organizationExists("org-1")).resolves.toBe(true);
+    await expect(repository.organizationExists(ORG_1_ID)).resolves.toBe(true);
 
     findUnique.mockResolvedValueOnce(null as never);
-    await expect(repository.organizationExists("missing")).resolves.toBe(false);
+    await expect(repository.organizationExists(MISSING_ID)).resolves.toBe(
+      false,
+    );
   });
 
   it("recomputes organization rating stats via raw SQL", async () => {
@@ -217,7 +226,7 @@ describe("OrganizationReviewRepository", () => {
       $executeRaw: executeRaw,
     } as never);
 
-    await repository.updateOrganizationRatingStats("org-1");
+    await repository.updateOrganizationRatingStats(ORG_1_ID);
 
     expect(executeRaw).toHaveBeenCalled();
   });
@@ -228,18 +237,18 @@ describe("OrganizationReviewRepository", () => {
       organizationReview: { findUnique },
     } as never);
 
-    const result = await repository.findOwnReview("org-1", "user-2");
+    const result = await repository.findOwnReview(ORG_1_ID, USER_2_ID);
 
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           organizationId_reviewerId: {
-            organizationId: "org-1",
-            reviewerId: "user-2",
+            organizationId: ORG_1_ID,
+            reviewerId: USER_2_ID,
           },
         },
       }),
     );
-    expect(result?.id).toBe("review-1");
+    expect(result?.id).toBe(REVIEW_1_ID);
   });
 });

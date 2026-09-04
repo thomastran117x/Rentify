@@ -3,6 +3,7 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import { redactEmail } from "@/features/auth/redact-email";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const logger = loggerFactory.forComponent("auth.login-mfa", "service");
 
@@ -13,7 +14,7 @@ const logger = loggerFactory.forComponent("auth.login-mfa", "service");
  */
 export async function requireLoginMfa(
   mfaTotpService: MfaTotpService,
-  userId: string,
+  userId: Uuid,
   email: string,
   totpCode: string | undefined,
 ): Promise<void> {

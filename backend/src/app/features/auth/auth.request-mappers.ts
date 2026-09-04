@@ -54,6 +54,7 @@ import {
   type ForgotUsernameRequestBody,
   type UsernameAvailabilityQuery,
 } from "@/features/auth/username/username.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 /**
  * An explicit body value wins over the fingerprinted device so a client that
@@ -162,7 +163,7 @@ export function toLinkOAuthProviderInput(
   return {
     ...toOAuthAuthenticateInput(request, input),
     provider: requireOAuthProviderParam(request),
-    userId: request.auth.sub,
+    userId: asUuid(request.auth.sub),
   };
 }
 
@@ -171,7 +172,7 @@ export function toUnlinkOAuthProviderInput(
 ): UnlinkOAuthProviderInput {
   return {
     provider: requireOAuthProviderParam(request),
-    userId: request.auth.sub,
+    userId: asUuid(request.auth.sub),
   };
 }
 
@@ -260,7 +261,7 @@ export function toRemoveKnownDeviceInput(
   input: RemoveKnownDeviceRequestBody,
 ): RemoveKnownDeviceInput {
   return {
-    userId: request.auth.sub,
+    userId: asUuid(request.auth.sub),
     deviceId: input.deviceId,
   };
 }
@@ -290,7 +291,7 @@ export function toChangePasswordInput(
   input: ChangePasswordRequestBody,
 ): ChangePasswordInput {
   return {
-    userId: request.auth.sub,
+    userId: asUuid(request.auth.sub),
     client: request.client,
     currentPassword: input.currentPassword,
     newPassword: input.newPassword,
@@ -303,7 +304,7 @@ export function toSetPasswordInput(
   input: SetPasswordRequestBody,
 ): SetPasswordInput {
   return {
-    userId: request.auth.sub,
+    userId: asUuid(request.auth.sub),
     client: request.client,
     newPassword: input.newPassword,
     deviceId: request.auth.deviceId ?? request.client.device.id,

@@ -4,10 +4,14 @@ import type {
   AuthUserRecord,
 } from "@/features/auth/auth.model";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
+import { testUuid } from "../../support/uuid";
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createUser(): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 1,
@@ -16,8 +20,8 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
@@ -38,7 +42,7 @@ function createContext(
   return {
     auth: {
       authMethod: "jwt",
-      sub: "user-1",
+      sub: USER_1_ID,
       deviceId: "device-1",
       iat: 1,
       exp: 999_999,
@@ -100,7 +104,7 @@ describe("DeviceManagementService.deviceVerify", () => {
     await harness.service.deviceVerify(createContext());
 
     expect(harness.deviceService.registerKnownDevice).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "user-1" }),
+      expect.objectContaining({ id: USER_1_ID }),
       expect.anything(),
       "device-1",
     );
@@ -113,7 +117,7 @@ describe("DeviceManagementService.deviceVerify", () => {
       createContext({
         auth: {
           authMethod: "jwt",
-          sub: "user-1",
+          sub: USER_1_ID,
           iat: 1,
           exp: 999_999,
         } as AuthRequestContext["auth"],
@@ -142,7 +146,7 @@ describe("DeviceManagementService.deviceVerify", () => {
         knownByIp: true,
         deviceId: "device-1",
       },
-      auth: { userId: "user-1", tokenDeviceId: "device-1" },
+      auth: { userId: USER_1_ID, tokenDeviceId: "device-1" },
     });
   });
 
@@ -179,7 +183,7 @@ describe("DeviceManagementService.devices", () => {
       ],
     });
     expect(harness.deviceService.listKnownDevices).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-1",
     );
   });
@@ -191,19 +195,19 @@ describe("DeviceManagementService.removeKnownDevice", () => {
 
     await expect(
       harness.service.removeKnownDevice({
-        userId: "user-1",
+        userId: USER_1_ID,
         deviceId: "device-2",
       }),
     ).resolves.toEqual({ removed: true, deviceId: "device-2" });
 
     expect(harness.deviceService.removeKnownDevice).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-2",
     );
     // Leaving the sessions live would make "sign this device out" only remove it
     // from the list.
     expect(harness.tokenService.revokeSessionsForDevice).toHaveBeenCalledWith(
-      "user-1",
+      USER_1_ID,
       "device-2",
     );
   });

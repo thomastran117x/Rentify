@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -9,6 +8,12 @@ import type {
   OrganizationAnnouncementStatus,
   UpdateOrganizationAnnouncementPersistence,
 } from "@/features/organizations/announcements/announcements.model";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type AnnouncementPersistence = Prisma.OrganizationAnnouncementGetPayload<{
   include: {
@@ -32,7 +37,7 @@ export class OrganizationAnnouncementRepository extends BaseRepository {
     const row = await this.executeAsync(() =>
       this.prisma.organizationAnnouncement.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           organizationId: input.organizationId,
           authorUserId: input.authorUserId,
           title: input.title,
@@ -48,8 +53,8 @@ export class OrganizationAnnouncementRepository extends BaseRepository {
   }
 
   async update(
-    organizationId: string,
-    announcementId: string,
+    organizationId: Uuid,
+    announcementId: Uuid,
     input: UpdateOrganizationAnnouncementPersistence,
   ): Promise<OrganizationAnnouncementRecord> {
     const row = await this.executeAsync(() =>
@@ -70,7 +75,7 @@ export class OrganizationAnnouncementRepository extends BaseRepository {
     return this.mapAnnouncement(row);
   }
 
-  async delete(organizationId: string, announcementId: string): Promise<void> {
+  async delete(organizationId: Uuid, announcementId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.organizationAnnouncement.delete({
         where: { id: announcementId, organizationId },
@@ -79,8 +84,8 @@ export class OrganizationAnnouncementRepository extends BaseRepository {
   }
 
   async findById(
-    organizationId: string,
-    announcementId: string,
+    organizationId: Uuid,
+    announcementId: Uuid,
   ): Promise<OrganizationAnnouncementRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationAnnouncement.findFirst({
@@ -137,11 +142,11 @@ export class OrganizationAnnouncementRepository extends BaseRepository {
     row: AnnouncementPersistence,
   ): OrganizationAnnouncementRecord {
     return {
-      id: row.id,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
       author: row.author
         ? {
-            id: row.author.id,
+            id: asUuid(row.author.id),
             email: row.author.email,
             username: row.author.profile?.username ?? row.author.email,
             avatarUrl: row.author.profile?.avatarUrl ?? undefined,

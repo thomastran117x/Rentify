@@ -23,6 +23,11 @@ import type {
 import type { ServiceContainer } from "@/configuration/bootstrap/container";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { testUuid } from "../../support/uuid";
+const USER_1_ID = testUuid(9000, 994257);
+
+const PAYMENT_ONE_ID = testUuid(3000, 1);
+const PAYMENT_TWO_ID = testUuid(3000, 2);
 
 class FakeTokenService {
   constructor(
@@ -57,7 +62,7 @@ class FakeContainer implements ServiceContainer {
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     tokenVersion: 0,
@@ -217,7 +222,7 @@ describe("authorization", () => {
     const ownerContext = createContext({
       authorization: "Bearer owner-token",
       params: {
-        id: "payment-1",
+        id: PAYMENT_ONE_ID,
       },
       tokenService: new FakeTokenService(() => createClaims({ role: "owner" })),
     });
@@ -230,7 +235,7 @@ describe("authorization", () => {
     const adminContext = createContext({
       authorization: "Bearer admin-token",
       params: {
-        id: "payment-2",
+        id: PAYMENT_TWO_ID,
       },
       tokenService: new FakeTokenService(() => createClaims({ role: "admin" })),
     });

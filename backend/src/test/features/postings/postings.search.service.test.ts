@@ -8,6 +8,10 @@ import { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PostingSearchDocument } from "@/features/postings/postings.model";
 import { ElasticsearchUnavailableError } from "@/configuration/resources/elasticsearch";
 import { resetSearchTelemetry } from "@/features/search/search.telemetry";
+import { testUuid } from "../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const ORG_2_ID = testUuid(9000, 9235);
 
 interface CapturedSql {
   sql: string;
@@ -19,7 +23,7 @@ function createDocument(
 ): PostingSearchDocument {
   return {
     id: "posting-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "published",
     variant: {
       family: "place",
@@ -193,7 +197,7 @@ function readKeywordShouldClauses(
 function createPublicPosting(overrides: Record<string, unknown> = {}) {
   return {
     id: "posting-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     status: "published",
     variant: {
       family: "place",
@@ -626,14 +630,14 @@ describe("PostingsPublicSearchService", () => {
       page: 1,
       pageSize: 20,
       sort: "relevance",
-      organizationIds: ["org-1", "org-2"],
+      organizationIds: [ORG_1_ID, ORG_2_ID],
     });
 
     expect(readSearchRequest(requestJson).query.bool.filter).toEqual(
       expect.arrayContaining([
         {
           terms: {
-            organizationId: ["org-1", "org-2"],
+            organizationId: [ORG_1_ID, ORG_2_ID],
           },
         },
       ]),
@@ -1920,13 +1924,15 @@ describe("PostingsRepository.searchPublicFallback", () => {
       page: 1,
       pageSize: 10,
       sort: "newest",
-      organizationIds: ["org-1", "org-2"],
+      organizationIds: [ORG_1_ID, ORG_2_ID],
     });
 
     const idQuery = queries[1]!;
 
     expect(idQuery.sql).toContain("organization_id IN (?,?)");
-    expect(idQuery.values).toEqual(expect.arrayContaining(["org-1", "org-2"]));
+    expect(idQuery.values).toEqual(
+      expect.arrayContaining([ORG_1_ID, ORG_2_ID]),
+    );
   });
 
   it("matches the owning organization name in fallback keyword searches", async () => {

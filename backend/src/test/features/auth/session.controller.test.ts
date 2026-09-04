@@ -7,6 +7,9 @@ import {
   invoke,
   type AuthTestContext,
 } from "../../support/auth-controller-harness";
+import { testUuid } from "../../support/uuid";
+
+const USER_3_ID = testUuid(9000, 994259);
 
 const mockRequireJwtAuth = jest.fn();
 const mockReadCookie = jest.fn();
@@ -58,7 +61,7 @@ beforeEach(() => {
 
 describe("AuthSessionController.localVerify", () => {
   it("authenticates first, then passes the principal and client through", async () => {
-    const auth = createClaims({ sub: "user-3" });
+    const auth = createClaims({ sub: USER_3_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -165,7 +168,7 @@ describe("AuthSessionController.refresh", () => {
 
 describe("AuthSessionController.logout", () => {
   it("authenticates, forwards the refresh cookie, and clears both cookies", async () => {
-    const auth = createClaims({ sub: "user-3", sessionId: "session-1" });
+    const auth = createClaims({ sub: USER_3_ID, sessionId: "session-1" });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;

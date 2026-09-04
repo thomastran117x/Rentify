@@ -2,6 +2,10 @@ import { BlobService } from "@/features/blob/blob.service";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalAccessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
@@ -38,7 +42,7 @@ describe("BlobService", () => {
 
     const service = new BlobService();
     const uploadTarget = service.createUploadUrl({
-      userId: "user-1",
+      userId: USER_1_ID,
       filename: "photo.png",
       contentType: "image/png",
       scope: "postings",
@@ -81,7 +85,7 @@ describe("BlobService", () => {
 
     const service = new BlobService();
     const uploadTarget = service.createUploadUrl({
-      userId: "user-1",
+      userId: USER_1_ID,
       filename: "photo.jpg",
       contentType: " image/jpeg ",
       requestOrigin: "not-a-valid-origin",
@@ -99,20 +103,24 @@ describe("BlobService", () => {
 
     const service = new BlobService();
     const result = await service.uploadBuffer({
-      blobName: "postings/user-1/photo.png",
+      blobName: `postings/${USER_1_ID}/photo.png`,
       body: Buffer.from("thumbnail-source"),
       contentType: "image/png",
     });
-    const download = await service.downloadBlob("postings/user-1/photo.png");
+    const download = await service.downloadBlob(
+      `postings/${USER_1_ID}/photo.png`,
+    );
 
     expect(result.blobUrl).toBe(
-      service.getBlobUrl("postings/user-1/photo.png"),
+      service.getBlobUrl(`postings/${USER_1_ID}/photo.png`),
     );
     expect(download.body.toString("utf8")).toBe("thumbnail-source");
     expect(download.contentType).toBe("image/png");
     expect(
-      service.buildPostingPhotoThumbnailBlobName("postings/user-1/photo.png"),
-    ).toBe("postings/user-1/thumbnails/photo.webp");
+      service.buildPostingPhotoThumbnailBlobName(
+        `postings/${USER_1_ID}/photo.png`,
+      ),
+    ).toBe(`postings/${USER_1_ID}/thumbnails/photo.webp`);
   });
 
   it("rejects invalid scope, content types, upload tokens, and expired local uploads", async () => {
@@ -123,7 +131,7 @@ describe("BlobService", () => {
 
     const service = new BlobService();
     const uploadTarget = service.createUploadUrl({
-      userId: "user-1",
+      userId: USER_1_ID,
       filename: "photo.png",
       contentType: "image/png",
       requestOrigin: "http://localhost:8040",
@@ -134,14 +142,14 @@ describe("BlobService", () => {
 
     expect(() =>
       service.createUploadUrl({
-        userId: "user-1",
+        userId: USER_1_ID,
         filename: "photo.png",
         contentType: "text/plain\r\nx-test: bad",
       }),
     ).toThrow(BadRequestError);
     expect(() =>
       service.createUploadUrl({
-        userId: "user-1",
+        userId: USER_1_ID,
         filename: "photo.png",
         contentType: "image/png",
         scope: "Invalid Scope",
@@ -197,15 +205,18 @@ describe("BlobService", () => {
 
     const service = new BlobService();
     await service.uploadBuffer({
-      blobName: "organizations/user-1/logo.png",
+      blobName: `organizations/${USER_1_ID}/logo.png`,
       body: Buffer.from("logo"),
       contentType: "image/png",
     });
 
-    await service.deleteBlobForUser("user-1", "organizations/user-1/logo.png");
+    await service.deleteBlobForUser(
+      USER_1_ID,
+      `organizations/${USER_1_ID}/logo.png`,
+    );
 
     await expect(
-      service.readLocalBlob("organizations/user-1/logo.png"),
+      service.readLocalBlob(`organizations/${USER_1_ID}/logo.png`),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
@@ -218,7 +229,10 @@ describe("BlobService", () => {
     const service = new BlobService();
 
     await expect(
-      service.deleteBlobForUser("user-2", "organizations/user-1/logo.png"),
+      service.deleteBlobForUser(
+        USER_2_ID,
+        `organizations/${USER_1_ID}/logo.png`,
+      ),
     ).rejects.toThrow(BadRequestError);
   });
 
@@ -230,12 +244,18 @@ describe("BlobService", () => {
     const service = new BlobService();
 
     expect(
-      service.isBlobOwnedByUser("user-1", "organizations/user-1/logo.png"),
+      service.isBlobOwnedByUser(
+        USER_1_ID,
+        `organizations/${USER_1_ID}/logo.png`,
+      ),
     ).toBe(true);
     expect(
-      service.isBlobOwnedByUser("user-1", "organizations/user-2/logo.png"),
+      service.isBlobOwnedByUser(
+        USER_1_ID,
+        `organizations/${USER_2_ID}/logo.png`,
+      ),
     ).toBe(false);
-    expect(service.isBlobOwnedByUser("user-1", "../escape.txt")).toBe(false);
+    expect(service.isBlobOwnedByUser(USER_1_ID, "../escape.txt")).toBe(false);
   });
 
   it("treats missing local blob deletes as no-ops and unmanaged urls as false", async () => {
@@ -251,7 +271,7 @@ describe("BlobService", () => {
     expect(
       service.isManagedBlobUrl(
         "https://example.test/blob.png",
-        "organizations/user-1/logo.png",
+        `organizations/${USER_1_ID}/logo.png`,
       ),
     ).toBe(false);
   });

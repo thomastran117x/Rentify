@@ -32,6 +32,7 @@ import type {
   PreviewOrganizationInviteInput,
   RevokeOrganizationInviteInput,
 } from "@/features/organizations/invitations/invitations.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const ORGANIZATION_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -123,7 +124,7 @@ export class OrganizationInvitationsService {
 
     const revoked =
       await this.organizationsInvitationsRepository.revokeInvitation(
-        invitation.id,
+        asUuid(invitation.id),
         new Date(),
       );
 
@@ -165,7 +166,7 @@ export class OrganizationInvitationsService {
 
     return {
       invitation: {
-        organizationId: invitation.organization.id,
+        organizationId: asUuid(invitation.organization.id),
         organizationName: invitation.organization.name,
         emailHint: invitation.emailHint,
         role: invitation.role,
@@ -208,7 +209,7 @@ export class OrganizationInvitationsService {
     if (invitation.status === "accepted") {
       const existingMember =
         await this.organizationsMembersRepository.findMemberByUserId(
-          invitation.organization.id,
+          asUuid(invitation.organization.id),
           user.id,
         );
 
@@ -220,7 +221,7 @@ export class OrganizationInvitationsService {
 
       const memberships =
         await this.organizationsMembersRepository.listMembershipsByUserId(
-          user.id,
+          asUuid(user.id),
           user.preferredOrganizationId,
         );
       const membership = memberships.find(
@@ -251,23 +252,23 @@ export class OrganizationInvitationsService {
 
     const { invitation: acceptedInvitation, membership } =
       await this.organizationsInvitationsRepository.acceptInvitation({
-        invitationId: invitation.id,
-        organizationId: invitation.organization.id,
-        userId: user.id,
+        invitationId: asUuid(invitation.id),
+        organizationId: asUuid(invitation.organization.id),
+        userId: asUuid(user.id),
         role: invitation.role,
         now: new Date(),
       });
 
     if (!user.preferredOrganizationId) {
       await this.organizationsProfileRepository.setPreferredOrganization(
-        user.id,
+        asUuid(user.id),
         invitation.organization.id,
       );
     }
 
     const memberships =
       await this.organizationsMembersRepository.listMembershipsByUserId(
-        user.id,
+        asUuid(user.id),
         user.preferredOrganizationId ?? invitation.organization.id,
       );
     const membershipSummary = memberships.find(
@@ -281,8 +282,8 @@ export class OrganizationInvitationsService {
     }
 
     await this.organizationAuditService.recordSafely({
-      organizationId: invitation.organization.id,
-      actorUserId: user.id,
+      organizationId: asUuid(invitation.organization.id),
+      actorUserId: asUuid(user.id),
       action: "invitation.accepted",
       resourceType: "invitation",
       resourceId: acceptedInvitation.id,
@@ -311,7 +312,7 @@ export class OrganizationInvitationsService {
    * never gets served back to a member.
    */
   async expirePendingInvitations(
-    organizationId: string,
+    organizationId: Uuid,
     invitations: Array<{
       id: string;
       status: string;
@@ -333,7 +334,7 @@ export class OrganizationInvitationsService {
       expiredInvitations.map(async (invitation) => {
         const expired =
           await this.organizationsInvitationsRepository.expireInvitation(
-            invitation.id,
+            asUuid(invitation.id),
             new Date(),
           );
         const expiredInvitation = expired ?? {
@@ -380,10 +381,7 @@ export class OrganizationInvitationsService {
     );
   }
 
-  private async requireInvitation(
-    organizationId: string,
-    invitationId: string,
-  ) {
+  private async requireInvitation(organizationId: Uuid, invitationId: Uuid) {
     const invitation =
       await this.organizationsInvitationsRepository.findInvitationById(
         organizationId,
@@ -423,7 +421,7 @@ export class OrganizationInvitationsService {
     ) {
       const expired =
         await this.organizationsInvitationsRepository.expireInvitation(
-          invitation.id,
+          asUuid(invitation.id),
           new Date(),
         );
 
@@ -438,7 +436,7 @@ export class OrganizationInvitationsService {
           };
 
       await this.organizationAuditService.recordSafely({
-        organizationId: invitation.organization.id,
+        organizationId: asUuid(invitation.organization.id),
         actorUserId: null,
         action: "invitation.expired",
         resourceType: "invitation",

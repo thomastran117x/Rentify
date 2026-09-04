@@ -6,6 +6,9 @@ import {
   createContext,
   invoke,
 } from "../../support/auth-controller-harness";
+import { testUuid } from "../../support/uuid";
+
+const USER_7_ID = testUuid(9000, 994263);
 
 const mockGetOptionalJwtAuth = jest.fn();
 
@@ -63,7 +66,7 @@ describe("UsernameController.checkUsernameAvailability", () => {
   });
 
   it("passes the signed-in caller's id so their own name reads as free", async () => {
-    mockGetOptionalJwtAuth.mockResolvedValue(createClaims({ sub: "user-7" }));
+    mockGetOptionalJwtAuth.mockResolvedValue(createClaims({ sub: USER_7_ID }));
     const { controller, usernameService } = createController();
 
     await invoke(
@@ -75,7 +78,7 @@ describe("UsernameController.checkUsernameAvailability", () => {
 
     expect(
       usernameService.resolveUsernameAvailabilityHint,
-    ).toHaveBeenCalledWith("casey-doe", "user-7");
+    ).toHaveBeenCalledWith("casey-doe", USER_7_ID);
   });
 
   it("rejects a request with no username", async () => {

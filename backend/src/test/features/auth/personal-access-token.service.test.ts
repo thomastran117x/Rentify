@@ -1,6 +1,10 @@
 import type { PersonalAccessTokenRecord } from "@/features/auth/personal-access-token/personal-access-token.model";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { testUuid } from "../../support/uuid";
+
+const PAT_RECORD_1_ID = testUuid(9000, 629172);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createRepositoryMock() {
   return {
@@ -17,8 +21,8 @@ function createTokenRecord(
   overrides: Partial<PersonalAccessTokenRecord> = {},
 ): PersonalAccessTokenRecord {
   return {
-    id: "pat-record-1",
-    userId: "user-1",
+    id: PAT_RECORD_1_ID,
+    userId: USER_1_ID,
     name: "Rentify MCP",
     publicId: "1234567890abcdef123456",
     tokenPrefix: "rpat_1234567890abcdef123456_abcdef",
@@ -27,7 +31,7 @@ function createTokenRecord(
     createdAt: "2026-04-26T00:00:00.000Z",
     updatedAt: "2026-04-26T00:00:00.000Z",
     user: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "user@example.com",
       role: "owner",
     },
@@ -68,7 +72,7 @@ describe("PersonalAccessTokenService", () => {
     const createState = installCreateMock(repository);
 
     const result = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
@@ -88,7 +92,7 @@ describe("PersonalAccessTokenService", () => {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
@@ -107,11 +111,11 @@ describe("PersonalAccessTokenService", () => {
     );
 
     expect(principal).toMatchObject({
-      sub: "user-1",
+      sub: USER_1_ID,
       authMethod: "pat",
       scopes: ["mcp:read"],
     });
-    expect(repository.touchLastUsedAt).toHaveBeenCalledWith("pat-record-1");
+    expect(repository.touchLastUsedAt).toHaveBeenCalledWith(PAT_RECORD_1_ID);
   });
 
   it("rejects PATs with invalid formats before repository lookup", async () => {
@@ -150,7 +154,7 @@ describe("PersonalAccessTokenService", () => {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
@@ -179,7 +183,7 @@ describe("PersonalAccessTokenService", () => {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
@@ -207,7 +211,7 @@ describe("PersonalAccessTokenService", () => {
       personalAccessTokenSecret: "test-pat-secret",
     });
     const created = await service.create({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
@@ -237,14 +241,14 @@ describe("PersonalAccessTokenService", () => {
     repository.findByIdForUser.mockResolvedValue(createTokenRecord());
 
     const result = await service.revoke({
-      userId: "user-1",
-      tokenId: "pat-record-1",
+      userId: USER_1_ID,
+      tokenId: PAT_RECORD_1_ID,
     });
 
     expect(result).toEqual({
       revoked: true,
-      tokenId: "pat-record-1",
+      tokenId: PAT_RECORD_1_ID,
     });
-    expect(repository.revoke).toHaveBeenCalledWith("pat-record-1");
+    expect(repository.revoke).toHaveBeenCalledWith(PAT_RECORD_1_ID);
   });
 });

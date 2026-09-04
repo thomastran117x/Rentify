@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
   ListSavedPostingEntriesResult,
   SavedPostingsPagination,
 } from "@/features/postings/saved/saved-postings.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class SavedPostingsRepository extends BaseRepository {
   /**
@@ -11,7 +11,7 @@ export class SavedPostingsRepository extends BaseRepository {
    * update preserves the original `createdAt` so re-saving does not reorder
    * the wishlist.
    */
-  async save(userId: string, postingId: string): Promise<{ createdAt: Date }> {
+  async save(userId: Uuid, postingId: Uuid): Promise<{ createdAt: Date }> {
     return this.executeAsync(() =>
       this.prisma.savedPosting.upsert({
         where: {
@@ -21,7 +21,7 @@ export class SavedPostingsRepository extends BaseRepository {
           },
         },
         create: {
-          id: randomUUID(),
+          id: newUuid(),
           userId,
           postingId,
         },
@@ -34,7 +34,7 @@ export class SavedPostingsRepository extends BaseRepository {
   }
 
   /** Returns true when a row was actually removed. */
-  async unsave(userId: string, postingId: string): Promise<boolean> {
+  async unsave(userId: Uuid, postingId: Uuid): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.savedPosting.deleteMany({
         where: {
@@ -47,7 +47,7 @@ export class SavedPostingsRepository extends BaseRepository {
     return result.count > 0;
   }
 
-  async findSavedAt(userId: string, postingId: string): Promise<Date | null> {
+  async findSavedAt(userId: Uuid, postingId: Uuid): Promise<Date | null> {
     const row = await this.executeAsync(() =>
       this.prisma.savedPosting.findUnique({
         where: {
@@ -66,7 +66,7 @@ export class SavedPostingsRepository extends BaseRepository {
   }
 
   async listPage(
-    userId: string,
+    userId: Uuid,
     page: number,
     pageSize: number,
   ): Promise<ListSavedPostingEntriesResult> {
@@ -104,12 +104,15 @@ export class SavedPostingsRepository extends BaseRepository {
     );
 
     return {
-      entries,
+      entries: entries.map((entry) => ({
+        ...entry,
+        postingId: asUuid(entry.postingId),
+      })),
       pagination: this.createPagination(page, pageSize, total),
     };
   }
 
-  async listIds(userId: string, limit: number): Promise<string[]> {
+  async listIds(userId: Uuid, limit: number): Promise<Uuid[]> {
     const rows = await this.executeAsync(() =>
       this.prisma.savedPosting.findMany({
         where: {
@@ -130,7 +133,7 @@ export class SavedPostingsRepository extends BaseRepository {
       }),
     );
 
-    return rows.map((row) => row.postingId);
+    return rows.map((row) => asUuid(row.postingId));
   }
 
   private createPagination(

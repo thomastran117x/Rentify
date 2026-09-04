@@ -10,6 +10,7 @@ import type {
   SmsWebhookVerificationResult,
 } from "@/features/sms/sms.model";
 import type { SmsProviderAdapter } from "@/features/sms/sms-provider";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

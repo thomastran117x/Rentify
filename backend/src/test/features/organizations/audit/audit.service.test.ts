@@ -8,25 +8,33 @@ import type {
   ListOrganizationAuditResult,
   OrganizationAuditRecord,
 } from "@/features/organizations/audit/audit.model";
+import { testUuid } from "../../../support/uuid";
+const AUDIT_ORIGINAL_ID = testUuid(9000, 488025);
+const MISSING_AUDIT_ID = testUuid(9000, 127554);
+
+const AUDIT_1_ID = testUuid(9000, 582877);
+const AUDIT_2_ID = testUuid(9000, 582878);
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createAuditLog(
   overrides: Partial<OrganizationAuditRecord> = {},
 ): OrganizationAuditRecord {
   return {
-    id: "audit-original",
-    organizationId: "org-1",
+    id: AUDIT_ORIGINAL_ID,
+    organizationId: ORG_1_ID,
     action: "organization.renamed",
     resourceType: "organization",
-    resourceId: "org-1",
+    resourceId: ORG_1_ID,
     organizationVersion: 1,
     summary: "Original change",
     changes: [],
     beforeSnapshot: {
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Northwind",
     },
     afterSnapshot: {
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Renamed",
     },
     restorable: true,
@@ -57,11 +65,11 @@ function createInvitation(overrides: Record<string, unknown> = {}) {
     status: "pending",
     expiresAt: "2099-06-01T00:00:00.000Z",
     invitedBy: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       username: "owner-one",
     },
-    organization: { id: "org-1", slug: "northwind", name: "Northwind" },
+    organization: { id: ORG_1_ID, slug: "northwind", name: "Northwind" },
     ...overrides,
   };
 }
@@ -85,7 +93,7 @@ function createMembershipAccess(overrides: Record<string, unknown> = {}) {
     membershipId: "membership-1",
     role: "primary_manager" as const,
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "northwind",
       name: "Northwind",
     },
@@ -132,7 +140,7 @@ function createService(options?: {
   const organizationsRepository = {
     findMembershipAccess: jest.fn(async () => membershipAccess),
     updateOrganization: jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Northwind",
     })),
     restoreMembership: jest.fn(async () => ({
@@ -195,16 +203,16 @@ describe("OrganizationAuditService", () => {
     const { service, repository } = createService();
 
     const result = await service.record({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       action: "organization.created",
       resourceType: "organization",
       summary: "Created organization",
     });
 
     expect(repository.create).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       action: "organization.created",
       resourceType: "organization",
       summary: "Created organization",
@@ -221,19 +229,19 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       }),
     ).resolves.toEqual(listResult);
     expect(organizationAccessService.findMembership).toHaveBeenCalledWith(
-      "user-1",
-      "org-1",
+      USER_1_ID,
+      ORG_1_ID,
     );
     expect(repository.list).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       page: 1,
       pageSize: 20,
     });
@@ -244,8 +252,8 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       }),
@@ -257,8 +265,8 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       }),
@@ -266,17 +274,17 @@ describe("OrganizationAuditService", () => {
   });
 
   it("returns a restorable audit entry for managers", async () => {
-    const auditLog = createAuditLog({ id: "audit-2", restorable: true });
+    const auditLog = createAuditLog({ id: AUDIT_2_ID, restorable: true });
     const { service, repository } = createService({ auditLog });
 
     await expect(
       service.requireRestorableAudit({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-2",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_2_ID,
       }),
     ).resolves.toEqual(auditLog);
-    expect(repository.findById).toHaveBeenCalledWith("org-1", "audit-2");
+    expect(repository.findById).toHaveBeenCalledWith(ORG_1_ID, AUDIT_2_ID);
   });
 
   it("rejects missing audit entries during restore", async () => {
@@ -284,9 +292,9 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.requireRestorableAudit({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "missing-audit",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: MISSING_AUDIT_ID,
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
@@ -298,9 +306,9 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.requireRestorableAudit({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_1_ID,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -310,15 +318,15 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.hasRestorableOrganizationLogoReference({
-        organizationId: "org-1",
-        blobName: "organizations/org-1/logo.png",
+        organizationId: ORG_1_ID,
+        blobName: `organizations/${ORG_1_ID}/logo.png`,
       }),
     ).resolves.toBe(true);
     expect(
       repository.hasRestorableOrganizationLogoReference,
     ).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      blobName: "organizations/org-1/logo.png",
+      organizationId: ORG_1_ID,
+      blobName: `organizations/${ORG_1_ID}/logo.png`,
     });
   });
 
@@ -328,8 +336,8 @@ describe("OrganizationAuditService", () => {
 
     await expect(
       service.recordSafely({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         action: "organization.created",
         resourceType: "organization",
         summary: "Created organization",
@@ -339,23 +347,21 @@ describe("OrganizationAuditService", () => {
 
   describe("restoreVersion", () => {
     it("preserves replaced logos during restore when a restorable audit still references them", async () => {
-      const restoredLogoUrl =
-        "https://cdn.test/organizations/user-1/logo-restored.png";
-      const restoredLogoBlobName = "organizations/user-1/logo-restored.png";
-      const previousLogoUrl =
-        "https://cdn.test/organizations/user-1/logo-current.png";
-      const previousLogoBlobName = "organizations/user-1/logo-current.png";
+      const restoredLogoUrl = `https://cdn.test/organizations/${USER_1_ID}/logo-restored.png`;
+      const restoredLogoBlobName = `organizations/${USER_1_ID}/logo-restored.png`;
+      const previousLogoUrl = `https://cdn.test/organizations/${USER_1_ID}/logo-current.png`;
+      const previousLogoBlobName = `organizations/${USER_1_ID}/logo-current.png`;
       const { service, organizationsRepository, organizationLogoService } =
         createService({
           auditLog: createAuditLog({
             beforeSnapshot: {
-              id: "org-1",
+              id: ORG_1_ID,
               name: "Northwind",
               logoUrl: restoredLogoUrl,
               logoBlobName: restoredLogoBlobName,
             },
             afterSnapshot: {
-              id: "org-1",
+              id: ORG_1_ID,
               name: "Renamed",
               logoUrl: previousLogoUrl,
               logoBlobName: previousLogoBlobName,
@@ -364,19 +370,19 @@ describe("OrganizationAuditService", () => {
         });
 
       await service.restoreVersion({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-original",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_ORIGINAL_ID,
       });
 
       expect(organizationsRepository.updateOrganization).toHaveBeenCalledWith(
-        "org-1",
+        ORG_1_ID,
         expect.objectContaining({ name: "Northwind" }),
       );
       expect(organizationLogoService.cleanupReplacedLogo).toHaveBeenCalledWith(
         expect.objectContaining({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
         }),
       );
     });
@@ -386,9 +392,9 @@ describe("OrganizationAuditService", () => {
 
       await expect(
         service.restoreVersion({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          auditId: "audit-original",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          auditId: AUDIT_ORIGINAL_ID,
         }),
       ).resolves.toEqual({
         restored: true,
@@ -400,7 +406,7 @@ describe("OrganizationAuditService", () => {
         expect.objectContaining({
           action: "organization.restored",
           summary: "Organization restored to Northwind.",
-          restoredFromAuditId: "audit-original",
+          restoredFromAuditId: AUDIT_ORIGINAL_ID,
           restorable: false,
         }),
       );
@@ -420,14 +426,14 @@ describe("OrganizationAuditService", () => {
       );
 
       await service.restoreVersion({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-original",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_ORIGINAL_ID,
       });
 
       expect(organizationsRepository.restoreMembership).toHaveBeenCalledWith({
         membershipId: "membership-2",
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         userId: "user-2",
         role: "operator",
       });
@@ -452,9 +458,9 @@ describe("OrganizationAuditService", () => {
       postingsRepository.restoreFromSnapshot.mockResolvedValueOnce(restored);
 
       await service.restoreVersion({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-original",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_ORIGINAL_ID,
       });
 
       expect(postingsRepository.restoreFromSnapshot).toHaveBeenCalledWith(
@@ -483,9 +489,9 @@ describe("OrganizationAuditService", () => {
       );
 
       await service.restoreVersion({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-original",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_ORIGINAL_ID,
       });
 
       expect(
@@ -512,9 +518,9 @@ describe("OrganizationAuditService", () => {
       seasonalPricingRepository.restore.mockResolvedValueOnce(restored);
 
       await service.restoreVersion({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        auditId: "audit-original",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        auditId: AUDIT_ORIGINAL_ID,
       });
 
       expect(seasonalPricingRepository.restore).toHaveBeenCalledWith(restored);
@@ -542,9 +548,9 @@ describe("OrganizationAuditService", () => {
 
       await expect(
         service.restoreVersion({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          auditId: "audit-original",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          auditId: AUDIT_ORIGINAL_ID,
         }),
       ).resolves.toEqual({
         restored: true,
@@ -569,7 +575,7 @@ describe("OrganizationAuditService", () => {
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           action: "invitation.restored",
-          restoredFromAuditId: "audit-original",
+          restoredFromAuditId: AUDIT_ORIGINAL_ID,
         }),
       );
     });
@@ -577,15 +583,15 @@ describe("OrganizationAuditService", () => {
     it("rejects unrestorable organization snapshots", async () => {
       const { service } = createService({
         auditLog: createAuditLog({
-          beforeSnapshot: { id: "org-1" },
+          beforeSnapshot: { id: ORG_1_ID },
         }),
       });
 
       await expect(
         service.restoreVersion({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          auditId: "audit-original",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          auditId: AUDIT_ORIGINAL_ID,
         }),
       ).rejects.toBeInstanceOf(ConflictError);
     });
@@ -597,9 +603,9 @@ describe("OrganizationAuditService", () => {
 
       await expect(
         service.restoreVersion({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          auditId: "audit-original",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          auditId: AUDIT_ORIGINAL_ID,
         }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(organizationsRepository.updateOrganization).not.toHaveBeenCalled();
@@ -619,9 +625,9 @@ describe("OrganizationAuditService", () => {
 
       await expect(
         service.restoreVersion({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          auditId: "audit-original",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          auditId: AUDIT_ORIGINAL_ID,
         }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(repository.create).not.toHaveBeenCalled();

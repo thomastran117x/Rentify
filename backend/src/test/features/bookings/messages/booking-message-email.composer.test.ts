@@ -3,25 +3,33 @@ import { BookingMessageEmailComposer } from "@/features/bookings/messages/bookin
 import type { BookingMessagesRepository } from "@/features/bookings/messages/booking-messages.repository";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { testUuid } from "../../../support/uuid";
+const BOOKING_1_ID = testUuid(9200, 996753);
+const BOOKING_2_ID = testUuid(9200, 996754);
+const MESSAGE_1_ID = testUuid(9200, 597033);
+const ORG_1_ID = testUuid(9200, 9234);
+const USER_1_ID = testUuid(9200, 994257);
+
+const RENTER_1_ID = testUuid(9000, 235000);
 
 const INPUT = {
-  bookingRequestId: "booking-1",
-  recipientId: "user-1",
-  messageId: "message-1",
+  bookingRequestId: BOOKING_1_ID,
+  recipientId: USER_1_ID,
+  messageId: MESSAGE_1_ID,
 };
 
 function createMessageContext(overrides: Record<string, unknown> = {}) {
   return {
-    id: "message-1",
-    bookingRequestId: "booking-1",
-    authorId: "renter-1",
+    id: MESSAGE_1_ID,
+    bookingRequestId: BOOKING_1_ID,
+    authorId: RENTER_1_ID,
     body: "Is the van available early?",
     createdAt: new Date("2026-08-10T12:00:00.000Z"),
     readAt: null,
     bookingRequest: {
-      id: "booking-1",
-      renterId: "renter-1",
-      organizationId: "org-1",
+      id: BOOKING_1_ID,
+      renterId: RENTER_1_ID,
+      organizationId: ORG_1_ID,
       posting: { name: "Cargo van" },
     },
     author: { firstName: "Jordan", lastName: "Lee" },
@@ -48,7 +56,7 @@ function createComposer(
         throw options.membershipError;
       }
 
-      return { organizationId: "org-1", role: "primary_manager" };
+      return { organizationId: ORG_1_ID, role: "primary_manager" };
     }),
     canManage: jest.fn(() => true),
   } as unknown as OrganizationAccessService;
@@ -56,7 +64,7 @@ function createComposer(
   const authRepository = {
     findUserById: jest.fn(async () =>
       options.recipient === undefined
-        ? { id: "user-1", email: "owner@example.com", firstName: "Ada" }
+        ? { id: USER_1_ID, email: "owner@example.com", firstName: "Ada" }
         : options.recipient,
     ),
   } as unknown as UsersRepository;
@@ -82,7 +90,7 @@ describe("BookingMessageEmailComposer", () => {
       postingName: "Cargo van",
       authorName: "Jordan Lee",
       snippet: "Is the van available early?",
-      bookingRequestId: "booking-1",
+      bookingRequestId: BOOKING_1_ID,
     });
   });
 
@@ -94,7 +102,7 @@ describe("BookingMessageEmailComposer", () => {
 
   it("returns null when the message belongs to another booking", async () => {
     const { composer } = createComposer({
-      message: createMessageContext({ bookingRequestId: "booking-2" }),
+      message: createMessageContext({ bookingRequestId: BOOKING_2_ID }),
     });
 
     await expect(composer.compose(INPUT)).resolves.toBeNull();
@@ -120,7 +128,7 @@ describe("BookingMessageEmailComposer", () => {
     // The renter is resolved from the booking's own `renterId`, so the
     // membership lookup is never reached for them.
     await expect(
-      composer.compose({ ...INPUT, recipientId: "renter-1" }),
+      composer.compose({ ...INPUT, recipientId: RENTER_1_ID }),
     ).resolves.toMatchObject({ to: "owner@example.com" });
   });
 
@@ -146,7 +154,7 @@ describe("BookingMessageEmailComposer", () => {
 
   it("omits the greeting name when the recipient has none", async () => {
     const { composer } = createComposer({
-      recipient: { id: "user-1", email: "owner@example.com" },
+      recipient: { id: USER_1_ID, email: "owner@example.com" },
     });
 
     await expect(composer.compose(INPUT)).resolves.toMatchObject({

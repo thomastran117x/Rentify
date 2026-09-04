@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -7,6 +6,7 @@ import {
   type OrganizationMemberRecord,
   type OrganizationRole,
 } from "@/features/organizations/organizations.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type MembershipPersistence = Prisma.OrganizationMembershipGetPayload<{
   include: {
@@ -36,7 +36,7 @@ type InvitationPersistence = Prisma.OrganizationInvitationGetPayload<{
 export interface OrganizationInviteAccessRecord
   extends OrganizationInvitationRecord {
   organization: {
-    id: string;
+    id: Uuid;
     slug: string;
     name: string;
   };
@@ -44,8 +44,8 @@ export interface OrganizationInviteAccessRecord
 
 export class OrganizationsInvitationsRepository extends BaseRepository {
   async reissueInvitation(input: {
-    organizationId: string;
-    invitedByUserId: string;
+    organizationId: Uuid;
+    invitedByUserId: Uuid;
     email: string;
     role: OrganizationRole;
     tokenHash: string;
@@ -67,7 +67,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
 
       const invitation = await transaction.organizationInvitation.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           organizationId: input.organizationId,
           invitedByUserId: input.invitedByUserId,
           email: input.email,
@@ -95,8 +95,8 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
   }
 
   async findInvitationById(
-    organizationId: string,
-    invitationId: string,
+    organizationId: Uuid,
+    invitationId: Uuid,
   ): Promise<OrganizationInviteAccessRecord | null> {
     const invitation = await this.executeAsync(() =>
       this.prisma.organizationInvitation.findFirst({
@@ -127,7 +127,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     return {
       ...this.mapInvitationRecord(invitation),
       organization: {
-        id: invitation.organization.id,
+        id: asUuid(invitation.organization.id),
         slug: invitation.organization.slug,
         name: invitation.organization.name,
       },
@@ -165,7 +165,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     return {
       ...this.mapInvitationRecord(invitation),
       organization: {
-        id: invitation.organization.id,
+        id: asUuid(invitation.organization.id),
         slug: invitation.organization.slug,
         name: invitation.organization.name,
       },
@@ -173,7 +173,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
   }
 
   async revokeInvitation(
-    invitationId: string,
+    invitationId: Uuid,
     now: Date,
   ): Promise<OrganizationInvitationRecord | null> {
     return this.executeTransaction(async (transaction) => {
@@ -228,7 +228,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
   }
 
   async expireInvitation(
-    invitationId: string,
+    invitationId: Uuid,
     now: Date,
   ): Promise<OrganizationInvitationRecord | null> {
     return this.executeTransaction(async (transaction) => {
@@ -283,9 +283,9 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
   }
 
   async acceptInvitation(input: {
-    invitationId: string;
-    organizationId: string;
-    userId: string;
+    invitationId: Uuid;
+    organizationId: Uuid;
+    userId: Uuid;
     role: OrganizationRole;
     now: Date;
   }): Promise<{
@@ -302,7 +302,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
         },
         update: {},
         create: {
-          id: randomUUID(),
+          id: newUuid(),
           organizationId: input.organizationId,
           userId: input.userId,
           role: input.role,
@@ -353,8 +353,8 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     membership: MembershipPersistence,
   ): OrganizationMemberRecord {
     return {
-      membershipId: membership.id,
-      userId: membership.user.id,
+      membershipId: asUuid(membership.id),
+      userId: asUuid(membership.user.id),
       email: membership.user.email,
       firstName: membership.user.firstName ?? undefined,
       lastName: membership.user.lastName ?? undefined,
@@ -369,7 +369,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     invitation: InvitationPersistence,
   ): OrganizationInvitationRecord {
     return {
-      id: invitation.id,
+      id: asUuid(invitation.id),
       email: invitation.email,
       emailHint: maskEmailAddress(invitation.email),
       role: invitation.role,
@@ -380,7 +380,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
       acceptedAt: invitation.acceptedAt?.toISOString(),
       revokedAt: invitation.revokedAt?.toISOString(),
       invitedBy: {
-        id: invitation.invitedByUser.id,
+        id: asUuid(invitation.invitedByUser.id),
         email: invitation.invitedByUser.email,
         username:
           invitation.invitedByUser.profile?.username ??
@@ -388,7 +388,7 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
       },
       acceptedBy: invitation.acceptedByUser
         ? {
-            id: invitation.acceptedByUser.id,
+            id: asUuid(invitation.acceptedByUser.id),
             email: invitation.acceptedByUser.email,
             username:
               invitation.acceptedByUser.profile?.username ??

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -13,20 +12,20 @@ import type {
   EnqueueRentingConfirmedEventInput,
   EnqueueSearchClickEventInput,
   EnqueueSearchImpressionEventInput,
-  ListPostingAnalyticsInput,
+  ListPostingAnalyticsPersistenceInput,
   OwnerPostingsAnalyticsSummary,
   PostingAnalyticsBucket,
   PostingAnalyticsBucketMetrics,
   PostingAnalyticsDataAvailability,
   PostingAnalyticsDerivedMetrics,
   PostingAnalyticsDetail,
-  PostingAnalyticsDetailInput,
+  PostingAnalyticsDetailPersistenceInput,
   PostingAnalyticsEventType,
   PostingAnalyticsListItem,
   PostingAnalyticsListResult,
   PostingAnalyticsMetrics,
   PostingAnalyticsOutboxRecord,
-  PostingAnalyticsSummaryInput,
+  PostingAnalyticsSummaryPersistenceInput,
   PostingAnalyticsWindow,
   ProcessBookingApprovedEventInput,
   ProcessBookingCancelledEventInput,
@@ -40,6 +39,7 @@ import type {
   ProcessSearchClickEventInput,
   ProcessSearchImpressionEventInput,
 } from "@/features/postings/analytics/analytics.model";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface AnalyticsAggregateRow {
   searchImpressions: bigint | number | null;
@@ -62,7 +62,7 @@ interface AnalyticsCountRow {
 }
 
 interface PostingAnalyticsListRow extends AnalyticsAggregateRow {
-  postingId: string;
+  postingId: Uuid;
   name: string;
   status: string;
   primaryPhotoUrl: string | null;
@@ -76,7 +76,7 @@ interface PostingAnalyticsBucketRow extends AnalyticsAggregateRow {
 }
 
 interface PostingAnalyticsHeaderRow {
-  postingId: string;
+  postingId: Uuid;
   name: string;
   status: string;
   primaryPhotoUrl: string | null;
@@ -86,7 +86,7 @@ interface PostingAnalyticsHeaderRow {
 }
 
 interface PostingOperationalStateRow {
-  postingId: string;
+  postingId: Uuid;
   status: string;
   publishedAt: Date | null;
   pausedAt: Date | null;
@@ -94,7 +94,7 @@ interface PostingOperationalStateRow {
 }
 
 interface PostingTimeSpanRow {
-  postingId: string;
+  postingId: Uuid;
   startAt: Date;
   endAt: Date;
 }
@@ -377,7 +377,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
         await transaction.postingViewEvent.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             postingId: input.postingId,
             organizationId: input.organizationId,
             viewerHash: input.viewerHash,
@@ -606,7 +606,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   async getOwnerSummary(
-    input: PostingAnalyticsSummaryInput,
+    input: PostingAnalyticsSummaryPersistenceInput,
   ): Promise<OwnerPostingsAnalyticsSummary> {
     const tableSql = this.dailyTableSql();
     const range = this.createWindowRange(input.window);
@@ -657,7 +657,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   async listOwnerPostingsAnalytics(
-    input: ListPostingAnalyticsInput,
+    input: ListPostingAnalyticsPersistenceInput,
   ): Promise<PostingAnalyticsListResult> {
     const range = this.createWindowRange(input.window);
     const skip = (input.page - 1) * input.pageSize;
@@ -755,7 +755,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   async getPostingAnalyticsDetail(
-    input: PostingAnalyticsDetailInput,
+    input: PostingAnalyticsDetailPersistenceInput,
   ): Promise<PostingAnalyticsDetail | null> {
     const header = await this.findPostingAnalyticsHeader(
       input.postingId,
@@ -873,15 +873,15 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private async enqueueOutboxEvent(
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
     eventType: PostingAnalyticsEventType,
     payload: Record<string, unknown>,
   ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.postingAnalyticsOutbox.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           postingId,
           organizationId,
           eventType,
@@ -892,8 +892,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private async processSimpleCounterEvent(
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
     eventDateIso: string,
     eventHourIso: string,
     increments: Partial<CounterIncrements>,
@@ -922,8 +922,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private async findPostingAnalyticsHeader(
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
   ): Promise<PostingAnalyticsHeaderRow | null> {
     const [row] = await this.executeAsync(() =>
       this.prisma.$queryRaw<PostingAnalyticsHeaderRow[]>(Prisma.sql`
@@ -952,7 +952,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private async listOperationalPostingStatesByOrganization(
-    organizationId: string,
+    organizationId: Uuid,
   ): Promise<PostingOperationalStateRow[]> {
     return this.executeAsync(() =>
       this.prisma.$queryRaw<PostingOperationalStateRow[]>(Prisma.sql`
@@ -1060,8 +1060,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private async incrementHourlyMetrics(
     transaction: Prisma.TransactionClient,
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ): Promise<void> {
@@ -1084,8 +1084,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
 
   private async incrementDailyMetrics(
     transaction: Prisma.TransactionClient,
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ): Promise<void> {
@@ -1107,13 +1107,13 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   private createRollupCreate(
-    postingId: string,
-    organizationId: string,
+    postingId: Uuid,
+    organizationId: Uuid,
     bucketStart: Date,
     increments: Partial<CounterIncrements>,
   ) {
     return {
-      id: randomUUID(),
+      id: newUuid(),
       postingId,
       organizationId,
       bucketStart,
@@ -1376,9 +1376,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
     processingAt?: Date,
   ): PostingAnalyticsOutboxRecord {
     return {
-      id: outbox.id,
-      postingId: outbox.postingId,
-      organizationId: outbox.organizationId,
+      id: asUuid(outbox.id),
+      postingId: asUuid(outbox.postingId),
+      organizationId: asUuid(outbox.organizationId),
       eventType: outbox.eventType as PostingAnalyticsEventType,
       payload: (outbox.payload ?? {}) as Record<string, unknown>,
       attempts: outbox.attempts,
@@ -1474,7 +1474,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
   }
 
   async listDailyAnalyticsForExport(
-    organizationId: string,
+    organizationId: Uuid,
     window: PostingAnalyticsWindow,
   ): Promise<AnalyticsDailyExportRow[]> {
     const range = this.createWindowRange(window);
@@ -1539,7 +1539,7 @@ interface CounterIncrements {
 }
 
 interface AnalyticsDailyExportRow {
-  postingId: string;
+  postingId: Uuid;
   postingName: string;
   date: Date;
   searchImpressions: bigint | number;

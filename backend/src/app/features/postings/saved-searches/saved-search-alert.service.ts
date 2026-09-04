@@ -9,6 +9,7 @@ import {
   savedSearchQueryParamsSchema,
   type DueSavedSearch,
 } from "@/features/postings/saved-searches/saved-searches.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export interface SavedSearchAlertSweepConfig {
   batchSize: number;
@@ -125,7 +126,7 @@ export class SavedSearchAlertService {
     );
     const newMatchIds =
       await this.savedSearchesRepository.filterUnseenPostingIds(
-        search.id,
+        asUuid(search.id),
         matchIds,
       );
 
@@ -149,7 +150,7 @@ export class SavedSearchAlertService {
     // learn the posting existed. The composer re-checks every posting at send
     // time, so a duplicate is at least still accurate.
     await this.emailService.sendSavedSearchMatchesEmail({
-      savedSearchId: search.id,
+      savedSearchId: asUuid(search.id),
       recipientId: search.userId,
       postingIds: newMatchIds,
       occurredAt: checkedAt.toISOString(),
@@ -166,7 +167,7 @@ export class SavedSearchAlertService {
   }
 
   private async recordSeen(
-    savedSearchId: string,
+    savedSearchId: Uuid,
     postingIds: string[],
   ): Promise<void> {
     await this.savedSearchesRepository.recordSeenPostings(

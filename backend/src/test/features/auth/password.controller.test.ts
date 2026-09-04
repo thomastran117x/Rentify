@@ -9,6 +9,9 @@ import {
   invoke,
   type AuthTestContext,
 } from "../../support/auth-controller-harness";
+import { testUuid } from "../../support/uuid";
+
+const USER_9_ID = testUuid(9000, 994265);
 
 const mockRequireRecentMfaVerification = jest.fn();
 
@@ -153,7 +156,7 @@ describe("PasswordController recovery handlers", () => {
 
 describe("PasswordController.changePassword", () => {
   it("steps up first, then prefers the session device id", async () => {
-    const auth = createClaims({ sub: "user-9", deviceId: "auth-device" });
+    const auth = createClaims({ sub: USER_9_ID, deviceId: "auth-device" });
     mockRequireRecentMfaVerification.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -178,7 +181,7 @@ describe("PasswordController.changePassword", () => {
       "mfa-management",
     );
     expect(passwordService.changePassword).toHaveBeenCalledWith({
-      userId: "user-9",
+      userId: USER_9_ID,
       client: expect.any(Object),
       currentPassword: "CurrentPassword1!",
       newPassword: "NextPassword1!",
@@ -212,7 +215,7 @@ describe("PasswordController.changePassword", () => {
 
 describe("PasswordController.setPassword", () => {
   it("steps up first and sends no current password", async () => {
-    const auth = createClaims({ sub: "user-9", deviceId: "auth-device" });
+    const auth = createClaims({ sub: USER_9_ID, deviceId: "auth-device" });
     mockRequireRecentMfaVerification.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -227,7 +230,7 @@ describe("PasswordController.setPassword", () => {
     );
 
     expect(passwordService.setPassword).toHaveBeenCalledWith({
-      userId: "user-9",
+      userId: USER_9_ID,
       client: expect.any(Object),
       newPassword: "FirstPassword1!",
       deviceId: "auth-device",

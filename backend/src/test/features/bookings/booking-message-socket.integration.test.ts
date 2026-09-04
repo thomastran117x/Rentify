@@ -17,6 +17,8 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { testUuid } from "../../support/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 const MUTABLE_POSTING_ID = "00000000-0000-0000-2000-000000000003";
 const RENTER_EMAIL = "viewer1@rentify.local";
@@ -178,7 +180,7 @@ describe("Booking message socket integration", () => {
       },
     );
 
-    return { renter, bookingRequestId: booking.id };
+    return { renter, bookingRequestId: asUuid(booking.id) };
   }
 
   async function mintTicket(

@@ -3,6 +3,10 @@ import type { OrganizationAccessService } from "@/features/organizations/organiz
 import { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { PostingRecord } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import { testUuid } from "../../support/uuid";
+const ORG_1_ID = testUuid(9200, 9234);
+const POSTING_1_ID = testUuid(9200, 254272);
+const USER_1_ID = testUuid(9200, 994257);
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -16,8 +20,8 @@ const ALREADY_PASSED = new Date(Date.now() - DAY_IN_MS).toISOString();
 
 function buildPosting(overrides: Partial<PostingRecord> = {}): PostingRecord {
   return {
-    id: "posting-1",
-    organizationId: "org-1",
+    id: POSTING_1_ID,
+    organizationId: ORG_1_ID,
     status: "published",
     name: "Lakeside cabin",
     expiresAt: EXPIRES_AT,
@@ -59,8 +63,8 @@ function createComposer(
 }
 
 const input = {
-  postingId: "posting-1",
-  recipientId: "user-1",
+  postingId: POSTING_1_ID,
+  recipientId: USER_1_ID,
   expiresAt: EXPIRES_AT,
 };
 
@@ -71,7 +75,7 @@ describe("PostingExpiryEmailComposer", () => {
     await expect(composer.compose(input)).resolves.toEqual({
       to: "owner@example.com",
       firstName: "Ada",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       postingName: "Lakeside cabin",
       expiresAt: EXPIRES_AT,
     });

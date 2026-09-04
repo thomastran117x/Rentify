@@ -1,4 +1,8 @@
 import { RecommendationQueryRepository } from "@/features/recommendations/recommendation-query.repository";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
 
 interface CapturedSql {
   sql: string;
@@ -21,7 +25,7 @@ describe("RecommendationQueryRepository", () => {
         },
         userRecommendationProfile: {
           findUnique: jest.fn(async () => ({
-            userId: "user-1",
+            userId: USER_1_ID,
             qualified: true,
             activityWindowStartAt: new Date("2026-05-01T00:00:00.000Z"),
             lastSignalAt: new Date("2026-05-10T00:00:00.000Z"),
@@ -38,7 +42,7 @@ describe("RecommendationQueryRepository", () => {
         },
         userRecommendationSnapshot: {
           findUnique: jest.fn(async () => ({
-            userId: "user-1",
+            userId: USER_1_ID,
             generatedAt: new Date("2026-05-12T00:00:00.000Z"),
             sourceLastSignalAt: new Date("2026-05-10T00:00:00.000Z"),
             candidateCount: 2,
@@ -59,14 +63,14 @@ describe("RecommendationQueryRepository", () => {
       }) as any,
     );
 
-    const context = await repository.getPersonalizationContext("user-1");
+    const context = await repository.getPersonalizationContext(USER_1_ID);
     const defaultedContext =
-      await repository.getPersonalizationContext("user-2");
+      await repository.getPersonalizationContext(USER_2_ID);
 
     expect(context).toEqual({
       recommendationPersonalizationEnabled: false,
       profile: {
-        userId: "user-1",
+        userId: USER_1_ID,
         qualified: true,
         activityWindowStartAt: "2026-05-01T00:00:00.000Z",
         lastSignalAt: "2026-05-10T00:00:00.000Z",
@@ -83,7 +87,7 @@ describe("RecommendationQueryRepository", () => {
         rebuiltAt: "2026-05-11T00:00:00.000Z",
       },
       snapshot: {
-        userId: "user-1",
+        userId: USER_1_ID,
         generatedAt: "2026-05-12T00:00:00.000Z",
         sourceLastSignalAt: "2026-05-10T00:00:00.000Z",
         candidateCount: 2,
@@ -170,7 +174,7 @@ describe("RecommendationQueryRepository", () => {
     );
 
     const excludedIds =
-      await repository.listExcludedPostingIdsForUser("user-1");
+      await repository.listExcludedPostingIdsForUser(USER_1_ID);
 
     expect(Array.from(excludedIds)).toEqual([
       "own-posting",

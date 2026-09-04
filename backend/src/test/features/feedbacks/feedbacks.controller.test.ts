@@ -3,6 +3,9 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import { FeedbacksController } from "@/features/feedbacks/feedbacks.controller";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { invokeHandler } from "../../support/mock-http";
+import { testUuid } from "../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 const mockGetOptionalJwtAuth = jest.fn();
 const mockResolveIdempotencyKey = jest.fn();
@@ -21,7 +24,7 @@ function createAuth(
 ): JwtAuthPrincipal {
   return {
     authMethod: "jwt",
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "user",
     deviceId: "device-1",
@@ -90,7 +93,7 @@ describe("FeedbacksController", () => {
     });
 
     expect(create).toHaveBeenCalledWith({
-      userId: "user-1",
+      userId: USER_1_ID,
       name: "Taylor Morgan",
       email: "taylor@example.com",
       category: "feature_request",

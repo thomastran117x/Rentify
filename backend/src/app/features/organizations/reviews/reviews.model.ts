@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 const optionalReviewTitleSchema = z
   .string()
@@ -61,7 +62,7 @@ export interface OrganizationReviewerSummary {
 }
 
 export interface OrganizationReviewResponderSummary {
-  id: string;
+  id: Uuid;
   username?: string;
   avatarUrl?: string;
 }
@@ -73,9 +74,9 @@ export interface OrganizationReviewResponse {
 }
 
 export interface OrganizationReviewRecord {
-  id: string;
-  organizationId: string;
-  reviewerId: string;
+  id: Uuid;
+  organizationId: Uuid;
+  reviewerId: Uuid;
   rating: number;
   title?: string;
   comment?: string;
@@ -107,47 +108,47 @@ export interface ListOrganizationReviewsResult {
 
 export interface ListOrganizationReviewsInput
   extends ListOrganizationReviewsQuery {
-  organizationId: string;
+  organizationId: Uuid;
 }
 
 export interface UpsertOrganizationReviewInput
   extends CreateOrganizationReviewBody {
-  organizationId: string;
-  reviewerId: string;
+  organizationId: Uuid;
+  reviewerId: Uuid;
 }
 
 export interface DeleteOwnOrganizationReviewInput {
-  organizationId: string;
-  reviewerId: string;
+  organizationId: Uuid;
+  reviewerId: Uuid;
 }
 
 export interface ReplyOrganizationReviewInput
   extends ReplyOrganizationReviewBody {
-  organizationId: string;
-  actorUserId: string;
-  reviewId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  reviewId: Uuid;
 }
 
 export interface RemoveOrganizationReviewReplyInput {
-  organizationId: string;
-  actorUserId: string;
-  reviewId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  reviewId: Uuid;
 }
 
 export interface DeleteOrganizationReviewInput {
-  organizationId: string;
-  actorUserId: string;
-  reviewId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  reviewId: Uuid;
 }
 
 export interface DeleteOrganizationReviewResult {
   deleted: true;
-  reviewId: string;
+  reviewId: Uuid;
 }
 
 export interface UpsertOrganizationReviewPersistence {
-  organizationId: string;
-  reviewerId: string;
+  organizationId: Uuid;
+  reviewerId: Uuid;
   rating: number;
   title: string | null;
   comment: string | null;
@@ -155,6 +156,6 @@ export interface UpsertOrganizationReviewPersistence {
 
 export interface SetOrganizationReviewResponsePersistence {
   response: string | null;
-  responseAuthorId: string | null;
+  responseAuthorId: Uuid | null;
   respondedAt: Date | null;
 }

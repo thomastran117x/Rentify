@@ -1,15 +1,21 @@
 import { Prisma } from "@/generated/prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { ProfileRepository } from "@/features/profile/profile.repository";
+import { testUuid } from "../../support/uuid";
+const MISSING_USER_ID = testUuid(9000, 791594);
+
+const USER_1_ID = testUuid(9000, 994257);
+const USER_2_ID = testUuid(9000, 994258);
+const USER_3_ID = testUuid(9000, 994259);
 
 function createProfilePersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "profile-1",
-    userId: "user-1",
+    userId: USER_1_ID,
     username: "casey-doe",
     phoneNumber: "+1 555 0100",
-    avatarUrl: "https://storage.example.com/avatars/user-1.png",
-    avatarBlobName: "avatars/user-1.png",
+    avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+    avatarBlobName: `avatars/${USER_1_ID}.png`,
     isPrivate: false,
     recommendationPersonalizationEnabled: true,
     trustworthinessScore: 4,
@@ -42,7 +48,7 @@ describe("ProfileRepository", () => {
       createProfilePersistence(),
       createProfilePersistence({
         id: "profile-2",
-        userId: "user-2",
+        userId: USER_2_ID,
         username: "alex-rivera",
         phoneNumber: null,
         avatarUrl: null,
@@ -140,13 +146,13 @@ describe("ProfileRepository", () => {
       profiles: [
         {
           id: "profile-1",
-          userId: "user-1",
+          userId: USER_1_ID,
           email: "user@example.com",
           firstName: "Casey",
           lastName: "Doe",
           username: "casey-doe",
           phoneNumber: "+1 555 0100",
-          avatarUrl: "https://storage.example.com/avatars/user-1.png",
+          avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
           trustworthinessScore: 4,
           rentPostingsCount: 3,
           availableRentPostingsCount: 2,
@@ -155,7 +161,7 @@ describe("ProfileRepository", () => {
         },
         {
           id: "profile-2",
-          userId: "user-2",
+          userId: USER_2_ID,
           email: "alex@example.com",
           firstName: undefined,
           lastName: "Rivera",
@@ -192,9 +198,9 @@ describe("ProfileRepository", () => {
       },
     } as any);
 
-    await expect(repository.findByUserId("user-1")).resolves.toEqual({
+    await expect(repository.findByUserId(USER_1_ID)).resolves.toEqual({
       id: "profile-1",
-      userId: "user-1",
+      userId: USER_1_ID,
       email: "user@example.com",
       firstName: "Casey",
       lastName: "Doe",
@@ -204,8 +210,8 @@ describe("ProfileRepository", () => {
       canChangeUsername: true,
       usernameChangeAvailableAt: undefined,
       phoneNumber: "+1 555 0100",
-      avatarUrl: "https://storage.example.com/avatars/user-1.png",
-      avatarBlobName: "avatars/user-1.png",
+      avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+      avatarBlobName: `avatars/${USER_1_ID}.png`,
       isPrivate: false,
       recommendationPersonalizationEnabled: true,
       trustworthinessScore: 4,
@@ -214,7 +220,7 @@ describe("ProfileRepository", () => {
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-02T00:00:00.000Z",
     });
-    await expect(repository.findByUserId("missing-user")).resolves.toBeNull();
+    await expect(repository.findByUserId(MISSING_USER_ID)).resolves.toBeNull();
   });
 
   it("defaults recommendation personalization to true when the field or profile is absent", async () => {
@@ -230,13 +236,13 @@ describe("ProfileRepository", () => {
     } as any);
 
     await expect(
-      repository.findRecommendationPersonalizationEnabledByUserId("user-1"),
+      repository.findRecommendationPersonalizationEnabledByUserId(USER_1_ID),
     ).resolves.toBe(false);
     await expect(
-      repository.findRecommendationPersonalizationEnabledByUserId("user-2"),
+      repository.findRecommendationPersonalizationEnabledByUserId(USER_2_ID),
     ).resolves.toBe(true);
     await expect(
-      repository.findRecommendationPersonalizationEnabledByUserId("user-3"),
+      repository.findRecommendationPersonalizationEnabledByUserId(USER_3_ID),
     ).resolves.toBe(true);
   });
 
@@ -257,7 +263,7 @@ describe("ProfileRepository", () => {
     } as any);
 
     const result = await repository.update({
-      userId: "user-1",
+      userId: USER_1_ID,
       username: "owner-one",
       phoneNumber: null,
       isPrivate: true,
@@ -271,7 +277,7 @@ describe("ProfileRepository", () => {
 
     expect(update).toHaveBeenCalledWith({
       where: {
-        userId: "user-1",
+        userId: USER_1_ID,
       },
       data: {
         username: "owner-one",
@@ -323,7 +329,7 @@ describe("ProfileRepository", () => {
 
     await expect(
       repository.update({
-        userId: "user-1",
+        userId: USER_1_ID,
         username: "taken-name",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -338,7 +344,7 @@ describe("ProfileRepository", () => {
       profile: { findUnique },
     } as any);
 
-    const result = await repository.findByUserId("user-1");
+    const result = await repository.findByUserId(USER_1_ID);
 
     expect(result?.usernameChangedAt).toBe(changedAt.toISOString());
     expect(result?.canChangeUsername).toBe(false);
@@ -354,7 +360,7 @@ describe("ProfileRepository", () => {
     } as any);
 
     await repository.update({
-      userId: "user-1",
+      userId: USER_1_ID,
       username: "casey-doe",
       isPrivate: true,
     });
@@ -372,7 +378,7 @@ describe("ProfileRepository", () => {
       profile: { update },
     } as any);
 
-    await repository.update({ userId: "user-1", username: "casey-doe" });
+    await repository.update({ userId: USER_1_ID, username: "casey-doe" });
 
     const data = update.mock.calls[0]?.[0].data ?? {};
     expect(data).not.toHaveProperty("usernameChangedAt");
@@ -389,7 +395,7 @@ describe("ProfileRepository", () => {
       } as any);
 
       await repository.update({
-        userId: "user-1",
+        userId: USER_1_ID,
         username: "casey-two",
         usernameChangedAt: guardAt,
         usernameChangeGuardAt: guardAt,
@@ -398,7 +404,7 @@ describe("ProfileRepository", () => {
       const args = updateMany.mock.calls[0]?.[0] as {
         where: { userId: string; OR: unknown[] };
       };
-      expect(args.where.userId).toBe("user-1");
+      expect(args.where.userId).toBe(USER_1_ID);
       // Eligible when the name was never chosen, never changed, or changed
       // longer ago than the cooldown.
       expect(args.where.OR).toEqual([
@@ -423,7 +429,7 @@ describe("ProfileRepository", () => {
 
       await expect(
         repository.update({
-          userId: "user-1",
+          userId: USER_1_ID,
           username: "casey-two",
           usernameChangedAt: new Date(),
           usernameChangeGuardAt: new Date(),
@@ -440,7 +446,7 @@ describe("ProfileRepository", () => {
         profile: { update, updateMany },
       } as any);
 
-      await repository.update({ userId: "user-1", username: "casey-doe" });
+      await repository.update({ userId: USER_1_ID, username: "casey-doe" });
 
       expect(updateMany).not.toHaveBeenCalled();
       expect(update).toHaveBeenCalledTimes(1);
@@ -455,7 +461,7 @@ describe("ProfileRepository", () => {
     } as any);
 
     await repository.update({
-      userId: "user-1",
+      userId: USER_1_ID,
       username: "casey-two",
       usernameChangedAt: changedAt,
       usernameAutoGenerated: false,

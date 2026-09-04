@@ -10,6 +10,7 @@ import type {
   RunSeedOrchestratorOptions,
   SeedLogger,
   SeedModule,
+  SeedState,
   SeedSummary,
 } from "@/seeds/types";
 
@@ -68,10 +69,10 @@ export async function runSeedOrchestrator(
     `[SEEDS] Starting seed orchestrator source=${source} refresh=${refresh ? "true" : "false"}.`,
   );
 
-  const state = {
-    organizationIdsByOwnerEmail: new Map<string, string>(),
-    postingOrganizationIdsByPostingId: new Map<string, string>(),
-    userIdsByEmail: new Map<string, string>(),
+  const state: SeedState = {
+    organizationIdsByOwnerEmail: new Map(),
+    postingOrganizationIdsByPostingId: new Map(),
+    userIdsByEmail: new Map(),
   };
 
   for (const module of modules) {

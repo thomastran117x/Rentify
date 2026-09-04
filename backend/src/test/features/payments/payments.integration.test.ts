@@ -7,6 +7,10 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { testUuid } from "../../support/uuid";
+
+// Well-formed but never seeded, so the handler reaches its not-found path.
+const ABSENT_BOOKING_ID = testUuid(1020, 999);
 
 async function getPaymentForBooking(
   persistenceApp: PersistenceTestApp,
@@ -336,8 +340,11 @@ describe("Payments persistence integration", () => {
 
     expect(strangerResponse.status).toBe(403);
 
+    // A well-formed identifier that no row uses still reaches the handler and
+    // comes back as a 404. Kept distinct from the malformed case below so the
+    // route-parameter check cannot quietly swallow the not-found path.
     const missingResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/booking-requests/booking-does-not-exist/payment")}`,
+      `http://rent.test${buildApiPath(`/booking-requests/${ABSENT_BOOKING_ID}/payment`)}`,
       {
         method: "GET",
         headers: renter.headers(),
@@ -345,6 +352,19 @@ describe("Payments persistence integration", () => {
     );
 
     expect(missingResponse.status).toBe(404);
+
+    const malformedResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/booking-requests/booking-does-not-exist/payment")}`,
+      {
+        method: "GET",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(malformedResponse.status).toBe(400);
+    await expect(malformedResponse.json()).resolves.toMatchObject({
+      error: { code: "VALIDATION_ERROR" },
+    });
   });
 
   it("does not persist invalid refunds or forbidden repair attempts", async () => {

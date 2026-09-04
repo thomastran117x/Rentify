@@ -7,7 +7,7 @@ import {
   RequestValidationError,
   parseRequestBody,
 } from "@/configuration/validation/request";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import { requireMinimumRole } from "@/features/auth/authorization";
 import type {
   CreatePaymentSessionBody,
@@ -23,6 +23,7 @@ import {
   retryPaymentSchema,
 } from "@/features/payments/payments.model";
 import type { PaymentsService } from "@/features/payments/payments.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
@@ -34,8 +35,8 @@ export class PaymentsController {
     const auth = await this.requireAuth(request);
     const body = await parseRequestBody(request, createPaymentSessionSchema);
     const result = await this.paymentsService.createPaymentSession({
-      bookingRequestId: this.requireBookingRequestId(request),
-      renterId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      renterId: asUuid(auth.sub),
       idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
     });
     created(response, result, {
@@ -68,8 +69,8 @@ export class PaymentsController {
     const auth = await this.requireAuth(request);
     const body = await parseRequestBody(request, retryPaymentSchema);
     const result = await this.paymentsService.retryPayment({
-      paymentId: this.requirePaymentId(request),
-      renterId: auth.sub,
+      paymentId: asUuid(this.requirePaymentId(request)),
+      renterId: asUuid(auth.sub),
       idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
     });
     ok(response, result, {
@@ -84,8 +85,8 @@ export class PaymentsController {
     const auth = await this.requireAuth(request);
     const body = await parseRequestBody(request, createRefundSchema);
     const result = await this.paymentsService.createRefund({
-      paymentId: this.requirePaymentId(request),
-      actorUserId: auth.sub,
+      paymentId: asUuid(this.requirePaymentId(request)),
+      actorUserId: asUuid(auth.sub),
       amount: body.amount,
       reason: body.reason ?? null,
       idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
@@ -171,24 +172,23 @@ export class PaymentsController {
   }
 
   private toListPayoutsInput(
-    userId: string,
+    userId: Uuid,
     query: ListPayoutsQuery,
   ): ListPayoutsInput {
     return {
-      actorUserId: userId,
-      organizationId: "",
+      actorUserId: asUuid(userId),
       page: query.page,
       pageSize: query.pageSize,
       status: query.status,
     };
   }
 
-  private requireBookingRequestId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireBookingRequestId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
-  private requirePaymentId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requirePaymentId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
   private async requireAuth(request: Request) {

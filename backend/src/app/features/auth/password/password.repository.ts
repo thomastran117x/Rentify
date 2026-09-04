@@ -1,10 +1,8 @@
 import { BaseRepository } from "@/features/base/base.repository";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export class PasswordRepository extends BaseRepository {
-  async updatePasswordHash(
-    userId: string,
-    passwordHash: string,
-  ): Promise<void> {
+  async updatePasswordHash(userId: Uuid, passwordHash: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({
         where: {
@@ -23,7 +21,7 @@ export class PasswordRepository extends BaseRepository {
    * another request won the race and the caller should report a conflict.
    */
   async setPasswordHashIfUnset(
-    userId: string,
+    userId: Uuid,
     passwordHash: string,
   ): Promise<boolean> {
     const result = await this.executeAsync(() =>

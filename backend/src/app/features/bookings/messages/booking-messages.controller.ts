@@ -8,7 +8,7 @@ import {
   requireJwtAuth,
   requireSessionAuth,
 } from "@/configuration/middlewares/jwt-middleware";
-import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
+import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import {
   RequestValidationError,
   parseRequestBody,
@@ -23,6 +23,7 @@ import {
 } from "@/features/bookings/messages/booking-messages.model";
 import type { BookingMessagesService } from "@/features/bookings/messages/booking-messages.service";
 import type { TokenService } from "@/features/auth/token/token.service";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class BookingMessagesController {
   private readonly logger: Logger;
@@ -41,8 +42,8 @@ export class BookingMessagesController {
     const auth = await requireJwtAuth(request);
     const body = await parseRequestBody(request, sendBookingMessageSchema);
     const result = await this.bookingMessagesService.send({
-      bookingRequestId: this.requireBookingRequestId(request),
-      authorId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      authorId: asUuid(auth.sub),
       body: body.body,
     });
 
@@ -55,8 +56,8 @@ export class BookingMessagesController {
     const auth = await requireJwtAuth(request);
     const query = this.parseListQuery(request);
     const result = await this.bookingMessagesService.list({
-      bookingRequestId: this.requireBookingRequestId(request),
-      actorUserId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      actorUserId: asUuid(auth.sub),
       page: query.page,
       pageSize: query.pageSize,
     });
@@ -70,9 +71,9 @@ export class BookingMessagesController {
     const auth = await requireJwtAuth(request);
     const body = await parseRequestBody(request, editBookingMessageSchema);
     const result = await this.bookingMessagesService.edit({
-      bookingRequestId: this.requireBookingRequestId(request),
-      messageId: this.requireMessageId(request),
-      actorUserId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      messageId: asUuid(this.requireMessageId(request)),
+      actorUserId: asUuid(auth.sub),
       body: body.body,
     });
 
@@ -82,9 +83,9 @@ export class BookingMessagesController {
   remove = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireJwtAuth(request);
     const result = await this.bookingMessagesService.remove({
-      bookingRequestId: this.requireBookingRequestId(request),
-      messageId: this.requireMessageId(request),
-      actorUserId: auth.sub,
+      bookingRequestId: asUuid(this.requireBookingRequestId(request)),
+      messageId: asUuid(this.requireMessageId(request)),
+      actorUserId: asUuid(auth.sub),
     });
 
     ok(response, result, { message: "Message deleted successfully." });
@@ -141,12 +142,12 @@ export class BookingMessagesController {
     });
   };
 
-  private requireBookingRequestId(request: Request): string {
-    return requireSafeRouteParam(request, "id");
+  private requireBookingRequestId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "id");
   }
 
-  private requireMessageId(request: Request): string {
-    return requireSafeRouteParam(request, "messageId");
+  private requireMessageId(request: Request): Uuid {
+    return requireUuidRouteParam(request, "messageId");
   }
 
   private parseListQuery(request: Request): ListBookingMessagesQuery {

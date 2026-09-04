@@ -2,6 +2,11 @@ import { createTestContext, invoke } from "../../../../support/mock-http";
 import type { JwtClaims } from "@/features/auth/token/token.service";
 import { OrganizationBlogCommentsController } from "@/features/organizations/blog/comments/comments.controller";
 import type { OrganizationBlogCommentsService } from "@/features/organizations/blog/comments/comments.service";
+import { testUuid } from "../../../../support/uuid";
+
+const USER_TWO_ID = testUuid(1000, 2);
+const ORGANIZATION_ID = testUuid(1040, 1);
+const COMMENT_ID = testUuid(2200, 1);
 
 const mockRequireJwtAuth = jest.fn();
 const mockGetOptionalJwtAuth = jest.fn();
@@ -13,7 +18,7 @@ jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-2",
+    sub: USER_TWO_ID,
     email: "renter@example.com",
     role: "user",
     deviceId: "device-1",
@@ -36,7 +41,7 @@ function createContext(options?: {
     // same way they arrive on a real request.
     url: options?.url ?? "/organizations/org-1/blog/my-post/comments",
     body: options?.body ?? {},
-    params: { id: "org-1", slug: "my-post", commentId: "comment-1" },
+    params: { id: ORGANIZATION_ID, slug: "my-post", commentId: COMMENT_ID },
     state: {
       requestId: "request-1",
       container: { resolve: () => ({ inspectRequest: () => [] }) },
@@ -46,10 +51,10 @@ function createContext(options?: {
 
 function createComment() {
   return {
-    id: "comment-1",
+    id: COMMENT_ID,
     blogPostId: "blog-1",
-    organizationId: "org-1",
-    author: { id: "user-2", username: "renter-one" },
+    organizationId: ORGANIZATION_ID,
+    author: { id: USER_TWO_ID, username: "renter-one" },
     body: "Great post.",
     createdAt: "2026-07-16T00:00:00.000Z",
     editedAt: null,
@@ -73,7 +78,7 @@ function createService(overrides: Record<string, unknown> = {}) {
       commentsEnabled: true,
       viewerCanComment: true,
       viewerCanModerate: false,
-      viewerUserId: "user-2",
+      viewerUserId: USER_TWO_ID,
     })),
     create: jest.fn(async () => createComment()),
     update: jest.fn(async () => createComment()),
@@ -107,7 +112,7 @@ describe("OrganizationBlogCommentsController", () => {
       expect(response.status).toBe(200);
       expect(service.list).toHaveBeenCalledWith(
         expect.objectContaining({
-          organizationId: "org-1",
+          organizationId: ORGANIZATION_ID,
           slug: "my-post",
           actorUserId: null,
         }),
@@ -123,7 +128,7 @@ describe("OrganizationBlogCommentsController", () => {
       await invoke(controller.list, createContext({ method: "GET" }));
 
       expect(service.list).toHaveBeenCalledWith(
-        expect.objectContaining({ actorUserId: "user-2" }),
+        expect.objectContaining({ actorUserId: USER_TWO_ID }),
       );
     });
 
@@ -188,12 +193,12 @@ describe("OrganizationBlogCommentsController", () => {
 
       expect(response.status).toBe(201);
       expect(service.create).toHaveBeenCalledWith({
-        organizationId: "org-1",
+        organizationId: ORGANIZATION_ID,
         slug: "my-post",
-        actorUserId: "user-2",
+        actorUserId: USER_TWO_ID,
         body: "Great post.",
       });
-      expect(payload.data.id).toBe("comment-1");
+      expect(payload.data.id).toBe(COMMENT_ID);
     });
 
     it("rejects an empty body", async () => {
@@ -243,10 +248,10 @@ describe("OrganizationBlogCommentsController", () => {
 
       expect(response.status).toBe(200);
       expect(service.update).toHaveBeenCalledWith({
-        organizationId: "org-1",
+        organizationId: ORGANIZATION_ID,
         slug: "my-post",
-        commentId: "comment-1",
-        actorUserId: "user-2",
+        commentId: COMMENT_ID,
+        actorUserId: USER_TWO_ID,
         body: "Edited.",
       });
     });
@@ -265,10 +270,10 @@ describe("OrganizationBlogCommentsController", () => {
 
       expect(response.status).toBe(200);
       expect(service.softDelete).toHaveBeenCalledWith({
-        organizationId: "org-1",
+        organizationId: ORGANIZATION_ID,
         slug: "my-post",
-        commentId: "comment-1",
-        actorUserId: "user-2",
+        commentId: COMMENT_ID,
+        actorUserId: USER_TWO_ID,
       });
       expect(payload.data.body).toBe("");
     });
@@ -284,7 +289,7 @@ describe("OrganizationBlogCommentsController", () => {
 
       expect(response.status).toBe(201);
       expect(service.createSocketTicket).toHaveBeenCalledWith(
-        "org-1",
+        ORGANIZATION_ID,
         "my-post",
         { userId: null, sessionId: null, tokenVersion: null },
       );
@@ -325,9 +330,9 @@ describe("OrganizationBlogCommentsController", () => {
       await invoke(controller.socketTicket, createContext());
 
       expect(service.createSocketTicket).toHaveBeenCalledWith(
-        "org-1",
+        ORGANIZATION_ID,
         "my-post",
-        { userId: "user-2", sessionId: "session-9", tokenVersion: 4 },
+        { userId: USER_TWO_ID, sessionId: "session-9", tokenVersion: 4 },
       );
     });
 

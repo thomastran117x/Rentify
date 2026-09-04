@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -11,6 +10,12 @@ import {
   type OrganizationAuditRecord,
   type OrganizationAuditResourceType,
 } from "@/features/organizations/audit/audit.model";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type AuditLogPersistence = Prisma.OrganizationAuditLogGetPayload<{
   include: {
@@ -59,7 +64,7 @@ export class OrganizationAuditRepository extends BaseRepository {
 
         return await transaction.organizationAuditLog.create({
           data: {
-            id: randomUUID(),
+            id: newUuid(),
             organizationId: input.organizationId,
             actorUserId: input.actorUserId ?? null,
             action: input.action,
@@ -116,8 +121,8 @@ export class OrganizationAuditRepository extends BaseRepository {
   }
 
   async findById(
-    organizationId: string,
-    auditId: string,
+    organizationId: Uuid,
+    auditId: Uuid,
   ): Promise<OrganizationAuditRecord | null> {
     const row = await this.executeAsync(() =>
       this.prisma.organizationAuditLog.findFirst({
@@ -130,7 +135,7 @@ export class OrganizationAuditRepository extends BaseRepository {
   }
 
   async hasRestorableOrganizationLogoReference(input: {
-    organizationId: string;
+    organizationId: Uuid;
     blobName: string;
   }): Promise<boolean> {
     const rows = await this.executeAsync(() =>
@@ -174,11 +179,11 @@ export class OrganizationAuditRepository extends BaseRepository {
 
   private mapAuditLog(row: AuditLogPersistence): OrganizationAuditRecord {
     return {
-      id: row.id,
-      organizationId: row.organizationId,
+      id: asUuid(row.id),
+      organizationId: asUuid(row.organizationId),
       actor: row.actor
         ? {
-            id: row.actor.id,
+            id: asUuid(row.actor.id),
             email: row.actor.email,
             username: row.actor.profile?.username ?? row.actor.email,
             avatarUrl: row.actor.profile?.avatarUrl ?? undefined,
@@ -194,7 +199,7 @@ export class OrganizationAuditRepository extends BaseRepository {
       beforeSnapshot: row.beforeSnapshot ?? undefined,
       afterSnapshot: row.afterSnapshot ?? undefined,
       restorable: row.restorable,
-      restoredFromAuditId: row.restoredFromAuditId ?? undefined,
+      restoredFromAuditId: asOptionalUuid(row.restoredFromAuditId),
       createdAt: row.createdAt.toISOString(),
     };
   }

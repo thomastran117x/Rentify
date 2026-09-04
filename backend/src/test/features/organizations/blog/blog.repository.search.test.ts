@@ -1,4 +1,10 @@
 import { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
+import { testUuid } from "../../../support/uuid";
+const REINDEX_1_ID = testUuid(9000, 674617);
+
+const ORG_9_ID = testUuid(9000, 9242);
+const OUTBOX_1_ID = testUuid(9000, 747639);
+const POST_1_ID = testUuid(9000, 570932);
 
 function sqlText(arg: unknown): string {
   const value = arg as { strings?: string[]; text?: string };
@@ -10,11 +16,11 @@ function sqlText(arg: unknown): string {
 
 function outboxRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "outbox-1",
-    blogPostId: "post-1",
+    id: OUTBOX_1_ID,
+    blogPostId: POST_1_ID,
     reindexRunId: null,
     operation: "upsert",
-    dedupeKey: "outbox-1",
+    dedupeKey: OUTBOX_1_ID,
     targetIndexName: null,
     attempts: 0,
     publishAttempts: 0,
@@ -33,7 +39,7 @@ function outboxRow(overrides: Record<string, unknown> = {}) {
 
 function reindexRunRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "reindex-1",
+    id: REINDEX_1_ID,
     status: "pending",
     targetIndexName: "organization-blogs_v1",
     retainedIndexName: null,
@@ -134,14 +140,14 @@ describe("OrganizationBlogRepository search methods", () => {
   describe("indexing sources", () => {
     it("maps blog posts to search documents by id (body as plain text)", async () => {
       const db = createDb({
-        blogPost: { findMany: jest.fn(async () => [blogPostRow("post-1")]) },
+        blogPost: { findMany: jest.fn(async () => [blogPostRow(POST_1_ID)]) },
       });
-      const docs = await repoWith(db).findByIdsForIndexing(["post-1"]);
+      const docs = await repoWith(db).findByIdsForIndexing([POST_1_ID]);
       expect(docs[0]).toEqual(
         expect.objectContaining({
-          id: "post-1",
-          organizationId: "org-post-1",
-          title: "Post post-1",
+          id: POST_1_ID,
+          organizationId: `org-${POST_1_ID}`,
+          title: `Post ${POST_1_ID}`,
           status: "published",
           publishedAt: "2026-05-01T00:00:00.000Z",
         }),
@@ -200,7 +206,7 @@ describe("OrganizationBlogRepository search methods", () => {
           seenSql.push(text);
           return text.includes("COUNT(*)")
             ? [{ total: 2 }]
-            : [{ id: "post-1" }, { id: "post-2" }];
+            : [{ id: POST_1_ID }, { id: "post-2" }];
         },
       });
       const result = await repoWith(db).searchPublicFallback({
@@ -209,7 +215,7 @@ describe("OrganizationBlogRepository search methods", () => {
         query: "weekend",
         sort: "newest",
       });
-      expect(result).toEqual({ ids: ["post-1", "post-2"], total: 2 });
+      expect(result).toEqual({ ids: [POST_1_ID, "post-2"], total: 2 });
       // The fallback matches title, excerpt, AND body — not title alone.
       const selectSql = seenSql.find((text) => text.includes("SELECT b.id"));
       expect(selectSql).toContain("b.title");
@@ -228,7 +234,7 @@ describe("OrganizationBlogRepository search methods", () => {
       await repoWith(db).searchPublicFallback({
         page: 1,
         pageSize: 20,
-        organizationId: "org-9",
+        organizationId: ORG_9_ID,
         tag: "News",
         sort: "oldest",
       });
@@ -244,16 +250,16 @@ describe("OrganizationBlogRepository search methods", () => {
         blogPost: {
           findMany: jest.fn(async () => [
             publicBlogPostRow("post-2"),
-            publicBlogPostRow("post-1"),
+            publicBlogPostRow(POST_1_ID),
           ]),
         },
       });
       const rows = await repoWith(db).batchFindPublishedByIds([
-        "post-1",
+        POST_1_ID,
         "post-2",
       ]);
-      expect(rows.map((row) => row.id)).toEqual(["post-1", "post-2"]);
-      expect(rows[0]?.organization?.name).toBe("Org post-1");
+      expect(rows.map((row) => row.id)).toEqual([POST_1_ID, "post-2"]);
+      expect(rows[0]?.organization?.name).toBe(`Org ${POST_1_ID}`);
       expect(rows[0]?.author?.username).toBe("author-one");
       // List payloads carry a precomputed reading time and drop the body.
       expect(rows[0]?.readingMinutes).toBeGreaterThanOrEqual(1);
@@ -288,7 +294,7 @@ describe("OrganizationBlogRepository search methods", () => {
     it("marks outbox rows indexed individually and in bulk", async () => {
       const db = createDb();
       const repo = repoWith(db);
-      await repo.markSearchOutboxIndexed("outbox-1");
+      await repo.markSearchOutboxIndexed(OUTBOX_1_ID);
       await repo.markSearchOutboxesIndexed(["a", "b"]);
       await repo.markSearchOutboxesIndexed([]);
       const outbox = db.organizationBlogSearchOutbox as {
@@ -304,11 +310,11 @@ describe("OrganizationBlogRepository search methods", () => {
         outbox: { update: jest.fn(async () => outboxRow({ attempts: 3 })) },
       });
       const repo = repoWith(db);
-      expect(await repo.incrementSearchOutboxAttempt("outbox-1", "boom")).toBe(
+      expect(await repo.incrementSearchOutboxAttempt(OUTBOX_1_ID, "boom")).toBe(
         3,
       );
-      await repo.markSearchOutboxDeadLettered("outbox-1", "dead");
-      await repo.markSearchOutboxPublishRetry("outbox-1", 2, "retry");
+      await repo.markSearchOutboxDeadLettered(OUTBOX_1_ID, "dead");
+      await repo.markSearchOutboxPublishRetry(OUTBOX_1_ID, 2, "retry");
       expect(
         (db.organizationBlogSearchOutbox as { update: jest.Mock }).update,
       ).toHaveBeenCalledTimes(3);
@@ -337,8 +343,8 @@ describe("OrganizationBlogRepository search methods", () => {
     it("detects newer outbox jobs for the same blog post", async () => {
       const db = createDb({ outbox: { count: jest.fn(async () => 1) } });
       const result = await repoWith(db).hasNewerSearchOutboxJob({
-        id: "outbox-1",
-        blogPostId: "post-1",
+        id: OUTBOX_1_ID,
+        blogPostId: POST_1_ID,
         createdAt: "2026-05-01T00:00:00.000Z",
       });
       expect(result).toBe(true);
@@ -347,7 +353,7 @@ describe("OrganizationBlogRepository search methods", () => {
     it("returns false when the job has no blog post id", async () => {
       const db = createDb();
       const result = await repoWith(db).hasNewerSearchOutboxJob({
-        id: "outbox-1",
+        id: OUTBOX_1_ID,
         createdAt: "2026-05-01T00:00:00.000Z",
       });
       expect(result).toBe(false);
@@ -356,7 +362,7 @@ describe("OrganizationBlogRepository search methods", () => {
     it("marks a primary row relayed and its superseded rows indexed", async () => {
       const db = createDb();
       await repoWith(db).markSearchOutboxRelayed(
-        "outbox-1",
+        OUTBOX_1_ID,
         ["s1"],
         "broker-1",
       );
@@ -422,14 +428,14 @@ describe("OrganizationBlogRepository search methods", () => {
       const repo = repoWith(db);
       expect(
         (await repo.createSearchReindexRun("organization-blogs_v9")).id,
-      ).toBe("reindex-1");
-      expect((await repo.findSearchReindexRunById("reindex-1"))?.id).toBe(
-        "reindex-1",
+      ).toBe(REINDEX_1_ID);
+      expect((await repo.findSearchReindexRunById(REINDEX_1_ID))?.id).toBe(
+        REINDEX_1_ID,
       );
       expect((await repo.findActiveSearchReindexRun())?.status).toBe("pending");
-      expect((await repo.findLatestSearchReindexRun())?.id).toBe("reindex-1");
+      expect((await repo.findLatestSearchReindexRun())?.id).toBe(REINDEX_1_ID);
       expect((await repo.findLatestCompletedSearchReindexRun())?.id).toBe(
-        "reindex-1",
+        REINDEX_1_ID,
       );
       expect(
         (await repo.listCompletedSearchReindexRunsWithRetainedIndices()).length,
@@ -456,7 +462,7 @@ describe("OrganizationBlogRepository search methods", () => {
         },
       });
       expect((await repoWith(db).claimNextSearchReindexRun())?.id).toBe(
-        "reindex-1",
+        REINDEX_1_ID,
       );
     });
 
@@ -480,19 +486,19 @@ describe("OrganizationBlogRepository search methods", () => {
     it("updates run status, progress, and processing markers", async () => {
       const db = createDb();
       const repo = repoWith(db);
-      await repo.markSearchReindexRunRunning("reindex-1", 10);
-      await repo.updateSearchReindexRunProgress("reindex-1", {
+      await repo.markSearchReindexRunRunning(REINDEX_1_ID, 10);
+      await repo.updateSearchReindexRunProgress(REINDEX_1_ID, {
         indexedDocuments: 5,
         failedDocuments: 1,
       });
       await repo.markSearchReindexRunCompleted(
-        "reindex-1",
+        REINDEX_1_ID,
         "organization-blogs_v0",
       );
-      await repo.markSearchReindexRunFailed("reindex-1", "boom");
-      await repo.touchSearchReindexRunProcessing("reindex-1");
-      await repo.clearSearchReindexRunProcessing("reindex-1");
-      await repo.clearSearchReindexRunRetainedIndexName("reindex-1");
+      await repo.markSearchReindexRunFailed(REINDEX_1_ID, "boom");
+      await repo.touchSearchReindexRunProcessing(REINDEX_1_ID);
+      await repo.clearSearchReindexRunProcessing(REINDEX_1_ID);
+      await repo.clearSearchReindexRunRetainedIndexName(REINDEX_1_ID);
       expect(
         (db.organizationBlogSearchReindexRun as { update: jest.Mock }).update,
       ).toHaveBeenCalledTimes(7);
@@ -501,10 +507,10 @@ describe("OrganizationBlogRepository search methods", () => {
     it("enqueues a reindex barrier and flips the run to waiting", async () => {
       const db = createDb();
       const barrier = await repoWith(db).enqueueSearchReindexBarrier(
-        "reindex-1",
+        REINDEX_1_ID,
         "organization-blogs_v1",
       );
-      expect(barrier.id).toBe("outbox-1");
+      expect(barrier.id).toBe(OUTBOX_1_ID);
       expect(
         (db.organizationBlogSearchReindexRun as { update: jest.Mock }).update,
       ).toHaveBeenCalled();
@@ -519,7 +525,7 @@ describe("OrganizationBlogRepository search methods", () => {
         },
       });
       expect(
-        await repoWith(db).getSearchReindexCatchUpState("reindex-1"),
+        await repoWith(db).getSearchReindexCatchUpState(REINDEX_1_ID),
       ).toEqual(expect.objectContaining({ state: "failed" }));
     });
 
@@ -538,7 +544,7 @@ describe("OrganizationBlogRepository search methods", () => {
         },
       });
       expect(
-        await repoWith(db).getSearchReindexCatchUpState("reindex-1"),
+        await repoWith(db).getSearchReindexCatchUpState(REINDEX_1_ID),
       ).toEqual({ state: "waiting" });
     });
 
@@ -558,7 +564,7 @@ describe("OrganizationBlogRepository search methods", () => {
         },
       });
       expect(
-        await repoWith(db).getSearchReindexCatchUpState("reindex-1"),
+        await repoWith(db).getSearchReindexCatchUpState(REINDEX_1_ID),
       ).toEqual({ state: "caught_up" });
     });
 
@@ -577,7 +583,7 @@ describe("OrganizationBlogRepository search methods", () => {
         },
       });
       expect(
-        await repoWith(db).getSearchReindexCatchUpState("reindex-1"),
+        await repoWith(db).getSearchReindexCatchUpState(REINDEX_1_ID),
       ).toEqual(expect.objectContaining({ state: "failed" }));
     });
   });
@@ -595,7 +601,7 @@ describe("OrganizationBlogRepository search methods", () => {
           return { active, created };
         },
       );
-      expect(result?.created.id).toBe("reindex-1");
+      expect(result?.created.id).toBe(REINDEX_1_ID);
     });
 
     it("returns null when the advisory lock cannot be acquired", async () => {

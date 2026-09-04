@@ -7,13 +7,18 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { SeasonalPricingRecord } from "@/features/postings/seasonal-pricing/seasonal-pricing.model";
+import { testUuid } from "../../support/uuid";
+const OWNER_1_ID = testUuid(9000, 219201);
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const RULE_1_ID = testUuid(9000, 148479);
 
 function buildRule(
   overrides: Partial<SeasonalPricingRecord> = {},
 ): SeasonalPricingRecord {
   return {
-    id: "rule-1",
-    postingId: "posting-1",
+    id: RULE_1_ID,
+    postingId: POSTING_1_ID,
     name: "Summer Peak",
     startDate: "2026-06-01",
     endDate: "2026-08-31",
@@ -61,7 +66,7 @@ function createService(options?: {
     options?.posting === null
       ? null
       : {
-          id: "posting-1",
+          id: POSTING_1_ID,
           organizationId: "org-1",
           status: "published",
           ...(options?.posting ?? {}),
@@ -76,7 +81,9 @@ function createService(options?: {
       ? "primary_manager"
       : options.membershipRole;
   const membership =
-    role === null ? null : { organizationId: "org-1", userId: "owner-1", role };
+    role === null
+      ? null
+      : { organizationId: "org-1", userId: OWNER_1_ID, role };
 
   const organizationAccessService = {
     findMembership: jest.fn(async () => membership),
@@ -103,32 +110,37 @@ describe("SeasonalPricingService", () => {
     it("returns rules for a posting the actor manages", async () => {
       const { service } = createService();
 
-      const result = await service.list("posting-1", "owner-1");
+      const result = await service.list(POSTING_1_ID, OWNER_1_ID);
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({ id: "rule-1", postingId: "posting-1" });
+      expect(result[0]).toMatchObject({
+        id: RULE_1_ID,
+        postingId: POSTING_1_ID,
+      });
     });
 
     it("throws ResourceNotFoundError when posting does not exist", async () => {
       const { service } = createService({ posting: null });
 
-      await expect(service.list("posting-1", "owner-1")).rejects.toBeInstanceOf(
-        ResourceNotFoundError,
-      );
+      await expect(
+        service.list(POSTING_1_ID, OWNER_1_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
     it("throws ForbiddenError when actor is not a member of the organization", async () => {
       const { service } = createService({ membershipRole: null });
 
-      await expect(service.list("posting-1", "owner-1")).rejects.toBeInstanceOf(
-        ForbiddenError,
-      );
+      await expect(
+        service.list(POSTING_1_ID, OWNER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
     it("allows non-manager members (viewer role) to list rules", async () => {
       const { service } = createService({ membershipRole: "viewer" });
 
-      await expect(service.list("posting-1", "owner-1")).resolves.toBeDefined();
+      await expect(
+        service.list(POSTING_1_ID, OWNER_1_ID),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -136,12 +148,16 @@ describe("SeasonalPricingService", () => {
     it("creates a rule for a manager", async () => {
       const { service, seasonalPricingRepository } = createService();
 
-      const result = await service.create("posting-1", "owner-1", buildBody());
+      const result = await service.create(
+        POSTING_1_ID,
+        OWNER_1_ID,
+        buildBody(),
+      );
 
-      expect(result).toMatchObject({ id: "rule-1" });
+      expect(result).toMatchObject({ id: RULE_1_ID });
       expect(seasonalPricingRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          postingId: "posting-1",
+          postingId: POSTING_1_ID,
           name: "Summer Peak",
           dailyAmount: 150,
         }),
@@ -152,7 +168,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ ruleCount: 20 });
 
       await expect(
-        service.create("posting-1", "owner-1", buildBody()),
+        service.create(POSTING_1_ID, OWNER_1_ID, buildBody()),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
 
@@ -160,7 +176,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ membershipRole: "viewer" });
 
       await expect(
-        service.create("posting-1", "owner-1", buildBody()),
+        service.create(POSTING_1_ID, OWNER_1_ID, buildBody()),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -168,7 +184,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ membershipRole: null });
 
       await expect(
-        service.create("posting-1", "owner-1", buildBody()),
+        service.create(POSTING_1_ID, OWNER_1_ID, buildBody()),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -176,7 +192,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ posting: null });
 
       await expect(
-        service.create("posting-1", "owner-1", buildBody()),
+        service.create(POSTING_1_ID, OWNER_1_ID, buildBody()),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
@@ -186,7 +202,7 @@ describe("SeasonalPricingService", () => {
       });
 
       await expect(
-        service.create("posting-1", "owner-1", buildBody()),
+        service.create(POSTING_1_ID, OWNER_1_ID, buildBody()),
       ).resolves.toBeDefined();
       expect(seasonalPricingRepository.create).toHaveBeenCalledTimes(1);
     });
@@ -199,7 +215,7 @@ describe("SeasonalPricingService", () => {
         updatedRule: updated,
       });
 
-      const result = await service.update("posting-1", "rule-1", "owner-1", {
+      const result = await service.update(POSTING_1_ID, RULE_1_ID, OWNER_1_ID, {
         ...buildBody(),
         name: "Updated Name",
         dailyAmount: 200,
@@ -208,8 +224,8 @@ describe("SeasonalPricingService", () => {
       expect(result.name).toBe("Updated Name");
       expect(result.dailyAmount).toBe(200);
       expect(seasonalPricingRepository.update).toHaveBeenCalledWith(
-        "rule-1",
-        "posting-1",
+        RULE_1_ID,
+        POSTING_1_ID,
         expect.objectContaining({ name: "Updated Name", dailyAmount: 200 }),
       );
     });
@@ -218,7 +234,12 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ updatedRule: null });
 
       await expect(
-        service.update("posting-1", "nonexistent-rule", "owner-1", buildBody()),
+        service.update(
+          POSTING_1_ID,
+          "nonexistent-rule",
+          OWNER_1_ID,
+          buildBody(),
+        ),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
@@ -226,7 +247,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ membershipRole: "viewer" });
 
       await expect(
-        service.update("posting-1", "rule-1", "owner-1", buildBody()),
+        service.update(POSTING_1_ID, RULE_1_ID, OWNER_1_ID, buildBody()),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
@@ -238,11 +259,11 @@ describe("SeasonalPricingService", () => {
       });
 
       await expect(
-        service.delete("posting-1", "rule-1", "owner-1"),
+        service.delete(POSTING_1_ID, RULE_1_ID, OWNER_1_ID),
       ).resolves.toBeUndefined();
       expect(seasonalPricingRepository.delete).toHaveBeenCalledWith(
-        "rule-1",
-        "posting-1",
+        RULE_1_ID,
+        POSTING_1_ID,
       );
     });
 
@@ -250,7 +271,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ deletedRule: false });
 
       await expect(
-        service.delete("posting-1", "nonexistent-rule", "owner-1"),
+        service.delete(POSTING_1_ID, "nonexistent-rule", OWNER_1_ID),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
 
@@ -258,7 +279,7 @@ describe("SeasonalPricingService", () => {
       const { service } = createService({ membershipRole: "viewer" });
 
       await expect(
-        service.delete("posting-1", "rule-1", "owner-1"),
+        service.delete(POSTING_1_ID, RULE_1_ID, OWNER_1_ID),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -269,7 +290,7 @@ describe("SeasonalPricingService", () => {
       });
 
       await expect(
-        service.delete("posting-1", "rule-1", "owner-1"),
+        service.delete(POSTING_1_ID, RULE_1_ID, OWNER_1_ID),
       ).resolves.toBeUndefined();
       expect(seasonalPricingRepository.delete).toHaveBeenCalledTimes(1);
     });

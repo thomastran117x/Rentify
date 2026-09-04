@@ -3,21 +3,25 @@ import {
   OrganizationSlugTakenError,
   OrganizationsProfileRepository,
 } from "@/features/organizations/profile/profile.repository";
+import { testUuid } from "../../../support/uuid";
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 function createMembershipPersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "membership-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     role: "manager",
     createdAt: new Date("2026-05-01T00:00:00.000Z"),
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Northwind",
       createdAt: new Date("2026-05-01T00:00:00.000Z"),
       updatedAt: new Date("2026-05-02T00:00:00.000Z"),
     },
     user: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       firstName: "Casey",
       lastName: "Doe",
@@ -33,7 +37,7 @@ function createMembershipPersistence(overrides: Record<string, unknown> = {}) {
 function createInvitationPersistence(overrides: Record<string, unknown> = {}) {
   return {
     id: "invite-1",
-    organizationId: "org-1",
+    organizationId: ORG_1_ID,
     email: "teammate@example.com",
     role: "operator",
     status: "pending",
@@ -44,11 +48,11 @@ function createInvitationPersistence(overrides: Record<string, unknown> = {}) {
     acceptedAt: null,
     revokedAt: null,
     organization: {
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Northwind",
     },
     invitedByUser: {
-      id: "user-1",
+      id: USER_1_ID,
       email: "owner@example.com",
       profile: {
         username: "northwind-owner",
@@ -62,7 +66,7 @@ function createInvitationPersistence(overrides: Record<string, unknown> = {}) {
 describe("OrganizationsProfileRepository", () => {
   it("maps organization detail members and invitation actors", async () => {
     const findUnique = jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Northwind",
       description: "A rental cooperative.",
       websiteUrl: "https://northwind.example.com",
@@ -109,11 +113,11 @@ describe("OrganizationsProfileRepository", () => {
       },
     } as any);
 
-    const result = await repository.findOrganizationDetail("org-1");
+    const result = await repository.findOrganizationDetail(ORG_1_ID);
 
     expect(result).toEqual({
       organization: {
-        id: "org-1",
+        id: ORG_1_ID,
         name: "Northwind",
         createdAt: "2026-05-01T00:00:00.000Z",
         updatedAt: "2026-05-02T00:00:00.000Z",
@@ -135,7 +139,7 @@ describe("OrganizationsProfileRepository", () => {
       members: [
         {
           membershipId: "membership-1",
-          userId: "user-1",
+          userId: USER_1_ID,
           email: "owner@example.com",
           firstName: "Casey",
           lastName: "Doe",
@@ -169,7 +173,7 @@ describe("OrganizationsProfileRepository", () => {
           acceptedAt: undefined,
           revokedAt: undefined,
           invitedBy: {
-            id: "user-1",
+            id: USER_1_ID,
             email: "owner@example.com",
             username: "northwind-owner",
           },
@@ -235,7 +239,7 @@ describe("OrganizationsProfileRepository", () => {
     const result = await repository.createOrganizationWithOwner({
       name: "Acme Rentals",
       slug: "acme-rentals",
-      ownerUserId: "user-1",
+      ownerUserId: USER_1_ID,
     });
 
     expect(organizationCreate).toHaveBeenCalledWith({
@@ -264,7 +268,7 @@ describe("OrganizationsProfileRepository", () => {
       data: expect.objectContaining({
         id: expect.any(String),
         organizationId: "org-9",
-        userId: "user-1",
+        userId: USER_1_ID,
         role: "primary_manager",
       }),
       include: expect.any(Object),
@@ -311,7 +315,7 @@ describe("OrganizationsProfileRepository", () => {
       repository.createOrganizationWithOwner({
         name: "Harbor Rentals",
         slug: "harbor",
-        ownerUserId: "user-1",
+        ownerUserId: USER_1_ID,
       }),
     ).rejects.toBeInstanceOf(OrganizationSlugTakenError);
   });
@@ -319,10 +323,10 @@ describe("OrganizationsProfileRepository", () => {
   it("claims the new slug through a reservation when changing a slug", async () => {
     const reservationCreate = jest.fn(async () => ({
       slug: "harbor-new",
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
     }));
     const organizationUpdate = jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       slug: "harbor-new",
       name: "Harbor",
       description: null,
@@ -356,17 +360,17 @@ describe("OrganizationsProfileRepository", () => {
     const repository = new OrganizationsProfileRepository(database as any);
 
     const result = await repository.changeOrganizationSlug({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       nextSlug: "harbor-new",
     });
 
     // The new slug is reserved; the previous one keeps its existing reservation,
     // which is what makes it resolve forever and never be re-adopted.
     expect(reservationCreate).toHaveBeenCalledWith({
-      data: { slug: "harbor-new", organizationId: "org-1" },
+      data: { slug: "harbor-new", organizationId: ORG_1_ID },
     });
     expect(organizationUpdate).toHaveBeenCalledWith({
-      where: { id: "org-1" },
+      where: { id: ORG_1_ID },
       data: { slug: "harbor-new" },
     });
     expect(result.slug).toBe("harbor-new");
@@ -392,7 +396,7 @@ describe("OrganizationsProfileRepository", () => {
 
     await expect(
       repository.changeOrganizationSlug({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         nextSlug: "harbor",
       }),
     ).rejects.toBeInstanceOf(OrganizationSlugTakenError);
@@ -401,7 +405,7 @@ describe("OrganizationsProfileRepository", () => {
   it("resolves a retired slug through its reservation", async () => {
     const organizationFindUnique = jest.fn(async () => null);
     const reservationFindUnique = jest.fn(async () => ({
-      organization: { id: "org-1", slug: "harbor-new", name: "Harbor" },
+      organization: { id: ORG_1_ID, slug: "harbor-new", name: "Harbor" },
     }));
     const database = {
       organization: { findUnique: organizationFindUnique },
@@ -410,7 +414,7 @@ describe("OrganizationsProfileRepository", () => {
     const repository = new OrganizationsProfileRepository(database as any);
 
     await expect(repository.resolveBySlug("harbor")).resolves.toEqual({
-      organizationId: "org-1",
+      organizationId: ORG_1_ID,
       canonicalSlug: "harbor-new",
       name: "Harbor",
       matchedBy: "alias",
@@ -419,7 +423,7 @@ describe("OrganizationsProfileRepository", () => {
 
   it("enqueues a search-index upsert when updating an organization", async () => {
     const organizationUpdate = jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Renamed Org",
       description: "Updated description",
       websiteUrl: null,
@@ -455,30 +459,30 @@ describe("OrganizationsProfileRepository", () => {
     };
     const repository = new OrganizationsProfileRepository(database as any);
 
-    const result = await repository.updateOrganization("org-1", {
+    const result = await repository.updateOrganization(ORG_1_ID, {
       description: "Updated description",
     });
 
     expect(organizationUpdate).toHaveBeenCalledWith({
-      where: { id: "org-1" },
+      where: { id: ORG_1_ID },
       data: expect.objectContaining({ description: "Updated description" }),
     });
     expect(outboxCreateMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           operation: "upsert",
         }),
       ]),
     });
     expect(result).toEqual(
-      expect.objectContaining({ id: "org-1", name: "Renamed Org" }),
+      expect.objectContaining({ id: ORG_1_ID, name: "Renamed Org" }),
     );
   });
 
   it("also enqueues a reindex-scoped outbox entry while a reindex run is active", async () => {
     const organizationUpdate = jest.fn(async () => ({
-      id: "org-1",
+      id: ORG_1_ID,
       name: "Org",
       description: null,
       websiteUrl: null,
@@ -517,7 +521,7 @@ describe("OrganizationsProfileRepository", () => {
     };
     const repository = new OrganizationsProfileRepository(database as any);
 
-    await repository.updateOrganization("org-1", { city: "Berlin" });
+    await repository.updateOrganization(ORG_1_ID, { city: "Berlin" });
 
     const outboxCalls = (outboxCreateMany as jest.Mock).mock.calls as Array<
       [{ data: unknown[] }]
@@ -527,7 +531,7 @@ describe("OrganizationsProfileRepository", () => {
     expect(outboxArgs.data).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          organizationId: "org-1",
+          organizationId: ORG_1_ID,
           reindexRunId: "reindex-1",
           targetIndexName: "organizations_v123",
         }),

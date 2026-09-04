@@ -84,6 +84,11 @@ import {
 } from "@/features/recommendations/recommendation-activity.model";
 import type { RecommendationActivityPublisher } from "@/features/recommendations/recommendation-activity.publisher";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export class PostingsController {
   private readonly logger: Logger;
@@ -211,7 +216,7 @@ export class PostingsController {
       eventType: "posting_published",
       client: request.client,
       requestId: this.readRequestId(request),
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Posting published successfully.",
@@ -229,7 +234,7 @@ export class PostingsController {
       eventType: "posting_archived",
       client: request.client,
       requestId: this.readRequestId(request),
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Posting archived successfully.",
@@ -247,7 +252,7 @@ export class PostingsController {
       eventType: "posting_paused",
       client: request.client,
       requestId: this.readRequestId(request),
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Posting paused successfully.",
@@ -265,7 +270,7 @@ export class PostingsController {
       eventType: "posting_unpaused",
       client: request.client,
       requestId: this.readRequestId(request),
-      actorUserId: auth.sub,
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, {
       message: "Posting unpaused successfully.",
@@ -289,7 +294,7 @@ export class PostingsController {
         posting: result,
         client: request.client,
         requestId: this.readRequestId(request),
-        actorUserId: auth?.sub,
+        actorUserId: asOptionalUuid(auth?.sub),
       });
     }
 
@@ -326,11 +331,11 @@ export class PostingsController {
       auth?.sub,
     );
     await this.recommendationActivityPublisher.publishSearchClick({
-      postingId: this.requireRouteId(request),
+      postingId: asUuid(this.requireRouteId(request)),
       client: request.client,
       body: this.toSearchClickActivityRequest(body),
       requestId: this.readRequestId(request),
-      actorUserId: auth?.sub,
+      actorUserId: asOptionalUuid(auth?.sub),
     });
 
     accepted(
@@ -655,7 +660,6 @@ export class PostingsController {
       "availabilityBlocks" in body ? body.availabilityBlocks : [];
 
     return {
-      organizationId: "",
       variant: body.variant,
       name: body.name,
       description: body.description,
@@ -837,7 +841,7 @@ export class PostingsController {
 
   private parseListPostingAnalyticsInput(
     request: Request,
-    actorUserId: string,
+    actorUserId: Uuid,
   ): ListPostingAnalyticsInput {
     const url = getRequestUrl(request);
 
@@ -856,8 +860,8 @@ export class PostingsController {
 
   private parsePostingAnalyticsDetailInput(
     request: Request,
-    actorUserId: string,
-    postingId: string,
+    actorUserId: Uuid,
+    postingId: Uuid,
   ): PostingAnalyticsDetailInput {
     const url = getRequestUrl(request);
 
@@ -893,7 +897,7 @@ export class PostingsController {
       pageSize: query.pageSize,
       query: query.q,
       organizationQuery: query.organization,
-      organizationId: query.organizationId,
+      organizationId: asOptionalUuid(query.organizationId),
       family: query.family,
       subtype: query.subtype,
       tags: query.tags && query.tags.length > 0 ? query.tags : undefined,
@@ -1010,12 +1014,11 @@ export class PostingsController {
   }
 
   private toListPostingAnalyticsInput(
-    actorUserId: string,
+    actorUserId: Uuid,
     query: ListPostingAnalyticsQuery,
   ): ListPostingAnalyticsInput {
     return {
       actorUserId,
-      organizationId: "",
       window: query.window,
       page: query.page,
       pageSize: query.pageSize,
@@ -1023,13 +1026,12 @@ export class PostingsController {
   }
 
   private toPostingAnalyticsDetailInput(
-    actorUserId: string,
-    postingId: string,
+    actorUserId: Uuid,
+    postingId: Uuid,
     query: PostingAnalyticsDetailQuery,
   ): PostingAnalyticsDetailInput {
     return {
       actorUserId,
-      organizationId: "",
       postingId,
       window: query.window,
       granularity: query.granularity,
@@ -1089,11 +1091,11 @@ export class PostingsController {
     return trimmed.length > 0 ? trimmed : undefined;
   }
 
-  private requireRouteId(request: Request): string {
+  private requireRouteId(request: Request): Uuid {
     return this.requireRouteParam(request, "id");
   }
 
-  private requireRouteParam(request: Request, name: string): string {
+  private requireRouteParam(request: Request, name: string): Uuid {
     const value = requireSafeRouteParam(request, name);
 
     try {

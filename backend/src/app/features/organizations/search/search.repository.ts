@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -10,6 +9,12 @@ import type {
   SearchReindexRunRecord,
   SearchReindexStatus,
 } from "@/features/search/search.model";
+import {
+  asOptionalUuid,
+  asUuid,
+  newUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 type SearchReindexCatchUpState =
   | {
@@ -563,7 +568,7 @@ export class OrganizationsSearchRepository extends BaseRepository {
     const run = await this.executeAsync(() =>
       this.prisma.organizationSearchReindexRun.create({
         data: {
-          id: randomUUID(),
+          id: newUuid(),
           status: "pending",
           targetIndexName,
           sourceSnapshotAt: new Date(),
@@ -775,12 +780,12 @@ export class OrganizationsSearchRepository extends BaseRepository {
   }
 
   async enqueueSearchReindexBarrier(
-    reindexRunId: string,
+    reindexRunId: Uuid,
     targetIndexName: string,
   ): Promise<OrganizationSearchOutboxRecord> {
     return this.executeAsync(async () =>
       this.prisma.$transaction(async (transaction) => {
-        const barrierId = randomUUID();
+        const barrierId = newUuid();
 
         const created = await transaction.organizationSearchOutbox.create({
           data: {
@@ -1010,7 +1015,7 @@ export class OrganizationsSearchRepository extends BaseRepository {
                 const run =
                   await transaction.organizationSearchReindexRun.create({
                     data: {
-                      id: randomUUID(),
+                      id: newUuid(),
                       status: "pending",
                       targetIndexName,
                       sourceSnapshotAt: new Date(),
@@ -1036,7 +1041,7 @@ export class OrganizationsSearchRepository extends BaseRepository {
     organization: OrganizationSearchDocumentRow,
   ): OrganizationSearchDocument {
     return {
-      id: organization.id,
+      id: asUuid(organization.id),
       name: organization.name,
       description: organization.description,
       city: organization.city,
@@ -1053,9 +1058,9 @@ export class OrganizationsSearchRepository extends BaseRepository {
     processingAt?: Date,
   ): OrganizationSearchOutboxRecord {
     return {
-      id: outbox.id,
-      organizationId: outbox.organizationId ?? undefined,
-      reindexRunId: outbox.reindexRunId ?? undefined,
+      id: asUuid(outbox.id),
+      organizationId: asOptionalUuid(outbox.organizationId),
+      reindexRunId: asOptionalUuid(outbox.reindexRunId),
       operation: outbox.operation,
       dedupeKey: outbox.dedupeKey,
       targetIndexName: outbox.targetIndexName ?? undefined,
@@ -1081,12 +1086,12 @@ export class OrganizationsSearchRepository extends BaseRepository {
     run: Prisma.OrganizationSearchReindexRunGetPayload<object>,
   ): SearchReindexRunRecord {
     return {
-      id: run.id,
+      id: asUuid(run.id),
       status: run.status as SearchReindexStatus,
       targetIndexName: run.targetIndexName,
       retainedIndexName: run.retainedIndexName ?? undefined,
       sourceSnapshotAt: run.sourceSnapshotAt.toISOString(),
-      barrierOutboxId: run.barrierOutboxId ?? undefined,
+      barrierOutboxId: asOptionalUuid(run.barrierOutboxId),
       totalPostings: run.totalDocuments,
       indexedPostings: run.indexedDocuments,
       failedPostings: run.failedDocuments,

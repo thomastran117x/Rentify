@@ -13,8 +13,11 @@ import {
   BLOG_COMMENT_SOCKET_PATH,
   OrganizationBlogCommentSocketServer,
 } from "@/features/organizations/blog/comments/comment-socket.server";
+import { testUuid } from "../../../../support/uuid";
 
-const POST_ID = "blog-1";
+const BLOG_OTHER_ID = testUuid(9000, 805264);
+
+const POST_ID = testUuid(9100, 853730);
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
 
@@ -330,7 +333,7 @@ describe("OrganizationBlogCommentSocketServer", () => {
 
     socketServer.publish({
       type: "comment.created",
-      blogPostId: "blog-other",
+      blogPostId: BLOG_OTHER_ID,
       comment: { id: "comment-9" } as never,
     });
 

@@ -11,6 +11,7 @@ import {
   type SeedSavedPostingFixture,
   type SeedSavedSearchFixture,
 } from "@/seeds/types";
+import { asOptionalUuid, asUuid } from "@/configuration/validation/uuid";
 
 const BASE_SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] = [
   {
@@ -383,7 +384,7 @@ const ADDITIONAL_SEED_POSTING_REVIEWS: SeedPostingReviewFixture[] =
     return [
       {
         id: createFixtureId(4000, 13 + index * 2),
-        postingId,
+        postingId: asUuid(postingId),
         reviewerEmail: reviewerOne,
         rating: index % 3 === 0 ? 5 : 4,
         title: `${organization.city} stay worked smoothly`,
@@ -410,7 +411,7 @@ const ADDITIONAL_SEED_POSTING_VIEW_EVENTS: SeedPostingViewEventFixture[] =
     return [
       {
         id: createFixtureId(4010, 13 + index * 2),
-        postingId,
+        postingId: asUuid(postingId),
         viewerHash: `${organization.ownerSlug}-viewer-a`,
         userEmail: reviewerOne,
         ipAddressHash: `${organization.ownerSlug}-ip-a`,

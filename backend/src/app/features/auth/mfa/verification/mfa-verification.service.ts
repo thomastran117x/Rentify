@@ -33,6 +33,7 @@ import {
   type MfaVerificationProofRecord,
   type MfaVerificationScope,
 } from "./mfa-verification.model";
+import { type Uuid } from "@/configuration/validation/uuid";
 
 interface MfaVerificationServiceOptions {
   mfaVerificationRepository: MfaVerificationRepository;
@@ -43,7 +44,7 @@ interface MfaVerificationServiceOptions {
 }
 
 interface VerificationRequestContext {
-  userId: string;
+  userId: Uuid;
   sessionId: string;
   scope: MfaVerificationScope;
   factor?: MfaVerificationFactor;
@@ -370,7 +371,7 @@ export class MfaVerificationService {
   }
 
   private async resolveFactorState(
-    userId: string,
+    userId: Uuid,
     scope: MfaVerificationScope,
   ): Promise<VerifiedFactorState> {
     this.assertSupportedScope(scope);
@@ -460,7 +461,7 @@ export class MfaVerificationService {
   }
 
   private async persistProof(input: {
-    userId: string;
+    userId: Uuid;
     sessionId: string;
     scope: MfaVerificationScope;
     factor: MfaVerificationChallengeFactor;
@@ -493,7 +494,7 @@ export class MfaVerificationService {
   }
 
   private buildBypassProof(input: {
-    userId: string;
+    userId: Uuid;
     sessionId: string;
     scope: MfaVerificationScope;
     factorState: VerifiedFactorState;
@@ -527,7 +528,7 @@ export class MfaVerificationService {
 
   private async validateProof(input: {
     proof: MfaVerificationProofRecord | null;
-    userId: string;
+    userId: Uuid;
     sessionId: string;
     scope: MfaVerificationScope;
     factorState: VerifiedFactorState;
@@ -557,7 +558,7 @@ export class MfaVerificationService {
 
   private async consumeWindowRateLimit(input: {
     kind: "challenge" | "confirm";
-    userId: string;
+    userId: Uuid;
     sessionId: string;
     scope: MfaVerificationScope;
     factor: MfaVerificationChallengeFactor;
@@ -696,7 +697,7 @@ export class MfaVerificationService {
   }
 
   private getOtpSubject(
-    userId: string,
+    userId: Uuid,
     sessionId: string,
     scope: MfaVerificationScope,
     factor: MfaVerificationChallengeFactor,
@@ -706,7 +707,7 @@ export class MfaVerificationService {
 
   private getRateLimitKey(
     kind: "challenge" | "confirm",
-    userId: string,
+    userId: Uuid,
     sessionId: string,
     scope: MfaVerificationScope,
     factor: MfaVerificationChallengeFactor,
@@ -715,7 +716,7 @@ export class MfaVerificationService {
   }
 
   private getFailedConfirmKey(
-    userId: string,
+    userId: Uuid,
     sessionId: string,
     scope: MfaVerificationScope,
     factor: MfaVerificationChallengeFactor,
@@ -724,7 +725,7 @@ export class MfaVerificationService {
   }
 
   private getConfirmLockKey(
-    userId: string,
+    userId: Uuid,
     sessionId: string,
     scope: MfaVerificationScope,
     factor: MfaVerificationChallengeFactor,

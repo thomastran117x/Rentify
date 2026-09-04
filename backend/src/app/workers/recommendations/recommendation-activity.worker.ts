@@ -8,6 +8,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import type { RecommendationActivityQueueService } from "@/features/recommendations/recommendation-activity.queue.service";
 import { recommendationActivityEventSchema } from "@/features/recommendations/recommendation-activity.model";
 import type { RecommendationActivityProcessor } from "@/features/recommendations/recommendation-activity.processor";
+import { asUuid } from "@/configuration/validation/uuid";
 
 const PREFETCH = 20;
 const MAX_RETRY_ATTEMPTS = 4;
@@ -51,7 +52,7 @@ async function bootstrapRecommendationActivityWorker(): Promise<void> {
 
             if (attempt >= MAX_RETRY_ATTEMPTS) {
               await queueService.publishDeadLetterPayload(parsed.data, {
-                messageId: parsed.data.eventId,
+                messageId: asUuid(parsed.data.eventId),
                 reason: "processing_failed",
                 error:
                   error instanceof Error

@@ -5,6 +5,12 @@ import type {
   ListOrganizationAnnouncementsResult,
   OrganizationAnnouncementRecord,
 } from "@/features/organizations/announcements/announcements.model";
+import { testUuid } from "../../../support/uuid";
+const ANNOUNCEMENT_1_ID = testUuid(9000, 478450);
+const MISSING_ID = testUuid(9000, 394917);
+
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_1_ID = testUuid(9000, 994257);
 
 type Role = "primary_manager" | "manager" | "operator";
 
@@ -12,8 +18,8 @@ function createAnnouncement(
   overrides: Partial<OrganizationAnnouncementRecord> = {},
 ): OrganizationAnnouncementRecord {
   return {
-    id: "announcement-1",
-    organizationId: "org-1",
+    id: ANNOUNCEMENT_1_ID,
+    organizationId: ORG_1_ID,
     title: "Announcement title",
     body: "Announcement body",
     status: "draft",
@@ -106,14 +112,14 @@ describe("OrganizationAnnouncementService", () => {
     });
 
     await service.list({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       page: 1,
       pageSize: 20,
     });
 
     expect(repository.list).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({ organizationId: ORG_1_ID }),
     );
     const listArgs = repository.list.mock.calls[0][0] as Record<
       string,
@@ -128,8 +134,8 @@ describe("OrganizationAnnouncementService", () => {
     });
 
     await service.list({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       page: 1,
       pageSize: 20,
     });
@@ -146,8 +152,8 @@ describe("OrganizationAnnouncementService", () => {
 
     await expect(
       service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       }),
@@ -158,8 +164,8 @@ describe("OrganizationAnnouncementService", () => {
     const { service, repository, organizationAuditService } = createService();
 
     const result = await service.create({
-      organizationId: "org-1",
-      actorUserId: "user-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
       title: "New announcement",
       body: "Body text",
       status: "published",
@@ -167,8 +173,8 @@ describe("OrganizationAnnouncementService", () => {
 
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
-        authorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        authorUserId: USER_1_ID,
         status: "published",
       }),
     );
@@ -186,8 +192,8 @@ describe("OrganizationAnnouncementService", () => {
 
     await expect(
       service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "New announcement",
         body: "Body text",
         status: "draft",
@@ -201,9 +207,9 @@ describe("OrganizationAnnouncementService", () => {
     });
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      announcementId: "announcement-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      announcementId: ANNOUNCEMENT_1_ID,
       status: "published",
     });
 
@@ -218,9 +224,9 @@ describe("OrganizationAnnouncementService", () => {
     });
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      announcementId: "announcement-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      announcementId: ANNOUNCEMENT_1_ID,
       status: "draft",
     });
 
@@ -235,9 +241,9 @@ describe("OrganizationAnnouncementService", () => {
     });
 
     await service.update({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      announcementId: "announcement-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      announcementId: ANNOUNCEMENT_1_ID,
       title: "Updated title",
     });
 
@@ -251,9 +257,9 @@ describe("OrganizationAnnouncementService", () => {
 
     await expect(
       service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        announcementId: "missing",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        announcementId: MISSING_ID,
         title: "Updated title",
       }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
@@ -263,15 +269,15 @@ describe("OrganizationAnnouncementService", () => {
     const { service, repository, organizationAuditService } = createService();
 
     const result = await service.delete({
-      organizationId: "org-1",
-      actorUserId: "user-1",
-      announcementId: "announcement-1",
+      organizationId: ORG_1_ID,
+      actorUserId: USER_1_ID,
+      announcementId: ANNOUNCEMENT_1_ID,
     });
 
-    expect(repository.delete).toHaveBeenCalledWith("org-1", "announcement-1");
+    expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, ANNOUNCEMENT_1_ID);
     expect(result).toEqual({
       deleted: true,
-      announcementId: "announcement-1",
+      announcementId: ANNOUNCEMENT_1_ID,
     });
     expect(organizationAuditService.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "announcement.deleted" }),
@@ -283,9 +289,9 @@ describe("OrganizationAnnouncementService", () => {
 
     await expect(
       service.delete({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        announcementId: "announcement-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        announcementId: ANNOUNCEMENT_1_ID,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });

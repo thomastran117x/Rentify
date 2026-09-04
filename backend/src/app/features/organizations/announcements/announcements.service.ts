@@ -18,6 +18,7 @@ import {
   type CreateOrganizationAuditLogInput,
   type OrganizationAuditAction,
 } from "@/features/organizations/audit/audit.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export class OrganizationAnnouncementService {
   private readonly logger = loggerFactory.forClass(
@@ -169,8 +170,8 @@ export class OrganizationAnnouncementService {
   }
 
   private async requireAnnouncement(
-    organizationId: string,
-    announcementId: string,
+    organizationId: Uuid,
+    announcementId: Uuid,
   ): Promise<OrganizationAnnouncementRecord> {
     const announcement = await this.repository.findById(
       organizationId,
@@ -187,8 +188,8 @@ export class OrganizationAnnouncementService {
   }
 
   private async resolveCanManage(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<boolean> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,
@@ -203,8 +204,8 @@ export class OrganizationAnnouncementService {
   }
 
   private async requireManager(
-    actorUserId: string,
-    organizationId: string,
+    actorUserId: Uuid,
+    organizationId: Uuid,
   ): Promise<void> {
     const membership = await this.organizationAccessService.findMembership(
       actorUserId,

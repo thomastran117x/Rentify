@@ -19,6 +19,14 @@ import {
   toTestContext,
   type TestContext,
 } from "../../support/mock-http";
+import { testUuid } from "../../support/uuid";
+const OWNER_123_ID = testUuid(9000, 123);
+const PAT_1_ID = testUuid(9000, 438801);
+const PROFILE_USER_ID = testUuid(9000, 601112);
+const USER_1_ID = testUuid(9000, 994257);
+const VERIFIED_USER_ID = testUuid(9000, 565594);
+
+const POSTING_ID = testUuid(2000, 123);
 
 class FakeTokenService {
   constructor(
@@ -72,7 +80,7 @@ class FakeContainer implements ServiceContainer {
 
 function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     deviceId: "device-1",
     tokenVersion: 0,
@@ -99,12 +107,12 @@ function createPatPrincipal(
   overrides: Partial<PersonalAccessTokenPrincipal> = {},
 ): PersonalAccessTokenPrincipal {
   return {
-    sub: "user-1",
+    sub: USER_1_ID,
     email: "user@example.com",
     role: "owner",
     authMethod: "pat",
     scopes: ["mcp:read"],
-    personalAccessTokenId: "pat-1",
+    personalAccessTokenId: PAT_1_ID,
     personalAccessTokenName: "Rentify MCP",
     ...overrides,
   };
@@ -145,7 +153,7 @@ function createContext(options?: {
 
 describe("jwt middleware helpers", () => {
   it("requireJwtAuth returns claims and stores auth on the context", async () => {
-    const claims = createClaims({ sub: "verified-user" });
+    const claims = createClaims({ sub: VERIFIED_USER_ID });
     const context = createContext({
       authorization: "Bearer good-token",
       tokenService: new FakeTokenService((token) => {
@@ -210,7 +218,7 @@ describe("jwt middleware helpers", () => {
   });
 
   it("profile controller getMe authenticates through the shared helper before reading auth", async () => {
-    const claims = createClaims({ sub: "profile-user" });
+    const claims = createClaims({ sub: PROFILE_USER_ID });
     let receivedUserId: string | null = null;
     const controller = new ProfileController({
       getByUserId: async (userId: string) => {
@@ -225,7 +233,7 @@ describe("jwt middleware helpers", () => {
 
     const response = await invoke(controller.getMe, context);
 
-    expect(receivedUserId).toBe("profile-user");
+    expect(receivedUserId).toBe(PROFILE_USER_ID);
     expect(context.get("auth")).toMatchObject({
       ...claims,
       authMethod: "jwt",
@@ -233,7 +241,7 @@ describe("jwt middleware helpers", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      data: { id: "profile-1", userId: "profile-user" },
+      data: { id: "profile-1", userId: PROFILE_USER_ID },
       error: null,
       message: "Request completed successfully.",
       meta: { requestId: "unknown" },
@@ -242,7 +250,7 @@ describe("jwt middleware helpers", () => {
 
   it("accepts PAT bearer auth on allowlisted MCP-safe routes", async () => {
     const principal = createPatPrincipal({
-      sub: "owner-123",
+      sub: OWNER_123_ID,
     });
     const context = createContext({
       url: "https://example.test/profile/me",
@@ -264,7 +272,7 @@ describe("jwt middleware helpers", () => {
 
   it("accepts PAT bearer auth on versioned allowlisted MCP-safe routes", async () => {
     const principal = createPatPrincipal({
-      sub: "owner-123",
+      sub: OWNER_123_ID,
     });
     const context = createContext({
       url: "https://example.test/api/v1/profile/me",
@@ -569,7 +577,7 @@ describe("jwt middleware helpers", () => {
         client: ClientRequestContext,
         viewerId?: string,
       ) => {
-        expect(posting.id).toBe("posting-123");
+        expect(posting.id).toBe(POSTING_ID);
         expect(client.device.id).toBe("device-1");
         expect(viewerId).toBeUndefined();
       },
@@ -596,9 +604,9 @@ describe("jwt middleware helpers", () => {
       {} as any,
     );
     const context = createContext({
-      url: "https://example.test/postings/posting-123",
+      url: `https://example.test/postings/${POSTING_ID}`,
       params: {
-        id: "posting-123",
+        id: POSTING_ID,
       },
     });
 
@@ -610,7 +618,7 @@ describe("jwt middleware helpers", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      data: { id: "posting-123", organizationId: "org-1" },
+      data: { id: POSTING_ID, organizationId: "org-1" },
       error: null,
       message: "Request completed successfully.",
       meta: { requestId: "unknown" },

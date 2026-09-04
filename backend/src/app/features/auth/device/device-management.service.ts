@@ -9,6 +9,7 @@ import type {
   RemoveKnownDeviceInput,
   RemoveKnownDeviceResult,
 } from "@/features/auth/device/device-management.model";
+import { asUuid } from "@/configuration/validation/uuid";
 
 /**
  * The device surface a signed-in user manages for themselves. Distinct from
@@ -42,7 +43,7 @@ export class DeviceManagementService {
         deviceId: deviceStatus.deviceId,
       },
       auth: {
-        userId: context.auth.sub,
+        userId: asUuid(context.auth.sub),
         tokenDeviceId: context.auth.deviceId,
       },
     };

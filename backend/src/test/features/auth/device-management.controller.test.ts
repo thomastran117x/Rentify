@@ -7,6 +7,10 @@ import {
   invoke,
   type AuthTestContext,
 } from "../../support/auth-controller-harness";
+import { testUuid } from "../../support/uuid";
+
+const USER_12_ID = testUuid(9000, 822527);
+const USER_7_ID = testUuid(9000, 994263);
 
 const mockRequireJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
@@ -53,7 +57,10 @@ beforeEach(() => {
 
 describe("DeviceManagementController.deviceVerify", () => {
   it("authenticates, then registers the calling device", async () => {
-    const auth = createClaims({ sub: "user-7", deviceId: "trusted-device-44" });
+    const auth = createClaims({
+      sub: USER_7_ID,
+      deviceId: "trusted-device-44",
+    });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -92,7 +99,7 @@ describe("DeviceManagementController.deviceVerify", () => {
 
 describe("DeviceManagementController.devices", () => {
   it("requires a recent MFA verification before listing", async () => {
-    const auth = createClaims({ sub: "user-7" });
+    const auth = createClaims({ sub: USER_7_ID });
     const { controller, deviceManagementService } = createController();
 
     const response = await invoke(controller.devices, createContext({ auth }));
@@ -124,7 +131,7 @@ describe("DeviceManagementController.devices", () => {
 
 describe("DeviceManagementController.removeKnownDevice", () => {
   it("steps up, then maps the body onto the authenticated user id", async () => {
-    const auth = createClaims({ sub: "user-12" });
+    const auth = createClaims({ sub: USER_12_ID });
     mockRequireRecentMfaVerification.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;
@@ -139,7 +146,7 @@ describe("DeviceManagementController.removeKnownDevice", () => {
     );
 
     expect(deviceManagementService.removeKnownDevice).toHaveBeenCalledWith({
-      userId: "user-12",
+      userId: USER_12_ID,
       deviceId: "device-99",
     });
     await expect(response.json()).resolves.toMatchObject({
@@ -149,7 +156,7 @@ describe("DeviceManagementController.removeKnownDevice", () => {
   });
 
   it("rejects a body with no device id", async () => {
-    const auth = createClaims({ sub: "user-12" });
+    const auth = createClaims({ sub: USER_12_ID });
     mockRequireRecentMfaVerification.mockImplementation(
       async (request: AuthTestContext["request"]) => {
         request.auth = auth;

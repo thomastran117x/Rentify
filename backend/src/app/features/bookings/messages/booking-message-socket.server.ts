@@ -15,6 +15,7 @@ import {
   type BookingMessageSocketIdentity,
   type BookingMessageStreamEvent,
 } from "@/features/bookings/messages/booking-messages.model";
+import { isUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export { BOOKING_MESSAGE_SOCKET_PATH };
 
@@ -28,7 +29,7 @@ const TYPING_THROTTLE_MS = 2_000;
 const MAX_CLIENT_FRAME_BYTES = 4_096;
 
 /** The room every participant of a thread joins. Carries the messages. */
-export function threadRoom(bookingRequestId: string): string {
+export function threadRoom(bookingRequestId: Uuid): string {
   return `booking-messages:${bookingRequestId}`;
 }
 
@@ -38,7 +39,7 @@ export function threadRoom(bookingRequestId: string): string {
  * membership is the answer, with no separate bookkeeping to drift.
  */
 export function sideRoom(
-  bookingRequestId: string,
+  bookingRequestId: Uuid,
   side: BookingParticipantSide,
 ): string {
   return `booking-messages:${bookingRequestId}:${side}`;
@@ -226,7 +227,7 @@ export class BookingMessageSocketServer {
 
   /** Whether anyone on this side is watching, across every instance. */
   async isSideOnline(
-    bookingRequestId: string,
+    bookingRequestId: Uuid,
     side: BookingParticipantSide,
   ): Promise<boolean> {
     if (!this.io) {
@@ -433,10 +434,10 @@ export class BookingMessageSocketServer {
       return;
     }
 
+    // Socket payloads are untrusted, so the shape check doubles as the brand:
+    // anything that is not an identifier is dropped rather than passed on.
     const messageIds = Array.isArray(payload)
-      ? payload.filter(
-          (id): id is string => typeof id === "string" && id.length > 0,
-        )
+      ? payload.filter((id): id is Uuid => typeof id === "string" && isUuid(id))
       : [];
 
     if (messageIds.length === 0) {

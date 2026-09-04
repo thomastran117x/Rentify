@@ -18,6 +18,7 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../../../support/persistence-test-app";
+import { asUuid } from "@/configuration/validation/uuid";
 
 const ORGANIZATION_ID = createFixtureId(1040, 1);
 const OPEN_SLUG = "introducing-weekend-stays";
@@ -439,6 +440,6 @@ describe("Organization blog comment socket integration", () => {
         where: { organizationId: ORGANIZATION_ID, slug: OPEN_SLUG },
       });
 
-    await expect(socketServer.countReaders(post.id)).resolves.toBe(0);
+    await expect(socketServer.countReaders(asUuid(post.id))).resolves.toBe(0);
   });
 });

@@ -9,6 +9,9 @@ import {
   MFA_DEVICE_LOGIN_SCOPE,
   MFA_MANAGEMENT_SCOPE,
 } from "@/features/auth/mfa/verification/mfa-verification.model";
+import { testUuid } from "../../../support/uuid";
+
+const USER_1_ID = testUuid(9000, 994257);
 
 function createSecurityContext(
   overrides: Partial<{
@@ -25,7 +28,7 @@ function createSecurityContext(
   }> = {},
 ) {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     firstName: "Test",
     emailVerified: true,
@@ -143,7 +146,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.getOptions({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -160,7 +163,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.getOptions({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_DEVICE_LOGIN_SCOPE,
       }),
@@ -171,7 +174,7 @@ describe("MfaVerificationService", () => {
     });
 
     await service.issueChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_DEVICE_LOGIN_SCOPE,
       factor: "email",
@@ -180,7 +183,7 @@ describe("MfaVerificationService", () => {
 
     expect(otpService.issue).toHaveBeenCalledWith({
       purpose: "mfa-step-up",
-      subject: "user-1:session-1:device-login:email",
+      subject: `${USER_1_ID}:session-1:device-login:email`,
     });
   });
 
@@ -202,7 +205,7 @@ describe("MfaVerificationService", () => {
     });
 
     const options = await service.getOptions({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
     });
@@ -232,7 +235,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.getOptions({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -246,7 +249,7 @@ describe("MfaVerificationService", () => {
     const { service, otpService } = createService();
 
     await service.issueChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -255,7 +258,7 @@ describe("MfaVerificationService", () => {
 
     expect(otpService.issue).toHaveBeenCalledWith({
       purpose: "mfa-step-up",
-      subject: "user-1:session-1:mfa-management:email",
+      subject: `${USER_1_ID}:session-1:mfa-management:email`,
     });
   });
 
@@ -263,7 +266,7 @@ describe("MfaVerificationService", () => {
     const { service, cache, otpService } = createService();
 
     const confirmed = await service.confirmChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -275,7 +278,7 @@ describe("MfaVerificationService", () => {
     expect(cache.service.setJson).toHaveBeenCalledWith(
       "auth:mfa-proof:session-1:mfa-management",
       expect.objectContaining({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         factor: "email",
       }),
@@ -284,7 +287,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.assertRecentVerification({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -302,7 +305,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.confirmChallenge({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
@@ -315,7 +318,7 @@ describe("MfaVerificationService", () => {
   it("clears confirm limiter state after a successful verification", async () => {
     const { service, cache } = createService();
     cache.jsonStore.set(
-      "auth:mfa-verify:confirm:user-1:session-1:mfa-management:email",
+      `auth:mfa-verify:confirm:${USER_1_ID}:session-1:mfa-management:email`,
       {
         value: {
           count: 3,
@@ -325,7 +328,7 @@ describe("MfaVerificationService", () => {
       },
     );
     cache.jsonStore.set(
-      "auth:mfa-verify:failures:user-1:session-1:mfa-management:email",
+      `auth:mfa-verify:failures:${USER_1_ID}:session-1:mfa-management:email`,
       {
         value: { count: 2 },
         ttlSeconds: 600,
@@ -333,7 +336,7 @@ describe("MfaVerificationService", () => {
     );
 
     await service.confirmChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -343,12 +346,12 @@ describe("MfaVerificationService", () => {
 
     expect(
       cache.jsonStore.has(
-        "auth:mfa-verify:confirm:user-1:session-1:mfa-management:email",
+        `auth:mfa-verify:confirm:${USER_1_ID}:session-1:mfa-management:email`,
       ),
     ).toBe(false);
     expect(
       cache.jsonStore.has(
-        "auth:mfa-verify:failures:user-1:session-1:mfa-management:email",
+        `auth:mfa-verify:failures:${USER_1_ID}:session-1:mfa-management:email`,
       ),
     ).toBe(false);
   });
@@ -357,7 +360,7 @@ describe("MfaVerificationService", () => {
     const { service } = createService();
 
     await service.confirmChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -367,7 +370,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.assertRecentVerification({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-2",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -379,7 +382,7 @@ describe("MfaVerificationService", () => {
     const { service, authRepository } = createService({ securityContext });
 
     await service.confirmChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -393,7 +396,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.assertRecentVerification({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -414,12 +417,12 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.assertRecentVerification({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
     ).resolves.toMatchObject({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
@@ -439,7 +442,7 @@ describe("MfaVerificationService", () => {
     });
 
     await service.confirmChallenge({
-      userId: "user-1",
+      userId: USER_1_ID,
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "totp",
@@ -447,7 +450,7 @@ describe("MfaVerificationService", () => {
       client: { device: { type: "desktop", isMobile: false } },
     });
 
-    expect(mfaTotpService.verifyCode).toHaveBeenCalledWith("user-1", "123456");
+    expect(mfaTotpService.verifyCode).toHaveBeenCalledWith(USER_1_ID, "123456");
 
     authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
       createSecurityContext({
@@ -461,7 +464,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.assertRecentVerification({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -478,7 +481,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.issueChallenge({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
@@ -496,7 +499,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.confirmChallenge({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
@@ -519,7 +522,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.issueChallenge({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "totp",
@@ -540,7 +543,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.previewCurrentEmailOtp({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),
@@ -553,7 +556,7 @@ describe("MfaVerificationService", () => {
 
     await expect(
       service.previewCurrentEmailOtp({
-        userId: "user-1",
+        userId: USER_1_ID,
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
       }),

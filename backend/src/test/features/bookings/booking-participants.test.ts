@@ -4,10 +4,16 @@ import {
   resolveBookingParticipantAccess,
 } from "@/features/bookings/booking-participants";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import { testUuid } from "../../support/uuid";
+const MANAGER_1_ID = testUuid(9000, 836503);
+const OPERATOR_1_ID = testUuid(9000, 402986);
+const OUTSIDER_1_ID = testUuid(9000, 796024);
+const ORG_1_ID = testUuid(9200, 9234);
+const RENTER_1_ID = testUuid(9200, 235000);
 
 const bookingRequest = {
-  renterId: "renter-1",
-  organizationId: "org-1",
+  renterId: RENTER_1_ID,
+  organizationId: ORG_1_ID,
 };
 
 function createAccessService(options?: {
@@ -20,7 +26,7 @@ function createAccessService(options?: {
       throw options.membershipError;
     }
 
-    return { organizationId: "org-1", role: options?.role ?? "manager" };
+    return { organizationId: ORG_1_ID, role: options?.role ?? "manager" };
   });
   const assertCanManage = jest.fn(() => {
     if (options?.manageError) {
@@ -50,7 +56,7 @@ describe("resolveBookingParticipant", () => {
       createAccessService();
 
     await expect(
-      resolveBookingParticipant(service, bookingRequest, "renter-1", "manage"),
+      resolveBookingParticipant(service, bookingRequest, RENTER_1_ID, "manage"),
     ).resolves.toBe("renter");
 
     // Renter-first precedence: a user who is both the renter and an
@@ -67,12 +73,12 @@ describe("resolveBookingParticipant", () => {
     );
 
     await expect(
-      resolveBookingParticipant(service, bookingRequest, "operator-1", "read"),
+      resolveBookingParticipant(service, bookingRequest, OPERATOR_1_ID, "read"),
     ).resolves.toBe("owner");
 
     expect(requireMembership).toHaveBeenCalledWith(
-      "operator-1",
-      "org-1",
+      OPERATOR_1_ID,
+      ORG_1_ID,
       "You do not have access to this booking request.",
     );
     expect(assertCanManage).not.toHaveBeenCalled();
@@ -84,7 +90,12 @@ describe("resolveBookingParticipant", () => {
     });
 
     await expect(
-      resolveBookingParticipant(service, bookingRequest, "manager-1", "manage"),
+      resolveBookingParticipant(
+        service,
+        bookingRequest,
+        MANAGER_1_ID,
+        "manage",
+      ),
     ).resolves.toBe("owner");
 
     expect(canManage).toHaveBeenCalledWith("manager");
@@ -97,7 +108,7 @@ describe("resolveBookingParticipant", () => {
       resolveBookingParticipant(
         service,
         bookingRequest,
-        "operator-1",
+        OPERATOR_1_ID,
         "manage",
       ),
     ).rejects.toMatchObject({
@@ -112,7 +123,7 @@ describe("resolveBookingParticipant", () => {
     });
 
     await expect(
-      resolveBookingParticipantAccess(service, bookingRequest, "operator-1"),
+      resolveBookingParticipantAccess(service, bookingRequest, OPERATOR_1_ID),
     ).resolves.toEqual({ side: "owner", canManage: false });
 
     // The capability query must never throw; only the asserting wrapper does.
@@ -125,7 +136,7 @@ describe("resolveBookingParticipant", () => {
       resolveBookingParticipantAccess(
         manager.service,
         bookingRequest,
-        "manager-1",
+        MANAGER_1_ID,
       ),
     ).resolves.toEqual({ side: "owner", canManage: true });
 
@@ -134,7 +145,7 @@ describe("resolveBookingParticipant", () => {
       resolveBookingParticipantAccess(
         renter.service,
         bookingRequest,
-        "renter-1",
+        RENTER_1_ID,
       ),
     ).resolves.toEqual({ side: "renter", canManage: true });
   });
@@ -146,11 +157,15 @@ describe("resolveBookingParticipant", () => {
       role: "manager",
     });
 
-    await resolveBookingParticipantAccess(service, bookingRequest, "manager-1");
+    await resolveBookingParticipantAccess(
+      service,
+      bookingRequest,
+      MANAGER_1_ID,
+    );
 
     expect(requireMembership).toHaveBeenCalledWith(
-      "manager-1",
-      "org-1",
+      MANAGER_1_ID,
+      ORG_1_ID,
       "You do not have access to this booking request.",
     );
   });
@@ -162,7 +177,7 @@ describe("resolveBookingParticipant", () => {
     const { service } = createAccessService({ membershipError });
 
     await expect(
-      resolveBookingParticipant(service, bookingRequest, "outsider-1", "read"),
+      resolveBookingParticipant(service, bookingRequest, OUTSIDER_1_ID, "read"),
     ).rejects.toBe(membershipError);
   });
 });

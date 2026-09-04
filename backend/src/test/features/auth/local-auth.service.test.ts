@@ -11,13 +11,21 @@ import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signu
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import { testUuid } from "../../support/uuid";
+const DEVICE_1_ID = testUuid(9200, 895443);
+const KNOWN_DEVICE_1_ID = testUuid(9200, 135264);
+const OAUTH_IDENTITY_1_ID = testUuid(9200, 618144);
+const USER_ACTIVATE_ID = testUuid(9200, 329753);
+
+const PROFILE_1_ID = testUuid(9000, 548259);
+const USER_1_ID = testUuid(9000, 994257);
 
 const FAST_TEST_PASSWORD_HASH =
   "$2b$04$GXVZoFfAkExdnRF7t73lJuSVP2eDEWjoAAxTupSfym6y1po0SJYwe";
 
 function createUser(): AuthUserRecord {
   return {
-    id: "user-1",
+    id: USER_1_ID,
     email: "user@example.com",
     passwordHash: "",
     tokenVersion: 2,
@@ -28,8 +36,8 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
-      id: "profile-1",
-      userId: "user-1",
+      id: PROFILE_1_ID,
+      userId: USER_1_ID,
       username: "test-user",
       phoneNumber: undefined,
       avatarUrl: undefined,
@@ -51,7 +59,7 @@ function createClient() {
   return {
     ip: "127.0.0.1",
     device: {
-      id: "device-1",
+      id: DEVICE_1_ID,
       type: "desktop" as const,
       isMobile: false,
     },
@@ -291,8 +299,8 @@ function createService(overrides?: {
         emailVerified: profile.emailVerified,
         oauthIdentities: [
           {
-            id: "oauth-identity-1",
-            userId: "user-1",
+            id: OAUTH_IDENTITY_1_ID,
+            userId: USER_1_ID,
             provider: profile.provider as "google" | "microsoft" | "apple",
             providerUserId: profile.providerUserId,
             providerEmail: profile.email,
@@ -306,7 +314,7 @@ function createService(overrides?: {
     linkOAuthIdentity:
       overrides?.linkOAuthIdentity ??
       (async (userId, profile) => ({
-        id: "oauth-identity-1",
+        id: OAUTH_IDENTITY_1_ID,
         userId,
         provider: profile.provider,
         providerUserId: profile.providerUserId,
@@ -355,8 +363,8 @@ function createService(overrides?: {
     verifyRefreshToken:
       overrides?.verifyRefreshToken ??
       (async () => ({
-        sub: "user-1",
-        deviceId: "device-1",
+        sub: USER_1_ID,
+        deviceId: DEVICE_1_ID,
         rememberMe: false,
         sessionId: "session-1",
       })),
@@ -375,21 +383,21 @@ function createService(overrides?: {
     evaluateSuccessfulAuthentication:
       overrides?.evaluateSuccessfulAuthentication ??
       (async () => ({
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
         known: true,
         knownByIp: true,
       })),
     evaluateExistingSessionDevice:
       overrides?.evaluateExistingSessionDevice ??
       (async () => ({
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
         known: true,
         knownByIp: true,
       })),
     registerKnownDevice:
       overrides?.registerKnownDevice ??
       (async () => ({
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
         known: true,
         knownByIp: true,
       })),
@@ -397,9 +405,9 @@ function createService(overrides?: {
       overrides?.listKnownDevices ??
       (async () => [
         {
-          id: "known-device-1",
+          id: KNOWN_DEVICE_1_ID,
           current: true,
-          deviceId: "device-1",
+          deviceId: DEVICE_1_ID,
           type: "desktop",
           platform: "macOS",
           userAgent: "test-agent",
@@ -562,7 +570,7 @@ describe("LocalAuthService", () => {
         password: "CorrectHorseBatteryStaple1!",
         firstName: "Pending",
         lastName: "User",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       });
 
       expect(result).toEqual({
@@ -588,7 +596,7 @@ describe("LocalAuthService", () => {
         password: "CorrectHorseBatteryStaple1!",
         firstName: "Test",
         lastName: "User",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toEqual({
       verificationRequired: true,
@@ -610,7 +618,7 @@ describe("LocalAuthService", () => {
       service.resendVerificationEmail({
         client: createClient(),
         email: "missing@example.com",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toEqual({
       accepted: true,
@@ -643,7 +651,7 @@ describe("LocalAuthService", () => {
       service.resendVerificationEmail({
         client: createClient(),
         email: "user@example.com",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toEqual({
       accepted: true,
@@ -661,7 +669,7 @@ describe("LocalAuthService", () => {
         passwordHash: "hashed-password",
         firstName: "Pending",
         lastName: "User",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
         createdAt: "2026-01-01T00:00:00.000Z",
       }),
       sendVerificationEmail: async (input) => {
@@ -673,7 +681,7 @@ describe("LocalAuthService", () => {
       service.resendVerificationEmail({
         client: createClient(),
         email: "pending@example.com",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toEqual({
       accepted: true,
@@ -704,7 +712,7 @@ describe("LocalAuthService", () => {
       username: user.profile.username,
       password: "CorrectHorseBatteryStaple1!",
       rememberMe: true,
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
     });
 
     expect(session.refreshToken).toBe("refresh-token-remembered");
@@ -733,7 +741,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toThrow("Please verify your email address before signing in.");
 
@@ -763,7 +771,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toMatchObject({
       user: { email: user.email },
@@ -792,7 +800,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toMatchObject({
       message: "Authenticator code is required.",
@@ -820,7 +828,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toMatchObject({
       message: "Authenticator code is required.",
@@ -834,7 +842,7 @@ describe("LocalAuthService", () => {
     );
     const existingUser = {
       ...createUser(),
-      id: "user-activate",
+      id: USER_ACTIVATE_ID,
       email: "pending@example.com",
       emailVerified: false,
     };
@@ -853,7 +861,7 @@ describe("LocalAuthService", () => {
           passwordHash: pendingPasswordHash,
           firstName: "Pending",
           lastName: "User",
-          deviceId: "device-1",
+          deviceId: DEVICE_1_ID,
           createdAt: "2026-01-01T00:00:00.000Z",
         };
       },
@@ -881,10 +889,10 @@ describe("LocalAuthService", () => {
       client: createClient(),
       email: "pending@example.com",
       code: "123456",
-      deviceId: "device-1",
+      deviceId: DEVICE_1_ID,
     });
 
-    expect(activatedUserId).toBe("user-activate");
+    expect(activatedUserId).toBe(USER_ACTIVATE_ID);
     expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
     expect(result.user.emailVerified).toBe(true);
     expect(result.user.username).toBe("pending-user");
@@ -924,7 +932,7 @@ describe("LocalAuthService", () => {
         password: "CorrectHorseBatteryStaple1!",
         firstName: "New",
         lastName: "User",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       });
 
       expect(createLocalUserCalled).toBe(false);
@@ -937,7 +945,7 @@ describe("LocalAuthService", () => {
           email: "new-user@example.com",
           firstName: "New",
           lastName: "User",
-          deviceId: "device-1",
+          deviceId: DEVICE_1_ID,
           createdAt: expect.any(String),
         },
       });
@@ -973,7 +981,7 @@ describe("LocalAuthService", () => {
       service.resendVerificationEmail({
         client: createClient(),
         email: "user@example.com",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toEqual({
       accepted: true,
@@ -1014,7 +1022,7 @@ describe("LocalAuthService", () => {
           passwordHash: pendingPasswordHash,
           firstName: "Pending",
           lastName: "User",
-          deviceId: "device-1",
+          deviceId: DEVICE_1_ID,
           createdAt: "2026-01-01T00:00:00.000Z",
         };
       },
@@ -1039,7 +1047,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         email: "pending@example.com",
         code: "123456",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).resolves.toMatchObject({
       accessToken: "access-token",
@@ -1057,7 +1065,7 @@ describe("LocalAuthService", () => {
       lastName: "User",
       passwordHash: pendingPasswordHash,
     });
-    expect(markedVerifiedUserId).toBe("user-1");
+    expect(markedVerifiedUserId).toBe(USER_1_ID);
     expect(deletedPendingKey).toBe("auth:pending-signup:pending@example.com");
   });
 
@@ -1071,7 +1079,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         email: "missing@example.com",
         code: "123456",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
@@ -1086,7 +1094,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         email: "locked@example.com",
         code: "123456",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
@@ -1113,7 +1121,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: "Missing-User",
         password: "WrongPassword1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toThrow("Invalid username or password.");
     expect(cacheWrites).toContainEqual({
@@ -1141,7 +1149,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: "missing-user",
         password: "WrongPassword1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toThrow("This sign-in is locked.");
   });
@@ -1179,7 +1187,7 @@ describe("LocalAuthService", () => {
         client: createClient(),
         username: user.profile.username,
         password: "WrongPassword1!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       }),
     ).rejects.toThrow("This sign-in is locked.");
 
@@ -1200,7 +1208,7 @@ describe("LocalAuthService", () => {
         username: "Casey-Doe",
         email: "pending@example.com",
         password: "StrongPassw0rd!",
-        deviceId: "device-1",
+        deviceId: DEVICE_1_ID,
       });
 
       expect(usernameBloomAdd).toHaveBeenCalledWith("Casey-Doe");

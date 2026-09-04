@@ -6,6 +6,7 @@ import type {
   OrganizationProfileFields,
   OrganizationRole,
 } from "@/features/organizations/organizations.model";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 type MembershipPersistence = Prisma.OrganizationMembershipGetPayload<{
   include: {
@@ -46,9 +47,9 @@ type OrganizationProfilePersistence = {
 };
 
 export interface OrganizationMembershipAccessRecord {
-  membershipId: string;
+  membershipId: Uuid;
   organization: {
-    id: string;
+    id: Uuid;
     slug: string;
     name: string;
     createdAt: string;
@@ -94,7 +95,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async listMembershipsByUserId(
-    userId: string,
+    userId: Uuid,
     preferredOrganizationId?: string | null,
   ): Promise<OrganizationMembershipSummary[]> {
     const memberships = await this.executeAsync(() =>
@@ -132,8 +133,8 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async findMembershipAccess(
-    userId: string,
-    organizationId: string,
+    userId: Uuid,
+    organizationId: Uuid,
   ): Promise<OrganizationMembershipAccessRecord | null> {
     const membership = await this.executeAsync(() =>
       this.prisma.organizationMembership.findUnique({
@@ -159,9 +160,9 @@ export class OrganizationsMembersRepository extends BaseRepository {
     }
 
     return {
-      membershipId: membership.id,
+      membershipId: asUuid(membership.id),
       organization: {
-        id: membership.organization.id,
+        id: asUuid(membership.organization.id),
         slug: membership.organization.slug,
         name: membership.organization.name,
         createdAt: membership.organization.createdAt.toISOString(),
@@ -172,9 +173,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
     };
   }
 
-  async findPrimaryManagerUserId(
-    organizationId: string,
-  ): Promise<string | null> {
+  async findPrimaryManagerUserId(organizationId: Uuid): Promise<string | null> {
     const membership = await this.executeAsync(() =>
       this.prisma.organizationMembership.findFirst({
         where: {
@@ -191,8 +190,8 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async findMemberById(
-    organizationId: string,
-    membershipId: string,
+    organizationId: Uuid,
+    membershipId: Uuid,
   ): Promise<OrganizationMemberRecord | null> {
     const membership = await this.executeAsync(() =>
       this.prisma.organizationMembership.findFirst({
@@ -215,8 +214,8 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async findMemberByUserId(
-    organizationId: string,
-    userId: string,
+    organizationId: Uuid,
+    userId: Uuid,
   ): Promise<OrganizationMemberRecord | null> {
     const membership = await this.executeAsync(() =>
       this.prisma.organizationMembership.findUnique({
@@ -241,7 +240,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async findMemberByEmail(
-    organizationId: string,
+    organizationId: Uuid,
     email: string,
   ): Promise<OrganizationMemberRecord | null> {
     const membership = await this.executeAsync(() =>
@@ -267,7 +266,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async updateMembershipRole(
-    membershipId: string,
+    membershipId: Uuid,
     role: OrganizationRole,
   ): Promise<OrganizationMemberRecord> {
     const membership = await this.executeAsync(() =>
@@ -293,9 +292,9 @@ export class OrganizationsMembersRepository extends BaseRepository {
   }
 
   async restoreMembership(input: {
-    membershipId: string;
-    organizationId: string;
-    userId: string;
+    membershipId: Uuid;
+    organizationId: Uuid;
+    userId: Uuid;
     role: OrganizationRole;
   }): Promise<OrganizationMemberRecord> {
     const membership = await this.executeAsync(() =>
@@ -329,7 +328,7 @@ export class OrganizationsMembersRepository extends BaseRepository {
     return this.mapMemberRecord(membership);
   }
 
-  async removeMembership(membershipId: string): Promise<boolean> {
+  async removeMembership(membershipId: Uuid): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.organizationMembership.deleteMany({
         where: {
@@ -346,8 +345,8 @@ export class OrganizationsMembersRepository extends BaseRepository {
     activeOrganizationId?: string | null,
   ): OrganizationMembershipSummary {
     return {
-      membershipId: membership.id,
-      id: membership.organization.id,
+      membershipId: asUuid(membership.id),
+      id: asUuid(membership.organization.id),
       slug: membership.organization.slug,
       name: membership.organization.name,
       role: membership.role,
@@ -360,8 +359,8 @@ export class OrganizationsMembersRepository extends BaseRepository {
     membership: MembershipPersistence,
   ): OrganizationMemberRecord {
     return {
-      membershipId: membership.id,
-      userId: membership.user.id,
+      membershipId: asUuid(membership.id),
+      userId: asUuid(membership.user.id),
       email: membership.user.email,
       firstName: membership.user.firstName ?? undefined,
       lastName: membership.user.lastName ?? undefined,

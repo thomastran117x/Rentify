@@ -22,6 +22,8 @@ import type {
 } from "@/features/auth/oauth/oauth-accounts.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 /**
  * Sign-in and account linking through the three social providers.
@@ -100,7 +102,7 @@ export class OAuthAccountsService {
   }
 
   async linkedOAuthProviders(context: {
-    userId: string;
+    userId: Uuid;
   }): Promise<LinkedOAuthProvidersResult> {
     const user = await requireExistingUser(
       this.usersRepository,
@@ -131,7 +133,7 @@ export class OAuthAccountsService {
     }
 
     await this.oauthIdentityRepository.unlinkOAuthIdentity(
-      user.id,
+      asUuid(user.id),
       input.provider,
     );
     return this.listLinkedOAuthProvidersForUser({
@@ -155,7 +157,7 @@ export class OAuthAccountsService {
     if (linkedUser) {
       await requireLoginMfa(
         this.mfaTotpService,
-        linkedUser.id,
+        asUuid(linkedUser.id),
         linkedUser.email,
         input.totpCode,
       );

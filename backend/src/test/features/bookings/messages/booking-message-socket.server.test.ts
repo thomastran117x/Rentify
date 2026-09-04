@@ -13,9 +13,11 @@ import {
   BOOKING_MESSAGE_SOCKET_PATH,
   BookingMessageSocketServer,
 } from "@/features/bookings/messages/booking-message-socket.server";
+import { testUuid } from "../../../support/uuid";
 
-const BOOKING_ID = "booking-1";
-const USER_ID = "user-1";
+const BOOKING_ID = testUuid(1020, 1);
+const USER_ID = testUuid(1000, 1);
+const MESSAGE_ID = testUuid(1030, 1);
 
 interface Fakes {
   redeemSocketTicket: jest.Mock;
@@ -248,9 +250,9 @@ describe("BookingMessageSocketServer", () => {
     installFakeContainer();
     const socket = await connected();
 
-    const received = nextEvent(socket, "message.created");
+    const received = nextEvent(socket, `${MESSAGE_ID}.created`);
     socketServer.publish({
-      type: "message.created",
+      type: `${MESSAGE_ID}.created`,
       bookingRequestId: BOOKING_ID,
       message: { id: "m1" },
     } as never);
@@ -413,16 +415,19 @@ describe("BookingMessageSocketServer", () => {
     const fakes = installFakeContainer();
     const socket = await connected();
 
-    socket.emit("delivered", ["m1"]);
+    socket.emit("delivered", [MESSAGE_ID]);
     await settle(20);
     expect(fakes.markDelivered).toHaveBeenCalledWith(BOOKING_ID, USER_ID, [
-      "m1",
+      MESSAGE_ID,
     ]);
 
     socket.emit("delivered", []);
     socket.emit("delivered", [42]);
     socket.emit("delivered", "nonsense");
     socket.emit("delivered", null);
+    // A well-formed array whose entries are not identifiers: the payload is
+    // untrusted, so these are dropped rather than passed to the service.
+    socket.emit("delivered", ["m1"]);
     await settle(20);
 
     expect(fakes.markDelivered).toHaveBeenCalledTimes(1);

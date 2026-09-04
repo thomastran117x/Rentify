@@ -2,6 +2,8 @@ import { loggerFactory } from "@/configuration/logging";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
+import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 
 /**
  * Postings carry a denormalized copy of their organization's name (in the
@@ -27,7 +29,7 @@ export class OrganizationPostingProjectionService {
    * Elasticsearch document, so a slug change is cache-only.
    */
   async cascade(
-    organizationId: string,
+    organizationId: Uuid,
     options: { reindex: boolean },
   ): Promise<void> {
     try {
@@ -42,7 +44,7 @@ export class OrganizationPostingProjectionService {
       for (const postingId of postingIds) {
         await invalidatePublicPostingProjection(
           this.postingsPublicCacheService,
-          postingId,
+          asUuid(postingId),
         );
       }
     } catch (error) {

@@ -5,6 +5,7 @@ import {
   type PostingFamily,
   type PostingSubtype,
 } from "@/features/postings/postings.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const recommendationActivityEventTypeSchema = z.enum([
   "posting_view",
@@ -82,21 +83,21 @@ export type RecommendationActivityEventPayload = z.infer<
 >;
 
 export interface RecommendationPostingSummary {
-  id: string;
-  organizationId: string;
+  id: Uuid;
+  organizationId: Uuid;
   family: PostingFamily;
   subtype: PostingSubtype;
 }
 
 export interface PersistRecommendationActivityInput {
-  id: string;
+  id: Uuid;
   aggregationKey: string;
   eventType: RecommendationActivityEventType;
   source: RecommendationActivitySource;
   occurredAt: Date;
-  postingId: string;
-  organizationId: string;
-  actorUserId?: string;
+  postingId: Uuid;
+  organizationId: Uuid;
+  actorUserId?: Uuid;
   anonymousActorHash?: string;
   deviceType: string;
   requestId?: string;
@@ -112,7 +113,7 @@ export interface PersistRecommendationActivityInput {
 export interface UpsertRecommendationRefreshJobInput {
   jobType: RecommendationRefreshJobType;
   dedupeKey: string;
-  userId?: string;
+  userId?: Uuid;
   segmentType?: RecommendationPopularSegmentType;
   segmentValue?: string;
   availableAt: Date;

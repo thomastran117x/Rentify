@@ -1,3 +1,5 @@
+import type { Uuid } from "@/configuration/validation/uuid";
+
 export interface SendSmsMessageInput {
   to: string;
   text: string;

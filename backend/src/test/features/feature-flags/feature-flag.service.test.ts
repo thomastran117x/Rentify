@@ -1,5 +1,8 @@
 import { FeatureFlagService } from "@/features/feature-flags/feature-flag.service";
 import type { FeatureFlagRecord } from "@/features/feature-flags/feature-flag.model";
+import { testUuid } from "../../support/uuid";
+
+const ADMIN_1_ID = testUuid(9000, 185107);
 
 function makeRecord(
   overrides: Partial<FeatureFlagRecord> = {},
@@ -445,7 +448,7 @@ describe("FeatureFlagService", () => {
       const result = await service.setFlag({
         name: "new-flag",
         enabled: true,
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
       });
 
       expect(result.source).toBe("db");
@@ -463,11 +466,11 @@ describe("FeatureFlagService", () => {
       await service.setFlag({
         name: "test-flag",
         enabled: true,
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
       });
 
       expect(createAuditLog).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "created", actorUserId: "admin-1" }),
+        expect.objectContaining({ action: "created", actorUserId: ADMIN_1_ID }),
       );
     });
 
@@ -482,7 +485,7 @@ describe("FeatureFlagService", () => {
       await service.setFlag({
         name: "test-flag",
         enabled: true,
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
       });
 
       expect(createAuditLog).toHaveBeenCalledWith(
@@ -580,7 +583,7 @@ describe("FeatureFlagService", () => {
 
       const result = await service.deleteFlag({
         name: "test-flag",
-        actorUserId: "admin-1",
+        actorUserId: ADMIN_1_ID,
       });
 
       expect(deleteByName).toHaveBeenCalledWith("test-flag");
@@ -588,7 +591,7 @@ describe("FeatureFlagService", () => {
         expect.objectContaining({
           action: "deleted",
           oldEnabled: true,
-          actorUserId: "admin-1",
+          actorUserId: ADMIN_1_ID,
         }),
       );
       expect(result.deletedOverride).toBe(true);

@@ -6,6 +6,13 @@ import type {
   ListOrganizationBlogPostsResult,
   OrganizationBlogPostRecord,
 } from "@/features/organizations/blog/blog.model";
+import { testUuid } from "../../../support/uuid";
+const MISSING_ID = testUuid(9000, 394917);
+
+const BLOG_1_ID = testUuid(9000, 853730);
+const ORG_1_ID = testUuid(9000, 9234);
+const OTHER_ID = testUuid(9000, 71578);
+const USER_1_ID = testUuid(9000, 994257);
 
 type Role = "primary_manager" | "manager" | "operator";
 
@@ -13,8 +20,8 @@ function createPost(
   overrides: Partial<OrganizationBlogPostRecord> = {},
 ): OrganizationBlogPostRecord {
   return {
-    id: "blog-1",
-    organizationId: "org-1",
+    id: BLOG_1_ID,
+    organizationId: ORG_1_ID,
     title: "Blog title",
     slug: "blog-title",
     excerpt: "Excerpt",
@@ -110,7 +117,7 @@ function createService(options?: {
     delete: jest.fn(async () => undefined),
     findById: jest.fn(async () => existing),
     findBySlug: jest.fn(async (_orgId: string, slug: string) =>
-      slugTaken.has(slug) ? createPost({ id: "other", slug }) : null,
+      slugTaken.has(slug) ? createPost({ id: OTHER_ID, slug }) : null,
     ),
     findPublishedBySlug: jest.fn(async (_orgId: string, slug: string) =>
       slug === "published-slug"
@@ -171,8 +178,8 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       });
@@ -187,8 +194,8 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
       });
@@ -203,8 +210,8 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
         status: "draft",
@@ -222,8 +229,8 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.list({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         page: 1,
         pageSize: 20,
         status: "draft",
@@ -239,8 +246,8 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.list({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           page: 1,
           pageSize: 20,
         }),
@@ -253,14 +260,14 @@ describe("OrganizationBlogService", () => {
       const { service, publicSearchService } = createService();
 
       await service.listPublished({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         page: 1,
         pageSize: 20,
         q: "weekend",
       });
 
       expect(publicSearchService.searchByOrganization).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: "org-1", q: "weekend" }),
+        expect.objectContaining({ organizationId: ORG_1_ID, q: "weekend" }),
       );
     });
 
@@ -278,7 +285,7 @@ describe("OrganizationBlogService", () => {
       const { service } = createService();
 
       const post = await service.getPublishedBySlug({
-        organizationId: "org-1",
+        organizationId: ORG_1_ID,
         slug: "published-slug",
       });
 
@@ -290,8 +297,8 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.getPublishedBySlug({
-          organizationId: "org-1",
-          slug: "missing",
+          organizationId: ORG_1_ID,
+          slug: MISSING_ID,
         }),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
     });
@@ -302,8 +309,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository, organizationAuditService } = createService();
 
       const result = await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "Hello World Post!",
         body: "<p>Content</p>",
         status: "published",
@@ -332,8 +339,8 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "Hello World",
         body: "<p>Content</p>",
         status: "draft",
@@ -350,8 +357,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "Safe post",
         body: '<p>Safe</p><script>alert("xss")</script><a href="javascript:alert(1)">bad</a>',
         status: "draft",
@@ -371,8 +378,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "No excerpt",
         body: "<p>This becomes the excerpt.</p>",
         status: "draft",
@@ -390,8 +397,8 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Empty",
           body: "<script>alert(1)</script>",
           status: "draft",
@@ -404,8 +411,8 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Nope",
           body: "<p>x</p>",
           status: "draft",
@@ -417,13 +424,13 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "With cover",
         body: "<p>x</p>",
         status: "draft",
-        coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-        coverImageBlobName: "organizations/org-1/blog/c.png",
+        coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+        coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
       });
 
       const createArgs = repository.create.mock.calls[0][0] as Record<
@@ -431,7 +438,7 @@ describe("OrganizationBlogService", () => {
         unknown
       >;
       expect(createArgs.coverImageBlobName).toBe(
-        "organizations/org-1/blog/c.png",
+        `organizations/${ORG_1_ID}/blog/c.png`,
       );
     });
 
@@ -440,13 +447,13 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Bad cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: "https://cdn/other/c.png",
-          coverImageBlobName: "other/c.png",
+          coverImageUrl: `https://cdn/${OTHER_ID}/c.png`,
+          coverImageBlobName: `${OTHER_ID}/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -456,13 +463,13 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Bad cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-          coverImageBlobName: "organizations/org-1/blog/c.png",
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -472,12 +479,12 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Bad cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -487,13 +494,13 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-          coverImageBlobName: "organizations/org-1/blog/c.png",
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -503,13 +510,13 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.create({
-          organizationId: "org-1",
-          actorUserId: "user-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
           title: "Cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: "https://cdn/organizations/org-1/blog/c.png",
-          coverImageBlobName: "organizations/org-1/blog/c.png",
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -518,8 +525,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "No cover",
         body: "<p>x</p>",
         status: "draft",
@@ -542,9 +549,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         commentsEnabled: false,
       });
 
@@ -562,15 +569,15 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         commentsEnabled: false,
       });
 
       expect(blogCommentGateway.publish).toHaveBeenCalledWith({
         type: "comments.closed",
-        blogPostId: "blog-1",
+        blogPostId: BLOG_1_ID,
         commentsEnabled: false,
       });
     });
@@ -581,9 +588,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         title: "A new title",
       });
 
@@ -598,9 +605,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         commentsEnabled: false,
       });
 
@@ -611,8 +618,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "New post",
         body: "<p>Body</p>",
         status: "draft",
@@ -627,8 +634,8 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.create({
-        organizationId: "org-1",
-        actorUserId: "user-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
         title: "New post",
         body: "<p>Body</p>",
         status: "draft",
@@ -648,9 +655,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         status: "published",
       });
 
@@ -665,9 +672,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         status: "draft",
       });
 
@@ -682,9 +689,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         title: "Renamed",
       });
 
@@ -699,9 +706,9 @@ describe("OrganizationBlogService", () => {
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         slug: "new-slug",
       });
 
@@ -715,21 +722,21 @@ describe("OrganizationBlogService", () => {
     it("deletes a replaced cover image blob", async () => {
       const { service, blobService } = createService({
         existing: createPost({
-          coverImageBlobName: "organizations/org-1/blog/old.png",
-          coverImageUrl: "https://cdn/organizations/org-1/blog/old.png",
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/old.png`,
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/old.png`,
         }),
       });
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
-        coverImageUrl: "https://cdn/organizations/org-1/blog/new.png",
-        coverImageBlobName: "organizations/org-1/blog/new.png",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
+        coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/new.png`,
+        coverImageBlobName: `organizations/${ORG_1_ID}/blog/new.png`,
       });
 
       expect(blobService.deleteBlob).toHaveBeenCalledWith(
-        "organizations/org-1/blog/old.png",
+        `organizations/${ORG_1_ID}/blog/old.png`,
       );
     });
 
@@ -738,9 +745,9 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.update({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          blogPostId: "missing",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          blogPostId: MISSING_ID,
           title: "x",
         }),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
@@ -750,9 +757,9 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         body: "<p>New body</p><script>bad()</script>",
       });
       const updateArgs = repository.update.mock.calls[0][2] as Record<
@@ -763,9 +770,9 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.update({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          blogPostId: "blog-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          blogPostId: BLOG_1_ID,
           body: "<script>only()</script>",
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
@@ -775,9 +782,9 @@ describe("OrganizationBlogService", () => {
       const { service, repository } = createService();
 
       await service.update({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
         excerpt: null,
       });
 
@@ -796,9 +803,9 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.update({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          blogPostId: "blog-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          blogPostId: BLOG_1_ID,
           title: "Still works",
         }),
       ).resolves.toBeDefined();
@@ -810,21 +817,21 @@ describe("OrganizationBlogService", () => {
       const { service, repository, blobService, organizationAuditService } =
         createService({
           existing: createPost({
-            coverImageBlobName: "organizations/org-1/blog/c.png",
+            coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
           }),
         });
 
       const result = await service.delete({
-        organizationId: "org-1",
-        actorUserId: "user-1",
-        blogPostId: "blog-1",
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
       });
 
-      expect(repository.delete).toHaveBeenCalledWith("org-1", "blog-1");
+      expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, BLOG_1_ID);
       expect(blobService.deleteBlob).toHaveBeenCalledWith(
-        "organizations/org-1/blog/c.png",
+        `organizations/${ORG_1_ID}/blog/c.png`,
       );
-      expect(result).toEqual({ deleted: true, blogPostId: "blog-1" });
+      expect(result).toEqual({ deleted: true, blogPostId: BLOG_1_ID });
       expect(organizationAuditService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: "blog.deleted" }),
       );
@@ -835,9 +842,9 @@ describe("OrganizationBlogService", () => {
 
       await expect(
         service.delete({
-          organizationId: "org-1",
-          actorUserId: "user-1",
-          blogPostId: "blog-1",
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          blogPostId: BLOG_1_ID,
         }),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });

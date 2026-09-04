@@ -1,4 +1,8 @@
 import { SavedPostingsRepository } from "@/features/postings/saved/saved-postings.repository";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9000, 254272);
+
+const USER_1_ID = testUuid(9000, 994257);
 
 describe("SavedPostingsRepository", () => {
   it("upserts on save so repeated saves keep the original createdAt", async () => {
@@ -10,20 +14,20 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    const result = await repository.save("user-1", "posting-1");
+    const result = await repository.save(USER_1_ID, POSTING_1_ID);
 
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           userId_postingId: {
-            userId: "user-1",
-            postingId: "posting-1",
+            userId: USER_1_ID,
+            postingId: POSTING_1_ID,
           },
         },
         create: expect.objectContaining({
           id: expect.any(String),
-          userId: "user-1",
-          postingId: "posting-1",
+          userId: USER_1_ID,
+          postingId: POSTING_1_ID,
         }),
         update: {},
       }),
@@ -42,12 +46,16 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    await expect(repository.unsave("user-1", "posting-1")).resolves.toBe(true);
-    await expect(repository.unsave("user-1", "posting-1")).resolves.toBe(false);
+    await expect(repository.unsave(USER_1_ID, POSTING_1_ID)).resolves.toBe(
+      true,
+    );
+    await expect(repository.unsave(USER_1_ID, POSTING_1_ID)).resolves.toBe(
+      false,
+    );
     expect(deleteMany).toHaveBeenLastCalledWith({
       where: {
-        userId: "user-1",
-        postingId: "posting-1",
+        userId: USER_1_ID,
+        postingId: POSTING_1_ID,
       },
     });
   });
@@ -64,18 +72,18 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    await expect(repository.findSavedAt("user-1", "posting-1")).resolves.toBe(
+    await expect(repository.findSavedAt(USER_1_ID, POSTING_1_ID)).resolves.toBe(
       createdAt,
     );
     await expect(
-      repository.findSavedAt("user-1", "posting-1"),
+      repository.findSavedAt(USER_1_ID, POSTING_1_ID),
     ).resolves.toBeNull();
   });
 
   it("pages saved entries newest first with a stable tiebreak", async () => {
     const entries = [
       { postingId: "posting-2", createdAt: new Date("2026-08-02T00:00:00Z") },
-      { postingId: "posting-1", createdAt: new Date("2026-08-01T00:00:00Z") },
+      { postingId: POSTING_1_ID, createdAt: new Date("2026-08-01T00:00:00Z") },
     ];
     const findMany = jest.fn(async () => entries);
     const count = jest.fn(async () => 5);
@@ -86,11 +94,11 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    const result = await repository.listPage("user-1", 2, 2);
+    const result = await repository.listPage(USER_1_ID, 2, 2);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1" },
+        where: { userId: USER_1_ID },
         skip: 2,
         take: 2,
         orderBy: [{ createdAt: "desc" }, { postingId: "asc" }],
@@ -117,7 +125,7 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    const result = await repository.listPage("user-1", 1, 20);
+    const result = await repository.listPage(USER_1_ID, 1, 20);
 
     expect(result.pagination).toEqual({
       page: 1,
@@ -132,7 +140,7 @@ describe("SavedPostingsRepository", () => {
   it("lists identifiers up to the requested limit", async () => {
     const findMany = jest.fn(async () => [
       { postingId: "posting-2" },
-      { postingId: "posting-1" },
+      { postingId: POSTING_1_ID },
     ]);
     const repository = new SavedPostingsRepository({
       savedPosting: {
@@ -140,14 +148,14 @@ describe("SavedPostingsRepository", () => {
       },
     } as any);
 
-    const result = await repository.listIds("user-1", 10);
+    const result = await repository.listIds(USER_1_ID, 10);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1" },
+        where: { userId: USER_1_ID },
         take: 10,
       }),
     );
-    expect(result).toEqual(["posting-2", "posting-1"]);
+    expect(result).toEqual(["posting-2", POSTING_1_ID]);
   });
 });

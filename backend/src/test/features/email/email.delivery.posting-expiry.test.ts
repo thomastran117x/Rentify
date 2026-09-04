@@ -2,6 +2,10 @@ import type { BookingMessageEmailComposer } from "@/features/bookings/messages/b
 import { EmailDeliveryService } from "@/features/email/email.delivery.service";
 import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
+import { testUuid } from "../../support/uuid";
+const POSTING_1_ID = testUuid(9200, 254272);
+const SMTP_1_ID = testUuid(9200, 638718);
+const USER_1_ID = testUuid(9200, 994257);
 
 function createTransporterMock() {
   return {
@@ -39,8 +43,8 @@ const payload = {
   jobId: "job-1",
   kind: "posting_expiring_soon" as const,
   input: {
-    postingId: "posting-1",
-    recipientId: "user-1",
+    postingId: POSTING_1_ID,
+    recipientId: USER_1_ID,
     expiresAt: "2026-09-01T23:59:59.999Z",
   },
   attempt: 0,
@@ -54,12 +58,12 @@ describe("EmailDeliveryService posting expiry reminders", () => {
 
   it("delivers a hydrated payload that carries no recipient address", async () => {
     const transporter = createTransporterMock();
-    transporter.sendMail.mockResolvedValue({ messageId: "smtp-1" });
+    transporter.sendMail.mockResolvedValue({ messageId: SMTP_1_ID });
     const composer = createComposerMock();
     composer.compose.mockResolvedValue({
       to: "owner@example.com",
       firstName: "Ada",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       postingName: "Lakeside cabin",
       expiresAt: "2026-09-01T23:59:59.999Z",
     });
@@ -97,7 +101,7 @@ describe("EmailDeliveryService posting expiry reminders", () => {
     const composer = createComposerMock();
     composer.compose.mockResolvedValue({
       to: "owner@rentify.local",
-      postingId: "posting-1",
+      postingId: POSTING_1_ID,
       postingName: "Lakeside cabin",
       expiresAt: "2026-09-01T23:59:59.999Z",
     });

@@ -14,6 +14,7 @@ import {
   updateOrganizationAnnouncementSchema,
 } from "@/features/organizations/announcements/announcements.model";
 import { OrganizationAnnouncementService } from "@/features/organizations/announcements/announcements.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 export class OrganizationAnnouncementsController {
   constructor(
@@ -27,8 +28,8 @@ export class OrganizationAnnouncementsController {
     );
     const result = await this.announcementsService.list({
       ...query,
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
     });
     ok(response, result, { meta: paginationMeta(result) });
   };
@@ -40,8 +41,8 @@ export class OrganizationAnnouncementsController {
       createOrganizationAnnouncementSchema,
     );
     const result = await this.announcementsService.create({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
       ...body,
     });
     created(response, result, {
@@ -56,9 +57,9 @@ export class OrganizationAnnouncementsController {
       updateOrganizationAnnouncementSchema,
     );
     const result = await this.announcementsService.update({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      announcementId: requireResourceId(request, "announcementId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      announcementId: asUuid(requireResourceId(request, "announcementId")),
       ...body,
     });
     ok(response, result, {
@@ -69,9 +70,9 @@ export class OrganizationAnnouncementsController {
   delete = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
     const result = await this.announcementsService.delete({
-      organizationId: requireOrganizationId(request),
-      actorUserId: auth.sub,
-      announcementId: requireResourceId(request, "announcementId"),
+      organizationId: asUuid(requireOrganizationId(request)),
+      actorUserId: asUuid(auth.sub),
+      announcementId: asUuid(requireResourceId(request, "announcementId")),
     });
     ok(response, result, {
       message: "Organization announcement deleted successfully.",

@@ -17,6 +17,7 @@ import type {
 import { DeviceService } from "@/features/auth/device/device.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
+import { asUuid } from "@/configuration/validation/uuid";
 
 interface DeviceStatus {
   deviceId?: string;
@@ -46,7 +47,7 @@ export class AuthSessionService {
     return {
       verified: true,
       auth: {
-        userId: context.auth.sub,
+        userId: asUuid(context.auth.sub),
         deviceId: context.auth.deviceId,
         role: context.auth.role,
       },
@@ -81,7 +82,7 @@ export class AuthSessionService {
       await this.tokenService.createSession(
         {
           sessionId,
-          userId: user.id,
+          userId: asUuid(user.id),
           deviceId,
           tokenVersion: user.tokenVersion,
         },
@@ -154,7 +155,7 @@ export class AuthSessionService {
     return {
       loggedOut: true,
       auth: {
-        userId: context.auth.sub,
+        userId: asUuid(context.auth.sub),
         deviceId: context.auth.deviceId,
       },
       client: context.client,
@@ -228,7 +229,7 @@ export class AuthSessionService {
     await this.tokenService.createSession(
       {
         sessionId,
-        userId: user.id,
+        userId: asUuid(user.id),
         deviceId,
         tokenVersion: user.tokenVersion,
       },

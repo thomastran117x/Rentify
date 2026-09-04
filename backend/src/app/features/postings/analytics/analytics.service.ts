@@ -18,6 +18,11 @@ import {
 } from "@/features/postings/postings.model";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
+import {
+  asOptionalUuid,
+  asUuid,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export class PostingsAnalyticsService {
   constructor(
@@ -29,7 +34,7 @@ export class PostingsAnalyticsService {
   async trackPublicView(
     posting: PostingRecord | PublicPostingRecord,
     client: ClientRequestContext,
-    viewerUserId?: string,
+    viewerUserId?: Uuid,
   ): Promise<void> {
     if (!isPostingPubliclyVisible(posting)) {
       return;
@@ -42,7 +47,7 @@ export class PostingsAnalyticsService {
       organizationId &&
       (await this.organizationAccessService.findMembership(
         viewerUserId,
-        organizationId,
+        asUuid(organizationId),
       ))
     ) {
       return;
@@ -54,18 +59,18 @@ export class PostingsAnalyticsService {
 
     const occurredAt = new Date();
     const viewerHash = this.createViewerHash(
-      posting.id,
+      asUuid(posting.id),
       occurredAt,
       client,
       viewerUserId,
     );
 
     await this.analyticsRepository.enqueuePostingViewedEvent({
-      postingId: posting.id,
-      organizationId,
+      postingId: asUuid(posting.id),
+      organizationId: asUuid(organizationId),
       occurredAt: occurredAt.toISOString(),
       viewerHash,
-      userId: viewerUserId,
+      userId: asOptionalUuid(viewerUserId),
       ipAddressHash: client.ip ? this.hashValue(`ip:${client.ip}`) : undefined,
       userAgentHash: client.device.userAgent
         ? this.hashValue(`ua:${client.device.userAgent}`)
@@ -91,7 +96,7 @@ export class PostingsAnalyticsService {
         }
 
         await this.analyticsRepository.enqueueSearchImpressionEvent({
-          postingId: metadata.id,
+          postingId: asUuid(metadata.id),
           organizationId: metadata.organizationId,
           occurredAt,
         });
@@ -99,10 +104,7 @@ export class PostingsAnalyticsService {
     );
   }
 
-  async trackSearchClick(
-    postingId: string,
-    viewerUserId?: string,
-  ): Promise<void> {
+  async trackSearchClick(postingId: Uuid, viewerUserId?: Uuid): Promise<void> {
     const metadata =
       await this.postingsRepository.findPublicReadMetadataById(postingId);
 
@@ -121,14 +123,14 @@ export class PostingsAnalyticsService {
     }
 
     await this.analyticsRepository.enqueueSearchClickEvent({
-      postingId: metadata.id,
+      postingId: asUuid(metadata.id),
       organizationId: metadata.organizationId,
       occurredAt: new Date().toISOString(),
     });
   }
 
   async getOwnerSummary(
-    actorUserId: string,
+    actorUserId: Uuid,
     window: "7d" | "30d" | "all",
   ): Promise<OwnerPostingsAnalyticsSummary> {
     const membership =
@@ -190,7 +192,7 @@ export class PostingsAnalyticsService {
   }
 
   async exportAsCsv(
-    actorUserId: string,
+    actorUserId: Uuid,
     window: PostingAnalyticsWindow,
   ): Promise<string> {
     const membership =
@@ -246,10 +248,10 @@ export class PostingsAnalyticsService {
   }
 
   private createViewerHash(
-    postingId: string,
+    postingId: Uuid,
     occurredAt: Date,
     client: ClientRequestContext,
-    viewerUserId?: string,
+    viewerUserId?: Uuid,
   ): string {
     const dayBucket = occurredAt.toISOString().slice(0, 10);
 

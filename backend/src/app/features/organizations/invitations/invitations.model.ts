@@ -8,6 +8,7 @@ import {
   type OrganizationRole,
   type OrganizationSummary,
 } from "@/features/organizations/organizations.model";
+import type { Uuid } from "@/configuration/validation/uuid";
 
 export const createOrganizationInviteRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
@@ -20,7 +21,7 @@ export type CreateOrganizationInviteRequestBody = z.infer<
 
 export interface OrganizationInvitePreviewResult {
   invitation: {
-    organizationId: string;
+    organizationId: Uuid;
     organizationName: string;
     emailHint: string;
     role: OrganizationRole;
@@ -47,24 +48,24 @@ export interface AcceptOrganizationInviteResult {
 }
 
 export interface CreateOrganizationInviteInput {
-  organizationId: string;
-  actorUserId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
   email: string;
   role: OrganizationRole;
 }
 
 export interface RevokeOrganizationInviteInput {
-  organizationId: string;
-  actorUserId: string;
-  invitationId: string;
+  organizationId: Uuid;
+  actorUserId: Uuid;
+  invitationId: Uuid;
 }
 
 export interface AcceptOrganizationInviteInput {
   token: string;
-  userId: string;
+  userId: Uuid;
 }
 
 export interface PreviewOrganizationInviteInput {
   token: string;
-  userId?: string;
+  userId?: Uuid;
 }

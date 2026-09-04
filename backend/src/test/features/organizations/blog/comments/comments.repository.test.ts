@@ -1,13 +1,21 @@
 import { OrganizationBlogCommentsRepository } from "@/features/organizations/blog/comments/comments.repository";
+import { testUuid } from "../../../../support/uuid";
+const COMMENT_1_ID = testUuid(9000, 73688);
+const MANAGER_1_ID = testUuid(9000, 836503);
+const MISSING_ID = testUuid(9000, 394917);
+
+const BLOG_1_ID = testUuid(9000, 853730);
+const ORG_1_ID = testUuid(9000, 9234);
+const USER_2_ID = testUuid(9000, 994258);
 
 function buildRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "comment-1",
-    blogPostId: "blog-1",
-    organizationId: "org-1",
-    authorUserId: "user-2",
+    id: COMMENT_1_ID,
+    blogPostId: BLOG_1_ID,
+    organizationId: ORG_1_ID,
+    authorUserId: USER_2_ID,
     author: {
-      id: "user-2",
+      id: USER_2_ID,
       email: "renter@example.com",
       profile: {
         username: "renter-one",
@@ -52,8 +60,8 @@ describe("OrganizationBlogCommentsRepository", () => {
   describe("findPostForComments", () => {
     it("resolves a post by its organization and slug", async () => {
       const findUnique = jest.fn(async () => ({
-        id: "blog-1",
-        organizationId: "org-1",
+        id: BLOG_1_ID,
+        organizationId: ORG_1_ID,
         status: "published",
         commentsEnabled: true,
       }));
@@ -61,14 +69,14 @@ describe("OrganizationBlogCommentsRepository", () => {
         buildPrisma({}, { findUnique }),
       );
 
-      const result = await repository.findPostForComments("org-1", "my-post");
+      const result = await repository.findPostForComments(ORG_1_ID, "my-post");
 
-      expect(result).toMatchObject({ id: "blog-1", commentsEnabled: true });
+      expect(result).toMatchObject({ id: BLOG_1_ID, commentsEnabled: true });
       expect(findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             organizationId_slug: {
-              organizationId: "org-1",
+              organizationId: ORG_1_ID,
               slug: "my-post",
             },
           },
@@ -82,7 +90,7 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       await expect(
-        repository.findPostForComments("org-1", "missing"),
+        repository.findPostForComments(ORG_1_ID, MISSING_ID),
       ).resolves.toBeNull();
     });
   });
@@ -90,8 +98,8 @@ describe("OrganizationBlogCommentsRepository", () => {
   describe("findPostForCommentsById", () => {
     it("resolves the same context by post id", async () => {
       const findUnique = jest.fn(async () => ({
-        id: "blog-1",
-        organizationId: "org-1",
+        id: BLOG_1_ID,
+        organizationId: ORG_1_ID,
         status: "published",
         commentsEnabled: false,
       }));
@@ -100,11 +108,11 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       // The shape the socket handshake holds: it knows a post id, not a slug.
-      const result = await repository.findPostForCommentsById("blog-1");
+      const result = await repository.findPostForCommentsById(BLOG_1_ID);
 
       expect(result).toMatchObject({ commentsEnabled: false });
       expect(findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: "blog-1" } }),
+        expect.objectContaining({ where: { id: BLOG_1_ID } }),
       );
     });
 
@@ -114,7 +122,7 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       await expect(
-        repository.findPostForCommentsById("missing"),
+        repository.findPostForCommentsById(MISSING_ID),
       ).resolves.toBeNull();
     });
   });
@@ -128,7 +136,7 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.listByPost({
-        blogPostId: "blog-1",
+        blogPostId: BLOG_1_ID,
         page: 2,
         pageSize: 10,
       });
@@ -143,7 +151,7 @@ describe("OrganizationBlogCommentsRepository", () => {
         }),
       );
       expect(count).toHaveBeenCalledWith({
-        where: { blogPostId: "blog-1" },
+        where: { blogPostId: BLOG_1_ID },
       });
       expect(result.pagination).toEqual({
         page: 2,
@@ -154,8 +162,8 @@ describe("OrganizationBlogCommentsRepository", () => {
         hasPreviousPage: true,
       });
       expect(result.comments[0]).toMatchObject({
-        id: "comment-1",
-        author: { id: "user-2", username: "renter-one" },
+        id: COMMENT_1_ID,
+        author: { id: USER_2_ID, username: "renter-one" },
         deletedBy: null,
       });
     });
@@ -169,7 +177,7 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.listByPost({
-        blogPostId: "blog-1",
+        blogPostId: BLOG_1_ID,
         page: 1,
         pageSize: 20,
       });
@@ -191,13 +199,13 @@ describe("OrganizationBlogCommentsRepository", () => {
             buildRow({
               body: "",
               deletedAt: new Date("2026-07-17T00:00:00.000Z"),
-              deletedByUserId: "user-2",
+              deletedByUserId: USER_2_ID,
             }),
           ),
         }),
       );
 
-      const result = await repository.findById("comment-1");
+      const result = await repository.findById(COMMENT_1_ID);
 
       expect(result).toMatchObject({ body: "", deletedBy: "author" });
     });
@@ -209,16 +217,16 @@ describe("OrganizationBlogCommentsRepository", () => {
             buildRow({
               body: "",
               deletedAt: new Date("2026-07-17T00:00:00.000Z"),
-              deletedByUserId: "manager-1",
+              deletedByUserId: MANAGER_1_ID,
             }),
           ),
         }),
       );
 
-      const result = await repository.findById("comment-1");
+      const result = await repository.findById(COMMENT_1_ID);
 
       expect(result).toMatchObject({ deletedBy: "moderator" });
-      expect(JSON.stringify(result)).not.toContain("manager-1");
+      expect(JSON.stringify(result)).not.toContain(MANAGER_1_ID);
     });
 
     it("falls back to a label rather than the email when a profile is missing", async () => {
@@ -227,7 +235,7 @@ describe("OrganizationBlogCommentsRepository", () => {
           findUnique: jest.fn(async () =>
             buildRow({
               author: {
-                id: "user-2",
+                id: USER_2_ID,
                 email: "renter@example.com",
                 profile: null,
               },
@@ -236,7 +244,7 @@ describe("OrganizationBlogCommentsRepository", () => {
         }),
       );
 
-      const result = await repository.findById("comment-1");
+      const result = await repository.findById(COMMENT_1_ID);
 
       expect(result?.author.username).toBe("Member");
       // This record is served on a public page; an address must not leak
@@ -249,7 +257,7 @@ describe("OrganizationBlogCommentsRepository", () => {
         buildPrisma({ findUnique: jest.fn(async () => null) }),
       );
 
-      await expect(repository.findById("missing")).resolves.toBeNull();
+      await expect(repository.findById(MISSING_ID)).resolves.toBeNull();
     });
   });
 
@@ -263,9 +271,9 @@ describe("OrganizationBlogCommentsRepository", () => {
       const notBefore = new Date("2026-07-16T00:00:00.000Z");
 
       const result = await repository.updateBodyIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
-        authorUserId: "user-2",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
+        authorUserId: USER_2_ID,
         body: "Edited.",
         editedAt: new Date("2026-07-16T00:05:00.000Z"),
         notBefore,
@@ -274,9 +282,9 @@ describe("OrganizationBlogCommentsRepository", () => {
       expect(updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            id: "comment-1",
-            blogPostId: "blog-1",
-            authorUserId: "user-2",
+            id: COMMENT_1_ID,
+            blogPostId: BLOG_1_ID,
+            authorUserId: USER_2_ID,
             deletedAt: null,
             createdAt: { gte: notBefore },
           },
@@ -298,9 +306,9 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.updateBodyIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
-        authorUserId: "user-2",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
+        authorUserId: USER_2_ID,
         body: "Too late.",
         editedAt: new Date(),
         notBefore: new Date(),
@@ -322,9 +330,9 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.updateBodyIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
-        authorUserId: "user-2",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
+        authorUserId: USER_2_ID,
         body: "Edited.",
         editedAt: new Date(),
         notBefore: new Date(),
@@ -348,19 +356,19 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       await repository.softDeleteIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
         deletedAt: new Date("2026-07-17T00:00:00.000Z"),
-        deletedByUserId: "user-2",
+        deletedByUserId: USER_2_ID,
         asModerator: false,
       });
 
       expect(updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ authorUserId: "user-2" }),
+          where: expect.objectContaining({ authorUserId: USER_2_ID }),
           data: expect.objectContaining({
             body: "",
-            deletedByUserId: "user-2",
+            deletedByUserId: USER_2_ID,
           }),
         }),
       );
@@ -376,10 +384,10 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       await repository.softDeleteIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
         deletedAt: new Date(),
-        deletedByUserId: "manager-1",
+        deletedByUserId: MANAGER_1_ID,
         asModerator: true,
       });
 
@@ -401,10 +409,10 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.softDeleteIfEligible({
-        commentId: "comment-1",
-        blogPostId: "blog-1",
+        commentId: COMMENT_1_ID,
+        blogPostId: BLOG_1_ID,
         deletedAt: new Date(),
-        deletedByUserId: "user-2",
+        deletedByUserId: USER_2_ID,
         asModerator: false,
       });
 
@@ -421,23 +429,23 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.createIfCommentsOpen({
-        blogPostId: "blog-1",
-        organizationId: "org-1",
-        authorUserId: "user-2",
+        blogPostId: BLOG_1_ID,
+        organizationId: ORG_1_ID,
+        authorUserId: USER_2_ID,
         body: "Great post.",
       });
 
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            blogPostId: "blog-1",
-            organizationId: "org-1",
-            authorUserId: "user-2",
+            blogPostId: BLOG_1_ID,
+            organizationId: ORG_1_ID,
+            authorUserId: USER_2_ID,
             body: "Great post.",
           }),
         }),
       );
-      expect(result).toMatchObject({ id: "comment-1", deletedAt: null });
+      expect(result).toMatchObject({ id: COMMENT_1_ID, deletedAt: null });
     });
 
     it("refuses to insert once comments were closed", async () => {
@@ -453,9 +461,9 @@ describe("OrganizationBlogCommentsRepository", () => {
       );
 
       const result = await repository.createIfCommentsOpen({
-        blogPostId: "blog-1",
-        organizationId: "org-1",
-        authorUserId: "user-2",
+        blogPostId: BLOG_1_ID,
+        organizationId: ORG_1_ID,
+        authorUserId: USER_2_ID,
         body: "Too late.",
       });
 
@@ -479,9 +487,9 @@ describe("OrganizationBlogCommentsRepository", () => {
 
       await expect(
         repository.createIfCommentsOpen({
-          blogPostId: "blog-1",
-          organizationId: "org-1",
-          authorUserId: "user-2",
+          blogPostId: BLOG_1_ID,
+          organizationId: ORG_1_ID,
+          authorUserId: USER_2_ID,
           body: "Too late.",
         }),
       ).resolves.toBeNull();
@@ -496,9 +504,9 @@ describe("OrganizationBlogCommentsRepository", () => {
 
       await expect(
         repository.createIfCommentsOpen({
-          blogPostId: "blog-1",
-          organizationId: "org-1",
-          authorUserId: "user-2",
+          blogPostId: BLOG_1_ID,
+          organizationId: ORG_1_ID,
+          authorUserId: USER_2_ID,
           body: "Too late.",
         }),
       ).resolves.toBeNull();

@@ -4,6 +4,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import { EmailService } from "@/features/email/email.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { DeviceRepository, type KnownDeviceRecord } from "./device.repository";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 interface DeviceServiceOptions {
   deviceRepository: DeviceRepository;
@@ -49,7 +50,7 @@ export class DeviceService {
     }
 
     await this.deviceRepository.registerKnownDevice({
-      userId: user.id,
+      userId: asUuid(user.id),
       deviceId,
       type: client.device.type,
       platform: client.device.platform,
@@ -71,13 +72,13 @@ export class DeviceService {
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
       const knownDevice = await this.deviceRepository.findKnownDevice(
-        user.id,
+        asUuid(user.id),
         deviceId,
       );
 
       if (knownDevice) {
         await this.deviceRepository.touchKnownDevice(
-          user.id,
+          asUuid(user.id),
           deviceId,
           client.ip,
         );
@@ -101,7 +102,7 @@ export class DeviceService {
     }
 
     const knownByIp = await this.deviceRepository.hasKnownIpAddress(
-      user.id,
+      asUuid(user.id),
       client.ip,
     );
 
@@ -131,13 +132,13 @@ export class DeviceService {
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
       const knownDevice = await this.deviceRepository.findKnownDevice(
-        user.id,
+        asUuid(user.id),
         deviceId,
       );
 
       if (knownDevice) {
         await this.deviceRepository.touchKnownDevice(
-          user.id,
+          asUuid(user.id),
           deviceId,
           client.ip,
         );
@@ -161,7 +162,7 @@ export class DeviceService {
     }
 
     const knownByIp = await this.deviceRepository.hasKnownIpAddress(
-      user.id,
+      asUuid(user.id),
       client.ip,
     );
 
@@ -193,7 +194,7 @@ export class DeviceService {
   }
 
   async listKnownDevices(
-    userId: string,
+    userId: Uuid,
     currentDeviceId?: string,
   ): Promise<
     Array<
@@ -210,7 +211,7 @@ export class DeviceService {
     }));
   }
 
-  async removeKnownDevice(userId: string, deviceId: string): Promise<void> {
+  async removeKnownDevice(userId: Uuid, deviceId: string): Promise<void> {
     const wasRemoved = await this.deviceRepository.removeKnownDevice(
       userId,
       deviceId,
