@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from "@/lib/env";
+import { getClientAppHeader } from "@/lib/api/client-app";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import {
   clearStoredSession,
@@ -188,6 +189,7 @@ function buildRequestHeaders(
 
   return {
     accept: "application/json",
+    ...getClientAppHeader(),
     ...(shouldIncludeJsonContentType(options.method, options.body)
       ? { "content-type": "application/json" }
       : {}),
@@ -487,6 +489,7 @@ export async function textRequest(
       method: "GET",
       headers: {
         accept: "application/yaml, text/yaml, text/plain",
+        ...getClientAppHeader(),
         ...headers,
       },
       credentials: "same-origin",
@@ -535,6 +538,7 @@ export async function refreshStoredSession(): Promise<AuthResponseBody | null> {
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          ...getClientAppHeader(),
           ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
           ...(deviceId ? { "x-device-id": deviceId } : {}),
           ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),

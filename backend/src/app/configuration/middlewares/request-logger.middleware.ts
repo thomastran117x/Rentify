@@ -17,7 +17,10 @@ export const requestLoggerMiddleware: RequestHandler = (
   request.logger = loggerFactory.forComponent("http-request", "request").child({
     requestId: request.requestId,
     fields: {
+      clientApp: client?.declaredApp,
       clientIp: client?.ip,
+      clientOrigin: client?.origin,
+      clientSource: client?.source,
       deviceId: client?.device.id,
       devicePlatform: client?.device.platform,
       deviceType: client?.device.type,

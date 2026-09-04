@@ -23,6 +23,9 @@ function createApp() {
       request.requestId = "req-123";
       request.client = {
         ip: "203.0.113.9",
+        source: "frontend-browser",
+        origin: "http://localhost:3040",
+        declaredApp: "rentify-web/browser",
         device: {
           id: "device-1",
           type: "mobile",
@@ -86,7 +89,10 @@ describe("requestLoggerMiddleware", () => {
     expect(child).toHaveBeenCalledWith({
       requestId: "req-123",
       fields: {
+        clientApp: "rentify-web/browser",
         clientIp: "203.0.113.9",
+        clientOrigin: "http://localhost:3040",
+        clientSource: "frontend-browser",
         deviceId: "device-1",
         devicePlatform: "iOS",
         deviceType: "mobile",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { serverEnv } from "@/lib/env";
+import { getClientAppHeader } from "@/lib/api/client-app";
 import { OrganizationBlogPostPage } from "@/components/organizations/organization-blog-post-page";
 import { resolveOrganizationPageReference } from "@/lib/organizations/resolve-page-reference";
 import {
@@ -19,7 +20,10 @@ async function fetchPost(organizationId: string, slug: string) {
   try {
     const response = await fetch(
       `${serverEnv.internalApiBaseUrl}/organizations/${organizationId}/blog/${encodeURIComponent(slug)}`,
-      { headers: { accept: "application/json" }, cache: "no-store" },
+      {
+        headers: { accept: "application/json", ...getClientAppHeader() },
+        cache: "no-store",
+      },
     );
 
     if (!response.ok) {

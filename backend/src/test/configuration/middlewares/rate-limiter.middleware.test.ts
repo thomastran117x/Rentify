@@ -102,6 +102,7 @@ function createApp(
     instance.use((request, _response, next) => {
       request.client = {
         ip: "203.0.113.10",
+        source: "api-tool",
         device: {
           type: "desktop",
           isMobile: false,
@@ -358,6 +359,7 @@ describe("rateLimiterMiddleware", () => {
       api.use((request, _response, next) => {
         request.client = {
           ip: "203.0.113.10",
+          source: "api-tool",
           device: {
             type: "desktop",
             isMobile: false,

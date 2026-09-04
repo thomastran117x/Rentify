@@ -1,6 +1,9 @@
 import type { Request, RequestHandler } from "express";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
+import {
+  normalizeOrigin,
+  readCsrfAllowedOrigins,
+} from "@/configuration/http/allowed-origins";
 import {
   getHeader,
   getPathname,
@@ -15,59 +18,13 @@ import {
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-function expandLoopbackOriginAliases(origin: string): string[] {
-  try {
-    const url = new URL(origin);
-    const hostname = url.hostname.trim().toLowerCase();
-
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return [url.origin];
-    }
-
-    const aliases = new Set<string>([url.origin]);
-
-    for (const loopbackHostname of ["localhost", "127.0.0.1"]) {
-      url.hostname = loopbackHostname;
-      aliases.add(url.origin);
-    }
-
-    return [...aliases];
-  } catch {
-    return [origin];
-  }
-}
-
 /**
- * Exported so the WebSocket upgrade handler can apply the same allow-list. That
- * handler is attached to the raw Node server and never passes through this
+ * Re-exported so the WebSocket upgrade handler can apply the same allow-list.
+ * That handler is attached to the raw Node server and never passes through this
  * middleware, so without sharing this list it would be the one authenticated
  * entry point in the app with no origin check at all.
  */
-export function readAllowedOrigins(): string[] {
-  const configuredOrigins =
-    getOptionalEnvironmentVariable("CSRF_ALLOWED_ORIGINS") ??
-    getOptionalEnvironmentVariable("CORS_ALLOWED_ORIGINS") ??
-    getOptionalEnvironmentVariable("FRONTEND_URL") ??
-    "http://localhost:3040";
-
-  return [
-    ...new Set(
-      configuredOrigins
-        .split(",")
-        .map((origin) => origin.trim())
-        .filter(Boolean)
-        .flatMap((origin) => expandLoopbackOriginAliases(origin)),
-    ),
-  ];
-}
-
-function normalizeOrigin(value: string): string | null {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
+export const readAllowedOrigins = readCsrfAllowedOrigins;
 
 function readRequestOrigin(request: Request): string | null {
   const origin = getHeader(request, "origin");

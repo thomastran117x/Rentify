@@ -1,45 +1,7 @@
 import cors from "cors";
 import type { RequestHandler } from "express";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
-
-function expandLoopbackOriginAliases(origin: string): string[] {
-  try {
-    const url = new URL(origin);
-    const hostname = url.hostname.trim().toLowerCase();
-
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return [url.origin];
-    }
-
-    const aliases = new Set<string>([url.origin]);
-
-    for (const loopbackHostname of ["localhost", "127.0.0.1"]) {
-      url.hostname = loopbackHostname;
-      aliases.add(url.origin);
-    }
-
-    return [...aliases];
-  } catch {
-    return [origin];
-  }
-}
-
-function readAllowedOrigins(): string[] {
-  const configuredOrigins =
-    getOptionalEnvironmentVariable("CORS_ALLOWED_ORIGINS") ??
-    getOptionalEnvironmentVariable("FRONTEND_URL") ??
-    "http://localhost:3040";
-
-  return [
-    ...new Set(
-      configuredOrigins
-        .split(",")
-        .map((origin) => origin.trim())
-        .filter(Boolean)
-        .flatMap((origin) => expandLoopbackOriginAliases(origin)),
-    ),
-  ];
-}
+import { readCorsAllowedOrigins } from "@/configuration/http/allowed-origins";
+import { CLIENT_APP_HEADER_NAME } from "@/configuration/http/client-source";
 
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
   try {
@@ -50,7 +12,7 @@ function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
 }
 
 export function createCorsMiddleware(): RequestHandler {
-  const allowedOrigins = readAllowedOrigins();
+  const allowedOrigins = readCorsAllowedOrigins();
 
   return cors({
     // Mirrors the previous hono/cors callback: an unknown or missing origin
@@ -70,6 +32,7 @@ export function createCorsMiddleware(): RequestHandler {
       "x-device-platform",
       "x-request-id",
       "x-csrf-token",
+      CLIENT_APP_HEADER_NAME,
     ],
     exposedHeaders: [
       "content-type",

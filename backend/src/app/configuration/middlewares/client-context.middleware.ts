@@ -1,6 +1,7 @@
 import type { Request, RequestHandler } from "express";
 import type { ClientDeviceContext } from "@/configuration/http/bindings";
 import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { resolveClientSource } from "@/configuration/http/client-source";
 import { getHeader } from "@/configuration/http/request";
 
 function isTrustedProxyHeaderEnabled(): boolean {
@@ -130,6 +131,7 @@ export const clientContextMiddleware: RequestHandler = (
   request.client = {
     ip: readIpAddress(request, readRemoteAddress(request)),
     device: readDevice(request),
+    ...resolveClientSource(request),
   };
 
   next();

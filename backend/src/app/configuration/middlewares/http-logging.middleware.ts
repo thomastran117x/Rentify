@@ -144,6 +144,7 @@ function formatHttpLogLine(input: {
   durationMs: number;
   requestId: string;
   ip: string;
+  source: string;
   format?: string;
 }): string {
   const method = colorize(input.method.padEnd(6), getMethodColor(input.method));
@@ -155,6 +156,7 @@ function formatHttpLogLine(input: {
 
   const requestId = colorize(`req=${input.requestId}`, colors.gray);
   const ip = colorize(`ip=${input.ip}`, colors.gray);
+  const source = colorize(`src=${input.source}`, colors.gray);
   const format = input.format
     ? colorize(`format=${input.format}`, colors.gray)
     : undefined;
@@ -168,6 +170,7 @@ function formatHttpLogLine(input: {
     duration,
     requestId,
     ip,
+    source,
     format,
   ]
     .filter(Boolean)
@@ -196,6 +199,7 @@ export const httpLoggingMiddleware: RequestHandler = (
     const status = response.statusCode;
 
     const logLevel = getLogLevel(status);
+    const clientSource = client?.source ?? "unknown";
 
     const logLine = formatHttpLogLine({
       method,
@@ -204,10 +208,12 @@ export const httpLoggingMiddleware: RequestHandler = (
       durationMs,
       requestId: requestId ?? "unknown",
       ip: client?.ip ?? "unknown",
+      source: clientSource,
       format: outputFormat,
     });
 
     logger[logLevel](logLine, {
+      clientSource,
       durationMs,
       format: outputFormat,
       ip: client?.ip ?? "unknown",

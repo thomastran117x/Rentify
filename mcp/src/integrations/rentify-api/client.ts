@@ -681,6 +681,8 @@ export class RentifyApiClient {
   ): Record<string, string> {
     const headers: Record<string, string> = {
       accept: "application/json",
+      // Names this client in the backend request log; observability only.
+      "x-client-app": "rentify-mcp/server",
     };
 
     if (body) {
