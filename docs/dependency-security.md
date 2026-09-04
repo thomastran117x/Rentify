@@ -42,6 +42,8 @@ The npm CLI returns a non-zero status for both security findings and failures of
 
 The workflow retries explicit availability failures up to three total attempts, waiting 5 seconds and then 15 seconds. Each npm request has a 30-second fetch timeout, and npm's nested fetch retries are disabled so the wrapper owns one predictable retry budget. Retryable failures are limited to HTTP 429/5xx responses and recognized transient DNS, connection, and socket error codes. Authentication failures, malformed responses, security findings, signature failures, and any unknown error fail immediately without retrying.
 
+One npm signature error needs special handling: Sigstore's TUF client normally reports an HTTP metadata download failure only as `npm error Failed to download`, hiding the status code. The wrapper retries that opaque error with verbose diagnostics enabled. It applies the availability policy only when npm then reveals a 429/5xx status; a 4xx or another unclassified result remains blocking.
+
 If npm remains unavailable after all three attempts:
 
 - Pull request and `main` push runs emit a GitHub warning and step-summary notice, then continue so an external outage cannot block a merge or deployment.

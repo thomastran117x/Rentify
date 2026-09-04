@@ -23,28 +23,35 @@ const RETRYABLE_REGISTRY_PATTERNS = [
   /^npm error\s+code\s+E(?:429|5\d{2})\b/im,
   /^npm error\s+(?:code|errno)\s+(?:EAI_AGAIN|ECONNABORTED|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|ERR_SOCKET_TIMEOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT|UND_ERR_SOCKET)\b/im,
   /^npm (?:warn|error)\s+audit\s+network timeout at:\s+https?:\/\//im,
+  /^npm verbose\s+statusCode\s+(?:429|5\d{2})\b/im,
   /"code"\s*:\s*"E(?:429|5\d{2})"/i,
 ];
+
+const OPAQUE_SIGNATURE_DOWNLOAD_PATTERN = /^npm error\s+Failed to download\s*$/im;
 
 export function isRetryableRegistryFailure(output) {
   return RETRYABLE_REGISTRY_PATTERNS.some((pattern) => pattern.test(output));
 }
 
-function executeNpm(args) {
+function executeNpm(args, { logLevel } = {}) {
   const npmCli =
     process.env.npm_execpath ?? join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
   const executable = process.platform === "win32" ? process.execPath : "npm";
   const commandArgs = process.platform === "win32" ? [npmCli, ...args] : args;
+  const environment = {
+    ...process.env,
+    npm_config_fetch_retries: "0",
+    npm_config_fetch_timeout: String(NPM_FETCH_TIMEOUT_MS),
+  };
+  if (logLevel) {
+    environment.npm_config_loglevel = logLevel;
+  }
 
   return new Promise((resolve) => {
     let child;
     try {
       child = spawn(executable, commandArgs, {
-        env: {
-          ...process.env,
-          npm_config_fetch_retries: "0",
-          npm_config_fetch_timeout: String(NPM_FETCH_TIMEOUT_MS),
-        },
+        env: environment,
         shell: false,
       });
     } catch (error) {
@@ -136,9 +143,13 @@ export async function runSecurityCheck({
   validateOptions(check, outagePolicy);
   const { args, label } = CHECKS[check];
   const maximumAttempts = retryDelaysMs.length + 1;
+  let verboseSignatureDiagnostics = false;
 
   for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
-    const result = await execute(args);
+    const result = await execute(
+      args,
+      verboseSignatureDiagnostics ? { logLevel: "verbose" } : undefined,
+    );
     stdout.write(result.stdout);
     stderr.write(result.stderr);
 
@@ -147,17 +158,36 @@ export async function runSecurityCheck({
     }
 
     const output = `${result.stdout}\n${result.stderr}`;
-    if (!isRetryableRegistryFailure(output)) {
+    const retryableRegistryFailure = isRetryableRegistryFailure(output);
+    const needsSignatureDiagnostics =
+      check === "signatures" &&
+      !verboseSignatureDiagnostics &&
+      OPAQUE_SIGNATURE_DOWNLOAD_PATTERN.test(output);
+
+    if (!retryableRegistryFailure && !needsSignatureDiagnostics) {
       return { attempts: attempt, exitCode: result.exitCode || 1, outcome: "failed" };
     }
 
     if (attempt < maximumAttempts) {
       const delay = retryDelaysMs[attempt - 1];
-      stderr.write(
-        `npm registry unavailable during ${label}; retrying in ${delay / 1_000} seconds (attempt ${attempt + 1}/${maximumAttempts}).\n`,
-      );
+      if (needsSignatureDiagnostics) {
+        stderr.write(
+          `npm signature metadata download failed without an HTTP status; retrying with verbose diagnostics in ${delay / 1_000} seconds (attempt ${attempt + 1}/${maximumAttempts}).\n`,
+        );
+      } else {
+        stderr.write(
+          `npm registry unavailable during ${label}; retrying in ${delay / 1_000} seconds (attempt ${attempt + 1}/${maximumAttempts}).\n`,
+        );
+      }
+      if (check === "signatures") {
+        verboseSignatureDiagnostics = true;
+      }
       await wait(delay);
       continue;
+    }
+
+    if (needsSignatureDiagnostics) {
+      return { attempts: attempt, exitCode: result.exitCode || 1, outcome: "failed" };
     }
 
     await report({ attempts: attempt, check, outagePolicy });
