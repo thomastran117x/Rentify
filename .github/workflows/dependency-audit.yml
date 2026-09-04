@@ -21,6 +21,9 @@ permissions:
 
 env:
   NODE_VERSION: "24"
+  # Commit-triggered checks may continue after a confirmed registry outage.
+  # Scheduled and manually requested audits remain strict and actionable.
+  REGISTRY_OUTAGE_POLICY: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'warn' || 'fail' }}
 
 jobs:
   audit:
@@ -48,14 +51,18 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
 
+      - name: Test npm security check failure handling
+        if: matrix.workspace == 'backend'
+        run: node --test --test-isolation=none ../scripts/npm-security-check.test.mjs
+
       - name: Install dependencies
         run: npm ci
 
       - name: Audit dependencies
-        run: npm run audit
+        run: node ../scripts/npm-security-check.mjs advisories "$REGISTRY_OUTAGE_POLICY"
 
       - name: Verify registry signatures
-        run: npm run audit:signatures
+        run: node ../scripts/npm-security-check.mjs signatures "$REGISTRY_OUTAGE_POLICY"
 
   report-failure:
     name: Report scheduled audit failure
