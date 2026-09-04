@@ -5,6 +5,7 @@ import {
   findActiveNavItem,
   getAccessibleNavItems,
   isWorkspaceRoute,
+  redirectsAnonymousVisitors,
 } from "./nav-registry";
 
 function org(
@@ -126,4 +127,28 @@ describe("findActiveNavItem", () => {
     expect(findActiveNavItem("/blog")).toBeUndefined();
     expect(findActiveNavItem("/")).toBeUndefined();
   });
+});
+
+describe("redirectsAnonymousVisitors", () => {
+  it.each([
+    "/dashboard",
+    "/dashboard/organizations/team",
+    "/postings/manage",
+    "/postings/create",
+    "/bookings",
+    "/bookings/abc",
+    "/rentings/abc",
+    "/moderation",
+  ])("sends signed-out visitors away from %s", (pathname) => {
+    expect(redirectsAnonymousVisitors(pathname)).toBe(true);
+  });
+
+  // These render their own sign-in prompt instead of redirecting, so the rail
+  // must not be reserved for them while auth is still resolving.
+  it.each(["/saved", "/saved/searches", "/account"])(
+    "keeps %s visible to signed-out visitors",
+    (pathname) => {
+      expect(redirectsAnonymousVisitors(pathname)).toBe(false);
+    },
+  );
 });

@@ -96,6 +96,18 @@ describe("AppSidebar", () => {
     expect(container.querySelector("[aria-hidden='true']")).toBeInTheDocument();
   });
 
+  // /saved, /saved/searches and /account stay visible to signed-out visitors
+  // with their own sign-in prompt, so a placeholder rail there would appear and
+  // then vanish once auth resolves, shifting the content sideways.
+  it.each(["/saved", "/saved/searches", "/account"])(
+    "reserves no rail on %s while auth is still loading",
+    (pathname) => {
+      const { container } = renderSidebar({ pathname, status: "loading" });
+
+      expect(container).toBeEmptyDOMElement();
+    },
+  );
+
   it("renders nothing for anonymous visitors mid-redirect", () => {
     const { container } = renderSidebar({
       pathname: "/dashboard",

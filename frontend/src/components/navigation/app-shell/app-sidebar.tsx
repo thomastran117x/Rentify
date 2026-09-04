@@ -13,6 +13,7 @@ import {
   APP_NAV_GROUPS,
   findActiveNavItem,
   getAccessibleNavItems,
+  redirectsAnonymousVisitors,
   type AppNavItem,
 } from "./nav-registry";
 
@@ -146,11 +147,15 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   const activeItem = findActiveNavItem(pathname);
 
   if (status === "loading") {
-    return <SidebarSkeleton />;
+    // Reserve the rail only where a signed-out visitor would be redirected
+    // away, so it never appears and then vanishes. /saved and /account stay
+    // visible to anonymous visitors with their own sign-in prompt, and showing
+    // a placeholder rail there would shift the content once auth resolves.
+    return redirectsAnonymousVisitors(pathname) ? <SidebarSkeleton /> : null;
   }
 
-  // Anonymous visitors on a workspace route are mid-redirect to /login; the
-  // pages own that guard, so the rail simply stays out of the way.
+  // Anonymous visitors either are mid-redirect to /login or are on a page that
+  // renders its own sign-in prompt. Either way the rail stays out of the way.
   if (status !== "authenticated" || !session) {
     return null;
   }
