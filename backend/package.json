@@ -67,7 +67,8 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.1",
-    "mariadb": "^3.5.3"
+    "mariadb": "^3.5.3",
+    "mysql2": "^3.23.4"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
@@ -80,7 +81,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "mysql2": "^3.15.2",
+    "mysql2": "^3.23.4",
     "nodemailer": "^9.0.3",
     "prisma": "^7.9.1",
     "redis": "^6.1.0",
@@ -104,11 +105,11 @@
     "typescript": "^6.0.2"
   },
   "allowScripts": {
-    "@prisma/engines@7.9.1": true,
+    "@prisma/engines@7.10.0": true,
     "bcrypt@6.0.0": true,
     "esbuild@0.27.7": true,
     "esbuild@0.28.1": true,
-    "prisma@7.9.1": true,
+    "prisma@7.10.0": true,
     "unrs-resolver@1.12.2": true
   }
 }
