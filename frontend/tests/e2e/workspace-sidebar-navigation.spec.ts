@@ -23,7 +23,9 @@ async function expectSidebarItems(page: Page, expected: ExpectedItems) {
   await expect(navLink(page, "Dashboard")).toHaveCount(
     expected.dashboard ? 1 : 0,
   );
-  await expect(navLink(page, "Postings")).toHaveCount(expected.postings ? 1 : 0);
+  await expect(navLink(page, "Postings")).toHaveCount(
+    expected.postings ? 1 : 0,
+  );
   await expect(navLink(page, "Create posting")).toHaveCount(
     expected.createPosting ? 1 : 0,
   );

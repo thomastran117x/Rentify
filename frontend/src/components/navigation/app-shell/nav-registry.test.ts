@@ -7,7 +7,9 @@ import {
   isWorkspaceRoute,
 } from "./nav-registry";
 
-function org(role: ActiveOrganizationSummary["role"]): ActiveOrganizationSummary {
+function org(
+  role: ActiveOrganizationSummary["role"],
+): ActiveOrganizationSummary {
   return { id: "org-1", name: "Org 1", role };
 }
 
@@ -58,9 +60,9 @@ describe("getAccessibleNavItems", () => {
   });
 
   it("shows create posting for manager-capable active organizations", () => {
-    expect(hrefs({ role: "user", activeOrganization: org("manager") })).toContain(
-      "/postings/create",
-    );
+    expect(
+      hrefs({ role: "user", activeOrganization: org("manager") }),
+    ).toContain("/postings/create");
     expect(
       hrefs({ role: "user", activeOrganization: org("primary_manager") }),
     ).toContain("/postings/create");

@@ -9,10 +9,9 @@ vi.mock("@/components/navigation/theme-toggle", () => ({
 }));
 
 vi.mock("./site-header.shared", async () => {
-  const actual =
-    await vi.importActual<typeof import("./site-header.shared")>(
-      "./site-header.shared",
-    );
+  const actual = await vi.importActual<typeof import("./site-header.shared")>(
+    "./site-header.shared",
+  );
 
   return {
     ...actual,
@@ -142,7 +141,9 @@ describe("site header account panels", () => {
       "Saved",
       "Bookings",
     ]) {
-      expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: label }),
+      ).not.toBeInTheDocument();
     }
   });
 

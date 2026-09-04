@@ -156,7 +156,9 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      <div className="min-w-0 space-y-6">{sectionAllowed ? children : null}</div>
+      <div className="min-w-0 space-y-6">
+        {sectionAllowed ? children : null}
+      </div>
     </OrganizationPageShell>
   );
 }
