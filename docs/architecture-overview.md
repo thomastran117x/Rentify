@@ -65,6 +65,8 @@ Every request is classified by caller so log lines can be split by traffic sourc
 
 First-party clients name themselves with an `x-client-app: <app>/<runtime>` header: the Next.js app sends `rentify-web/browser` or `rentify-web/server`, and the MCP server sends `rentify-mcp/server`. Anything else is inferred from `Origin`, `Referer`, `Sec-Fetch-Site`, and the user agent.
 
+The origin fallback compares against `FRONTEND_URL` only, not the CORS allow-list. The CORS list is a permission and may include partner origins; a browser call from one of those is `browser-direct` unless it names itself.
+
 | `clientSource` | Caller |
 | --- | --- |
 | `frontend-browser` | The web app running in a browser |

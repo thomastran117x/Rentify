@@ -120,7 +120,7 @@ describe("clientContextMiddleware", () => {
 
   it("carries the declared client app and origin onto the request context", async () => {
     mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
-      name === "CORS_ALLOWED_ORIGINS" ? "http://localhost:3040" : undefined,
+      name === "FRONTEND_URL" ? "http://localhost:3040" : undefined,
     );
     const app = createApp("10.0.0.5");
 

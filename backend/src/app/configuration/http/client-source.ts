@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import {
   normalizeOrigin,
-  readCorsAllowedOrigins,
+  readFrontendOrigins,
 } from "@/configuration/http/allowed-origins";
 import { getHeader } from "@/configuration/http/request";
 
@@ -91,7 +91,7 @@ function isAllowedFrontendOrigin(origin: string | undefined): boolean {
     return false;
   }
 
-  return readCorsAllowedOrigins()
+  return readFrontendOrigins()
     .map((allowed) => normalizeOrigin(allowed))
     .includes(origin);
 }
@@ -136,8 +136,8 @@ function resolveUserAgentSource(userAgent: string | undefined): ClientSource {
  *
  * Signals are evaluated in descending order of confidence: an explicit
  * {@link CLIENT_APP_HEADER_NAME} declaration, then an `Origin`/`Referer` that
- * matches the configured frontend, then the generic browser headers, and
- * finally the user agent.
+ * matches the origin the frontend is served from, then the generic browser
+ * headers, and finally the user agent.
  */
 export function resolveClientSource(request: Request): ClientSourceContext {
   const declaredApp = readDeclaredApp(request);

@@ -4,6 +4,7 @@ import {
   normalizeOrigin,
   readCorsAllowedOrigins,
   readCsrfAllowedOrigins,
+  readFrontendOrigins,
 } from "@/configuration/http/allowed-origins";
 
 jest.mock("@/configuration/environment", () => ({
@@ -54,6 +55,45 @@ describe("normalizeOrigin", () => {
 
   it("returns null for a value that is not a URL", () => {
     expect(normalizeOrigin("not-a-url")).toBeNull();
+  });
+});
+
+describe("readFrontendOrigins", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("reads the frontend URL", () => {
+    withEnvironment({ FRONTEND_URL: "https://rentify.example" });
+
+    expect(readFrontendOrigins()).toEqual(["https://rentify.example"]);
+  });
+
+  it("ignores the CORS allow-list, which may include partner origins", () => {
+    withEnvironment({
+      FRONTEND_URL: "https://rentify.example",
+      CORS_ALLOWED_ORIGINS: "https://rentify.example,https://partner.example",
+    });
+
+    expect(readFrontendOrigins()).toEqual(["https://rentify.example"]);
+  });
+
+  it("does not adopt the CORS allow-list when the frontend URL is unset", () => {
+    withEnvironment({ CORS_ALLOWED_ORIGINS: "https://partner.example" });
+
+    expect(readFrontendOrigins()).toEqual([
+      "http://localhost:3040",
+      "http://127.0.0.1:3040",
+    ]);
+  });
+
+  it("expands loopback aliases", () => {
+    withEnvironment({ FRONTEND_URL: "http://127.0.0.1:3040" });
+
+    expect(readFrontendOrigins()).toEqual([
+      "http://127.0.0.1:3040",
+      "http://localhost:3040",
+    ]);
   });
 });
 

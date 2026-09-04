@@ -47,7 +47,7 @@ describe("resolveClientSource", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
-      name === "CORS_ALLOWED_ORIGINS" ? "http://localhost:3040" : undefined,
+      name === "FRONTEND_URL" ? "http://localhost:3040" : undefined,
     );
   });
 
@@ -177,7 +177,7 @@ describe("resolveClientSource", () => {
       });
     });
 
-    it("falls back to the FRONTEND_URL when no CORS list is configured", async () => {
+    it("recognizes a configured non-local frontend origin", async () => {
       mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
         name === "FRONTEND_URL" ? "https://rentify.example" : undefined,
       );
@@ -187,6 +187,53 @@ describe("resolveClientSource", () => {
       ).resolves.toEqual({
         source: "frontend-browser",
         origin: "https://rentify.example",
+      });
+    });
+
+    it("does not claim a CORS-allowed partner origin as the frontend", async () => {
+      mockGetOptionalEnvironmentVariable.mockImplementation((name) => {
+        if (name === "FRONTEND_URL") return "https://rentify.example";
+        if (name === "CORS_ALLOWED_ORIGINS")
+          return "https://rentify.example,https://partner.example";
+
+        return undefined;
+      });
+
+      await expect(
+        resolve({ origin: "https://partner.example" }),
+      ).resolves.toEqual({
+        source: "browser-direct",
+        origin: "https://partner.example",
+      });
+    });
+
+    it("still identifies a partner that names itself", async () => {
+      mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
+        name === "CORS_ALLOWED_ORIGINS"
+          ? "https://rentify.example,https://partner.example"
+          : undefined,
+      );
+
+      await expect(
+        resolve({
+          origin: "https://partner.example",
+          [CLIENT_APP_HEADER_NAME]: "partner-portal/browser",
+        }),
+      ).resolves.toEqual({
+        source: "api-integration",
+        origin: "https://partner.example",
+        declaredApp: "partner-portal/browser",
+      });
+    });
+
+    it("defaults to the local frontend origin when FRONTEND_URL is unset", async () => {
+      mockGetOptionalEnvironmentVariable.mockReturnValue(undefined);
+
+      await expect(
+        resolve({ origin: "http://localhost:3040" }),
+      ).resolves.toEqual({
+        source: "frontend-browser",
+        origin: "http://localhost:3040",
       });
     });
   });

@@ -57,6 +57,25 @@ function parseOriginList(configuredOrigins: string): string[] {
 }
 
 /**
+ * The origins the Rentify web app itself is served from.
+ *
+ * Deliberately reads `FRONTEND_URL` alone rather than the CORS list. The CORS
+ * list is a permission — which origins may call the API from a browser — and a
+ * deployment can legitimately allow partner origins there. Treating everything
+ * on it as "our frontend" would file a partner's browser traffic under
+ * `frontend-browser` and corrupt the caller split. When `FRONTEND_URL` is unset
+ * this stays conservative and only recognises the local default: a first-party
+ * caller still identifies itself through the client app header, and an
+ * unrecognised browser origin is better reported as `browser-direct` than
+ * wrongly claimed as our own.
+ */
+export function readFrontendOrigins(): string[] {
+  return parseOriginList(
+    getOptionalEnvironmentVariable("FRONTEND_URL") ?? DEFAULT_FRONTEND_ORIGIN,
+  );
+}
+
+/**
  * Origins allowed to make cross-origin browser requests.
  *
  * Read on every call rather than memoised at module load, so tests that set the
