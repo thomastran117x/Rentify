@@ -121,10 +121,13 @@ describe("PostingsDashboard", () => {
     render(<PostingsDashboard />);
 
     expect(await screen.findByText("Downtown studio")).toBeInTheDocument();
-    // Status tabs show counts from the summary endpoint.
-    expect(screen.getByRole("button", { name: /All 2/ })).toBeInTheDocument();
+    // Status tabs show counts from the summary endpoint. The label and the
+    // count live in sibling nodes with no text between them, so the accessible
+    // name runs them together ("All2"); the separator is optional here so the
+    // assertion tracks the count rather than the DOM's whitespace.
+    expect(screen.getByRole("button", { name: /All\s*2/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Published 1/ }),
+      screen.getByRole("button", { name: /Published\s*1/ }),
     ).toBeInTheDocument();
   });
 
@@ -147,7 +150,7 @@ describe("PostingsDashboard", () => {
     render(<PostingsDashboard />);
 
     await screen.findByText("Downtown studio");
-    await user.click(screen.getByRole("button", { name: /Draft 1/ }));
+    await user.click(screen.getByRole("button", { name: /Draft\s*1/ }));
 
     await waitFor(() => {
       expect(listMineMock).toHaveBeenCalledWith(
