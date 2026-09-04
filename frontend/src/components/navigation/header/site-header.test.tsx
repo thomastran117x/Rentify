@@ -54,7 +54,7 @@ vi.mock("./site-header-search-form", () => ({
   ),
 }));
 vi.mock("./site-header.shared", () => ({
-  getAccountLinks: () => [],
+  accountMenuLinks: [],
   getDisplayLabel: () => "Person",
   SearchIcon: () => <span />,
   CloseIcon: () => <span />,

@@ -463,11 +463,14 @@ describe("Organization workspace", () => {
         { timeout: 8000 },
       ),
     ).toBeInTheDocument();
-    // Settings is available to a primary manager.
-    expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
   });
 
-  it("hides manager-only sections from the sidebar for a manager", async () => {
+  // Section links now live in the app-shell sidebar (see
+  // components/navigation/app-shell/app-sidebar.test.tsx). What WorkspaceChrome
+  // still owns is the central guard that catches direct URL entry into a
+  // section the viewer's role cannot open.
+  it("redirects a manager who lands directly on a primary-manager section", async () => {
+    useSelectedLayoutSegmentMock.mockReturnValue("settings");
     useAuthMock.mockReturnValue({
       status: "authenticated",
       setSession: setSessionMock,
@@ -485,16 +488,43 @@ describe("Organization workspace", () => {
 
     renderInWorkspace(<WorkspaceChrome>{null}</WorkspaceChrome>);
 
-    await screen.findByRole(
-      "heading",
-      { name: "Northwind" },
+    await waitFor(
+      () => {
+        expect(routerReplaceMock).toHaveBeenCalledWith(
+          "/dashboard/organizations/overview",
+        );
+      },
       { timeout: 8000 },
     );
-    // Managers can see Activity but not Settings.
-    expect(screen.getByRole("link", { name: /Activity/i })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: /Settings/i }),
-    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a section a manager may open", async () => {
+    useSelectedLayoutSegmentMock.mockReturnValue("activity");
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: setSessionMock,
+      session: buildSession("manager"),
+    });
+    getMineMock.mockResolvedValue({
+      memberships: [{ ...workspacePayload.memberships[0], role: "manager" }],
+      activeOrganization: {
+        id: "org-1",
+        name: "Northwind",
+        role: "manager" as const,
+      },
+    });
+    getWorkspaceByIdMock.mockResolvedValue(buildDetailPayload("manager"));
+
+    renderInWorkspace(
+      <WorkspaceChrome>
+        <p>Activity panel</p>
+      </WorkspaceChrome>,
+    );
+
+    expect(await screen.findByText("Activity panel")).toBeInTheDocument();
+    expect(routerReplaceMock).not.toHaveBeenCalledWith(
+      "/dashboard/organizations/overview",
+    );
   });
 
   it("sends invites from the Team panel", async () => {

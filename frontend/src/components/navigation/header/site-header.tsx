@@ -15,7 +15,6 @@ import { SiteHeaderDesktopNav } from "./site-header-navigation";
 import { SiteHeaderSearchForm } from "./site-header-search-form";
 import {
   CloseIcon,
-  getAccountLinks,
   getDisplayLabel,
   SearchIcon,
   SiteHeaderLogo,
@@ -31,11 +30,6 @@ export function SiteHeader() {
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const desktopSearchInputRef = useRef<HTMLInputElement>(null);
 
-  const accountLinks = getAccountLinks(session?.user.role, {
-    organizationMembershipCount: session?.user.organizationMembershipCount ?? 0,
-    hasActiveOrganization: Boolean(session?.user.activeOrganization),
-    activeOrganization: session?.user.activeOrganization,
-  });
   const displayName = session
     ? getDisplayLabel(session.user.email, session.user.username)
     : "Account";
@@ -155,26 +149,19 @@ export function SiteHeader() {
             )}
           </button>
 
-          <ThemeToggle className="hidden md:flex" />
+          {status !== "authenticated" ? <ThemeToggle /> : null}
 
           <SiteHeaderDesktopAccount
             pathname={pathname}
             status={status}
             session={session}
             displayName={displayName}
-            accountLinks={accountLinks}
             logoutPending={logoutPending}
             onLogout={handleLogout}
           />
 
           <SiteHeaderMobileMenu
             pathname={pathname}
-            status={status}
-            session={session}
-            displayName={displayName}
-            accountLinks={accountLinks}
-            logoutPending={logoutPending}
-            onLogout={handleLogout}
             mobileCtaHref={mobileCtaHref}
             mobileCtaLabel={mobileCtaLabel}
           />

@@ -1,23 +1,34 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  SiteHeaderDesktopAccount,
-  SiteHeaderMobileAccountSection,
-} from "./site-header-account-panels";
+import { SiteHeaderDesktopAccount } from "./site-header-account-panels";
 
-vi.mock("./site-header.shared", () => ({
-  UserAvatar: ({
-    name,
-    imageUrl,
-  }: {
-    name: string;
-    imageUrl?: string | null;
-  }) => (
-    <span>
-      {name}:{imageUrl ?? "none"}
-    </span>
-  ),
+vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+
+vi.mock("@/components/navigation/theme-toggle", () => ({
+  ThemeToggle: () => <button type="button">Toggle theme</button>,
 }));
+
+vi.mock("./site-header.shared", async () => {
+  const actual =
+    await vi.importActual<typeof import("./site-header.shared")>(
+      "./site-header.shared",
+    );
+
+  return {
+    ...actual,
+    UserAvatar: ({
+      name,
+      imageUrl,
+    }: {
+      name: string;
+      imageUrl?: string | null;
+    }) => (
+      <span>
+        {name}:{imageUrl ?? "none"}
+      </span>
+    ),
+  };
+});
 
 const session = {
   accessToken: "token",
@@ -30,13 +41,26 @@ const session = {
     avatarUrl: "avatar.png",
   },
 };
-const links = [
-  {
-    href: "/account",
-    label: "Account settings",
-    description: "Manage account",
-  },
-];
+
+function renderAccount(
+  props: Partial<React.ComponentProps<typeof SiteHeaderDesktopAccount>> = {},
+) {
+  const onLogout = props.onLogout ?? vi.fn(async () => undefined);
+
+  const result = render(
+    <SiteHeaderDesktopAccount
+      pathname="/"
+      status="authenticated"
+      session={session as never}
+      displayName="Person"
+      logoutPending={false}
+      onLogout={onLogout}
+      {...props}
+    />,
+  );
+
+  return { ...result, onLogout };
+}
 
 describe("site header account panels", () => {
   it("renders desktop loading, anonymous, and login-route states", () => {
@@ -47,19 +71,18 @@ describe("site header account panels", () => {
         status="loading"
         session={null}
         displayName="Account"
-        accountLinks={[]}
         logoutPending={false}
         onLogout={onLogout}
       />,
     );
     expect(document.querySelector("[aria-hidden='true']")).toBeInTheDocument();
+
     rerender(
       <SiteHeaderDesktopAccount
         pathname="/"
         status="anonymous"
         session={null}
         displayName="Account"
-        accountLinks={[]}
         logoutPending={false}
         onLogout={onLogout}
       />,
@@ -68,13 +91,13 @@ describe("site header account panels", () => {
       "href",
       "/login",
     );
+
     rerender(
       <SiteHeaderDesktopAccount
         pathname="/login"
         status="anonymous"
         session={null}
         displayName="Account"
-        accountLinks={[]}
         logoutPending={false}
         onLogout={onLogout}
       />,
@@ -84,67 +107,63 @@ describe("site header account panels", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders authenticated desktop identity, links, and logout states", () => {
-    const onLogout = vi.fn(async () => undefined);
-    const { rerender } = render(
-      <SiteHeaderDesktopAccount
-        pathname="/"
-        status="authenticated"
-        session={session as never}
-        displayName="Person"
-        accountLinks={links}
-        logoutPending={false}
-        onLogout={onLogout}
-      />,
-    );
+  it("renders identity, the two account links, theme, and logout", () => {
+    const { onLogout } = renderAccount();
+
     expect(screen.getByLabelText("Person account menu")).toBeInTheDocument();
+    expect(screen.getByText("person@example.com")).toBeInTheDocument();
+
     expect(
-      screen.getByRole("link", { name: /Account settings/ }),
+      screen.getByRole("link", { name: "Manage account" }),
     ).toHaveAttribute("href", "/account");
+    expect(screen.getByRole("link", { name: "Organizations" })).toHaveAttribute(
+      "href",
+      "/dashboard/organizations",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+
+    expect(screen.getByText("Theme")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Toggle theme" }),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(onLogout).toHaveBeenCalled();
-    rerender(
-      <SiteHeaderDesktopAccount
-        pathname="/"
-        status="authenticated"
-        session={session as never}
-        displayName="Person"
-        accountLinks={links}
-        logoutPending
-        onLogout={onLogout}
-      />,
-    );
+  });
+
+  it("carries no workspace navigation", () => {
+    renderAccount();
+
+    for (const label of [
+      "Dashboard",
+      "Postings",
+      "Create posting",
+      "Moderation",
+      "Saved",
+      "Bookings",
+    ]) {
+      expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it("disables the logout button while a logout is pending", () => {
+    renderAccount({ logoutPending: true });
+
     expect(
       screen.getByRole("button", { name: "Logging out..." }),
     ).toBeDisabled();
   });
 
-  it("renders authenticated mobile identity and hides anonymous content", () => {
-    const onLogout = vi.fn(async () => undefined);
-    const { rerender } = render(
-      <SiteHeaderMobileAccountSection
-        status="authenticated"
-        session={session as never}
-        displayName="Person"
-        accountLinks={links}
-        logoutPending={false}
-        onLogout={onLogout}
-      />,
-    );
-    expect(screen.getByText("person:avatar.png")).toBeInTheDocument();
-    expect(screen.getByText("person@example.com")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
-    expect(onLogout).toHaveBeenCalled();
-    rerender(
-      <SiteHeaderMobileAccountSection
-        status="anonymous"
-        session={null}
-        displayName="Account"
-        accountLinks={[]}
-        logoutPending={false}
-        onLogout={onLogout}
-      />,
-    );
-    expect(screen.queryByText("Account settings")).not.toBeInTheDocument();
+  it("mirrors the disclosure state onto aria-expanded", () => {
+    renderAccount();
+
+    const trigger = screen.getByLabelText("Person account menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    const disclosure = trigger.closest("details") as HTMLDetailsElement;
+    disclosure.open = true;
+    fireEvent(disclosure, new Event("toggle"));
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 });

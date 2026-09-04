@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+test.describe("app shell absence for anonymous visitors", () => {
+  test("public pages carry no workspace sidebar", async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("navigation", { name: "Workspace" }),
+    ).toHaveCount(0);
+  });
+});
+
 test.describe("public header and footer navigation", () => {
   test("header nav links reach their pages", async ({ page }) => {
     const header = page.getByRole("banner");

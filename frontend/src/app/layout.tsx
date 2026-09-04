@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppShell } from "@/components/navigation/app-shell/app-shell";
 import { SiteHeader } from "@/components/navigation/header/site-header";
 import { SiteFooter } from "@/components/navigation/site-footer";
 import { Providers } from "@/components/providers";
@@ -27,7 +28,9 @@ export default function RootLayout({
         />
         <Providers>
           <SiteHeader />
-          <div className="flex-1">{children}</div>
+          <div className="flex-1">
+            <AppShell>{children}</AppShell>
+          </div>
           <SiteFooter />
         </Providers>
       </body>

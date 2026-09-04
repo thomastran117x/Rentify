@@ -6,6 +6,7 @@ import {
   ErrorActionModalProvider,
   ErrorToastProvider,
 } from "@/components/errors";
+import { ActiveOrganizationRoleProvider } from "@/components/navigation/app-shell/active-organization-role";
 import { SavedPostingsProvider } from "@/components/postings/saved-postings-context";
 
 interface ProvidersProps {
@@ -17,7 +18,11 @@ export function Providers({ children }: ProvidersProps) {
     <AuthProvider>
       <ErrorToastProvider>
         <ErrorActionModalProvider>
-          <SavedPostingsProvider>{children}</SavedPostingsProvider>
+          <SavedPostingsProvider>
+            <ActiveOrganizationRoleProvider>
+              {children}
+            </ActiveOrganizationRoleProvider>
+          </SavedPostingsProvider>
         </ErrorActionModalProvider>
       </ErrorToastProvider>
     </AuthProvider>
