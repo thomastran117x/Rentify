@@ -56,6 +56,7 @@ describe("clientContextMiddleware", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ip: "10.0.0.5",
+      source: "unknown",
       device: {
         id: "device-1",
         type: "mobile",
@@ -81,6 +82,7 @@ describe("clientContextMiddleware", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ip: "203.0.113.9",
+      source: "api-tool",
       device: {
         type: "bot",
         isMobile: false,
@@ -105,6 +107,7 @@ describe("clientContextMiddleware", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ip: "198.51.100.7",
+      source: "unknown",
       device: {
         type: "tablet",
         isMobile: false,
@@ -112,6 +115,28 @@ describe("clientContextMiddleware", () => {
           "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
         platform: "Linux",
       },
+    });
+  });
+
+  it("carries the declared client app and origin onto the request context", async () => {
+    mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
+      name === "FRONTEND_URL" ? "http://localhost:3040" : undefined,
+    );
+    const app = createApp("10.0.0.5");
+
+    const response = await app.request("http://rent.test/client", {
+      headers: {
+        origin: "http://localhost:3040",
+        "x-client-app": "rentify-web/browser",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      source: "frontend-browser",
+      origin: "http://localhost:3040",
+      declaredApp: "rentify-web/browser",
     });
   });
 });

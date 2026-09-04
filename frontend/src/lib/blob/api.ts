@@ -1,4 +1,5 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
+import { getClientAppHeader } from "@/lib/api/client-app";
 import { readStoredSession } from "@/lib/auth/storage";
 import { resolveApiBaseUrl } from "@/lib/env";
 
@@ -56,6 +57,7 @@ export const blobApi = {
         method: "DELETE",
         headers: {
           accept: "application/json",
+          ...getClientAppHeader(),
           authorization: `Bearer ${session.accessToken}`,
         },
         credentials: "include",

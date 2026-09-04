@@ -304,6 +304,7 @@ describe("fetchPublicPostingAutocomplete", () => {
         expect.objectContaining({
           headers: {
             accept: "application/json",
+            "x-client-app": "rentify-web/server",
           },
         }),
       );

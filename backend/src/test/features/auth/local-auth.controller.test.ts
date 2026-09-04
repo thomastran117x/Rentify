@@ -51,6 +51,7 @@ function createClient(
 ): ClientRequestContext {
   return {
     ip: "127.0.0.1",
+    source: "frontend-browser" as const,
     device: {
       id: "device-1",
       type: "desktop",

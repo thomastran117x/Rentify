@@ -178,7 +178,10 @@ describe("MfaVerificationService", () => {
       sessionId: "session-1",
       scope: MFA_DEVICE_LOGIN_SCOPE,
       factor: "email",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     expect(otpService.issue).toHaveBeenCalledWith({
@@ -253,7 +256,10 @@ describe("MfaVerificationService", () => {
       sessionId: "session-1",
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     expect(otpService.issue).toHaveBeenCalledWith({
@@ -271,7 +277,10 @@ describe("MfaVerificationService", () => {
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
       code: "123456",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     expect(confirmed.verified).toBe(true);
@@ -310,7 +319,10 @@ describe("MfaVerificationService", () => {
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
         code: "123456",
-        client: { device: { type: "desktop", isMobile: false } },
+        client: {
+          source: "frontend-browser",
+          device: { type: "desktop", isMobile: false },
+        },
       }),
     ).rejects.toThrow("cache write failed");
   });
@@ -341,7 +353,10 @@ describe("MfaVerificationService", () => {
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
       code: "123456",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     expect(
@@ -365,7 +380,10 @@ describe("MfaVerificationService", () => {
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
       code: "123456",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     await expect(
@@ -387,7 +405,10 @@ describe("MfaVerificationService", () => {
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "email",
       code: "123456",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
@@ -447,7 +468,10 @@ describe("MfaVerificationService", () => {
       scope: MFA_MANAGEMENT_SCOPE,
       factor: "totp",
       code: "123456",
-      client: { device: { type: "desktop", isMobile: false } },
+      client: {
+        source: "frontend-browser",
+        device: { type: "desktop", isMobile: false },
+      },
     });
 
     expect(mfaTotpService.verifyCode).toHaveBeenCalledWith(USER_1_ID, "123456");
@@ -485,7 +509,10 @@ describe("MfaVerificationService", () => {
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
-        client: { device: { type: "desktop", isMobile: false } },
+        client: {
+          source: "frontend-browser",
+          device: { type: "desktop", isMobile: false },
+        },
       }),
     ).rejects.toMatchObject<Partial<MfaChallengeRateLimitedError>>({
       code: "MFA_CHALLENGE_RATE_LIMITED",
@@ -504,7 +531,10 @@ describe("MfaVerificationService", () => {
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "email",
         code: "000000",
-        client: { device: { type: "desktop", isMobile: false } },
+        client: {
+          source: "frontend-browser",
+          device: { type: "desktop", isMobile: false },
+        },
       }),
     ).rejects.toBeInstanceOf(InvalidMfaCodeError);
   });
@@ -526,7 +556,10 @@ describe("MfaVerificationService", () => {
         sessionId: "session-1",
         scope: MFA_MANAGEMENT_SCOPE,
         factor: "totp",
-        client: { device: { type: "desktop", isMobile: false } },
+        client: {
+          source: "frontend-browser",
+          device: { type: "desktop", isMobile: false },
+        },
       }),
     ).resolves.toEqual({
       scope: MFA_MANAGEMENT_SCOPE,

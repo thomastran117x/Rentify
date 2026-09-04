@@ -620,6 +620,7 @@ describe("api client", () => {
         expect.objectContaining({
           headers: {
             accept: "application/json",
+            "x-client-app": "rentify-web/server",
           },
         }),
       );
@@ -795,6 +796,7 @@ describe("api client", () => {
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          "x-client-app": "rentify-web/browser",
         },
         body: "{}",
       }),

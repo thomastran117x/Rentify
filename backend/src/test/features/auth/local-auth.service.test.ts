@@ -58,6 +58,7 @@ function createUser(): AuthUserRecord {
 function createClient() {
   return {
     ip: "127.0.0.1",
+    source: "frontend-browser" as const,
     device: {
       id: DEVICE_1_ID,
       type: "desktop" as const,

@@ -15,6 +15,7 @@ const USER_1_ID = testUuid(9000, 994257);
 function createClient(): ClientRequestContext {
   return {
     ip: "203.0.113.10",
+    source: "frontend-browser" as const,
     device: { id: DEVICE_1_ID, type: "desktop", isMobile: false },
   } as ClientRequestContext;
 }

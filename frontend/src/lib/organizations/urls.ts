@@ -1,4 +1,5 @@
 import { serverEnv } from "@/lib/env";
+import { getClientAppHeader } from "@/lib/api/client-app";
 
 /**
  * Organization URL helpers.
@@ -59,7 +60,7 @@ async function fetchJson(
   url: string,
 ): Promise<{ status: number; body: unknown }> {
   const response = await fetch(url, {
-    headers: { accept: "application/json" },
+    headers: { accept: "application/json", ...getClientAppHeader() },
     // Slugs are mutable, so a cached resolution can send visitors to a stale
     // canonical URL.
     cache: "no-store",

@@ -36,6 +36,7 @@ function createApp(cacheEval = jest.fn().mockResolvedValue([1, 119, 0])) {
     instance.use((request, _response, next) => {
       request.client = {
         ip: "203.0.113.10",
+        source: "api-tool",
         device: {
           type: "desktop",
           isMobile: false,

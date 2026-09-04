@@ -59,6 +59,27 @@ The backend follows a route-module plus feature-service structure:
 - services hold application logic
 - repositories handle persistence and query behavior
 
+## Request Caller Identification
+
+Every request is classified by caller so log lines can be split by traffic source. `clientContextMiddleware` resolves a `clientSource` onto `request.client`, and `requestLoggerMiddleware` puts it on the request-scoped logger, so every log line emitted during a request carries it alongside `clientOrigin` and `clientApp`. The HTTP access line also renders it as `src=<value>`.
+
+First-party clients name themselves with an `x-client-app: <app>/<runtime>` header: the Next.js app sends `rentify-web/browser` or `rentify-web/server`, and the MCP server sends `rentify-mcp/server`. Anything else is inferred from `Origin`, `Referer`, `Sec-Fetch-Site`, and the user agent.
+
+The origin fallback compares against `FRONTEND_URL` only, not the CORS allow-list. The CORS list is a permission and may include partner origins; a browser call from one of those is `browser-direct` unless it names itself.
+
+| `clientSource` | Caller |
+| --- | --- |
+| `frontend-browser` | The web app running in a browser |
+| `frontend-server` | The web app rendering on the server |
+| `api-integration` | Another first-party or partner client that named itself |
+| `browser-direct` | A browser hitting the API outside the web app |
+| `api-tool` | curl, Postman, Insomnia, and similar |
+| `bot` | A crawler |
+| `server-side` | A server-to-server call with no browser headers |
+| `unknown` | Nothing matched |
+
+The header is an unauthenticated hint and is used for observability only. Authorization, CSRF, and rate limiting never consult it, and the heuristics keep the classification useful for callers that stay silent or lie. Adding a new first-party header also means adding it to `allowedHeaders` in `cors.middleware.ts`, or browser preflight will reject it.
+
 ## Current Backend Route Areas
 
 The route registry currently groups the API into these main areas:
