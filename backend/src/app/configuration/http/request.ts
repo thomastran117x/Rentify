@@ -1,4 +1,4 @@
-import { parse as parseCookieHeader } from "cookie";
+import { parseCookie as parseCookieHeader } from "cookie";
 import type {
   CookieOptions as ExpressCookieOptions,
   Request,
