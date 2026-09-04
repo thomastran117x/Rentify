@@ -34,6 +34,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@eslint/compat": "^2.1.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.1",
@@ -45,7 +46,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "4.1.11",
     "babel-plugin-react-compiler": "1.0.0",
-    "eslint": "^9",
+    "eslint": "^10.10.0",
     "eslint-config-next": "16.3.3",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4",
@@ -62,6 +63,6 @@
   },
   "allowScripts": {
     "esbuild@0.28.1": true,
-    "unrs-resolver@1.11.1": true
+    "unrs-resolver@1.12.2": true
   }
 }
