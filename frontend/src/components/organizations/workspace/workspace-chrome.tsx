@@ -6,9 +6,9 @@ import { FormErrorMessage } from "@/components/errors";
 import { Eyebrow } from "@/components/organizations/shared/primitives";
 import { OrganizationCreateForm } from "@/components/organizations/workspace/create-form";
 import { OrganizationWorkspaceHeader } from "@/components/organizations/workspace/workspace-header";
-import { WorkspaceSidebar } from "@/components/organizations/workspace/workspace-sidebar";
 import { findSectionBySegment } from "@/components/organizations/workspace/section-registry";
 import { useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
+import { usePublishActiveOrganizationRole } from "@/components/navigation/app-shell/active-organization-role";
 
 function OrganizationPageShell({ children }: { children: ReactNode }) {
   return (
@@ -123,6 +123,16 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
     }
   }, [detail, activeSection, sectionAllowed, router]);
 
+  // The app-shell sidebar renders these sections but sits above this provider,
+  // so hand it the role we actually resolved. Must run before the early
+  // returns. `resolved` has to become true on every terminal path, including
+  // the empty-workspace and failed-detail ones below where there is no role at
+  // all — otherwise the sidebar waits under a placeholder indefinitely.
+  usePublishActiveOrganizationRole(
+    detail?.viewerRole,
+    !(status === "loading" || loading),
+  );
+
   if (status === "loading" || loading) {
     return <WorkspaceLoadingSkeleton />;
   }
@@ -152,11 +162,8 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <WorkspaceSidebar />
-        <div className="min-w-0 space-y-6">
-          {sectionAllowed ? children : null}
-        </div>
+      <div className="min-w-0 space-y-6">
+        {sectionAllowed ? children : null}
       </div>
     </OrganizationPageShell>
   );

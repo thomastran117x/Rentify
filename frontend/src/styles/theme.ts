@@ -81,14 +81,23 @@ export const theme = {
     mobileDropdown:
       "fixed left-0 right-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-slate-200 bg-white shadow-xl shadow-slate-950/10 animate-mobile-dropdown-in dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/40",
 
+    // max-h/overflow keep the panel reachable on short viewports (landscape
+    // phones) instead of running off the bottom with no way to scroll.
     dropdown:
-      "absolute right-0 top-[calc(100%+0.5rem)] w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-950/10 animate-dropdown-in dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/40",
+      "absolute right-0 top-[calc(100%+0.5rem)] w-72 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-950/10 animate-dropdown-in dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/40",
 
     dropdownHighlight:
       "rounded-xl border border-violet-100 bg-violet-50 p-3 dark:border-violet-900/50 dark:bg-violet-950/40",
 
     dropdownItem:
-      "block rounded-xl px-3 py-2 transition duration-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+      "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-950 transition duration-200 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800",
+
+    dropdownItemIcon: "h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500",
+
+    dropdownDivider: "my-2 h-px bg-slate-200 dark:bg-slate-800",
+
+    dropdownThemeRow:
+      "flex items-center justify-between rounded-xl px-3 py-1.5 text-sm font-medium text-slate-950 dark:text-white",
 
     logoutButton:
       "w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-medium text-rose-700 transition duration-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/40",
@@ -110,6 +119,58 @@ export const theme = {
 
     authLinkPrimary:
       "rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition duration-200 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200",
+  },
+
+  // App-shell sidebar. Rendered only on authenticated workspace routes: a
+  // horizontal scroll strip below `lg`, a sticky vertical rail at `lg` and up.
+  sidebar: {
+    // `lg:items-start` keeps the rail from stretching, which `lg:sticky` needs.
+    layout: "flex min-h-full flex-col lg:flex-row lg:items-start",
+
+    content: "min-w-0 flex-1",
+
+    // The sticky offset tracks the real header height rather than assuming
+    // 4rem: opening the mobile search panel grows the header, and a hard-coded
+    // offset would let it cover the strip. SiteHeader keeps the property in
+    // sync; the fallback matches the collapsed header.
+    shell:
+      "w-full shrink-0 border-b border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur sticky top-[var(--app-header-offset,4rem)] z-30 lg:z-auto lg:h-[calc(100vh-var(--app-header-offset,4rem))] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-6 dark:border-slate-800 dark:bg-slate-950/90",
+
+    strip:
+      "flex gap-2 overflow-x-auto lg:flex-col lg:gap-0.5 lg:overflow-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+
+    // `contents` flattens groups into the single mobile scroller; at `lg` they
+    // become stacked, labelled blocks.
+    group: "contents lg:block",
+
+    groupList: "contents lg:flex lg:flex-col lg:gap-0.5",
+
+    groupLabel:
+      "sr-only lg:not-sr-only lg:block lg:px-3 lg:pt-4 lg:pb-1 lg:text-[11px] lg:font-semibold lg:uppercase lg:tracking-[0.18em] lg:text-slate-400 dark:lg:text-slate-500",
+
+    item: "flex min-w-[11rem] shrink-0 items-center gap-3 rounded-[1.1rem] px-3 py-2.5 text-sm font-medium text-slate-600 transition duration-200 hover:bg-slate-100 hover:text-slate-950 lg:min-w-0 lg:shrink dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white",
+
+    itemActive:
+      "flex min-w-[11rem] shrink-0 items-center gap-3 rounded-[1.1rem] bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white shadow-[0_16px_40px_-26px_rgba(15,23,42,0.75)] lg:min-w-0 lg:shrink dark:bg-white dark:text-slate-950",
+
+    itemIcon: "h-5 w-5 shrink-0 text-slate-400 dark:text-slate-500",
+
+    itemIconActive: "h-5 w-5 shrink-0 text-white dark:text-slate-950",
+
+    subList:
+      "mt-1 flex gap-2 overflow-x-auto lg:ml-4 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:border-l lg:border-slate-200 lg:pl-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:lg:border-slate-800",
+
+    subItem:
+      "flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-600 transition duration-200 hover:bg-slate-100 hover:text-slate-950 lg:shrink dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white",
+
+    subItemActive:
+      "flex shrink-0 items-center gap-2.5 rounded-xl bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 lg:shrink dark:bg-violet-950/40 dark:text-violet-300",
+
+    skeletonItem:
+      "h-10 w-40 shrink-0 animate-pulse rounded-[1.1rem] bg-slate-200/70 lg:w-full dark:bg-slate-800/70",
+
+    skeletonSubItem:
+      "h-10 w-32 shrink-0 animate-pulse rounded-xl bg-slate-200/70 lg:w-full dark:bg-slate-800/70",
   },
 
   footer: {

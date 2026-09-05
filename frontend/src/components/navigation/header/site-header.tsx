@@ -15,7 +15,6 @@ import { SiteHeaderDesktopNav } from "./site-header-navigation";
 import { SiteHeaderSearchForm } from "./site-header-search-form";
 import {
   CloseIcon,
-  getAccountLinks,
   getDisplayLabel,
   SearchIcon,
   SiteHeaderLogo,
@@ -28,14 +27,10 @@ export function SiteHeader() {
   const [logoutPending, setLogoutPending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const desktopSearchInputRef = useRef<HTMLInputElement>(null);
 
-  const accountLinks = getAccountLinks(session?.user.role, {
-    organizationMembershipCount: session?.user.organizationMembershipCount ?? 0,
-    hasActiveOrganization: Boolean(session?.user.activeOrganization),
-    activeOrganization: session?.user.activeOrganization,
-  });
   const displayName = session
     ? getDisplayLabel(session.user.email, session.user.username)
     : "Account";
@@ -47,6 +42,34 @@ export function SiteHeader() {
   const mobileCtaLabel = userCanCreatePosting
     ? "Create posting"
     : "List a rental";
+
+  // The app-shell rail sticks below the header, whose height is not fixed —
+  // opening the mobile search panel grows it. Publish the measured height so the
+  // rail's offset follows instead of assuming 4rem and being covered.
+  useEffect(() => {
+    const element = headerRef.current;
+
+    if (!element || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const publishHeight = () => {
+      document.documentElement.style.setProperty(
+        "--app-header-offset",
+        `${element.getBoundingClientRect().height}px`,
+      );
+    };
+
+    publishHeight();
+
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--app-header-offset");
+    };
+  }, []);
 
   useEffect(() => {
     if (mobileSearchOpen) {
@@ -122,7 +145,7 @@ export function SiteHeader() {
   }
 
   return (
-    <header className={theme.header.shell}>
+    <header ref={headerRef} className={theme.header.shell}>
       <div className={theme.header.container}>
         <div className={theme.header.leftCluster}>
           <Link href="/" className="group shrink-0">
@@ -155,26 +178,34 @@ export function SiteHeader() {
             )}
           </button>
 
-          <ThemeToggle className="hidden md:flex" />
+          {/* Authenticated users get their theme control inside the account
+              dropdown, which renders at every width. Anonymous visitors have no
+              dropdown, so they keep the standalone toggle on desktop and a row
+              in the mobile menu — showing it here at every width would crowd a
+              320px header past overflow.
+
+              `status` is still "loading" during session restore, so this would
+              otherwise mount for a signed-in user and unmount again moments
+              later. `data-auth-hidden` lets the pre-paint auth hint settle it
+              before first paint, the same way the sidebar rail is settled. */}
+          {status !== "authenticated" ? (
+            <div data-auth-hidden className="hidden md:flex">
+              <ThemeToggle />
+            </div>
+          ) : null}
 
           <SiteHeaderDesktopAccount
             pathname={pathname}
             status={status}
             session={session}
             displayName={displayName}
-            accountLinks={accountLinks}
             logoutPending={logoutPending}
             onLogout={handleLogout}
           />
 
           <SiteHeaderMobileMenu
             pathname={pathname}
-            status={status}
-            session={session}
-            displayName={displayName}
-            accountLinks={accountLinks}
-            logoutPending={logoutPending}
-            onLogout={handleLogout}
+            showThemeRow={status !== "authenticated"}
             mobileCtaHref={mobileCtaHref}
             mobileCtaLabel={mobileCtaLabel}
           />

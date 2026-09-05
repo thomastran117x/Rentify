@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/fixtures";
+import { ensureActiveOrganization } from "./helpers/organizations";
 
 const ORGANIZATION_NAME = "Harbor Loft Rentals";
 
@@ -7,14 +8,6 @@ function sidebarLink(page: Page, name: RegExp) {
   return page
     .getByRole("navigation", { name: "Organization workspace sections" })
     .getByRole("link", { name });
-}
-
-async function ensureActiveOrganization(page: Page, label: string) {
-  const organizationSwitcher = page.getByRole("combobox", {
-    name: "Active organization",
-  });
-  await expect(organizationSwitcher).toBeVisible();
-  await organizationSwitcher.selectOption({ label });
 }
 
 async function goToOverview(page: Page) {

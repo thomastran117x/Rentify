@@ -25,15 +25,6 @@ export type WorkspaceSectionId =
   | "activity"
   | "settings";
 
-export interface WorkspaceCounts {
-  memberCount: number;
-  inviteCount: number;
-  postingsTotal: number;
-  auditCount: number;
-  announcementsCount: number;
-  blogCount: number;
-}
-
 export interface WorkspaceSection {
   id: WorkspaceSectionId;
   /** URL segment under /dashboard/organizations. */
@@ -43,8 +34,6 @@ export interface WorkspaceSection {
   icon: ComponentType<{ className?: string }>;
   /** Whether a member with the given role may open this section. */
   canAccess: (role?: OrganizationRole) => boolean;
-  /** Optional short badge shown in the sidebar. */
-  meta?: (counts: WorkspaceCounts) => string | null;
 }
 
 const anyMember = (role?: OrganizationRole): boolean => Boolean(role);
@@ -65,8 +54,6 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
     description: "Invites, roles, and membership management.",
     icon: Users,
     canAccess: anyMember,
-    meta: (counts) =>
-      `${counts.memberCount} members / ${counts.inviteCount} pending`,
   },
   {
     id: "content",
@@ -75,8 +62,6 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
     description: "Announcements and public blog posts in one place.",
     icon: Megaphone,
     canAccess: anyMember,
-    meta: (counts) =>
-      `${counts.announcementsCount} updates / ${counts.blogCount} posts`,
   },
   {
     id: "postings",
@@ -85,7 +70,6 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
     description: "Listing previews and lifecycle actions.",
     icon: Building2,
     canAccess: anyMember,
-    meta: (counts) => `${counts.postingsTotal} listings`,
   },
   {
     id: "activity",
@@ -94,7 +78,6 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
     description: "Audit history and restorable versions.",
     icon: History,
     canAccess: canSeeOrganizationActivity,
-    meta: (counts) => `${counts.auditCount} recent`,
   },
   {
     id: "settings",
@@ -103,7 +86,6 @@ export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
     description: "Organization profile and contact details.",
     icon: Settings,
     canAccess: canEditOrganizationSettings,
-    meta: () => "Primary manager",
   },
 ];
 

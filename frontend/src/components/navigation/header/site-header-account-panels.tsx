@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import type { StoredAuthSession } from "@/lib/auth/types";
+import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { theme } from "@/styles/theme";
+import { useDisclosureDetails } from "./use-disclosure-details";
 import {
-  type HeaderAccountLink,
+  accountMenuLinks,
   type SiteHeaderAuthStatus,
   UserAvatar,
 } from "./site-header.shared";
@@ -31,62 +35,11 @@ function AccountIdentity({ session, displayName }: AccountIdentityProps) {
   );
 }
 
-interface AccountLinksListProps {
-  accountLinks: HeaderAccountLink[];
-  descriptionClassName: string;
-  logoutPending: boolean;
-  onLogout: () => Promise<void>;
-  showDivider?: boolean;
-  wrapperClassName: string;
-}
-
-function AccountLinksList({
-  accountLinks,
-  descriptionClassName,
-  logoutPending,
-  onLogout,
-  showDivider = false,
-  wrapperClassName,
-}: AccountLinksListProps) {
-  return (
-    <div className={wrapperClassName}>
-      {accountLinks.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={theme.header.dropdownItem}
-        >
-          <p className="text-sm font-medium text-slate-950 dark:text-white">
-            {link.label}
-          </p>
-          <p className={descriptionClassName}>{link.description}</p>
-        </Link>
-      ))}
-
-      {showDivider ? (
-        <div className="my-2 h-px bg-slate-200 dark:bg-slate-800" />
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => {
-          void onLogout();
-        }}
-        disabled={logoutPending}
-        className={theme.header.logoutButton}
-      >
-        {logoutPending ? "Logging out..." : "Log out"}
-      </button>
-    </div>
-  );
-}
-
 interface SiteHeaderDesktopAccountProps {
   pathname: string;
   status: SiteHeaderAuthStatus;
   session: StoredAuthSession | null;
   displayName: string;
-  accountLinks: HeaderAccountLink[];
   logoutPending: boolean;
   onLogout: () => Promise<void>;
 }
@@ -96,10 +49,11 @@ export function SiteHeaderDesktopAccount({
   status,
   session,
   displayName,
-  accountLinks,
   logoutPending,
   onLogout,
 }: SiteHeaderDesktopAccountProps) {
+  const { ref, open, onToggle } = useDisclosureDetails();
+
   if (status === "loading") {
     return <div className={theme.header.avatarSkeleton} aria-hidden="true" />;
   }
@@ -108,10 +62,11 @@ export function SiteHeaderDesktopAccount({
     const avatarName = session.user.username || session.user.email;
 
     return (
-      <details className="group relative">
+      <details ref={ref} onToggle={onToggle} className="group relative">
         <summary
           className={theme.header.desktopAccountTrigger}
           aria-label={`${displayName} account menu`}
+          aria-expanded={open}
         >
           <UserAvatar
             name={avatarName}
@@ -126,14 +81,42 @@ export function SiteHeaderDesktopAccount({
             </div>
           </div>
 
-          <AccountLinksList
-            accountLinks={accountLinks}
-            descriptionClassName="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400"
-            logoutPending={logoutPending}
-            onLogout={onLogout}
-            showDivider
-            wrapperClassName="mt-2 grid gap-1"
-          />
+          <div className="mt-2 grid gap-1">
+            {accountMenuLinks.map((link) => {
+              const Icon = link.icon;
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={theme.header.dropdownItem}
+                >
+                  <Icon className={theme.header.dropdownItemIcon} />
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className={theme.header.dropdownDivider} />
+
+          <div className={theme.header.dropdownThemeRow}>
+            <span>Theme</span>
+            <ThemeToggle />
+          </div>
+
+          <div className={theme.header.dropdownDivider} />
+
+          <button
+            type="button"
+            onClick={() => {
+              void onLogout();
+            }}
+            disabled={logoutPending}
+            className={theme.header.logoutButton}
+          >
+            {logoutPending ? "Logging out..." : "Log out"}
+          </button>
         </div>
       </details>
     );
@@ -148,46 +131,4 @@ export function SiteHeaderDesktopAccount({
       Log in
     </Link>
   );
-}
-
-interface SiteHeaderMobileAccountSectionProps {
-  status: SiteHeaderAuthStatus;
-  session: StoredAuthSession | null;
-  displayName: string;
-  accountLinks: HeaderAccountLink[];
-  logoutPending: boolean;
-  onLogout: () => Promise<void>;
-}
-
-export function SiteHeaderMobileAccountSection({
-  status,
-  session,
-  displayName,
-  accountLinks,
-  logoutPending,
-  onLogout,
-}: SiteHeaderMobileAccountSectionProps) {
-  if (status === "authenticated" && session) {
-    return (
-      <>
-        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 p-3 dark:border-violet-900/50 dark:bg-violet-950/40">
-          <AccountIdentity session={session} displayName={displayName} />
-        </div>
-
-        <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-          Account
-        </p>
-
-        <AccountLinksList
-          accountLinks={accountLinks}
-          descriptionClassName="mt-0.5 text-xs text-slate-500 dark:text-slate-400"
-          logoutPending={logoutPending}
-          onLogout={onLogout}
-          wrapperClassName="grid gap-1"
-        />
-      </>
-    );
-  }
-
-  return null;
 }

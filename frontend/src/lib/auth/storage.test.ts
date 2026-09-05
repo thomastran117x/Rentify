@@ -39,6 +39,30 @@ describe("auth storage", () => {
     expect(getStoredSessionSnapshot()).toBeNull();
   });
 
+  // The root layout reads this before first paint to decide whether the app
+  // shell reserves its sidebar. The session itself stays in memory and is
+  // restored through the refresh cookie, so without this marker the rail can
+  // only appear after that round-trip — shifting content that is already
+  // painted.
+  it("records and clears a non-sensitive active-session hint", () => {
+    writeStoredSession(sampleSession);
+    expect(window.localStorage.getItem("rentify.auth.active")).toBe("1");
+
+    clearStoredSession();
+    expect(window.localStorage.getItem("rentify.auth.active")).toBeNull();
+  });
+
+  it("never persists the session itself", () => {
+    writeStoredSession(sampleSession);
+
+    const persisted = Object.keys(window.localStorage)
+      .map((key) => window.localStorage.getItem(key) ?? "")
+      .join(" ");
+    expect(persisted).not.toContain("access-token");
+    expect(persisted).not.toContain("refresh-token");
+    expect(window.localStorage.getItem("rentify.auth.session")).toBeNull();
+  });
+
   it("notifies subscribers for local writes and storage events", () => {
     const onStoreChange = vi.fn();
     const unsubscribe = subscribeToStoredSession(onStoreChange);

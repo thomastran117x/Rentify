@@ -176,3 +176,62 @@ input {
 .rich-text .ProseMirror-selectednode {
   outline: 2px solid var(--brand-accent);
 }
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes mobileDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dropdown-in {
+  animation: dropdownIn 160ms ease-out both;
+}
+
+.animate-mobile-dropdown-in {
+  animation: mobileDropdownIn 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dropdown-in,
+  .animate-mobile-dropdown-in {
+    animation: none !important;
+  }
+}
+
+/*
+ * The app-shell placeholder rail is always rendered while auth resolves so the
+ * markup matches between server and client. Whether it occupies space is
+ * decided by the pre-paint auth hint in the root layout, so a visitor with no
+ * stored session never sees a rail flash in and out, and one with a stored
+ * session never sees the content jump sideways when it arrives.
+ */
+:root:not([data-auth-hint]) [data-auth-skeleton] {
+  display: none;
+}
+
+/*
+ * Controls that belong to signed-out visitors only. `status` is still "loading"
+ * during session restore, so they would otherwise mount for a signed-in user
+ * and disappear a moment later; the pre-paint auth hint settles them before
+ * first paint instead.
+ */
+:root[data-auth-hint] [data-auth-hidden] {
+  display: none;
+}

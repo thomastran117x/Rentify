@@ -1,14 +1,7 @@
+import type { ComponentType } from "react";
+import { Building2, UserCog } from "lucide-react";
 import { theme } from "@/styles/theme";
-import type {
-  ActiveOrganizationSummary,
-  AuthResponseUser,
-} from "@/lib/auth/types";
-import {
-  canManageOrganizationPostings,
-  canReadOrganizationPostings,
-  isModeratorRole,
-  isOwnerRole,
-} from "@/lib/auth/roles";
+import type { AuthResponseUser } from "@/lib/auth/types";
 
 export interface HeaderNavigationLink {
   href: string;
@@ -18,7 +11,7 @@ export interface HeaderNavigationLink {
 export interface HeaderAccountLink {
   href: string;
   label: string;
-  description: string;
+  icon: ComponentType<{ className?: string }>;
 }
 
 export type SiteHeaderAuthStatus = "loading" | "anonymous" | "authenticated";
@@ -29,93 +22,13 @@ export const navigationLinks: HeaderNavigationLink[] = [
   { href: "/blog", label: "Blog" },
 ];
 
-export function getAccountLinks(
-  role?: SiteHeaderUserRole,
-  options?: {
-    organizationMembershipCount?: number;
-    hasActiveOrganization?: boolean;
-    activeOrganization?: ActiveOrganizationSummary;
-  },
-): HeaderAccountLink[] {
-  // The account menu only renders for authenticated users, so surface
-  // Organizations to everyone: members manage their teams, and users without an
-  // organization yet can reach the workspace to create or join one.
-  const showOrganizations = true;
-  const showCreatePosting =
-    isOwnerRole(role) ||
-    canManageOrganizationPostings(options?.activeOrganization);
-  const showPostingsDashboard = canReadOrganizationPostings(
-    options?.activeOrganization,
-  );
-
-  return [
-    ...(isOwnerRole(role)
-      ? [
-          {
-            href: "/dashboard",
-            label: "Dashboard",
-            description: "Manage listings, bookings, and performance",
-          },
-        ]
-      : []),
-    ...(showPostingsDashboard
-      ? [
-          {
-            href: "/postings/manage",
-            label: "Postings",
-            description:
-              "Manage every listing for your active organization by status",
-          },
-        ]
-      : []),
-    ...(showCreatePosting
-      ? [
-          {
-            href: "/postings/create",
-            label: "Create posting",
-            description:
-              "Create and manage drafts for your active organization",
-          },
-        ]
-      : []),
-    ...(isModeratorRole(role)
-      ? [
-          {
-            href: "/moderation",
-            label: "Moderation",
-            description: "Review reports and keep the marketplace safe",
-          },
-        ]
-      : []),
-    ...(showOrganizations
-      ? [
-          {
-            href: "/dashboard/organizations",
-            label: "Organizations",
-            description:
-              "Open your organization workspace, invites, and team roles",
-          },
-        ]
-      : []),
-    {
-      href: "/saved",
-      label: "Saved",
-      description: "Postings you hearted and searches we watch for you",
-    },
-    {
-      href: "/bookings",
-      label: "Bookings",
-      description: isOwnerRole(role)
-        ? "Track renter and owner booking work in one place"
-        : "Track requests, payments, and upcoming rentings",
-    },
-    {
-      href: "/account",
-      label: "Manage account",
-      description: "Email, security, and login methods",
-    },
-  ];
-}
+// Identity actions only. Everything role-gated moved to the app-shell sidebar
+// (`components/navigation/app-shell/nav-registry.ts`) — this menu is the
+// reach-from-anywhere path, and is the only account surface on public pages.
+export const accountMenuLinks: HeaderAccountLink[] = [
+  { href: "/account", label: "Manage account", icon: UserCog },
+  { href: "/dashboard/organizations", label: "Organizations", icon: Building2 },
+];
 
 function getInitials(value: string): string {
   return (
@@ -132,9 +45,7 @@ export function getDisplayLabel(email: string, username: string): string {
   return username.trim() || email.split("@")[0] || "Account";
 }
 
-export function isRouteActive(pathname: string, href: string) {
-  return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-}
+export { isRouteActive } from "@/lib/navigation/is-route-active";
 
 export function SiteHeaderLogo() {
   return (
