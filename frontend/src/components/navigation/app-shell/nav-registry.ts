@@ -160,29 +160,6 @@ export const WORKSPACE_ROUTE_PREFIXES: string[] = [
   "/account",
 ];
 
-/**
- * Shell routes that stay visible to signed-out visitors, rendering their own
- * sign-in prompt instead of redirecting to /login. Every other shell route
- * sends anonymous visitors away.
- */
-export const ANONYMOUS_VISIBLE_ROUTE_PREFIXES: string[] = [
-  "/saved",
-  "/account",
-];
-
-/**
- * Whether a signed-out visitor on this route is on their way to /login. Only
- * then is it safe to reserve the rail while auth is still resolving: the
- * visitor either turns out to be authenticated and keeps it, or leaves the
- * page. On the anonymous-visible routes the rail would appear and then vanish,
- * jolting the content sideways.
- */
-export function redirectsAnonymousVisitors(pathname: string): boolean {
-  return !ANONYMOUS_VISIBLE_ROUTE_PREFIXES.some((prefix) =>
-    isRouteActive(pathname, prefix),
-  );
-}
-
 export function isWorkspaceRoute(pathname: string): boolean {
   return WORKSPACE_ROUTE_PREFIXES.some((prefix) =>
     isRouteActive(pathname, prefix),

@@ -13,7 +13,6 @@ import {
   APP_NAV_GROUPS,
   findActiveNavItem,
   getAccessibleNavItems,
-  redirectsAnonymousVisitors,
   type AppNavItem,
 } from "./nav-registry";
 
@@ -27,7 +26,14 @@ interface AppSidebarProps {
 
 function SidebarSkeleton() {
   return (
-    <aside className={theme.sidebar.shell} aria-hidden="true">
+    // `data-auth-skeleton` lets CSS drop this from layout when the pre-paint
+    // auth hint says there is no stored session. Rendering the markup
+    // unconditionally keeps server and client output identical.
+    <aside
+      className={theme.sidebar.shell}
+      aria-hidden="true"
+      data-auth-skeleton
+    >
       <div className={theme.sidebar.strip}>
         {[0, 1, 2, 3, 4].map((key) => (
           <div key={key} className={theme.sidebar.skeletonItem} />
@@ -147,11 +153,7 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   const activeItem = findActiveNavItem(pathname);
 
   if (status === "loading") {
-    // Reserve the rail only where a signed-out visitor would be redirected
-    // away, so it never appears and then vanishes. /saved and /account stay
-    // visible to anonymous visitors with their own sign-in prompt, and showing
-    // a placeholder rail there would shift the content once auth resolves.
-    return redirectsAnonymousVisitors(pathname) ? <SidebarSkeleton /> : null;
+    return <SidebarSkeleton />;
   }
 
   // Anonymous visitors either are mid-redirect to /login or are on a page that

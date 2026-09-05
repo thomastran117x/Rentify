@@ -3,6 +3,14 @@ import type { StoredAuthSession } from "@/lib/auth/types";
 const SESSION_STORAGE_KEY = "rentify.auth.session";
 const AUTH_STORAGE_SIGNAL_KEY = "rentify.auth.signal";
 const AUTH_STORAGE_EVENT = "rentify-auth-storage";
+/**
+ * Non-sensitive marker recording only that this browser had a session, so the
+ * root layout can decide before first paint whether the app shell should
+ * reserve its sidebar. The session itself is deliberately memory-only and is
+ * restored through the refresh cookie, which means auth status is otherwise
+ * unknowable until that round-trip finishes — and the shell would jump.
+ */
+const AUTH_ACTIVE_HINT_KEY = "rentify.auth.active";
 let memorySession: StoredAuthSession | null = null;
 
 function canUseStorage(): boolean {
@@ -70,14 +78,32 @@ export function subscribeToStoredSession(
   };
 }
 
+function writeAuthActiveHint(active: boolean): void {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  try {
+    if (active) {
+      window.localStorage.setItem(AUTH_ACTIVE_HINT_KEY, "1");
+    } else {
+      window.localStorage.removeItem(AUTH_ACTIVE_HINT_KEY);
+    }
+  } catch {
+    // Private browsing can refuse writes; the hint is best-effort.
+  }
+}
+
 export function writeStoredSession(session: StoredAuthSession): void {
   memorySession = session;
   clearLegacyLocalStorageSession();
+  writeAuthActiveHint(true);
   emitStorageChange();
 }
 
 export function clearStoredSession(): void {
   memorySession = null;
   clearLegacyLocalStorageSession();
+  writeAuthActiveHint(false);
   emitStorageChange();
 }

@@ -214,3 +214,14 @@ input {
     animation: none !important;
   }
 }
+
+/*
+ * The app-shell placeholder rail is always rendered while auth resolves so the
+ * markup matches between server and client. Whether it occupies space is
+ * decided by the pre-paint auth hint in the root layout, so a visitor with no
+ * stored session never sees a rail flash in and out, and one with a stored
+ * session never sees the content jump sideways when it arrives.
+ */
+:root:not([data-auth-hint]) [data-auth-skeleton] {
+  display: none;
+}

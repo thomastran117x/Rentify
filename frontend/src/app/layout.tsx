@@ -23,7 +23,15 @@ export default function RootLayout({
             __html:
               "(function(){try{var t=localStorage.getItem('rentify-theme');" +
               "if(!t){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}" +
-              "if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();",
+              "if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}" +
+              // The session is memory-only and restored through the refresh
+              // cookie, so the app shell cannot know at first paint whether to
+              // reserve the sidebar. `rentify.auth.active` records only that
+              // this browser had a session; with it the rail is reserved
+              // immediately and never jumps in, without it the page renders
+              // full width and stays that way.
+              "try{if(localStorage.getItem('rentify.auth.active')){" +
+              "document.documentElement.setAttribute('data-auth-hint','');}}catch(e){}})();",
           }}
         />
         <Providers>

@@ -18,6 +18,7 @@ function Disclosure() {
           Trigger
         </summary>
         <a href="/account">Manage account</a>
+        <span>Theme</span>
       </details>
       <button type="button">Outside</button>
     </div>
@@ -65,6 +66,26 @@ describe("useDisclosureDetails", () => {
     const disclosure = openDisclosure();
 
     fireEvent.pointerDown(screen.getByRole("link", { name: "Manage account" }));
+
+    expect(disclosure.open).toBe(true);
+  });
+
+  // usePathname() cannot see a query-only move (/postings?q=chair -> /postings),
+  // so activation has to close the panel on its own.
+  it("closes when a link inside it is activated", () => {
+    render(<Disclosure />);
+    const disclosure = openDisclosure();
+
+    fireEvent.click(screen.getByRole("link", { name: "Manage account" }));
+
+    expect(disclosure.open).toBe(false);
+  });
+
+  it("stays open for a click inside it that is not on a link", () => {
+    render(<Disclosure />);
+    const disclosure = openDisclosure();
+
+    fireEvent.click(screen.getByText("Theme"));
 
     expect(disclosure.open).toBe(true);
   });

@@ -96,15 +96,18 @@ describe("AppSidebar", () => {
     expect(container.querySelector("[aria-hidden='true']")).toBeInTheDocument();
   });
 
-  // /saved, /saved/searches and /account stay visible to signed-out visitors
-  // with their own sign-in prompt, so a placeholder rail there would appear and
-  // then vanish once auth resolves, shifting the content sideways.
-  it.each(["/saved", "/saved/searches", "/account"])(
-    "reserves no rail on %s while auth is still loading",
+  // The placeholder is rendered on every shell route so server and client
+  // markup match; whether it takes up space is decided by CSS from the
+  // pre-paint auth hint, which is what keeps the width stable for both
+  // eventual outcomes.
+  it.each(["/dashboard", "/saved", "/saved/searches", "/account"])(
+    "marks the loading rail on %s for the auth hint to gate",
     (pathname) => {
       const { container } = renderSidebar({ pathname, status: "loading" });
 
-      expect(container).toBeEmptyDOMElement();
+      expect(container.querySelector("aside")).toHaveAttribute(
+        "data-auth-skeleton",
+      );
     },
   );
 
