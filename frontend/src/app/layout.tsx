@@ -30,7 +30,15 @@ export default function RootLayout({
               // this browser had a session; with it the rail is reserved
               // immediately and never jumps in, without it the page renders
               // full width and stays that way.
-              "try{if(localStorage.getItem('rentify.auth.active')){" +
+              //
+              // The marker alone is not enough: it does not expire, so after
+              // the cookies lapse while the app is closed it would reserve a
+              // rail that auth then removes. csrf_token shares the refresh
+              // token's lifetime, so requiring both retires the marker exactly
+              // when the session it describes is gone — including on the very
+              // first visit after expiry.
+              "try{if(localStorage.getItem('rentify.auth.active')&&" +
+              "('; '+document.cookie).indexOf('; csrf_token=')>-1){" +
               "document.documentElement.setAttribute('data-auth-hint','');}}catch(e){}})();",
           }}
         />

@@ -247,6 +247,43 @@ describe("AppSidebar", () => {
     expect(visible).toContain("Overview");
   });
 
+  // The workspace provider resolves the role asynchronously, so a member whose
+  // session carries no activeOrganization briefly has none. Holding a
+  // placeholder keeps the mobile strip at its eventual height.
+  it("holds a section placeholder until the organization role resolves", () => {
+    const { container } = renderSidebar({
+      pathname: "/dashboard/organizations/overview",
+      session: makeSession("user"),
+    });
+
+    expect(sectionNav()).not.toBeInTheDocument();
+    const placeholder = container.querySelector('li > div[aria-hidden="true"]');
+    expect(placeholder).toBeInTheDocument();
+  });
+
+  it("drops the placeholder once the sections arrive", () => {
+    const { container } = renderSidebar({
+      pathname: "/dashboard/organizations/overview",
+      session: makeSession("user", org("manager")),
+    });
+
+    expect(sectionNav()).toBeInTheDocument();
+    expect(
+      container.querySelector('li > div[aria-hidden="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps non-organization routes free of the placeholder", () => {
+    const { container } = renderSidebar({
+      pathname: "/bookings",
+      session: makeSession("user"),
+    });
+
+    expect(
+      container.querySelector('li > div[aria-hidden="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it("omits the sections entirely when the viewer has no organization role", () => {
     renderSidebar({
       pathname: "/dashboard/organizations",

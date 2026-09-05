@@ -106,11 +106,21 @@ interface SidebarItemProps {
   active: boolean;
   pathname: string;
   sections: WorkspaceSection[];
+  /** Organization route whose role has not resolved yet. */
+  sectionsPending: boolean;
 }
 
-function SidebarItem({ item, active, pathname, sections }: SidebarItemProps) {
+function SidebarItem({
+  item,
+  active,
+  pathname,
+  sections,
+  sectionsPending,
+}: SidebarItemProps) {
   const Icon = item.icon;
-  const showSections = item.id === "organizations" && sections.length > 0;
+  const isOrganizations = item.id === "organizations";
+  const showSections =
+    isOrganizations && (sections.length > 0 || sectionsPending);
 
   return (
     <li
@@ -134,7 +144,15 @@ function SidebarItem({ item, active, pathname, sections }: SidebarItemProps) {
       </Link>
 
       {showSections ? (
-        <OrganizationSections pathname={pathname} sections={sections} />
+        sections.length > 0 ? (
+          <OrganizationSections pathname={pathname} sections={sections} />
+        ) : (
+          <div className={theme.sidebar.subList} aria-hidden="true">
+            {[0, 1, 2, 3].map((key) => (
+              <div key={key} className={theme.sidebar.skeletonSubItem} />
+            ))}
+          </div>
+        )
       ) : null}
     </li>
   );
@@ -154,9 +172,15 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
       })
     : [];
 
-  const sections = isRouteActive(pathname, ORGANIZATIONS_HREF)
+  const inOrganizationWorkspace = isRouteActive(pathname, ORGANIZATIONS_HREF);
+  const sections = inOrganizationWorkspace
     ? getAccessibleSections(organizationRole)
     : [];
+  // A member whose session carries no activeOrganization has no role yet: the
+  // workspace provider is still falling back to memberships[0] and has not
+  // published `detail.viewerRole`. Holding a placeholder row keeps the strip at
+  // its eventual height instead of growing one when the sections arrive.
+  const sectionsPending = inOrganizationWorkspace && !organizationRole;
   // A visible section already carries `aria-current`, so the Organizations
   // parent must not claim it too — the leaf wins.
   const sectionIsCurrent = sections.some((section) =>
@@ -165,11 +189,7 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   const activeItem = findActiveNavItem(pathname);
 
   if (status === "loading") {
-    return (
-      <SidebarSkeleton
-        withSections={isRouteActive(pathname, ORGANIZATIONS_HREF)}
-      />
-    );
+    return <SidebarSkeleton withSections={inOrganizationWorkspace} />;
   }
 
   // Anonymous visitors either are mid-redirect to /login or are on a page that
@@ -211,6 +231,7 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
                       }
                       pathname={pathname}
                       sections={sections}
+                      sectionsPending={sectionsPending}
                     />
                   ))}
                 </ul>
