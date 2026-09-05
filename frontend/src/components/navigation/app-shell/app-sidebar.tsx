@@ -161,7 +161,8 @@ function SidebarItem({
 export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   // The workspace publishes the role it actually resolved; the session value is
   // a fallback for the window before that lands. See `active-organization-role`.
-  const publishedRole = useActiveOrganizationRole();
+  const { status: roleStatus, role: publishedRole } =
+    useActiveOrganizationRole();
   const organizationRole =
     publishedRole ?? session?.user.activeOrganization?.role;
 
@@ -176,11 +177,16 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   const sections = inOrganizationWorkspace
     ? getAccessibleSections(organizationRole)
     : [];
-  // A member whose session carries no activeOrganization has no role yet: the
-  // workspace provider is still falling back to memberships[0] and has not
-  // published `detail.viewerRole`. Holding a placeholder row keeps the strip at
-  // its eventual height instead of growing one when the sections arrive.
-  const sectionsPending = inOrganizationWorkspace && !organizationRole;
+  // A member whose session carries no activeOrganization has no role until the
+  // workspace provider falls back to memberships[0] and publishes
+  // `detail.viewerRole`. Holding a placeholder row for that window keeps the
+  // strip at its eventual height — but only while resolution is genuinely
+  // outstanding, so a viewer who belongs to no organization is not left under
+  // bars that never resolve.
+  const sectionsPending =
+    inOrganizationWorkspace &&
+    sections.length === 0 &&
+    roleStatus === "pending";
   // A visible section already carries `aria-current`, so the Organizations
   // parent must not claim it too — the leaf wins.
   const sectionIsCurrent = sections.some((section) =>

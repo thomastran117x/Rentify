@@ -124,8 +124,14 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   }, [detail, activeSection, sectionAllowed, router]);
 
   // The app-shell sidebar renders these sections but sits above this provider,
-  // so hand it the role we actually resolved. Must run before the early returns.
-  usePublishActiveOrganizationRole(detail?.viewerRole);
+  // so hand it the role we actually resolved. Must run before the early
+  // returns. `resolved` has to become true on every terminal path, including
+  // the empty-workspace and failed-detail ones below where there is no role at
+  // all — otherwise the sidebar waits under a placeholder indefinitely.
+  usePublishActiveOrganizationRole(
+    detail?.viewerRole,
+    !(status === "loading" || loading),
+  );
 
   if (status === "loading" || loading) {
     return <WorkspaceLoadingSkeleton />;

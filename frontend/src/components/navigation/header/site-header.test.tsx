@@ -126,7 +126,11 @@ describe("SiteHeader", () => {
 
     render(<SiteHeader />);
 
-    expect(screen.getByTestId("theme-toggle")).toHaveClass("hidden", "md:flex");
+    // Wrapped so the pre-paint auth hint can hide it during session restore
+    // without the toggle mounting and unmounting for a signed-in user.
+    const wrapper = screen.getByTestId("theme-toggle").parentElement;
+    expect(wrapper).toHaveClass("hidden", "md:flex");
+    expect(wrapper).toHaveAttribute("data-auth-hidden");
     expect(screen.getByText("mobile theme row")).toBeInTheDocument();
   });
 

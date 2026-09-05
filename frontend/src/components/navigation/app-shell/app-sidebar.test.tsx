@@ -15,12 +15,14 @@ import { AppSidebar } from "./app-sidebar";
 
 function PublishRole({
   role,
+  resolved,
   children,
 }: {
   role?: OrganizationRole;
+  resolved: boolean;
   children: ReactNode;
 }) {
-  usePublishActiveOrganizationRole(role);
+  usePublishActiveOrganizationRole(role, resolved);
   return <>{children}</>;
 }
 
@@ -50,17 +52,20 @@ function renderSidebar(props: {
   status?: "loading" | "anonymous" | "authenticated";
   session?: StoredAuthSession | null;
   publishedRole?: OrganizationRole;
+  /** Whether the workspace has finished resolving its role. */
+  roleResolved?: boolean;
 }) {
   const {
     pathname,
     status = "authenticated",
     session = makeSession("user"),
     publishedRole,
+    roleResolved = false,
   } = props;
 
   return render(
     <ActiveOrganizationRoleProvider>
-      <PublishRole role={publishedRole}>
+      <PublishRole role={publishedRole} resolved={roleResolved}>
         <AppSidebar pathname={pathname} status={status} session={session} />
       </PublishRole>
     </ActiveOrganizationRoleProvider>,
@@ -261,6 +266,22 @@ describe("AppSidebar", () => {
     expect(placeholder).toBeInTheDocument();
   });
 
+  // A viewer who belongs to no organization resolves with no role at all. That
+  // is terminal, not pending — leaving a placeholder here would strand them
+  // under bars that never resolve.
+  it("drops the placeholder when resolution finishes with no organization", () => {
+    const { container } = renderSidebar({
+      pathname: "/dashboard/organizations/overview",
+      session: makeSession("user"),
+      roleResolved: true,
+    });
+
+    expect(sectionNav()).not.toBeInTheDocument();
+    expect(
+      container.querySelector('li > div[aria-hidden="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it("drops the placeholder once the sections arrive", () => {
     const { container } = renderSidebar({
       pathname: "/dashboard/organizations/overview",
@@ -300,6 +321,7 @@ describe("AppSidebar", () => {
       // section — the workspace publishes the resolved role instead.
       session: makeSession("user"),
       publishedRole: "primary_manager",
+      roleResolved: true,
     });
 
     expect(labels(sectionNav() as HTMLElement)).toContain("Settings");

@@ -7,9 +7,12 @@
 // `useOrganizationWorkspace()`. Reading `session.user.activeOrganization?.role`
 // instead is not sufficient: the workspace falls back to `memberships[0]` when
 // no active organization is set server-side, so the session value can be
-// undefined while the workspace is happily rendering sections. `WorkspaceChrome`
-// publishes its resolved `detail.viewerRole` here, and the sidebar falls back to
-// the session value only when nothing has been published.
+// undefined while the workspace is happily rendering sections.
+//
+// The published value carries its own resolution status rather than leaving the
+// sidebar to infer it. "No role yet" and "no role, ever" are otherwise the same
+// `undefined`, and a viewer who belongs to no organization would sit under a
+// placeholder that never resolves.
 
 import {
   createContext,
@@ -21,12 +24,18 @@ import {
 } from "react";
 import type { OrganizationRole } from "@/lib/organizations/api";
 
-const ActiveOrganizationRoleContext = createContext<
-  OrganizationRole | undefined
->(undefined);
+export interface ActiveOrganizationRoleState {
+  status: "pending" | "resolved";
+  role?: OrganizationRole;
+}
+
+const PENDING: ActiveOrganizationRoleState = { status: "pending" };
+
+const ActiveOrganizationRoleContext =
+  createContext<ActiveOrganizationRoleState>(PENDING);
 
 const PublishActiveOrganizationRoleContext = createContext<
-  ((role?: OrganizationRole) => void) | null
+  ((state: ActiveOrganizationRoleState) => void) | null
 >(null);
 
 export function ActiveOrganizationRoleProvider({
@@ -34,27 +43,36 @@ export function ActiveOrganizationRoleProvider({
 }: {
   children: ReactNode;
 }) {
-  const [role, setRole] = useState<OrganizationRole | undefined>(undefined);
-  const publish = useMemo(() => setRole, [setRole]);
+  const [state, setState] = useState<ActiveOrganizationRoleState>(PENDING);
+  const publish = useMemo(() => setState, [setState]);
 
   return (
     <PublishActiveOrganizationRoleContext.Provider value={publish}>
-      <ActiveOrganizationRoleContext.Provider value={role}>
+      <ActiveOrganizationRoleContext.Provider value={state}>
         {children}
       </ActiveOrganizationRoleContext.Provider>
     </PublishActiveOrganizationRoleContext.Provider>
   );
 }
 
-export function useActiveOrganizationRole(): OrganizationRole | undefined {
+export function useActiveOrganizationRole(): ActiveOrganizationRoleState {
   return useContext(ActiveOrganizationRoleContext);
 }
 
 /**
- * Publish the current organization role while the caller is mounted, and clear
- * it on unmount so a stale role never outlives the workspace.
+ * Publish the organization role while the caller is mounted, and reset to
+ * pending on unmount so a stale role never outlives the workspace.
+ *
+ * `resolved` must be true once the workspace has finished loading, including
+ * the paths where it settles on no role at all — an empty workspace or a failed
+ * detail fetch — otherwise the sidebar keeps waiting for a role that will never
+ * arrive. Passed as separate primitives so the effect is not re-run by a fresh
+ * object identity on every render.
  */
-export function usePublishActiveOrganizationRole(role?: OrganizationRole) {
+export function usePublishActiveOrganizationRole(
+  role: OrganizationRole | undefined,
+  resolved: boolean,
+) {
   const publish = useContext(PublishActiveOrganizationRoleContext);
 
   useEffect(() => {
@@ -62,8 +80,8 @@ export function usePublishActiveOrganizationRole(role?: OrganizationRole) {
       return;
     }
 
-    publish(role);
+    publish(resolved ? { status: "resolved", role } : PENDING);
 
-    return () => publish(undefined);
-  }, [publish, role]);
+    return () => publish(PENDING);
+  }, [publish, role, resolved]);
 }

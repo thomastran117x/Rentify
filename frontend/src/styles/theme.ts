@@ -129,8 +129,12 @@ export const theme = {
 
     content: "min-w-0 flex-1",
 
+    // The sticky offset tracks the real header height rather than assuming
+    // 4rem: opening the mobile search panel grows the header, and a hard-coded
+    // offset would let it cover the strip. SiteHeader keeps the property in
+    // sync; the fallback matches the collapsed header.
     shell:
-      "w-full shrink-0 border-b border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur sticky top-16 z-30 lg:top-16 lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-6 dark:border-slate-800 dark:bg-slate-950/90",
+      "w-full shrink-0 border-b border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur sticky top-[var(--app-header-offset,4rem)] z-30 lg:z-auto lg:h-[calc(100vh-var(--app-header-offset,4rem))] lg:w-64 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-6 dark:border-slate-800 dark:bg-slate-950/90",
 
     strip:
       "flex gap-2 overflow-x-auto lg:flex-col lg:gap-0.5 lg:overflow-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",

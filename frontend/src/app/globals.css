@@ -225,3 +225,13 @@ input {
 :root:not([data-auth-hint]) [data-auth-skeleton] {
   display: none;
 }
+
+/*
+ * Controls that belong to signed-out visitors only. `status` is still "loading"
+ * during session restore, so they would otherwise mount for a signed-in user
+ * and disappear a moment later; the pre-paint auth hint settles them before
+ * first paint instead.
+ */
+:root[data-auth-hint] [data-auth-hidden] {
+  display: none;
+}

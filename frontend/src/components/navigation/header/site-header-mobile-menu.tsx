@@ -48,7 +48,10 @@ export function SiteHeaderMobileMenu({
           <SiteHeaderMobileNavGrid pathname={pathname} />
 
           {showThemeRow ? (
-            <div className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3 flex items-center justify-between">
+            <div
+              data-auth-hidden
+              className="border-t border-slate-200 dark:border-slate-800 mt-3 pt-3 flex items-center justify-between"
+            >
               <span className="px-1 text-sm font-medium text-slate-600 dark:text-slate-300">
                 Theme
               </span>
