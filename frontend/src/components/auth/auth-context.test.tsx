@@ -3,17 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./auth-context";
 
-const { snapshotMock, writeMock, clearMock } = vi.hoisted(() => ({
-  snapshotMock: vi.fn(),
-  writeMock: vi.fn(),
-  clearMock: vi.fn(),
-}));
+const { snapshotMock, writeMock, clearMock, clearHintMock } = vi.hoisted(
+  () => ({
+    snapshotMock: vi.fn(),
+    writeMock: vi.fn(),
+    clearMock: vi.fn(),
+    clearHintMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/auth/storage", () => ({
   getStoredSessionSnapshot: snapshotMock,
   subscribeToStoredSession: () => () => undefined,
   writeStoredSession: writeMock,
   clearStoredSession: clearMock,
+  clearAuthActiveHint: clearHintMock,
 }));
 vi.mock("@/components/auth/session-manager", () => ({
   SessionManager: ({ onComplete }: { onComplete: () => void }) => (
@@ -87,5 +91,43 @@ describe("AuthProvider", () => {
     expect(() => render(<Consumer />)).toThrow(
       "useAuth must be used within an AuthProvider.",
     );
+  });
+
+  // The refresh cookie can lapse while the app is closed, so no refresh runs
+  // and nothing else would retire the pre-paint sidebar marker — leaving every
+  // later visit to reserve the rail and then drop it.
+  it("retires the pre-paint auth marker once restoration resolves anonymous", async () => {
+    snapshotMock.mockReturnValue(null);
+    const user = userEvent.setup();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+
+    expect(clearHintMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Finish restore" }));
+
+    expect(screen.getByText("Status: anonymous")).toBeInTheDocument();
+    expect(clearHintMock).toHaveBeenCalled();
+  });
+
+  it("keeps the marker when restoration resolves authenticated", async () => {
+    snapshotMock.mockReturnValue({
+      accessToken: "a",
+      user: { email: "person@example.com" },
+    });
+    const user = userEvent.setup();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Finish restore" }));
+
+    expect(screen.getByText("Status: authenticated")).toBeInTheDocument();
+    expect(clearHintMock).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -12,6 +13,7 @@ import {
 import { SessionManager } from "@/components/auth/session-manager";
 import type { AuthResponseBody, StoredAuthSession } from "@/lib/auth/types";
 import {
+  clearAuthActiveHint,
   clearStoredSession,
   getStoredSessionSnapshot,
   subscribeToStoredSession,
@@ -52,6 +54,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       : session
         ? "authenticated"
         : "anonymous";
+
+  // The refresh cookie can lapse while the app is closed, in which case no
+  // refresh runs and nothing clears the pre-paint marker — so every later visit
+  // would reserve the sidebar and then drop it. Retire the marker as soon as
+  // restoration actually resolves anonymous.
+  useEffect(() => {
+    if (status === "anonymous") {
+      clearAuthActiveHint();
+    }
+  }, [status]);
 
   const value: AuthContextValue = useMemo(
     () => ({

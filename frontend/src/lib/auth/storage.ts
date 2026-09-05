@@ -94,6 +94,16 @@ function writeAuthActiveHint(active: boolean): void {
   }
 }
 
+/**
+ * Drop the pre-paint marker without touching the session or notifying
+ * subscribers. Used when initial restoration resolves anonymous: the refresh
+ * cookie can lapse while the app is closed, and nothing else would clear a
+ * marker left over from that session.
+ */
+export function clearAuthActiveHint(): void {
+  writeAuthActiveHint(false);
+}
+
 export function writeStoredSession(session: StoredAuthSession): void {
   memorySession = session;
   clearLegacyLocalStorageSession();
