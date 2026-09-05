@@ -24,7 +24,7 @@ interface AppSidebarProps {
   session: StoredAuthSession | null;
 }
 
-function SidebarSkeleton() {
+function SidebarSkeleton({ withSections }: { withSections: boolean }) {
   return (
     // `data-auth-skeleton` lets CSS drop this from layout when the pre-paint
     // auth hint says there is no stored session. Rendering the markup
@@ -39,6 +39,18 @@ function SidebarSkeleton() {
           <div key={key} className={theme.sidebar.skeletonItem} />
         ))}
       </div>
+
+      {/* Inside the organization workspace the resolved rail grows a second
+          strip row for the section sub-nav. Below `lg` that adds height to the
+          sticky bar and would push the page content down, so the placeholder
+          has to claim the same two rows. */}
+      {withSections ? (
+        <div className={theme.sidebar.subList}>
+          {[0, 1, 2, 3].map((key) => (
+            <div key={key} className={theme.sidebar.skeletonSubItem} />
+          ))}
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -153,7 +165,11 @@ export function AppSidebar({ pathname, status, session }: AppSidebarProps) {
   const activeItem = findActiveNavItem(pathname);
 
   if (status === "loading") {
-    return <SidebarSkeleton />;
+    return (
+      <SidebarSkeleton
+        withSections={isRouteActive(pathname, ORGANIZATIONS_HREF)}
+      />
+    );
   }
 
   // Anonymous visitors either are mid-redirect to /login or are on a page that

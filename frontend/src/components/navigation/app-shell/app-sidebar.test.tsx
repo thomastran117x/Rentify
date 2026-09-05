@@ -111,6 +111,28 @@ describe("AppSidebar", () => {
     },
   );
 
+  // Below `lg` the resolved rail grows a second strip row inside the
+  // organization workspace, so the placeholder must claim the same two rows or
+  // the sticky bar changes height and pushes the page down.
+  it("gives the loading rail a second row on organization routes", () => {
+    const { container } = renderSidebar({
+      pathname: "/dashboard/organizations/team",
+      status: "loading",
+    });
+
+    const rows = container.querySelectorAll("aside > div");
+    expect(rows).toHaveLength(2);
+  });
+
+  it("keeps the loading rail to a single row elsewhere", () => {
+    const { container } = renderSidebar({
+      pathname: "/dashboard",
+      status: "loading",
+    });
+
+    expect(container.querySelectorAll("aside > div")).toHaveLength(1);
+  });
+
   it("renders nothing for anonymous visitors mid-redirect", () => {
     const { container } = renderSidebar({
       pathname: "/dashboard",

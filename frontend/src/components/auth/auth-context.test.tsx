@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./auth-context";
 
-const { snapshotMock, writeMock, clearMock, clearHintMock } = vi.hoisted(
-  () => ({
+const { snapshotMock, writeMock, clearMock, clearHintMock, cookieHintMock } =
+  vi.hoisted(() => ({
     snapshotMock: vi.fn(),
     writeMock: vi.fn(),
     clearMock: vi.fn(),
     clearHintMock: vi.fn(),
-  }),
-);
+    cookieHintMock: vi.fn(() => false),
+  }));
 
 vi.mock("@/lib/auth/storage", () => ({
   getStoredSessionSnapshot: snapshotMock,
@@ -18,6 +18,9 @@ vi.mock("@/lib/auth/storage", () => ({
   writeStoredSession: writeMock,
   clearStoredSession: clearMock,
   clearAuthActiveHint: clearHintMock,
+}));
+vi.mock("@/lib/auth/api", () => ({
+  authApi: { hasRefreshCookieHint: cookieHintMock },
 }));
 vi.mock("@/components/auth/session-manager", () => ({
   SessionManager: ({ onComplete }: { onComplete: () => void }) => (
@@ -55,6 +58,7 @@ function Consumer() {
 describe("AuthProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cookieHintMock.mockReturnValue(false);
   });
 
   it("starts loading and then exposes an anonymous session", async () => {
@@ -128,6 +132,25 @@ describe("AuthProvider", () => {
     await user.click(screen.getByRole("button", { name: "Finish restore" }));
 
     expect(screen.getByText("Status: authenticated")).toBeInTheDocument();
+    expect(clearHintMock).not.toHaveBeenCalled();
+  });
+
+  // A transport-level failure of /auth/refresh also lands on "anonymous" while
+  // leaving the cookies intact, and a later reload can still restore — so the
+  // marker has to survive that, or the reload renders full width first.
+  it("keeps the marker when the refresh cookie is still present", async () => {
+    snapshotMock.mockReturnValue(null);
+    cookieHintMock.mockReturnValue(true);
+    const user = userEvent.setup();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Finish restore" }));
+
+    expect(screen.getByText("Status: anonymous")).toBeInTheDocument();
     expect(clearHintMock).not.toHaveBeenCalled();
   });
 });

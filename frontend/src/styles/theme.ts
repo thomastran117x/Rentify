@@ -164,6 +164,9 @@ export const theme = {
 
     skeletonItem:
       "h-10 w-40 shrink-0 animate-pulse rounded-[1.1rem] bg-slate-200/70 lg:w-full dark:bg-slate-800/70",
+
+    skeletonSubItem:
+      "h-10 w-32 shrink-0 animate-pulse rounded-xl bg-slate-200/70 lg:w-full dark:bg-slate-800/70",
   },
 
   footer: {
