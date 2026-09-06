@@ -1,27 +1,23 @@
 import { BaseRepository } from "@/features/base/base.repository";
+import type {
+  IdentityBloomSource,
+  IdentityValuePage,
+} from "@/features/auth/identity-bloom/sources/identity-bloom.source";
 
-export interface UsernamePage {
-  usernames: string[];
-  nextCursorId: string | null;
-}
-
-/**
- * Bulk read of claimed usernames, used only by the rebuild.
- *
- * Kept separate from `UsersRepository` because the access pattern is the
- * opposite one: that repository probes single names on the unique index,
- * whereas a rebuild walks the whole table and wants nothing but the column.
- */
-export class UsernameBloomRepository extends BaseRepository {
+/** Bulk read of claimed usernames from `profiles`, used only by the rebuild. */
+export class UsernameBloomSource
+  extends BaseRepository
+  implements IdentityBloomSource
+{
   /**
    * Keyset pagination on the primary key rather than `skip`/`offset`, which
    * degrades badly deep into a large table because the database still has to
    * walk the rows it discards.
    */
-  async listUsernamesAfter(
+  async listValuesAfter(
     cursorId: string | null,
     take: number,
-  ): Promise<UsernamePage> {
+  ): Promise<IdentityValuePage> {
     const profiles = await this.executeAsync(
       () =>
         this.prisma.profile.findMany({
@@ -44,7 +40,7 @@ export class UsernameBloomRepository extends BaseRepository {
     const lastProfile = profiles.at(-1);
 
     return {
-      usernames: profiles.map((profile) => profile.username),
+      values: profiles.map((profile) => profile.username),
       // A short page means the table is exhausted; reporting no cursor stops
       // the walk without an extra empty round trip.
       nextCursorId: profiles.length < take ? null : (lastProfile?.id ?? null),

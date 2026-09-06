@@ -32,31 +32,36 @@ export interface StartupDependencies {
   isRabbitMqEnabled(): boolean;
   loadEnvironment(): ReturnType<typeof loadEnvironment>;
   runAutoSeedsIfNeeded(): Promise<unknown>;
-  warmUsernameBloomFilter(): Promise<unknown>;
+  warmIdentityBloomFilters(): Promise<unknown>;
 }
 
 /**
- * Loads the username availability filter into this process before it serves
- * traffic.
+ * Loads the username and email availability filters into this process before
+ * it serves traffic.
  *
- * Deliberately non-fatal. The filter is an optimization over a database lookup
- * that still works, so a Redis problem here should cost speed rather than
- * boot — and an uninitialized filter reports `unknown` for every check, which
- * routes callers straight back to that lookup.
+ * Deliberately non-fatal, and per filter: each is an optimization over a
+ * database lookup that still works, so a Redis problem here should cost speed
+ * rather than boot — and an uninitialized filter reports `unknown` for every
+ * check, which routes callers straight back to that lookup. Warming them
+ * independently means one failing does not leave the other cold.
  */
-async function warmUsernameBloomFilter(): Promise<void> {
-  const logger = loggerFactory.forComponent("username-bloom", "app");
+async function warmIdentityBloomFilters(): Promise<void> {
+  const logger = loggerFactory.forComponent("identity-bloom", "app");
+  const filters = [
+    { subject: "username", token: containerTokens.usernameBloomService },
+    { subject: "email", token: containerTokens.emailBloomService },
+  ] as const;
 
-  try {
-    await getContainer()
-      .resolve(containerTokens.usernameBloomService)
-      .initialize();
-  } catch (error) {
-    logger.warn(
-      "Could not warm the username bloom filter; availability checks will query the database until it loads.",
-      undefined,
-      error,
-    );
+  for (const { subject, token } of filters) {
+    try {
+      await getContainer().resolve(token).initialize();
+    } catch (error) {
+      logger.warn(
+        `Could not warm the ${subject} bloom filter; availability checks will query the database until it loads.`,
+        { subject },
+        error,
+      );
+    }
   }
 }
 
@@ -70,7 +75,7 @@ const defaultDependencies: StartupDependencies = {
   isRabbitMqEnabled,
   loadEnvironment,
   runAutoSeedsIfNeeded,
-  warmUsernameBloomFilter,
+  warmIdentityBloomFilters,
 };
 
 export async function initializeServerApplication(
@@ -96,7 +101,7 @@ export async function initializeServerApplication(
   }
 
   dependencies.initializeContainer();
-  await dependencies.warmUsernameBloomFilter();
+  await dependencies.warmIdentityBloomFilters();
   const app = dependencies.createApplication();
 
   return {

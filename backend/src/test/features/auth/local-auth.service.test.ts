@@ -257,6 +257,10 @@ function createService(overrides?: {
     username: string,
   ) => "definitely-absent" | "possibly-present" | "unknown";
   usernameBloomAdd?: (usernames: string | string[]) => Promise<void>;
+  emailBloomCheck?: (
+    email: string,
+  ) => "definitely-absent" | "possibly-present" | "unknown";
+  emailBloomAdd?: (emails: string | string[]) => Promise<void>;
 }) {
   const cacheJsonStore = new Map<
     string,
@@ -496,6 +500,17 @@ function createService(overrides?: {
     }),
   };
 
+  const emailBloomService = {
+    check: jest.fn((email: string) =>
+      overrides?.emailBloomCheck
+        ? overrides.emailBloomCheck(email)
+        : ("unknown" as const),
+    ),
+    add: jest.fn(async (emails: string | string[]) => {
+      await overrides?.emailBloomAdd?.(emails);
+    }),
+  };
+
   // The extracted collaborators are wired as real instances over the same leaf
   // fakes, so assertions keep targeting the fakes (cacheService.setJson,
   // emailService.send*, tokenService.create*) rather than a mock of the
@@ -509,6 +524,7 @@ function createService(overrides?: {
   const pendingSignupStore = new PendingSignupStore(
     cacheService as any,
     usernameBloomService as any,
+    emailBloomService as any,
   );
   const publicOtpService = new PublicOtpService(
     cacheService as any,
@@ -519,6 +535,7 @@ function createService(overrides?: {
   const usernameService = new UsernameService(
     authRepository as any,
     usernameBloomService as any,
+    emailBloomService as any,
     pendingSignupStore,
     publicOtpService,
   );
@@ -528,6 +545,7 @@ function createService(overrides?: {
     authRepository as any,
     otpService as any,
     publicOtpService,
+    emailBloomService as any,
   );
 
   const service = new LocalAuthService(
@@ -539,6 +557,7 @@ function createService(overrides?: {
     cacheService as any,
     mfaTotpService as any,
     usernameBloomService as any,
+    emailBloomService as any,
     authSessionService,
     pendingSignupStore,
     publicOtpService,
@@ -1213,6 +1232,107 @@ describe("LocalAuthService", () => {
       });
 
       expect(usernameBloomAdd).toHaveBeenCalledWith("Casey-Doe");
+    });
+  });
+
+  describe("email bloom write-through", () => {
+    it("records an email reserved by a pending signup", async () => {
+      // A reservation changes the answer the availability endpoint owes the
+      // caller, and a filter miss would skip the lookup that finds it.
+      const emailBloomAdd = jest.fn(async () => undefined);
+      const service = createService({ emailBloomAdd });
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "pending@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: DEVICE_1_ID,
+      });
+
+      expect(emailBloomAdd).toHaveBeenCalledWith("pending@example.com");
+    });
+  });
+
+  describe("email bloom read-through", () => {
+    it("skips the user lookup on signup when the filter rules the address out", async () => {
+      // The hot path: a brand new address is the common case, and it is the
+      // case the filter settles from memory.
+      const findUserByEmail = jest.fn(async () => null);
+      const service = createService({
+        findUserByEmail,
+        emailBloomCheck: () => "definitely-absent",
+      });
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "nobody@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: DEVICE_1_ID,
+      });
+
+      expect(findUserByEmail).not.toHaveBeenCalled();
+    });
+
+    it("still queries when the filter cannot rule the address out", async () => {
+      // A false positive has to cost a query, not a wrong answer: this address
+      // is verified, and signup must return the generic pending response
+      // rather than reserving it.
+      const existingUser = { ...createUser(), email: "user@example.com" };
+      const findUserByEmail = jest.fn(async () => existingUser);
+      const service = createService({
+        findUserByEmail,
+        emailBloomCheck: () => "possibly-present",
+      });
+
+      await expect(
+        service.localSignup({
+          client: createClient(),
+          username: "casey-doe",
+          email: "user@example.com",
+          password: "StrongPassw0rd!",
+          deviceId: DEVICE_1_ID,
+        }),
+      ).resolves.toMatchObject({ verificationRequired: true });
+      expect(findUserByEmail).toHaveBeenCalled();
+    });
+
+    it("still queries when the filter is unready", async () => {
+      // `unknown` has to restore exactly the behaviour the filter replaced.
+      const findUserByEmail = jest.fn(async () => null);
+      const service = createService({
+        findUserByEmail,
+        emailBloomCheck: () => "unknown",
+      });
+
+      await service.localSignup({
+        client: createClient(),
+        username: "casey-doe",
+        email: "nobody@example.com",
+        password: "StrongPassw0rd!",
+        deviceId: DEVICE_1_ID,
+      });
+
+      expect(findUserByEmail).toHaveBeenCalled();
+    });
+
+    it("skips the user lookup when resending a verification code", async () => {
+      // The response is identical either way, so a ruled-out address needs no
+      // lookup at all.
+      const findUserByEmail = jest.fn(async () => null);
+      const service = createService({
+        findUserByEmail,
+        emailBloomCheck: () => "definitely-absent",
+      });
+
+      await expect(
+        service.resendVerificationEmail({
+          client: createClient(),
+          email: "nobody@example.com",
+        }),
+      ).resolves.toEqual({ accepted: true });
+      expect(findUserByEmail).not.toHaveBeenCalled();
     });
   });
 });

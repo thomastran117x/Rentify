@@ -196,6 +196,10 @@ export class EnvironmentManager {
     return this.get().usernameBloom;
   }
 
+  getEmailBloomConfig(): AppEnvironment["emailBloom"] {
+    return this.get().emailBloom;
+  }
+
   getBlobStorageConfig(): AppEnvironment["blobStorage"] {
     return this.get().blobStorage;
   }

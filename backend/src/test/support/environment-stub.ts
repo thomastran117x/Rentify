@@ -73,7 +73,7 @@ const smsConfig = {
   },
 };
 
-const usernameBloomConfig = {
+const identityBloomConfig = {
   enabled: true,
   capacity: 200_000,
   falsePositiveRate: 0.01,
@@ -247,7 +247,10 @@ export const environment = {
     return rateLimiterConfig;
   },
   getUsernameBloomConfig() {
-    return usernameBloomConfig;
+    return identityBloomConfig;
+  },
+  getEmailBloomConfig() {
+    return identityBloomConfig;
   },
   getLoggingConfig() {
     return readLoggingConfig();
@@ -285,7 +288,8 @@ export const environment = {
         isProduction: readNodeEnvironment() === "production",
       },
       square: squareConfig,
-      usernameBloom: usernameBloomConfig,
+      usernameBloom: identityBloomConfig,
+      emailBloom: identityBloomConfig,
     };
   },
   get() {

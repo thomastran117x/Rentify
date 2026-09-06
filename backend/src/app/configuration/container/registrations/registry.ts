@@ -1,6 +1,7 @@
 import { authCoreRegistrationModule } from "@/configuration/container/registrations/modules/auth-core";
 import { authDeviceRegistrationModule } from "@/configuration/container/registrations/modules/auth-device";
 import { authLocalRegistrationModule } from "@/configuration/container/registrations/modules/auth-local";
+import { authEmailAvailabilityRegistrationModule } from "@/configuration/container/registrations/modules/auth-email-availability";
 import { authUsernameRegistrationModule } from "@/configuration/container/registrations/modules/auth-username";
 import { authLockoutRegistrationModule } from "@/configuration/container/registrations/modules/auth-lockout";
 import { authPasswordRegistrationModule } from "@/configuration/container/registrations/modules/auth-password";
@@ -41,7 +42,7 @@ import { searchRegistrationModule } from "@/configuration/container/registration
 import { securityRegistrationModule } from "@/configuration/container/registrations/modules/security";
 import { sharedRegistrationModule } from "@/configuration/container/registrations/modules/shared";
 import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
-import { usernameBloomRegistrationModule } from "@/configuration/container/registrations/modules/username-bloom";
+import { identityBloomRegistrationModule } from "@/configuration/container/registrations/modules/identity-bloom";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 
 export { CONTAINER_REGISTRATION_MODULE_IDS } from "@/configuration/container/registrations/types";
@@ -55,7 +56,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   smsRegistrationModule,
   securityRegistrationModule,
   blobRegistrationModule,
-  usernameBloomRegistrationModule,
+  identityBloomRegistrationModule,
   profileRegistrationModule,
   feedbacksRegistrationModule,
   authOtpRegistrationModule,
@@ -66,6 +67,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authDeviceRegistrationModule,
   authLocalRegistrationModule,
   authUsernameRegistrationModule,
+  authEmailAvailabilityRegistrationModule,
   authLockoutRegistrationModule,
   authPasswordRegistrationModule,
   authPersonalAccessTokensRegistrationModule,

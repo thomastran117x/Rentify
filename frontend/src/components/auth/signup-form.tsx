@@ -15,8 +15,11 @@ import {
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
+import { useEmailAvailability } from "@/lib/auth/use-email-availability";
 import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import { EmailAvailabilityHint } from "@/components/auth/email-availability-hint";
 import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { AuthResponseBody } from "@/lib/auth/types";
@@ -58,10 +61,10 @@ function validateSignup(values: {
     errors.username = usernameError;
   }
 
-  if (!values.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
-    errors.email = "Enter a valid email address.";
+  const emailError = validateEmailFormat(values.email);
+
+  if (emailError) {
+    errors.email = emailError;
   }
 
   if (!values.password) {
@@ -361,6 +364,11 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const authFlowRestorePending = persistedAuthFlow === undefined;
   const usernameAvailability = useUsernameAvailability(username);
   const usernameTaken = usernameAvailability.status === "taken";
+  const emailAvailability = useEmailAvailability(email);
+  // Only a taken address blocks. `pending` is informational — signup accepts an
+  // address whose verification is unfinished — and `error` must never wedge the
+  // form, since the backend still enforces uniqueness on submit.
+  const emailTaken = emailAvailability.status === "taken";
 
   useEffect(() => {
     if (status === "authenticated" && !welcomeSession) {
@@ -411,6 +419,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       nextErrors.username = "That username is already taken.";
     }
 
+    if (emailTaken) {
+      nextErrors.email = "This email is already in use.";
+    }
+
     setErrors(nextErrors);
     setGeneralError(null);
 
@@ -425,7 +437,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         username: normalizeUsername(username),
-        email: email.trim().toLowerCase(),
+        email: normalizeEmail(email),
         password,
         captchaToken,
       });
@@ -649,34 +661,47 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
               )}
             </div>
 
-            <SignupField
-              id="email"
-              label="Email"
-              error={errors.email}
-              errorId="signup-email-error"
-              hasValue={emailHasValue}
-              activeClassName={theme.auth.fieldActive}
-              icon={
-                <div className={theme.auth.fieldIcon}>
-                  <MailIcon />
-                </div>
-              }
-            >
-              <input
+            <div className="space-y-2">
+              <SignupField
                 id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={
-                  errors.email ? "signup-email-error" : undefined
+                label="Email"
+                error={errors.email}
+                errorId="signup-email-error"
+                hasValue={emailHasValue}
+                activeClassName={theme.auth.fieldActive}
+                icon={
+                  <div className={theme.auth.fieldIcon}>
+                    <MailIcon />
+                  </div>
                 }
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className={theme.auth.fieldInput}
-              />
-            </SignupField>
+              >
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  aria-invalid={Boolean(errors.email) || emailTaken}
+                  aria-describedby={
+                    errors.email
+                      ? "signup-email-error"
+                      : "signup-email-availability"
+                  }
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className={theme.auth.fieldInput}
+                />
+              </SignupField>
+
+              {/* Suppressed while a format error is showing, so the field never
+                  carries two competing messages. */}
+              {errors.email ? null : (
+                <EmailAvailabilityHint
+                  id="signup-email-availability"
+                  availability={emailAvailability}
+                />
+              )}
+            </div>
 
             <div className="space-y-5">
               <div className="space-y-2">

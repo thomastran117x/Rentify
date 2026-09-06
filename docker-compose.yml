@@ -61,6 +61,14 @@ x-backend-environment: &backend-environment
   USERNAME_BLOOM_REBUILD_INTERVAL_MS: ${USERNAME_BLOOM_REBUILD_INTERVAL_MS:-21600000}
   USERNAME_BLOOM_REBUILD_BATCH_SIZE: ${USERNAME_BLOOM_REBUILD_BATCH_SIZE:-5000}
   USERNAME_BLOOM_REBUILD_LOCK_TTL_MS: ${USERNAME_BLOOM_REBUILD_LOCK_TTL_MS:-60000}
+  EMAIL_BLOOM_ENABLED: ${EMAIL_BLOOM_ENABLED:-true}
+  EMAIL_BLOOM_CAPACITY: ${EMAIL_BLOOM_CAPACITY:-200000}
+  EMAIL_BLOOM_FALSE_POSITIVE_RATE: ${EMAIL_BLOOM_FALSE_POSITIVE_RATE:-0.01}
+  EMAIL_BLOOM_RELOAD_INTERVAL_MS: ${EMAIL_BLOOM_RELOAD_INTERVAL_MS:-60000}
+  EMAIL_BLOOM_MAX_STALENESS_MS: ${EMAIL_BLOOM_MAX_STALENESS_MS:-300000}
+  EMAIL_BLOOM_REBUILD_INTERVAL_MS: ${EMAIL_BLOOM_REBUILD_INTERVAL_MS:-21600000}
+  EMAIL_BLOOM_REBUILD_BATCH_SIZE: ${EMAIL_BLOOM_REBUILD_BATCH_SIZE:-5000}
+  EMAIL_BLOOM_REBUILD_LOCK_TTL_MS: ${EMAIL_BLOOM_REBUILD_LOCK_TTL_MS:-60000}
 
 # Every process that connects to MySQL owns its own connection pool, so pool
 # size is a per-process cost paid against the server's max_connections budget.
@@ -316,18 +324,19 @@ services:
     volumes: *backend-log-volume
     command: ["node", "dist/workers/postings/saved-search-alert.worker.js"]
 
-  # Rebuilds the username availability bloom filter from the profiles table.
-  # Needs Redis as well as MySQL: the filter itself lives in a Redis bitmap that
-  # every API instance loads and subscribes to.
-  username-bloom-worker:
+  # Rebuilds the username and email availability bloom filters from the
+  # profiles and users tables. Needs Redis as well as MySQL: the filters
+  # themselves live in Redis bitmaps that every API instance loads and
+  # subscribes to.
+  identity-bloom-worker:
     build: *backend-build
     image: rent-backend:local
-    container_name: rent-username-bloom-worker
+    container_name: rent-identity-bloom-worker
     restart: unless-stopped
     depends_on: *db-redis-worker-depends-on
     environment: *worker-environment
     volumes: *backend-log-volume
-    command: ["node", "dist/workers/auth/username-bloom.worker.js"]
+    command: ["node", "dist/workers/auth/identity-bloom.worker.js"]
 
   posting-thumbnail-worker:
     build: *backend-build

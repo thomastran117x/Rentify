@@ -1,5 +1,5 @@
 /**
- * The Redis (L2) half of the username bloom filter.
+ * The Redis (L2) half of an identity bloom filter.
  *
  * A thin gateway rather than a general cache wrapper, because the filter needs
  * primitives `CacheService` deliberately does not expose: binary-safe reads,
@@ -17,21 +17,21 @@ import {
   type redisClient,
 } from "@/configuration/resources/redis";
 import {
-  isUsernameBloomEvent,
-  type UsernameBloomEvent,
-  type UsernameBloomMeta,
-} from "@/features/auth/username-bloom/username-bloom-keys";
+  parseIdentityBloomEvent,
+  type IdentityBloomEvent,
+  type IdentityBloomMeta,
+} from "@/features/auth/identity-bloom/identity-bloom-keys";
 
 type RedisClient = NonNullable<typeof redisClient>;
 
 /** Keeps a single BITFIELD command well inside Redis' argument limits. */
 const MAX_BIT_OPERATIONS_PER_COMMAND = 512;
 
-export interface UsernameBloomSubscription {
+export interface IdentityBloomSubscription {
   close: () => Promise<void>;
 }
 
-export class UsernameBloomStore {
+export class IdentityBloomStore {
   private binaryClient: ReturnType<RedisClient["withTypeMapping"]> | null =
     null;
   private binaryClientSource: RedisClient | null = null;
@@ -101,7 +101,7 @@ export class UsernameBloomStore {
     }
   }
 
-  async readMeta(key: string): Promise<UsernameBloomMeta | null> {
+  async readMeta(key: string): Promise<IdentityBloomMeta | null> {
     const raw = await this.getClient().get(key);
 
     if (raw === null) {
@@ -109,17 +109,17 @@ export class UsernameBloomStore {
     }
 
     try {
-      return JSON.parse(raw) as UsernameBloomMeta;
+      return JSON.parse(raw) as IdentityBloomMeta;
     } catch {
       return null;
     }
   }
 
-  async writeMeta(key: string, meta: UsernameBloomMeta): Promise<void> {
+  async writeMeta(key: string, meta: IdentityBloomMeta): Promise<void> {
     await this.getClient().set(key, JSON.stringify(meta));
   }
 
-  async publish(channel: string, event: UsernameBloomEvent): Promise<void> {
+  async publish(channel: string, event: IdentityBloomEvent): Promise<void> {
     await this.getClient().publish(channel, JSON.stringify(event));
   }
 
@@ -130,9 +130,9 @@ export class UsernameBloomStore {
    */
   async subscribe(
     channel: string,
-    onEvent: (event: UsernameBloomEvent) => void,
+    onEvent: (event: IdentityBloomEvent) => void,
     onError?: (error: unknown) => void,
-  ): Promise<UsernameBloomSubscription> {
+  ): Promise<IdentityBloomSubscription> {
     const subscriber = this.getClient().duplicate();
 
     subscriber.on("error", (error: unknown) => {
@@ -142,9 +142,9 @@ export class UsernameBloomStore {
     await subscriber.connect();
     await subscriber.subscribe(channel, (message: string) => {
       try {
-        const parsed: unknown = JSON.parse(message);
+        const parsed = parseIdentityBloomEvent(JSON.parse(message));
 
-        if (isUsernameBloomEvent(parsed)) {
+        if (parsed) {
           onEvent(parsed);
         }
       } catch (error) {
@@ -166,12 +166,12 @@ export class UsernameBloomStore {
     };
   }
 
-  async pushReplayEntries(key: string, usernames: string[]): Promise<void> {
-    if (usernames.length === 0) {
+  async pushReplayEntries(key: string, values: string[]): Promise<void> {
+    if (values.length === 0) {
       return;
     }
 
-    await this.getClient().rPush(key, usernames);
+    await this.getClient().rPush(key, values);
   }
 
   async readReplayEntries(key: string): Promise<string[]> {

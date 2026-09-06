@@ -12,6 +12,7 @@ export const authUsernameRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.authUsersRepository,
         containerTokens.usernameBloomService,
+        containerTokens.emailBloomService,
         containerTokens.pendingSignupStore,
         containerTokens.publicOtpService,
       ],
@@ -19,6 +20,7 @@ export const authUsernameRegistrationModule: ContainerRegistrationModule = {
         new UsernameService(
           resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.usernameBloomService),
+          resolve(containerTokens.emailBloomService),
           resolve(containerTokens.pendingSignupStore),
           resolve(containerTokens.publicOtpService),
         ),

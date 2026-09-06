@@ -202,6 +202,10 @@ function isUsernameAvailabilityRoute(
   return request.method === "GET" && pathname === "/auth/username/available";
 }
 
+function isEmailAvailabilityRoute(request: Request, pathname: string): boolean {
+  return request.method === "GET" && pathname === "/auth/email/available";
+}
+
 function isAuthSessionRoute(request: Request, pathname: string): boolean {
   return (
     (request.method === "POST" &&
@@ -306,6 +310,22 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     return createPolicy(request, {
       id: "username-availability",
       bucketKey: `${request.method}:username-availability`,
+      strategy: "sliding-window",
+      limit: 60,
+      windowSeconds: 60,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 1,
+    });
+  }
+
+  if (isEmailAvailabilityRoute(request, pathname)) {
+    // Same budget as the username endpoint: both are spent by debounced typing
+    // on the same form. A separate policy id rather than a shared one so the
+    // two can be tuned — and read in metrics — independently, which matters
+    // more here because a taken verdict reveals that an address is registered.
+    return createPolicy(request, {
+      id: "email-availability",
+      bucketKey: `${request.method}:email-availability`,
       strategy: "sliding-window",
       limit: 60,
       windowSeconds: 60,

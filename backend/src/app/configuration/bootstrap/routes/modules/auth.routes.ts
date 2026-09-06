@@ -4,6 +4,7 @@ import type { LocalAuthController } from "@/features/auth/local/local-auth.contr
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
+import type { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
 import type { UsernameController } from "@/features/auth/username/username.controller";
 import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import type { PasswordController } from "@/features/auth/password/password.controller";
@@ -64,6 +65,15 @@ export const authLocalRouteModule: RouteModule = {
       resolveHandler<UsernameController>(
         containerTokens.usernameController,
         "checkUsernameAvailability",
+      ),
+    );
+    // Same shape as the username endpoint above, and public for the same
+    // reason: the signup form needs an answer before the user submits.
+    app.get(
+      "/auth/email/available",
+      resolveHandler<EmailAvailabilityController>(
+        containerTokens.emailAvailabilityController,
+        "checkEmailAvailability",
       ),
     );
     app.post(

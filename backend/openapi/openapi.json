@@ -811,6 +811,85 @@
         }
       }
     },
+    "/auth/email/available": {
+      "get": {
+        "operationId": "checkEmailAvailability",
+        "summary": "Check whether an email can be used to sign up",
+        "description": "Reports whether an email address is free, so the signup form can tell the user before they submit. An address is unavailable when an account already holds it. An address with an unverified signup in flight is still reported as available, with reason `pending-verification`, because signup accepts it and the person who started it must be able to come back and finish. Signed-in callers are exempted from their own address, which is therefore reported as available.",
+        "tags": [
+          "auth"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public-or-session-bearer",
+          "minimumRole": null,
+          "patAllowed": false,
+          "rateLimitPolicy": "email-availability"
+        },
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "description": "The email address to check. Trimmed and lowercased before lookup.",
+            "schema": {
+              "type": "string",
+              "format": "email",
+              "maxLength": 255
+            },
+            "example": "taylor@example.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/EmailAvailabilityResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "email": "taylor@example.com",
+                    "available": false,
+                    "reason": "taken"
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/auth/local/password/reset": {
       "post": {
         "operationId": "resetPassword",
@@ -25925,6 +26004,33 @@
               null
             ],
             "description": "Why the username is unavailable, or null when it is available. A username is `taken` when another account holds it or an unverified signup has reserved it."
+          }
+        }
+      },
+      "EmailAvailabilityResult": {
+        "type": "object",
+        "required": [
+          "email",
+          "available",
+          "reason"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The normalized (trimmed, lowercased) email checked."
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "taken",
+              "pending-verification",
+              null
+            ],
+            "description": "`taken` when an account already holds the address, in which case `available` is false. `pending-verification` when an unverified signup has it in flight; `available` stays true because signup accepts the address. Null when nothing is known about it."
           }
         }
       },

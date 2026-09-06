@@ -65,6 +65,10 @@ function createHarness() {
     check: jest.fn(() => "possibly-present" as string),
     add: jest.fn(async () => undefined),
   };
+  const emailBloomService = {
+    check: jest.fn(() => "possibly-present" as string),
+    add: jest.fn(async () => undefined),
+  };
   const otpService = {
     issue: jest.fn(async () => ({ code: "123456", ttlInSeconds: 600 })),
   };
@@ -74,6 +78,7 @@ function createHarness() {
   const pendingSignupStore = new PendingSignupStore(
     cacheService as never,
     usernameBloomService as never,
+    emailBloomService as never,
   );
   const publicOtpService = new PublicOtpService(
     cacheService as never,
@@ -86,11 +91,13 @@ function createHarness() {
     cacheService,
     authRepository,
     usernameBloomService,
+    emailBloomService,
     emailService,
     pendingSignupStore,
     service: new UsernameService(
       authRepository as never,
       usernameBloomService as never,
+      emailBloomService as never,
       pendingSignupStore,
       publicOtpService,
     ),
@@ -353,5 +360,38 @@ describe("UsernameService.forgotUsername", () => {
     expect(
       harness.emailService.sendUsernameReminderEmail,
     ).not.toHaveBeenCalled();
+  });
+
+  it("skips the lookup entirely when the email filter rules the address out", async () => {
+    // An address that was never registered is the whole of the work this
+    // endpoint does for a probe, and the filter settles it without a query.
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("definitely-absent");
+
+    await expect(
+      harness.service.forgotUsername({
+        client: createClient(),
+        email: "nobody@example.com",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(harness.authRepository.findUserByEmail).not.toHaveBeenCalled();
+    expect(
+      harness.emailService.sendUsernameReminderEmail,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("still looks up an address the filter cannot rule out", async () => {
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("possibly-present");
+    harness.authRepository.findUserByEmail.mockResolvedValue(createUser());
+
+    await harness.service.forgotUsername({
+      client: createClient(),
+      email: "user@example.com",
+    });
+
+    expect(harness.authRepository.findUserByEmail).toHaveBeenCalled();
+    expect(harness.emailService.sendUsernameReminderEmail).toHaveBeenCalled();
   });
 });

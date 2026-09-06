@@ -1,8 +1,8 @@
 /**
- * Sizing math for the username bloom filter.
+ * Sizing math for the identity bloom filters.
  *
- * The filter answers "is this username already taken" without touching MySQL.
- * Only one direction of its answer is trusted: a clear bit means the name is
+ * A filter answers "is this value already taken" without touching MySQL. Only
+ * one direction of its answer is trusted: a clear bit means the value is
  * *definitely* absent, so the caller can report it available immediately. All
  * bits set means *maybe* present, and the caller falls through to the
  * authoritative database lookup. A false positive therefore costs one extra

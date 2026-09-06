@@ -73,6 +73,19 @@ export interface UsernameAvailabilityResult {
   reason: "taken" | null;
 }
 
+export interface EmailAvailabilityResult {
+  /** The normalized (trimmed, lowercased) email that was checked. */
+  email: string;
+  available: boolean;
+  /**
+   * `pending-verification` still means available. Signup accepts an address
+   * whose verification is unfinished — that is how someone who abandoned a
+   * signup comes back and completes it — so the form reports it rather than
+   * blocking on it.
+   */
+  reason: "taken" | "pending-verification" | null;
+}
+
 export interface LinkedOAuthProvidersResult {
   hasPassword: boolean;
   providers: Array<{

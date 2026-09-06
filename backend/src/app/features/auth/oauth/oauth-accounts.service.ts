@@ -21,7 +21,7 @@ import type {
   UnlinkOAuthProviderInput,
 } from "@/features/auth/oauth/oauth-accounts.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
-import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { Uuid } from "@/configuration/validation/uuid";
 import { asUuid } from "@/configuration/validation/uuid";
 
@@ -38,7 +38,8 @@ export class OAuthAccountsService {
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly microsoftOAuthService: MicrosoftOAuthService,
     private readonly appleOAuthService: AppleOAuthService,
-    private readonly usernameBloomService: UsernameBloomService,
+    private readonly usernameBloomService: IdentityBloomService,
+    private readonly emailBloomService: IdentityBloomService,
     private readonly mfaTotpService: MfaTotpService,
     private readonly authSessionService: AuthSessionService,
   ) {}
@@ -169,7 +170,14 @@ export class OAuthAccountsService {
 
     // Signing in with a provider must not silently take over an address that
     // already has an account: the owner links it from inside that account.
-    if (await this.usersRepository.findUserByEmail(profile.email)) {
+    //
+    // Nothing but existence is read off the row, so an address the filter rules
+    // out skips the lookup. A first sign-in with a brand new address is the
+    // common case, which is exactly the case the filter settles from memory.
+    if (
+      this.emailBloomService.check(profile.email) !== "definitely-absent" &&
+      (await this.usersRepository.findUserByEmail(profile.email))
+    ) {
       throw new ConflictError(
         "An account with this email already exists. Sign in with the original method before linking a social provider.",
       );
@@ -184,6 +192,7 @@ export class OAuthAccountsService {
         this.usernameBloomService.check(candidate) === "possibly-present",
     );
     await this.usernameBloomService.add(user.profile.username);
+    await this.emailBloomService.add(user.email);
     const session = await this.authSessionService.authenticateVerifiedUser(
       user,
       input,

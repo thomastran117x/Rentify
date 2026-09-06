@@ -1,16 +1,24 @@
-import { deriveBloomParameters } from "@/features/auth/username-bloom/bloom-parameters";
-import { LocalBloomFilter } from "@/features/auth/username-bloom/local-bloom-filter";
 import {
-  buildUsernameBloomKeys,
-  type UsernameBloomEvent,
-  type UsernameBloomMeta,
-} from "@/features/auth/username-bloom/username-bloom-keys";
+  normalizeEmailForBloom,
+  normalizeUsernameForBloom,
+} from "@/features/auth/identity-bloom/bloom-hash";
 import {
-  rebuildUsernameBloom,
-  type UsernameBloomRebuildConfig,
-} from "@/features/auth/username-bloom/username-bloom-rebuild";
+  emailBloomSubject,
+  usernameBloomSubject,
+} from "@/features/auth/identity-bloom/identity-bloom-subject";
+import { deriveBloomParameters } from "@/features/auth/identity-bloom/bloom-parameters";
+import { LocalBloomFilter } from "@/features/auth/identity-bloom/local-bloom-filter";
+import {
+  buildIdentityBloomKeys,
+  type IdentityBloomEvent,
+  type IdentityBloomMeta,
+} from "@/features/auth/identity-bloom/identity-bloom-keys";
+import {
+  rebuildIdentityBloom,
+  type IdentityBloomRebuildConfig,
+} from "@/features/auth/identity-bloom/identity-bloom-rebuild";
 
-const config: UsernameBloomRebuildConfig = {
+const config: IdentityBloomRebuildConfig = {
   capacity: 1_000,
   falsePositiveRate: 0.01,
   rebuildIntervalMs: 3_600_000,
@@ -22,7 +30,14 @@ const parameters = deriveBloomParameters(
   config.capacity,
   config.falsePositiveRate,
 );
-const keys = buildUsernameBloomKeys(parameters.fingerprint);
+const keys = buildIdentityBloomKeys(
+  usernameBloomSubject.cachePrefix,
+  parameters.fingerprint,
+);
+const emailKeys = buildIdentityBloomKeys(
+  emailBloomSubject.cachePrefix,
+  parameters.fingerprint,
+);
 const NOW = Date.parse("2026-08-17T12:00:00.000Z");
 
 function createLogger() {
@@ -37,8 +52,9 @@ function createLogger() {
 }
 
 function createHarness(options?: {
-  meta?: UsernameBloomMeta | null;
-  usernames?: string[];
+  subject?: typeof usernameBloomSubject;
+  meta?: IdentityBloomMeta | null;
+  values?: string[];
   reservations?: string[];
   replay?: string[];
   lockGranted?: boolean;
@@ -48,7 +64,7 @@ function createHarness(options?: {
     meta: options?.meta ?? null,
     bitmaps: new Map<string, Buffer>(),
     keyValues: new Map<string, string>(),
-    published: [] as UsernameBloomEvent[],
+    published: [] as IdentityBloomEvent[],
     setBits: [] as Array<{ key: string; indices: number[] }>,
     deleted: [] as string[][],
     renames: [] as Array<{ from: string; to: string }>,
@@ -59,7 +75,7 @@ function createHarness(options?: {
 
   const store = {
     readMeta: jest.fn(async () => state.meta),
-    writeMeta: jest.fn(async (_key: string, meta: UsernameBloomMeta) => {
+    writeMeta: jest.fn(async (_key: string, meta: IdentityBloomMeta) => {
       calls.push("writeMeta");
       state.meta = meta;
     }),
@@ -72,7 +88,7 @@ function createHarness(options?: {
       calls.push(`setBits:${key}`);
       state.setBits.push({ key, indices });
     }),
-    publish: jest.fn(async (_channel: string, event: UsernameBloomEvent) => {
+    publish: jest.fn(async (_channel: string, event: IdentityBloomEvent) => {
       calls.push("publish");
       state.published.push(event);
     }),
@@ -108,19 +124,17 @@ function createHarness(options?: {
     exists: jest.fn(async () => false),
   };
 
-  const usernames = options?.usernames ?? ["casey-doe", "river-stone"];
+  const values = options?.values ?? ["casey-doe", "river-stone"];
   const repository = {
-    listUsernamesAfter: jest.fn(
-      async (cursorId: string | null, take: number) => {
-        const startIndex = cursorId ? usernames.indexOf(cursorId) + 1 : 0;
-        const page = usernames.slice(startIndex, startIndex + take);
+    listValuesAfter: jest.fn(async (cursorId: string | null, take: number) => {
+      const startIndex = cursorId ? values.indexOf(cursorId) + 1 : 0;
+      const page = values.slice(startIndex, startIndex + take);
 
-        return {
-          usernames: page,
-          nextCursorId: page.length < take ? null : (page.at(-1) ?? null),
-        };
-      },
-    ),
+      return {
+        values: page,
+        nextCursorId: page.length < take ? null : (page.at(-1) ?? null),
+      };
+    }),
   };
 
   const cacheService = {
@@ -142,7 +156,8 @@ function createHarness(options?: {
     ),
     scanKeys: jest.fn(async () =>
       (options?.reservations ?? []).map(
-        (name) => `auth:pending-signup-username:${name}`,
+        (name) =>
+          `${(options?.subject ?? usernameBloomSubject).reservationPrefix}:${name}`,
       ),
     ),
   };
@@ -156,9 +171,10 @@ function createHarness(options?: {
     cacheService,
     logger,
     run: () =>
-      rebuildUsernameBloom({
+      rebuildIdentityBloom({
+        subject: options?.subject ?? usernameBloomSubject,
         store: store as never,
-        repository: repository as never,
+        source: repository as never,
         cacheService: cacheService as never,
         config,
         logger: logger as never,
@@ -167,10 +183,10 @@ function createHarness(options?: {
   };
 }
 
-describe("rebuildUsernameBloom", () => {
+describe("rebuildIdentityBloom", () => {
   it("builds the bitmap from every stored username", async () => {
     const harness = createHarness({
-      usernames: ["casey-doe", "river-stone", "sky-walker"],
+      values: ["casey-doe", "river-stone", "sky-walker"],
     });
 
     const result = await harness.run();
@@ -178,10 +194,10 @@ describe("rebuildUsernameBloom", () => {
     expect(result).toMatchObject({
       status: "rebuilt",
       generation: 1,
-      usernameCount: 3,
+      valueCount: 3,
     });
 
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     filter.replaceFrom(harness.state.bitmaps.get(keys.bits)!);
 
     expect(filter.has("casey-doe")).toBe(true);
@@ -192,19 +208,19 @@ describe("rebuildUsernameBloom", () => {
 
   it("pages through the table rather than loading it at once", async () => {
     const harness = createHarness({
-      usernames: ["a-one", "b-two", "c-three", "d-four", "e-five"],
+      values: ["a-one", "b-two", "c-three", "d-four", "e-five"],
     });
 
     await harness.run();
 
     // batchSize is 2, so five rows take three pages.
-    expect(harness.repository.listUsernamesAfter).toHaveBeenCalledTimes(3);
-    expect(harness.repository.listUsernamesAfter).toHaveBeenNthCalledWith(
+    expect(harness.repository.listValuesAfter).toHaveBeenCalledTimes(3);
+    expect(harness.repository.listValuesAfter).toHaveBeenNthCalledWith(
       1,
       null,
       2,
     );
-    expect(harness.repository.listUsernamesAfter).toHaveBeenNthCalledWith(
+    expect(harness.repository.listValuesAfter).toHaveBeenNthCalledWith(
       2,
       "b-two",
       2,
@@ -213,7 +229,7 @@ describe("rebuildUsernameBloom", () => {
 
   it("extends the lock while walking a long table", async () => {
     const harness = createHarness({
-      usernames: ["a-one", "b-two", "c-three", "d-four", "e-five"],
+      values: ["a-one", "b-two", "c-three", "d-four", "e-five"],
     });
 
     await harness.run();
@@ -225,16 +241,16 @@ describe("rebuildUsernameBloom", () => {
     // A reservation makes a name unavailable, and a filter miss skips the
     // reservation lookup too. Omitting them would report a reserved name free.
     const harness = createHarness({
-      usernames: ["casey-doe"],
+      values: ["casey-doe"],
       reservations: ["pending-person"],
     });
 
     const result = await harness.run();
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     filter.replaceFrom(harness.state.bitmaps.get(keys.bits)!);
 
     expect(filter.has("pending-person")).toBe(true);
-    expect(result.usernameCount).toBe(2);
+    expect(result.valueCount).toBe(2);
   });
 
   it("writes the bitmap once and swaps it in atomically", async () => {
@@ -285,7 +301,7 @@ describe("rebuildUsernameBloom", () => {
 
     await harness.run();
 
-    const scratch = new LocalBloomFilter(parameters);
+    const scratch = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     const expected = scratch.getIndices("late-arrival");
 
     expect(harness.state.setBits).toEqual([
@@ -331,7 +347,7 @@ describe("rebuildUsernameBloom", () => {
       meta: {
         generation: 7,
         builtAt: new Date(NOW - config.rebuildIntervalMs - 1).toISOString(),
-        usernameCount: 1,
+        valueCount: 1,
         estimatedFalsePositiveRate: 0.01,
       },
     });
@@ -358,7 +374,7 @@ describe("rebuildUsernameBloom", () => {
       meta: {
         generation: 3,
         builtAt: new Date(NOW - 1_000).toISOString(),
-        usernameCount: 1,
+        valueCount: 1,
         estimatedFalsePositiveRate: 0.01,
       },
     });
@@ -374,7 +390,7 @@ describe("rebuildUsernameBloom", () => {
       meta: {
         generation: 3,
         builtAt: new Date(NOW - config.rebuildIntervalMs - 1).toISOString(),
-        usernameCount: 1,
+        valueCount: 1,
         estimatedFalsePositiveRate: 0.01,
       },
     });
@@ -387,7 +403,7 @@ describe("rebuildUsernameBloom", () => {
       meta: {
         generation: 3,
         builtAt: "not-a-date",
-        usernameCount: 1,
+        valueCount: 1,
         estimatedFalsePositiveRate: 0.01,
       },
     });
@@ -410,7 +426,7 @@ describe("rebuildUsernameBloom", () => {
     harness.store.readMeta.mockResolvedValueOnce(null).mockResolvedValueOnce({
       generation: 5,
       builtAt: new Date(NOW - 1_000).toISOString(),
-      usernameCount: 1,
+      valueCount: 1,
       estimatedFalsePositiveRate: 0.01,
     });
 
@@ -423,7 +439,7 @@ describe("rebuildUsernameBloom", () => {
 
   it("releases the lock even when the rebuild fails", async () => {
     const harness = createHarness();
-    harness.repository.listUsernamesAfter.mockRejectedValueOnce(
+    harness.repository.listValuesAfter.mockRejectedValueOnce(
       new Error("database is unhappy"),
     );
 
@@ -433,20 +449,17 @@ describe("rebuildUsernameBloom", () => {
 
   it("warns when the filter has outgrown its configured capacity", async () => {
     const harness = createHarness({
-      usernames: Array.from({ length: 40 }, (_, index) => `user-${index}`),
+      values: Array.from({ length: 40 }, (_, index) => `user-${index}`),
     });
     // batchSize is 2, so a 40-name table pages fine; capacity is what matters.
-    harness.repository.listUsernamesAfter.mockImplementation(
+    harness.repository.listValuesAfter.mockImplementation(
       async (cursorId: string | null) => {
         if (cursorId) {
-          return { usernames: [], nextCursorId: null };
+          return { values: [], nextCursorId: null };
         }
 
         return {
-          usernames: Array.from(
-            { length: 4_000 },
-            (_, index) => `crowd-${index}`,
-          ),
+          values: Array.from({ length: 4_000 }, (_, index) => `crowd-${index}`),
           nextCursorId: null,
         };
       },
@@ -469,5 +482,59 @@ describe("rebuildUsernameBloom", () => {
     await harness.run();
 
     expect(harness.state.deleted).toContainEqual([keys.replayList(1)]);
+  });
+});
+
+describe("rebuildIdentityBloom for the email subject", () => {
+  it("builds the bitmap from every stored email", async () => {
+    // The same code path over a different table, which is the whole point of
+    // the subject parameter.
+    const harness = createHarness({
+      subject: emailBloomSubject,
+      values: ["casey@example.com", "river@example.com"],
+    });
+
+    const result = await harness.run();
+    const filter = new LocalBloomFilter(parameters, normalizeEmailForBloom);
+    filter.replaceFrom(harness.state.bitmaps.get(emailKeys.bits)!);
+
+    expect(result).toMatchObject({ status: "rebuilt", valueCount: 2 });
+    expect(filter.has("casey@example.com")).toBe(true);
+    // Case is folded the same way the unique index folds it.
+    expect(filter.has("CASEY@EXAMPLE.COM")).toBe(true);
+    expect(filter.has("nobody@example.com")).toBe(false);
+  });
+
+  it("scans the email reservation prefix rather than the username one", async () => {
+    // `auth:pending-signup:*` deliberately does not match
+    // `auth:pending-signup-username:*`, so a scan picks up records and nothing
+    // else.
+    const harness = createHarness({
+      subject: emailBloomSubject,
+      values: [],
+      reservations: ["pending@example.com"],
+    });
+
+    await harness.run();
+
+    expect(harness.cacheService.scanKeys).toHaveBeenCalledWith(
+      "auth:pending-signup:*",
+    );
+
+    const filter = new LocalBloomFilter(parameters, normalizeEmailForBloom);
+    filter.replaceFrom(harness.state.bitmaps.get(emailKeys.bits)!);
+    expect(filter.has("pending@example.com")).toBe(true);
+  });
+
+  it("writes to its own keyspace, not the username filter's", async () => {
+    const harness = createHarness({
+      subject: emailBloomSubject,
+      values: ["casey@example.com"],
+    });
+
+    await harness.run();
+
+    expect(harness.state.bitmaps.has(emailKeys.bits)).toBe(true);
+    expect(harness.state.bitmaps.has(keys.bits)).toBe(false);
   });
 });

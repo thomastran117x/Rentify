@@ -1,16 +1,21 @@
-import { deriveBloomParameters } from "@/features/auth/username-bloom/bloom-parameters";
-import { LocalBloomFilter } from "@/features/auth/username-bloom/local-bloom-filter";
+import { normalizeUsernameForBloom } from "@/features/auth/identity-bloom/bloom-hash";
 import {
-  buildUsernameBloomKeys,
-  type UsernameBloomEvent,
-  type UsernameBloomMeta,
-} from "@/features/auth/username-bloom/username-bloom-keys";
+  emailBloomSubject,
+  usernameBloomSubject,
+} from "@/features/auth/identity-bloom/identity-bloom-subject";
+import { deriveBloomParameters } from "@/features/auth/identity-bloom/bloom-parameters";
+import { LocalBloomFilter } from "@/features/auth/identity-bloom/local-bloom-filter";
 import {
-  UsernameBloomService,
-  type UsernameBloomConfig,
-} from "@/features/auth/username-bloom/username-bloom.service";
+  buildIdentityBloomKeys,
+  type IdentityBloomEvent,
+  type IdentityBloomMeta,
+} from "@/features/auth/identity-bloom/identity-bloom-keys";
+import {
+  IdentityBloomService,
+  type IdentityBloomConfig,
+} from "@/features/auth/identity-bloom/identity-bloom.service";
 
-const baseConfig: UsernameBloomConfig = {
+const baseConfig: IdentityBloomConfig = {
   enabled: true,
   capacity: 1_000,
   falsePositiveRate: 0.01,
@@ -22,10 +27,13 @@ const parameters = deriveBloomParameters(
   baseConfig.capacity,
   baseConfig.falsePositiveRate,
 );
-const keys = buildUsernameBloomKeys(parameters.fingerprint);
+const keys = buildIdentityBloomKeys(
+  usernameBloomSubject.cachePrefix,
+  parameters.fingerprint,
+);
 
 function buildBitmap(...usernames: string[]): Buffer {
-  const filter = new LocalBloomFilter(parameters);
+  const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
   for (const username of usernames) {
     filter.add(username);
@@ -35,12 +43,12 @@ function buildBitmap(...usernames: string[]): Buffer {
 }
 
 function createMeta(
-  overrides: Partial<UsernameBloomMeta> = {},
-): UsernameBloomMeta {
+  overrides: Partial<IdentityBloomMeta> = {},
+): IdentityBloomMeta {
   return {
     generation: 1,
     builtAt: "2026-08-17T00:00:00.000Z",
-    usernameCount: 2,
+    valueCount: 2,
     estimatedFalsePositiveRate: 0.01,
     ...overrides,
   };
@@ -58,7 +66,7 @@ function createLogger() {
 }
 
 function createStore(initial?: {
-  meta?: UsernameBloomMeta | null;
+  meta?: IdentityBloomMeta | null;
   bitmap?: Buffer | null;
   shadowPointer?: string | null;
   subscribeError?: Error;
@@ -68,10 +76,10 @@ function createStore(initial?: {
     meta: initial?.meta ?? null,
     bitmap: initial?.bitmap ?? null,
     shadowPointer: initial?.shadowPointer ?? null,
-    published: [] as UsernameBloomEvent[],
+    published: [] as IdentityBloomEvent[],
     replay: [] as string[],
     setBits: [] as Array<{ key: string; indices: number[] }>,
-    emit: null as ((event: UsernameBloomEvent) => void) | null,
+    emit: null as ((event: IdentityBloomEvent) => void) | null,
     onError: null as ((error: unknown) => void) | null,
     closed: false,
     calls,
@@ -84,7 +92,7 @@ function createStore(initial?: {
       calls.push("setBits");
       state.setBits.push({ key, indices });
     }),
-    publish: jest.fn(async (_channel: string, event: UsernameBloomEvent) => {
+    publish: jest.fn(async (_channel: string, event: IdentityBloomEvent) => {
       calls.push("publish");
       state.published.push(event);
     }),
@@ -96,7 +104,7 @@ function createStore(initial?: {
     subscribe: jest.fn(
       async (
         _channel: string,
-        onEvent: (event: UsernameBloomEvent) => void,
+        onEvent: (event: IdentityBloomEvent) => void,
         onError: (error: unknown) => void,
       ) => {
         if (initial?.subscribeError) {
@@ -120,14 +128,16 @@ function createStore(initial?: {
 
 function createService(
   options: {
-    config?: Partial<UsernameBloomConfig>;
+    subject?: typeof usernameBloomSubject;
+    config?: Partial<IdentityBloomConfig>;
     store?: ReturnType<typeof createStore>;
     now?: () => number;
   } = {},
 ) {
   const harness = options.store ?? createStore();
   const logger = createLogger();
-  const service = new UsernameBloomService(
+  const service = new IdentityBloomService(
+    options.subject ?? usernameBloomSubject,
     harness.store as never,
     { ...baseConfig, ...options.config },
     logger as never,
@@ -137,7 +147,7 @@ function createService(
   return { service, logger, ...harness };
 }
 
-describe("UsernameBloomService", () => {
+describe("IdentityBloomService", () => {
   describe("readiness", () => {
     it("reports unknown before it has been initialized", () => {
       const { service } = createService();
@@ -324,7 +334,7 @@ describe("UsernameBloomService", () => {
         parameters.hashCount,
       );
       expect(store.state.published).toEqual([
-        { type: "add", usernames: ["river-stone"] },
+        { type: "add", values: ["river-stone"] },
       ]);
 
       await service.dispose();
@@ -469,7 +479,7 @@ describe("UsernameBloomService", () => {
       await service.initialize();
       expect(service.check("river-stone")).toBe("definitely-absent");
 
-      store.state.emit?.({ type: "add", usernames: ["River-Stone", "  "] });
+      store.state.emit?.({ type: "add", values: ["River-Stone", "  "] });
 
       expect(service.check("river-stone")).toBe("possibly-present");
 
@@ -720,8 +730,8 @@ describe("UsernameBloomService", () => {
         await Promise.resolve();
 
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("Scheduled"),
-          undefined,
+          expect.stringContaining("scheduled username bloom reload"),
+          { subject: "username" },
           expect.any(Error),
         );
         // The previous copy is still usable.
@@ -749,7 +759,7 @@ describe("UsernameBloomService", () => {
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("after a rebuild"),
-        { generation: 2 },
+        { subject: "username", generation: 2 },
         expect.any(Error),
       );
 
@@ -803,5 +813,45 @@ describe("UsernameBloomService", () => {
 
       await expect(service.dispose()).resolves.toBeUndefined();
     });
+  });
+});
+
+describe("IdentityBloomService for the email subject", () => {
+  it("folds case the way the unique index does", async () => {
+    // `users_email_key` sits on a case-insensitive column, so an address added
+    // as `Casey@Example.com` has to be found when checked as `casey@...` — the
+    // false negative this filter must never produce.
+    const store = createStore({ meta: createMeta(), bitmap: Buffer.alloc(0) });
+    const { service } = createService({ subject: emailBloomSubject, store });
+
+    await service.initialize();
+    await service.add("Casey@Example.COM");
+
+    expect(service.check("casey@example.com")).toBe("possibly-present");
+    expect(service.check("  CASEY@EXAMPLE.com ")).toBe("possibly-present");
+  });
+
+  it("keeps plus tags and dots significant", async () => {
+    // Those addresses occupy distinct rows, so collapsing them would make the
+    // filter claim a value is present when the index says otherwise.
+    const store = createStore({ meta: createMeta(), bitmap: Buffer.alloc(0) });
+    const { service } = createService({ subject: emailBloomSubject, store });
+
+    await service.initialize();
+    await service.add("casey@example.com");
+
+    expect(service.check("casey+rent@example.com")).toBe("definitely-absent");
+  });
+
+  it("uses its own Redis keyspace", async () => {
+    const store = createStore({ meta: createMeta(), bitmap: Buffer.alloc(0) });
+    const { service } = createService({ subject: emailBloomSubject, store });
+
+    await service.initialize();
+    await service.add("casey@example.com");
+
+    for (const { key } of store.state.setBits) {
+      expect(key.startsWith("auth:email-bloom:")).toBe(true);
+    }
   });
 });

@@ -50,7 +50,7 @@ import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
 import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
-import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TokenService } from "@/features/auth/token/token.service";
@@ -69,7 +69,8 @@ export class LocalAuthService {
     private readonly emailService: EmailService,
     private readonly cacheService: CacheService,
     private readonly mfaTotpService: MfaTotpService,
-    private readonly usernameBloomService: UsernameBloomService,
+    private readonly usernameBloomService: IdentityBloomService,
+    private readonly emailBloomService: IdentityBloomService,
     private readonly authSessionService: AuthSessionService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
@@ -135,9 +136,7 @@ export class LocalAuthService {
   async localSignup(
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
-    const existingUser = await this.usersRepository.findUserByEmail(
-      input.email,
-    );
+    const existingUser = await this.findExistingUserForSignup(input.email);
     await this.usernameService.assertUsernameIsAvailable(
       input.username,
       existingUser?.id,
@@ -175,6 +174,32 @@ export class LocalAuthService {
       email: input.email,
       alreadyPending: false,
     };
+  }
+
+  /**
+   * The signup path's email lookup, skipped when the filter can rule the
+   * address out.
+   *
+   * Only two things are read off the result — the id that exempts the caller's
+   * own username, and whether the address is already verified — and a
+   * `definitely-absent` verdict settles both. Every other verdict, including
+   * the `unknown` an unready or stale filter returns, falls through to the
+   * query this replaced.
+   *
+   * A wrong answer here would not be silent: signup would accept an address
+   * that already has a row, and the insert in `verifyEmail` would fail on the
+   * unique index rather than returning the usual pending response. That is the
+   * cost of the filter ever producing a false negative, which is why the
+   * readiness and staleness gates in `IdentityBloomService.check` exist.
+   */
+  private async findExistingUserForSignup(
+    email: string,
+  ): Promise<AuthUserRecord | null> {
+    if (this.emailBloomService.check(email) === "definitely-absent") {
+      return null;
+    }
+
+    return this.usersRepository.findUserByEmail(email);
   }
 
   async verifyEmail(input: VerifyEmailInput): Promise<AuthSessionResult> {
@@ -245,10 +270,12 @@ export class LocalAuthService {
 
       await this.pendingSignupStore.delete(input.email);
 
-      // The name was already recorded when it was reserved. Recording it again
-      // as it becomes a durable row covers the case where that earlier write
-      // did not reach Redis, since the reservation key is now gone.
+      // Both were already recorded when the signup was reserved. Recording
+      // them again as they become a durable row covers the case where that
+      // earlier write did not reach Redis, since the reservation keys are now
+      // gone and nothing else would vouch for them until the next rebuild.
       await this.usernameBloomService.add(pendingSignup.username);
+      await this.emailBloomService.add(verifiedUser.email);
 
       const resolvedDeviceId = input.deviceId ?? pendingSignup.deviceId;
       return this.authSessionService.reissueSessionForUser(
@@ -286,6 +313,15 @@ export class LocalAuthService {
         email: pendingSignup.email,
         firstName: pendingSignup.firstName,
       });
+      return {
+        accepted: true,
+      };
+    }
+
+    // Nothing is disclosed either way — the response is the same whether or
+    // not the address has an account — so ruling it out from the filter costs
+    // nothing and skips the graph load `findUserByEmail` would have done.
+    if (this.emailBloomService.check(input.email) === "definitely-absent") {
       return {
         accepted: true,
       };

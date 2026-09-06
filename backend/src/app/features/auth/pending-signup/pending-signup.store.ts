@@ -1,8 +1,8 @@
 import type { CacheService } from "@/features/cache/cache.service";
+import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
+import { getPendingSignupKey } from "@/features/auth/pending-signup-keys";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
-import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
 
-const PENDING_LOCAL_SIGNUP_CACHE_PREFIX = "auth:pending-signup";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_PREFIX = "auth:pending-signup-verify";
 const PENDING_LOCAL_SIGNUP_VERIFY_LOCK_TTL_IN_MS = 10_000;
 
@@ -27,7 +27,8 @@ export interface PendingLocalSignupRecord {
 export class PendingSignupStore {
   constructor(
     private readonly cacheService: CacheService,
-    private readonly usernameBloomService: UsernameBloomService,
+    private readonly usernameBloomService: IdentityBloomService,
+    private readonly emailBloomService: IdentityBloomService,
   ) {}
 
   async write(
@@ -57,6 +58,11 @@ export class PendingSignupStore {
     // a bloom miss skips the reservation lookup too. Leaving it out would let
     // the endpoint report a reserved name as free.
     await this.usernameBloomService.add(signup.username);
+    // The email side of the same argument. A pending address does not *block* a
+    // second signup, but it does change the answer the availability endpoint
+    // owes the caller — "you already started this" rather than "nobody has
+    // this" — and a filter miss would skip the lookup that distinguishes them.
+    await this.emailBloomService.add(signup.email);
   }
 
   async read(email: string): Promise<PendingLocalSignupRecord | null> {
@@ -93,7 +99,7 @@ export class PendingSignupStore {
   }
 
   private getKey(email: string): string {
-    return `${PENDING_LOCAL_SIGNUP_CACHE_PREFIX}:${email.toLowerCase()}`;
+    return getPendingSignupKey(email);
   }
 
   private getUsernameKey(username: string): string {

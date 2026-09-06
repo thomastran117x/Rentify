@@ -1,11 +1,15 @@
-import { deriveBloomParameters } from "@/features/auth/username-bloom/bloom-parameters";
-import { LocalBloomFilter } from "@/features/auth/username-bloom/local-bloom-filter";
+import { normalizeUsernameForBloom } from "@/features/auth/identity-bloom/bloom-hash";
+import { deriveBloomParameters } from "@/features/auth/identity-bloom/bloom-parameters";
+import { LocalBloomFilter } from "@/features/auth/identity-bloom/local-bloom-filter";
 
 describe("LocalBloomFilter", () => {
   it("never reports a member as absent", () => {
     // The load-bearing property. A false positive costs one wasted query, but a
     // false negative makes the endpoint report a taken username as available.
-    const filter = new LocalBloomFilter(deriveBloomParameters(5_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(5_000, 0.01),
+      normalizeUsernameForBloom,
+    );
     const members = Array.from(
       { length: 5_000 },
       (_, index) => `member-${index}`,
@@ -25,6 +29,7 @@ describe("LocalBloomFilter", () => {
     const targetRate = 0.01;
     const filter = new LocalBloomFilter(
       deriveBloomParameters(capacity, targetRate),
+      normalizeUsernameForBloom,
     );
 
     for (let index = 0; index < capacity; index += 1) {
@@ -44,14 +49,20 @@ describe("LocalBloomFilter", () => {
   });
 
   it("reports absence for an untouched filter", () => {
-    const filter = new LocalBloomFilter(deriveBloomParameters(1_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(1_000, 0.01),
+      normalizeUsernameForBloom,
+    );
 
     expect(filter.has("casey-doe")).toBe(false);
     expect(filter.countSetBits()).toBe(0);
   });
 
   it("normalizes case and surrounding space", () => {
-    const filter = new LocalBloomFilter(deriveBloomParameters(1_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(1_000, 0.01),
+      normalizeUsernameForBloom,
+    );
 
     filter.add("Casey-Doe");
 
@@ -60,7 +71,10 @@ describe("LocalBloomFilter", () => {
   });
 
   it("returns the indices it set so a caller can reuse them", () => {
-    const filter = new LocalBloomFilter(deriveBloomParameters(1_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(1_000, 0.01),
+      normalizeUsernameForBloom,
+    );
     const indices = filter.add("casey-doe");
 
     expect(indices).toEqual(filter.getIndices("casey-doe"));
@@ -68,7 +82,10 @@ describe("LocalBloomFilter", () => {
   });
 
   it("is idempotent for a repeated name", () => {
-    const filter = new LocalBloomFilter(deriveBloomParameters(1_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(1_000, 0.01),
+      normalizeUsernameForBloom,
+    );
 
     filter.add("casey-doe");
     const afterFirst = filter.countSetBits();
@@ -79,12 +96,15 @@ describe("LocalBloomFilter", () => {
 
   it("round-trips through a buffer", () => {
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const source = new LocalBloomFilter(parameters);
+    const source = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     source.add("casey-doe");
     source.add("river-stone");
 
-    const restored = new LocalBloomFilter(parameters);
+    const restored = new LocalBloomFilter(
+      parameters,
+      normalizeUsernameForBloom,
+    );
     restored.replaceFrom(source.toBuffer());
 
     expect(restored.has("casey-doe")).toBe(true);
@@ -94,7 +114,7 @@ describe("LocalBloomFilter", () => {
 
   it("survives bytes above 0x7f, which a text round trip would corrupt", () => {
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     const bytes = new Uint8Array(parameters.byteLength);
     bytes[0] = 0x81;
     bytes[1] = 0xff;
@@ -109,7 +129,7 @@ describe("LocalBloomFilter", () => {
     // Redis grows a bitmap only as far as its highest set bit, so a sparse
     // filter comes back truncated rather than padded.
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     filter.replaceFrom(new Uint8Array([0b1000_0000]));
 
@@ -121,7 +141,7 @@ describe("LocalBloomFilter", () => {
     // An oversized bitmap was built with different parameters. Reading it with
     // the current ones would misplace every probe and produce false negatives.
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     expect(() =>
       filter.replaceFrom(new Uint8Array(parameters.byteLength + 1)),
@@ -133,7 +153,7 @@ describe("LocalBloomFilter", () => {
 
   it("replaces rather than merges, dropping bits absent from the new bitmap", () => {
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     filter.add("casey-doe");
     filter.replaceFrom(new Uint8Array(parameters.byteLength));
@@ -145,10 +165,10 @@ describe("LocalBloomFilter", () => {
     // A same-generation reload merges so that names added locally since the
     // read began are not erased by an older snapshot.
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const remote = new LocalBloomFilter(parameters);
+    const remote = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     remote.add("river-stone");
 
-    const local = new LocalBloomFilter(parameters);
+    const local = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
     local.add("casey-doe");
     local.mergeFrom(remote.toBuffer());
 
@@ -157,7 +177,10 @@ describe("LocalBloomFilter", () => {
   });
 
   it("clears every bit", () => {
-    const filter = new LocalBloomFilter(deriveBloomParameters(1_000, 0.01));
+    const filter = new LocalBloomFilter(
+      deriveBloomParameters(1_000, 0.01),
+      normalizeUsernameForBloom,
+    );
 
     filter.add("casey-doe");
     filter.clear();
@@ -168,7 +191,7 @@ describe("LocalBloomFilter", () => {
 
   it("counts set bits across byte boundaries", () => {
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     filter.addIndices([0, 7, 8, 15, 16]);
 
@@ -181,7 +204,7 @@ describe("LocalBloomFilter", () => {
     // Redis SETBIT offset 0 addresses the top bit of byte 0. Disagreeing here
     // would make a bitmap written by the rebuild unreadable by the service.
     const parameters = deriveBloomParameters(1_000, 0.01);
-    const filter = new LocalBloomFilter(parameters);
+    const filter = new LocalBloomFilter(parameters, normalizeUsernameForBloom);
 
     filter.addIndices([0]);
 

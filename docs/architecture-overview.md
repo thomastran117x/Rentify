@@ -290,7 +290,7 @@ at cannot disagree.
 ## Data and Infrastructure Responsibilities
 
 - MySQL: source of truth for product and transactional data
-- Redis: cache and concurrency helpers such as booking-related locking, plus the shared username availability bloom filter
+- Redis: cache and concurrency helpers such as booking-related locking, plus the shared username and email availability bloom filters
 - Elasticsearch: search indexes and query acceleration
 - RabbitMQ: queue backbone for worker-driven async jobs
 
