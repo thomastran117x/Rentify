@@ -3,7 +3,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import UsernameChangeCooldownError from "@/errors/http/username-change-cooldown.error";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
-import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type {
@@ -26,7 +26,7 @@ export class ProfileService {
     private readonly profileRepository: ProfileRepository,
     private readonly blobService: BlobService,
     private readonly cacheService: CacheService,
-    private readonly usernameBloomService: UsernameBloomService,
+    private readonly usernameBloomService: IdentityBloomService,
   ) {}
 
   async list(input: ListProfilesInput): Promise<ListProfilesResult> {

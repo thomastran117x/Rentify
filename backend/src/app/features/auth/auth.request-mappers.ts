@@ -49,6 +49,10 @@ import type {
   UnlockLocalLoginRequestBody,
 } from "@/features/auth/lockout/login-lockout.model";
 import {
+  emailAvailabilityQuerySchema,
+  type EmailAvailabilityQuery,
+} from "@/features/auth/email-availability/email-availability.model";
+import {
   usernameAvailabilityQuerySchema,
   type ForgotUsernameInput,
   type ForgotUsernameRequestBody,
@@ -65,6 +69,28 @@ export function resolveDeviceId(
   deviceId?: string,
 ): string | undefined {
   return deviceId ?? request.client.device.id;
+}
+
+export function parseEmailAvailabilityQuery(
+  request: Request,
+): EmailAvailabilityQuery {
+  try {
+    return emailAvailabilityQuerySchema.parse({
+      email: getQuery(request).email,
+    });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new RequestValidationError(
+        "Request query validation failed.",
+        error.issues.map((issue) => ({
+          path: "email",
+          message: issue.message,
+        })),
+      );
+    }
+
+    throw error;
+  }
 }
 
 export function parseUsernameAvailabilityQuery(

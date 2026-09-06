@@ -1,4 +1,4 @@
-import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
+import { IdentityBloomStore } from "@/features/auth/identity-bloom/identity-bloom.store";
 
 function createClient(overrides: Record<string, unknown> = {}) {
   const binaryClient = {
@@ -22,14 +22,14 @@ function createClient(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("UsernameBloomStore", () => {
+describe("IdentityBloomStore", () => {
   describe("readBitmap", () => {
     it("reads through a Buffer type mapping rather than as text", () => {
       // `client.get` decodes as UTF-8, which rewrites any byte above 0x7f — a
       // bitmap byte of 0x81 comes back as 0xfd. Those flipped bits would turn
       // "definitely absent" into a wrong answer.
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       return store.readBitmap("bits").then((bitmap) => {
         expect(client.withTypeMapping).toHaveBeenCalled();
@@ -41,14 +41,14 @@ describe("UsernameBloomStore", () => {
     it("returns null when the bitmap key is missing", async () => {
       const client = createClient();
       client.binaryClient.get.mockResolvedValueOnce(null as never);
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await expect(store.readBitmap("bits")).resolves.toBeNull();
     });
 
     it("builds the binary client once per connection", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.readBitmap("bits");
       await store.readBitmap("bits");
@@ -60,7 +60,7 @@ describe("UsernameBloomStore", () => {
       const first = createClient();
       const second = createClient();
       let current = first;
-      const store = new UsernameBloomStore(() => current as never);
+      const store = new IdentityBloomStore(() => current as never);
 
       await store.readBitmap("bits");
       current = second;
@@ -73,7 +73,7 @@ describe("UsernameBloomStore", () => {
   describe("setBits", () => {
     it("sets each offset to one", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.setBits("bits", [3, 9]);
 
@@ -85,7 +85,7 @@ describe("UsernameBloomStore", () => {
 
     it("splits a large batch across commands", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.setBits(
         "bits",
@@ -97,7 +97,7 @@ describe("UsernameBloomStore", () => {
 
     it("does nothing for an empty list", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.setBits("bits", []);
 
@@ -108,11 +108,11 @@ describe("UsernameBloomStore", () => {
   describe("metadata", () => {
     it("round-trips through JSON", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const meta = {
         generation: 2,
         builtAt: "2026-08-17T00:00:00.000Z",
-        usernameCount: 5,
+        valueCount: 5,
         estimatedFalsePositiveRate: 0.01,
       };
 
@@ -125,7 +125,7 @@ describe("UsernameBloomStore", () => {
 
     it("returns null for a missing key", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await expect(store.readMeta("meta")).resolves.toBeNull();
     });
@@ -133,7 +133,7 @@ describe("UsernameBloomStore", () => {
     it("returns null rather than throwing on corrupt metadata", async () => {
       const client = createClient();
       client.get.mockResolvedValueOnce("{not json" as never);
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await expect(store.readMeta("meta")).resolves.toBeNull();
     });
@@ -167,7 +167,7 @@ describe("UsernameBloomStore", () => {
       // filter cannot share the connection it reads and writes with.
       const subscriber = createSubscriber();
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.subscribe("channel", jest.fn());
 
@@ -182,24 +182,24 @@ describe("UsernameBloomStore", () => {
     it("delivers well-formed events", async () => {
       const subscriber = createSubscriber();
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const onEvent = jest.fn();
 
       await store.subscribe("channel", onEvent);
       const handler = readMessageHandler(subscriber);
 
-      handler(JSON.stringify({ type: "add", usernames: ["casey-doe"] }));
+      handler(JSON.stringify({ type: "add", values: ["casey-doe"] }));
 
       expect(onEvent).toHaveBeenCalledWith({
         type: "add",
-        usernames: ["casey-doe"],
+        values: ["casey-doe"],
       });
     });
 
     it("drops messages that are not recognizable events", async () => {
       const subscriber = createSubscriber();
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const onEvent = jest.fn();
       const onError = jest.fn();
 
@@ -207,7 +207,7 @@ describe("UsernameBloomStore", () => {
       const handler = readMessageHandler(subscriber);
 
       handler(JSON.stringify({ type: "nonsense" }));
-      handler(JSON.stringify({ type: "add", usernames: [42] }));
+      handler(JSON.stringify({ type: "add", values: [42] }));
       handler("{not json");
 
       expect(onEvent).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe("UsernameBloomStore", () => {
     it("reports connection errors through the error callback", async () => {
       const subscriber = createSubscriber();
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const onError = jest.fn();
 
       await store.subscribe("channel", jest.fn(), onError);
@@ -232,7 +232,7 @@ describe("UsernameBloomStore", () => {
     it("unsubscribes and closes on shutdown", async () => {
       const subscriber = createSubscriber();
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       const subscription = await store.subscribe("channel", jest.fn());
       await subscription.close();
@@ -245,7 +245,7 @@ describe("UsernameBloomStore", () => {
       const subscriber = createSubscriber();
       subscriber.isOpen = false;
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       const subscription = await store.subscribe("channel", jest.fn());
       await subscription.close();
@@ -257,7 +257,7 @@ describe("UsernameBloomStore", () => {
       const subscriber = createSubscriber();
       subscriber.unsubscribe.mockRejectedValueOnce(new Error("already gone"));
       const client = createClient({ duplicate: jest.fn(() => subscriber) });
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const onError = jest.fn();
 
       const subscription = await store.subscribe("channel", jest.fn(), onError);
@@ -270,7 +270,7 @@ describe("UsernameBloomStore", () => {
   describe("plain key operations", () => {
     it("pushes and reads replay entries", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.pushReplayEntries("replay", ["casey-doe"]);
       expect(client.rPush).toHaveBeenCalledWith("replay", ["casey-doe"]);
@@ -281,7 +281,7 @@ describe("UsernameBloomStore", () => {
 
     it("skips an empty replay push", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.pushReplayEntries("replay", []);
 
@@ -290,7 +290,7 @@ describe("UsernameBloomStore", () => {
 
     it("renames, checks existence, and deletes", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.rename("from", "to");
       expect(client.rename).toHaveBeenCalledWith("from", "to");
@@ -305,7 +305,7 @@ describe("UsernameBloomStore", () => {
 
     it("skips an empty delete", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.delete([]);
 
@@ -314,7 +314,7 @@ describe("UsernameBloomStore", () => {
 
     it("reads and writes plain keys", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.writeKey("pointer", "3");
       expect(client.set).toHaveBeenCalledWith("pointer", "3");
@@ -325,7 +325,7 @@ describe("UsernameBloomStore", () => {
 
     it("writes a bitmap as raw bytes", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
       const bitmap = Buffer.from([0x81, 0xff]);
 
       await store.writeBitmap("bits", bitmap);
@@ -335,7 +335,7 @@ describe("UsernameBloomStore", () => {
 
     it("publishes an event as JSON", async () => {
       const client = createClient();
-      const store = new UsernameBloomStore(() => client as never);
+      const store = new IdentityBloomStore(() => client as never);
 
       await store.publish("channel", { type: "rebuilt", generation: 4 });
 

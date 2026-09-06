@@ -86,7 +86,7 @@ npm run dev:email-worker
 npm run dev:sms-worker
 npm run dev:search-worker
 npm run dev:recommendation-precompute-worker
-npm run dev:username-bloom-worker
+npm run dev:identity-bloom-worker
 ```
 
 ## API Endpoints and Docs

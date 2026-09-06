@@ -6,17 +6,19 @@ import {
   DEFAULT_POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS,
   DEFAULT_POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS,
   DEFAULT_POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO,
-  DEFAULT_USERNAME_BLOOM_CAPACITY,
-  DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE,
-  DEFAULT_USERNAME_BLOOM_MAX_STALENESS_MS,
-  DEFAULT_USERNAME_BLOOM_REBUILD_BATCH_SIZE,
-  DEFAULT_USERNAME_BLOOM_REBUILD_INTERVAL_MS,
-  DEFAULT_USERNAME_BLOOM_REBUILD_LOCK_TTL_MS,
-  DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS,
+  DEFAULT_IDENTITY_BLOOM_CAPACITY,
+  DEFAULT_IDENTITY_BLOOM_FALSE_POSITIVE_RATE,
+  DEFAULT_IDENTITY_BLOOM_MAX_STALENESS_MS,
+  DEFAULT_IDENTITY_BLOOM_REBUILD_BATCH_SIZE,
+  DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS,
+  DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS,
+  DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS,
 } from "@/configuration/environment/constants";
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
 import type {
   AppEnvironment,
+  EnvironmentVariableName,
+  IdentityBloomEnvironment,
   RateLimiterStrategy,
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
@@ -529,16 +531,57 @@ export function buildPostingsCacheConfig(
   };
 }
 
-export function buildUsernameBloomConfig(
+/**
+ * The environment variables backing one identity bloom filter.
+ *
+ * Named explicitly rather than derived from a prefix so the names stay literal
+ * types: `parseNumber` takes an `EnvironmentVariableName`, and it is those same
+ * literals that end up in the validation messages a misconfigured deploy reads.
+ */
+interface IdentityBloomVariableNames {
+  enabled: EnvironmentVariableName;
+  capacity: EnvironmentVariableName;
+  falsePositiveRate: EnvironmentVariableName;
+  reloadIntervalMs: EnvironmentVariableName;
+  maxStalenessMs: EnvironmentVariableName;
+  rebuildIntervalMs: EnvironmentVariableName;
+  rebuildBatchSize: EnvironmentVariableName;
+  rebuildLockTtlMs: EnvironmentVariableName;
+}
+
+const USERNAME_BLOOM_VARIABLES: IdentityBloomVariableNames = {
+  enabled: "USERNAME_BLOOM_ENABLED",
+  capacity: "USERNAME_BLOOM_CAPACITY",
+  falsePositiveRate: "USERNAME_BLOOM_FALSE_POSITIVE_RATE",
+  reloadIntervalMs: "USERNAME_BLOOM_RELOAD_INTERVAL_MS",
+  maxStalenessMs: "USERNAME_BLOOM_MAX_STALENESS_MS",
+  rebuildIntervalMs: "USERNAME_BLOOM_REBUILD_INTERVAL_MS",
+  rebuildBatchSize: "USERNAME_BLOOM_REBUILD_BATCH_SIZE",
+  rebuildLockTtlMs: "USERNAME_BLOOM_REBUILD_LOCK_TTL_MS",
+};
+
+const EMAIL_BLOOM_VARIABLES: IdentityBloomVariableNames = {
+  enabled: "EMAIL_BLOOM_ENABLED",
+  capacity: "EMAIL_BLOOM_CAPACITY",
+  falsePositiveRate: "EMAIL_BLOOM_FALSE_POSITIVE_RATE",
+  reloadIntervalMs: "EMAIL_BLOOM_RELOAD_INTERVAL_MS",
+  maxStalenessMs: "EMAIL_BLOOM_MAX_STALENESS_MS",
+  rebuildIntervalMs: "EMAIL_BLOOM_REBUILD_INTERVAL_MS",
+  rebuildBatchSize: "EMAIL_BLOOM_REBUILD_BATCH_SIZE",
+  rebuildLockTtlMs: "EMAIL_BLOOM_REBUILD_LOCK_TTL_MS",
+};
+
+function buildIdentityBloomConfig(
   raw: RawEnvironmentValues,
   errors: string[],
-): AppEnvironment["usernameBloom"] {
+  names: IdentityBloomVariableNames,
+): IdentityBloomEnvironment {
   return {
-    enabled: parseBoolean(raw.USERNAME_BLOOM_ENABLED, true),
+    enabled: parseBoolean(raw[names.enabled], true),
     capacity: parseNumber(
       raw,
-      "USERNAME_BLOOM_CAPACITY",
-      DEFAULT_USERNAME_BLOOM_CAPACITY,
+      names.capacity,
+      DEFAULT_IDENTITY_BLOOM_CAPACITY,
       errors,
       {
         integer: true,
@@ -547,8 +590,8 @@ export function buildUsernameBloomConfig(
     ),
     falsePositiveRate: parseNumber(
       raw,
-      "USERNAME_BLOOM_FALSE_POSITIVE_RATE",
-      DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE,
+      names.falsePositiveRate,
+      DEFAULT_IDENTITY_BLOOM_FALSE_POSITIVE_RATE,
       errors,
       {
         // A rate of 0 would demand an infinite bitmap and a rate of 1 would
@@ -560,8 +603,8 @@ export function buildUsernameBloomConfig(
     ),
     reloadIntervalMs: parseNumber(
       raw,
-      "USERNAME_BLOOM_RELOAD_INTERVAL_MS",
-      DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS,
+      names.reloadIntervalMs,
+      DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS,
       errors,
       {
         integer: true,
@@ -570,8 +613,8 @@ export function buildUsernameBloomConfig(
     ),
     maxStalenessMs: parseNumber(
       raw,
-      "USERNAME_BLOOM_MAX_STALENESS_MS",
-      DEFAULT_USERNAME_BLOOM_MAX_STALENESS_MS,
+      names.maxStalenessMs,
+      DEFAULT_IDENTITY_BLOOM_MAX_STALENESS_MS,
       errors,
       {
         integer: true,
@@ -580,8 +623,8 @@ export function buildUsernameBloomConfig(
     ),
     rebuildIntervalMs: parseNumber(
       raw,
-      "USERNAME_BLOOM_REBUILD_INTERVAL_MS",
-      DEFAULT_USERNAME_BLOOM_REBUILD_INTERVAL_MS,
+      names.rebuildIntervalMs,
+      DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS,
       errors,
       {
         integer: true,
@@ -590,8 +633,8 @@ export function buildUsernameBloomConfig(
     ),
     rebuildBatchSize: parseNumber(
       raw,
-      "USERNAME_BLOOM_REBUILD_BATCH_SIZE",
-      DEFAULT_USERNAME_BLOOM_REBUILD_BATCH_SIZE,
+      names.rebuildBatchSize,
+      DEFAULT_IDENTITY_BLOOM_REBUILD_BATCH_SIZE,
       errors,
       {
         integer: true,
@@ -600,8 +643,8 @@ export function buildUsernameBloomConfig(
     ),
     rebuildLockTtlMs: parseNumber(
       raw,
-      "USERNAME_BLOOM_REBUILD_LOCK_TTL_MS",
-      DEFAULT_USERNAME_BLOOM_REBUILD_LOCK_TTL_MS,
+      names.rebuildLockTtlMs,
+      DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS,
       errors,
       {
         integer: true,
@@ -611,8 +654,46 @@ export function buildUsernameBloomConfig(
   };
 }
 
+export function buildUsernameBloomConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["usernameBloom"] {
+  return buildIdentityBloomConfig(raw, errors, USERNAME_BLOOM_VARIABLES);
+}
+
+export function buildEmailBloomConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["emailBloom"] {
+  return buildIdentityBloomConfig(raw, errors, EMAIL_BLOOM_VARIABLES);
+}
+
+function validateIdentityBloomConfig(
+  config: IdentityBloomEnvironment,
+  names: IdentityBloomVariableNames,
+  errors: string[],
+): void {
+  if (config.falsePositiveRate <= 0 || config.falsePositiveRate >= 1) {
+    errors.push(
+      `${names.falsePositiveRate} must be greater than 0 and less than 1.`,
+    );
+  }
+
+  // The staleness gate is what stops a wedged instance from answering out of a
+  // bit array nobody has refreshed. Setting it below the reload interval would
+  // trip it on every healthy cycle and disable the filter entirely.
+  if (config.maxStalenessMs <= config.reloadIntervalMs) {
+    errors.push(
+      `${names.maxStalenessMs} must be greater than ${names.reloadIntervalMs}.`,
+    );
+  }
+}
+
 export function validateRuntimeConfig(
-  config: Pick<AppEnvironment, "postingsCache" | "usernameBloom">,
+  config: Pick<
+    AppEnvironment,
+    "postingsCache" | "usernameBloom" | "emailBloom"
+  >,
   errors: string[],
 ): void {
   if (
@@ -636,23 +717,10 @@ export function validateRuntimeConfig(
     errors.push("POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO must be less than 1.");
   }
 
-  if (
-    config.usernameBloom.falsePositiveRate <= 0 ||
-    config.usernameBloom.falsePositiveRate >= 1
-  ) {
-    errors.push(
-      "USERNAME_BLOOM_FALSE_POSITIVE_RATE must be greater than 0 and less than 1.",
-    );
-  }
-
-  // The staleness gate is what stops a wedged instance from answering out of a
-  // bit array nobody has refreshed. Setting it below the reload interval would
-  // trip it on every healthy cycle and disable the filter entirely.
-  if (
-    config.usernameBloom.maxStalenessMs <= config.usernameBloom.reloadIntervalMs
-  ) {
-    errors.push(
-      "USERNAME_BLOOM_MAX_STALENESS_MS must be greater than USERNAME_BLOOM_RELOAD_INTERVAL_MS.",
-    );
-  }
+  validateIdentityBloomConfig(
+    config.usernameBloom,
+    USERNAME_BLOOM_VARIABLES,
+    errors,
+  );
+  validateIdentityBloomConfig(config.emailBloom, EMAIL_BLOOM_VARIABLES, errors);
 }

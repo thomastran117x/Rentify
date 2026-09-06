@@ -142,9 +142,29 @@ export type RawEnvironmentValues = {
   USERNAME_BLOOM_REBUILD_INTERVAL_MS?: string;
   USERNAME_BLOOM_REBUILD_BATCH_SIZE?: string;
   USERNAME_BLOOM_REBUILD_LOCK_TTL_MS?: string;
+  EMAIL_BLOOM_ENABLED?: string;
+  EMAIL_BLOOM_CAPACITY?: string;
+  EMAIL_BLOOM_FALSE_POSITIVE_RATE?: string;
+  EMAIL_BLOOM_RELOAD_INTERVAL_MS?: string;
+  EMAIL_BLOOM_MAX_STALENESS_MS?: string;
+  EMAIL_BLOOM_REBUILD_INTERVAL_MS?: string;
+  EMAIL_BLOOM_REBUILD_BATCH_SIZE?: string;
+  EMAIL_BLOOM_REBUILD_LOCK_TTL_MS?: string;
 };
 
 export type EnvironmentVariableName = keyof RawEnvironmentValues;
+
+/** One identity bloom filter's settings; see `identity-bloom.service.ts`. */
+export interface IdentityBloomEnvironment {
+  enabled: boolean;
+  capacity: number;
+  falsePositiveRate: number;
+  reloadIntervalMs: number;
+  maxStalenessMs: number;
+  rebuildIntervalMs: number;
+  rebuildBatchSize: number;
+  rebuildLockTtlMs: number;
+}
 
 export interface AppEnvironment {
   raw: RawEnvironmentValues;
@@ -320,16 +340,8 @@ export interface AppEnvironment {
     negativeTtlSeconds: number;
     ttlJitterRatio: number;
   };
-  usernameBloom: {
-    enabled: boolean;
-    capacity: number;
-    falsePositiveRate: number;
-    reloadIntervalMs: number;
-    maxStalenessMs: number;
-    rebuildIntervalMs: number;
-    rebuildBatchSize: number;
-    rebuildLockTtlMs: number;
-  };
+  usernameBloom: IdentityBloomEnvironment;
+  emailBloom: IdentityBloomEnvironment;
   blobStorage: {
     connectionString?: string;
     containerName?: string;

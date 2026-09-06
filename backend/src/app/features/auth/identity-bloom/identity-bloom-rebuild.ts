@@ -1,8 +1,8 @@
 /**
- * Username availability filter — the rebuild side.
+ * Identity availability filters — the rebuild side.
  *
- * Write-through keeps the filter current but can never take anything *out* of
- * it: a bloom filter has no delete. Renamed-away names and expired signup
+ * Write-through keeps a filter current but can never take anything *out* of it:
+ * a bloom filter has no delete. Renamed-away usernames and expired signup
  * reservations therefore accumulate as permanent false positives, each one
  * costing a database query it should not have needed. A periodic rebuild from
  * the source of truth is what sheds them.
@@ -12,60 +12,64 @@
  */
 
 import type { Logger } from "@/configuration/logging/types";
-import { PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX } from "@/features/auth/pending-signup-username";
 import {
   deriveBloomParameters,
   estimateFalsePositiveRate,
-} from "@/features/auth/username-bloom/bloom-parameters";
-import { LocalBloomFilter } from "@/features/auth/username-bloom/local-bloom-filter";
-import { buildUsernameBloomKeys } from "@/features/auth/username-bloom/username-bloom-keys";
-import type { UsernameBloomRepository } from "@/features/auth/username-bloom/username-bloom.repository";
-import type { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
+} from "@/features/auth/identity-bloom/bloom-parameters";
+import { buildIdentityBloomKeys } from "@/features/auth/identity-bloom/identity-bloom-keys";
+import type { IdentityBloomSubject } from "@/features/auth/identity-bloom/identity-bloom-subject";
+import type { IdentityBloomStore } from "@/features/auth/identity-bloom/identity-bloom.store";
+import { LocalBloomFilter } from "@/features/auth/identity-bloom/local-bloom-filter";
+import type { IdentityBloomSource } from "@/features/auth/identity-bloom/sources/identity-bloom.source";
 import type { CacheService } from "@/features/cache/cache.service";
 
-export interface UsernameBloomRebuildConfig {
+export interface IdentityBloomRebuildConfig {
   capacity: number;
   falsePositiveRate: number;
   /** Full rebuild cadence; rebuilds remove stale false-positive-only entries. */
   rebuildIntervalMs: number;
-  /** Profiles are scanned in keyset pages of this size. */
+  /** The source table is scanned in keyset pages of this size. */
   batchSize: number;
-  /** Extended after every profile page so only one rebuild can publish. */
+  /** Extended after every page so only one rebuild can publish. */
   lockTtlMs: number;
 }
 
-export interface UsernameBloomRebuildDependencies {
-  store: UsernameBloomStore;
-  repository: UsernameBloomRepository;
+export interface IdentityBloomRebuildDependencies {
+  subject: IdentityBloomSubject;
+  store: IdentityBloomStore;
+  source: IdentityBloomSource;
   cacheService: Pick<CacheService, "acquireLock" | "scanKeys">;
-  config: UsernameBloomRebuildConfig;
+  config: IdentityBloomRebuildConfig;
   logger: Logger;
   now?: () => number;
 }
 
-export type UsernameBloomRebuildStatus =
+export type IdentityBloomRebuildStatus =
   | "rebuilt"
   | "skipped-fresh"
   | "skipped-locked";
 
-export interface UsernameBloomRebuildResult {
-  status: UsernameBloomRebuildStatus;
+export interface IdentityBloomRebuildResult {
+  status: IdentityBloomRebuildStatus;
   generation?: number;
-  usernameCount?: number;
+  valueCount?: number;
   estimatedFalsePositiveRate?: number;
 }
 
-export async function rebuildUsernameBloom(
-  dependencies: UsernameBloomRebuildDependencies,
-): Promise<UsernameBloomRebuildResult> {
-  const { store, repository, cacheService, config, logger } = dependencies;
+export async function rebuildIdentityBloom(
+  dependencies: IdentityBloomRebuildDependencies,
+): Promise<IdentityBloomRebuildResult> {
+  const { subject, store, source, cacheService, config, logger } = dependencies;
   const now = dependencies.now ?? Date.now;
 
   const parameters = deriveBloomParameters(
     config.capacity,
     config.falsePositiveRate,
   );
-  const keys = buildUsernameBloomKeys(parameters.fingerprint);
+  const keys = buildIdentityBloomKeys(
+    subject.cachePrefix,
+    parameters.fingerprint,
+  );
 
   const existingMeta = await store.readMeta(keys.meta);
 
@@ -104,10 +108,10 @@ export async function rebuildUsernameBloom(
 
     // Build in memory and publish with one SET plus an atomic RENAME. Updating
     // the live Redis bitmap row-by-row would expose readers to a partial build.
-    const filter = new LocalBloomFilter(parameters);
-    const usernameCount = await loadUsernames(
+    const filter = new LocalBloomFilter(parameters, subject.normalize);
+    const persistedCount = await loadPersistedValues(
       filter,
-      repository,
+      source,
       config.batchSize,
       lock,
       config.lockTtlMs,
@@ -115,6 +119,7 @@ export async function rebuildUsernameBloom(
     const reservationCount = await loadPendingReservations(
       filter,
       cacheService,
+      subject,
     );
 
     await store.writeBitmap(shadowKey, filter.toBuffer());
@@ -129,23 +134,25 @@ export async function rebuildUsernameBloom(
       keys.bits,
       replayKey,
       parameters,
+      subject,
     );
 
-    const totalCount = usernameCount + reservationCount;
+    const totalCount = persistedCount + reservationCount;
     const estimated = estimateFalsePositiveRate(parameters, totalCount);
 
     await store.writeMeta(keys.meta, {
       generation,
       builtAt: new Date(now()).toISOString(),
-      usernameCount: totalCount,
+      valueCount: totalCount,
       estimatedFalsePositiveRate: estimated,
     });
     await store.publish(keys.channel, { type: "rebuilt", generation });
     await store.delete([replayKey]);
 
-    logger.info("Rebuilt the username bloom filter.", {
+    logger.info(`Rebuilt the ${subject.id} bloom filter.`, {
+      subject: subject.id,
       generation,
-      usernameCount,
+      persistedCount,
       reservationCount,
       replayed,
       estimatedFalsePositiveRate: estimated,
@@ -154,9 +161,10 @@ export async function rebuildUsernameBloom(
 
     if (estimated > config.falsePositiveRate * 2) {
       logger.warn(
-        "Username bloom filter is saturated beyond its target false positive rate; consider raising USERNAME_BLOOM_CAPACITY.",
+        `The ${subject.id} bloom filter is saturated beyond its target false positive rate; consider raising ${subject.id.toUpperCase()}_BLOOM_CAPACITY.`,
         {
-          usernameCount: totalCount,
+          subject: subject.id,
+          valueCount: totalCount,
           capacity: config.capacity,
           estimatedFalsePositiveRate: estimated,
           targetFalsePositiveRate: config.falsePositiveRate,
@@ -167,7 +175,7 @@ export async function rebuildUsernameBloom(
     return {
       status: "rebuilt",
       generation,
-      usernameCount: totalCount,
+      valueCount: totalCount,
       estimatedFalsePositiveRate: estimated,
     };
   } finally {
@@ -193,9 +201,9 @@ function isFresh(
   return now() - builtAtMs < rebuildIntervalMs;
 }
 
-async function loadUsernames(
+async function loadPersistedValues(
   filter: LocalBloomFilter,
-  repository: UsernameBloomRepository,
+  source: IdentityBloomSource,
   batchSize: number,
   lock: { extend: (ttlInMs: number) => Promise<boolean> },
   lockTtlMs: number,
@@ -204,10 +212,10 @@ async function loadUsernames(
   let total = 0;
 
   for (;;) {
-    const page = await repository.listUsernamesAfter(cursorId, batchSize);
+    const page = await source.listValuesAfter(cursorId, batchSize);
 
-    for (const username of page.usernames) {
-      filter.add(username);
+    for (const value of page.values) {
+      filter.add(value);
       total += 1;
     }
 
@@ -224,25 +232,22 @@ async function loadUsernames(
 /**
  * Unverified signups hold a soft reservation in Redis rather than a row, and a
  * filter miss skips the reservation lookup as well as the database one. Leaving
- * them out would let the endpoint report a reserved name as free — exactly what
- * `pending-signup-username.ts` exists to prevent.
+ * them out would let an availability check report a reserved value as though
+ * nothing had ever been submitted for it.
  */
 async function loadPendingReservations(
   filter: LocalBloomFilter,
   cacheService: Pick<CacheService, "scanKeys">,
+  subject: IdentityBloomSubject,
 ): Promise<number> {
-  const keys = await cacheService.scanKeys(
-    `${PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX}:*`,
-  );
+  const keys = await cacheService.scanKeys(`${subject.reservationPrefix}:*`);
   let total = 0;
 
   for (const key of keys) {
-    const username = key.slice(
-      PENDING_LOCAL_SIGNUP_USERNAME_CACHE_PREFIX.length + 1,
-    );
+    const value = key.slice(subject.reservationPrefix.length + 1);
 
-    if (username) {
-      filter.add(username);
+    if (value) {
+      filter.add(value);
       total += 1;
     }
   }
@@ -251,25 +256,26 @@ async function loadPendingReservations(
 }
 
 async function replayPendingAdds(
-  store: UsernameBloomStore,
+  store: IdentityBloomStore,
   bitsKey: string,
   replayKey: string,
   parameters: ReturnType<typeof deriveBloomParameters>,
+  subject: IdentityBloomSubject,
 ): Promise<number> {
-  const usernames = await store.readReplayEntries(replayKey);
+  const values = await store.readReplayEntries(replayKey);
 
-  if (usernames.length === 0) {
+  if (values.length === 0) {
     return 0;
   }
 
-  const scratch = new LocalBloomFilter(parameters);
+  const scratch = new LocalBloomFilter(parameters, subject.normalize);
   const indices: number[] = [];
 
-  for (const username of usernames) {
-    indices.push(...scratch.getIndices(username));
+  for (const value of values) {
+    indices.push(...scratch.getIndices(value));
   }
 
   await store.setBits(bitsKey, indices);
 
-  return usernames.length;
+  return values.length;
 }

@@ -453,4 +453,36 @@ describe("UsersRepository", () => {
       expect(findUnique).not.toHaveBeenCalled();
     });
   });
+
+  describe("findUserIdByEmail", () => {
+    it("touches only the unique index instead of loading the auth graph", async () => {
+      // The point of this probe over findUserByEmail: an availability check
+      // wants existence, not the profile, identities and memberships that one
+      // loads to answer the same question.
+      const findUnique = jest.fn(async () => ({ id: USER_1_ID }));
+      const repository = new UsersRepository({
+        user: { findUnique },
+      } as any);
+
+      await expect(
+        repository.findUserIdByEmail("  User@Example.COM "),
+      ).resolves.toBe(USER_1_ID);
+
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { email: "user@example.com" },
+        select: { id: true },
+      });
+    });
+
+    it("reports null for an address nobody holds", async () => {
+      const findUnique = jest.fn(async () => null);
+      const repository = new UsersRepository({
+        user: { findUnique },
+      } as any);
+
+      await expect(
+        repository.findUserIdByEmail("nobody@example.com"),
+      ).resolves.toBeNull();
+    });
+  });
 });

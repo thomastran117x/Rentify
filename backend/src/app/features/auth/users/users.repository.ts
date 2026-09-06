@@ -161,6 +161,26 @@ export class UsersRepository extends BaseRepository {
     return profile?.userId ?? null;
   }
 
+  /**
+   * Cheap existence probe for availability checks. Unlike
+   * {@link findUserByEmail} this touches only the unique index on
+   * `users.email` and never loads the auth user graph.
+   */
+  async findUserIdByEmail(email: string): Promise<string | null> {
+    const user = await this.executeAsync(() =>
+      this.prisma.user.findUnique({
+        where: {
+          email: email.trim().toLowerCase(),
+        },
+        select: {
+          id: true,
+        },
+      }),
+    );
+
+    return user?.id ?? null;
+  }
+
   async createLocalUser(
     input: CreateLocalUserInput,
     passwordHash: string,

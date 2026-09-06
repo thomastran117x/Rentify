@@ -13,11 +13,13 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.cacheService,
         containerTokens.usernameBloomService,
+        containerTokens.emailBloomService,
       ],
       resolve: ({ resolve }) =>
         new PendingSignupStore(
           resolve(containerTokens.cacheService),
           resolve(containerTokens.usernameBloomService),
+          resolve(containerTokens.emailBloomService),
         ),
     });
     container.register({
@@ -32,6 +34,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
         containerTokens.cacheService,
         containerTokens.mfaTotpService,
         containerTokens.usernameBloomService,
+        containerTokens.emailBloomService,
         containerTokens.authSessionService,
         containerTokens.pendingSignupStore,
         containerTokens.publicOtpService,
@@ -48,6 +51,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.cacheService),
           resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.usernameBloomService),
+          resolve(containerTokens.emailBloomService),
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.pendingSignupStore),
           resolve(containerTokens.publicOtpService),

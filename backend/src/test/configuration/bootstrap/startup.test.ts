@@ -26,8 +26,8 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
-      warmUsernameBloomFilter: async () => {
-        calls.push("warmUsernameBloomFilter");
+      warmIdentityBloomFilters: async () => {
+        calls.push("warmIdentityBloomFilters");
       },
       createApplication: () => {
         calls.push("createApplication");
@@ -47,7 +47,7 @@ describe("initializeServerApplication", () => {
       "connectElasticsearch",
       "connectRabbitMq",
       "initializeContainer",
-      "warmUsernameBloomFilter",
+      "warmIdentityBloomFilters",
       "createApplication",
     ]);
     expect(result).toEqual({
@@ -80,8 +80,8 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
-      warmUsernameBloomFilter: async () => {
-        calls.push("warmUsernameBloomFilter");
+      warmIdentityBloomFilters: async () => {
+        calls.push("warmIdentityBloomFilters");
       },
       createApplication: () => {
         calls.push("createApplication");
@@ -100,7 +100,7 @@ describe("initializeServerApplication", () => {
       "connectRedis",
       "connectElasticsearch",
       "initializeContainer",
-      "warmUsernameBloomFilter",
+      "warmIdentityBloomFilters",
       "createApplication",
     ]);
     expect(result.port).toBe(8040);

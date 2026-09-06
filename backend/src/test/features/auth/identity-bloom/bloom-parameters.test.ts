@@ -2,7 +2,7 @@ import {
   BLOOM_HASH_VERSION,
   deriveBloomParameters,
   estimateFalsePositiveRate,
-} from "@/features/auth/username-bloom/bloom-parameters";
+} from "@/features/auth/identity-bloom/bloom-parameters";
 
 describe("deriveBloomParameters", () => {
   it("sizes the bitmap and probe count from the standard bloom formulas", () => {

@@ -1,16 +1,20 @@
+import {
+  emailBloomSubject,
+  usernameBloomSubject,
+} from "@/features/auth/identity-bloom/identity-bloom-subject";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { loggerFactory } from "@/configuration/logging";
 import { environment } from "@/configuration/environment";
 import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
-import { deriveBloomParameters } from "@/features/auth/username-bloom/bloom-parameters";
-import { buildUsernameBloomKeys } from "@/features/auth/username-bloom/username-bloom-keys";
-import { rebuildUsernameBloom } from "@/features/auth/username-bloom/username-bloom-rebuild";
+import { deriveBloomParameters } from "@/features/auth/identity-bloom/bloom-parameters";
+import { buildIdentityBloomKeys } from "@/features/auth/identity-bloom/identity-bloom-keys";
+import { rebuildIdentityBloom } from "@/features/auth/identity-bloom/identity-bloom-rebuild";
 import {
-  UsernameBloomService,
-  type UsernameBloomConfig,
-} from "@/features/auth/username-bloom/username-bloom.service";
-import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
+  IdentityBloomService,
+  type IdentityBloomConfig,
+} from "@/features/auth/identity-bloom/identity-bloom.service";
+import { IdentityBloomStore } from "@/features/auth/identity-bloom/identity-bloom.store";
 import {
   createPersistenceTestApp,
   resetPersistenceState,
@@ -25,10 +29,10 @@ const ORIGIN = "http://localhost:3040";
  * binary bitmap round trip, the cross-instance pub/sub hand-off, and a rebuild
  * reading the actual profiles table.
  */
-describe("Username bloom filter persistence integration", () => {
+describe("Identity bloom filter persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
 
-  const config: UsernameBloomConfig = {
+  const config: IdentityBloomConfig = {
     enabled: true,
     capacity: 1_000,
     falsePositiveRate: 0.01,
@@ -39,14 +43,18 @@ describe("Username bloom filter persistence integration", () => {
     config.capacity,
     config.falsePositiveRate,
   );
-  const keys = buildUsernameBloomKeys(parameters.fingerprint);
+  const keys = buildIdentityBloomKeys(
+    usernameBloomSubject.cachePrefix,
+    parameters.fingerprint,
+  );
 
-  function createStore(): UsernameBloomStore {
-    return new UsernameBloomStore();
+  function createStore(): IdentityBloomStore {
+    return new IdentityBloomStore();
   }
 
-  function createService(): UsernameBloomService {
-    return new UsernameBloomService(
+  function createService(): IdentityBloomService {
+    return new IdentityBloomService(
+      usernameBloomSubject,
       createStore(),
       config,
       loggerFactory.forComponent("username-bloom-test", "service"),
@@ -54,10 +62,11 @@ describe("Username bloom filter persistence integration", () => {
   }
 
   async function runRebuild() {
-    return rebuildUsernameBloom({
+    return rebuildIdentityBloom({
+      subject: usernameBloomSubject,
       store: createStore(),
-      repository: persistenceApp.container.resolve(
-        containerTokens.usernameBloomRepository,
+      source: persistenceApp.container.resolve(
+        containerTokens.usernameBloomSource,
       ),
       cacheService: persistenceApp.container.resolve(
         containerTokens.cacheService,
@@ -74,12 +83,49 @@ describe("Username bloom filter persistence integration", () => {
     });
   }
 
+  const emailConfig: IdentityBloomConfig = { ...config };
+  const emailKeys = buildIdentityBloomKeys(
+    emailBloomSubject.cachePrefix,
+    parameters.fingerprint,
+  );
+
+  function createEmailService(): IdentityBloomService {
+    return new IdentityBloomService(
+      emailBloomSubject,
+      createStore(),
+      emailConfig,
+      loggerFactory.forComponent("email-bloom-test", "service"),
+    );
+  }
+
+  async function runEmailRebuild() {
+    return rebuildIdentityBloom({
+      subject: emailBloomSubject,
+      store: createStore(),
+      source: persistenceApp.container.resolve(
+        containerTokens.emailBloomSource,
+      ),
+      cacheService: persistenceApp.container.resolve(
+        containerTokens.cacheService,
+      ),
+      config: {
+        capacity: emailConfig.capacity,
+        falsePositiveRate: emailConfig.falsePositiveRate,
+        rebuildIntervalMs: 0,
+        batchSize: 3,
+        lockTtlMs: 30_000,
+      },
+      logger: loggerFactory.forComponent("email-bloom-test", "worker"),
+    });
+  }
+
   async function clearFilterKeys(): Promise<void> {
     const cacheService = persistenceApp.container.resolve(
       containerTokens.cacheService,
     );
 
     await cacheService.deleteByPattern("auth:username-bloom:*");
+    await cacheService.deleteByPattern("auth:email-bloom:*");
   }
 
   beforeAll(async () => {
@@ -102,7 +148,7 @@ describe("Username bloom filter persistence integration", () => {
     const result = await runRebuild();
 
     expect(result.status).toBe("rebuilt");
-    expect(result.usernameCount).toBeGreaterThan(0);
+    expect(result.valueCount).toBeGreaterThan(0);
 
     const service = createService();
     await service.initialize();
@@ -125,7 +171,7 @@ describe("Username bloom filter persistence integration", () => {
     });
     const result = await runRebuild();
 
-    expect(result.usernameCount).toBe(profiles.length);
+    expect(result.valueCount).toBe(profiles.length);
 
     const service = createService();
     await service.initialize();
@@ -347,6 +393,182 @@ describe("Username bloom filter persistence integration", () => {
       body: (await response.json()) as { data?: Record<string, unknown> },
     };
   }
+
+  it("rebuilds the email filter from the users table", async () => {
+    // The same machinery over a different table. Emails live on the user row
+    // while usernames live on the profile, which is the only difference.
+    const result = await runEmailRebuild();
+    const users = await persistenceApp.prisma.user.findMany({
+      select: { email: true },
+    });
+
+    expect(result.status).toBe("rebuilt");
+    expect(result.valueCount).toBe(users.length);
+
+    const service = createEmailService();
+    await service.initialize();
+
+    try {
+      expect(service.isReady()).toBe(true);
+
+      for (const user of users) {
+        expect(service.check(user.email)).toBe("possibly-present");
+        // The unique index is case-insensitive, so the filter has to be too.
+        expect(service.check(user.email.toUpperCase())).toBe(
+          "possibly-present",
+        );
+      }
+
+      expect(service.check("nobody-has-ever-signed-up@example.com")).toBe(
+        "definitely-absent",
+      );
+    } finally {
+      await service.dispose();
+    }
+  }, 120_000);
+
+  it("keeps the two filters in separate keyspaces", async () => {
+    // Both are sized identically, so they derive the same fingerprint; only
+    // the subject prefix stops one bitmap being read as the other.
+    await runRebuild();
+    await runEmailRebuild();
+
+    const usernameService = createService();
+    const emailService = createEmailService();
+    await usernameService.initialize();
+    await emailService.initialize();
+
+    try {
+      expect(emailService.check("owner-one")).toBe("definitely-absent");
+      expect(usernameService.check("owner1@rentify.local")).toBe(
+        "definitely-absent",
+      );
+      expect(emailService.check("owner1@rentify.local")).toBe(
+        "possibly-present",
+      );
+    } finally {
+      await usernameService.dispose();
+      await emailService.dispose();
+    }
+  }, 120_000);
+
+  it("answers the availability endpoint for an address nobody holds", async () => {
+    await runEmailRebuild();
+
+    const response = await requestAvailability(
+      `http://rent.test${buildApiPath("/auth/email/available?email=nobody-at-all@example.com")}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      email: "nobody-at-all@example.com",
+      available: true,
+      reason: null,
+    });
+  }, 120_000);
+
+  it("reports a seeded address as taken", async () => {
+    await runEmailRebuild();
+
+    const response = await requestAvailability(
+      `http://rent.test${buildApiPath("/auth/email/available?email=OWNER1@rentify.local")}`,
+    );
+
+    expect(response.status).toBe(200);
+    // Normalized on the way in, so casing is not significant.
+    expect(response.body.data).toMatchObject({
+      email: "owner1@rentify.local",
+      available: false,
+      reason: "taken",
+    });
+  }, 120_000);
+
+  it("loads the container-wired filter so signup can skip its lookup", async () => {
+    // The hot path this feature exists for, through the instance the container
+    // actually hands `LocalAuthService`.
+    //
+    // Rebuilt at the *environment* sizing rather than this file's smaller test
+    // config: the fingerprint is derived from capacity and probe count, so a
+    // bitmap built at another size lands in a different keyspace and the
+    // container service would correctly refuse to read it.
+    const configured = environment.getEmailBloomConfig();
+    const rebuild = await rebuildIdentityBloom({
+      subject: emailBloomSubject,
+      store: createStore(),
+      source: persistenceApp.container.resolve(
+        containerTokens.emailBloomSource,
+      ),
+      cacheService: persistenceApp.container.resolve(
+        containerTokens.cacheService,
+      ),
+      config: {
+        capacity: configured.capacity,
+        falsePositiveRate: configured.falsePositiveRate,
+        rebuildIntervalMs: 0,
+        batchSize: 100,
+        lockTtlMs: 30_000,
+      },
+      logger: loggerFactory.forComponent("email-bloom-test", "worker"),
+    });
+
+    expect(rebuild.status).toBe("rebuilt");
+
+    const emailBloomService = persistenceApp.container.resolve(
+      containerTokens.emailBloomService,
+    );
+    await emailBloomService.initialize();
+
+    try {
+      expect(emailBloomService.isReady()).toBe(true);
+      expect(emailBloomService.check("brand-new-person@example.com")).toBe(
+        "definitely-absent",
+      );
+      expect(emailBloomService.check("owner1@rentify.local")).toBe(
+        "possibly-present",
+      );
+    } finally {
+      await emailBloomService.dispose();
+    }
+  }, 120_000);
+
+  it("records a pending signup email so the endpoint can explain it", async () => {
+    // Without the reservation in the filter, the fast path would answer
+    // "reason: null" for an address whose signup is already in flight.
+    const pendingSignupStore = persistenceApp.container.resolve(
+      containerTokens.pendingSignupStore,
+    );
+    await pendingSignupStore.write(
+      {
+        username: "pending-person",
+        email: "pending-person@example.com",
+        passwordHash: "hash",
+        createdAt: new Date().toISOString(),
+      },
+      600,
+    );
+
+    const result = await runEmailRebuild();
+    const service = createEmailService();
+    await service.initialize();
+
+    try {
+      expect(result.status).toBe("rebuilt");
+      expect(service.check("pending-person@example.com")).toBe(
+        "possibly-present",
+      );
+    } finally {
+      await service.dispose();
+    }
+
+    const response = await requestAvailability(
+      `http://rent.test${buildApiPath("/auth/email/available?email=pending-person@example.com")}`,
+    );
+
+    expect(response.body.data).toMatchObject({
+      available: true,
+      reason: "pending-verification",
+    });
+  }, 120_000);
 
   async function waitFor(
     predicate: () => boolean,

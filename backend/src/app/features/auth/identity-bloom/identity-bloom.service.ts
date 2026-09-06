@@ -1,14 +1,18 @@
 /**
- * Username availability filter — the read side.
+ * Identity availability filter — the read side.
  *
- * Answers "could this username already be taken" from an in-process bit array,
- * so the common case (a name nobody has claimed) never reaches MySQL. Only a
+ * Answers "could this value already be taken" from an in-process bit array, so
+ * the common case (a value nobody has claimed) never reaches MySQL. Only a
  * negative answer is trusted; anything else defers to the authoritative lookup
- * in `UsernameService.isUsernameAvailable`.
+ * the caller would have made anyway.
+ *
+ * One instance of this class serves one subject. Usernames and emails ask the
+ * same question of different columns, so they get separate filters over a
+ * shared implementation — see `identity-bloom-subject.ts`.
  *
  * The in-process array is the zero-round-trip L1. Redis holds the shared bitmap
- * and generation metadata used as L2, while `username-bloom.worker.ts`
- * periodically rebuilds that shared copy from profiles and pending signup
+ * and generation metadata used as L2, while `identity-bloom.worker.ts`
+ * periodically rebuilds that shared copy from the database and pending signup
  * reservations. Redis accelerates reads here; MySQL and reservation records
  * remain the sources of truth.
  *
@@ -27,31 +31,31 @@
  */
 
 import type { Logger } from "@/configuration/logging/types";
-import { normalizeUsernameForBloom } from "@/features/auth/username-bloom/bloom-hash";
 import {
   deriveBloomParameters,
   type BloomParameters,
-} from "@/features/auth/username-bloom/bloom-parameters";
-import { LocalBloomFilter } from "@/features/auth/username-bloom/local-bloom-filter";
+} from "@/features/auth/identity-bloom/bloom-parameters";
 import {
-  buildUsernameBloomKeys,
-  type UsernameBloomEvent,
-  type UsernameBloomKeys,
-} from "@/features/auth/username-bloom/username-bloom-keys";
+  buildIdentityBloomKeys,
+  type IdentityBloomEvent,
+  type IdentityBloomKeys,
+} from "@/features/auth/identity-bloom/identity-bloom-keys";
+import type { IdentityBloomSubject } from "@/features/auth/identity-bloom/identity-bloom-subject";
 import type {
-  UsernameBloomStore,
-  UsernameBloomSubscription,
-} from "@/features/auth/username-bloom/username-bloom.store";
+  IdentityBloomStore,
+  IdentityBloomSubscription,
+} from "@/features/auth/identity-bloom/identity-bloom.store";
+import { LocalBloomFilter } from "@/features/auth/identity-bloom/local-bloom-filter";
 
-export type UsernameBloomVerdict =
+export type IdentityBloomVerdict =
   | "definitely-absent"
   | "possibly-present"
   | "unknown";
 
-export interface UsernameBloomConfig {
+export interface IdentityBloomConfig {
   /** Kill switch. Disabled filters return `unknown`, restoring database reads. */
   enabled: boolean;
-  /** Expected usernames; changing it selects a new Redis key namespace. */
+  /** Expected values; changing it selects a new Redis key namespace. */
   capacity: number;
   /** Performance target only: false positives fall through to the database. */
   falsePositiveRate: number;
@@ -61,31 +65,32 @@ export interface UsernameBloomConfig {
   maxStalenessMs: number;
 }
 
-export class UsernameBloomService {
+export class IdentityBloomService {
   private readonly parameters: BloomParameters;
-  private readonly keys: UsernameBloomKeys;
+  private readonly keys: IdentityBloomKeys;
   private readonly filter: LocalBloomFilter;
 
   private loaded = false;
   private lastLoadedAt = 0;
   private generation: number | null = null;
   private reloadTimer: NodeJS.Timeout | null = null;
-  private subscription: UsernameBloomSubscription | null = null;
+  private subscription: IdentityBloomSubscription | null = null;
   private initialization: Promise<void> | null = null;
   private disposed = false;
 
   /**
-   * Names whose Redis write is still in flight. A reload adopts a bitmap that
+   * Values whose Redis write is still in flight. A reload adopts a bitmap that
    * was read before those writes landed, so it puts them back afterwards —
    * otherwise a reload could erase a bit it raced with and hand back a false
    * negative. Entries are dropped as soon as the write settles, which is what
-   * lets a later rebuild shed a name the database no longer holds.
+   * lets a later rebuild shed a value the database no longer holds.
    */
   private readonly pendingAdds = new Set<string>();
 
   constructor(
-    private readonly store: UsernameBloomStore,
-    private readonly config: UsernameBloomConfig,
+    private readonly subject: IdentityBloomSubject,
+    private readonly store: IdentityBloomStore,
+    private readonly config: IdentityBloomConfig,
     private readonly logger: Logger,
     private readonly now: () => number = Date.now,
   ) {
@@ -93,8 +98,11 @@ export class UsernameBloomService {
       config.capacity,
       config.falsePositiveRate,
     );
-    this.keys = buildUsernameBloomKeys(this.parameters.fingerprint);
-    this.filter = new LocalBloomFilter(this.parameters);
+    this.keys = buildIdentityBloomKeys(
+      subject.cachePrefix,
+      this.parameters.fingerprint,
+    );
+    this.filter = new LocalBloomFilter(this.parameters, subject.normalize);
   }
 
   getParameters(): BloomParameters {
@@ -108,7 +116,7 @@ export class UsernameBloomService {
   async initialize(): Promise<void> {
     if (!this.config.enabled) {
       this.logger.info(
-        "Username bloom filter is disabled; availability checks will query the database.",
+        `The ${this.subject.id} bloom filter is disabled; availability checks will query the database.`,
       );
       return;
     }
@@ -123,7 +131,8 @@ export class UsernameBloomService {
     await this.reload();
     this.startReloadTimer();
 
-    this.logger.info("Username bloom filter initialized.", {
+    this.logger.info(`Initialized the ${this.subject.id} bloom filter.`, {
+      subject: this.subject.id,
       ready: this.loaded,
       bitCount: this.parameters.bitCount,
       hashCount: this.parameters.hashCount,
@@ -135,7 +144,7 @@ export class UsernameBloomService {
    * Pure local read — no I/O, no await. Returning `unknown` is always safe:
    * it just means the caller does what it did before this filter existed.
    */
-  check(username: string): UsernameBloomVerdict {
+  check(value: string): IdentityBloomVerdict {
     if (!this.config.enabled || !this.loaded) {
       return "unknown";
     }
@@ -144,7 +153,7 @@ export class UsernameBloomService {
       return "unknown";
     }
 
-    const normalized = normalizeUsernameForBloom(username);
+    const normalized = this.subject.normalize(value);
 
     if (!normalized) {
       return "unknown";
@@ -156,7 +165,7 @@ export class UsernameBloomService {
   }
 
   /**
-   * Records that a username is now claimed.
+   * Records that a value is now claimed.
    *
    * Never throws: a Redis problem must not fail a signup. A dropped write costs
    * accuracy, not correctness, because the local bit is already set and the next
@@ -167,50 +176,50 @@ export class UsernameBloomService {
    * arrives too late for the rebuild to replay it, then the live write is later
    * still, which puts it after the swap and onto the new bitmap.
    */
-  async add(usernames: string | string[]): Promise<void> {
+  async add(values: string | string[]): Promise<void> {
     if (!this.config.enabled) {
       return;
     }
 
-    const names = (Array.isArray(usernames) ? usernames : [usernames])
-      .map(normalizeUsernameForBloom)
-      .filter((name) => name.length > 0);
+    const normalized = (Array.isArray(values) ? values : [values])
+      .map(this.subject.normalize)
+      .filter((entry) => entry.length > 0);
 
-    if (names.length === 0) {
+    if (normalized.length === 0) {
       return;
     }
 
     const indices: number[] = [];
 
-    for (const name of names) {
-      indices.push(...this.filter.add(name));
-      this.pendingAdds.add(name);
+    for (const entry of normalized) {
+      indices.push(...this.filter.add(entry));
+      this.pendingAdds.add(entry);
     }
 
     try {
-      await this.recordAgainstActiveRebuild(names);
+      await this.recordAgainstActiveRebuild(normalized);
       await this.store.setBits(this.keys.bits, indices);
       await this.store.publish(this.keys.channel, {
         type: "add",
-        usernames: names,
+        values: normalized,
       });
     } catch (error) {
       this.logger.warn(
-        "Failed to publish username bloom additions; the next rebuild will recover them.",
-        { usernameCount: names.length },
+        `Failed to publish ${this.subject.id} bloom additions; the next rebuild will recover them.`,
+        { subject: this.subject.id, valueCount: normalized.length },
         error,
       );
     } finally {
       // Cleared on failure too. The local bit stays set either way, and a write
       // that never reached Redis is recovered by the next rebuild reading the
-      // database — holding the name here forever would only leak memory.
-      for (const name of names) {
-        this.pendingAdds.delete(name);
+      // database — holding the value here forever would only leak memory.
+      for (const entry of normalized) {
+        this.pendingAdds.delete(entry);
       }
     }
   }
 
-  private async recordAgainstActiveRebuild(names: string[]): Promise<void> {
+  private async recordAgainstActiveRebuild(values: string[]): Promise<void> {
     const pointer = await this.store.readKey(this.keys.shadowPointer);
 
     if (pointer === null) {
@@ -223,7 +232,10 @@ export class UsernameBloomService {
       return;
     }
 
-    await this.store.pushReplayEntries(this.keys.replayList(generation), names);
+    await this.store.pushReplayEntries(
+      this.keys.replayList(generation),
+      values,
+    );
   }
 
   private async subscribeToEvents(): Promise<void> {
@@ -235,7 +247,7 @@ export class UsernameBloomService {
         },
         (error) => {
           this.logger.warn(
-            "Username bloom subscription error; the periodic reload will recover.",
+            `The ${this.subject.id} bloom subscription errored; the periodic reload will recover.`,
             undefined,
             error,
           );
@@ -245,17 +257,17 @@ export class UsernameBloomService {
       // Losing the subscription only costs propagation latency, which the
       // reload timer bounds. Refusing to start would be worse.
       this.logger.warn(
-        "Could not subscribe to username bloom events; relying on periodic reloads.",
+        `Could not subscribe to ${this.subject.id} bloom events; relying on periodic reloads.`,
         undefined,
         error,
       );
     }
   }
 
-  private applyEvent(event: UsernameBloomEvent): void {
+  private applyEvent(event: IdentityBloomEvent): void {
     if (event.type === "add") {
-      for (const name of event.usernames) {
-        const normalized = normalizeUsernameForBloom(name);
+      for (const value of event.values) {
+        const normalized = this.subject.normalize(value);
 
         if (normalized) {
           this.filter.add(normalized);
@@ -270,8 +282,8 @@ export class UsernameBloomService {
       // stale bits left by renames and expired reservations.
       void this.reload().catch((error: unknown) => {
         this.logger.warn(
-          "Failed to reload the username bloom filter after a rebuild.",
-          { generation: event.generation },
+          `Failed to reload the ${this.subject.id} bloom filter after a rebuild.`,
+          { subject: this.subject.id, generation: event.generation },
           error,
         );
       });
@@ -286,8 +298,8 @@ export class UsernameBloomService {
     this.reloadTimer = setInterval(() => {
       void this.reload().catch((error: unknown) => {
         this.logger.warn(
-          "Scheduled username bloom reload failed.",
-          undefined,
+          `The scheduled ${this.subject.id} bloom reload failed.`,
+          { subject: this.subject.id },
           error,
         );
       });
@@ -328,24 +340,27 @@ export class UsernameBloomService {
         this.filter.mergeFrom(bitmap);
       }
 
-      // Re-apply anything whose Redis write has not been acknowledged yet. Those
-      // names cannot be in the bitmap that was just read, so adopting it would
-      // erase them and hand back a false negative. This runs synchronously with
+      // Re-apply anything whose Redis write has not been acknowledged yet.
+      // Those values cannot be in the bitmap that was just read, so adopting it
+      // would erase them and hand back a false negative. This runs synchronously with
       // the adoption above, so no other task can slip a write in between.
       //
       // Scoping this to *unacknowledged* writes rather than "everything added
-      // recently" is what lets a rebuild shed a name: once the write lands, the
-      // database is the only thing still vouching for it.
-      for (const name of this.pendingAdds) {
-        this.filter.add(name);
+      // recently" is what lets a rebuild shed a value: once the write lands,
+      // the database is the only thing still vouching for it.
+      for (const entry of this.pendingAdds) {
+        this.filter.add(entry);
       }
     } catch (error) {
       // Size mismatch means the stored bitmap does not match these parameters.
       // Reading it would risk false negatives, so stay unready.
       this.loaded = false;
       this.logger.error(
-        "Stored username bloom bitmap does not match the configured parameters.",
-        { fingerprint: this.parameters.fingerprint },
+        `The stored ${this.subject.id} bloom bitmap does not match the configured parameters.`,
+        {
+          subject: this.subject.id,
+          fingerprint: this.parameters.fingerprint,
+        },
         error,
       );
       return;

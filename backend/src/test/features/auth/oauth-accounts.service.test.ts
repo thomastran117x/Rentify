@@ -130,12 +130,18 @@ function createHarness() {
     })),
   };
 
+  const emailBloomService = {
+    check: jest.fn(() => "unknown" as string),
+    add: jest.fn(async () => undefined),
+  };
+
   return {
     authRepository,
     googleOAuthService,
     microsoftOAuthService,
     appleOAuthService,
     usernameBloomService,
+    emailBloomService,
     mfaTotpService,
     tokenService,
     service: new OAuthAccountsService(
@@ -145,6 +151,7 @@ function createHarness() {
       microsoftOAuthService as never,
       appleOAuthService as never,
       usernameBloomService as never,
+      emailBloomService as never,
       mfaTotpService as never,
       new AuthSessionService(
         authRepository as never,
@@ -180,6 +187,38 @@ describe("OAuthAccountsService sign-in", () => {
     await harness.service.googleAuthenticate(oauthInput);
 
     expect(harness.usernameBloomService.add).toHaveBeenCalledWith("test-user");
+  });
+
+  it("adds the provider email to the bloom filter", async () => {
+    const harness = createHarness();
+
+    await harness.service.googleAuthenticate(oauthInput);
+
+    expect(harness.emailBloomService.add).toHaveBeenCalledWith(
+      "user@example.com",
+    );
+  });
+
+  it("skips the conflict lookup when the email filter rules the address out", async () => {
+    // Nothing but existence is read off that row, and a first sign-in with a
+    // brand new address is the common case.
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("definitely-absent");
+
+    await harness.service.googleAuthenticate(oauthInput);
+
+    expect(harness.authRepository.findUserByEmail).not.toHaveBeenCalled();
+    expect(harness.authRepository.createOAuthUser).toHaveBeenCalled();
+  });
+
+  it("still rejects a taken address the filter cannot rule out", async () => {
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("possibly-present");
+    harness.authRepository.findUserByEmail.mockResolvedValue(createUser());
+
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("refuses to take over an email that already has an account", async () => {

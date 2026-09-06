@@ -94,15 +94,18 @@ import type { PaymentProviderAdapter } from "@/features/payments/payment-provide
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { PaymentsService } from "@/features/payments/payments.service";
-import { UsernameBloomRepository } from "@/features/auth/username-bloom/username-bloom.repository";
-import { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
+import { EmailBloomSource } from "@/features/auth/identity-bloom/sources/email-bloom.source";
+import { UsernameBloomSource } from "@/features/auth/identity-bloom/sources/username-bloom.source";
 import { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import { PasswordController } from "@/features/auth/password/password.controller";
 import { PasswordService } from "@/features/auth/password/password.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
+import { EmailAvailabilityService } from "@/features/auth/email-availability/email-availability.service";
 import { UsernameController } from "@/features/auth/username/username.controller";
 import { UsernameService } from "@/features/auth/username/username.service";
-import { UsernameBloomStore } from "@/features/auth/username-bloom/username-bloom.store";
+import { IdentityBloomStore } from "@/features/auth/identity-bloom/identity-bloom.store";
 import { ProfileController } from "@/features/profile/profile.controller";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 import { ProfileService } from "@/features/profile/profile.service";
@@ -432,13 +435,24 @@ export const containerTokens = {
   paymentsService: createServiceToken<PaymentsService>("PaymentsService"),
   paymentsController:
     createServiceToken<PaymentsController>("PaymentsController"),
-  usernameBloomStore:
-    createServiceToken<UsernameBloomStore>("UsernameBloomStore"),
-  usernameBloomRepository: createServiceToken<UsernameBloomRepository>(
-    "UsernameBloomRepository",
+  // One store serves both filters: it holds no subject state, only the Redis
+  // connection plumbing every bitmap read and write goes through.
+  identityBloomStore:
+    createServiceToken<IdentityBloomStore>("IdentityBloomStore"),
+  usernameBloomSource: createServiceToken<UsernameBloomSource>(
+    "UsernameBloomSource",
   ),
-  usernameBloomService: createServiceToken<UsernameBloomService>(
+  emailBloomSource: createServiceToken<EmailBloomSource>("EmailBloomSource"),
+  usernameBloomService: createServiceToken<IdentityBloomService>(
     "UsernameBloomService",
+  ),
+  emailBloomService:
+    createServiceToken<IdentityBloomService>("EmailBloomService"),
+  emailAvailabilityService: createServiceToken<EmailAvailabilityService>(
+    "EmailAvailabilityService",
+  ),
+  emailAvailabilityController: createServiceToken<EmailAvailabilityController>(
+    "EmailAvailabilityController",
   ),
   profileRepository: createServiceToken<ProfileRepository>("ProfileRepository"),
   profileService: createServiceToken<ProfileService>("ProfileService"),

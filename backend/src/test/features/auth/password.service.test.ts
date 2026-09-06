@@ -137,6 +137,7 @@ function createHarness() {
         authRepository as never,
         otpService as never,
         publicOtpService,
+        { check: () => "unknown", add: async () => undefined } as never,
       ),
       publicOtpService,
     ),

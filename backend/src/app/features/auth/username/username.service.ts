@@ -3,7 +3,7 @@ import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { USERNAME_REMINDER_RATE_LIMIT_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
-import type { UsernameBloomService } from "@/features/auth/username-bloom/username-bloom.service";
+import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type {
   ForgotUsernameInput,
   UsernameAvailabilityResult,
@@ -17,7 +17,8 @@ import type { Uuid } from "@/configuration/validation/uuid";
 export class UsernameService {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly usernameBloomService: UsernameBloomService,
+    private readonly usernameBloomService: IdentityBloomService,
+    private readonly emailBloomService: IdentityBloomService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
   ) {}
@@ -136,6 +137,15 @@ export class UsernameService {
 
     if (!rateLimitResult.allowed) {
       this.publicOtpService.logSuspicious(rateLimitResult);
+      return {
+        accepted: true,
+      };
+    }
+
+    // The response above is the same either way, so an address the email
+    // filter can rule out never needs the lookup — which is the whole of the
+    // work this endpoint does for an address that was never registered.
+    if (this.emailBloomService.check(input.email) === "definitely-absent") {
       return {
         accepted: true,
       };

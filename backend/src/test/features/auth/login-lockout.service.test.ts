@@ -74,6 +74,11 @@ function createHarness() {
     emailService as never,
   );
 
+  const emailBloomService = {
+    check: jest.fn(() => "unknown" as string),
+    add: jest.fn(async () => undefined),
+  };
+
   return {
     store,
     ttls,
@@ -81,11 +86,13 @@ function createHarness() {
     authRepository,
     otpService,
     emailService,
+    emailBloomService,
     service: new LoginLockoutService(
       cacheService as never,
       authRepository as never,
       otpService as never,
       publicOtpService,
+      emailBloomService as never,
     ),
   };
 }
@@ -275,5 +282,35 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
       }),
     ).resolves.toEqual({ accepted: true });
     expect(harness.emailService.sendLoginUnlockEmail).not.toHaveBeenCalled();
+  });
+
+  it("skips the user lookup when the email filter rules the address out", async () => {
+    // Both unlock flows answer identically whether or not the address has an
+    // account, so a ruled-out address needs no lookup.
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("definitely-absent");
+
+    await expect(
+      harness.service.resendUnlockLocalLogin({
+        client: createClient(),
+        email: "nobody@example.com",
+      }),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(harness.authRepository.findUserByEmail).not.toHaveBeenCalled();
+    expect(harness.emailService.sendLoginUnlockEmail).not.toHaveBeenCalled();
+  });
+
+  it("still looks up an address the filter cannot rule out", async () => {
+    const harness = createHarness();
+    harness.emailBloomService.check.mockReturnValue("possibly-present");
+    harness.authRepository.findUserByEmail.mockResolvedValue(createUser());
+
+    await harness.service.resendUnlockLocalLogin({
+      client: createClient(),
+      email: "user@example.com",
+    });
+
+    expect(harness.authRepository.findUserByEmail).toHaveBeenCalled();
   });
 });

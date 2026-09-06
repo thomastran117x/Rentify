@@ -1,5 +1,5 @@
 /**
- * The in-process (L1) half of the username bloom filter.
+ * The in-process (L1) half of an identity bloom filter.
  *
  * Holds the bit array in a `Uint8Array` so a membership question costs no I/O
  * at all. The bytes are laid out exactly as Redis stores a bitmap — bit 0 is
@@ -8,13 +8,19 @@
  * back with a single `SET`.
  */
 
-import { getBitIndices } from "@/features/auth/username-bloom/bloom-hash";
-import type { BloomParameters } from "@/features/auth/username-bloom/bloom-parameters";
+import {
+  getBitIndices,
+  type BloomNormalizer,
+} from "@/features/auth/identity-bloom/bloom-hash";
+import type { BloomParameters } from "@/features/auth/identity-bloom/bloom-parameters";
 
 export class LocalBloomFilter {
   private bits: Uint8Array;
 
-  constructor(public readonly parameters: BloomParameters) {
+  constructor(
+    public readonly parameters: BloomParameters,
+    private readonly normalize: BloomNormalizer,
+  ) {
     this.bits = new Uint8Array(parameters.byteLength);
   }
 
@@ -23,6 +29,7 @@ export class LocalBloomFilter {
       value,
       this.parameters.bitCount,
       this.parameters.hashCount,
+      this.normalize,
     );
   }
 

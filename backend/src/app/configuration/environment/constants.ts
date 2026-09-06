@@ -33,6 +33,14 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "ELASTICSEARCH_TIMEOUT_MS",
   "ELASTICSEARCH_URL",
   "ELASTICSEARCH_USERNAME",
+  "EMAIL_BLOOM_ENABLED",
+  "EMAIL_BLOOM_CAPACITY",
+  "EMAIL_BLOOM_FALSE_POSITIVE_RATE",
+  "EMAIL_BLOOM_RELOAD_INTERVAL_MS",
+  "EMAIL_BLOOM_MAX_STALENESS_MS",
+  "EMAIL_BLOOM_REBUILD_INTERVAL_MS",
+  "EMAIL_BLOOM_REBUILD_BATCH_SIZE",
+  "EMAIL_BLOOM_REBUILD_LOCK_TTL_MS",
   "EMAIL_WORKER_PREFETCH",
   "EMAIL_MAX_ATTEMPTS",
   "EMAIL_FROM",
@@ -150,14 +158,18 @@ export const DEFAULT_POSTINGS_PUBLIC_CACHE_FOLLOWER_WAIT_TIMEOUT_MS = 150;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_FOLLOWER_POLL_INTERVAL_MS = 15;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_NEGATIVE_TTL_SECONDS = 10;
 export const DEFAULT_POSTINGS_PUBLIC_CACHE_TTL_JITTER_RATIO = 0.1;
-// At the default capacity and target rate the derived filter uses 1,917,016
-// bits (about 234 KiB) and seven probes. Exceeding capacity raises the number of
-// safe database fallbacks; it cannot turn a false positive into a wrong answer.
-export const DEFAULT_USERNAME_BLOOM_CAPACITY = 200_000;
-export const DEFAULT_USERNAME_BLOOM_FALSE_POSITIVE_RATE = 0.01;
-export const DEFAULT_USERNAME_BLOOM_RELOAD_INTERVAL_MS = 60_000;
-export const DEFAULT_USERNAME_BLOOM_MAX_STALENESS_MS = 300_000;
-export const DEFAULT_USERNAME_BLOOM_REBUILD_INTERVAL_MS = 21_600_000;
-export const DEFAULT_USERNAME_BLOOM_REBUILD_BATCH_SIZE = 5_000;
-export const DEFAULT_USERNAME_BLOOM_REBUILD_LOCK_TTL_MS = 60_000;
+// Shared by every identity bloom filter. At the default capacity and target
+// rate the derived filter uses 1,917,016 bits (about 234 KiB) and seven probes.
+// Exceeding capacity raises the number of safe database fallbacks; it cannot
+// turn a false positive into a wrong answer.
+//
+// One capacity serves both subjects because both track the user count: a row in
+// `users` has exactly one email and exactly one profile username.
+export const DEFAULT_IDENTITY_BLOOM_CAPACITY = 200_000;
+export const DEFAULT_IDENTITY_BLOOM_FALSE_POSITIVE_RATE = 0.01;
+export const DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS = 60_000;
+export const DEFAULT_IDENTITY_BLOOM_MAX_STALENESS_MS = 300_000;
+export const DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS = 21_600_000;
+export const DEFAULT_IDENTITY_BLOOM_REBUILD_BATCH_SIZE = 5_000;
+export const DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS = 60_000;
 export const MINIMUM_TOKEN_SECRET_LENGTH = 32;

@@ -1647,6 +1647,47 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/auth/email/available",
+      operationId: "checkEmailAvailability",
+      summary: "Check whether an email can be used to sign up",
+      description:
+        "Reports whether an email address is free, so the signup form can tell the user before they submit. An address is unavailable when an account already holds it. An address with an unverified signup in flight is still reported as available, with reason `pending-verification`, because signup accepts it and the person who started it must be able to come back and finish. Signed-in callers are exempted from their own address, which is therefore reported as available.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public-or-session-bearer",
+        minimumRole: null,
+        patAllowed: false,
+        rateLimitPolicy: "email-availability",
+      },
+      parameters: [
+        queryParam(
+          "email",
+          {
+            type: "string",
+            format: "email",
+            maxLength: 255,
+          },
+          "The email address to check. Trimmed and lowercased before lookup.",
+          "taylor@example.com",
+          true,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "EmailAvailabilityResult",
+          {
+            email: "taylor@example.com",
+            available: false,
+            reason: "taken",
+          },
+        ),
+        ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/auth/local/password/reset",
       operationId: "resetPassword",
@@ -10058,6 +10099,24 @@ function buildComponents(): Record<string, unknown> {
             enum: ["taken", null],
             description:
               "Why the username is unavailable, or null when it is available. A username is `taken` when another account holds it or an unverified signup has reserved it.",
+          },
+        },
+      },
+      EmailAvailabilityResult: {
+        type: "object",
+        required: ["email", "available", "reason"],
+        properties: {
+          email: {
+            type: "string",
+            description: "The normalized (trimmed, lowercased) email checked.",
+          },
+          available: { type: "boolean" },
+          reason: {
+            type: "string",
+            nullable: true,
+            enum: ["taken", "pending-verification", null],
+            description:
+              "`taken` when an account already holds the address, in which case `available` is false. `pending-verification` when an unverified signup has it in flight; `available` stays true because signup accepts the address. Null when nothing is known about it.",
           },
         },
       },

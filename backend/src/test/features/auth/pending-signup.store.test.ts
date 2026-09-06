@@ -15,14 +15,19 @@ function createHarness() {
   const usernameBloomService = {
     add: jest.fn(async () => undefined),
   };
+  const emailBloomService = {
+    add: jest.fn(async () => undefined),
+  };
 
   return {
     store,
     cacheService,
     usernameBloomService,
+    emailBloomService,
     pendingSignupStore: new PendingSignupStore(
       cacheService as never,
       usernameBloomService as never,
+      emailBloomService as never,
     ),
   };
 }
@@ -150,6 +155,22 @@ describe("PendingSignupStore", () => {
     expect(harness.cacheService.acquireLock).toHaveBeenCalledWith(
       "auth:pending-signup-verify:user@example.com",
       10_000,
+    );
+  });
+
+  it("records the reserved email in the email bloom filter", async () => {
+    // The reservation key is what the rebuild scans, and the filter is what
+    // stops the availability endpoint skipping the lookup that finds it.
+    //
+    // Handed over as written, exactly as the username is: the filter folds it
+    // with the subject normalizer that has to agree with the unique index, so
+    // normalizing again here would only risk the two disagreeing.
+    const harness = createHarness();
+
+    await harness.pendingSignupStore.write(createSignup(), 600);
+
+    expect(harness.emailBloomService.add).toHaveBeenCalledWith(
+      "User@Example.com",
     );
   });
 });
