@@ -6,10 +6,13 @@ import {
   useRecentlyViewed,
 } from "./recently-viewed-context";
 import {
+  adoptForAccount,
   recordView as recordLocalView,
   resetCacheForTests,
   setTrackingEnabled,
 } from "@/lib/recently-viewed/storage";
+
+const STORAGE_KEY = "rentify.recently-viewed.v2";
 
 const {
   useAuthMock,
@@ -44,6 +47,9 @@ vi.mock("@/lib/postings/api", () => ({
 }));
 
 vi.mock("@/lib/recently-viewed/api", () => ({
+  // Mirrors the real constant's value; the module is mocked wholesale so it
+  // has to be re-declared here for the provider's import to resolve.
+  RECENTLY_VIEWED_SYNC_MAX: 50,
   recentlyViewedApi: {
     list: listMock,
     sync: syncMock,
@@ -110,6 +116,16 @@ function authenticated(userId = "user-1") {
   });
 }
 
+function storedEntryIds(): string[] {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+
+  if (!raw) {
+    return [];
+  }
+
+  return (JSON.parse(raw).entries as { id: string }[]).map((entry) => entry.id);
+}
+
 describe("RecentlyViewedProvider", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -119,6 +135,7 @@ describe("RecentlyViewedProvider", () => {
     syncMock.mockResolvedValue({ postings: [], trackingEnabled: true });
     clearMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
+    recordViewMock.mockResolvedValue(true);
   });
 
   describe("anonymous visitors", () => {
@@ -170,11 +187,7 @@ describe("RecentlyViewedProvider", () => {
       await waitFor(() =>
         expect(screen.getByTestId("ids")).toHaveTextContent("posting-a"),
       );
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("rentify.recently-viewed.v1") ?? "{}",
-        ).entries,
-      ).toEqual([{ id: "posting-a", at: 2000 }]);
+      expect(storedEntryIds()).toEqual(["posting-a"]);
     });
 
     it("reports an error when hydration fails", async () => {
@@ -188,10 +201,26 @@ describe("RecentlyViewedProvider", () => {
         expect(screen.getByTestId("status")).toHaveTextContent("error"),
       );
     });
+
+    // The adjacent hardening to the P1 fix below: a mirror left behind by a
+    // previous account must not even be *displayed* to whoever browses
+    // anonymously next, not just kept from being uploaded.
+    it("shows nothing when the mirror belongs to an account that has since signed out", async () => {
+      adoptForAccount("user-a", [{ id: "posting-secret", at: 1000 }]);
+      anonymous();
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status")).toHaveTextContent("ready"),
+      );
+      expect(screen.getByTestId("ids")).toHaveTextContent("");
+      expect(batchPublicMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("while the session is still resolving", () => {
-    // A returning visitor sits in "loading" until /auth/refresh settles. Acting
+    // A returning visitor sits in "loading" while /auth/refresh settles. Acting
     // then would sync one identity's history into another.
     it("issues no request at all", async () => {
       recordLocalView("posting-a", 2000);
@@ -227,7 +256,7 @@ describe("RecentlyViewedProvider", () => {
       );
       expect(syncMock).toHaveBeenCalledWith(
         [{ postingId: "posting-a", viewedAt: new Date(2000).toISOString() }],
-        {},
+        { limit: 50 },
         expect.anything(),
       );
       // The server merged both sides; its answer is adopted wholesale rather
@@ -251,7 +280,7 @@ describe("RecentlyViewedProvider", () => {
         expect(screen.getByTestId("ids")).toHaveTextContent("posting-server"),
       );
       expect(syncMock).not.toHaveBeenCalled();
-      expect(listMock).toHaveBeenCalled();
+      expect(listMock).toHaveBeenCalledWith({ limit: 50 }, expect.anything());
     });
 
     it("syncs only once per session", async () => {
@@ -295,6 +324,67 @@ describe("RecentlyViewedProvider", () => {
         expect(screen.getByTestId("status")).toHaveTextContent("error"),
       );
     });
+
+    // The actual P1 fix: a mirror left behind by a previous account must
+    // never be uploaded into a *different* account that signs in on the same
+    // browser, and that account must never even glimpse the previous
+    // account's postings.
+    describe("switching accounts on a shared browser", () => {
+      it("never uploads a previous account's mirror into a different account", async () => {
+        adoptForAccount("user-a", [{ id: "posting-secret", at: 1000 }]);
+        authenticated("user-b");
+        listMock.mockResolvedValue({
+          postings: [makePosting("posting-b-own")],
+          trackingEnabled: true,
+        });
+
+        renderProvider();
+
+        await waitFor(() =>
+          expect(screen.getByTestId("ids")).toHaveTextContent("posting-b-own"),
+        );
+        expect(syncMock).not.toHaveBeenCalled();
+        expect(screen.getByTestId("ids")).not.toHaveTextContent(
+          "posting-secret",
+        );
+        expect(storedEntryIds()).not.toContain("posting-secret");
+      });
+
+      it("still uploads genuinely unclaimed anonymous browsing to the first account that signs in", async () => {
+        // No prior owner -- true anonymous browsing before any login, which
+        // must keep working exactly as before this fix.
+        recordLocalView("posting-anon", 1000);
+        authenticated("user-b");
+        syncMock.mockResolvedValue({
+          postings: [makePosting("posting-anon")],
+          trackingEnabled: true,
+        });
+
+        renderProvider();
+
+        await waitFor(() =>
+          expect(screen.getByTestId("ids")).toHaveTextContent("posting-anon"),
+        );
+        expect(syncMock).toHaveBeenCalled();
+      });
+
+      it("re-syncs correctly when the same account signs back in after an intervening sign-out", async () => {
+        adoptForAccount("user-a", [{ id: "posting-a-own", at: 1000 }]);
+        authenticated("user-a");
+        listMock.mockResolvedValue({
+          postings: [makePosting("posting-a-own")],
+          trackingEnabled: true,
+        });
+
+        renderProvider();
+
+        await waitFor(() =>
+          expect(screen.getByTestId("ids")).toHaveTextContent("posting-a-own"),
+        );
+        // Already this account's own mirror -- nothing new to push up.
+        expect(syncMock).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("recording", () => {
@@ -308,11 +398,7 @@ describe("RecentlyViewedProvider", () => {
       await userEvent.click(screen.getByRole("button", { name: "record" }));
 
       expect(recordViewMock).toHaveBeenCalledWith("posting-new");
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("rentify.recently-viewed.v1") ?? "{}",
-        ).entries[0].id,
-      ).toBe("posting-new");
+      expect(storedEntryIds()).toContain("posting-new");
     });
 
     // The provider lives in the root layout, so it stays mounted across
@@ -337,7 +423,7 @@ describe("RecentlyViewedProvider", () => {
       );
     });
 
-    it("re-reads a signed-in list after a new view", async () => {
+    it("re-reads a signed-in list after a new view is accepted", async () => {
       authenticated();
       renderProvider();
       await waitFor(() =>
@@ -359,6 +445,34 @@ describe("RecentlyViewedProvider", () => {
       expect(syncMock).not.toHaveBeenCalled();
     });
 
+    // The P2 fix: the optional-auth POST swallows its own failure and always
+    // resolves, so without gating the refresh on its outcome, a failed write
+    // would still trigger a re-list -- adopting a server answer that never
+    // got the new posting, and erasing it from the local mirror in the
+    // process.
+    it("keeps the newly recorded entry locally when the write is not accepted", async () => {
+      authenticated();
+      recordViewMock.mockResolvedValue(false);
+      listMock.mockResolvedValue({
+        postings: [makePosting("posting-existing")],
+        trackingEnabled: true,
+      });
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("ids")).toHaveTextContent("posting-existing"),
+      );
+      expect(listMock).toHaveBeenCalledTimes(1);
+
+      await userEvent.click(screen.getByRole("button", { name: "record" }));
+
+      await waitFor(() => expect(recordViewMock).toHaveBeenCalled());
+      // No re-fetch was triggered, so the account view was never given a
+      // chance to overwrite the local write with a stale answer.
+      expect(listMock).toHaveBeenCalledTimes(1);
+      expect(storedEntryIds()).toContain("posting-new");
+    });
+
     it("records nothing at all once tracking is off", async () => {
       setTrackingEnabled(false);
       anonymous();
@@ -370,9 +484,7 @@ describe("RecentlyViewedProvider", () => {
       await userEvent.click(screen.getByRole("button", { name: "record" }));
 
       expect(recordViewMock).not.toHaveBeenCalled();
-      expect(
-        window.localStorage.getItem("rentify.recently-viewed.v1"),
-      ).toBeNull();
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     });
   });
 
@@ -414,11 +526,7 @@ describe("RecentlyViewedProvider", () => {
       await userEvent.click(screen.getByRole("button", { name: "remove" }));
 
       expect(removeMock).not.toHaveBeenCalled();
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("rentify.recently-viewed.v1") ?? "{}",
-        ).entries,
-      ).toEqual([]);
+      expect(storedEntryIds()).toEqual([]);
     });
 
     it("toasts and reloads when a removal fails", async () => {

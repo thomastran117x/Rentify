@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -17,15 +16,19 @@ import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { postingsApi } from "@/lib/postings/api";
 import type { PublicPostingSummary } from "@/lib/postings/search";
 import {
+  RECENTLY_VIEWED_SYNC_MAX,
   recentlyViewedApi,
   type RecentlyViewedPostingSummary,
 } from "@/lib/recently-viewed/api";
 import {
+  adoptForAccount,
   clearAll as clearLocal,
+  getOwner,
   getServerSnapshot,
   getSnapshot,
   getTrackingServerSnapshot,
   isTrackingEnabled as readTrackingEnabled,
+  reconcileIdentity,
   recordView as recordLocalView,
   removeEntry as removeLocalEntry,
   replaceAll as replaceLocal,
@@ -83,11 +86,8 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<RecentlyViewedStatus>("loading");
   const [refreshToken, setRefreshToken] = useState(0);
 
-  // Sync runs once per signed-in session, not on every render. Keyed by user so
-  // switching accounts in one tab re-syncs against the new identity.
-  const syncedUserIdRef = useRef<string | null>(null);
-
   const userId = session?.user?.id ?? null;
+  const identity = authStatus === "authenticated" ? userId : null;
 
   // Changes whenever the local mirror changes, which is what makes the
   // signed-out list re-hydrate. The provider lives in the root layout and so
@@ -112,6 +112,13 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
 
     let active = true;
     const controller = new AbortController();
+
+    // Runs first, synchronously, on every identity resolution. If the mirror
+    // belonged to a different specific account, this resets it to a fresh,
+    // unclaimed mirror before either branch below reads it -- so neither
+    // branch has to special-case a foreign owner itself. See the doc comment
+    // on `reconcileIdentity` for why this is safe.
+    reconcileIdentity(identity);
 
     async function hydrateAnonymous() {
       const localEntries = getSnapshot();
@@ -160,8 +167,12 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
 
     async function loadAuthenticated(currentUserId: string) {
       const localEntries = getSnapshot();
-      const shouldSync =
-        syncedUserIdRef.current !== currentUserId && localEntries.length > 0;
+      // Reconciliation above guarantees the mirror is now either unclaimed or
+      // already this account's own -- never a different account's. Uploading
+      // is only meaningful in the unclaimed case: once the mirror is already
+      // this account's, it was last written by adopting the server's own
+      // answer, so there is nothing local-only left to push up.
+      const shouldSync = getOwner() === null && localEntries.length > 0;
 
       try {
         const result = shouldSync
@@ -170,21 +181,24 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
                 postingId: entry.id,
                 viewedAt: new Date(entry.at).toISOString(),
               })),
-              {},
+              { limit: RECENTLY_VIEWED_SYNC_MAX },
               controller.signal,
             )
-          : await recentlyViewedApi.list({}, controller.signal);
+          : await recentlyViewedApi.list(
+              { limit: RECENTLY_VIEWED_SYNC_MAX },
+              controller.signal,
+            );
 
         if (!active) {
           return;
         }
 
-        syncedUserIdRef.current = currentUserId;
-
         // The server already merged both sides with the later timestamp
         // winning, so its answer is adopted wholesale rather than unioned
-        // again on the client.
-        replaceLocal(
+        // again on the client. This also claims the mirror for this account,
+        // discarding anything foreign reconciliation may have missed.
+        adoptForAccount(
+          currentUserId,
           result.postings.map((posting) => ({
             id: posting.id,
             at: Date.parse(posting.viewedAt),
@@ -205,7 +219,6 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
     if (authStatus === "authenticated" && userId) {
       void loadAuthenticated(userId);
     } else {
-      syncedUserIdRef.current = null;
       void hydrateAnonymous();
     }
 
@@ -213,7 +226,7 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
       active = false;
       controller.abort();
     };
-  }, [authStatus, userId, refreshToken, localHydrationKey]);
+  }, [authStatus, userId, identity, refreshToken, localHydrationKey]);
 
   const recordView = useCallback(
     (postingId: string) => {
@@ -221,20 +234,27 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Guards the same window `reconcileIdentity` in the effect guards: a
+      // view fired the instant an identity changes, before the effect above
+      // has re-run, must not be appended onto a mirror that still belongs to
+      // whoever was previously using this browser.
+      reconcileIdentity(identity);
       recordLocalView(postingId);
 
       void (async () => {
-        await recentlyViewedApi.recordView(postingId);
+        const accepted = await recentlyViewedApi.recordView(postingId);
 
-        // A signed-out list re-hydrates off the mirror on its own. A
-        // signed-in one is served by the account, so it has to be re-read
-        // once the write has landed.
-        if (authStatus === "authenticated") {
+        // Only refresh from the account once the write is confirmed. The
+        // optional-auth POST swallows its own failure and resolves either
+        // way, so without this a failed write's re-list would adopt a server
+        // answer that never got the new posting, silently erasing the entry
+        // this session just recorded locally.
+        if (accepted && authStatus === "authenticated") {
           setRefreshToken((current) => current + 1);
         }
       })();
     },
-    [authStatus],
+    [authStatus, identity],
   );
 
   const remove = useCallback(

@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RECENTLY_VIEWED_LOCAL_CAP,
+  adoptForAccount,
   clearAll,
+  getOwner,
+  getOwnerServerSnapshot,
   getServerSnapshot,
   getSnapshot,
   getTrackingServerSnapshot,
   isTrackingEnabled,
+  reconcileIdentity,
   recordView,
   removeEntry,
   replaceAll,
@@ -14,18 +18,24 @@ import {
   subscribe,
 } from "./storage";
 
-const STORAGE_KEY = "rentify.recently-viewed.v1";
+const STORAGE_KEY = "rentify.recently-viewed.v2";
 const TRACKING_KEY = "rentify.recently-viewed.enabled";
 
-function seed(entries: { id: string; at: number }[]): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 1, entries }));
+function seed(
+  entries: { id: string; at: number }[],
+  owner: string | null = null,
+): void {
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ v: 2, owner, entries }),
+  );
   resetCacheForTests();
 }
 
-function stored(): { id: string; at: number }[] {
+function stored(): { v: number; owner: string | null; entries: unknown[] } {
   const raw = window.localStorage.getItem(STORAGE_KEY);
 
-  return raw ? JSON.parse(raw).entries : [];
+  return raw ? JSON.parse(raw) : { v: 2, owner: null, entries: [] };
 }
 
 describe("recently viewed storage", () => {
@@ -60,6 +70,11 @@ describe("recently viewed storage", () => {
 
       expect(getSnapshot()).not.toBe(before);
     });
+
+    it("returns a stable owner snapshot too", () => {
+      expect(getOwner()).toBe(getOwnerServerSnapshot());
+      expect(getOwnerServerSnapshot()).toBeNull();
+    });
   });
 
   describe("reading damaged storage", () => {
@@ -68,16 +83,37 @@ describe("recently viewed storage", () => {
       resetCacheForTests();
 
       expect(getSnapshot()).toEqual([]);
+      expect(getOwner()).toBeNull();
     });
 
     it("treats a payload from a different version as no history", () => {
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ v: 99, entries: [{ id: "posting-1", at: 1 }] }),
+        JSON.stringify({
+          v: 99,
+          owner: "user-a",
+          entries: [{ id: "posting-1", at: 1 }],
+        }),
       );
       resetCacheForTests();
 
       expect(getSnapshot()).toEqual([]);
+      expect(getOwner()).toBeNull();
+    });
+
+    // The pre-fix shape (`v: 1`, no `owner`) must never be interpreted as an
+    // unclaimed mirror with stale entries -- version-mismatch handling already
+    // covers that, but this pins it down explicitly since it is the actual
+    // migration path off the vulnerable shape.
+    it("discards a pre-ownership v1 payload rather than reading it as unclaimed", () => {
+      window.localStorage.setItem(
+        "rentify.recently-viewed.v1",
+        JSON.stringify({ v: 1, entries: [{ id: "posting-1", at: 1 }] }),
+      );
+      resetCacheForTests();
+
+      expect(getSnapshot()).toEqual([]);
+      expect(getOwner()).toBeNull();
     });
 
     it("drops entries that are not shaped like entries", () => {
@@ -157,7 +193,15 @@ describe("recently viewed storage", () => {
     it("persists through storage", () => {
       recordView("posting-1", 1000);
 
-      expect(stored()).toEqual([{ id: "posting-1", at: 1000 }]);
+      expect(stored().entries).toEqual([{ id: "posting-1", at: 1000 }]);
+    });
+
+    it("preserves whichever account currently owns the mirror", () => {
+      adoptForAccount("user-a", [{ id: "posting-1", at: 1000 }]);
+
+      recordView("posting-2", 2000);
+
+      expect(getOwner()).toBe("user-a");
     });
   });
 
@@ -186,7 +230,20 @@ describe("recently viewed storage", () => {
       clearAll();
 
       expect(getSnapshot()).toEqual([]);
-      expect(stored()).toEqual([]);
+      expect(stored().entries).toEqual([]);
+    });
+
+    it("preserves ownership through remove and clear", () => {
+      adoptForAccount("user-a", [
+        { id: "posting-1", at: 1000 },
+        { id: "posting-2", at: 2000 },
+      ]);
+
+      removeEntry("posting-1");
+      expect(getOwner()).toBe("user-a");
+
+      clearAll();
+      expect(getOwner()).toBe("user-a");
     });
   });
 
@@ -204,6 +261,107 @@ describe("recently viewed storage", () => {
         { id: "posting-a", at: 5000 },
         { id: "posting-b", at: 3000 },
       ]);
+    });
+
+    it("does not change who owns the mirror", () => {
+      adoptForAccount("user-a", [{ id: "posting-1", at: 1000 }]);
+
+      replaceAll([{ id: "posting-1", at: 1000 }]);
+
+      expect(getOwner()).toBe("user-a");
+    });
+  });
+
+  describe("adoptForAccount", () => {
+    it("claims the mirror for the given account", () => {
+      adoptForAccount("user-a", [{ id: "posting-1", at: 1000 }]);
+
+      expect(getOwner()).toBe("user-a");
+      expect(getSnapshot()).toEqual([{ id: "posting-1", at: 1000 }]);
+    });
+
+    it("replaces entries outright, discarding anything left over from before", () => {
+      adoptForAccount("user-a", [{ id: "posting-old", at: 1000 }]);
+
+      adoptForAccount("user-a", [{ id: "posting-new", at: 2000 }]);
+
+      expect(getSnapshot()).toEqual([{ id: "posting-new", at: 2000 }]);
+    });
+
+    // This is the actual fix: signing in as a different account must never
+    // leave a previous account's entries sitting in the mirror to be
+    // re-uploaded later.
+    it("wipes a previous owner's entries when a different account signs in", () => {
+      adoptForAccount("user-a", [{ id: "posting-secret", at: 1000 }]);
+
+      adoptForAccount("user-b", [{ id: "posting-b-own", at: 2000 }]);
+
+      expect(getOwner()).toBe("user-b");
+      expect(getSnapshot()).toEqual([{ id: "posting-b-own", at: 2000 }]);
+      expect(getSnapshot().some((entry) => entry.id === "posting-secret")).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("reconcileIdentity", () => {
+    it("does nothing to a genuinely unclaimed mirror", () => {
+      recordView("posting-1", 1000);
+
+      reconcileIdentity("user-a");
+
+      // The anonymous browsing survives to be synced up to whoever signs in
+      // first -- the intended anonymous-to-first-login merge.
+      expect(getSnapshot()).toEqual([{ id: "posting-1", at: 1000 }]);
+    });
+
+    it("does nothing when the mirror already belongs to this identity", () => {
+      adoptForAccount("user-a", [{ id: "posting-1", at: 1000 }]);
+
+      reconcileIdentity("user-a");
+
+      expect(getOwner()).toBe("user-a");
+      expect(getSnapshot()).toEqual([{ id: "posting-1", at: 1000 }]);
+    });
+
+    // The core of the P1 fix: user A signs out (browser goes anonymous), and
+    // whoever uses the browser next -- anonymous or a different account --
+    // must not inherit A's confirmed history.
+    it("resets a foreign-owned mirror when the visitor is now anonymous", () => {
+      adoptForAccount("user-a", [{ id: "posting-secret", at: 1000 }]);
+
+      reconcileIdentity(null);
+
+      expect(getOwner()).toBeNull();
+      expect(getSnapshot()).toEqual([]);
+    });
+
+    it("resets a foreign-owned mirror when a different account signs in", () => {
+      adoptForAccount("user-a", [{ id: "posting-secret", at: 1000 }]);
+
+      reconcileIdentity("user-b");
+
+      expect(getOwner()).toBeNull();
+      expect(getSnapshot()).toEqual([]);
+    });
+
+    it("notifies subscribers when it resets a mismatched mirror", () => {
+      adoptForAccount("user-a", [{ id: "posting-1", at: 1000 }]);
+      const listener = vi.fn();
+      subscribe(listener);
+
+      reconcileIdentity("user-b");
+
+      expect(listener).toHaveBeenCalled();
+    });
+
+    it("does not notify subscribers when there is nothing to reconcile", () => {
+      const listener = vi.fn();
+      subscribe(listener);
+
+      reconcileIdentity("user-a");
+
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 
@@ -229,7 +387,11 @@ describe("recently viewed storage", () => {
       // Another tab's write does not go through this module's mutators.
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ v: 1, entries: [{ id: "posting-9", at: 9000 }] }),
+        JSON.stringify({
+          v: 2,
+          owner: null,
+          entries: [{ id: "posting-9", at: 9000 }],
+        }),
       );
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
 

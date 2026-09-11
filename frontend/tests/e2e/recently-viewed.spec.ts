@@ -134,19 +134,25 @@ async function login(page: Page, nextPath = "/saved/recent") {
  * paints can outrun it.
  */
 async function viewPosting(page: Page, posting: { id: string; name: string }) {
+  // Registered before navigating, so it catches the response whenever the
+  // client actually fires it -- which happens from a `useEffect` well after
+  // `goto` itself resolves.
+  const viewRecorded = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes(`/postings/${posting.id}/activity/view`),
+  );
+
   await page.goto(`/postings/${posting.id}`);
   await expect(page.getByRole("heading", { name: posting.name })).toBeVisible();
 
-  // Waits for the entry to reach localStorage, not just for the heading: the
-  // recorder writes from an effect, so navigating away as soon as the page
-  // paints can outrun it.
-  await expect
-    .poll(async () =>
-      page.evaluate(
-        () => window.localStorage.getItem("rentify.recently-viewed.v1") ?? "",
-      ),
-    )
-    .toContain(posting.id);
+  // Waits for the view to actually reach the server, not just for the local
+  // write (which happens synchronously, well before the network round trip
+  // even starts). The recorder is fire-and-forget, so navigating away as soon
+  // as the heading paints can cut the request short -- the local entry would
+  // still be there, but the next page's fetch from the account would not see
+  // it, which looks identical to a real bug from the outside.
+  await viewRecorded;
 }
 /** Card titles on the recently viewed page or strip, newest first. */
 async function titles(page: Page): Promise<string[]> {

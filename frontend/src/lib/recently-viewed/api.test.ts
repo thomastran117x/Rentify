@@ -47,13 +47,19 @@ describe("recentlyViewedApi", () => {
   });
 
   // Fire-and-forget: a lost view must never surface to the visitor, and must
-  // never reject into an unhandled promise.
-  it("swallows a failed view recording", async () => {
+  // never reject into an unhandled promise. It still reports failure via its
+  // return value, though, so the provider can tell whether it is safe to
+  // refresh from the account.
+  it("swallows a failed view recording, reporting it as not accepted", async () => {
     optionalAuthJsonMock.mockRejectedValue(new Error("offline"));
 
-    await expect(
-      recentlyViewedApi.recordView("posting-1"),
-    ).resolves.toBeUndefined();
+    await expect(recentlyViewedApi.recordView("posting-1")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("reports a successful view recording as accepted", async () => {
+    await expect(recentlyViewedApi.recordView("posting-1")).resolves.toBe(true);
   });
 
   it("lists with the default limit", async () => {

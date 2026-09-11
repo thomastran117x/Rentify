@@ -37,15 +37,22 @@ export const recentlyViewedApi = {
    * the posting page mounts, so the caller cannot usefully branch on auth
    * first, and a view that fails to record is not worth interrupting anyone
    * over. The next sync repairs anything missed.
+   *
+   * Resolves to whether the server actually accepted the write, rather than
+   * throwing, so a caller can still tell success from failure without having
+   * to catch anything -- the provider uses this to decide whether it is safe
+   * to refresh from the account (a refresh after a failed write would adopt a
+   * server answer that never got the new posting, erasing it locally).
    */
-  async recordView(postingId: string): Promise<void> {
+  async recordView(postingId: string): Promise<boolean> {
     try {
       await optionalAuthJson<{ accepted: true }>(
         "POST",
         `/postings/${encodeURIComponent(postingId)}/activity/view`,
       );
+      return true;
     } catch {
-      // Intentionally ignored.
+      return false;
     }
   },
   list(

@@ -23,6 +23,14 @@ function PageShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * How many cards render before a "Show more" reveal. The provider already
+ * requests the account's full 50-entry cap in one request, so revealing more
+ * is a local slice, not another round trip -- this exists purely so the page
+ * does not dump up to 50 cards on a visitor who only wants a handful.
+ */
+const INITIAL_VISIBLE_COUNT = 24;
+
 function formatViewedAt(viewedAt: string): string | null {
   const parsed = Date.parse(viewedAt);
 
@@ -53,6 +61,8 @@ export function RecentlyViewedWorkspace() {
   const { status, postings, remove, clear } = useRecentlyViewed();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
+  const visiblePostings = postings.slice(0, visibleCount);
 
   const handleClear = useCallback(async () => {
     if (!confirmingClear) {
@@ -160,7 +170,7 @@ export function RecentlyViewedWorkspace() {
           ) : null}
 
           <ul role="list" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {postings.map((posting) => (
+            {visiblePostings.map((posting) => (
               <li key={posting.id}>
                 <PostingCompactCard
                   posting={posting}
@@ -179,6 +189,20 @@ export function RecentlyViewedWorkspace() {
               </li>
             ))}
           </ul>
+
+          {visibleCount < postings.length ? (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCount((current) => current + INITIAL_VISIBLE_COUNT)
+                }
+                className={theme.marketplace.paginationButton}
+              >
+                Show more
+              </button>
+            </div>
+          ) : null}
         </>
       )}
     </PageShell>

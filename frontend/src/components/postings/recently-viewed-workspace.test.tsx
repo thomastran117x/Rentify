@@ -233,4 +233,46 @@ describe("RecentlyViewedWorkspace", () => {
       expect(screen.queryByText(/^Viewed/)).not.toBeInTheDocument();
     });
   });
+
+  describe("pagination", () => {
+    it("shows only the first page of cards, with a control to reveal more", () => {
+      const postings = Array.from({ length: 30 }, (_unused, index) =>
+        makePosting(`posting-${index}`),
+      );
+      mockState({ postings });
+
+      render(<RecentlyViewedWorkspace />);
+
+      expect(screen.getAllByRole("listitem")).toHaveLength(24);
+      expect(
+        screen.getByRole("button", { name: "Show more" }),
+      ).toBeInTheDocument();
+    });
+
+    it("reveals the rest on click, without a new fetch", async () => {
+      const postings = Array.from({ length: 30 }, (_unused, index) =>
+        makePosting(`posting-${index}`),
+      );
+      mockState({ postings });
+
+      render(<RecentlyViewedWorkspace />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+
+      expect(screen.getAllByRole("listitem")).toHaveLength(30);
+      expect(
+        screen.queryByRole("button", { name: "Show more" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("omits the control when everything already fits on one page", () => {
+      mockState({ postings: [makePosting("a"), makePosting("b")] });
+
+      render(<RecentlyViewedWorkspace />);
+
+      expect(
+        screen.queryByRole("button", { name: "Show more" }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });
