@@ -27,6 +27,7 @@ function createDependencies(
     postings?: Record<string, unknown>;
     publicCache?: Record<string, unknown>;
     profile?: Record<string, unknown>;
+    cache?: Record<string, unknown>;
   } = {},
 ) {
   const recentlyViewedPostingsRepository = {
@@ -50,17 +51,24 @@ function createDependencies(
     findRecentlyViewedTrackingEnabledByUserId: jest.fn(async () => true),
     ...overrides.profile,
   };
+  const cacheService = {
+    getJson: jest.fn(async () => null),
+    setJson: jest.fn(async () => undefined),
+    ...overrides.cache,
+  };
 
   return {
     recentlyViewedPostingsRepository,
     postingsRepository,
     postingsPublicCacheService,
     profileRepository,
+    cacheService,
     service: new RecentlyViewedPostingsService(
       recentlyViewedPostingsRepository as any,
       postingsRepository as any,
       postingsPublicCacheService as any,
       profileRepository as any,
+      cacheService as any,
     ),
   };
 }
@@ -437,6 +445,93 @@ describe("RecentlyViewedPostingsService", () => {
       expect(
         postingsRepository.findPublicReadMetadataById,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("tracking-enabled cache", () => {
+    it("consults the same cache key on every check within one request", async () => {
+      const { service, cacheService } = createDependencies({
+        publicCache: {
+          getPublicByIds: jest.fn(async () => ({
+            postings: [{ id: POSTING_1_ID }],
+            missingIds: [],
+          })),
+        },
+      });
+
+      // `sync` checks the flag directly, then again through its trailing
+      // `list()` call -- both must address the same cache entry, or the two
+      // reads within one request could disagree.
+      await service.sync(
+        USER_1_ID,
+        { entries: [{ postingId: POSTING_1_ID, viewedAt: NOW.toISOString() }] },
+        24,
+      );
+
+      const keys = (cacheService.getJson as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      );
+
+      expect(keys).toHaveLength(2);
+      expect(new Set(keys).size).toBe(1);
+    });
+
+    it("writes the cache with the documented TTL", async () => {
+      const { service, cacheService } = createDependencies();
+
+      await service.list(USER_1_ID, 24);
+
+      expect(cacheService.setJson).toHaveBeenCalledWith(
+        expect.stringContaining(USER_1_ID),
+        true,
+        60,
+      );
+    });
+
+    it("trusts a cached false without touching the database", async () => {
+      const { service, profileRepository, cacheService } = createDependencies({
+        cache: { getJson: jest.fn(async () => false) },
+      });
+
+      await service.recordView(POSTING_1_ID, USER_1_ID, { isBot: false });
+
+      expect(
+        profileRepository.findRecentlyViewedTrackingEnabledByUserId,
+      ).not.toHaveBeenCalled();
+      expect(cacheService.setJson).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the database when the cache read fails", async () => {
+      const { service, profileRepository } = createDependencies({
+        cache: {
+          getJson: jest.fn(async () => {
+            throw new Error("redis down");
+          }),
+        },
+      });
+
+      await expect(service.list(USER_1_ID, 24)).resolves.toEqual({
+        postings: [],
+        trackingEnabled: true,
+      });
+      expect(
+        profileRepository.findRecentlyViewedTrackingEnabledByUserId,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fail the request when the cache write fails", async () => {
+      const { service } = createDependencies({
+        cache: {
+          setJson: jest.fn(async () => {
+            throw new Error("redis down");
+          }),
+        },
+      });
+
+      await expect(service.list(USER_1_ID, 24)).resolves.toEqual({
+        postings: [],
+        trackingEnabled: true,
+      });
     });
   });
 });

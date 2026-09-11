@@ -21,6 +21,7 @@ export const postingsRecentlyViewedRegistrationModule: ContainerRegistrationModu
           containerTokens.postingsRepository,
           containerTokens.postingsPublicCacheService,
           containerTokens.profileRepository,
+          containerTokens.cacheService,
         ],
         resolve: ({ resolve }) =>
           new RecentlyViewedPostingsService(
@@ -28,6 +29,7 @@ export const postingsRecentlyViewedRegistrationModule: ContainerRegistrationModu
             resolve(containerTokens.postingsRepository),
             resolve(containerTokens.postingsPublicCacheService),
             resolve(containerTokens.profileRepository),
+            resolve(containerTokens.cacheService),
           ),
       });
     },

@@ -1,6 +1,7 @@
 import { isPostingPubliclyVisible } from "@/features/postings/postings.model";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
+import type { CacheService } from "@/features/cache/cache.service";
 import type { ProfileRepository } from "@/features/profile/profile.repository";
 import type { RecentlyViewedPostingsRepository } from "@/features/postings/recently-viewed/recently-viewed.repository";
 import {
@@ -13,13 +14,29 @@ import {
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 /**
+ * How long a cached tracking-enabled read may survive a toggle. Unlike the
+ * list itself (deliberately uncached -- see below), this flag is read on
+ * every single view and sync but is written only when someone visits their
+ * privacy settings, which is exactly the read-heavy/write-rare shape
+ * SavedPostingsService caches its id set for. A minute of staleness after a
+ * toggle is a reasonable trade for skipping a profile lookup on every view.
+ */
+const TRACKING_ENABLED_CACHE_TTL_SECONDS = 60;
+
+function trackingEnabledCacheKey(userId: Uuid): string {
+  return `profile:recently-viewed-tracking:${userId}`;
+}
+
+/**
  * Browsing history for a signed-in visitor.
  *
- * Deliberately uncached, unlike its sibling `SavedPostingsService`. That one
- * caches its identifier set for 60 seconds because the set is read on nearly
- * every authenticated marketplace page and written rarely. This is the inverse:
- * it is written on essentially every posting view, so a cache entry would be
- * stale more often than fresh and every write would immediately invalidate it.
+ * The list itself is deliberately uncached, unlike its sibling
+ * SavedPostingsService. That one caches its identifier set for 60 seconds
+ * because the set is read on nearly every authenticated marketplace page and
+ * written rarely. This is the inverse: it is written on essentially every
+ * posting view, so a cache entry would be stale more often than fresh and
+ * every write would immediately invalidate it. The tracking-enabled flag
+ * below does not share that problem -- see `isTrackingEnabled`.
  */
 export class RecentlyViewedPostingsService {
   constructor(
@@ -27,6 +44,7 @@ export class RecentlyViewedPostingsService {
     private readonly postingsRepository: PostingsRepository,
     private readonly postingsPublicCacheService: PostingsPublicCacheService,
     private readonly profileRepository: ProfileRepository,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -198,10 +216,43 @@ export class RecentlyViewedPostingsService {
     return parsed;
   }
 
+  /**
+   * Read-through cache over the profile flag. It changes only when someone
+   * visits their privacy settings, so a minute of staleness after a toggle is
+   * a reasonable trade for skipping a profile lookup on the hot path -- every
+   * view, list, and sync call reaches this. Cache faults are never fatal: a
+   * miss or a Redis outage just means the flag is read from the database,
+   * which is the behaviour without a cache.
+   */
   private async isTrackingEnabled(userId: Uuid): Promise<boolean> {
-    return this.profileRepository.findRecentlyViewedTrackingEnabledByUserId(
-      userId,
-    );
+    const cacheKey = trackingEnabledCacheKey(userId);
+
+    try {
+      const cached = await this.cacheService.getJson<boolean>(cacheKey);
+
+      if (cached !== null) {
+        return cached;
+      }
+    } catch {
+      // Fall through to the database.
+    }
+
+    const enabled =
+      await this.profileRepository.findRecentlyViewedTrackingEnabledByUserId(
+        userId,
+      );
+
+    try {
+      await this.cacheService.setJson(
+        cacheKey,
+        enabled,
+        TRACKING_ENABLED_CACHE_TTL_SECONDS,
+      );
+    } catch {
+      // Losing the write only costs a database read next time.
+    }
+
+    return enabled;
   }
 
   private async isPubliclyVisible(postingId: Uuid): Promise<boolean> {

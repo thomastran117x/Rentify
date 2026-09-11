@@ -161,6 +161,55 @@ describe("Recently viewed postings", () => {
     expect(postings[0].id).toBe(serverSide);
   });
 
+  it("resolves history across two devices that both sync after a shared sign-in", async () => {
+    const [x, y, z] = listPublicPostingIds(3);
+    const renter = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+
+    // Device 1 (say, a phone): browsed X then Y while signed out, then signs
+    // in and syncs its local mirror up.
+    const device1Response = await request("/postings/recently-viewed/sync", {
+      method: "POST",
+      headers: renter.headers(),
+      body: JSON.stringify({
+        entries: [
+          { postingId: x, viewedAt: "2026-09-01T00:00:00.000Z" },
+          { postingId: y, viewedAt: "2026-09-01T01:00:00.000Z" },
+        ],
+      }),
+    });
+
+    expect(device1Response.status).toBe(200);
+
+    // Device 2 (say, a laptop): independently browsed Y again more recently,
+    // plus a posting device 1 never saw, then signs in to the same account.
+    const device2Response = await request("/postings/recently-viewed/sync", {
+      method: "POST",
+      headers: renter.headers(),
+      body: JSON.stringify({
+        entries: [
+          { postingId: y, viewedAt: "2026-09-02T00:00:00.000Z" },
+          { postingId: z, viewedAt: "2026-09-01T12:00:00.000Z" },
+        ],
+      }),
+    });
+
+    expect(device2Response.status).toBe(200);
+
+    const result = await listRecentlyViewed(renter);
+
+    // Every posting either device saw survives the merge.
+    expect(result.postings.map((posting) => posting.id).sort()).toEqual(
+      [x, y, z].sort(),
+    );
+
+    // Ordered newest-view-first across both devices: device 2's re-view of Y
+    // is the most recent event of all, ahead of its own Z, ahead of device
+    // 1's untouched X.
+    expect(result.postings.map((posting) => posting.id)).toEqual([y, z, x]);
+  });
+
   it("clamps a future timestamp instead of rejecting the batch", async () => {
     const [postingId] = listPublicPostingIds(1);
     const renter = await createAuthenticatedRequestContext({
