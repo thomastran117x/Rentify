@@ -1,4 +1,5 @@
 import ConflictError from "@/errors/http/conflict.error";
+import BadRequestError from "@/errors/http/bad-request.error";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import { USERNAME_REMINDER_RATE_LIMIT_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
@@ -14,6 +15,9 @@ import {
   type UsernameSuggestionCandidateFactory,
 } from "@/features/auth/username/username-suggestions";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+
+const USERNAME_NOT_ALLOWED_MESSAGE = "That username isn’t allowed.";
 
 /**
  * Everything keyed by username: whether a name can be claimed, and reminding
@@ -25,6 +29,7 @@ export class UsernameService {
     private readonly usernameBloomService: IdentityBloomService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly publicOtpService: PublicOtpService,
+    private readonly contentSanitizationService: ContentSanitizationService,
     private readonly createSuggestionCandidate: UsernameSuggestionCandidateFactory = createRandomUsernameSuggestion,
   ) {}
 
@@ -72,6 +77,15 @@ export class UsernameService {
     allowedPendingEmail?: string,
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
+
+    if (!this.isUsernameAppropriate(normalizedUsername)) {
+      return {
+        username: normalizedUsername,
+        available: false,
+        reason: "inappropriate",
+      };
+    }
+
     const existingUserId =
       await this.usersRepository.findUserIdByUsername(normalizedUsername);
 
@@ -118,6 +132,14 @@ export class UsernameService {
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
 
+    if (!this.isUsernameAppropriate(normalizedUsername)) {
+      return {
+        username: normalizedUsername,
+        available: false,
+        reason: "inappropriate",
+      };
+    }
+
     if (
       this.usernameBloomService.check(normalizedUsername) ===
       "definitely-absent"
@@ -147,11 +169,26 @@ export class UsernameService {
       allowedPendingEmail,
     );
 
+    if (result.reason === "inappropriate") {
+      throw new BadRequestError(USERNAME_NOT_ALLOWED_MESSAGE, {
+        field: "username",
+        reason: "inappropriate",
+      });
+    }
+
     if (!result.available) {
       throw new ConflictError("That username is already taken.", {
         field: "username",
       });
     }
+  }
+
+  private isUsernameAppropriate(username: string): boolean {
+    return (
+      this.contentSanitizationService.inspectUsername([
+        { path: "username", value: username },
+      ]).length === 0
+    );
   }
 
   /**

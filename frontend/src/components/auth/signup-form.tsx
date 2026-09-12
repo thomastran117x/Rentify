@@ -18,7 +18,10 @@ import { authApi } from "@/lib/auth/api";
 import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
 import { useEmailAvailability } from "@/lib/auth/use-email-availability";
-import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import {
+  getUsernameAvailabilityError,
+  useUsernameAvailability,
+} from "@/lib/auth/use-username-availability";
 import { EmailAvailabilityHint } from "@/components/auth/email-availability-hint";
 import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { UsernameSuggestions } from "@/components/auth/username-suggestions";
@@ -101,6 +104,15 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
         : null;
 
     if (status === 400) {
+      if (details?.field === "username") {
+        return {
+          generalError: message || "That username isn’t allowed.",
+          fieldErrors: {
+            username: message || "That username isn’t allowed.",
+          },
+        };
+      }
+
       switch (code) {
         case "CAPTCHA_REQUIRED":
         case "CAPTCHA_MISSING":
@@ -369,7 +381,8 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const usernameAvailability = useUsernameAvailability(username, {
     suggestedUsername,
   });
-  const usernameTaken = usernameAvailability.status === "taken";
+  const usernameAvailabilityError =
+    getUsernameAvailabilityError(usernameAvailability);
   const emailAvailability = useEmailAvailability(email);
   // Only a taken address blocks. `pending` is informational — signup accepts an
   // address whose verification is unfinished — and `error` must never wedge the
@@ -421,8 +434,8 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
     // The availability check already told the user this name is gone; there is
     // nothing to gain from a round trip that can only fail.
-    if (usernameTaken) {
-      nextErrors.username = "That username is already taken.";
+    if (usernameAvailabilityError) {
+      nextErrors.username = usernameAvailabilityError;
     }
 
     if (emailTaken) {
@@ -645,7 +658,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                   type="text"
                   autoComplete="username"
                   placeholder="jane-doe"
-                  aria-invalid={Boolean(errors.username) || usernameTaken}
+                  aria-invalid={
+                    Boolean(errors.username) ||
+                    Boolean(usernameAvailabilityError)
+                  }
                   aria-describedby={
                     errors.username
                       ? "signup-username-error"
@@ -655,6 +671,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                   onChange={(event) => {
                     setUsername(event.target.value);
                     setSuggestedUsername(undefined);
+                    setErrors((current) => ({
+                      ...current,
+                      username: undefined,
+                    }));
                   }}
                   className={theme.auth.fieldInput}
                 />

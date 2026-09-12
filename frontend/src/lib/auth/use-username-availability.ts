@@ -12,11 +12,22 @@ export type UsernameAvailabilityStatus =
   | "checking"
   | "available"
   | "taken"
+  | "not-allowed"
   | "error";
 
 export interface UsernameAvailability {
   status: UsernameAvailabilityStatus;
   message: string | null;
+}
+
+/** Returns the blocking field message for an unavailable username verdict. */
+export function getUsernameAvailabilityError(
+  availability: UsernameAvailability,
+): string | undefined {
+  return availability.status === "taken" ||
+    availability.status === "not-allowed"
+    ? (availability.message ?? undefined)
+    : undefined;
 }
 
 const IDLE: UsernameAvailability = { status: "idle", message: null };
@@ -98,7 +109,15 @@ export function useUsernameAvailability(
             username: normalized,
             result: result.available
               ? { status: "available", message: `${normalized} is available.` }
-              : { status: "taken", message: "That username is already taken." },
+              : result.reason === "inappropriate"
+                ? {
+                    status: "not-allowed",
+                    message: "That username isn’t allowed.",
+                  }
+                : {
+                    status: "taken",
+                    message: "That username is already taken.",
+                  },
           });
         })
         .catch((error: unknown) => {

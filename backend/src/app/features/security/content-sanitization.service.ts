@@ -15,15 +15,29 @@ export interface ContentSanitizationViolation {
   code: ContentSanitizationViolationCode;
 }
 
-type ContentSanitizationProfile = "content" | "request";
+type ContentSanitizationProfile = "content" | "request" | "username";
 
 const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const HTML_TAG_PATTERN = /<\s*\/?\s*[a-z!][^>]*>/i;
 const INLINE_EVENT_HANDLER_PATTERN = /\bon[a-z]+\s*=/i;
 const JAVASCRIPT_URL_PATTERN = /\bjavascript\s*:/i;
-const PROFANITY_PATTERN =
-  /\b(?:asshole|bitch|bullshit|cunt|fuck|fucker|fucking|motherfucker|shit|shitty)\b/i;
+const PROFANITY_TERMS = [
+  "asshole",
+  "bitch",
+  "bullshit",
+  "cunt",
+  "fuck",
+  "fucker",
+  "fucking",
+  "motherfucker",
+  "shit",
+  "shitty",
+] as const;
+const PROFANITY_PATTERN = new RegExp(
+  `\\b(?:${PROFANITY_TERMS.join("|")})\\b`,
+  "i",
+);
 const INJECTION_PATTERNS: Array<{
   pattern: RegExp;
   code: Extract<
@@ -82,6 +96,18 @@ export class ContentSanitizationService {
     inputs: ContentSanitizationInput[],
   ): ContentSanitizationViolation[] {
     return this.inspectWithProfile(inputs, "request");
+  }
+
+  /**
+   * Usernames have no word separators around an embedded blocked term, so the
+   * content profile's word-boundary matching is intentionally too permissive
+   * for them. Keep this stricter behavior scoped to username claims to avoid
+   * changing moderation behavior for ordinary prose.
+   */
+  inspectUsername(
+    inputs: ContentSanitizationInput[],
+  ): ContentSanitizationViolation[] {
+    return this.inspectWithProfile(inputs, "username");
   }
 
   private inspectWithProfile(
@@ -146,7 +172,12 @@ export class ContentSanitizationService {
       }
     }
 
-    if (PROFANITY_PATTERN.test(value)) {
+    const containsProfanity =
+      profile === "username"
+        ? PROFANITY_TERMS.some((term) => value.toLowerCase().includes(term))
+        : PROFANITY_PATTERN.test(value);
+
+    if (containsProfanity) {
       return {
         path,
         code: "PROFANITY",

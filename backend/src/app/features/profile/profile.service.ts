@@ -1,11 +1,9 @@
 import BadRequestError from "@/errors/http/bad-request.error";
-import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import UsernameChangeCooldownError from "@/errors/http/username-change-cooldown.error";
-import { getPendingSignupUsernameKey } from "@/features/auth/pending-signup-username";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
+import type { UsernameService } from "@/features/auth/username/username.service";
 import type { BlobService } from "@/features/blob/blob.service";
-import type { CacheService } from "@/features/cache/cache.service";
 import type {
   ListProfilesInput,
   ListProfilesResult,
@@ -25,7 +23,7 @@ export class ProfileService {
   constructor(
     private readonly profileRepository: ProfileRepository,
     private readonly blobService: BlobService,
-    private readonly cacheService: CacheService,
+    private readonly usernameService: UsernameService,
     private readonly usernameBloomService: IdentityBloomService,
   ) {}
 
@@ -158,7 +156,10 @@ export class ProfileService {
       });
     }
 
-    await this.assertUsernameNotReservedByPendingSignup(username);
+    await this.usernameService.assertUsernameIsAvailable(
+      username,
+      existingProfile.userId,
+    );
 
     // The check above is only advisory — it gives a precise error message from a
     // read. `usernameChangeGuardAt` is what actually enforces the rule, by
@@ -170,26 +171,6 @@ export class ProfileService {
     }
 
     return { usernameChangedAt: now, usernameChangeGuardAt: now };
-  }
-
-  /**
-   * Signup soft-reserves a username in the cache until its verification OTP
-   * expires. Honouring it here keeps the rename path agreeing with both signup
-   * and the availability endpoint, which would otherwise report a reserved name
-   * as free.
-   */
-  private async assertUsernameNotReservedByPendingSignup(
-    username: string,
-  ): Promise<void> {
-    const pendingSignupEmail = await this.cacheService.getJson<string>(
-      getPendingSignupUsernameKey(username),
-    );
-
-    if (pendingSignupEmail) {
-      throw new ConflictError("That username is already taken.", {
-        field: "username",
-      });
-    }
   }
 
   private assertPostingCounts(input: UpdateProfileInput): void {

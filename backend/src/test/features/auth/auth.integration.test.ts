@@ -261,6 +261,37 @@ describe("Auth persistence integration", () => {
     });
   });
 
+  it("rejects an inappropriate username during signup", async () => {
+    const email = "blocked-username@rentify.local";
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/signup")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          email,
+          username: "friendlyshittyperson",
+          password: "StrongPassword1!",
+          firstName: "Blocked",
+          lastName: "Username",
+          captchaToken: "captcha-ok-signup",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      message: "That username isn’t allowed.",
+      error: {
+        code: "BAD_REQUEST",
+        details: { field: "username", reason: "inappropriate" },
+      },
+    });
+    expect(
+      await persistenceApp.prisma.user.findUnique({ where: { email } }),
+    ).toBeNull();
+  });
+
   it("signs up, verifies, and then signs in as the newly created account", async () => {
     const email = "lifecycle-user@rentify.local";
     const username = "lifecycle-user";
@@ -880,7 +911,7 @@ describe("Auth persistence integration", () => {
     expect(malformedResponse.status).toBe(400);
   });
 
-  it("reports username availability for free, taken, and malformed values", async () => {
+  it("reports username availability for free, taken, inappropriate, and malformed values", async () => {
     const free = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/username/available?username=brand-new-name")}`,
       { headers: { origin: ORIGIN } },
@@ -898,6 +929,19 @@ describe("Auth persistence integration", () => {
     expect(taken.status).toBe(200);
     await expect(taken.json()).resolves.toMatchObject({
       data: { username: "renter-one", available: false, reason: "taken" },
+    });
+
+    const inappropriate = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=FriendlyShittyPerson")}`,
+      { headers: { origin: ORIGIN } },
+    );
+    expect(inappropriate.status).toBe(200);
+    await expect(inappropriate.json()).resolves.toMatchObject({
+      data: {
+        username: "friendlyshittyperson",
+        available: false,
+        reason: "inappropriate",
+      },
     });
 
     const malformed = await persistenceApp.app.request(

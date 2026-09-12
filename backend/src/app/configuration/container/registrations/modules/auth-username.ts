@@ -14,6 +14,7 @@ export const authUsernameRegistrationModule: ContainerRegistrationModule = {
         containerTokens.usernameBloomService,
         containerTokens.pendingSignupStore,
         containerTokens.publicOtpService,
+        containerTokens.contentSanitizationService,
       ],
       resolve: ({ resolve }) =>
         new UsernameService(
@@ -21,6 +22,7 @@ export const authUsernameRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.usernameBloomService),
           resolve(containerTokens.pendingSignupStore),
           resolve(containerTokens.publicOtpService),
+          resolve(containerTokens.contentSanitizationService),
         ),
     });
     container.register({

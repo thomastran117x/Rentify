@@ -56,6 +56,21 @@ describe("useUsernameAvailability", () => {
     expect(result.current.message).toBe("That username is already taken.");
   });
 
+  it("reports an inappropriate username as not allowed", async () => {
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "friendlyshittyperson",
+      available: false,
+      reason: "inappropriate",
+    });
+
+    const { result } = renderHook(() =>
+      useUsernameAvailability("friendlyshittyperson"),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("not-allowed"));
+    expect(result.current.message).toBe("That username isn’t allowed.");
+  });
+
   it("normalizes the value before checking it", async () => {
     const { result } = renderHook(() =>
       useUsernameAvailability("  Jane-Doe  "),

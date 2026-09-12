@@ -14,8 +14,12 @@ import { UsernameAvailabilityHint } from "@/components/auth/username-availabilit
 import { UsernameSuggestions } from "@/components/auth/username-suggestions";
 import { profilesApi } from "@/lib/profiles/api";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
-import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import {
+  getUsernameAvailabilityError,
+  useUsernameAvailability,
+} from "@/lib/auth/use-username-availability";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { ApiClientError } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 interface OAuthWelcomeModalProps {
@@ -74,9 +78,7 @@ function OAuthWelcomeModalContent({
   async function handleSave() {
     const nextError =
       validateUsernameFormat(value) ??
-      (availability.status === "taken"
-        ? "That username is already taken."
-        : undefined);
+      getUsernameAvailabilityError(availability);
     setFieldError(nextError);
     setGeneralError(null);
 
@@ -99,6 +101,18 @@ function OAuthWelcomeModalContent({
       onUsernameSaved(result.username);
       onClose();
     } catch (error) {
+      const details =
+        error instanceof ApiClientError &&
+        typeof error.details === "object" &&
+        error.details !== null
+          ? (error.details as { field?: unknown })
+          : null;
+
+      if (error instanceof ApiClientError && details?.field === "username") {
+        setFieldError(error.message || "That username isn’t allowed.");
+        return;
+      }
+
       setGeneralError(
         getApiErrorMessage(error, {
           action: "update your username",

@@ -33,7 +33,10 @@ import {
   type PersonalAccessTokenSummary,
 } from "@/lib/auth/types";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
-import { useUsernameAvailability } from "@/lib/auth/use-username-availability";
+import {
+  getUsernameAvailabilityError,
+  useUsernameAvailability,
+} from "@/lib/auth/use-username-availability";
 import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { FieldErrorMessage } from "@/components/errors";
 import {
@@ -327,11 +330,8 @@ export default function AccountPage() {
 
   async function handleSaveProfile() {
     const formatError = validateUsernameFormat(profileUsername);
-    const takenError =
-      usernameAvailability.status === "taken"
-        ? "That username is already taken."
-        : undefined;
-    const usernameError = formatError ?? takenError;
+    const usernameError =
+      formatError ?? getUsernameAvailabilityError(usernameAvailability);
 
     setProfileUsernameError(usernameError);
 
@@ -355,6 +355,20 @@ export default function AccountPage() {
       setProfileMessageTone("success");
       setProfileMessage("Profile saved.");
     } catch (error) {
+      const details =
+        error instanceof ApiClientError &&
+        typeof error.details === "object" &&
+        error.details !== null
+          ? (error.details as { field?: unknown })
+          : null;
+
+      if (error instanceof ApiClientError && details?.field === "username") {
+        setProfileUsernameError(
+          error.message || "That username isn’t allowed.",
+        );
+        return;
+      }
+
       setProfileMessageTone("error");
       setProfileMessage(getProfileSaveErrorMessage(error));
     } finally {

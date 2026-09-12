@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import ConflictError from "@/errors/http/conflict.error";
+import BadRequestError from "@/errors/http/bad-request.error";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { UsernameService } from "@/features/auth/username/username.service";
+import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import {
   createRandomUsernameSuggestion,
   parseUsernameSuggestionVocabulary,
@@ -109,6 +111,7 @@ function createHarness(
       usernameBloomService as never,
       pendingSignupStore,
       publicOtpService,
+      new ContentSanitizationService(),
       createSuggestionCandidate,
     ),
   };
@@ -195,6 +198,18 @@ describe("username suggestions", () => {
     });
   });
 
+  it("skips suggestions containing an embedded blocked term", async () => {
+    const candidates = ["friendlyshittyperson", "bright-otter-4827"];
+    const harness = createHarness(() => candidates.shift()!);
+
+    await expect(harness.service.suggestUsernames(1)).resolves.toEqual({
+      suggestions: ["bright-otter-4827"],
+    });
+    expect(harness.authRepository.findUserIdByUsername).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
   it("fails cleanly when it cannot find enough distinct candidates", async () => {
     const harness = createHarness(() => "bright-otter-4827");
 
@@ -221,6 +236,19 @@ async function reserve(
 }
 
 describe("UsernameService.isUsernameAvailable", () => {
+  it("reports an embedded blocked term as inappropriate without querying storage", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.isUsernameAvailable("FriendlyShittyPerson"),
+    ).resolves.toEqual({
+      username: "friendlyshittyperson",
+      available: false,
+      reason: "inappropriate",
+    });
+    expect(harness.authRepository.findUserIdByUsername).not.toHaveBeenCalled();
+  });
+
   it("reports an unused username as available and normalizes it", async () => {
     const harness = createHarness();
 
@@ -293,6 +321,20 @@ describe("UsernameService.isUsernameAvailable", () => {
 });
 
 describe("UsernameService.resolveUsernameAvailabilityHint", () => {
+  it("screens inappropriate usernames before consulting the filter", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.resolveUsernameAvailabilityHint("friendlyshittyperson"),
+    ).resolves.toEqual({
+      username: "friendlyshittyperson",
+      available: false,
+      reason: "inappropriate",
+    });
+    expect(harness.usernameBloomService.check).not.toHaveBeenCalled();
+    expect(harness.authRepository.findUserIdByUsername).not.toHaveBeenCalled();
+  });
+
   it("answers from the filter without touching the database", async () => {
     const harness = createHarness();
     harness.usernameBloomService.check.mockReturnValue("definitely-absent");
@@ -366,6 +408,20 @@ describe("UsernameService.resolveUsernameAvailabilityHint", () => {
 });
 
 describe("UsernameService.assertUsernameIsAvailable", () => {
+  it("throws a field-tagged bad request for an inappropriate username", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.assertUsernameIsAvailable("friendlyshittyperson"),
+    ).rejects.toMatchObject({
+      constructor: BadRequestError,
+      status: 400,
+      code: "BAD_REQUEST",
+      message: "That username isn’t allowed.",
+      details: { field: "username", reason: "inappropriate" },
+    });
+  });
+
   it("passes for a free username", async () => {
     const harness = createHarness();
 

@@ -16,7 +16,7 @@ export type UsernameAvailabilityQuery = z.infer<
 export interface UsernameAvailabilityResult {
   username: string;
   available: boolean;
-  reason: "taken" | null;
+  reason: "taken" | "inappropriate" | null;
 }
 
 export const usernameSuggestionsQuerySchema = z.object({

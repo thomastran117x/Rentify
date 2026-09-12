@@ -177,6 +177,52 @@ describe("OAuthWelcomeModal", () => {
     expect(updateMineMock).not.toHaveBeenCalled();
   });
 
+  it("shows live feedback and blocks an inappropriate username", async () => {
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "friendlyshittyperson",
+      available: false,
+      reason: "inappropriate",
+    });
+    const user = userEvent.setup();
+    renderModal({ username: "jane.doe" });
+
+    const input = screen.getByLabelText("Your username");
+    await user.clear(input);
+    await user.type(input, "friendlyshittyperson");
+
+    expect(
+      await screen.findByText("That username isn’t allowed."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save username" }));
+    expect(updateMineMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a direct username policy rejection back to the field", async () => {
+    updateMineMock.mockRejectedValue(
+      new ApiClientError("That username isn’t allowed.", {
+        code: "BAD_REQUEST",
+        details: { field: "username", reason: "inappropriate" },
+        request: {
+          method: "PUT",
+          path: "/profile/me",
+          requestUrl: "http://localhost:8040/api/v1/profile/me",
+        },
+        status: 400,
+      }),
+    );
+    const user = userEvent.setup();
+    renderModal({ username: "jane.doe" });
+
+    const input = screen.getByLabelText("Your username");
+    await user.clear(input);
+    await user.type(input, "new-name");
+    await user.click(screen.getByRole("button", { name: "Save username" }));
+
+    expect(
+      await screen.findByText("That username isn’t allowed."),
+    ).toBeInTheDocument();
+  });
+
   it("shows an error and stays open when the update fails", async () => {
     const user = userEvent.setup();
     updateMineMock.mockRejectedValue(
