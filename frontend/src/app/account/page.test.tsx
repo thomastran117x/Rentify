@@ -203,6 +203,52 @@ describe("AccountPage", () => {
     expect(updateMineMock).not.toHaveBeenCalled();
   });
 
+  it("reports an inappropriate username and refuses to submit it", async () => {
+    checkUsernameAvailabilityMock.mockResolvedValue({
+      username: "friendlyshittyperson",
+      available: false,
+      reason: "inappropriate",
+    });
+    const user = userEvent.setup();
+    render(<AccountPage />);
+
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.type(username, "friendlyshittyperson");
+
+    expect(
+      await screen.findByText("That username isn’t allowed."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(updateMineMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a direct username policy rejection back to the field", async () => {
+    updateMineMock.mockRejectedValue(
+      new ApiClientError("That username isn’t allowed.", {
+        code: "BAD_REQUEST",
+        status: 400,
+        details: { field: "username", reason: "inappropriate" },
+        request: {
+          method: "PUT",
+          path: "/profile/me",
+          requestUrl: "/api/v1/profile/me",
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    render(<AccountPage />);
+
+    const username = await screen.findByPlaceholderText("renter-one");
+    await user.clear(username);
+    await user.type(username, "new-name");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(
+      await screen.findByText("That username isn’t allowed."),
+    ).toBeInTheDocument();
+  });
+
   it("rejects a malformed username before calling the API", async () => {
     const user = userEvent.setup();
     render(<AccountPage />);

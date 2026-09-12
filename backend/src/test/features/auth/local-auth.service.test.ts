@@ -10,6 +10,7 @@ import { AuthSessionService } from "@/features/auth/session/session.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
+import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import { testUuid } from "../../support/uuid";
 const DEVICE_1_ID = testUuid(9200, 895443);
@@ -537,6 +538,7 @@ function createService(overrides?: {
     usernameBloomService as any,
     pendingSignupStore,
     publicOtpService,
+    new ContentSanitizationService(),
   );
 
   const loginLockoutService = new LoginLockoutService(

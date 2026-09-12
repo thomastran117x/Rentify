@@ -1499,7 +1499,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localSignup",
       summary: "Create a new local account",
       description:
-        "Begins local signup and sends a verification challenge to the supplied email address.",
+        "Begins local signup and sends a verification challenge to the supplied email address. The username is rejected when it contains a term disallowed by the username content policy.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1524,7 +1524,13 @@ function buildOperations(): OperationDefinition[] {
           "SignupVerificationPendingResult",
           signupPendingExample,
         ),
-        ...commonErrors([400, 403, 409, 429, 500]),
+        "400": errorResponse(
+          "The signup request is invalid, including when the username violates the username content policy.",
+          "That username isn’t allowed.",
+          "BAD_REQUEST",
+          { field: "username", reason: "inappropriate" },
+        ),
+        ...commonErrors([403, 409, 429, 500]),
       },
     },
     {
@@ -1620,7 +1626,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "checkUsernameAvailability",
       summary: "Check whether a username can be claimed",
       description:
-        "Reports whether a username is free, so signup and account settings can tell the user before they submit. A username is unavailable when another account holds it or an unverified signup has reserved it. Signed-in callers are exempted from their own current username, which is therefore reported as available.",
+        "Reports whether a username can be claimed, so signup and account settings can tell the user before they submit. A username is unavailable when another account holds it, an unverified signup has reserved it, or it contains a term disallowed by the username content policy. Signed-in callers are exempted from the ownership check for their own current username.",
       tags: ["auth"],
       permissions: {
         authMode: "public-or-session-bearer",
@@ -4500,7 +4506,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOwnProfile",
       summary: "Update the current user's profile",
       description:
-        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op. Changing it is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
+        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
       tags: ["profiles"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4522,7 +4528,13 @@ function buildOperations(): OperationDefinition[] {
           "ProfileRecord",
           privateProfileExample,
         ),
-        ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "400": errorResponse(
+          "The profile update is invalid, including when a new username violates the username content policy.",
+          "That username isn’t allowed.",
+          "BAD_REQUEST",
+          { field: "username", reason: "inappropriate" },
+        ),
+        ...commonErrors([401, 403, 409, 429, 500]),
       },
     },
     {
@@ -9838,6 +9850,8 @@ function buildComponents(): Record<string, unknown> {
             minLength: 3,
             maxLength: 50,
             pattern: "^[A-Za-z0-9._-]+$",
+            description:
+              "Trimmed and lowercased before use. Must not contain a term disallowed by the username content policy.",
           },
           email: { type: "string", format: "email" },
           password: { type: "string" },
@@ -10342,9 +10356,9 @@ function buildComponents(): Record<string, unknown> {
           reason: {
             type: "string",
             nullable: true,
-            enum: ["taken", null],
+            enum: ["taken", "inappropriate", null],
             description:
-              "Why the username is unavailable, or null when it is available. A username is `taken` when another account holds it or an unverified signup has reserved it.",
+              "Why the username is unavailable, or null when it is available. `taken` means another account holds it or an unverified signup has reserved it. `inappropriate` means it contains a term disallowed by the username content policy.",
           },
         },
       },
@@ -10394,7 +10408,7 @@ function buildComponents(): Record<string, unknown> {
             maxLength: 50,
             pattern: "^[A-Za-z0-9._-]+$",
             description:
-              "Trimmed and lowercased before it is stored, so casing is not significant. Changing this value is limited to once every 30 days. Resending the current username is always accepted and does not spend the cooldown.",
+              "Trimmed and lowercased before it is stored, so casing is not significant. A new value must not contain a term disallowed by the username content policy. Changing this value is limited to once every 30 days. Resending the current username is always accepted and does not spend the cooldown.",
           },
           phoneNumber: {
             type: "string",

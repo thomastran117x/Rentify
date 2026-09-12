@@ -26,7 +26,7 @@ export function UsernameAvailabilityHint({
     return null;
   }
 
-  if (status === "taken") {
+  if (status === "taken" || status === "not-allowed") {
     return (
       <div aria-live="polite">
         <FieldErrorMessage id={id} message={message} tone="error" />

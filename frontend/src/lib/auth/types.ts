@@ -74,7 +74,7 @@ export interface UsernameAvailabilityResult {
   /** The normalized (trimmed, lowercased) username that was checked. */
   username: string;
   available: boolean;
-  reason: "taken" | null;
+  reason: "taken" | "inappropriate" | null;
 }
 
 export interface EmailAvailabilityResult {

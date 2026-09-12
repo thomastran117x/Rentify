@@ -432,6 +432,74 @@ describe("SignupForm", () => {
     expect(signupMock).not.toHaveBeenCalled();
   });
 
+  it("shows live feedback and blocks an inappropriate username", async () => {
+    checkUsernameAvailabilityMock.mockImplementation(
+      async (candidate: string) =>
+        candidate === "friendlyshittyperson"
+          ? {
+              username: candidate,
+              available: false,
+              reason: "inappropriate",
+            }
+          : { username: candidate, available: true, reason: null },
+    );
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("First name"), "Jane");
+    await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "friendlyshittyperson");
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+
+    expect(
+      await screen.findAllByText("That username isn’t allowed."),
+    ).toHaveLength(1);
+    expect(screen.getByLabelText("Username")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(signupMock).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("Username"));
+    await user.type(screen.getByLabelText("Username"), "friendly-person");
+    expect(
+      await screen.findByText("friendly-person is available."),
+    ).toBeInTheDocument();
+  });
+
+  it("maps a direct username policy rejection back to the field", async () => {
+    const user = userEvent.setup();
+    signupMock.mockRejectedValue(
+      new ApiClientError("That username isn’t allowed.", {
+        code: "BAD_REQUEST",
+        details: { field: "username", reason: "inappropriate" },
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 400,
+      }),
+    );
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("First name"), "Jane");
+    await user.type(screen.getByLabelText("Last name"), "Doe");
+    await user.type(screen.getByLabelText("Username"), "jane-doe");
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findAllByText("That username isn’t allowed."),
+    ).toHaveLength(2);
+  });
+
   it("says nothing about an email that is free", async () => {
     // A green "that address is available" would announce which addresses are
     // registered to anyone who cared to try.

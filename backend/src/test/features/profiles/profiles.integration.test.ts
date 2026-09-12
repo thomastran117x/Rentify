@@ -149,6 +149,32 @@ describe("Profiles persistence integration", () => {
         }),
       ).toMatchObject({ phoneNumber: null });
     });
+
+    it("allows unrelated updates when a legacy username is now inappropriate", async () => {
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+      await persistenceApp.prisma.profile.update({
+        where: { userId: user.userId },
+        data: { username: "friendlyshittyperson" },
+      });
+
+      const response = await request("/profile/me", {
+        method: "PUT",
+        headers: user.headers(),
+        body: JSON.stringify({
+          username: "friendlyshittyperson",
+          isPrivate: true,
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(
+        await persistenceApp.prisma.profile.findUniqueOrThrow({
+          where: { userId: user.userId },
+        }),
+      ).toMatchObject({ username: "friendlyshittyperson", isPrivate: true });
+    });
   });
 
   describe("username change cooldown", () => {
@@ -163,6 +189,28 @@ describe("Profiles persistence integration", () => {
         body: JSON.stringify({ username, ...extra }),
       });
     }
+
+    it("rejects an inappropriate rename without changing the profile", async () => {
+      const user = await createAuthenticatedRequestContext({
+        email: "user1@rentify.local",
+      });
+
+      const response = await updateUsername(user, "friendlyshittyperson");
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        message: "That username isn’t allowed.",
+        error: {
+          code: "BAD_REQUEST",
+          details: { field: "username", reason: "inappropriate" },
+        },
+      });
+      expect(
+        await persistenceApp.prisma.profile.findUniqueOrThrow({
+          where: { userId: user.userId },
+        }),
+      ).toMatchObject({ username: "renter-one", usernameChangedAt: null });
+    });
 
     it("allows the first rename and then blocks a second one", async () => {
       const user = await createAuthenticatedRequestContext({

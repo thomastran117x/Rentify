@@ -71,6 +71,32 @@ test("the account page locks the username field during the cooldown", async ({
   await expect(page.getByText(/You can change it again on/i)).toBeVisible();
 });
 
+test("the account page rejects an inappropriate username before saving", async ({
+  page,
+}) => {
+  await login(page, "renter-one");
+
+  let updateCalled = false;
+  await page.route("**/api/v1/profile/me", async (route) => {
+    if (route.request().method() === "PUT") {
+      updateCalled = true;
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+
+  const username = page.getByRole("textbox", { name: "Username" });
+  await username.fill("friendlyshittyperson");
+  await expect(page.getByText("That username isn’t allowed.")).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("That username isn’t allowed.")).toBeVisible();
+  expect(updateCalled).toBe(false);
+});
+
 // Browser validation for the live username availability check on signup. This
 // drives the real form against the real backend: `renter-one` is a seeded
 // account, so it is genuinely taken, and the generated name genuinely is not.
@@ -124,6 +150,35 @@ test.describe("signup username availability", () => {
     await expect(
       page.getByText("That username is already taken."),
     ).toBeVisible();
+    expect(signupCalled).toBe(false);
+  });
+
+  test("reports an inappropriate username and blocks submission", async ({
+    page,
+  }) => {
+    await page.goto("/signup");
+
+    let signupCalled = false;
+    await page.route("**/api/v1/auth/local/signup", async (route) => {
+      signupCalled = true;
+      await route.abort();
+    });
+
+    await page.getByLabel("First name").fill("Jane");
+    await page.getByLabel("Last name").fill("Doe");
+    await page.getByLabel("Username").fill("friendlyshittyperson");
+    await page
+      .getByRole("textbox", { name: "Email" })
+      .fill("jane.doe@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
+    await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
+
+    await expect(page.getByText("That username isn’t allowed.")).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Create account" }).click();
+
+    await expect(page.getByText("That username isn’t allowed.")).toBeVisible();
     expect(signupCalled).toBe(false);
   });
 

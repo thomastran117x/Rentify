@@ -45,6 +45,30 @@ describe("ContentSanitizationService", () => {
     expect(violations[0]?.code).toBe("PROFANITY");
   });
 
+  it("rejects a blocked term embedded inside a username", () => {
+    const violations = service.inspectUsername([
+      {
+        path: "username",
+        value: "friendlyshittyperson",
+      },
+    ]);
+
+    expect(violations).toEqual([
+      expect.objectContaining({ path: "username", code: "PROFANITY" }),
+    ]);
+  });
+
+  it("keeps substring screening scoped to usernames", () => {
+    expect(
+      service.inspect([{ path: "description", value: "A trip to Scunthorpe" }]),
+    ).toEqual([]);
+    expect(
+      service.inspectUsername([{ path: "username", value: "scunthorpe" }]),
+    ).toEqual([
+      expect.objectContaining({ path: "username", code: "PROFANITY" }),
+    ]);
+  });
+
   it("rejects control characters", () => {
     const violations = service.inspect([
       {
