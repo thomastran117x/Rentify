@@ -9769,7 +9769,8 @@
                     "canChangeUsername": false,
                     "usernameChangeAvailableAt": "2026-08-31T12:00:00.000Z",
                     "isPrivate": false,
-                    "recommendationPersonalizationEnabled": true
+                    "recommendationPersonalizationEnabled": true,
+                    "recentlyViewedTrackingEnabled": true
                   },
                   "error": null,
                   "meta": {
@@ -9822,6 +9823,7 @@
                 "phoneNumber": "+1 555 0100",
                 "isPrivate": false,
                 "recommendationPersonalizationEnabled": true,
+                "recentlyViewedTrackingEnabled": true,
                 "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
               }
             }
@@ -9873,7 +9875,8 @@
                     "canChangeUsername": false,
                     "usernameChangeAvailableAt": "2026-08-31T12:00:00.000Z",
                     "isPrivate": false,
-                    "recommendationPersonalizationEnabled": true
+                    "recommendationPersonalizationEnabled": true,
+                    "recentlyViewedTrackingEnabled": true
                   },
                   "error": null,
                   "meta": {
@@ -16050,6 +16053,464 @@
         }
       }
     },
+    "/postings/recently-viewed": {
+      "get": {
+        "operationId": "listRecentlyViewedPostings",
+        "summary": "List the caller's recently viewed postings",
+        "description": "Returns the authenticated caller's browsing history as public posting snapshots, most recently viewed first. One entry per posting: re-opening a posting moves it to the front rather than adding a duplicate. Entries whose posting stopped being publicly viewable are omitted, so the response can be shorter than `limit`. History is capped at 50 postings per account. PAT bearer authentication with `mcp:read` is allowed.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": true,
+          "patScope": "mcp:read"
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum entries to return. Defaults to 24; the stored history is capped at 50 per account.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 24
+            },
+            "example": 24
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ListRecentlyViewedPostingsResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "postings": [
+                      {
+                        "id": "posting-1",
+                        "organizationId": "org-1",
+                        "organization": {
+                          "id": "org-1",
+                          "name": "Owner One Organization",
+                          "slug": "owner-one-organization"
+                        },
+                        "status": "published",
+                        "variant": {
+                          "family": "place",
+                          "subtype": "workspace"
+                        },
+                        "name": "Sunny loft workspace",
+                        "description": "Bright downtown loft with desks and meeting space.",
+                        "pricing": {
+                          "currency": "CAD",
+                          "daily": {
+                            "amount": 150
+                          },
+                          "hourly": {
+                            "amount": 25
+                          }
+                        },
+                        "pricingCurrency": "CAD",
+                        "photos": [
+                          {
+                            "id": "photo-1",
+                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
+                            "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "position": 0,
+                            "createdAt": "2026-05-01T10:00:00.000Z",
+                            "updatedAt": "2026-05-01T10:00:00.000Z"
+                          }
+                        ],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
+                        "details": {
+                          "guest_capacity": 4,
+                          "property_type": "loft",
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
+                          "parking": true
+                        },
+                        "availabilityStatus": "available",
+                        "availabilityNotes": "Best for weekday bookings.",
+                        "maxBookingDurationDays": 30,
+                        "effectiveMaxBookingDurationDays": 30,
+                        "availabilityBlocks": [
+                          {
+                            "id": "block-1",
+                            "startAt": "2026-06-10T00:00:00.000Z",
+                            "endAt": "2026-06-12T00:00:00.000Z",
+                            "note": "Owner maintenance",
+                            "createdAt": "2026-05-10T10:00:00.000Z",
+                            "updatedAt": "2026-05-10T10:00:00.000Z"
+                          }
+                        ],
+                        "location": {
+                          "city": "Toronto",
+                          "region": "Ontario",
+                          "country": "Canada",
+                          "postalCode": "M5V 1A1",
+                          "latitude": 43.65,
+                          "longitude": -79.38
+                        },
+                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
+                        "viewerReviewState": {
+                          "eligible": true,
+                          "hasOwnReview": false
+                        },
+                        "publishedAt": "2026-05-01T10:00:00.000Z",
+                        "expiresAt": "2026-09-01T23:59:59.999Z",
+                        "createdAt": "2026-05-01T09:00:00.000Z",
+                        "updatedAt": "2026-05-20T09:00:00.000Z",
+                        "viewedAt": "2026-09-07T18:42:00.000Z"
+                      }
+                    ],
+                    "trackingEnabled": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearRecentlyViewedPostings",
+        "summary": "Clear the caller's recently viewed postings",
+        "description": "Deletes the authenticated caller's entire browsing history. Idempotent: clearing an already empty history succeeds.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "responses": {
+          "204": {
+            "description": "Recently viewed postings cleared."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/postings/recently-viewed/sync": {
+      "post": {
+        "operationId": "syncRecentlyViewedPostings",
+        "summary": "Merge a local view history into the account",
+        "description": "Merges the browser's own history into the authenticated caller's, and returns the merged list. Intended to be called once after signing in, so views recorded while signed out are not lost. Where a posting appears on both sides the later timestamp wins, so a stale device can never demote an entry another device refreshed more recently. Client timestamps are clamped rather than rejected: future values collapse to now and anything older than 30 days is raised to that floor. Entries whose posting is not publicly viewable are ignored. Accepts at most 50 entries.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum entries to return. Defaults to 24; the stored history is capped at 50 per account.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 24
+            },
+            "example": 24
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRecentlyViewedRequest"
+              },
+              "example": {
+                "entries": [
+                  {
+                    "postingId": "posting-1",
+                    "viewedAt": "2026-09-07T18:42:00.000Z"
+                  },
+                  {
+                    "postingId": "posting-2",
+                    "viewedAt": "2026-09-06T09:15:00.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ListRecentlyViewedPostingsResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Recently viewed postings synced successfully.",
+                  "data": {
+                    "postings": [
+                      {
+                        "id": "posting-1",
+                        "organizationId": "org-1",
+                        "organization": {
+                          "id": "org-1",
+                          "name": "Owner One Organization",
+                          "slug": "owner-one-organization"
+                        },
+                        "status": "published",
+                        "variant": {
+                          "family": "place",
+                          "subtype": "workspace"
+                        },
+                        "name": "Sunny loft workspace",
+                        "description": "Bright downtown loft with desks and meeting space.",
+                        "pricing": {
+                          "currency": "CAD",
+                          "daily": {
+                            "amount": 150
+                          },
+                          "hourly": {
+                            "amount": 25
+                          }
+                        },
+                        "pricingCurrency": "CAD",
+                        "photos": [
+                          {
+                            "id": "photo-1",
+                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
+                            "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "position": 0,
+                            "createdAt": "2026-05-01T10:00:00.000Z",
+                            "updatedAt": "2026-05-01T10:00:00.000Z"
+                          }
+                        ],
+                        "tags": [
+                          "workspace",
+                          "wifi"
+                        ],
+                        "details": {
+                          "guest_capacity": 4,
+                          "property_type": "loft",
+                          "amenities": [
+                            "wifi",
+                            "coffee"
+                          ],
+                          "parking": true
+                        },
+                        "availabilityStatus": "available",
+                        "availabilityNotes": "Best for weekday bookings.",
+                        "maxBookingDurationDays": 30,
+                        "effectiveMaxBookingDurationDays": 30,
+                        "availabilityBlocks": [
+                          {
+                            "id": "block-1",
+                            "startAt": "2026-06-10T00:00:00.000Z",
+                            "endAt": "2026-06-12T00:00:00.000Z",
+                            "note": "Owner maintenance",
+                            "createdAt": "2026-05-10T10:00:00.000Z",
+                            "updatedAt": "2026-05-10T10:00:00.000Z"
+                          }
+                        ],
+                        "location": {
+                          "city": "Toronto",
+                          "region": "Ontario",
+                          "country": "Canada",
+                          "postalCode": "M5V 1A1",
+                          "latitude": 43.65,
+                          "longitude": -79.38
+                        },
+                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
+                        "viewerReviewState": {
+                          "eligible": true,
+                          "hasOwnReview": false
+                        },
+                        "publishedAt": "2026-05-01T10:00:00.000Z",
+                        "expiresAt": "2026-09-01T23:59:59.999Z",
+                        "createdAt": "2026-05-01T09:00:00.000Z",
+                        "updatedAt": "2026-05-20T09:00:00.000Z",
+                        "viewedAt": "2026-09-07T18:42:00.000Z"
+                      }
+                    ],
+                    "trackingEnabled": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/postings/recently-viewed/{postingId}": {
+      "delete": {
+        "operationId": "removeRecentlyViewedPosting",
+        "summary": "Remove one posting from the caller's view history",
+        "description": "Removes a single entry from the authenticated caller's browsing history. Idempotent, and deliberately succeeds even when the posting is no longer publicly viewable, so an entry cannot become stuck.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "postingId",
+            "in": "path",
+            "required": true,
+            "description": "Posting identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "posting-1"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Posting removed from recently viewed."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/feedback": {
       "post": {
         "operationId": "createAppFeedback",
@@ -17945,6 +18406,93 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/postings/{id}/activity/view": {
+      "post": {
+        "operationId": "trackPostingView",
+        "summary": "Record that the caller opened a posting",
+        "description": "Adds a posting to the caller's recently viewed history. Authentication is optional and the response is the same either way: signed-out visitors keep their history in the browser alone, and the write is also skipped for bots, for callers who have turned view tracking off, and for postings that are not publicly viewable. The endpoint deliberately never reports which of those applied, so it cannot be used to probe for postings the caller cannot otherwise see. Re-opening a posting moves it to the front of the history rather than adding a duplicate. PAT bearer authentication with `mcp:read` is allowed when supplied.",
+        "tags": [
+          "postings"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-rentify-permissions": {
+          "authMode": "optional-bearer",
+          "minimumRole": null,
+          "patAllowed": true,
+          "patScope": "mcp:read"
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Posting identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "posting-1"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AcceptedActionResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Posting view tracked successfully.",
+                  "data": {
+                    "accepted": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -26744,6 +27292,10 @@
           "recommendationPersonalizationEnabled": {
             "type": "boolean"
           },
+          "recentlyViewedTrackingEnabled": {
+            "type": "boolean",
+            "description": "Whether posting views are recorded into the caller's recently viewed history. Turning this off stops recording; it does not delete history already stored, which is what `DELETE /postings/recently-viewed` is for."
+          },
           "avatarUrl": {
             "type": "string",
             "format": "uri",
@@ -27461,6 +28013,80 @@
               "$ref": "#/components/schemas/UnavailableSavedPosting"
             },
             "description": "Saved postings on this page that are no longer publicly viewable. They still count towards the pagination total."
+          }
+        }
+      },
+      "RecentlyViewedPostingRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PublicPostingRecord"
+          },
+          {
+            "type": "object",
+            "required": [
+              "viewedAt"
+            ],
+            "properties": {
+              "viewedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the caller most recently opened this posting."
+              }
+            }
+          }
+        ]
+      },
+      "ListRecentlyViewedPostingsResult": {
+        "type": "object",
+        "required": [
+          "postings",
+          "trackingEnabled"
+        ],
+        "properties": {
+          "postings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentlyViewedPostingRecord"
+            },
+            "description": "Most recently viewed first. Entries whose posting is no longer publicly viewable are omitted rather than reported, so this can be shorter than the requested limit."
+          },
+          "trackingEnabled": {
+            "type": "boolean",
+            "description": "False when the caller has turned view tracking off in their profile. Clients should stop recording, including into their own local history."
+          }
+        }
+      },
+      "SyncRecentlyViewedEntry": {
+        "type": "object",
+        "required": [
+          "postingId",
+          "viewedAt"
+        ],
+        "properties": {
+          "postingId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "viewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the client believes the posting was viewed. Clamped server-side to a sane window: future timestamps collapse to now, and anything older than 30 days is raised to that floor."
+          }
+        }
+      },
+      "SyncRecentlyViewedRequest": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/SyncRecentlyViewedEntry"
+            }
           }
         }
       },

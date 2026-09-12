@@ -29,6 +29,7 @@ export const updateProfileRequestSchema = z.object({
     .optional(),
   isPrivate: z.boolean().optional(),
   recommendationPersonalizationEnabled: z.boolean().optional(),
+  recentlyViewedTrackingEnabled: z.boolean().optional(),
   avatarUrl: z.url("Avatar URL must be a valid URL.").nullable().optional(),
   avatarBlobName: z.string().trim().min(1).max(1024).nullable().optional(),
   trustworthinessScore: z
@@ -73,6 +74,7 @@ export interface ProfileRecord {
   avatarBlobName?: string;
   isPrivate: boolean;
   recommendationPersonalizationEnabled: boolean;
+  recentlyViewedTrackingEnabled: boolean;
   trustworthinessScore: number;
   rentPostingsCount: number;
   availableRentPostingsCount: number;
@@ -115,6 +117,7 @@ export interface UpdateProfileInput {
   phoneNumber?: string | null;
   isPrivate?: boolean;
   recommendationPersonalizationEnabled?: boolean;
+  recentlyViewedTrackingEnabled?: boolean;
   avatarUrl?: string | null;
   avatarBlobName?: string | null;
   trustworthinessScore?: number;

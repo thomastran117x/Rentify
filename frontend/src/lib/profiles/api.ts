@@ -32,6 +32,7 @@ export interface ProfileRecord extends PublicProfileRecord {
   usernameChangeAvailableAt?: string;
   isPrivate: boolean;
   recommendationPersonalizationEnabled: boolean;
+  recentlyViewedTrackingEnabled: boolean;
 }
 
 export interface ListProfilesResult {
@@ -51,6 +52,7 @@ export interface UpdateOwnProfileInput {
   phoneNumber?: string | null;
   isPrivate?: boolean;
   recommendationPersonalizationEnabled?: boolean;
+  recentlyViewedTrackingEnabled?: boolean;
   avatarUrl?: string | null;
   avatarBlobName?: string | null;
   trustworthinessScore?: number;

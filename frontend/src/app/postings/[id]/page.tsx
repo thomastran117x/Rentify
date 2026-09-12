@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PostingDetailClient } from "@/components/postings/posting-detail-client";
+import { RecordPostingView } from "@/components/postings/record-posting-view";
 import {
   getPublicPostingDetail,
   isPublicPostingDetailNotFoundError,
@@ -58,7 +59,12 @@ export default async function PostingDetailPage({
     return <PostingDetailError />;
   }
 
-  return <PostingDetailClient key={posting.id} posting={posting} />;
+  return (
+    <>
+      <RecordPostingView postingId={posting.id} />
+      <PostingDetailClient key={posting.id} posting={posting} />
+    </>
+  );
 }
 
 function PostingDetailError() {

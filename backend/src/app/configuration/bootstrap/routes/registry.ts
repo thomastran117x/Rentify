@@ -39,6 +39,7 @@ import {
   postingsAvailabilityRouteModule,
   postingsOwnerRouteModule,
   postingsPublicRouteModule,
+  postingsRecentlyViewedRouteModule,
   postingsReviewsRouteModule,
   postingsSavedRouteModule,
   postingsSavedSearchesRouteModule,
@@ -99,6 +100,9 @@ export const routeModuleRegistry: RouteModule[] = [
   // Must stay ahead of postingsPublicRouteModule: it owns the static
   // /postings/saved paths that /postings/:id would otherwise match.
   postingsSavedRouteModule,
+  // Same hazard: `recently-viewed` is a syntactically valid posting
+  // identifier, so /postings/:id would match every route in this module.
+  postingsRecentlyViewedRouteModule,
   bookingsRouteModule,
   smsRouteModule,
   paymentsRouteModule,

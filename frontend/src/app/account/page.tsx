@@ -44,6 +44,7 @@ import {
   type MfaVerificationOptionsResult,
 } from "@/lib/auth/mfa-verification-api";
 import { profilesApi, type ProfileRecord } from "@/lib/profiles/api";
+import { setTrackingEnabled as setRecentlyViewedTracking } from "@/lib/recently-viewed/storage";
 
 const providerLabels: Record<LinkedOAuthProvider, string> = {
   google: "Google",
@@ -138,6 +139,7 @@ export default function AccountPage() {
   const [profileUsername, setProfileUsername] = useState("");
   const [profileIsPrivate, setProfileIsPrivate] = useState(false);
   const [profilePersonalization, setProfilePersonalization] = useState(false);
+  const [profileRecentlyViewed, setProfileRecentlyViewed] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [profilePending, setProfilePending] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -251,6 +253,10 @@ export default function AccountPage() {
           setProfilePersonalization(
             result.recommendationPersonalizationEnabled,
           );
+          setProfileRecentlyViewed(result.recentlyViewedTrackingEnabled);
+          // Mirror the account preference into this browser, so a device that
+          // was opted out elsewhere stops building a local history too.
+          setRecentlyViewedTracking(result.recentlyViewedTrackingEnabled);
         }
       })
       .catch((error) => {
@@ -347,11 +353,14 @@ export default function AccountPage() {
         username: normalizeUsername(profileUsername),
         isPrivate: profileIsPrivate,
         recommendationPersonalizationEnabled: profilePersonalization,
+        recentlyViewedTrackingEnabled: profileRecentlyViewed,
       });
       setProfile(result);
       setProfileUsername(result.username);
       setProfileIsPrivate(result.isPrivate);
       setProfilePersonalization(result.recommendationPersonalizationEnabled);
+      setProfileRecentlyViewed(result.recentlyViewedTrackingEnabled);
+      setRecentlyViewedTracking(result.recentlyViewedTrackingEnabled);
       setProfileMessageTone("success");
       setProfileMessage("Profile saved.");
     } catch (error) {
@@ -757,6 +766,27 @@ export default function AccountPage() {
                       checked={profilePersonalization}
                       onChange={(e) =>
                         setProfilePersonalization(e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 accent-slate-950"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
+                        Recently viewed history
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        Remember the postings you open so you can find them
+                        again. Turning this off stops new entries; it does not
+                        clear what is already saved.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={profileRecentlyViewed}
+                      onChange={(e) =>
+                        setProfileRecentlyViewed(e.target.checked)
                       }
                       className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 accent-slate-950"
                     />

@@ -128,6 +128,7 @@ function createController(
     seasonalPricing?: Record<string, unknown>;
     recommendationActivityPublisher?: Record<string, unknown>;
     savedPostings?: Record<string, unknown>;
+    recentlyViewed?: Record<string, unknown>;
   },
 ) {
   return new PostingsController(
@@ -138,6 +139,7 @@ function createController(
     (overrides?.seasonalPricing ?? {}) as any,
     (overrides?.recommendationActivityPublisher ?? {}) as any,
     (overrides?.savedPostings ?? {}) as any,
+    (overrides?.recentlyViewed ?? {}) as any,
   );
 }
 

@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Gauge,
   Heart,
+  History,
   ShieldCheck,
   UserCog,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export type AppNavItemId =
   | "bookings"
   | "saved"
   | "saved-searches"
+  | "recently-viewed"
   | "organizations"
   | "account";
 
@@ -122,6 +124,14 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: "/saved/searches",
     label: "Saved searches",
     icon: BookmarkCheck,
+    group: "activity",
+    canAccess: always,
+  },
+  {
+    id: "recently-viewed",
+    href: "/saved/recent",
+    label: "Recently viewed",
+    icon: History,
     group: "activity",
     canAccess: always,
   },

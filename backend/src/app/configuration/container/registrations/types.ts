@@ -37,6 +37,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "postings-core",
   "postings-analytics",
   "postings-reviews",
+  "postings-recently-viewed",
   "postings-saved",
   "postings-saved-searches",
   "postings-search",

@@ -329,6 +329,13 @@ export interface SeedSavedPostingFixture {
   createdAt: string;
 }
 
+export interface SeedRecentlyViewedPostingFixture {
+  id: Uuid;
+  postingId: Uuid;
+  userEmail: string;
+  viewedAt: string;
+}
+
 export interface SeedSavedSearchFixture {
   id: Uuid;
   userEmail: string;

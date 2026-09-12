@@ -16,6 +16,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 - auth, devices, refresh sessions, personal access tokens, Google OAuth, Microsoft OAuth
 - organizations and invitation flows
 - postings, reviews, availability, analytics, thumbnails, and public search
+- renter activity: saved postings, saved searches, and recently viewed history
 - booking requests, payments, and renting lifecycle endpoints
 - moderation reports, admin search tools, profiles, and blob upload support
 - background workers for analytics, booking expiry, email, SMS, logging, payments, recommendations, reports, search, thumbnails, and username availability filter rebuilds

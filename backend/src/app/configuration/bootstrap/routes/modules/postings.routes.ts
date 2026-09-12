@@ -236,6 +236,51 @@ export const postingsActivityRouteModule: RouteModule = {
         "trackSearchClick",
       ),
     );
+    app.post(
+      "/postings/:id/activity/view",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "trackView",
+      ),
+    );
+  },
+};
+
+export const postingsRecentlyViewedRouteModule: RouteModule = {
+  id: "postings-recently-viewed",
+  register(app, { resolveHandler }) {
+    // Registered before `postings-public` for the same reason as
+    // `postings-saved`: `recently-viewed` is a syntactically valid posting
+    // identifier, so `GET /postings/:id` would otherwise swallow every route
+    // below and 404.
+    app.get(
+      "/postings/recently-viewed",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "listRecentlyViewed",
+      ),
+    );
+    app.post(
+      "/postings/recently-viewed/sync",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "syncRecentlyViewed",
+      ),
+    );
+    app.delete(
+      "/postings/recently-viewed",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "clearRecentlyViewed",
+      ),
+    );
+    app.delete(
+      "/postings/recently-viewed/:postingId",
+      resolveHandler<PostingsController>(
+        containerTokens.postingsController,
+        "removeRecentlyViewed",
+      ),
+    );
   },
 };
 

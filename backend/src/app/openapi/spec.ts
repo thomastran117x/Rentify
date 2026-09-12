@@ -512,6 +512,7 @@ const privateProfileExample = {
   usernameChangeAvailableAt: "2026-08-31T12:00:00.000Z",
   isPrivate: false,
   recommendationPersonalizationEnabled: true,
+  recentlyViewedTrackingEnabled: true,
 };
 const postingExample = {
   id: "posting-1",
@@ -724,6 +725,23 @@ const updateSavedSearchRequestExample = {
 const savedPostingIdsResultExample = {
   postingIds: ["posting-1", "posting-2"],
   truncated: false,
+};
+
+const recentlyViewedPostingsResultExample = {
+  postings: [
+    {
+      ...postingExample,
+      viewedAt: "2026-09-07T18:42:00.000Z",
+    },
+  ],
+  trackingEnabled: true,
+};
+
+const syncRecentlyViewedRequestExample = {
+  entries: [
+    { postingId: "posting-1", viewedAt: "2026-09-07T18:42:00.000Z" },
+    { postingId: "posting-2", viewedAt: "2026-09-06T09:15:00.000Z" },
+  ],
 };
 const reportExample = {
   id: "report-1",
@@ -4519,6 +4537,7 @@ function buildOperations(): OperationDefinition[] {
         phoneNumber: "+1 555 0100",
         isPrivate: false,
         recommendationPersonalizationEnabled: true,
+        recentlyViewedTrackingEnabled: true,
         avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
       }),
       responses: {
@@ -5989,6 +6008,122 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "get",
+      path: "/postings/recently-viewed",
+      operationId: "listRecentlyViewedPostings",
+      summary: "List the caller's recently viewed postings",
+      description:
+        "Returns the authenticated caller's browsing history as public posting snapshots, most recently viewed first. One entry per posting: re-opening a posting moves it to the front rather than adding a duplicate. Entries whose posting stopped being publicly viewable are omitted, so the response can be shorter than `limit`. History is capped at 50 postings per account. PAT bearer authentication with `mcp:read` is allowed.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [
+        {
+          name: "limit",
+          in: "query",
+          required: false,
+          description:
+            "Maximum entries to return. Defaults to 24; the stored history is capped at 50 per account.",
+          schema: { type: "integer", minimum: 1, maximum: 50, default: 24 },
+          example: 24,
+        },
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "ListRecentlyViewedPostingsResult",
+          recentlyViewedPostingsResultExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/postings/recently-viewed/sync",
+      operationId: "syncRecentlyViewedPostings",
+      summary: "Merge a local view history into the account",
+      description:
+        "Merges the browser's own history into the authenticated caller's, and returns the merged list. Intended to be called once after signing in, so views recorded while signed out are not lost. Where a posting appears on both sides the later timestamp wins, so a stale device can never demote an entry another device refreshed more recently. Client timestamps are clamped rather than rejected: future values collapse to now and anything older than 30 days is raised to that floor. Entries whose posting is not publicly viewable are ignored. Accepts at most 50 entries.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        {
+          name: "limit",
+          in: "query",
+          required: false,
+          description:
+            "Maximum entries to return. Defaults to 24; the stored history is capped at 50 per account.",
+          schema: { type: "integer", minimum: 1, maximum: 50, default: 24 },
+          example: 24,
+        },
+      ],
+      requestBody: requestBody(
+        "SyncRecentlyViewedRequest",
+        syncRecentlyViewedRequestExample,
+      ),
+      responses: {
+        "200": successResponse(
+          200,
+          "Recently viewed postings synced successfully.",
+          "ListRecentlyViewedPostingsResult",
+          recentlyViewedPostingsResultExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/postings/recently-viewed",
+      operationId: "clearRecentlyViewedPostings",
+      summary: "Clear the caller's recently viewed postings",
+      description:
+        "Deletes the authenticated caller's entire browsing history. Idempotent: clearing an already empty history succeeds.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "204": noContentResponse("Recently viewed postings cleared."),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/postings/recently-viewed/:postingId",
+      operationId: "removeRecentlyViewedPosting",
+      summary: "Remove one posting from the caller's view history",
+      description:
+        "Removes a single entry from the authenticated caller's browsing history. Idempotent, and deliberately succeeds even when the posting is no longer publicly viewable, so an entry cannot become stuck.",
+      tags: ["postings"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "jwt",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("postingId", "Posting identifier.", "posting-1"),
+      ],
+      responses: {
+        "204": noContentResponse("Posting removed from recently viewed."),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
       method: "post",
       path: "/feedback",
       operationId: "createAppFeedback",
@@ -6589,6 +6724,32 @@ function buildOperations(): OperationDefinition[] {
           actionAcceptedExample,
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/postings/:id/activity/view",
+      operationId: "trackPostingView",
+      summary: "Record that the caller opened a posting",
+      description:
+        "Adds a posting to the caller's recently viewed history. Authentication is optional and the response is the same either way: signed-out visitors keep their history in the browser alone, and the write is also skipped for bots, for callers who have turned view tracking off, and for postings that are not publicly viewable. The endpoint deliberately never reports which of those applied, so it cannot be used to probe for postings the caller cannot otherwise see. Re-opening a posting moves it to the front of the history rather than adding a duplicate. PAT bearer authentication with `mcp:read` is allowed when supplied.",
+      tags: ["postings"],
+      security: optionalSecurity,
+      permissions: {
+        authMode: "optional-bearer",
+        minimumRole: null,
+        patAllowed: true,
+        patScope: "mcp:read",
+      },
+      parameters: [routePathParam("id", "Posting identifier.", "posting-1")],
+      responses: {
+        "202": successResponse(
+          202,
+          "Posting view tracked successfully.",
+          "AcceptedActionResult",
+          actionAcceptedExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
       },
     },
     {
@@ -10420,6 +10581,11 @@ function buildComponents(): Record<string, unknown> {
           },
           isPrivate: { type: "boolean" },
           recommendationPersonalizationEnabled: { type: "boolean" },
+          recentlyViewedTrackingEnabled: {
+            type: "boolean",
+            description:
+              "Whether posting views are recorded into the caller's recently viewed history. Turning this off stops recording; it does not delete history already stored, which is what `DELETE /postings/recently-viewed` is for.",
+          },
           avatarUrl: {
             type: "string",
             format: "uri",
@@ -10873,6 +11039,65 @@ function buildComponents(): Record<string, unknown> {
             items: schemaRef("UnavailableSavedPosting"),
             description:
               "Saved postings on this page that are no longer publicly viewable. They still count towards the pagination total.",
+          },
+        },
+      },
+      RecentlyViewedPostingRecord: {
+        allOf: [
+          schemaRef("PublicPostingRecord"),
+          {
+            type: "object",
+            required: ["viewedAt"],
+            properties: {
+              viewedAt: {
+                type: "string",
+                format: "date-time",
+                description:
+                  "When the caller most recently opened this posting.",
+              },
+            },
+          },
+        ],
+      },
+      ListRecentlyViewedPostingsResult: {
+        type: "object",
+        required: ["postings", "trackingEnabled"],
+        properties: {
+          postings: {
+            type: "array",
+            items: schemaRef("RecentlyViewedPostingRecord"),
+            description:
+              "Most recently viewed first. Entries whose posting is no longer publicly viewable are omitted rather than reported, so this can be shorter than the requested limit.",
+          },
+          trackingEnabled: {
+            type: "boolean",
+            description:
+              "False when the caller has turned view tracking off in their profile. Clients should stop recording, including into their own local history.",
+          },
+        },
+      },
+      SyncRecentlyViewedEntry: {
+        type: "object",
+        required: ["postingId", "viewedAt"],
+        properties: {
+          postingId: { type: "string", pattern: UUID_PATTERN_SOURCE },
+          viewedAt: {
+            type: "string",
+            format: "date-time",
+            description:
+              "When the client believes the posting was viewed. Clamped server-side to a sane window: future timestamps collapse to now, and anything older than 30 days is raised to that floor.",
+          },
+        },
+      },
+      SyncRecentlyViewedRequest: {
+        type: "object",
+        required: ["entries"],
+        properties: {
+          entries: {
+            type: "array",
+            minItems: 1,
+            maxItems: 50,
+            items: schemaRef("SyncRecentlyViewedEntry"),
           },
         },
       },

@@ -41,6 +41,7 @@ import { SavePostingButton } from "@/components/postings/save-posting-button";
 import { SaveSearchButton } from "@/components/postings/save-search-button";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
 import { OrganizationFilterField } from "@/components/postings/organization-filter-field";
+import { RecentlyViewedRow } from "@/components/postings/recently-viewed-row";
 import { theme } from "@/styles/theme";
 
 export const metadata: Metadata = {
@@ -974,6 +975,8 @@ export default async function PostingsPage({
             </PostingSearchForm>
           </div>
         </section>
+
+        <RecentlyViewedRow surface="browse" limit={12} />
 
         <section className={theme.marketplace.resultsShell}>
           {errorMessage ? (

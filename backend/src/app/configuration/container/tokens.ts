@@ -130,6 +130,8 @@ import { PostingsAnalyticsService } from "@/features/postings/analytics/analytic
 import { PostingsController } from "@/features/postings/postings.controller";
 import { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
+import { RecentlyViewedPostingsRepository } from "@/features/postings/recently-viewed/recently-viewed.repository";
+import { RecentlyViewedPostingsService } from "@/features/postings/recently-viewed/recently-viewed.service";
 import { SavedPostingsRepository } from "@/features/postings/saved/saved-postings.repository";
 import { SavedPostingsService } from "@/features/postings/saved/saved-postings.service";
 import { SavedSearchAlertService } from "@/features/postings/saved-searches/saved-search-alert.service";
@@ -525,6 +527,14 @@ export const containerTokens = {
   postingsReviewsService: createServiceToken<PostingsReviewsService>(
     "PostingsReviewsService",
   ),
+  recentlyViewedPostingsRepository:
+    createServiceToken<RecentlyViewedPostingsRepository>(
+      "RecentlyViewedPostingsRepository",
+    ),
+  recentlyViewedPostingsService:
+    createServiceToken<RecentlyViewedPostingsService>(
+      "RecentlyViewedPostingsService",
+    ),
   savedPostingsRepository: createServiceToken<SavedPostingsRepository>(
     "SavedPostingsRepository",
   ),

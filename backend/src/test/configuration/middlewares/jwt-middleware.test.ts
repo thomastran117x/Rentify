@@ -603,6 +603,7 @@ describe("jwt middleware helpers", () => {
         publishPostingView: async () => undefined,
       } as any,
       {} as any,
+      {} as any,
     );
     const context = createContext({
       url: `https://example.test/postings/${POSTING_ID}`,

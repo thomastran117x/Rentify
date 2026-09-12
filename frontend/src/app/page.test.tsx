@@ -16,6 +16,9 @@ vi.mock("@/components/postings/posting-autocomplete-input", () => ({
     </label>
   ),
 }));
+vi.mock("@/components/postings/recently-viewed-row", () => ({
+  RecentlyViewedRow: () => null,
+}));
 
 describe("Home", () => {
   it("renders marketplace content and searches with both query fields", async () => {

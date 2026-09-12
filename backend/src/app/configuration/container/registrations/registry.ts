@@ -29,6 +29,7 @@ import { paymentsRegistrationModule } from "@/configuration/container/registrati
 import { postingsAnalyticsRegistrationModule } from "@/configuration/container/registrations/modules/postings-analytics";
 import { postingsCoreRegistrationModule } from "@/configuration/container/registrations/modules/postings-core";
 import { postingsReviewsRegistrationModule } from "@/configuration/container/registrations/modules/postings-reviews";
+import { postingsRecentlyViewedRegistrationModule } from "@/configuration/container/registrations/modules/postings-recently-viewed";
 import { postingsSavedRegistrationModule } from "@/configuration/container/registrations/modules/postings-saved";
 import { postingsSavedSearchesRegistrationModule } from "@/configuration/container/registrations/modules/postings-saved-searches";
 import { postingsSearchRegistrationModule } from "@/configuration/container/registrations/modules/postings-search";
@@ -89,6 +90,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   postingsCoreRegistrationModule,
   postingsAnalyticsRegistrationModule,
   postingsReviewsRegistrationModule,
+  postingsRecentlyViewedRegistrationModule,
   postingsSavedRegistrationModule,
   postingsSavedSearchesRegistrationModule,
   postingsSearchRegistrationModule,

@@ -41,6 +41,12 @@ import {
 } from "@/features/postings/reviews/reviews.model";
 import { PostingsReviewsService } from "@/features/postings/reviews/reviews.service";
 import {
+  listRecentlyViewedQuerySchema,
+  syncRecentlyViewedRequestSchema,
+  type ListRecentlyViewedQuery,
+} from "@/features/postings/recently-viewed/recently-viewed.model";
+import { RecentlyViewedPostingsService } from "@/features/postings/recently-viewed/recently-viewed.service";
+import {
   listSavedPostingsQuerySchema,
   type ListSavedPostingsQuery,
 } from "@/features/postings/saved/saved-postings.model";
@@ -101,6 +107,7 @@ export class PostingsController {
     private readonly seasonalPricingService: SeasonalPricingService,
     private readonly recommendationActivityPublisher: RecommendationActivityPublisher,
     private readonly savedPostingsService: SavedPostingsService,
+    private readonly recentlyViewedPostingsService: RecentlyViewedPostingsService,
   ) {
     this.logger = loggerFactory.forClass(PostingsController, "controller");
   }
@@ -593,6 +600,92 @@ export class PostingsController {
     });
   };
 
+  /**
+   * Records that the caller opened a posting.
+   *
+   * Optional auth on purpose. A returning visitor is still resolving their
+   * session while the posting page mounts, so a client that had to branch on
+   * auth before calling would drop the first view of every session. Firing
+   * unconditionally and letting the server decide keeps that logic in one
+   * place; anything genuinely missed is repaired by the next sync.
+   */
+  trackView = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.getOptionalAuth(request);
+
+    await this.recentlyViewedPostingsService.recordView(
+      this.requireRouteId(request),
+      asOptionalUuid(auth?.sub),
+      { isBot: request.client.device.type === "bot" },
+    );
+
+    // Always accepted, never 404: whether a row was written depends on who is
+    // asking and whether the posting is public, and reporting that back would
+    // turn this into a probe for postings the caller cannot otherwise see.
+    accepted(
+      response,
+      {
+        accepted: true,
+      },
+      {
+        message: "Posting view tracked successfully.",
+      },
+    );
+  };
+
+  listRecentlyViewed = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const query = this.parseListRecentlyViewedQuery(request);
+    const result = await this.recentlyViewedPostingsService.list(
+      auth.sub,
+      query.limit,
+    );
+    ok(response, result);
+  };
+
+  syncRecentlyViewed = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const query = this.parseListRecentlyViewedQuery(request);
+    const body = await parseRequestBody(
+      request,
+      syncRecentlyViewedRequestSchema,
+    );
+    const result = await this.recentlyViewedPostingsService.sync(
+      auth.sub,
+      body,
+      query.limit,
+    );
+    ok(response, result, {
+      message: "Recently viewed postings synced successfully.",
+    });
+  };
+
+  clearRecentlyViewed = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    await this.recentlyViewedPostingsService.clear(auth.sub);
+    noContent(response);
+  };
+
+  removeRecentlyViewed = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    await this.recentlyViewedPostingsService.remove(
+      auth.sub,
+      this.requireRouteParam(request, "postingId"),
+    );
+    noContent(response);
+  };
+
   listSeasonalPricing = async (
     request: Request,
     response: Response,
@@ -803,6 +896,20 @@ export class PostingsController {
       return listSavedPostingsQuerySchema.parse({
         page: url.searchParams.get("page") ?? undefined,
         pageSize: url.searchParams.get("pageSize") ?? undefined,
+      });
+    } catch (error) {
+      throw this.toValidationError(error, "Request query validation failed.");
+    }
+  }
+
+  private parseListRecentlyViewedQuery(
+    request: Request,
+  ): ListRecentlyViewedQuery {
+    const url = getRequestUrl(request);
+
+    try {
+      return listRecentlyViewedQuerySchema.parse({
+        limit: url.searchParams.get("limit") ?? undefined,
       });
     } catch (error) {
       throw this.toValidationError(error, "Request query validation failed.");

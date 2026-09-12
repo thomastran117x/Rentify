@@ -15,6 +15,7 @@ import {
   Star,
 } from "lucide-react";
 import { PostingAutocompleteInput } from "@/components/postings/posting-autocomplete-input";
+import { RecentlyViewedRow } from "@/components/postings/recently-viewed-row";
 
 const stats = [
   { label: "Active postings", value: "4.2k+" },
@@ -359,6 +360,13 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Self-gates to null when there is no history, so a first-time
+          visitor sees exactly the page they saw before, and this page
+          never has to learn about auth. */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <RecentlyViewedRow surface="home" limit={8} />
+      </div>
 
       <section className="border-y border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">

@@ -96,6 +96,7 @@ The route registry currently groups the API into these main areas:
 - posting analytics, reviews, availability, and activity
 - saved postings (renter wishlist)
 - saved searches (renter search alerts)
+- recently viewed postings (renter browsing history)
 - booking requests
 - payments
 - rentings

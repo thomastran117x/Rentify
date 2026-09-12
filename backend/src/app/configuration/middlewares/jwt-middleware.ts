@@ -93,6 +93,14 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
     pattern: /^\/postings\/saved\/searches$/,
     requiredScope: "mcp:read",
   },
+  // One segment deep, so it must stay ahead of the /postings/:id catch-all
+  // below -- that pattern matches "recently-viewed" too, and would hand this
+  // request the wrong policy.
+  {
+    method: "GET",
+    pattern: /^\/postings\/recently-viewed$/,
+    requiredScope: "mcp:read",
+  },
   { method: "GET", pattern: /^\/postings\/[^/]+$/, requiredScope: "mcp:read" },
   {
     method: "GET",
@@ -150,6 +158,11 @@ const PAT_ROUTE_POLICIES: PatRoutePolicy[] = [
   {
     method: "POST",
     pattern: /^\/postings\/[^/]+\/activity\/search-click$/,
+    requiredScope: "mcp:read",
+  },
+  {
+    method: "POST",
+    pattern: /^\/postings\/[^/]+\/activity\/view$/,
     requiredScope: "mcp:read",
   },
   { method: "POST", pattern: /^\/postings$/, requiredScope: "mcp:write" },

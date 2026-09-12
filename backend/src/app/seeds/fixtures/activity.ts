@@ -8,6 +8,7 @@ import {
   type SeedPostingAnalyticsOutboxFixture,
   type SeedPostingReviewFixture,
   type SeedPostingViewEventFixture,
+  type SeedRecentlyViewedPostingFixture,
   type SeedSavedPostingFixture,
   type SeedSavedSearchFixture,
 } from "@/seeds/types";
@@ -516,6 +517,33 @@ export const SEED_ORGANIZATION_REVIEWS: SeedOrganizationReviewFixture[] = [
 // postings owned by organizations the saver is not a member of, which is the
 // ordinary renter case, and are ordered oldest-first here so the newest save
 // lands at the top of the list.
+/**
+ * Browsing history for `user1@rentify.local`, deliberately older than "now"
+ * and spread across several days so ordering is observable. `user2` is left
+ * without any so the empty state stays reachable without clearing a list.
+ */
+export const SEED_RECENTLY_VIEWED_POSTINGS: SeedRecentlyViewedPostingFixture[] =
+  [
+    {
+      id: createFixtureId(4500, 1),
+      postingId: createFixtureId(2000, 27),
+      userEmail: "user1@rentify.local",
+      viewedAt: "2026-08-20T09:12:00.000Z",
+    },
+    {
+      id: createFixtureId(4500, 2),
+      postingId: createFixtureId(2000, 33),
+      userEmail: "user1@rentify.local",
+      viewedAt: "2026-08-22T17:48:00.000Z",
+    },
+    {
+      id: createFixtureId(4500, 3),
+      postingId: createFixtureId(2000, 11),
+      userEmail: "user1@rentify.local",
+      viewedAt: "2026-08-25T11:03:00.000Z",
+    },
+  ];
+
 export const SEED_SAVED_POSTINGS: SeedSavedPostingFixture[] = [
   {
     id: createFixtureId(4300, 1),

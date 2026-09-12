@@ -56,6 +56,7 @@ export class ProfileController {
       isPrivate: input.isPrivate,
       recommendationPersonalizationEnabled:
         input.recommendationPersonalizationEnabled,
+      recentlyViewedTrackingEnabled: input.recentlyViewedTrackingEnabled,
       avatarUrl: input.avatarUrl,
       avatarBlobName: input.avatarBlobName,
       trustworthinessScore: input.trustworthinessScore,

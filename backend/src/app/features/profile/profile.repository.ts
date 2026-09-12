@@ -25,6 +25,7 @@ type ProfilePersistence = {
   avatarBlobName: string | null;
   isPrivate: boolean;
   recommendationPersonalizationEnabled?: boolean;
+  recentlyViewedTrackingEnabled?: boolean;
   trustworthinessScore: number;
   rentPostingsCount: number;
   availableRentPostingsCount: number;
@@ -181,6 +182,29 @@ export class ProfileRepository extends BaseRepository {
   }
 
   /**
+   * Whether this account still wants its posting views recorded.
+   *
+   * Defaults to enabled when the profile row is missing, matching the
+   * column default: an account without a profile has never opted out.
+   */
+  async findRecentlyViewedTrackingEnabledByUserId(
+    userId: Uuid,
+  ): Promise<boolean> {
+    const profile = await this.executeAsync(() =>
+      this.prisma.profile.findUnique({
+        where: {
+          userId,
+        },
+        select: {
+          recentlyViewedTrackingEnabled: true,
+        },
+      }),
+    );
+
+    return profile?.recentlyViewedTrackingEnabled ?? true;
+  }
+
+  /**
    * Returns `null` only when a guarded rename lost a concurrent race — the row
    * no longer satisfied the cooldown condition by the time the write ran.
    */
@@ -247,6 +271,11 @@ export class ProfileRepository extends BaseRepository {
         ? {
             recommendationPersonalizationEnabled:
               input.recommendationPersonalizationEnabled,
+          }
+        : {}),
+      ...(input.recentlyViewedTrackingEnabled !== undefined
+        ? {
+            recentlyViewedTrackingEnabled: input.recentlyViewedTrackingEnabled,
           }
         : {}),
       ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
@@ -332,6 +361,8 @@ export class ProfileRepository extends BaseRepository {
       isPrivate: profile.isPrivate,
       recommendationPersonalizationEnabled:
         profile.recommendationPersonalizationEnabled ?? true,
+      recentlyViewedTrackingEnabled:
+        profile.recentlyViewedTrackingEnabled ?? true,
       trustworthinessScore: profile.trustworthinessScore,
       rentPostingsCount: profile.rentPostingsCount,
       availableRentPostingsCount: profile.availableRentPostingsCount,

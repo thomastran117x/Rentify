@@ -4,6 +4,7 @@ import {
   SEED_ORGANIZATION_REVIEWS,
   SEED_POSTING_REVIEWS,
   SEED_POSTING_VIEW_EVENTS,
+  SEED_RECENTLY_VIEWED_POSTINGS,
   SEED_SAVED_POSTINGS,
   SEED_SAVED_SEARCHES,
 } from "@/seeds/fixtures/activity";
@@ -57,6 +58,13 @@ export const activitySeedModule: SeedModule = {
       },
     });
     await prisma.savedPosting.deleteMany({
+      where: {
+        postingId: {
+          in: postingIds,
+        },
+      },
+    });
+    await prisma.recentlyViewedPosting.deleteMany({
       where: {
         postingId: {
           in: postingIds,
@@ -146,6 +154,26 @@ export const activitySeedModule: SeedModule = {
           postingId: saved.postingId,
           userId,
           createdAt: new Date(saved.createdAt),
+        },
+      });
+    }
+
+    for (const viewed of SEED_RECENTLY_VIEWED_POSTINGS) {
+      const userId = state.userIdsByEmail.get(viewed.userEmail);
+
+      if (!userId) {
+        throw new Error(
+          `Missing seeded user for recently viewed posting ${viewed.id}.`,
+        );
+      }
+
+      await prisma.recentlyViewedPosting.create({
+        data: {
+          id: viewed.id,
+          postingId: viewed.postingId,
+          userId,
+          viewedAt: new Date(viewed.viewedAt),
+          createdAt: new Date(viewed.viewedAt),
         },
       });
     }

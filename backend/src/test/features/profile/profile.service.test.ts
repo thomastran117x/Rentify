@@ -34,6 +34,7 @@ function createProfile(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
     avatarBlobName: `avatars/${USER_1_ID}.png`,
     isPrivate: false,
     recommendationPersonalizationEnabled: true,
+    recentlyViewedTrackingEnabled: true,
     trustworthinessScore: 4,
     rentPostingsCount: 3,
     availableRentPostingsCount: 2,

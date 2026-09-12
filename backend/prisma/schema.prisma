@@ -30,6 +30,7 @@ model User {
   profile       Profile?
   postingReviews PostingReview[] @relation("PostingReviewAuthor")
   savedPostings SavedPosting[] @relation("SavedPostingUser")
+  recentlyViewedPostings RecentlyViewedPosting[] @relation("RecentlyViewedPostingUser")
   savedSearches SavedSearch[] @relation("SavedSearchUser")
   bookingRequestsAsRenter BookingRequest[] @relation("BookingRequestRenter")
   bookingMessages BookingMessage[] @relation("BookingMessageAuthor")
@@ -362,6 +363,7 @@ model Profile {
   avatarBlobName           String?  @map("avatar_blob_name") @db.VarChar(1024)
   isPrivate                Boolean  @default(false) @map("is_private")
   recommendationPersonalizationEnabled Boolean @default(true) @map("recommendation_personalization_enabled")
+  recentlyViewedTrackingEnabled Boolean @default(true) @map("recently_viewed_tracking_enabled")
   trustworthinessScore     Int      @default(1) @map("trustworthiness_score")
   rentPostingsCount        Int      @default(0) @map("rent_postings_count")
   availableRentPostingsCount Int    @default(0) @map("available_rent_postings_count")
@@ -441,6 +443,7 @@ model Posting {
   analyticsOutboxEntries PostingAnalyticsOutbox[]
   reviews           PostingReview[]
   savedBy           SavedPosting[]
+  recentlyViewedBy  RecentlyViewedPosting[]
   savedSearchSeenBy SavedSearchSeenPosting[]
   seasonalPricing   PostingSeasonalPricing[]
   bookingRequests   BookingRequest[]
@@ -1073,6 +1076,26 @@ model SavedPosting {
   @@index([userId, createdAt])
   @@index([postingId])
   @@map("saved_postings")
+}
+
+/// Postings a signed-in visitor has opened, newest view first. One row per
+/// (user, posting): re-opening a posting bumps `viewedAt` rather than
+/// appending, because the list is a set ordered by last view, not a log --
+/// the opposite of `SavedPosting`, which preserves `createdAt` on re-save so
+/// a wishlist does not reorder itself. `createdAt` keeps the first view.
+model RecentlyViewedPosting {
+  id        String   @id @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  postingId String   @map("posting_id") @db.VarChar(36)
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.DateTime(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  user      User     @relation("RecentlyViewedPostingUser", fields: [userId], references: [id], onDelete: Cascade)
+  posting   Posting  @relation(fields: [postingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postingId])
+  @@index([userId, viewedAt])
+  @@index([postingId])
+  @@map("recently_viewed_postings")
 }
 
 /// A filter set a visitor asked to be told about. `queryParams` holds the

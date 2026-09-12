@@ -36,6 +36,9 @@ vi.mock("@/components/postings/posting-autocomplete-input", () => ({
 vi.mock("@/components/postings/organization-filter-field", () => ({
   OrganizationFilterField: () => <input aria-label="Organization" />,
 }));
+vi.mock("@/components/postings/recently-viewed-row", () => ({
+  RecentlyViewedRow: () => null,
+}));
 
 describe("PostingsPage", () => {
   it("parses supported query parameters and renders an empty search result", async () => {

@@ -122,6 +122,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.seasonalPricingService,
         containerTokens.recommendationActivityPublisher,
         containerTokens.savedPostingsService,
+        containerTokens.recentlyViewedPostingsService,
       ],
       resolve: ({ resolve }) =>
         new PostingsController(
@@ -132,6 +133,7 @@ export const postingsCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.seasonalPricingService),
           resolve(containerTokens.recommendationActivityPublisher),
           resolve(containerTokens.savedPostingsService),
+          resolve(containerTokens.recentlyViewedPostingsService),
         ),
     });
   },
