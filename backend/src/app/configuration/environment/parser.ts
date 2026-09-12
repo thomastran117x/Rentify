@@ -63,12 +63,14 @@ export function parseEnvironmentState(
   ) {
     raw.CORS_ALLOWED_ORIGINS = environmentOverrides.FRONTEND_URL;
   }
-  if (
-    environmentOverrides.FRONTEND_URL &&
-    !environmentOverrides.CSRF_ALLOWED_ORIGINS &&
-    !environmentOverrides.CORS_ALLOWED_ORIGINS
-  ) {
-    raw.CSRF_ALLOWED_ORIGINS = environmentOverrides.FRONTEND_URL;
+  if (!environmentOverrides.CSRF_ALLOWED_ORIGINS) {
+    const csrfOriginFallback =
+      environmentOverrides.CORS_ALLOWED_ORIGINS ??
+      environmentOverrides.FRONTEND_URL;
+
+    if (csrfOriginFallback) {
+      raw.CSRF_ALLOWED_ORIGINS = csrfOriginFallback;
+    }
   }
   const errors: string[] = [];
   const nodeEnv = parseNodeEnvironment(raw, errors);

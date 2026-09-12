@@ -60,7 +60,6 @@ auth:
 
 email:
   gmailUser: change-me@example.com
-  fromEmail: change-me@example.com
   fromName: Rent
 
 sms:
@@ -84,10 +83,7 @@ csrf:
     - http://localhost:3040
 
 oauth:
-  google:
-    clientIds: []
   microsoft:
-    clientIds: []
     tenant: consumers
 
 blobStorage:

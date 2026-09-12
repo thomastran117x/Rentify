@@ -336,6 +336,27 @@ describe("EnvironmentManager", () => {
     });
   });
 
+  it("preserves legacy fallbacks when optional YAML values are omitted", () => {
+    process.env = buildRequiredEnv({
+      CORS_ALLOWED_ORIGINS: "https://rentify.example,https://partner.example",
+      GMAIL_USER: "mailer@rentify.example",
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+      GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
+      MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
+      MICROSOFT_OAUTH_CLIENT_SECRET: "microsoft-client-secret",
+    });
+
+    const loaded = new EnvironmentManager().load();
+
+    expect(loaded.csrf.allowedOrigins).toEqual([
+      "https://rentify.example",
+      "https://partner.example",
+    ]);
+    expect(loaded.email.fromEmail).toBe("mailer@rentify.example");
+    expect(loaded.oauth.google.audiences).toEqual(["google-client-id"]);
+    expect(loaded.oauth.microsoft.audiences).toEqual(["microsoft-client-id"]);
+  });
+
   it("resolves a relative custom YAML path from the configuration directory", () => {
     writeFileSync(
       join(tempDirectory, "default.yml"),

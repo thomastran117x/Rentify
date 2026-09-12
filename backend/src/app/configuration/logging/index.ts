@@ -1,6 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { environment } from "@/configuration/environment";
+import { readBootstrapLoggingConfig } from "@/configuration/environment/bootstrap";
 import { ApplicationLogQueueService } from "@/configuration/logging/log-queue.service";
 import { formatPrettyLogEvent } from "@/configuration/logging/pretty";
 import type {
@@ -56,20 +57,6 @@ const RESERVED_EVENT_FIELD_NAMES = new Set([
   "workerName",
 ]);
 
-function normalizeNodeEnvironment(value: string | undefined): string {
-  const normalized = value?.trim().toLowerCase();
-
-  if (
-    normalized === "production" ||
-    normalized === "test" ||
-    normalized === "development"
-  ) {
-    return normalized;
-  }
-
-  return "development";
-}
-
 function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
   try {
     const logging = environment.getLoggingConfig();
@@ -86,17 +73,7 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
       silent: logging.silent,
     };
   } catch {
-    const nodeEnv = normalizeNodeEnvironment(process.env.NODE_ENV);
-
-    return {
-      environment: nodeEnv,
-      fallbackDirectory: "/app/logs/fallback",
-      level: "info",
-      mode: nodeEnv === "production" ? "rabbitmq" : "console",
-      rabbitMqUrl: undefined,
-      serviceName: "backend",
-      silent: nodeEnv === "test",
-    };
+    return readBootstrapLoggingConfig();
   }
 }
 
