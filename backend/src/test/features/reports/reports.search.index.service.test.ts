@@ -5,6 +5,15 @@ jest.mock("@/configuration/environment", () => {
 
   return {
     ...actual,
+    environment: {
+      ...actual.environment,
+      getElasticsearchConfig: () => ({
+        ...actual.environment.getElasticsearchConfig(),
+        reportsIndexName:
+          mockGetOptionalEnvironmentVariable("ELASTICSEARCH_REPORTS_INDEX") ??
+          "postings-test-reports",
+      }),
+    },
     getOptionalEnvironmentVariable: (name: string) =>
       mockGetOptionalEnvironmentVariable(name),
   };

@@ -7,13 +7,13 @@ describe("buildFeaturesConfig", () => {
 
   it("parses a truthy FEATURE_*_ENABLED var as enabled", () => {
     expect(buildFeaturesConfig({ FEATURE_SEARCH_V2_ENABLED: "true" })).toEqual({
-      "search-v2": { enabled: true },
+      "search-v2": { enabled: true, source: "env" },
     });
   });
 
   it("parses a falsy FEATURE_*_ENABLED var as disabled", () => {
     expect(buildFeaturesConfig({ FEATURE_SEARCH_V2_ENABLED: "false" })).toEqual(
-      { "search-v2": { enabled: false } },
+      { "search-v2": { enabled: false, source: "env" } },
     );
   });
 
@@ -38,7 +38,10 @@ describe("buildFeaturesConfig", () => {
     const result = buildFeaturesConfig({
       FEATURE_MY_NEW_FEATURE_ENABLED: "true",
     });
-    expect(result["my-new-feature"]).toEqual({ enabled: true });
+    expect(result["my-new-feature"]).toEqual({
+      enabled: true,
+      source: "env",
+    });
   });
 
   it("parses multiple features independently", () => {
@@ -48,9 +51,9 @@ describe("buildFeaturesConfig", () => {
       FEATURE_GAMMA_ENABLED: "true",
     });
     expect(result).toEqual({
-      alpha: { enabled: true },
-      beta: { enabled: false },
-      gamma: { enabled: true },
+      alpha: { enabled: true, source: "env" },
+      beta: { enabled: false, source: "env" },
+      gamma: { enabled: true, source: "env" },
     });
   });
 
@@ -62,5 +65,20 @@ describe("buildFeaturesConfig", () => {
       MY_FEATURE_ENABLED: "true",
     });
     expect(Object.keys(result)).toEqual(["search-v2"]);
+  });
+
+  it("keeps YAML features unless an environment value overrides them", () => {
+    expect(
+      buildFeaturesConfig(
+        { FEATURE_SEARCH_V2_ENABLED: "true" },
+        {
+          "search-v2": { enabled: false, source: "config" },
+          stable: { enabled: true, source: "config" },
+        },
+      ),
+    ).toEqual({
+      "search-v2": { enabled: true, source: "env" },
+      stable: { enabled: true, source: "config" },
+    });
   });
 });

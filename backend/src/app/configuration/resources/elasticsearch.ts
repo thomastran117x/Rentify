@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment/index";
+import { environment } from "@/configuration/environment/index";
 import {
   recordCircuitBreakerOpened,
   recordCircuitBreakerShortCircuit,
@@ -235,53 +235,17 @@ export class ElasticsearchClient {
   }
 }
 
-function readBoolean(name: string, fallback: boolean): boolean {
-  const rawValue = getOptionalEnvironmentVariable(name);
-
-  if (!rawValue) {
-    return fallback;
-  }
-
-  return ["1", "true", "yes", "on"].includes(rawValue.trim().toLowerCase());
-}
-
-function readNumber(name: string, fallback: number): number {
-  const rawValue = getOptionalEnvironmentVariable(name);
-
-  if (!rawValue) {
-    return fallback;
-  }
-
-  const parsedValue = Number(rawValue);
-
-  if (Number.isNaN(parsedValue)) {
-    throw new Error(`${name} must be a valid number.`);
-  }
-
-  return parsedValue;
-}
-
 function createElasticsearchClient(): ElasticsearchClient {
+  const config = environment.getElasticsearchConfig();
   return new ElasticsearchClient({
-    enabled: readBoolean("ELASTICSEARCH_ENABLED", false),
-    url: getOptionalEnvironmentVariable("ELASTICSEARCH_URL")?.replace(
-      /\/+$/,
-      "",
-    ),
-    username: getOptionalEnvironmentVariable("ELASTICSEARCH_USERNAME"),
-    password: getOptionalEnvironmentVariable("ELASTICSEARCH_PASSWORD"),
-    postingsIndexName:
-      getOptionalEnvironmentVariable("ELASTICSEARCH_POSTINGS_INDEX") ??
-      "postings",
-    timeoutMs: readNumber("ELASTICSEARCH_TIMEOUT_MS", 2_000),
-    circuitBreakerFailureThreshold: readNumber(
-      "ELASTICSEARCH_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-      3,
-    ),
-    circuitBreakerCooldownMs: readNumber(
-      "ELASTICSEARCH_CIRCUIT_BREAKER_COOLDOWN_MS",
-      30_000,
-    ),
+    enabled: config.enabled,
+    url: config.url,
+    username: config.username,
+    password: config.password,
+    postingsIndexName: config.postingsIndexName,
+    timeoutMs: config.timeoutMs,
+    circuitBreakerFailureThreshold: config.circuitBreakerFailureThreshold,
+    circuitBreakerCooldownMs: config.circuitBreakerCooldownMs,
   });
 }
 

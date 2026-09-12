@@ -1,7 +1,4 @@
-import {
-  getEnvironmentVariable,
-  getOptionalEnvironmentVariable,
-} from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 import type { BookingMessageEmailComposer } from "@/features/bookings/messages/booking-message-email.composer";
 import { isSuppressedRecipient } from "@/features/email/email-suppression";
@@ -112,9 +109,10 @@ export class EmailDeliveryService {
     this.postingExpiryEmailComposer = options.postingExpiryEmailComposer;
     this.savedSearchEmailComposer = options.savedSearchEmailComposer;
 
-    const gmailUser = options.gmailUser ?? getEnvironmentVariable("GMAIL_USER");
+    const emailConfig = environment.getEmailConfig();
+    const gmailUser = options.gmailUser ?? emailConfig.gmailUser;
     const gmailAppPassword =
-      options.gmailAppPassword ?? getEnvironmentVariable("GMAIL_APP_PASSWORD");
+      options.gmailAppPassword ?? emailConfig.gmailAppPassword;
 
     this.transporter =
       options.transporter ??
@@ -126,19 +124,10 @@ export class EmailDeliveryService {
         },
       });
 
-    this.fromEmail =
-      options.fromEmail ??
-      getOptionalEnvironmentVariable("EMAIL_FROM") ??
-      gmailUser;
-    this.fromName =
-      options.fromName ??
-      getOptionalEnvironmentVariable("EMAIL_FROM_NAME") ??
-      "Rent";
+    this.fromEmail = options.fromEmail ?? emailConfig.fromEmail ?? gmailUser;
+    this.fromName = options.fromName ?? emailConfig.fromName ?? "Rent";
     this.appBaseUrl = trimTrailingSlash(
-      options.appBaseUrl ??
-        getOptionalEnvironmentVariable("APP_BASE_URL") ??
-        getOptionalEnvironmentVariable("FRONTEND_URL") ??
-        "http://localhost:3000",
+      options.appBaseUrl ?? emailConfig.appBaseUrl,
     );
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULTS.initialDelayMs;

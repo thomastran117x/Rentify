@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import BadRequestError from "@/errors/http/bad-request.error";
 import BadGatewayError from "@/errors/http/bad-gateway.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
@@ -21,18 +21,13 @@ interface MicrosoftTokenResponse {
 }
 
 function readAudiences(): string[] {
-  const value =
-    getOptionalEnvironmentVariable("MICROSOFT_OAUTH_CLIENT_IDS") ??
-    getOptionalEnvironmentVariable("MICROSOFT_OAUTH_CLIENT_ID");
+  const value = environment.getMicrosoftOAuthConfig().audiences;
 
-  if (!value) {
+  if (value.length === 0) {
     throw new BadRequestError("Microsoft OAuth is not configured.");
   }
 
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  return value;
 }
 
 function readPrimaryClientId(): string {
@@ -46,14 +41,11 @@ function readPrimaryClientId(): string {
 }
 
 function readClientSecret(): string | undefined {
-  return getOptionalEnvironmentVariable("MICROSOFT_OAUTH_CLIENT_SECRET");
+  return environment.getMicrosoftOAuthConfig().clientSecret;
 }
 
 function readTenant(): string {
-  return (
-    getOptionalEnvironmentVariable("MICROSOFT_OAUTH_TENANT")?.trim() ||
-    "consumers"
-  );
+  return environment.getMicrosoftOAuthConfig().tenant;
 }
 
 function buildJwksUrl(tenant: string): string {
@@ -73,11 +65,7 @@ function buildAllowedIssuers(tenant: string): string[] {
 }
 
 function readFrontendBaseUrl(): string {
-  return (
-    getOptionalEnvironmentVariable("FRONTEND_URL") ??
-    getOptionalEnvironmentVariable("APP_BASE_URL") ??
-    "http://localhost:3040"
-  ).replace(/\/+$/, "");
+  return environment.getMicrosoftOAuthConfig().frontendBaseUrl;
 }
 
 function splitName(name?: string): { firstName?: string; lastName?: string } {

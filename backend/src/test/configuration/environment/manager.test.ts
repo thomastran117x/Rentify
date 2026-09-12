@@ -161,6 +161,8 @@ describe("EnvironmentManager", () => {
     expect(manager.isDevelopment()).toBe(true);
     expect(manager.isTest()).toBe(false);
     expect(manager.getServerPort()).toBe(environment.server.port);
+    expect(manager.getApplicationConfig()).toBe(environment.application);
+    expect(manager.getHttpConfig()).toBe(environment.http);
     expect(manager.getTokenConfig()).toBe(environment.auth);
     expect(manager.getDatabaseConfig()).toBe(environment.database);
     expect(manager.getEmailConfig()).toBe(environment.email);
@@ -287,6 +289,114 @@ describe("EnvironmentManager", () => {
     );
     expect(manager.getCsrfAllowedOrigins()).not.toContain(
       "http://localhost:3099",
+    );
+  });
+
+  it("loads default, profile, and custom YAML layers before env overrides", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      "server:\n  port: 8000\ncors:\n  allowedOrigins: [http://default.test]\nfeatures:\n  layered:\n    enabled: false\n",
+    );
+    writeFileSync(
+      join(tempDirectory, "development.yml"),
+      "server:\n  port: 8100\ncors:\n  allowedOrigins: [http://profile.test]\n",
+    );
+    const overlayPath = join(tempDirectory, "custom.yml");
+    writeFileSync(
+      overlayPath,
+      "server:\n  port: 8200\ncors:\n  allowedOrigins: [http://overlay.test]\n",
+    );
+    process.env = buildRequiredEnv({
+      PORT: "8300",
+      CORS_ALLOWED_ORIGINS: "http://environment.test",
+    });
+
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+      configurationFilePath: overlayPath,
+    });
+    const loaded = manager.load();
+
+    expect(loaded.server.port).toBe(8300);
+    expect(loaded.cors.allowedOrigins).toEqual(["http://environment.test"]);
+    expect(loaded.features.layered).toEqual({
+      enabled: false,
+      source: "config",
+    });
+  });
+
+  it("resolves a relative custom YAML path from the configuration directory", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      "server:\n  port: 8000\n",
+    );
+    writeFileSync(join(tempDirectory, "test.yml"), "server:\n  port: 8100\n");
+    writeFileSync(join(tempDirectory, "local.yml"), "server:\n  port: 8200\n");
+    process.env = buildRequiredEnv({
+      NODE_ENV: "test",
+      BACKEND_CONFIG_FILE: "local.yml",
+    });
+
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+    });
+
+    expect(manager.load().server.port).toBe(8200);
+  });
+
+  it("fails with the missing profile path in the error", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      "server:\n  port: 8000\n",
+    );
+    process.env = buildRequiredEnv({ NODE_ENV: "test" });
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+    });
+
+    expect(() => manager.load()).toThrow(join(tempDirectory, "test.yml"));
+  });
+
+  it("fails with the missing custom overlay path in the error", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      "server:\n  port: 8000\n",
+    );
+    writeFileSync(join(tempDirectory, "test.yml"), "server:\n  port: 8100\n");
+    process.env = buildRequiredEnv({
+      NODE_ENV: "test",
+      BACKEND_CONFIG_FILE: "missing.yml",
+    });
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+    });
+
+    expect(() => manager.load()).toThrow(join(tempDirectory, "missing.yml"));
+  });
+
+  it("fails when a required environment-only secret is missing", () => {
+    process.env = buildRequiredEnv({ ACCESS_TOKEN_SECRET: undefined });
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow("ACCESS_TOKEN_SECRET is required.");
+  });
+
+  it("validates cross-field and bounded values after layering", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "59",
+    });
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME must be configured together.",
+    );
+
+    process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+    const boundedManager = new EnvironmentManager();
+    expect(() => boundedManager.load()).toThrow(
+      "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS must be greater than or equal to 60.",
     );
   });
 

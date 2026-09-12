@@ -16,7 +16,10 @@ export class FeatureFlagService {
   constructor(
     private readonly repository: FeatureFlagRepository,
     private readonly flagCache: FeatureFlagCacheService,
-    private readonly envFeatures: Record<string, { enabled: boolean }>,
+    private readonly envFeatures: Record<
+      string,
+      { enabled: boolean; source?: "config" | "env" }
+    >,
   ) {
     this.logger = loggerFactory.forClass("FeatureFlagService", "service");
   }
@@ -138,7 +141,7 @@ export class FeatureFlagService {
       }
     } catch (error) {
       this.logger.error(
-        "Feature flag DB read failed, falling back to env/default.",
+        "Feature flag DB read failed, falling back to configuration/default.",
         { name },
         error,
       );
@@ -149,7 +152,7 @@ export class FeatureFlagService {
       return {
         name,
         enabled: envEntry.enabled,
-        source: "env",
+        source: envEntry.source ?? "env",
         description: null,
         group: null,
       };
@@ -229,10 +232,10 @@ export class FeatureFlagService {
 
     const envEntries: ResolvedFeatureFlag[] = Object.entries(this.envFeatures)
       .filter(([name]) => !dbMap.has(name))
-      .map(([name, { enabled }]) => ({
+      .map(([name, { enabled, source }]) => ({
         name,
         enabled,
-        source: "env" as const,
+        source: source ?? ("env" as const),
         description: null,
         group: null,
       }));

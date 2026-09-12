@@ -42,8 +42,6 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 const DEFAULT_FALLBACK_FILENAME = "application.log.jsonl";
-const DEFAULT_FALLBACK_DIRECTORY = "/app/logs/fallback";
-const DEFAULT_SERVICE_NAME = "backend";
 const RESERVED_EVENT_FIELD_NAMES = new Set([
   "component",
   "correlationId",
@@ -57,22 +55,6 @@ const RESERVED_EVENT_FIELD_NAMES = new Set([
   "timestamp",
   "workerName",
 ]);
-
-function parseLogLevel(value: string | undefined): LogLevel {
-  const normalized = value?.trim().toLowerCase();
-
-  if (
-    normalized === "debug" ||
-    normalized === "info" ||
-    normalized === "warn" ||
-    normalized === "error" ||
-    normalized === "critical"
-  ) {
-    return normalized;
-  }
-
-  return "info";
-}
 
 function normalizeNodeEnvironment(value: string | undefined): string {
   const normalized = value?.trim().toLowerCase();
@@ -88,38 +70,8 @@ function normalizeNodeEnvironment(value: string | undefined): string {
   return "development";
 }
 
-function parseBooleanOverride(value: string | undefined): boolean | undefined {
-  const normalized = value?.trim().toLowerCase();
-
-  if (
-    normalized === "1" ||
-    normalized === "true" ||
-    normalized === "yes" ||
-    normalized === "on"
-  ) {
-    return true;
-  }
-
-  if (
-    normalized === "0" ||
-    normalized === "false" ||
-    normalized === "no" ||
-    normalized === "off"
-  ) {
-    return false;
-  }
-
-  return undefined;
-}
-
-function shouldUseSilentLogging(nodeEnv: string): boolean {
-  const explicitOverride = parseBooleanOverride(process.env.LOG_SILENT);
-
-  if (explicitOverride !== undefined) {
-    return explicitOverride;
-  }
-
-  return process.env.CI === "true" && nodeEnv === "test";
+function shouldUseSilentLogging(nodeEnv: string, configured: boolean): boolean {
+  return configured || (process.env.CI === "true" && nodeEnv === "test");
 }
 
 function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
@@ -135,21 +87,19 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
       mode: logging.mode,
       rabbitMqUrl: rabbitMq.url,
       serviceName: logging.serviceName,
-      silent: shouldUseSilentLogging(nodeEnv),
+      silent: shouldUseSilentLogging(nodeEnv, logging.silent),
     };
   } catch {
     const nodeEnv = normalizeNodeEnvironment(process.env.NODE_ENV);
 
     return {
       environment: nodeEnv,
-      fallbackDirectory:
-        process.env.LOG_FALLBACK_DIRECTORY?.trim() ||
-        DEFAULT_FALLBACK_DIRECTORY,
-      level: parseLogLevel(process.env.LOG_LEVEL),
+      fallbackDirectory: "/app/logs/fallback",
+      level: "info",
       mode: nodeEnv === "production" ? "rabbitmq" : "console",
-      rabbitMqUrl: process.env.RABBITMQ_URL?.trim() || undefined,
-      serviceName: process.env.LOG_SERVICE_NAME?.trim() || DEFAULT_SERVICE_NAME,
-      silent: shouldUseSilentLogging(nodeEnv),
+      rabbitMqUrl: undefined,
+      serviceName: "backend",
+      silent: shouldUseSilentLogging(nodeEnv, false),
     };
   }
 }

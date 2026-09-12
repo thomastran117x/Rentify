@@ -62,7 +62,7 @@ function createFlagCache(
 function createService(
   repositoryOverrides: Parameters<typeof createRepository>[0] = {},
   cacheOverrides: Parameters<typeof createFlagCache>[0] = {},
-  env: Record<string, { enabled: boolean }> = {},
+  env: Record<string, { enabled: boolean; source?: "config" | "env" }> = {},
 ) {
   const repository = createRepository(repositoryOverrides);
   const flagCache = createFlagCache(cacheOverrides);
@@ -150,6 +150,17 @@ describe("FeatureFlagService", () => {
 
       const result = await service.resolveFlag("test-flag");
       expect(result.source).toBe("env");
+    });
+
+    it("returns source=config for a YAML-backed entry", async () => {
+      const { service } = createService(
+        {},
+        {},
+        { "test-flag": { enabled: true, source: "config" } },
+      );
+
+      const result = await service.resolveFlag("test-flag");
+      expect(result.source).toBe("config");
     });
 
     it("returns source=default when flag is unknown", async () => {

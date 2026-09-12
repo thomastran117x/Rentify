@@ -1,7 +1,4 @@
-import {
-  environment,
-  getOptionalEnvironmentVariable,
-} from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-guard";
 
 const TURNSTILE_SITEVERIFY_URL =
@@ -386,18 +383,9 @@ export class CaptchaService {
   }
 
   private readAllowedHosts(): string[] {
-    const configuredHosts = getOptionalEnvironmentVariable(
-      "CAPTCHA_ALLOWED_HOSTS",
-    );
-
-    if (!configuredHosts) {
-      return environment.getCaptchaConfig().allowedHosts;
-    }
-
-    return configuredHosts
-      .split(",")
-      .map((host) => host.trim().toLowerCase())
-      .filter(Boolean);
+    return environment
+      .getCaptchaConfig()
+      .allowedHosts.map((host) => host.toLowerCase());
   }
 }
 

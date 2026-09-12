@@ -5,6 +5,23 @@ jest.mock("@/configuration/environment", () => {
 
   return {
     ...actual,
+    environment: {
+      ...actual.environment,
+      getMicrosoftOAuthConfig: () => ({
+        audiences: [
+          mockGetOptionalEnvironmentVariable("MICROSOFT_OAUTH_CLIENT_ID"),
+        ].filter((value): value is string => Boolean(value)),
+        clientSecret: mockGetOptionalEnvironmentVariable(
+          "MICROSOFT_OAUTH_CLIENT_SECRET",
+        ),
+        tenant:
+          mockGetOptionalEnvironmentVariable("MICROSOFT_OAUTH_TENANT") ??
+          "consumers",
+        frontendBaseUrl:
+          mockGetOptionalEnvironmentVariable("FRONTEND_URL") ??
+          "http://localhost:3040",
+      }),
+    },
     getOptionalEnvironmentVariable: (name: string) =>
       mockGetOptionalEnvironmentVariable(name),
   };

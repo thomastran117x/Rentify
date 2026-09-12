@@ -8,30 +8,35 @@ x-mcp-build: &mcp-build
 
 x-backend-environment: &backend-environment
   NODE_ENV: ${NODE_ENV:-development}
+  BACKEND_CONFIG_FILE: ${BACKEND_CONFIG_FILE:-}
   DATABASE_URL: ${DATABASE_URL:-mysql://rent:rent@mysql:3306/rent}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  ELASTICSEARCH_ENABLED: ${ELASTICSEARCH_ENABLED:-true}
-  ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
-  ELASTICSEARCH_POSTINGS_INDEX: ${ELASTICSEARCH_POSTINGS_INDEX:-postings}
-  ELASTICSEARCH_ORGANIZATIONS_INDEX: ${ELASTICSEARCH_ORGANIZATIONS_INDEX:-organizations}
-  ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX: ${ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX:-organization-blogs}
-  LOG_LEVEL: ${LOG_LEVEL:-debug}
-  LOG_SERVICE_NAME: ${LOG_SERVICE_NAME:-backend}
-  LOG_FALLBACK_DIRECTORY: ${LOG_FALLBACK_DIRECTORY:-/app/logs/fallback}
+  REDIS_URL: ${REDIS_URL:-}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_HOST: ${REDIS_HOST:-}
+  REDIS_PORT: ${REDIS_PORT:-}
+  ELASTICSEARCH_ENABLED: ${ELASTICSEARCH_ENABLED:-}
+  ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
+  ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:-}
+  ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-}
+  ELASTICSEARCH_POSTINGS_INDEX: ${ELASTICSEARCH_POSTINGS_INDEX:-}
+  ELASTICSEARCH_ORGANIZATIONS_INDEX: ${ELASTICSEARCH_ORGANIZATIONS_INDEX:-}
+  ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX: ${ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX:-}
+  LOG_LEVEL: ${LOG_LEVEL:-}
+  LOG_SERVICE_NAME: ${LOG_SERVICE_NAME:-}
+  LOG_FALLBACK_DIRECTORY: ${LOG_FALLBACK_DIRECTORY:-}
   RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
-  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3040}
-  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3040}
-  MFA_BYPASS_EMAILS: ${MFA_BYPASS_EMAILS:-owner1@rentify.local,owner2@rentify.local,owner3@rentify.local,owner4@rentify.local,user1@rentify.local,user2@rentify.local,user3@rentify.local,user4@rentify.local,viewer1@rentify.local,admin1@rentify.local,moderator1@rentify.local,user5@rentify.local,user6@rentify.local,user7@rentify.local,user8@rentify.local,oauth1@rentify.local}
-  GMAIL_USER: ${GMAIL_USER}
-  SMS_PROVIDER: ${SMS_PROVIDER:-noop}
+  FRONTEND_URL: ${FRONTEND_URL:-}
+  APP_BASE_URL: ${APP_BASE_URL:-}
+  MFA_BYPASS_EMAILS: ${MFA_BYPASS_EMAILS:-}
+  GMAIL_USER: ${GMAIL_USER:-}
+  SMS_PROVIDER: ${SMS_PROVIDER:-}
   SMS_FROM_NUMBER: ${SMS_FROM_NUMBER:-}
-  SMS_WEBHOOK_PUBLIC_URL: ${SMS_WEBHOOK_PUBLIC_URL:-http://127.0.0.1:8040/api/v1/sms/webhooks/telnyx}
-  SMS_WORKER_PREFETCH: ${SMS_WORKER_PREFETCH:-10}
-  POSTING_EXPIRY_POLL_INTERVAL_MS: ${POSTING_EXPIRY_POLL_INTERVAL_MS:-60000}
-  POSTING_EXPIRY_BATCH_SIZE: ${POSTING_EXPIRY_BATCH_SIZE:-50}
-  POSTING_EXPIRY_REMINDER_LEAD_DAYS: ${POSTING_EXPIRY_REMINDER_LEAD_DAYS:-3}
-  SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-8}
+  SMS_WEBHOOK_PUBLIC_URL: ${SMS_WEBHOOK_PUBLIC_URL:-}
+  SMS_WORKER_PREFETCH: ${SMS_WORKER_PREFETCH:-}
+  POSTING_EXPIRY_POLL_INTERVAL_MS: ${POSTING_EXPIRY_POLL_INTERVAL_MS:-}
+  POSTING_EXPIRY_BATCH_SIZE: ${POSTING_EXPIRY_BATCH_SIZE:-}
+  POSTING_EXPIRY_REMINDER_LEAD_DAYS: ${POSTING_EXPIRY_REMINDER_LEAD_DAYS:-}
+  SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-}
   TELNYX_API_KEY: ${TELNYX_API_KEY:-}
   TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
   TELNYX_MESSAGING_PROFILE_ID: ${TELNYX_MESSAGING_PROFILE_ID:-}
@@ -40,35 +45,38 @@ x-backend-environment: &backend-environment
   REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
   PERSONAL_ACCESS_TOKEN_SECRET: ${PERSONAL_ACCESS_TOKEN_SECRET}
   SQUARE_ACCESS_TOKEN: ${SQUARE_ACCESS_TOKEN}
-  SQUARE_LOCATION_ID: ${SQUARE_LOCATION_ID}
+  SQUARE_LOCATION_ID: ${SQUARE_LOCATION_ID:-}
   SQUARE_WEBHOOK_SIGNATURE_KEY: ${SQUARE_WEBHOOK_SIGNATURE_KEY}
-  SQUARE_WEBHOOK_NOTIFICATION_URL: ${SQUARE_WEBHOOK_NOTIFICATION_URL:-http://127.0.0.1:8040/api/v1/payments/webhooks/square}
+  SQUARE_WEBHOOK_NOTIFICATION_URL: ${SQUARE_WEBHOOK_NOTIFICATION_URL:-}
   CLOUDFLARE_TURNSTILE_SECRET_KEY: ${CLOUDFLARE_TURNSTILE_SECRET_KEY}
-  TOKEN_ISSUER: ${TOKEN_ISSUER}
-  TOKEN_AUDIENCE: ${TOKEN_AUDIENCE}
-  MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID}
-  MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT}
-  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+  TOKEN_ISSUER: ${TOKEN_ISSUER:-}
+  TOKEN_AUDIENCE: ${TOKEN_AUDIENCE:-}
+  MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+  MICROSOFT_OAUTH_CLIENT_IDS: ${MICROSOFT_OAUTH_CLIENT_IDS:-}
+  MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+  MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
+  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+  GOOGLE_OAUTH_CLIENT_IDS: ${GOOGLE_OAUTH_CLIENT_IDS:-}
   GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
   MFA_TOTP_ENCRYPTION_KEY: ${MFA_TOTP_ENCRYPTION_KEY}
   AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
-  AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME}
-  USERNAME_BLOOM_ENABLED: ${USERNAME_BLOOM_ENABLED:-true}
-  USERNAME_BLOOM_CAPACITY: ${USERNAME_BLOOM_CAPACITY:-200000}
-  USERNAME_BLOOM_FALSE_POSITIVE_RATE: ${USERNAME_BLOOM_FALSE_POSITIVE_RATE:-0.01}
-  USERNAME_BLOOM_RELOAD_INTERVAL_MS: ${USERNAME_BLOOM_RELOAD_INTERVAL_MS:-60000}
-  USERNAME_BLOOM_MAX_STALENESS_MS: ${USERNAME_BLOOM_MAX_STALENESS_MS:-300000}
-  USERNAME_BLOOM_REBUILD_INTERVAL_MS: ${USERNAME_BLOOM_REBUILD_INTERVAL_MS:-21600000}
-  USERNAME_BLOOM_REBUILD_BATCH_SIZE: ${USERNAME_BLOOM_REBUILD_BATCH_SIZE:-5000}
-  USERNAME_BLOOM_REBUILD_LOCK_TTL_MS: ${USERNAME_BLOOM_REBUILD_LOCK_TTL_MS:-60000}
-  EMAIL_BLOOM_ENABLED: ${EMAIL_BLOOM_ENABLED:-true}
-  EMAIL_BLOOM_CAPACITY: ${EMAIL_BLOOM_CAPACITY:-200000}
-  EMAIL_BLOOM_FALSE_POSITIVE_RATE: ${EMAIL_BLOOM_FALSE_POSITIVE_RATE:-0.01}
-  EMAIL_BLOOM_RELOAD_INTERVAL_MS: ${EMAIL_BLOOM_RELOAD_INTERVAL_MS:-60000}
-  EMAIL_BLOOM_MAX_STALENESS_MS: ${EMAIL_BLOOM_MAX_STALENESS_MS:-300000}
-  EMAIL_BLOOM_REBUILD_INTERVAL_MS: ${EMAIL_BLOOM_REBUILD_INTERVAL_MS:-21600000}
-  EMAIL_BLOOM_REBUILD_BATCH_SIZE: ${EMAIL_BLOOM_REBUILD_BATCH_SIZE:-5000}
-  EMAIL_BLOOM_REBUILD_LOCK_TTL_MS: ${EMAIL_BLOOM_REBUILD_LOCK_TTL_MS:-60000}
+  AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME:-}
+  USERNAME_BLOOM_ENABLED: ${USERNAME_BLOOM_ENABLED:-}
+  USERNAME_BLOOM_CAPACITY: ${USERNAME_BLOOM_CAPACITY:-}
+  USERNAME_BLOOM_FALSE_POSITIVE_RATE: ${USERNAME_BLOOM_FALSE_POSITIVE_RATE:-}
+  USERNAME_BLOOM_RELOAD_INTERVAL_MS: ${USERNAME_BLOOM_RELOAD_INTERVAL_MS:-}
+  USERNAME_BLOOM_MAX_STALENESS_MS: ${USERNAME_BLOOM_MAX_STALENESS_MS:-}
+  USERNAME_BLOOM_REBUILD_INTERVAL_MS: ${USERNAME_BLOOM_REBUILD_INTERVAL_MS:-}
+  USERNAME_BLOOM_REBUILD_BATCH_SIZE: ${USERNAME_BLOOM_REBUILD_BATCH_SIZE:-}
+  USERNAME_BLOOM_REBUILD_LOCK_TTL_MS: ${USERNAME_BLOOM_REBUILD_LOCK_TTL_MS:-}
+  EMAIL_BLOOM_ENABLED: ${EMAIL_BLOOM_ENABLED:-}
+  EMAIL_BLOOM_CAPACITY: ${EMAIL_BLOOM_CAPACITY:-}
+  EMAIL_BLOOM_FALSE_POSITIVE_RATE: ${EMAIL_BLOOM_FALSE_POSITIVE_RATE:-}
+  EMAIL_BLOOM_RELOAD_INTERVAL_MS: ${EMAIL_BLOOM_RELOAD_INTERVAL_MS:-}
+  EMAIL_BLOOM_MAX_STALENESS_MS: ${EMAIL_BLOOM_MAX_STALENESS_MS:-}
+  EMAIL_BLOOM_REBUILD_INTERVAL_MS: ${EMAIL_BLOOM_REBUILD_INTERVAL_MS:-}
+  EMAIL_BLOOM_REBUILD_BATCH_SIZE: ${EMAIL_BLOOM_REBUILD_BATCH_SIZE:-}
+  EMAIL_BLOOM_REBUILD_LOCK_TTL_MS: ${EMAIL_BLOOM_REBUILD_LOCK_TTL_MS:-}
 
 # Every process that connects to MySQL owns its own connection pool, so pool
 # size is a per-process cost paid against the server's max_connections budget.
@@ -77,8 +85,8 @@ x-backend-environment: &backend-environment
 # pool to satisfy minimumIdle, so 0 stalls every acquire.
 x-worker-environment: &worker-environment
   <<: *backend-environment
-  DATABASE_POOL_CONNECTION_LIMIT: ${WORKER_DATABASE_POOL_CONNECTION_LIMIT:-5}
-  DATABASE_POOL_MINIMUM_IDLE: ${WORKER_DATABASE_POOL_MINIMUM_IDLE:-1}
+  DATABASE_POOL_CONNECTION_LIMIT: 5
+  DATABASE_POOL_MINIMUM_IDLE: 1
 
 x-frontend-public-environment: &frontend-public-environment
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8040/api/v1}
@@ -134,7 +142,8 @@ x-db-redis-rabbitmq-worker-depends-on: &db-redis-rabbitmq-worker-depends-on
 
 # The saved search sweep replays real searches through the public search path,
 # so it needs Elasticsearch as well as the queue, cache, and database.
-x-db-redis-rabbitmq-search-worker-depends-on: &db-redis-rabbitmq-search-worker-depends-on
+x-db-redis-rabbitmq-search-worker-depends-on:
+  &db-redis-rabbitmq-search-worker-depends-on
   backend-migrate:
     condition: service_completed_successfully
   mysql:
@@ -187,7 +196,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -220,7 +233,8 @@ services:
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200 >/dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 20
@@ -269,8 +283,8 @@ services:
     environment:
       <<: *backend-environment
       PORT: 8040
-      DATABASE_POOL_CONNECTION_LIMIT: ${DATABASE_POOL_CONNECTION_LIMIT:-10}
-      DATABASE_POOL_MINIMUM_IDLE: ${DATABASE_POOL_MINIMUM_IDLE:-2}
+      DATABASE_POOL_CONNECTION_LIMIT: 10
+      DATABASE_POOL_MINIMUM_IDLE: 2
     volumes: *backend-log-volume
     command: ["node", "dist/server.js"]
     ports:
@@ -353,9 +367,9 @@ services:
     image: rent-backend:local
     container_name: rent-email-worker
     restart: unless-stopped
-    # Needs the database as well as the queue: the booking message notification
-    # job carries ids that delivery hydrates at send time.
-    depends_on: *recommendation-worker-depends-on
+    # Delivery composers hydrate database records at send time. Saved-search
+    # messages also read the Redis projection cache and Elasticsearch results.
+    depends_on: *db-redis-rabbitmq-search-worker-depends-on
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/email/email-delivery.worker.js"]
@@ -388,7 +402,8 @@ services:
     depends_on: *recommendation-worker-depends-on
     environment: *worker-environment
     volumes: *backend-log-volume
-    command: ["node", "dist/workers/recommendations/recommendation-activity.worker.js"]
+    command:
+      ["node", "dist/workers/recommendations/recommendation-activity.worker.js"]
 
   payment-retry-worker:
     build: *backend-build
@@ -542,4 +557,3 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
-

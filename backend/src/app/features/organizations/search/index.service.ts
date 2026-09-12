@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
@@ -58,8 +58,7 @@ export class OrganizationsSearchIndexService {
       "service",
     );
     this.baseIndexName =
-      getOptionalEnvironmentVariable("ELASTICSEARCH_ORGANIZATIONS_INDEX") ??
-      `${this.elasticsearch.getPostingsIndexName()}-organizations`;
+      environment.getElasticsearchConfig().organizationsIndexName;
   }
 
   async ensureLiveIndex(): Promise<void> {

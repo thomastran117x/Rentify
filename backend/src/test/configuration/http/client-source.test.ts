@@ -8,6 +8,15 @@ import { createTestApp } from "../../support/fetch-app";
 
 jest.mock("@/configuration/environment", () => ({
   getOptionalEnvironmentVariable: jest.fn(),
+  environment: {
+    getApplicationConfig: () => {
+      const frontendUrl =
+        mockGetOptionalEnvironmentVariable("FRONTEND_URL") ??
+        "http://localhost:3040";
+
+      return { name: "Rent", frontendUrl, baseUrl: frontendUrl };
+    },
+  },
 }));
 
 const mockGetOptionalEnvironmentVariable =

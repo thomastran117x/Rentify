@@ -41,21 +41,23 @@ collide with services you already run locally. Override them with
 `MYSQL_HOST_PORT`, `REDIS_HOST_PORT`, `ELASTICSEARCH_HOST_PORT`,
 `RABBITMQ_HOST_PORT`, and `RABBITMQ_MANAGEMENT_HOST_PORT` in `.env`.
 
-## Environment Model
+## Configuration Model
 
-The repo-root `.env` file is the main source of truth for Docker Compose.
+The backend reads non-secret defaults from `backend/config/default.yml` and
+`backend/config/development.yml`. The repo-root `.env` is reserved for secrets,
+bootstrap selectors, frontend values, and Docker host-port overrides.
 
 Important behaviors:
 
-- backend secrets and service configuration come from the repo-root `.env`
+- backend secrets and secret-bearing connection strings come from `.env`
+- `BACKEND_CONFIG_FILE` can select an additional non-secret YAML overlay
 - frontend `NEXT_PUBLIC_*` values are injected during Docker image build
 - `INTERNAL_API_BASE_URL` is used by the frontend server runtime inside Docker
 - explicit shell or Docker-provided variables override local file defaults
 - SMS defaults to the local `noop` adapter unless you intentionally configure real Telnyx credentials
-- `DATABASE_POOL_CONNECTION_LIMIT` and `DATABASE_POOL_MINIMUM_IDLE` size the
-  connection pool each process opens; the API defaults to `10` and `2`, and
-  Compose gives workers `5` and `1` through `WORKER_DATABASE_POOL_CONNECTION_LIMIT`
-  and `WORKER_DATABASE_POOL_MINIMUM_IDLE`
+- `database.poolConnectionLimit` and `database.poolMinimumIdle` size the
+  connection pool each process opens; YAML gives the API `10` and `2`, while
+  Compose applies fixed worker overrides of `5` and `1`
 - both pool values must be at least `1`, and minimum idle must not exceed the
   connection limit; startup fails with a validation error otherwise
 
@@ -73,7 +75,12 @@ docker compose exec mysql mysql -uroot -proot -e \
 Optional local overrides outside Docker:
 
 - `backend/.env` for backend-only runs
+- ignored `backend/config/local.yml` selected with
+  `BACKEND_CONFIG_FILE=local.yml` for non-secret backend customization
 - `frontend/.env.local` for Next.js local runs
+
+See [backend-configuration.md](./backend-configuration.md) for load precedence,
+the YAML schema, legacy environment overrides, and feature-flag sources.
 
 If you change `NEXT_PUBLIC_*` values, rebuild the frontend container:
 
@@ -117,11 +124,15 @@ npm run seed -- --only-if-empty
 npm run seed -- --refresh
 ```
 
-Set `DATABASE_AUTO_SEED_REFRESH=true` if you want startup to refresh fixture-owned records automatically.
+Set `database.autoSeedRefresh: true` in a YAML overlay (or use the legacy
+`DATABASE_AUTO_SEED_REFRESH=true` override) if startup should refresh
+fixture-owned records automatically.
 
 ## Seeded MFA Bypass
 
-In non-production only, MFA bypass can be enabled for specific accounts with `MFA_BYPASS_EMAILS`.
+In non-production only, MFA bypass can be enabled with
+`auth.mfaBypassEmails` in YAML. `MFA_BYPASS_EMAILS` remains a compatible
+environment override.
 
 - format: comma-delimited email list
 - normalization: trimmed, lowercased, de-duplicated
@@ -208,8 +219,3 @@ npm run test:e2e
 - If the frontend is using stale public env values, rebuild with `docker compose up --build`.
 - If auth behavior seems broken after a provider change, verify both backend provider settings and matching frontend public client IDs.
 - If you want a clean reseed of fixture-owned data, use `npm run seed -- --refresh` from `backend/`.
-
-
-
-
-

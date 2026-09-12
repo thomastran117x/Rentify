@@ -5,11 +5,13 @@ export type RefreshTokenMode = "stateless" | "stateful";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
+export type ConfigurationFeatureSource = "config" | "env";
 
 export type RawEnvironmentValues = {
   ACCESS_TOKEN_SECRET?: string;
   ACCESS_TOKEN_TTL_SECONDS?: string;
   APP_BASE_URL?: string;
+  APP_NAME?: string;
   AZURE_STORAGE_CONNECTION_STRING?: string;
   AZURE_STORAGE_CONTAINER_NAME?: string;
   AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS?: string;
@@ -36,6 +38,7 @@ export type RawEnvironmentValues = {
   ELASTICSEARCH_POSTINGS_INDEX?: string;
   ELASTICSEARCH_ORGANIZATIONS_INDEX?: string;
   ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX?: string;
+  ELASTICSEARCH_REPORTS_INDEX?: string;
   ELASTICSEARCH_TIMEOUT_MS?: string;
   ELASTICSEARCH_URL?: string;
   ELASTICSEARCH_USERNAME?: string;
@@ -56,6 +59,7 @@ export type RawEnvironmentValues = {
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   LOG_FALLBACK_DIRECTORY?: string;
   LOG_LEVEL?: string;
+  LOG_SILENT?: string;
   LOG_SERVICE_NAME?: string;
   MICROSOFT_OAUTH_CLIENT_ID?: string;
   MICROSOFT_OAUTH_CLIENT_IDS?: string;
@@ -65,6 +69,8 @@ export type RawEnvironmentValues = {
   MICROSOFT_OAUTH_TENANT?: string;
   NODE_ENV?: string;
   PORT?: string;
+  REQUEST_BODY_MAX_BYTES?: string;
+  REQUEST_TIMEOUT_MS?: string;
   POSTING_EXPIRY_BATCH_SIZE?: string;
   POSTING_EXPIRY_POLL_INTERVAL_MS?: string;
   POSTING_EXPIRY_REMINDER_LEAD_DAYS?: string;
@@ -172,6 +178,16 @@ export interface AppEnvironment {
     nodeEnv: NodeEnvironment;
     port: number;
     isProduction: boolean;
+  };
+  application: {
+    name: string;
+    frontendUrl: string;
+    baseUrl: string;
+  };
+  http: {
+    requestTimeoutMs: number;
+    requestBodyMaxBytes: number;
+    trustProxyHeaders: boolean;
   };
   database: {
     url: string;
@@ -352,11 +368,15 @@ export interface AppEnvironment {
     level: "debug" | "info" | "warn" | "error" | "critical";
     mode: LoggingMode;
     serviceName: string;
+    silent: boolean;
   };
   routeModules: {
     disabledIds: RouteModuleId[];
   };
-  features: Record<string, { enabled: boolean }>;
+  features: Record<
+    string,
+    { enabled: boolean; source: ConfigurationFeatureSource }
+  >;
   rabbitmq: {
     url?: string;
   };
@@ -366,6 +386,9 @@ export interface AppEnvironment {
     username?: string;
     password?: string;
     postingsIndexName: string;
+    reportsIndexName: string;
+    organizationsIndexName: string;
+    organizationBlogsIndexName: string;
     timeoutMs: number;
     circuitBreakerFailureThreshold: number;
     circuitBreakerCooldownMs: number;

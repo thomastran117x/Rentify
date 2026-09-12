@@ -25,6 +25,9 @@ const elasticsearchConfig = {
   username: undefined,
   password: undefined,
   postingsIndexName: "postings",
+  reportsIndexName: "postings-reports",
+  organizationsIndexName: "postings-organizations",
+  organizationBlogsIndexName: "postings-organization-blogs",
   timeoutMs: 2_000,
   circuitBreakerFailureThreshold: 3,
   circuitBreakerCooldownMs: 30_000,
@@ -71,6 +74,107 @@ const smsConfig = {
     publicKey: undefined,
     messagingProfileId: undefined,
   },
+};
+
+const applicationConfig = {
+  name: "Rent",
+  frontendUrl: "http://localhost:3040",
+  baseUrl: "http://localhost:3040",
+};
+
+function readApplicationConfig() {
+  const frontendUrl = process.env.FRONTEND_URL ?? applicationConfig.frontendUrl;
+
+  return {
+    ...applicationConfig,
+    frontendUrl,
+    baseUrl: process.env.APP_BASE_URL ?? frontendUrl,
+  };
+}
+
+function readOriginList(value: string | undefined, fallback: string): string[] {
+  return (value ?? fallback)
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function readElasticsearchConfig() {
+  const postingsIndexName =
+    process.env.ELASTICSEARCH_INDEX ?? elasticsearchConfig.postingsIndexName;
+
+  return {
+    ...elasticsearchConfig,
+    postingsIndexName,
+    reportsIndexName:
+      process.env.ELASTICSEARCH_REPORTS_INDEX ?? `${postingsIndexName}-reports`,
+    organizationsIndexName:
+      process.env.ELASTICSEARCH_ORGANIZATIONS_INDEX ??
+      `${postingsIndexName}-organizations`,
+    organizationBlogsIndexName:
+      process.env.ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX ??
+      `${postingsIndexName}-organization-blogs`,
+  };
+}
+
+function readGoogleOAuthConfig() {
+  const clientIds =
+    process.env.GOOGLE_OAUTH_CLIENT_IDS ?? process.env.GOOGLE_OAUTH_CLIENT_ID;
+
+  return {
+    audiences: readOriginList(clientIds, ""),
+    clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    frontendBaseUrl: readApplicationConfig().frontendUrl,
+  };
+}
+
+function readMicrosoftOAuthConfig() {
+  const clientIds =
+    process.env.MICROSOFT_OAUTH_CLIENT_IDS ??
+    process.env.MICROSOFT_OAUTH_CLIENT_ID;
+
+  return {
+    audiences: readOriginList(clientIds, ""),
+    clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET,
+    tenant: process.env.MICROSOFT_OAUTH_TENANT ?? "consumers",
+    frontendBaseUrl: readApplicationConfig().frontendUrl,
+  };
+}
+
+function readBlobStorageConfig() {
+  return {
+    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    containerName: process.env.AZURE_STORAGE_CONTAINER_NAME,
+    uploadSasTtlSeconds: readNumber(
+      process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS,
+      15 * 60,
+    ),
+  };
+}
+
+function readHttpConfig() {
+  return {
+    requestTimeoutMs: readNumber(process.env.REQUEST_TIMEOUT_MS, 15_000),
+    requestBodyMaxBytes: readNumber(
+      process.env.REQUEST_BODY_MAX_BYTES,
+      1024 * 1024,
+    ),
+    trustProxyHeaders: readBoolean(process.env.TRUST_PROXY_HEADERS, false),
+  };
+}
+
+const emailConfig = {
+  gmailUser: "test@example.com",
+  gmailAppPassword: "test-password",
+  fromEmail: "test@example.com",
+  fromName: "Rent",
+  appBaseUrl: "http://localhost:3000",
+};
+
+const blobStorageConfig = {
+  connectionString: undefined,
+  containerName: undefined,
+  uploadSasTtlSeconds: 15 * 60,
 };
 
 const identityBloomConfig = {
@@ -146,6 +250,7 @@ function readLoggingConfig() {
     mode:
       nodeEnv === "production" ? ("rabbitmq" as const) : ("console" as const),
     serviceName: process.env.LOG_SERVICE_NAME ?? "backend-test",
+    silent: readBoolean(process.env.LOG_SILENT, false),
   };
 }
 
@@ -198,12 +303,15 @@ function readRouteModulesConfig() {
 }
 
 function readFeaturesConfig() {
-  const features: Record<string, { enabled: boolean }> = {};
+  const features: Record<string, { enabled: boolean; source: "env" }> = {};
   for (const [key, value] of Object.entries(process.env)) {
     const match = key.match(/^FEATURE_(.+)_ENABLED$/);
     if (match) {
       const featureId = match[1].toLowerCase().replace(/_/g, "-");
-      features[featureId] = { enabled: readBoolean(value, false) };
+      features[featureId] = {
+        enabled: readBoolean(value, false),
+        source: "env",
+      };
     }
   }
   return features;
@@ -225,6 +333,12 @@ export const environment = {
   getServerPort() {
     return 8040;
   },
+  getApplicationConfig() {
+    return readApplicationConfig();
+  },
+  getHttpConfig() {
+    return readHttpConfig();
+  },
   getDatabaseConfig() {
     return readDatabaseConfig();
   },
@@ -233,6 +347,30 @@ export const environment = {
   },
   getSmsConfig() {
     return smsConfig;
+  },
+  getEmailConfig() {
+    return emailConfig;
+  },
+  getBlobStorageConfig() {
+    return readBlobStorageConfig();
+  },
+  getCorsAllowedOrigins() {
+    return readOriginList(
+      process.env.CORS_ALLOWED_ORIGINS,
+      readApplicationConfig().frontendUrl,
+    );
+  },
+  getCsrfAllowedOrigins() {
+    return readOriginList(
+      process.env.CSRF_ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS,
+      readApplicationConfig().frontendUrl,
+    );
+  },
+  getGoogleOAuthConfig() {
+    return readGoogleOAuthConfig();
+  },
+  getMicrosoftOAuthConfig() {
+    return readMicrosoftOAuthConfig();
   },
   getCaptchaConfig() {
     return captchaConfig;
@@ -259,7 +397,7 @@ export const environment = {
     return readRabbitMqConfig();
   },
   getElasticsearchConfig() {
-    return elasticsearchConfig;
+    return readElasticsearchConfig();
   },
   getSquareConfig() {
     return squareConfig;
@@ -273,6 +411,10 @@ export const environment = {
   load() {
     return {
       auth: tokenConfig,
+      application: applicationConfig,
+      http: readHttpConfig(),
+      email: emailConfig,
+      blobStorage: blobStorageConfig,
       captcha: captchaConfig,
       database: readDatabaseConfig(),
       elasticsearch: elasticsearchConfig,

@@ -1,6 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { config } from "dotenv";
+import {
+  flattenConfigurationDocument,
+  mergeConfigurationDocuments,
+  readConfigurationDocument,
+} from "@/configuration/environment/file";
 import { parseEnvironmentState } from "@/configuration/environment/parser";
 import type {
   AppEnvironment,
@@ -17,8 +22,23 @@ function resolveDefaultEnvFilePath(): string | undefined {
   return candidatePaths.find((candidatePath) => existsSync(candidatePath));
 }
 
+function resolveDefaultConfigurationDirectory(): string {
+  const candidatePaths = [
+    path.resolve(process.cwd(), "config"),
+    path.resolve(process.cwd(), "backend/config"),
+  ];
+
+  return (
+    candidatePaths.find((candidatePath) =>
+      existsSync(path.join(candidatePath, "default.yml")),
+    ) ?? candidatePaths[0]
+  );
+}
+
 type EnvironmentManagerOptions = {
   envFilePath?: string;
+  configurationDirectory?: string;
+  configurationFilePath?: string;
 };
 
 export class EnvironmentManager {
@@ -40,13 +60,77 @@ export class EnvironmentManager {
         config({
           path: envFilePath,
           override: false,
+          quiet: true,
         });
       }
 
       this.isLoaded = true;
     }
 
-    this.state = parseEnvironmentState(process.env);
+    const configurationDirectory =
+      this.options.configurationDirectory ??
+      resolveDefaultConfigurationDirectory();
+    const nodeEnvironment = process.env.NODE_ENV?.trim() || "development";
+
+    if (
+      nodeEnvironment !== "development" &&
+      nodeEnvironment !== "test" &&
+      nodeEnvironment !== "production"
+    ) {
+      throw new Error(
+        "Environment validation failed.\n- NODE_ENV must be one of: development, test, production.",
+      );
+    }
+
+    const defaultConfigurationPath = path.join(
+      configurationDirectory,
+      "default.yml",
+    );
+    const profileConfigurationPath = path.join(
+      configurationDirectory,
+      `${nodeEnvironment}.yml`,
+    );
+    const configurationSources = [
+      defaultConfigurationPath,
+      profileConfigurationPath,
+    ];
+    const defaultDocument = readConfigurationDocument(defaultConfigurationPath);
+    const profileDocument = readConfigurationDocument(profileConfigurationPath);
+    let mergedDocument = mergeConfigurationDocuments(
+      defaultDocument,
+      profileDocument,
+    );
+
+    const configuredOverlayPath =
+      this.options.configurationFilePath ??
+      process.env.BACKEND_CONFIG_FILE?.trim();
+    if (configuredOverlayPath) {
+      const overlayPath = path.isAbsolute(configuredOverlayPath)
+        ? configuredOverlayPath
+        : path.resolve(configurationDirectory, configuredOverlayPath);
+      configurationSources.push(overlayPath);
+      mergedDocument = mergeConfigurationDocuments(
+        mergedDocument,
+        readConfigurationDocument(overlayPath),
+      );
+    }
+
+    const fileConfiguration = flattenConfigurationDocument(mergedDocument);
+    try {
+      this.state = parseEnvironmentState(
+        process.env,
+        fileConfiguration.raw,
+        fileConfiguration.features,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Backend configuration validation failed after merging ${configurationSources.join(
+          " -> ",
+        )} with .env and process environment overrides.\n${message}`,
+        { cause: error },
+      );
+    }
     return this.state.config;
   }
 
@@ -78,6 +162,14 @@ export class EnvironmentManager {
 
   getServerPort(): number {
     return this.get().server.port;
+  }
+
+  getApplicationConfig(): AppEnvironment["application"] {
+    return this.get().application;
+  }
+
+  getHttpConfig(): AppEnvironment["http"] {
+    return this.get().http;
   }
 
   getTokenConfig(): AppEnvironment["auth"] {
