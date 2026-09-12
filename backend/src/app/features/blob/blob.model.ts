@@ -50,3 +50,10 @@ export interface BlobUploadTarget {
     "Content-Type": string;
   };
 }
+
+export interface ManagedBlobItem {
+  name: string;
+  contentType?: string;
+  lastModified?: Date;
+  contentLength?: number;
+}

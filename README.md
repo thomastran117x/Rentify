@@ -103,6 +103,18 @@ Dependency audit (from `backend/`, `frontend/`, or `mcp/`):
 npm run audit:all
 ```
 
+Azure image cleanup (preview by default):
+
+```bash
+docker compose run --rm --build blob-cleanup
+docker compose run --rm --build blob-cleanup --delete
+```
+
+The cleanup keeps images referenced by the current MySQL database, including
+restorable organization-logo and posting-photo history. Only unreferenced
+`image/*` blobs that have been unchanged for at least 24 hours are eligible.
+Always review the preview before using `--delete`.
+
 ## API Contract
 
 The backend returns a shared JSON envelope:

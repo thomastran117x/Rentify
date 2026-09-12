@@ -12,6 +12,7 @@ const originalAccessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
 const originalAzureConnectionString =
   process.env.AZURE_STORAGE_CONNECTION_STRING;
 const originalAzureContainerName = process.env.AZURE_STORAGE_CONTAINER_NAME;
+const originalAzureSasTtl = process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
 const originalPort = process.env.PORT;
 
 afterEach(() => {
@@ -19,6 +20,7 @@ afterEach(() => {
   process.env.ACCESS_TOKEN_SECRET = originalAccessTokenSecret;
   process.env.AZURE_STORAGE_CONNECTION_STRING = originalAzureConnectionString;
   process.env.AZURE_STORAGE_CONTAINER_NAME = originalAzureContainerName;
+  process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS = originalAzureSasTtl;
   process.env.PORT = originalPort;
 });
 
@@ -290,5 +292,70 @@ describe("BlobService", () => {
     expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
 
     delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
+  });
+
+  it("lists Azure blobs with the metadata needed by maintenance tools", async () => {
+    process.env.NODE_ENV = "test";
+    process.env.AZURE_STORAGE_CONNECTION_STRING =
+      "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
+    process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+    delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
+    const service = new BlobService();
+    const lastModified = new Date("2026-09-01T00:00:00.000Z");
+    const helper = service as unknown as {
+      createContainerClient(): {
+        listBlobsFlat(): AsyncIterable<{
+          name: string;
+          properties: {
+            contentType?: string;
+            lastModified?: Date;
+            contentLength?: number;
+          };
+        }>;
+      };
+    };
+    helper.createContainerClient = () => ({
+      async *listBlobsFlat() {
+        yield {
+          name: "postings/user/photo.png",
+          properties: {
+            contentType: "image/png",
+            lastModified,
+            contentLength: 42,
+          },
+        };
+      },
+    });
+
+    const blobs = [];
+    for await (const blob of service.listAzureBlobs()) {
+      blobs.push(blob);
+    }
+
+    expect(blobs).toEqual([
+      {
+        name: "postings/user/photo.png",
+        contentType: "image/png",
+        lastModified,
+        contentLength: 42,
+      },
+    ]);
+  });
+
+  it("rejects Azure inventory when only local development storage is available", async () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+    const service = new BlobService();
+
+    const consumeInventory = async () => {
+      for await (const blob of service.listAzureBlobs()) {
+        void blob;
+      }
+    };
+
+    await expect(consumeInventory()).rejects.toThrow(
+      ServiceNotImplementedError,
+    );
   });
 });

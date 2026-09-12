@@ -276,6 +276,24 @@ services:
     ports:
       - "8040:8040"
 
+  blob-cleanup:
+    build: *backend-build
+    image: rent-backend:local
+    profiles: ["maintenance"]
+    restart: "no"
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *backend-environment
+      DATABASE_POOL_CONNECTION_LIMIT: 2
+      DATABASE_POOL_MINIMUM_IDLE: 1
+    volumes: *backend-log-volume
+    entrypoint: ["node", "dist/scripts/cleanup-orphaned-blobs.js"]
+    command: []
+
   analytics-worker:
     build: *backend-build
     image: rent-backend:local
@@ -542,4 +560,3 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
-

@@ -16,6 +16,7 @@ import ServiceNotImplementedError from "@/errors/http/service-not-implemented.er
 import type {
   BlobUploadTarget,
   CreateBlobUploadUrlInput,
+  ManagedBlobItem,
 } from "@/features/blob/blob.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 
@@ -140,6 +141,19 @@ export class BlobService {
     }
 
     await this.deleteLocalBlob(normalizedBlobName);
+  }
+
+  async *listAzureBlobs(): AsyncGenerator<ManagedBlobItem> {
+    const containerClient = this.createContainerClient();
+
+    for await (const blob of containerClient.listBlobsFlat()) {
+      yield {
+        name: blob.name,
+        contentType: blob.properties.contentType,
+        lastModified: blob.properties.lastModified,
+        contentLength: blob.properties.contentLength,
+      };
+    }
   }
 
   async downloadBlob(blobName: string): Promise<{
@@ -297,15 +311,17 @@ export class BlobService {
   }
 
   private createBlobClient(blobName: string) {
+    return this.createContainerClient().getBlockBlobClient(blobName);
+  }
+
+  private createContainerClient() {
     const config = this.requireConfiguration();
     const credential = new StorageSharedKeyCredential(
       config.accountName,
       config.accountKey,
     );
     const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    return serviceClient
-      .getContainerClient(config.containerName)
-      .getBlockBlobClient(blobName);
+    return serviceClient.getContainerClient(config.containerName);
   }
 
   private readConfiguration(): AzureBlobConfiguration | null {
