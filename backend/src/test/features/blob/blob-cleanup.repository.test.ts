@@ -33,10 +33,36 @@ describe("BlobCleanupRepository", () => {
       organizationAuditLog: {
         findMany: jest.fn(async () => [
           {
+            resourceType: "organization",
             beforeSnapshot: { logoBlobName: "organizations/user/old.png" },
             afterSnapshot: { logoBlobName: "" },
           },
-          { beforeSnapshot: null, afterSnapshot: [] },
+          {
+            resourceType: "posting",
+            beforeSnapshot: {
+              photos: [
+                {
+                  blobName: "postings/user/former-photo.jpg",
+                  thumbnailBlobName:
+                    "postings/user/thumbnails/former-photo.webp",
+                },
+              ],
+            },
+            afterSnapshot: {
+              photos: [
+                {
+                  blobName: "postings/user/replacement-photo.jpg",
+                  thumbnailBlobName: null,
+                },
+                null,
+              ],
+            },
+          },
+          {
+            resourceType: "posting",
+            beforeSnapshot: { photos: "invalid" },
+            afterSnapshot: [],
+          },
         ]),
       },
     };
@@ -52,6 +78,9 @@ describe("BlobCleanupRepository", () => {
         "postings/user/photo.jpg",
         "postings/user/thumbnails/photo.webp",
         "organizations/user/old.png",
+        "postings/user/former-photo.jpg",
+        "postings/user/thumbnails/former-photo.webp",
+        "postings/user/replacement-photo.jpg",
       ]),
     );
     expect(result.sourceCounts).toEqual({
@@ -59,11 +88,18 @@ describe("BlobCleanupRepository", () => {
       organizations: 1,
       blogPosts: 1,
       postingPhotos: 2,
-      auditSnapshots: 2,
+      auditSnapshots: 3,
     });
     expect(database.organizationAuditLog.findMany).toHaveBeenCalledWith({
-      where: { resourceType: "organization", restorable: true },
-      select: { beforeSnapshot: true, afterSnapshot: true },
+      where: {
+        resourceType: { in: ["organization", "posting"] },
+        restorable: true,
+      },
+      select: {
+        resourceType: true,
+        beforeSnapshot: true,
+        afterSnapshot: true,
+      },
     });
   });
 });

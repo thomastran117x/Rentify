@@ -37,10 +37,14 @@ export class BlobCleanupRepository extends BaseRepository {
             }),
             this.prisma.organizationAuditLog.findMany({
               where: {
-                resourceType: "organization",
+                resourceType: { in: ["organization", "posting"] },
                 restorable: true,
               },
-              select: { beforeSnapshot: true, afterSnapshot: true },
+              select: {
+                resourceType: true,
+                beforeSnapshot: true,
+                afterSnapshot: true,
+              },
             }),
           ]);
 
@@ -64,8 +68,27 @@ export class BlobCleanupRepository extends BaseRepository {
           add(row.thumbnailBlobName);
         });
         auditLogs.forEach((row) => {
-          add(toAuditSnapshotRecord(row.beforeSnapshot).logoBlobName);
-          add(toAuditSnapshotRecord(row.afterSnapshot).logoBlobName);
+          const snapshots = [row.beforeSnapshot, row.afterSnapshot];
+
+          if (row.resourceType === "organization") {
+            snapshots.forEach((snapshot) => {
+              add(toAuditSnapshotRecord(snapshot).logoBlobName);
+            });
+            return;
+          }
+
+          snapshots.forEach((snapshot) => {
+            const photos = toAuditSnapshotRecord(snapshot).photos;
+            if (!Array.isArray(photos)) {
+              return;
+            }
+
+            photos.forEach((photo) => {
+              const photoRecord = toAuditSnapshotRecord(photo);
+              add(photoRecord.blobName);
+              add(photoRecord.thumbnailBlobName);
+            });
+          });
         });
 
         return {
