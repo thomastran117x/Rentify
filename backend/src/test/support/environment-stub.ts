@@ -250,7 +250,7 @@ function readLoggingConfig() {
     mode:
       nodeEnv === "production" ? ("rabbitmq" as const) : ("console" as const),
     serviceName: process.env.LOG_SERVICE_NAME ?? "backend-test",
-    silent: readBoolean(process.env.LOG_SILENT, false),
+    silent: readBoolean(process.env.LOG_SILENT, nodeEnv === "test"),
   };
 }
 

@@ -261,6 +261,17 @@ describe("EnvironmentManager", () => {
     expect(testManager.isProduction()).toBe(false);
     expect(testManager.isDevelopment()).toBe(false);
     expect(testManager.isTest()).toBe(true);
+    expect(testManager.getLoggingConfig().silent).toBe(true);
+
+    const loggingOverrideManager = new EnvironmentManager();
+    process.env = buildRequiredEnv({
+      NODE_ENV: "test",
+      LOG_SILENT: "false",
+    });
+
+    loggingOverrideManager.load();
+
+    expect(loggingOverrideManager.getLoggingConfig().silent).toBe(false);
   });
 
   it("returns cloned origin arrays so callers cannot mutate stored config", () => {

@@ -70,10 +70,6 @@ function normalizeNodeEnvironment(value: string | undefined): string {
   return "development";
 }
 
-function shouldUseSilentLogging(nodeEnv: string, configured: boolean): boolean {
-  return configured || (process.env.CI === "true" && nodeEnv === "test");
-}
-
 function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
   try {
     const logging = environment.getLoggingConfig();
@@ -87,7 +83,7 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
       mode: logging.mode,
       rabbitMqUrl: rabbitMq.url,
       serviceName: logging.serviceName,
-      silent: shouldUseSilentLogging(nodeEnv, logging.silent),
+      silent: logging.silent,
     };
   } catch {
     const nodeEnv = normalizeNodeEnvironment(process.env.NODE_ENV);
@@ -99,7 +95,7 @@ function getRuntimeLoggingConfig(): LoggingRuntimeConfig {
       mode: nodeEnv === "production" ? "rabbitmq" : "console",
       rabbitMqUrl: undefined,
       serviceName: "backend",
-      silent: shouldUseSilentLogging(nodeEnv, false),
+      silent: nodeEnv === "test",
     };
   }
 }
