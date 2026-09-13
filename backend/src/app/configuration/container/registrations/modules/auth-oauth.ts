@@ -40,8 +40,9 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.appleOAuthService,
       lifetime: "transient",
-      dependencies: [],
-      resolve: () => new AppleOAuthService(),
+      dependencies: [containerTokens.oauthTokenVerifier],
+      resolve: ({ resolve }) =>
+        new AppleOAuthService(resolve(containerTokens.oauthTokenVerifier)),
     });
     container.register({
       token: containerTokens.oauthAccountsService,

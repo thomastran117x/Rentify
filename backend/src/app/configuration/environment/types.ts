@@ -57,6 +57,11 @@ export type RawEnvironmentValues = {
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_IDS?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  APPLE_OAUTH_CLIENT_ID?: string;
+  APPLE_OAUTH_CLIENT_IDS?: string;
+  APPLE_OAUTH_TEAM_ID?: string;
+  APPLE_OAUTH_KEY_ID?: string;
+  APPLE_OAUTH_PRIVATE_KEY?: string;
   LOG_FALLBACK_DIRECTORY?: string;
   LOG_LEVEL?: string;
   LOG_SILENT?: string;
@@ -251,6 +256,13 @@ export interface AppEnvironment {
       audiences: string[];
       clientSecret?: string;
       tenant: string;
+      frontendBaseUrl: string;
+    };
+    apple: {
+      audiences: string[];
+      teamId?: string;
+      keyId?: string;
+      privateKey?: string;
       frontendBaseUrl: string;
     };
   };

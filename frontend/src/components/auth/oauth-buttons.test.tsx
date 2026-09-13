@@ -6,31 +6,39 @@ import { AuthOAuthButtons } from "./oauth-buttons";
 const {
   authenticateGoogleMock,
   authenticateMicrosoftMock,
+  authenticateAppleMock,
   linkOAuthProviderMock,
+  publicEnvMock,
 } = vi.hoisted(() => ({
   authenticateGoogleMock: vi.fn(),
   authenticateMicrosoftMock: vi.fn(),
+  authenticateAppleMock: vi.fn(),
   linkOAuthProviderMock: vi.fn(),
-}));
-
-vi.mock("@/lib/env", () => ({
-  publicEnv: {
+  publicEnvMock: {
     googleOAuthClientId: "google-client",
     microsoftOAuthClientId: "microsoft-client",
     microsoftOAuthTenant: "tenant",
+    appleOAuthClientId: "com.rentify.web",
   },
 }));
+
+vi.mock("@/lib/env", () => ({ publicEnv: publicEnvMock }));
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
     authenticateWithGoogle: authenticateGoogleMock,
     authenticateWithMicrosoft: authenticateMicrosoftMock,
+    authenticateWithApple: authenticateAppleMock,
     linkOAuthProvider: linkOAuthProviderMock,
   },
 }));
 
 describe("AuthOAuthButtons", () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete window.AppleID;
+    publicEnvMock.appleOAuthClientId = "com.rentify.web";
+  });
 
   function popupResult() {
     return { closed: false, close: vi.fn() };
@@ -124,7 +132,7 @@ describe("AuthOAuthButtons", () => {
     render(
       <AuthOAuthButtons
         onError={vi.fn()}
-        disabledProviders={["google", "microsoft"]}
+        disabledProviders={["google", "microsoft", "apple"]}
       />,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -264,5 +272,199 @@ describe("AuthOAuthButtons", () => {
     );
 
     await waitFor(() => expect(onError).toHaveBeenLastCalledWith(expected));
+  });
+
+  describe("Sign in with Apple", () => {
+    function installAppleSdk(signIn: (state: string) => Promise<unknown>): {
+      init: ReturnType<typeof vi.fn>;
+    } {
+      let configuredState = "";
+      const init = vi.fn((config: { state: string }) => {
+        configuredState = config.state;
+      });
+      window.AppleID = {
+        auth: {
+          init,
+          signIn: vi.fn(() => signIn(configuredState)),
+        },
+      } as never;
+      return { init };
+    }
+
+    it("hides the Apple button when no Services ID is configured", () => {
+      publicEnvMock.appleOAuthClientId = "";
+      render(<AuthOAuthButtons onError={vi.fn()} />);
+
+      expect(
+        screen.queryByRole("button", { name: "Continue with Apple" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("authenticates with the Apple ID token and first-consent name", async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+      const { init } = installAppleSdk(async (state) => ({
+        authorization: { code: "apple-code", id_token: "apple-id", state },
+        user: { name: { firstName: " Avery ", lastName: "Apple" } },
+      }));
+      authenticateAppleMock.mockResolvedValue({ accessToken: "apple-access" });
+      render(<AuthOAuthButtons onError={vi.fn()} onSuccess={onSuccess} />);
+
+      await user.click(
+        screen.getByRole("button", { name: "Continue with Apple" }),
+      );
+
+      await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+      const config = init.mock.calls[0]![0];
+      expect(config).toMatchObject({
+        clientId: "com.rentify.web",
+        scope: "name email",
+        redirectURI: `${window.location.origin}/auth/apple`,
+        usePopup: true,
+      });
+      expect(authenticateAppleMock).toHaveBeenCalledWith({
+        idToken: "apple-id",
+        firstName: "Avery",
+        lastName: "Apple",
+        nonce: config.nonce,
+      });
+      expect(onSuccess).toHaveBeenCalledWith({ accessToken: "apple-access" });
+    });
+
+    it("links Apple in link mode without names on repeat consent", async () => {
+      const user = userEvent.setup();
+      const onLinked = vi.fn();
+      installAppleSdk(async (state) => ({
+        authorization: { id_token: "apple-id", state },
+      }));
+      linkOAuthProviderMock.mockResolvedValue({
+        hasPassword: true,
+        providers: [],
+      });
+      render(
+        <AuthOAuthButtons mode="link" onError={vi.fn()} onLinked={onLinked} />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Link Apple" }));
+
+      await waitFor(() =>
+        expect(linkOAuthProviderMock).toHaveBeenCalledWith(
+          "apple",
+          expect.objectContaining({
+            idToken: "apple-id",
+            firstName: undefined,
+            lastName: undefined,
+          }),
+        ),
+      );
+      expect(onLinked).toHaveBeenCalledWith({
+        hasPassword: true,
+        providers: [],
+      });
+    });
+
+    it.each([
+      [
+        async () => ({
+          authorization: { id_token: "apple-id", state: "forged" },
+        }),
+        "The sign-in response could not be verified. Please try again.",
+      ],
+      [
+        async (state: string) => ({ authorization: { state } }),
+        "Apple sign-in could not be completed.",
+      ],
+      [
+        async () => {
+          throw { error: "popup_closed_by_user" };
+        },
+        "The sign-in popup was closed before authentication finished.",
+      ],
+      [
+        async () => {
+          throw { error: "invalid_client" };
+        },
+        "Apple sign-in failed: invalid_client.",
+      ],
+      [
+        async () => {
+          throw new Error("boom");
+        },
+        "Apple sign-in could not be completed.",
+      ],
+    ])("reports Apple sign-in failure %#", async (signIn, expected) => {
+      const user = userEvent.setup();
+      const onError = vi.fn();
+      installAppleSdk(signIn);
+      render(<AuthOAuthButtons onError={onError} />);
+
+      await user.click(
+        screen.getByRole("button", { name: "Continue with Apple" }),
+      );
+
+      await waitFor(() => expect(onError).toHaveBeenLastCalledWith(expected));
+      expect(authenticateAppleMock).not.toHaveBeenCalled();
+    });
+
+    // Runs before the retry test below, which leaves a resolved SDK load cached
+    // for the rest of the module.
+    it("reports an Apple SDK script that loads without exposing AppleID", async () => {
+      const user = userEvent.setup();
+      const onError = vi.fn();
+      render(<AuthOAuthButtons onError={onError} />);
+
+      await user.click(
+        screen.getByRole("button", { name: "Continue with Apple" }),
+      );
+      const script = document.head.querySelector(
+        'script[src*="appleid.auth.js"]',
+      ) as HTMLScriptElement;
+      script.dispatchEvent(new Event("load"));
+
+      await waitFor(() =>
+        expect(onError).toHaveBeenLastCalledWith(
+          "Apple sign-in could not be loaded. Please try again.",
+        ),
+      );
+    });
+
+    it("reports an Apple SDK that fails to load, then loads it on retry", async () => {
+      const user = userEvent.setup();
+      const onError = vi.fn();
+      const onSuccess = vi.fn();
+      authenticateAppleMock.mockResolvedValue({ accessToken: "apple-access" });
+      render(<AuthOAuthButtons onError={onError} onSuccess={onSuccess} />);
+      const button = screen.getByRole("button", {
+        name: "Continue with Apple",
+      });
+
+      await user.click(button);
+      const failedScript = document.head.querySelector(
+        'script[src*="appleid.auth.js"]',
+      ) as HTMLScriptElement;
+      failedScript.dispatchEvent(new Event("error"));
+      await waitFor(() =>
+        expect(onError).toHaveBeenLastCalledWith(
+          "Apple sign-in could not be loaded. Please try again.",
+        ),
+      );
+      expect(
+        document.head.querySelector('script[src*="appleid.auth.js"]'),
+      ).toBeNull();
+
+      await user.click(button);
+      const script = document.head.querySelector(
+        'script[src*="appleid.auth.js"]',
+      ) as HTMLScriptElement;
+      installAppleSdk(async (state) => ({
+        authorization: { id_token: "apple-id", state },
+      }));
+      script.dispatchEvent(new Event("load"));
+
+      await waitFor(() =>
+        expect(onSuccess).toHaveBeenCalledWith({ accessToken: "apple-access" }),
+      );
+      script.remove();
+    });
   });
 });

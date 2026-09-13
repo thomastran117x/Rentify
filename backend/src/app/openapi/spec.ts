@@ -2270,7 +2270,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "appleAuthenticate",
       summary: "Authenticate with Apple OAuth",
       description:
-        "Authenticates with Apple using the same shared OAuth request shape used by the other providers.",
+        "Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2280,9 +2280,10 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("OAuthAuthenticateRequest", {
-        code: "apple-auth-code",
-        codeVerifier: "pkce-verifier",
+        idToken: "apple-id-token",
         nonce: "nonce-value",
+        firstName: "Avery",
+        lastName: "Apple",
       }),
       responses: {
         "200": successResponse(

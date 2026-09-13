@@ -54,6 +54,7 @@ Environment loading:
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`: enables Google OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID`: enables Microsoft OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT`: Microsoft authority segment such as `consumers`, `organizations`, `common`, or a tenant ID
+- `NEXT_PUBLIC_APPLE_OAUTH_CLIENT_ID`: Apple Services ID; enables Sign in with Apple UI. Apple's JS SDK opens the popup, and the backend verifies the returned ID token. Register `https://<your-domain>/auth/apple` as the Services ID return URL. Apple rejects `localhost`, so a full Apple round-trip needs a real HTTPS domain.
 - `INTERNAL_API_BASE_URL`: server-side API base URL, typically `http://backend:8040/api/v1` in Docker
 
 The frontend normalizes loopback API URLs and will add `/api/v1` when the configured pathname is `/` or `/api`, but using the full API base path is still the clearest option.
@@ -84,6 +85,7 @@ Browser tests live in `tests/e2e`. By default, Playwright starts the frontend de
 ## Auth and API Notes
 
 - Google and Microsoft sign-in use authorization code + PKCE
-- OAuth popup completion routes live at `/auth/google` and `/auth/microsoft`
+- Apple sign-in uses Apple's JS SDK popup (loaded on demand from `appleid.cdn-apple.com`); the backend verifies the returned ID token, and the user's name is forwarded only on first consent because Apple never includes it in the token
+- OAuth popup completion routes live at `/auth/google`, `/auth/microsoft`, and `/auth/apple`
 - the API client includes device headers, refresh-session retry logic, and CSRF support for auth-related requests
 - frontend API helpers expect the backend response envelope with `success`, `message`, `data`, `error`, and `meta`

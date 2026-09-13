@@ -702,11 +702,11 @@ export default function AccountPage() {
 
               <span className="text-xs leading-5 text-slate-500 dark:text-slate-400">
                 This is how you sign in and how you recover your account. If you
-                signed up with Google or Microsoft, this username was generated
-                for you &mdash; changing it the first time is free. After that
-                you can change it once every 30 days. Forgot it? Use &ldquo;I
-                can&apos;t log in&rdquo; on the sign-in page to have it emailed
-                to you.
+                signed up with Google, Microsoft, or Apple, this username was
+                generated for you &mdash; changing it the first time is free.
+                After that you can change it once every 30 days. Forgot it? Use
+                &ldquo;I can&apos;t log in&rdquo; on the sign-in page to have it
+                emailed to you.
               </span>
             </div>
 
