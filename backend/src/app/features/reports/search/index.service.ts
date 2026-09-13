@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
@@ -55,9 +55,7 @@ export class ReportsSearchIndexService {
     private readonly elasticsearch: ElasticsearchClient = getElasticsearchClient(),
   ) {
     this.logger = loggerFactory.forClass(ReportsSearchIndexService, "service");
-    this.indexName =
-      getOptionalEnvironmentVariable("ELASTICSEARCH_REPORTS_INDEX") ??
-      `${this.elasticsearch.getPostingsIndexName()}-reports`;
+    this.indexName = environment.getElasticsearchConfig().reportsIndexName;
   }
 
   isElasticsearchEnabled(): boolean {

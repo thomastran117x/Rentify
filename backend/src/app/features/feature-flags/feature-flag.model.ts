@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
 
-export type FeatureFlagSource = "db" | "env" | "default";
+export type FeatureFlagSource = "db" | "config" | "env" | "default";
 
 export interface ResolvedFeatureFlag {
   name: string;

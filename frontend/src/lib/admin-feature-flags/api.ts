@@ -1,7 +1,7 @@
 import { authenticatedJson } from "@/lib/api/client";
 import { normalizeFeatureName } from "@/lib/features";
 
-export type FeatureFlagSource = "db" | "env" | "default";
+export type FeatureFlagSource = "db" | "config" | "env" | "default";
 
 export interface ResolvedFeatureFlag {
   name: string;

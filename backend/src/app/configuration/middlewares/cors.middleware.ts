@@ -49,4 +49,8 @@ export function createCorsMiddleware(): RequestHandler {
   });
 }
 
-export const corsMiddleware = createCorsMiddleware();
+// Kept as a request-time wrapper for focused middleware tests and consumers
+// that compose it directly. The application creates one configured instance
+// after startup has loaded the environment.
+export const corsMiddleware: RequestHandler = (request, response, next) =>
+  createCorsMiddleware()(request, response, next);

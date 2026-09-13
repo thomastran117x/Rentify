@@ -1,0 +1,11 @@
+database:
+  autoSeedEnabled: false
+  autoSeedRefresh: false
+  slowOperationThresholdMs: 1000
+  slowQueryThresholdMs: 750
+
+logging:
+  level: info
+
+auth:
+  mfaBypassEmails: []

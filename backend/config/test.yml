@@ -1,0 +1,14 @@
+database:
+  autoSeedEnabled: true
+  poolMinimumIdle: 1
+
+elasticsearch:
+  enabled: false
+
+logging:
+  level: debug
+  serviceName: backend-test
+  silent: true
+
+auth:
+  mfaBypassEmails: []

@@ -44,7 +44,7 @@ Key patterns:
 
 Main backend areas:
 
-- `backend/src/app/configuration`: bootstrap, env parsing, container setup, middleware, logging, and route registration
+- `backend/src/app/configuration`: layered YAML/environment loading, bootstrap, container setup, middleware, logging, and route registration
 - `backend/src/app/features`: domain modules such as auth, postings, bookings, payments, organizations, rentings, reports, search, and recommendations
 - `backend/src/app/workers`: long-running worker entrypoints
 - `backend/src/app/seeds`: local fixture orchestration and seed modules
@@ -67,16 +67,16 @@ First-party clients name themselves with an `x-client-app: <app>/<runtime>` head
 
 The origin fallback compares against `FRONTEND_URL` only, not the CORS allow-list. The CORS list is a permission and may include partner origins; a browser call from one of those is `browser-direct` unless it names itself.
 
-| `clientSource` | Caller |
-| --- | --- |
-| `frontend-browser` | The web app running in a browser |
-| `frontend-server` | The web app rendering on the server |
-| `api-integration` | Another first-party or partner client that named itself |
-| `browser-direct` | A browser hitting the API outside the web app |
-| `api-tool` | curl, Postman, Insomnia, and similar |
-| `bot` | A crawler |
-| `server-side` | A server-to-server call with no browser headers |
-| `unknown` | Nothing matched |
+| `clientSource`     | Caller                                                  |
+| ------------------ | ------------------------------------------------------- |
+| `frontend-browser` | The web app running in a browser                        |
+| `frontend-server`  | The web app rendering on the server                     |
+| `api-integration`  | Another first-party or partner client that named itself |
+| `browser-direct`   | A browser hitting the API outside the web app           |
+| `api-tool`         | curl, Postman, Insomnia, and similar                    |
+| `bot`              | A crawler                                               |
+| `server-side`      | A server-to-server call with no browser headers         |
+| `unknown`          | Nothing matched                                         |
 
 The header is an unauthenticated hint and is used for observability only. Authorization, CSRF, and rate limiting never consult it, and the heuristics keep the classification useful for callers that stay silent or lie. Adding a new first-party header also means adding it to `allowedHeaders` in `cors.middleware.ts`, or browser preflight will reject it.
 
@@ -108,10 +108,10 @@ There are two realtime surfaces, both on **Socket.IO** with the **Redis
 adapter** carrying events between API instances, and both mounted outside the
 versioned REST prefix:
 
-| Surface | Path | Audience |
-| --- | --- | --- |
-| Booking request message threads | `/ws/booking-messages` | The two participants of one booking |
-| Blog post comments | `/ws/blog-comments` | Anyone reading a published post, signed in or not |
+| Surface                         | Path                   | Audience                                          |
+| ------------------------------- | ---------------------- | ------------------------------------------------- |
+| Booking request message threads | `/ws/booking-messages` | The two participants of one booking               |
+| Blog post comments              | `/ws/blog-comments`    | Anyone reading a published post, signed in or not |
 
 Each gateway is a feature-owned class registered as a singleton with a dispose
 hook and **no constructor dependencies**; the feature service depends on the
@@ -271,13 +271,13 @@ match.
 What counts as a new match is tracked as a set of already-alerted posting ids in
 `saved_search_seen_postings`, not as a "published after" cutoff. That is what
 lets an unpaused listing, or one that frees up inside the search's date window,
-still alert: those postings are not new, but they are new *to this search*.
+still alert: those postings are not new, but they are new _to this search_.
 Creating a search records everything currently matching as already seen, so the
 first alert only covers postings that appear afterwards.
 
 Alerts are emailed through the existing RabbitMQ pipeline as a
 `saved_search_matches` job carrying ids only, which the composer re-checks at
-send time. The sweep enqueues the job *before* it records the matches as seen:
+send time. The sweep enqueues the job _before_ it records the matches as seen:
 a crash between the two costs a duplicate email, where the other order would
 drop the alert silently and the visitor would never learn the posting existed.
 
@@ -286,7 +286,6 @@ Configuration lives in `workers.savedSearchAlert`
 `SAVED_SEARCH_ALERT_DAILY_INTERVAL_HOURS`). The poll interval doubles as the
 `instant` cadence, so the frequency a visitor picks and the rate the worker runs
 at cannot disagree.
-
 
 ## Data and Infrastructure Responsibilities
 
