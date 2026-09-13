@@ -73,8 +73,9 @@ file:
 LOG_LEVEL=warn
 ```
 
-Legacy derived defaults remain intact: a singular `GOOGLE_OAUTH_CLIENT_ID` or
-`MICROSOFT_OAUTH_CLIENT_ID` is used when no plural YAML list is configured,
+Legacy derived defaults remain intact: a singular `GOOGLE_OAUTH_CLIENT_ID`,
+`MICROSOFT_OAUTH_CLIENT_ID`, or `APPLE_OAUTH_CLIENT_ID` is used when no plural
+YAML list is configured,
 `GMAIL_USER` supplies the sender when `email.fromEmail` is omitted, and an
 environment `CORS_ALLOWED_ORIGINS` override also supplies the CSRF origins
 unless `CSRF_ALLOWED_ORIGINS` is explicitly set. If startup validation fails

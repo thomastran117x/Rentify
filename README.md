@@ -7,7 +7,7 @@ Rentify is a full-stack rental marketplace for listing, discovering, booking, pa
 - public marketplace browsing and posting detail pages
 - owner posting creation and management flows
 - booking request, payment, and renting lifecycle flows
-- local auth plus Google and Microsoft OAuth
+- local auth plus Google, Microsoft, and Apple OAuth
 - organizations and invitation management
 - moderation, reporting, search, recommendations, and analytics foundations
 

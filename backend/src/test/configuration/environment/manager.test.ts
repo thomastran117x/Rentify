@@ -170,6 +170,7 @@ describe("EnvironmentManager", () => {
     expect(manager.getCaptchaConfig()).toBe(environment.captcha);
     expect(manager.getGoogleOAuthConfig()).toBe(environment.oauth.google);
     expect(manager.getMicrosoftOAuthConfig()).toBe(environment.oauth.microsoft);
+    expect(manager.getAppleOAuthConfig()).toBe(environment.oauth.apple);
     expect(manager.getRedisConfig()).toBe(environment.redis);
     expect(manager.getRateLimiterConfig()).toBe(environment.rateLimiter);
     expect(manager.getSearchWorkerConfig()).toBe(environment.workers.search);
@@ -345,6 +346,11 @@ describe("EnvironmentManager", () => {
       GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
       MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
       MICROSOFT_OAUTH_CLIENT_SECRET: "microsoft-client-secret",
+      APPLE_OAUTH_CLIENT_ID: "com.rentify.web",
+      APPLE_OAUTH_TEAM_ID: "TEAM123456",
+      APPLE_OAUTH_KEY_ID: "KEY1234567",
+      APPLE_OAUTH_PRIVATE_KEY:
+        "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----",
     });
 
     const loaded = new EnvironmentManager().load();
@@ -356,6 +362,24 @@ describe("EnvironmentManager", () => {
     expect(loaded.email.fromEmail).toBe("mailer@rentify.example");
     expect(loaded.oauth.google.audiences).toEqual(["google-client-id"]);
     expect(loaded.oauth.microsoft.audiences).toEqual(["microsoft-client-id"]);
+    expect(loaded.oauth.apple).toMatchObject({
+      audiences: ["com.rentify.web"],
+      teamId: "TEAM123456",
+      keyId: "KEY1234567",
+      privateKey: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+    });
+  });
+
+  it("rejects an Apple private key without the rest of the Apple signing config", () => {
+    process.env = buildRequiredEnv({
+      APPLE_OAUTH_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----",
+      APPLE_OAUTH_CLIENT_ID: "com.rentify.web",
+    });
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow(
+      "APPLE_OAUTH_PRIVATE_KEY requires APPLE_OAUTH_CLIENT_ID (or APPLE_OAUTH_CLIENT_IDS), APPLE_OAUTH_TEAM_ID, and APPLE_OAUTH_KEY_ID.",
+    );
   });
 
   it("resolves a relative custom YAML path from the configuration directory", () => {

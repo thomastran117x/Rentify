@@ -4,6 +4,7 @@ import LoginPage from "./login/page";
 import SignupPage from "./signup/page";
 import GoogleOAuthCallbackPage from "./auth/google/page";
 import MicrosoftOAuthCallbackPage from "./auth/microsoft/page";
+import AppleOAuthCallbackPage from "./auth/apple/page";
 
 vi.mock("@/components/auth/auth-page-shell", () => ({
   AuthPageShell: ({
@@ -66,7 +67,7 @@ describe("authentication routes", () => {
     expect(screen.getByText("Signup /")).toBeInTheDocument();
   });
 
-  it("passes the signup redirect and renders both OAuth callbacks", async () => {
+  it("passes the signup redirect and renders every OAuth callback", async () => {
     render(
       await SignupPage({
         searchParams: Promise.resolve({ next: "/postings/create" }),
@@ -75,6 +76,7 @@ describe("authentication routes", () => {
     expect(screen.getByText("Signup /postings/create")).toBeInTheDocument();
     render(<GoogleOAuthCallbackPage />);
     render(<MicrosoftOAuthCallbackPage />);
-    expect(screen.getAllByText("OAuth complete")).toHaveLength(2);
+    render(<AppleOAuthCallbackPage />);
+    expect(screen.getAllByText("OAuth complete")).toHaveLength(3);
   });
 });

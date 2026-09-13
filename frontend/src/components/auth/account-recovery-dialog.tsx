@@ -128,7 +128,7 @@ function AccountRecoveryDialogContent({
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
                   Get your username emailed to you, including the one generated
-                  for a Google or Microsoft sign-in.
+                  for a Google, Microsoft, or Apple sign-in.
                 </p>
               </div>
             </button>

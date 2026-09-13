@@ -67,6 +67,7 @@ jobs:
       NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ""
       NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID: ""
       NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT: consumers
+      NEXT_PUBLIC_APPLE_OAUTH_CLIENT_ID: ""
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

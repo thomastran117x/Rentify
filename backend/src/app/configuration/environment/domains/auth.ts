@@ -182,6 +182,23 @@ export function buildOauthConfig(
     raw.MICROSOFT_OAUTH_CLIENT_IDS ?? raw.MICROSOFT_OAUTH_CLIENT_ID,
   );
 
+  const appleAudiences = normalizeDelimitedList(
+    raw.APPLE_OAUTH_CLIENT_IDS ?? raw.APPLE_OAUTH_CLIENT_ID,
+  );
+  // PEM keys are often stored on one line with escaped newlines.
+  const applePrivateKey = raw.APPLE_OAUTH_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  if (
+    applePrivateKey &&
+    (appleAudiences.length === 0 ||
+      !raw.APPLE_OAUTH_TEAM_ID ||
+      !raw.APPLE_OAUTH_KEY_ID)
+  ) {
+    errors.push(
+      "APPLE_OAUTH_PRIVATE_KEY requires APPLE_OAUTH_CLIENT_ID (or APPLE_OAUTH_CLIENT_IDS), APPLE_OAUTH_TEAM_ID, and APPLE_OAUTH_KEY_ID.",
+    );
+  }
+
   if (raw.GOOGLE_OAUTH_CLIENT_SECRET && googleAudiences.length === 0) {
     errors.push(
       "GOOGLE_OAUTH_CLIENT_SECRET requires GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_IDS.",
@@ -204,6 +221,13 @@ export function buildOauthConfig(
       audiences: microsoftAudiences,
       clientSecret: raw.MICROSOFT_OAUTH_CLIENT_SECRET,
       tenant: raw.MICROSOFT_OAUTH_TENANT ?? "consumers",
+      frontendBaseUrl,
+    },
+    apple: {
+      audiences: appleAudiences,
+      teamId: raw.APPLE_OAUTH_TEAM_ID,
+      keyId: raw.APPLE_OAUTH_KEY_ID,
+      privateKey: applePrivateKey,
       frontendBaseUrl,
     },
   };

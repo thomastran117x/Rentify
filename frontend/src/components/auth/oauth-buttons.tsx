@@ -9,7 +9,8 @@ import type {
 } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
-export type OAuthProvider = "google" | "microsoft";
+export type OAuthProvider = "google" | "microsoft" | "apple";
+type RedirectOAuthProvider = Exclude<OAuthProvider, "apple">;
 
 interface AuthOAuthButtonsProps {
   mode?: "authenticate" | "link";
@@ -32,6 +33,51 @@ interface MicrosoftTokenResponse {
   error_description?: string;
 }
 
+interface ProviderInput {
+  code?: string;
+  codeVerifier?: string;
+  idToken?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+interface ProviderSignInResult {
+  input: ProviderInput;
+  nonce: string;
+}
+
+interface AppleSignInResponse {
+  authorization?: {
+    code?: string;
+    id_token?: string;
+    state?: string;
+  };
+  user?: {
+    name?: {
+      firstName?: string;
+      lastName?: string;
+    };
+  };
+}
+
+interface AppleIdAuth {
+  init(config: {
+    clientId: string;
+    scope: string;
+    redirectURI: string;
+    state: string;
+    nonce: string;
+    usePopup: boolean;
+  }): void;
+  signIn(): Promise<AppleSignInResponse>;
+}
+
+declare global {
+  interface Window {
+    AppleID?: { auth: AppleIdAuth };
+  }
+}
+
 interface ProviderButtonConfig {
   provider: OAuthProvider;
   label: string;
@@ -41,6 +87,14 @@ interface ProviderButtonConfig {
 }
 
 const OAUTH_SCOPE = "openid email profile";
+const APPLE_SDK_URL =
+  "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
+const POPUP_CLOSED_MESSAGE =
+  "The sign-in popup was closed before authentication finished.";
+const STATE_MISMATCH_MESSAGE =
+  "The sign-in response could not be verified. Please try again.";
+
+let appleSdkPromise: Promise<AppleIdAuth> | null = null;
 
 function createRandomString(): string {
   const bytes = new Uint8Array(16);
@@ -93,7 +147,7 @@ function parsePopupPayload(rawPayload: string): PopupAuthResult {
   };
 }
 
-function getProviderAuthorizeUrl(provider: OAuthProvider): string {
+function getProviderAuthorizeUrl(provider: RedirectOAuthProvider): string {
   if (provider === "google") {
     return "https://accounts.google.com/o/oauth2/v2/auth";
   }
@@ -102,7 +156,7 @@ function getProviderAuthorizeUrl(provider: OAuthProvider): string {
 }
 
 function buildProviderParams(
-  provider: OAuthProvider,
+  provider: RedirectOAuthProvider,
   state: string,
   nonce: string,
   redirectUri: string,
@@ -130,7 +184,7 @@ function buildProviderParams(
 }
 
 async function buildOAuthUrl(
-  provider: OAuthProvider,
+  provider: RedirectOAuthProvider,
   state: string,
   nonce: string,
   codeVerifier: string,
@@ -149,7 +203,11 @@ async function buildOAuthUrl(
 }
 
 function getProviderDisplayName(provider: OAuthProvider): string {
-  return provider === "google" ? "Google" : "Microsoft";
+  if (provider === "google") {
+    return "Google";
+  }
+
+  return provider === "microsoft" ? "Microsoft" : "Apple";
 }
 
 function readProviderError(
@@ -207,7 +265,7 @@ async function exchangeMicrosoftCodeForIdToken(
 
 async function authenticateWithProvider(
   provider: OAuthProvider,
-  input: { code?: string; codeVerifier?: string; idToken?: string },
+  input: ProviderInput,
   nonce: string,
 ): Promise<AuthResponseBody> {
   if (provider === "google") {
@@ -216,6 +274,10 @@ async function authenticateWithProvider(
       codeVerifier: input.codeVerifier ?? "",
       nonce,
     });
+  }
+
+  if (provider === "apple") {
+    return authApi.authenticateWithApple({ ...input, nonce });
   }
 
   return authApi.authenticateWithMicrosoft({
@@ -228,7 +290,7 @@ async function authenticateWithProvider(
 
 async function linkWithProvider(
   provider: OAuthProvider,
-  input: { code?: string; codeVerifier?: string; idToken?: string },
+  input: ProviderInput,
   nonce: string,
 ): Promise<LinkedOAuthProvidersResult> {
   if (provider === "google") {
@@ -237,6 +299,10 @@ async function linkWithProvider(
       codeVerifier: input.codeVerifier ?? "",
       nonce,
     });
+  }
+
+  if (provider === "apple") {
+    return authApi.linkOAuthProvider("apple", { ...input, nonce });
   }
 
   return authApi.linkOAuthProvider("microsoft", {
@@ -248,7 +314,7 @@ async function linkWithProvider(
 }
 
 async function openProviderPopup(
-  provider: OAuthProvider,
+  provider: RedirectOAuthProvider,
 ): Promise<{ code: string; codeVerifier: string; nonce: string }> {
   const state = createRandomString();
   const nonce = createRandomString();
@@ -277,11 +343,7 @@ async function openProviderPopup(
     const closePoll = window.setInterval(() => {
       if (popup.closed && !finished) {
         cleanup();
-        reject(
-          new Error(
-            "The sign-in popup was closed before authentication finished.",
-          ),
-        );
+        reject(new Error(POPUP_CLOSED_MESSAGE));
       }
     }, 400);
 
@@ -306,11 +368,7 @@ async function openProviderPopup(
       if (payload.state !== state) {
         cleanup();
         popup.close();
-        reject(
-          new Error(
-            "The sign-in response could not be verified. Please try again.",
-          ),
-        );
+        reject(new Error(STATE_MISMATCH_MESSAGE));
         return;
       }
 
@@ -332,6 +390,119 @@ async function openProviderPopup(
 
     window.addEventListener("message", handleMessage);
   });
+}
+
+async function signInWithRedirectProvider(
+  provider: RedirectOAuthProvider,
+): Promise<ProviderSignInResult> {
+  const result = await openProviderPopup(provider);
+
+  if (provider === "microsoft") {
+    return {
+      nonce: result.nonce,
+      input: {
+        idToken: await exchangeMicrosoftCodeForIdToken(
+          result.code,
+          result.codeVerifier,
+        ),
+      },
+    };
+  }
+
+  return {
+    nonce: result.nonce,
+    input: { code: result.code, codeVerifier: result.codeVerifier },
+  };
+}
+
+function loadAppleSdk(): Promise<AppleIdAuth> {
+  if (window.AppleID?.auth) {
+    return Promise.resolve(window.AppleID.auth);
+  }
+
+  appleSdkPromise ??= new Promise<AppleIdAuth>((resolve, reject) => {
+    const script = document.createElement("script");
+
+    const fail = () => {
+      appleSdkPromise = null;
+      script.remove();
+      reject(new Error("Apple sign-in could not be loaded. Please try again."));
+    };
+
+    script.src = APPLE_SDK_URL;
+    script.async = true;
+    script.onload = () => {
+      if (window.AppleID?.auth) {
+        resolve(window.AppleID.auth);
+        return;
+      }
+
+      fail();
+    };
+    script.onerror = fail;
+    document.head.appendChild(script);
+  });
+
+  return appleSdkPromise;
+}
+
+function readAppleSdkError(error: unknown): string {
+  const code =
+    typeof error === "object" && error !== null && "error" in error
+      ? String((error as { error: unknown }).error)
+      : undefined;
+
+  if (code === "popup_closed_by_user" || code === "user_cancelled_authorize") {
+    return POPUP_CLOSED_MESSAGE;
+  }
+
+  return code
+    ? `Apple sign-in failed: ${code}.`
+    : "Apple sign-in could not be completed.";
+}
+
+// Apple's web flow posts its response cross-site, so its SDK popup is used
+// instead of the redirect popup the other providers share.
+async function signInWithApple(): Promise<ProviderSignInResult> {
+  const state = createRandomString();
+  const nonce = createRandomString();
+  const appleAuth = await loadAppleSdk();
+
+  appleAuth.init({
+    clientId: publicEnv.appleOAuthClientId,
+    scope: "name email",
+    redirectURI: `${window.location.origin}/auth/apple`,
+    state,
+    nonce,
+    usePopup: true,
+  });
+
+  let response: AppleSignInResponse;
+
+  try {
+    response = await appleAuth.signIn();
+  } catch (error) {
+    throw new Error(readAppleSdkError(error));
+  }
+
+  const { authorization, user } = response;
+
+  if (authorization?.state !== state) {
+    throw new Error(STATE_MISMATCH_MESSAGE);
+  }
+
+  if (!authorization.id_token) {
+    throw new Error("Apple sign-in could not be completed.");
+  }
+
+  return {
+    nonce,
+    input: {
+      idToken: authorization.id_token,
+      firstName: user?.name?.firstName?.trim() || undefined,
+      lastName: user?.name?.lastName?.trim() || undefined,
+    },
+  };
 }
 
 function GoogleIcon() {
@@ -364,6 +535,17 @@ function MicrosoftIcon() {
       <path fill="#7FBA00" d="M12.5 2H22v9.5h-9.5z" />
       <path fill="#00A4EF" d="M2 12.5h9.5V22H2z" />
       <path fill="#FFB900" d="M12.5 12.5H22V22h-9.5z" />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M16.37 1.43c0 1.14-.46 2.23-1.21 3.03-.8.86-2.1 1.52-3.17 1.44-.14-1.1.41-2.25 1.16-3.03.83-.87 2.24-1.5 3.22-1.44ZM20.5 17.23c-.56 1.29-.83 1.87-1.55 3.01-1.01 1.59-2.43 3.57-4.19 3.58-1.57.02-1.97-1.02-4.1-1.01-2.13.01-2.57 1.03-4.14 1.01-1.76-.02-3.11-1.8-4.12-3.39C-.44 15.99-.74 10.8 1.07 8.03 2.35 6.06 4.38 4.9 6.29 4.9c1.94 0 3.16 1.07 4.77 1.07 1.56 0 2.51-1.07 4.76-1.07 1.7 0 3.5.93 4.78 2.53-4.2 2.3-3.52 8.3.9 9.8Z"
+      />
     </svg>
   );
 }
@@ -428,6 +610,15 @@ export function AuthOAuthButtons({
           !disabledProviders.includes("microsoft"),
         icon: <MicrosoftIcon />,
       },
+      {
+        provider: "apple" as const,
+        label: isLinkMode ? "Link Apple" : "Continue with Apple",
+        pendingLabel: "Connecting to Apple...",
+        enabled:
+          Boolean(publicEnv.appleOAuthClientId) &&
+          !disabledProviders.includes("apple"),
+        icon: <AppleIcon />,
+      },
     ] satisfies ProviderButtonConfig[]
   ).filter((provider) => provider.enabled);
 
@@ -436,35 +627,18 @@ export function AuthOAuthButtons({
     onError("");
 
     try {
-      const result = await openProviderPopup(provider);
-      const providerInput =
-        provider === "microsoft"
-          ? {
-              idToken: await exchangeMicrosoftCodeForIdToken(
-                result.code,
-                result.codeVerifier,
-              ),
-            }
-          : {
-              code: result.code,
-              codeVerifier: result.codeVerifier,
-            };
+      const { input, nonce } =
+        provider === "apple"
+          ? await signInWithApple()
+          : await signInWithRedirectProvider(provider);
 
       if (isLinkMode) {
-        const linkedProviders = await linkWithProvider(
-          provider,
-          providerInput,
-          result.nonce,
-        );
+        const linkedProviders = await linkWithProvider(provider, input, nonce);
         onLinked?.(linkedProviders);
         return;
       }
 
-      const session = await authenticateWithProvider(
-        provider,
-        providerInput,
-        result.nonce,
-      );
+      const session = await authenticateWithProvider(provider, input, nonce);
       onSuccess?.(session);
     } catch (error) {
       onError(

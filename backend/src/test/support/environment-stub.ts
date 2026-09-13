@@ -45,6 +45,13 @@ const oauthConfig = {
     tenant: "consumers",
     frontendBaseUrl: "http://localhost:3000",
   },
+  apple: {
+    audiences: [],
+    teamId: undefined,
+    keyId: undefined,
+    privateKey: undefined,
+    frontendBaseUrl: "http://localhost:3000",
+  },
 };
 
 const rateLimiterConfig = {
@@ -137,6 +144,19 @@ function readMicrosoftOAuthConfig() {
     audiences: readOriginList(clientIds, ""),
     clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET,
     tenant: process.env.MICROSOFT_OAUTH_TENANT ?? "consumers",
+    frontendBaseUrl: readApplicationConfig().frontendUrl,
+  };
+}
+
+function readAppleOAuthConfig() {
+  const clientIds =
+    process.env.APPLE_OAUTH_CLIENT_IDS ?? process.env.APPLE_OAUTH_CLIENT_ID;
+
+  return {
+    audiences: readOriginList(clientIds, ""),
+    teamId: process.env.APPLE_OAUTH_TEAM_ID,
+    keyId: process.env.APPLE_OAUTH_KEY_ID,
+    privateKey: process.env.APPLE_OAUTH_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     frontendBaseUrl: readApplicationConfig().frontendUrl,
   };
 }
@@ -371,6 +391,9 @@ export const environment = {
   },
   getMicrosoftOAuthConfig() {
     return readMicrosoftOAuthConfig();
+  },
+  getAppleOAuthConfig() {
+    return readAppleOAuthConfig();
   },
   getCaptchaConfig() {
     return captchaConfig;

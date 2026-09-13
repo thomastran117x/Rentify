@@ -2616,7 +2616,7 @@
       "post": {
         "operationId": "appleAuthenticate",
         "summary": "Authenticate with Apple OAuth",
-        "description": "Authenticates with Apple using the same shared OAuth request shape used by the other providers.",
+        "description": "Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName.",
         "tags": [
           "auth"
         ],
@@ -2635,9 +2635,10 @@
                 "$ref": "#/components/schemas/OAuthAuthenticateRequest"
               },
               "example": {
-                "code": "apple-auth-code",
-                "codeVerifier": "pkce-verifier",
-                "nonce": "nonce-value"
+                "idToken": "apple-id-token",
+                "nonce": "nonce-value",
+                "firstName": "Avery",
+                "lastName": "Apple"
               }
             }
           }

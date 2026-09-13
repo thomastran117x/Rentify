@@ -211,6 +211,10 @@ export class EnvironmentManager {
     return this.get().oauth.microsoft;
   }
 
+  getAppleOAuthConfig(): AppEnvironment["oauth"]["apple"] {
+    return this.get().oauth.apple;
+  }
+
   getRedisConfig(): AppEnvironment["redis"] {
     return this.get().redis;
   }
