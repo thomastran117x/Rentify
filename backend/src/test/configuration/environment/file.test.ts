@@ -39,14 +39,28 @@ describe("YAML configuration files", () => {
   it("flattens structured values and marks file feature provenance", () => {
     expect(
       flattenConfigurationDocument({
+        variables: {
+          frontendOrigin: "https://one.test",
+          backendOrigin: "https://api.test",
+        },
         server: { port: 9000 },
-        cors: { allowedOrigins: ["https://one.test", "https://two.test"] },
+        application: { frontendUrl: "${config.frontendOrigin}" },
+        cors: {
+          allowedOrigins: ["${config.frontendOrigin}", "https://two.test"],
+        },
+        square: {
+          webhookNotificationUrl:
+            "${config.backendOrigin}/api/v1/payments/webhooks/square",
+        },
         features: { SEARCH_V2: { enabled: true } },
       }),
     ).toEqual({
       raw: {
         PORT: "9000",
+        FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
+        SQUARE_WEBHOOK_NOTIFICATION_URL:
+          "https://api.test/api/v1/payments/webhooks/square",
       },
       features: {
         "search-v2": { enabled: true, source: "config" },
@@ -103,5 +117,36 @@ describe("YAML configuration files", () => {
       flattenConfigurationDocument(readConfigurationDocument(filePath)).raw
         .APP_NAME,
     ).toBe("${APP_NAME}");
+  });
+
+  it("rejects unknown, malformed, nested, and secret-like variables", () => {
+    expect(() =>
+      flattenConfigurationDocument({
+        application: { frontendUrl: "${config.missingOrigin}" },
+      }),
+    ).toThrow("references unknown configuration variable missingOrigin");
+
+    expect(() =>
+      flattenConfigurationDocument({
+        variables: { frontendOrigin: "https://frontend.test" },
+        application: { frontendUrl: "${config.frontendOrigin" },
+      }),
+    ).toThrow("contains a malformed configuration variable reference");
+
+    const nestedPath = join(directory, "nested-variable.yml");
+    const secretPath = join(directory, "secret-variable.yml");
+    writeFileSync(
+      nestedPath,
+      'variables:\n  frontendOrigin: "${config.host}"\n',
+      "utf8",
+    );
+    writeFileSync(secretPath, "variables:\n  accessToken: forbidden\n", "utf8");
+
+    expect(() => readConfigurationDocument(nestedPath)).toThrow(
+      "cannot reference another configuration variable",
+    );
+    expect(() => readConfigurationDocument(secretPath)).toThrow(
+      "appears to contain a secret",
+    );
   });
 });

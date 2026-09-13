@@ -306,16 +306,16 @@ describe("EnvironmentManager", () => {
   it("loads default, profile, and custom YAML layers before env overrides", () => {
     writeFileSync(
       join(tempDirectory, "default.yml"),
-      "server:\n  port: 8000\ncors:\n  allowedOrigins: [http://default.test]\nfeatures:\n  layered:\n    enabled: false\n",
+      'variables:\n  frontendOrigin: http://default.test\nserver:\n  port: 8000\napplication:\n  frontendUrl: "${config.frontendOrigin}"\ncors:\n  allowedOrigins: [http://default.test]\nfeatures:\n  layered:\n    enabled: false\n',
     );
     writeFileSync(
       join(tempDirectory, "development.yml"),
-      "server:\n  port: 8100\ncors:\n  allowedOrigins: [http://profile.test]\n",
+      "variables:\n  frontendOrigin: http://profile.test\nserver:\n  port: 8100\ncors:\n  allowedOrigins: [http://profile.test]\n",
     );
     const overlayPath = join(tempDirectory, "custom.yml");
     writeFileSync(
       overlayPath,
-      "server:\n  port: 8200\ncors:\n  allowedOrigins: [http://overlay.test]\n",
+      "variables:\n  frontendOrigin: http://overlay.test\nserver:\n  port: 8200\ncors:\n  allowedOrigins: [http://overlay.test]\n",
     );
     process.env = buildRequiredEnv({
       PORT: "8300",
@@ -329,6 +329,7 @@ describe("EnvironmentManager", () => {
     const loaded = manager.load();
 
     expect(loaded.server.port).toBe(8300);
+    expect(loaded.application.frontendUrl).toBe("http://overlay.test");
     expect(loaded.cors.allowedOrigins).toEqual(["http://environment.test"]);
     expect(loaded.features.layered).toEqual({
       enabled: false,

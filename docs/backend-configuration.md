@@ -22,7 +22,23 @@ while a process is running.
 
 Every configured file must exist and contain valid YAML. Unknown keys, wrong
 YAML value types, malformed feature flags, invalid domain values, and invalid
-cross-field combinations stop startup. Environment interpolation is not
+cross-field combinations stop startup.
+
+Repeated non-secret strings can be declared under `variables` and referenced
+with `${config.name}`. Variables merge before references resolve, so a profile
+or local overlay can replace one origin for every setting that uses it:
+
+```yaml
+variables:
+  backendOrigin: https://api.example.com
+
+sms:
+  webhookPublicUrl: "${config.backendOrigin}/api/v1/sms/webhooks/telnyx"
+```
+
+Variable names use lower camel case, values must be literal strings, and
+secret-like names are rejected. References cannot be nested. Expressions such
+as `${BACKEND_URL}` remain literal; process environment interpolation is not
 performed inside YAML.
 
 ## What belongs where

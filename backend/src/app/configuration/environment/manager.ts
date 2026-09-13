@@ -115,7 +115,10 @@ export class EnvironmentManager {
       );
     }
 
-    const fileConfiguration = flattenConfigurationDocument(mergedDocument);
+    const fileConfiguration = flattenConfigurationDocument(
+      mergedDocument,
+      configurationSources.join(" -> "),
+    );
     try {
       this.state = parseEnvironmentState(
         process.env,

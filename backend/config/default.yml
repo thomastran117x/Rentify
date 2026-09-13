@@ -1,12 +1,16 @@
 # Shared, non-secret backend defaults. Secrets are supplied through environment
 # variables and are intentionally not valid keys in these files.
+variables:
+  frontendOrigin: http://localhost:3040
+  backendOrigin: http://localhost:8040
+
 server:
   port: 8040
 
 application:
   name: Rent
-  frontendUrl: http://localhost:3040
-  baseUrl: http://localhost:3040
+  frontendUrl: "${config.frontendOrigin}"
+  baseUrl: "${config.frontendOrigin}"
 
 http:
   requestTimeoutMs: 15000
@@ -65,7 +69,7 @@ email:
 sms:
   provider: noop
   fromNumber: null
-  webhookPublicUrl: http://localhost:8040/api/v1/sms/webhooks/telnyx
+  webhookPublicUrl: "${config.backendOrigin}/api/v1/sms/webhooks/telnyx"
   telnyx:
     publicKey: null
     messagingProfileId: null
@@ -76,11 +80,11 @@ captcha:
 
 cors:
   allowedOrigins:
-    - http://localhost:3040
+    - "${config.frontendOrigin}"
 
 csrf:
   allowedOrigins:
-    - http://localhost:3040
+    - "${config.frontendOrigin}"
 
 oauth:
   microsoft:
@@ -93,7 +97,7 @@ blobStorage:
 square:
   environment: sandbox
   locationId: change-me-square-location
-  webhookNotificationUrl: http://localhost:8040/api/v1/payments/webhooks/square
+  webhookNotificationUrl: "${config.backendOrigin}/api/v1/payments/webhooks/square"
 
 rateLimiter:
   enabled: true

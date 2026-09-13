@@ -42,6 +42,12 @@ const featureSchema = z
   })
   .strict();
 
+const CONFIGURATION_VARIABLE_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/;
+const CONFIGURATION_VARIABLE_REFERENCE_PATTERN =
+  /\$\{config\.([a-z][A-Za-z0-9]*)\}/g;
+const SECRET_VARIABLE_NAME_PATTERN =
+  /(secret|password|token|credential|connectionstring|privatekey|apikey)/i;
+
 const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "application.baseUrl": "APP_BASE_URL",
   "application.frontendUrl": "FRONTEND_URL",
@@ -315,6 +321,11 @@ function validateKnownConfigurationKeys(
   for (const [key, value] of Object.entries(document)) {
     const path = prefix ? `${prefix}.${key}` : key;
 
+    if (path === "variables") {
+      validateConfigurationVariables(value, filePath);
+      continue;
+    }
+
     if (path === "features") {
       if (!isMapping(value)) {
         throw new Error(
@@ -353,6 +364,40 @@ function validateKnownConfigurationKeys(
     }
 
     validateKnownConfigurationKeys(value, filePath, path);
+  }
+}
+
+function validateConfigurationVariables(
+  value: unknown,
+  filePath: string,
+): void {
+  if (!isMapping(value)) {
+    throw new Error(
+      `Invalid configuration file ${filePath}: variables must be a mapping.`,
+    );
+  }
+
+  for (const [name, variableValue] of Object.entries(value)) {
+    if (!CONFIGURATION_VARIABLE_NAME_PATTERN.test(name)) {
+      throw new Error(
+        `Invalid configuration file ${filePath}: variable ${name} must use lower camel case.`,
+      );
+    }
+    if (SECRET_VARIABLE_NAME_PATTERN.test(name)) {
+      throw new Error(
+        `Invalid configuration file ${filePath}: variable ${name} appears to contain a secret and must remain environment-only.`,
+      );
+    }
+    if (typeof variableValue !== "string") {
+      throw new Error(
+        `Invalid configuration file ${filePath}: variable ${name} must be a string.`,
+      );
+    }
+    if (variableValue.includes("${config.")) {
+      throw new Error(
+        `Invalid configuration file ${filePath}: variable ${name} must be a literal and cannot reference another configuration variable.`,
+      );
+    }
   }
 }
 
@@ -430,22 +475,104 @@ function readPath(document: ConfigurationDocument, path: string): unknown {
   return current;
 }
 
+function readConfigurationVariables(
+  document: ConfigurationDocument,
+): Record<string, string> {
+  if (!isMapping(document.variables)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(document.variables).map(([name, value]) => [
+      name,
+      String(value),
+    ]),
+  );
+}
+
+function resolveConfigurationReferences(
+  value: unknown,
+  variables: Record<string, string>,
+  sourceDescription: string,
+  path = "root",
+): unknown {
+  if (typeof value === "string") {
+    const resolved = value.replace(
+      CONFIGURATION_VARIABLE_REFERENCE_PATTERN,
+      (_reference, name: string) => {
+        const replacement = variables[name];
+        if (replacement === undefined) {
+          throw new Error(
+            `Invalid merged configuration ${sourceDescription}: ${path} references unknown configuration variable ${name}.`,
+          );
+        }
+        return replacement;
+      },
+    );
+
+    if (resolved.includes("${config.")) {
+      throw new Error(
+        `Invalid merged configuration ${sourceDescription}: ${path} contains a malformed configuration variable reference.`,
+      );
+    }
+
+    return resolved;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry, index) =>
+      resolveConfigurationReferences(
+        entry,
+        variables,
+        sourceDescription,
+        `${path}[${index}]`,
+      ),
+    );
+  }
+
+  if (isMapping(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        key === "variables" && path === "root"
+          ? entry
+          : resolveConfigurationReferences(
+              entry,
+              variables,
+              sourceDescription,
+              path === "root" ? key : `${path}.${key}`,
+            ),
+      ]),
+    );
+  }
+
+  return value;
+}
+
 export function flattenConfigurationDocument(
   document: ConfigurationDocument,
+  sourceDescription = "configuration document",
 ): LoadedFileConfiguration {
+  const resolvedDocument = resolveConfigurationReferences(
+    document,
+    readConfigurationVariables(document),
+    sourceDescription,
+  ) as ConfigurationDocument;
   const raw: RawEnvironmentValues = {};
 
   for (const [path, variableName] of Object.entries(
     FILE_KEY_TO_ENVIRONMENT_VARIABLE,
   )) {
-    const serialized = serializeConfigurationValue(readPath(document, path));
+    const serialized = serializeConfigurationValue(
+      readPath(resolvedDocument, path),
+    );
     if (serialized !== undefined) {
       raw[variableName] = serialized;
     }
   }
 
   const features: Record<string, ConfigurationFeature> = {};
-  const configuredFeatures = document.features;
+  const configuredFeatures = resolvedDocument.features;
   if (isMapping(configuredFeatures)) {
     for (const [name, value] of Object.entries(configuredFeatures)) {
       const feature = featureSchema.parse(value);
