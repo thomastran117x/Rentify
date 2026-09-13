@@ -1,3 +1,12 @@
+import {
+  prepareProseVariantsForScreening,
+  prepareUsernameForScreening,
+} from "@/features/security/content-screening-normalization";
+import {
+  defaultContentScreeningTerms,
+  type CompiledContentScreeningTerms,
+} from "@/features/security/content-screening-terms";
+
 export interface ContentSanitizationInput {
   path: string;
   value: string;
@@ -22,22 +31,6 @@ const CONTROL_CHARACTER_PATTERN =
 const HTML_TAG_PATTERN = /<\s*\/?\s*[a-z!][^>]*>/i;
 const INLINE_EVENT_HANDLER_PATTERN = /\bon[a-z]+\s*=/i;
 const JAVASCRIPT_URL_PATTERN = /\bjavascript\s*:/i;
-const PROFANITY_TERMS = [
-  "asshole",
-  "bitch",
-  "bullshit",
-  "cunt",
-  "fuck",
-  "fucker",
-  "fucking",
-  "motherfucker",
-  "shit",
-  "shitty",
-] as const;
-const PROFANITY_PATTERN = new RegExp(
-  `\\b(?:${PROFANITY_TERMS.join("|")})\\b`,
-  "i",
-);
 const INJECTION_PATTERNS: Array<{
   pattern: RegExp;
   code: Extract<
@@ -87,7 +80,15 @@ const INJECTION_PATTERNS: Array<{
   },
 ];
 
+/**
+ * Screens user-authored text. The profanity and reserved-name term bank lives
+ * in `resources/content-screening-terms.txt`; see docs/content-screening.md.
+ */
 export class ContentSanitizationService {
+  constructor(
+    private readonly terms: CompiledContentScreeningTerms = defaultContentScreeningTerms,
+  ) {}
+
   inspect(inputs: ContentSanitizationInput[]): ContentSanitizationViolation[] {
     return this.inspectWithProfile(inputs, "content");
   }
@@ -99,10 +100,11 @@ export class ContentSanitizationService {
   }
 
   /**
-   * Usernames have no word separators around an embedded blocked term, so the
-   * content profile's word-boundary matching is intentionally too permissive
-   * for them. Keep this stricter behavior scoped to username claims to avoid
-   * changing moderation behavior for ordinary prose.
+   * Usernames have no word separators around an embedded blocked term, so
+   * `[substrings]` terms are matched across the whole name with separators and
+   * digits removed. Short ambiguous `[words]` terms and reserved names (admin,
+   * support, rentify…) only match a whole segment or the whole name, which
+   * keeps `badminton-fan` and `classic-grass` claimable.
    */
   inspectUsername(
     inputs: ContentSanitizationInput[],
@@ -172,12 +174,12 @@ export class ContentSanitizationService {
       }
     }
 
-    const containsProfanity =
+    const containsBlockedTerm =
       profile === "username"
-        ? PROFANITY_TERMS.some((term) => value.toLowerCase().includes(term))
-        : PROFANITY_PATTERN.test(value);
+        ? this.isBlockedUsername(value)
+        : this.containsBlockedProse(value);
 
-    if (containsProfanity) {
+    if (containsBlockedTerm) {
       return {
         path,
         code: "PROFANITY",
@@ -186,5 +188,35 @@ export class ContentSanitizationService {
     }
 
     return null;
+  }
+
+  private containsBlockedProse(value: string): boolean {
+    return prepareProseVariantsForScreening(value).some(
+      (prepared) =>
+        this.terms.word.test(prepared) ||
+        this.terms.substring.test(this.maskAllowed(prepared)),
+    );
+  }
+
+  private isBlockedUsername(value: string): boolean {
+    const { collapsed, segments } = prepareUsernameForScreening(value);
+
+    if (this.terms.substring.test(this.maskAllowed(collapsed))) {
+      return true;
+    }
+
+    return [collapsed, ...segments].some(
+      (candidate) =>
+        this.terms.exactWord.test(candidate) ||
+        this.terms.exactReservedUsername.test(candidate),
+    );
+  }
+
+  /**
+   * Replaces allowed words with a separator, so `scunthorpe` passes while a
+   * blocked term beside it (`scunthorpecunt`) still cannot hide behind it.
+   */
+  private maskAllowed(value: string): string {
+    return this.terms.allow ? value.replace(this.terms.allow, "|") : value;
   }
 }

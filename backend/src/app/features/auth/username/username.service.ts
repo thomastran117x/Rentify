@@ -78,7 +78,7 @@ export class UsernameService {
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
 
-    if (!this.isUsernameAppropriate(normalizedUsername)) {
+    if (await this.isInappropriateClaim(normalizedUsername, allowedUserId)) {
       return {
         username: normalizedUsername,
         available: false,
@@ -132,7 +132,7 @@ export class UsernameService {
   ): Promise<UsernameAvailabilityResult> {
     const normalizedUsername = username.trim().toLowerCase();
 
-    if (!this.isUsernameAppropriate(normalizedUsername)) {
+    if (await this.isInappropriateClaim(normalizedUsername, allowedUserId)) {
       return {
         username: normalizedUsername,
         available: false,
@@ -183,11 +183,31 @@ export class UsernameService {
     }
   }
 
-  private isUsernameAppropriate(username: string): boolean {
-    return (
+  /**
+   * Screening governs new claims only. A name the caller already holds stays
+   * theirs even when the term bank has since grown to block it (or it is a
+   * reserved name given to a site admin), so settings never flags it.
+   */
+  private async isInappropriateClaim(
+    username: string,
+    allowedUserId?: Uuid,
+  ): Promise<boolean> {
+    const isAppropriate =
       this.contentSanitizationService.inspectUsername([
         { path: "username", value: username },
-      ]).length === 0
+      ]).length === 0;
+
+    if (isAppropriate) {
+      return false;
+    }
+
+    if (!allowedUserId) {
+      return true;
+    }
+
+    return (
+      (await this.usersRepository.findUserIdByUsername(username)) !==
+      allowedUserId
     );
   }
 
