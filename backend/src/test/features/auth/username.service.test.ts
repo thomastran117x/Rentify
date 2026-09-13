@@ -249,6 +249,31 @@ describe("UsernameService.isUsernameAvailable", () => {
     expect(harness.authRepository.findUserIdByUsername).not.toHaveBeenCalled();
   });
 
+  it("keeps a blocked or reserved username available to the account that already holds it", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserIdByUsername.mockResolvedValue(USER_1_ID);
+
+    await expect(
+      harness.service.isUsernameAvailable("admin-one", USER_1_ID),
+    ).resolves.toEqual({
+      username: "admin-one",
+      available: true,
+      reason: null,
+    });
+    await expect(
+      harness.service.resolveUsernameAvailabilityHint("admin-one", USER_1_ID),
+    ).resolves.toMatchObject({ available: true, reason: null });
+  });
+
+  it("still reports a blocked username as inappropriate to anyone else", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserIdByUsername.mockResolvedValue("user-2");
+
+    await expect(
+      harness.service.isUsernameAvailable("admin-one", USER_1_ID),
+    ).resolves.toMatchObject({ available: false, reason: "inappropriate" });
+  });
+
   it("reports an unused username as available and normalizes it", async () => {
     const harness = createHarness();
 

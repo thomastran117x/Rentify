@@ -10519,7 +10519,7 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
             enum: ["taken", "inappropriate", null],
             description:
-              "Why the username is unavailable, or null when it is available. `taken` means another account holds it or an unverified signup has reserved it. `inappropriate` means it contains a term disallowed by the username content policy.",
+              "Why the username is unavailable, or null when it is available. `taken` means another account holds it or an unverified signup has reserved it. `inappropriate` means it contains a term disallowed by the username content policy, including reserved names that could impersonate staff or the platform (for example `admin` or `rentify-support`).",
           },
         },
       },
