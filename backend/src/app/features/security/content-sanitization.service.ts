@@ -1,5 +1,5 @@
 import {
-  prepareProseForScreening,
+  prepareProseVariantsForScreening,
   prepareUsernameForScreening,
 } from "@/features/security/content-screening-normalization";
 import {
@@ -191,11 +191,10 @@ export class ContentSanitizationService {
   }
 
   private containsBlockedProse(value: string): boolean {
-    const prepared = prepareProseForScreening(value);
-
-    return (
-      this.terms.word.test(prepared) ||
-      this.terms.substring.test(this.maskAllowed(prepared))
+    return prepareProseVariantsForScreening(value).some(
+      (prepared) =>
+        this.terms.word.test(prepared) ||
+        this.terms.substring.test(this.maskAllowed(prepared)),
     );
   }
 

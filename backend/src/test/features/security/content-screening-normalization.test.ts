@@ -1,13 +1,45 @@
 import {
   capRepeatedLetters,
+  joinFragmentedWords,
   joinSpacedLetters,
   normalizeForScreening,
   prepareProseForScreening,
+  prepareProseVariantsForScreening,
   prepareUsernameForScreening,
   substituteLeetCharacters,
 } from "@/features/security/content-screening-normalization";
 
 describe("content screening normalization", () => {
+  it.each([
+    ["f.u.ck off", "fuck off"],
+    ["s.h.it", "shit"],
+    ["sh 1 t", "sh1t"],
+    ["go f u ck", "gofuck"],
+  ])("joins mixed grouped-letter fragments in %j", (value, expected) => {
+    expect(joinFragmentedWords(value)).toBe(expected);
+  });
+
+  it.each(["it is so up to us", "$12 00 per month", "check the loft"])(
+    "leaves %j unjoined",
+    (value) => {
+      expect(joinFragmentedWords(value)).toBe(value);
+    },
+  );
+
+  it("screens a fragment-joined variant alongside the primary spelling", () => {
+    expect(prepareProseVariantsForScreening("so a s s")).toEqual([
+      "so ass",
+      "soass",
+    ]);
+    expect(prepareProseVariantsForScreening("sh 1 t landlord")).toEqual([
+      "sh 1 t landlord",
+      "shit landlord",
+    ]);
+    expect(prepareProseVariantsForScreening("Bright loft")).toEqual([
+      "bright loft",
+    ]);
+  });
+
   it.each([
     ["\uFF26\uFF35\uFF23\uFF2B", "fuck"],
     ["sh\u200Bit", "shit"],

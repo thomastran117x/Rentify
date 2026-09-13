@@ -65,6 +65,10 @@ describe("ContentSanitizationService", () => {
     "what the fuuuuuck",
     "f u c k this",
     "s.h.i.t neighbours",
+    "f.u.ck off",
+    "s.h.it neighbours",
+    "sh 1 t landlord",
+    "total bu.ll.s.h.it",
     "\uFF26\uFF35\uFF23\uFF2B",
     "sh\u200Bit",
     "sh\u00EFt",
@@ -87,6 +91,8 @@ describe("ContentSanitizationService", () => {
     "Therapist office on the ground floor",
     "Contact the admin team for support",
     "A trip to Scunthorpe",
+    "I go to a b and it is so up to us",
+    "Unit 3 B, 2 br, 1 ba, pets ok",
   ])("accepts benign prose: %s", (value) => {
     expect(inspectProse(value)).toEqual([]);
   });

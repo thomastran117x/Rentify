@@ -65,6 +65,8 @@ const LEET_CHARACTER_PATTERN = /[0134578@$]/g;
 const SPACED_LETTERS_PATTERN =
   /(?<![\p{L}\p{N}])\p{L}(?:[\s.\-_*]+\p{L}(?![\p{L}\p{N}])){2,}/gu;
 const SPACED_LETTER_SEPARATOR_PATTERN = /[\s.\-_*]+/gu;
+const FRAGMENTED_WORD_PATTERN =
+  /(?<![\p{L}\p{N}@$!|+])[\p{L}\p{N}@$!|+]{1,2}(?:[\s.\-_*]+[\p{L}\p{N}@$!|+]{1,2}(?![\p{L}\p{N}@$!|+])){2,}/gu;
 const REPEATED_LETTER_PATTERN = /(\p{L})\1{2,}/gu;
 const NON_LETTER_RUN_PATTERN = /[^\p{L}]+/u;
 const NON_LETTER_PATTERN = /[^\p{L}]/gu;
@@ -125,10 +127,44 @@ export function capRepeatedLetters(value: string): string {
   return value.replace(REPEATED_LETTER_PATTERN, "$1$1");
 }
 
+/**
+ * Joins runs of one- and two-character fragments split by separators when at
+ * least one fragment is a lone character: `f.u.ck`, `s.h.it`, `sh 1 t`. This
+ * also runs short ordinary words together ("go to a" becomes `gotoa`), so its
+ * output is only ever screened as an extra variant.
+ */
+export function joinFragmentedWords(value: string): string {
+  return value.replace(FRAGMENTED_WORD_PATTERN, (run) => {
+    const fragments = run.split(SPACED_LETTER_SEPARATOR_PATTERN);
+
+    return LETTER_PATTERN.test(run) &&
+      fragments.some((fragment) => fragment.length === 1)
+      ? fragments.join("")
+      : run;
+  });
+}
+
 export function prepareProseForScreening(value: string): string {
   return capRepeatedLetters(
     joinSpacedLetters(substituteLeetCharacters(normalizeForScreening(value))),
   );
+}
+
+/**
+ * Every spelling prose is screened as. The fragment-joined variant is checked
+ * alongside the primary spelling rather than replacing it, so running short
+ * words together can never hide a term the primary spelling would catch.
+ * Leetspeak is substituted again after joining because a lone digit (`sh 1 t`)
+ * only gains a neighbouring letter once its fragments are joined.
+ */
+export function prepareProseVariantsForScreening(value: string): string[] {
+  const substituted = substituteLeetCharacters(normalizeForScreening(value));
+  const primary = capRepeatedLetters(joinSpacedLetters(substituted));
+  const fragmentJoined = capRepeatedLetters(
+    substituteLeetCharacters(joinFragmentedWords(substituted)),
+  );
+
+  return primary === fragmentJoined ? [primary] : [primary, fragmentJoined];
 }
 
 export interface UsernameScreeningForms {

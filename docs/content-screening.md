@@ -31,7 +31,7 @@ Matching runs on a detection-only copy of the text (`content-screening-normaliza
 
 1. NFKC, lowercase, strip accents and invisible format characters (zero-width spaces, soft hyphens), and fold common Cyrillic and Greek lookalike letters to Latin.
 2. Leetspeak (`0 1 3 4 5 7 8 @ $`, plus `! | +` when between two characters), applied only inside chunks that already contain a letter. Prices and unit numbers are left alone.
-3. Prose only: join runs of three or more spaced-out single letters (`f u c k`, `s.h.i.t`).
+3. Prose only: join runs of three or more spaced-out single letters (`f u c k`, `s.h.i.t`). A second variant also joins runs of one- and two-character fragments that include a lone character (`f.u.ck`, `s.h.it`, `sh 1 t`). That variant is screened alongside the primary spelling, never instead of it, because it also runs short ordinary words together.
 4. Cap repeated letters at two. Every term pattern lets each letter repeat, so `fuuuck` matches `fuck` but `bob` never matches `boob`.
 
 Markup, injection and control-character checks still run on the original value.
