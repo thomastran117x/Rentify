@@ -5,6 +5,20 @@ jest.mock("@/configuration/environment", () => {
 
   return {
     ...actual,
+    environment: {
+      ...actual.environment,
+      getGoogleOAuthConfig: () => ({
+        audiences: [
+          mockGetOptionalEnvironmentVariable("GOOGLE_OAUTH_CLIENT_ID"),
+        ].filter((value): value is string => Boolean(value)),
+        clientSecret: mockGetOptionalEnvironmentVariable(
+          "GOOGLE_OAUTH_CLIENT_SECRET",
+        ),
+        frontendBaseUrl:
+          mockGetOptionalEnvironmentVariable("FRONTEND_URL") ??
+          "http://localhost:3040",
+      }),
+    },
     getOptionalEnvironmentVariable: (name: string) =>
       mockGetOptionalEnvironmentVariable(name),
   };

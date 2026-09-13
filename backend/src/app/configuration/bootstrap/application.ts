@@ -4,7 +4,7 @@ import { getApiRoutePrefix } from "@/configuration/http/api-path";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { clientContextMiddleware } from "../middlewares/client-context.middleware";
 import { containerScopeMiddleware } from "../middlewares/container-scope.middleware";
-import { corsMiddleware } from "../middlewares/cors.middleware";
+import { createCorsMiddleware } from "../middlewares/cors.middleware";
 import { csrfMiddleware } from "../middlewares/csrf.middleware";
 import { handleApplicationError } from "../middlewares/error-handler.middleware";
 import { httpLoggingMiddleware } from "../middlewares/http-logging.middleware";
@@ -51,7 +51,7 @@ export function createApplication(): Express {
   const api = express.Router({ caseSensitive: true, strict: true });
   app.use(getApiRoutePrefix(), api);
 
-  api.use(corsMiddleware);
+  api.use(createCorsMiddleware());
   api.use(requestIdMiddleware);
   api.use(clientContextMiddleware);
   api.use(containerScopeMiddleware);

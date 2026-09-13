@@ -15,12 +15,16 @@ describe("Live infrastructure safety guards", () => {
       indexPrefix: "rent-test-unsafe",
       postingsIndexName: "rent-test-unsafe-postings",
       reportsIndexName: "rent-test-unsafe-reports",
+      organizationsIndexName: "rent-test-unsafe-organizations",
+      organizationBlogsIndexName: "rent-test-unsafe-organization-blogs",
     };
     const nonTestPrefixConfig: LiveElasticsearchConfig = {
       url: "http://127.0.0.1:9201",
       indexPrefix: "postings",
       postingsIndexName: "postings",
       reportsIndexName: "postings-reports",
+      organizationsIndexName: "postings-organizations",
+      organizationBlogsIndexName: "postings-organization-blogs",
     };
 
     expect(() => assertSafeElasticsearchTarget(nonLocalConfig)).toThrow(

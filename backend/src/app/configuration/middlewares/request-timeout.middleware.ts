@@ -1,24 +1,10 @@
 import type { RequestHandler } from "express";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { runAfterResponse } from "@/configuration/http/response-lifecycle";
 import GatewayTimeoutError from "@/errors/http/gateway-timeout.error";
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
-
 function readRequestTimeoutMs(): number {
-  const configuredValue = getOptionalEnvironmentVariable("REQUEST_TIMEOUT_MS");
-
-  if (!configuredValue) {
-    return DEFAULT_REQUEST_TIMEOUT_MS;
-  }
-
-  const parsedValue = Number(configuredValue);
-
-  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
-    return DEFAULT_REQUEST_TIMEOUT_MS;
-  }
-
-  return parsedValue;
+  return environment.getHttpConfig().requestTimeoutMs;
 }
 
 export const requestTimeoutMiddleware: RequestHandler = (

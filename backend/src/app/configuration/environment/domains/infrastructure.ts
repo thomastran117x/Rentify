@@ -178,14 +178,23 @@ export function buildElasticsearchConfig(
   errors: string[],
 ): AppEnvironment["elasticsearch"] {
   const enabled = parseBoolean(raw.ELASTICSEARCH_ENABLED, false);
+  const postingsIndexName =
+    raw.ELASTICSEARCH_POSTINGS_INDEX ?? DEFAULT_ELASTICSEARCH_POSTINGS_INDEX;
 
   return {
     enabled,
     url: raw.ELASTICSEARCH_URL?.replace(/\/+$/, ""),
     username: raw.ELASTICSEARCH_USERNAME,
     password: raw.ELASTICSEARCH_PASSWORD,
-    postingsIndexName:
-      raw.ELASTICSEARCH_POSTINGS_INDEX ?? DEFAULT_ELASTICSEARCH_POSTINGS_INDEX,
+    postingsIndexName,
+    reportsIndexName:
+      raw.ELASTICSEARCH_REPORTS_INDEX ?? `${postingsIndexName}-reports`,
+    organizationsIndexName:
+      raw.ELASTICSEARCH_ORGANIZATIONS_INDEX ??
+      `${postingsIndexName}-organizations`,
+    organizationBlogsIndexName:
+      raw.ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX ??
+      `${postingsIndexName}-organization-blogs`,
     timeoutMs: parseNumber(raw, "ELASTICSEARCH_TIMEOUT_MS", 2_000, errors, {
       integer: true,
       min: 1,

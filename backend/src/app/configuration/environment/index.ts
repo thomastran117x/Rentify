@@ -12,6 +12,7 @@ export {
 } from "@/configuration/environment/parser";
 export type {
   AppEnvironment,
+  ConfigurationFeatureSource,
   EnvironmentState,
   EnvironmentVariableName,
   LoggingMode,

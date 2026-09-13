@@ -1,12 +1,11 @@
 import type { Request, RequestHandler } from "express";
 import type { ClientDeviceContext } from "@/configuration/http/bindings";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { resolveClientSource } from "@/configuration/http/client-source";
 import { getHeader } from "@/configuration/http/request";
 
 function isTrustedProxyHeaderEnabled(): boolean {
-  const value = getOptionalEnvironmentVariable("TRUST_PROXY_HEADERS");
-  return value === "1" || value?.toLowerCase() === "true";
+  return environment.getHttpConfig().trustProxyHeaders;
 }
 
 function readProxyIpAddress(request: Request): string | undefined {

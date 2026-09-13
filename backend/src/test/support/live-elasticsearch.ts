@@ -11,6 +11,8 @@ export interface LiveElasticsearchConfig {
   indexPrefix: string;
   postingsIndexName: string;
   reportsIndexName: string;
+  organizationsIndexName: string;
+  organizationBlogsIndexName: string;
 }
 
 export function createLiveElasticsearchConfig(
@@ -31,6 +33,8 @@ export function createLiveElasticsearchConfig(
     indexPrefix,
     postingsIndexName,
     reportsIndexName: `${postingsIndexName}-reports`,
+    organizationsIndexName: `${postingsIndexName}-organizations`,
+    organizationBlogsIndexName: `${postingsIndexName}-organization-blogs`,
   };
 }
 

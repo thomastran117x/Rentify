@@ -1,6 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
-
-const DEFAULT_FRONTEND_ORIGIN = "http://localhost:3040";
+import { environment } from "@/configuration/environment";
 
 /**
  * Loopback origins are configured one way but arrive the other.
@@ -70,23 +68,17 @@ function parseOriginList(configuredOrigins: string): string[] {
  * wrongly claimed as our own.
  */
 export function readFrontendOrigins(): string[] {
-  return parseOriginList(
-    getOptionalEnvironmentVariable("FRONTEND_URL") ?? DEFAULT_FRONTEND_ORIGIN,
-  );
+  return parseOriginList(environment.getApplicationConfig().frontendUrl);
 }
 
 /**
  * Origins allowed to make cross-origin browser requests.
  *
- * Read on every call rather than memoised at module load, so tests that set the
- * environment per case see the value they configured.
+ * Configuration is cached by the environment manager, while loopback aliases
+ * are expanded here so localhost and 127.0.0.1 remain interchangeable.
  */
 export function readCorsAllowedOrigins(): string[] {
-  return parseOriginList(
-    getOptionalEnvironmentVariable("CORS_ALLOWED_ORIGINS") ??
-      getOptionalEnvironmentVariable("FRONTEND_URL") ??
-      DEFAULT_FRONTEND_ORIGIN,
-  );
+  return parseOriginList(environment.getCorsAllowedOrigins().join(","));
 }
 
 /**
@@ -97,13 +89,5 @@ export function readCorsAllowedOrigins(): string[] {
  * than it trusts with cookie-backed state changes.
  */
 export function readCsrfAllowedOrigins(): string[] {
-  const configuredOrigins = getOptionalEnvironmentVariable(
-    "CSRF_ALLOWED_ORIGINS",
-  );
-
-  if (configuredOrigins) {
-    return parseOriginList(configuredOrigins);
-  }
-
-  return readCorsAllowedOrigins();
+  return parseOriginList(environment.getCsrfAllowedOrigins().join(","));
 }

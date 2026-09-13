@@ -1,0 +1,200 @@
+# Shared, non-secret backend defaults. Secrets are supplied through environment
+# variables and are intentionally not valid keys in these files.
+variables:
+  frontendOrigin: http://localhost:3040
+  backendOrigin: http://localhost:8040
+
+server:
+  port: 8040
+
+application:
+  name: Rent
+  frontendUrl: "${config.frontendOrigin}"
+  baseUrl: "${config.frontendOrigin}"
+
+http:
+  requestTimeoutMs: 15000
+  requestBodyMaxBytes: 1048576
+  trustProxyHeaders: false
+
+database:
+  autoSeedEnabled: false
+  autoSeedRefresh: false
+  operationLoggingEnabled: false
+  poolConnectionLimit: 10
+  poolMinimumIdle: 2
+  queryLoggingEnabled: false
+  slowOperationThresholdMs: 500
+  slowQueryThresholdMs: 250
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  db: 0
+  connectTimeoutMs: 10000
+
+elasticsearch:
+  enabled: false
+  url: null
+  username: null
+  indices:
+    postings: postings
+    reports: postings-reports
+    organizations: postings-organizations
+    organizationBlogs: postings-organization-blogs
+  timeoutMs: 2000
+  circuitBreakerFailureThreshold: 3
+  circuitBreakerCooldownMs: 30000
+
+logging:
+  level: info
+  serviceName: backend
+  fallbackDirectory: /app/logs/fallback
+  silent: false
+
+auth:
+  accessTokenTtlSeconds: 900
+  refreshTokenTtlSeconds: 2592000
+  rememberMeRefreshTokenTtlSeconds: 7776000
+  issuer: null
+  audience: null
+  refreshTokenMode: stateful
+  refreshTokenCachePrefix: auth:refresh
+  mfaBypassEmails: []
+
+email:
+  gmailUser: change-me@example.com
+  fromName: Rent
+
+sms:
+  provider: noop
+  fromNumber: null
+  webhookPublicUrl: "${config.backendOrigin}/api/v1/sms/webhooks/telnyx"
+  telnyx:
+    publicKey: null
+    messagingProfileId: null
+
+captcha:
+  allowedHosts:
+    - challenges.cloudflare.com
+
+cors:
+  allowedOrigins:
+    - "${config.frontendOrigin}"
+
+csrf:
+  allowedOrigins:
+    - "${config.frontendOrigin}"
+
+oauth:
+  microsoft:
+    tenant: consumers
+
+blobStorage:
+  containerName: null
+  uploadSasTtlSeconds: 900
+
+square:
+  environment: sandbox
+  locationId: change-me-square-location
+  webhookNotificationUrl: "${config.backendOrigin}/api/v1/payments/webhooks/square"
+
+rateLimiter:
+  enabled: true
+  strategy: sliding-window
+  limit: 60
+  windowSeconds: 60
+  bucketCapacity: 60
+  refillTokensPerSecond: 1
+
+workers:
+  search:
+    pollIntervalMs: 2000
+    batchSize: 25
+  searchRelay:
+    pollIntervalMs: 2000
+    batchSize: 25
+    maxAttempts: 8
+  searchIndexer:
+    prefetch: 25
+    batchSize: 25
+    flushIntervalMs: 250
+    concurrency: 2
+    maxAttempts: 8
+  searchReconcile:
+    pollIntervalMs: 60000
+    batchSize: 50
+  searchReindex:
+    pollIntervalMs: 5000
+    batchSize: 250
+  email:
+    prefetch: 10
+    maxAttempts: 8
+  sms:
+    prefetch: 10
+    maxAttempts: 8
+  analytics:
+    pollIntervalMs: 2000
+    batchSize: 50
+  recommendationsPrecompute:
+    pollIntervalMs: 5000
+    batchSize: 25
+  postingsThumbnail:
+    prefetch: 10
+    maxAttempts: 5
+  bookingExpiry:
+    pollIntervalMs: 5000
+    batchSize: 50
+  postingExpiry:
+    pollIntervalMs: 60000
+    batchSize: 50
+    reminderLeadDays: 3
+  savedSearchAlert:
+    pollIntervalMs: 300000
+    batchSize: 25
+    dailyIntervalHours: 24
+  paymentsRetry:
+    pollIntervalMs: 5000
+    batchSize: 25
+  paymentsRepair:
+    pollIntervalMs: 10000
+    batchSize: 25
+  payoutRelease:
+    pollIntervalMs: 15000
+    batchSize: 50
+
+postingsCache:
+  freshTtlSeconds: 15
+  staleTtlSeconds: 60
+  rebuildLockTtlMs: 5000
+  followerWaitTimeoutMs: 150
+  followerPollIntervalMs: 15
+  negativeTtlSeconds: 10
+  ttlJitterRatio: 0.1
+
+identityBloom:
+  username:
+    enabled: true
+    capacity: 200000
+    falsePositiveRate: 0.01
+    reloadIntervalMs: 60000
+    maxStalenessMs: 300000
+    rebuildIntervalMs: 21600000
+    rebuildBatchSize: 5000
+    rebuildLockTtlMs: 60000
+  email:
+    enabled: true
+    capacity: 200000
+    falsePositiveRate: 0.01
+    reloadIntervalMs: 60000
+    maxStalenessMs: 300000
+    rebuildIntervalMs: 21600000
+    rebuildBatchSize: 5000
+    rebuildLockTtlMs: 60000
+
+routeModules:
+  disabledIds: []
+
+features:
+  search-v2:
+    enabled: false

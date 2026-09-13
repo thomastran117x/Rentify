@@ -9,7 +9,7 @@ import {
   generateBlobSASQueryParameters,
 } from "@azure/storage-blob";
 import { buildApiPath } from "@/configuration/http/api-path";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment/index";
+import { environment } from "@/configuration/environment/index";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
@@ -37,8 +37,6 @@ interface LocalBlobConfiguration {
 
 const DEFAULT_SCOPE = "general";
 const DEFAULT_SAS_TTL_SECONDS = 15 * 60;
-const MAX_SAS_TTL_SECONDS = 60 * 60;
-const MIN_SAS_TTL_SECONDS = 60;
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
 const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
@@ -325,12 +323,9 @@ export class BlobService {
   }
 
   private readConfiguration(): AzureBlobConfiguration | null {
-    const connectionString = getOptionalEnvironmentVariable(
-      "AZURE_STORAGE_CONNECTION_STRING",
-    );
-    const containerName = getOptionalEnvironmentVariable(
-      "AZURE_STORAGE_CONTAINER_NAME",
-    );
+    const blobConfig = environment.getBlobStorageConfig();
+    const connectionString = blobConfig.connectionString;
+    const containerName = blobConfig.containerName;
 
     if (!connectionString && !containerName) {
       return null;
@@ -355,15 +350,12 @@ export class BlobService {
   }
 
   private readLocalConfiguration(): LocalBlobConfiguration | null {
-    if (this.config || process.env.NODE_ENV !== "development") {
+    if (this.config || !environment.isDevelopment()) {
       return null;
     }
 
-    const rawPort = getOptionalEnvironmentVariable("PORT")?.trim();
-    const port = rawPort && /^[0-9]+$/.test(rawPort) ? rawPort : "8040";
-    const signingSecret =
-      getOptionalEnvironmentVariable("ACCESS_TOKEN_SECRET") ??
-      "local-dev-blob-secret";
+    const port = String(environment.getServerPort());
+    const signingSecret = environment.getTokenConfig().accessTokenSecret;
 
     return {
       storageRoot: path.resolve(process.cwd(), "tmp", "blob-storage"),
@@ -421,27 +413,7 @@ export class BlobService {
   }
 
   private readSasTtlSeconds(): number {
-    const rawValue = getOptionalEnvironmentVariable(
-      "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
-    );
-
-    if (!rawValue) {
-      return DEFAULT_SAS_TTL_SECONDS;
-    }
-
-    const ttl = Number(rawValue);
-
-    if (
-      !Number.isInteger(ttl) ||
-      ttl < MIN_SAS_TTL_SECONDS ||
-      ttl > MAX_SAS_TTL_SECONDS
-    ) {
-      throw new ServiceNotImplementedError(
-        `AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS must be an integer between ${MIN_SAS_TTL_SECONDS} and ${MAX_SAS_TTL_SECONDS}.`,
-      );
-    }
-
-    return ttl;
+    return environment.getBlobStorageConfig().uploadSasTtlSeconds;
   }
 
   private buildBlobName(

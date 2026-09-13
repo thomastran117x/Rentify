@@ -4973,7 +4973,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "listFeatureFlags",
       summary: "List resolved feature flags",
       description:
-        "Lists all resolved feature flags, merging database overrides, environment values, and code defaults. Admin bearer authentication is required.",
+        "Lists all resolved feature flags, merging database overrides, environment overrides, YAML configuration, and disabled defaults. Admin bearer authentication is required.",
       tags: ["feature-flags"],
       security: ownerSecurity,
       permissions: {
@@ -5070,7 +5070,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "deleteFeatureFlag",
       summary: "Delete a feature-flag override",
       description:
-        "Removes the database override for the named feature flag so it falls back to the environment value or code default. The deletion is audit-logged. Admin bearer authentication is required.",
+        "Removes the database override for the named feature flag so it falls back to an environment override, YAML configuration, or the disabled default. The deletion is audit-logged. Admin bearer authentication is required.",
       tags: ["feature-flags"],
       security: ownerSecurity,
       permissions: {
@@ -10438,7 +10438,7 @@ function buildComponents(): Record<string, unknown> {
       },
       FeatureFlagSource: {
         type: "string",
-        enum: ["db", "env", "default"],
+        enum: ["db", "config", "env", "default"],
       },
       ResolvedFeatureFlag: {
         type: "object",

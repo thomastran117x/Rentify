@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import {
   expandLoopbackOriginAliases,
   normalizeOrigin,
@@ -7,17 +7,34 @@ import {
   readFrontendOrigins,
 } from "@/configuration/http/allowed-origins";
 
-jest.mock("@/configuration/environment", () => ({
-  getOptionalEnvironmentVariable: jest.fn(),
-}));
-
-const mockGetOptionalEnvironmentVariable =
-  getOptionalEnvironmentVariable as jest.MockedFunction<
-    typeof getOptionalEnvironmentVariable
-  >;
-
 function withEnvironment(values: Record<string, string>) {
-  mockGetOptionalEnvironmentVariable.mockImplementation((name) => values[name]);
+  const frontendUrl = values.FRONTEND_URL ?? "http://localhost:3040";
+  const split = (value: string) =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+  jest.spyOn(environment, "getApplicationConfig").mockReturnValue({
+    name: "Rent",
+    frontendUrl,
+    baseUrl: frontendUrl,
+  });
+  jest
+    .spyOn(environment, "getCorsAllowedOrigins")
+    .mockReturnValue(
+      split(values.CORS_ALLOWED_ORIGINS ?? values.FRONTEND_URL ?? frontendUrl),
+    );
+  jest
+    .spyOn(environment, "getCsrfAllowedOrigins")
+    .mockReturnValue(
+      split(
+        values.CSRF_ALLOWED_ORIGINS ??
+          values.CORS_ALLOWED_ORIGINS ??
+          values.FRONTEND_URL ??
+          frontendUrl,
+      ),
+    );
 }
 
 describe("expandLoopbackOriginAliases", () => {
@@ -60,7 +77,7 @@ describe("normalizeOrigin", () => {
 
 describe("readFrontendOrigins", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it("reads the frontend URL", () => {
@@ -99,7 +116,7 @@ describe("readFrontendOrigins", () => {
 
 describe("readCorsAllowedOrigins", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it("reads the explicit CORS list first", () => {
@@ -140,7 +157,7 @@ describe("readCorsAllowedOrigins", () => {
 
 describe("readCsrfAllowedOrigins", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   it("narrows to the CSRF list when one is configured", () => {

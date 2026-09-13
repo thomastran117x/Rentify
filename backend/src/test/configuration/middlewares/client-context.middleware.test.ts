@@ -1,15 +1,16 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { clientContextMiddleware } from "@/configuration/middlewares/client-context.middleware";
 import { createTestApp } from "../../support/fetch-app";
 
 jest.mock("@/configuration/environment", () => ({
-  getOptionalEnvironmentVariable: jest.fn(),
+  environment: {
+    getApplicationConfig: jest.fn(),
+    getHttpConfig: jest.fn(),
+  },
 }));
 
-const mockGetOptionalEnvironmentVariable =
-  getOptionalEnvironmentVariable as jest.MockedFunction<
-    typeof getOptionalEnvironmentVariable
-  >;
+const mockGetApplicationConfig = environment.getApplicationConfig as jest.Mock;
+const mockGetHttpConfig = environment.getHttpConfig as jest.Mock;
 
 /**
  * The middleware used to read the peer address through @hono/node-server's
@@ -36,7 +37,10 @@ function createApp(remoteAddress: string | undefined) {
 describe("clientContextMiddleware", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetOptionalEnvironmentVariable.mockReturnValue(undefined);
+    mockGetApplicationConfig.mockReturnValue({
+      frontendUrl: "http://localhost:3040",
+    });
+    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: false });
   });
 
   it("uses the remote socket address when proxy headers are not trusted", async () => {
@@ -69,7 +73,7 @@ describe("clientContextMiddleware", () => {
   });
 
   it("prefers the first forwarded ip when trusted proxy headers are enabled", async () => {
-    mockGetOptionalEnvironmentVariable.mockReturnValue("true");
+    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: true });
     const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {
@@ -92,7 +96,7 @@ describe("clientContextMiddleware", () => {
   });
 
   it("falls back to alternate proxy headers and tolerates missing connection info", async () => {
-    mockGetOptionalEnvironmentVariable.mockReturnValue("1");
+    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: true });
     const app = createApp(undefined);
 
     const response = await app.request("http://rent.test/client", {
@@ -119,9 +123,6 @@ describe("clientContextMiddleware", () => {
   });
 
   it("carries the declared client app and origin onto the request context", async () => {
-    mockGetOptionalEnvironmentVariable.mockImplementation((name) =>
-      name === "FRONTEND_URL" ? "http://localhost:3040" : undefined,
-    );
     const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {

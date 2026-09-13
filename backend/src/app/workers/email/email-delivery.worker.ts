@@ -4,14 +4,21 @@ import { loggerFactory } from "@/configuration/logging";
 import {
   databaseWorkerResource,
   disconnectResources,
+  elasticsearchWorkerResource,
   rabbitMqWorkerResource,
+  redisWorkerResource,
 } from "@/workers/shared/resources";
 import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
 
 const workerName = "Email delivery worker";
 // The database resource is required by the `booking_message` kind, whose job
 // payload carries ids that the delivery composer hydrates at send time.
-const workerResources = [databaseWorkerResource, rabbitMqWorkerResource];
+const workerResources = [
+  databaseWorkerResource,
+  elasticsearchWorkerResource,
+  rabbitMqWorkerResource,
+  redisWorkerResource,
+];
 const workerLogger = loggerFactory
   .forComponent("email-delivery.worker", "worker")
   .child({

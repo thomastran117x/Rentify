@@ -1,30 +1,15 @@
 import type { Request, RequestHandler } from "express";
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import { stripApiRoutePrefix } from "@/configuration/http/api-path";
 import { getHeader, getPathname } from "@/configuration/http/request";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 
-const DEFAULT_REQUEST_BODY_MAX_BYTES = 1024 * 1024;
 const REQUEST_BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function readRequestBodyMaxBytes(): number {
-  const configuredValue = getOptionalEnvironmentVariable(
-    "REQUEST_BODY_MAX_BYTES",
-  );
-
-  if (!configuredValue) {
-    return DEFAULT_REQUEST_BODY_MAX_BYTES;
-  }
-
-  const parsedValue = Number(configuredValue);
-
-  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
-    return DEFAULT_REQUEST_BODY_MAX_BYTES;
-  }
-
-  return parsedValue;
+  return environment.getHttpConfig().requestBodyMaxBytes;
 }
 
 export function readDeclaredContentLength(request: Request): number | null {

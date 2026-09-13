@@ -11,6 +11,7 @@ RUN npm ci
 
 FROM deps AS build
 COPY openapi ./openapi
+COPY config ./config
 COPY tsconfig.json tsconfig.app.json tsconfig.base.json ./
 COPY src ./src
 RUN npm run prisma:generate
@@ -24,6 +25,7 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/package-lock.json ./package-lock.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/openapi ./openapi
+COPY --from=build /app/config ./config
 COPY --from=build /app/prisma ./prisma
 # `prisma migrate deploy` below reads the datasource URL from this config.
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts

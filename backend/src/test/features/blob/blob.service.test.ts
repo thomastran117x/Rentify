@@ -278,20 +278,13 @@ describe("BlobService", () => {
     ).toBe(false);
   });
 
-  it("requires complete Azure configuration and validates SAS ttl configuration", () => {
+  it("requires complete Azure configuration", () => {
     process.env.NODE_ENV = "test";
     process.env.AZURE_STORAGE_CONNECTION_STRING =
       "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
     delete process.env.AZURE_STORAGE_CONTAINER_NAME;
 
     expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
-
-    process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
-    process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS = "59";
-
-    expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
-
-    delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
   });
 
   it("lists Azure blobs with the metadata needed by maintenance tools", async () => {

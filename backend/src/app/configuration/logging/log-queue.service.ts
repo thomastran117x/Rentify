@@ -129,7 +129,7 @@ export class ApplicationLogQueueService {
     try {
       return environment.getRabbitMqConfig().url ?? "";
     } catch {
-      return process.env.RABBITMQ_URL?.trim() ?? "";
+      return "";
     }
   }
 

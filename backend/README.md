@@ -52,9 +52,14 @@ npm run dev
 
 Environment notes:
 
-- Docker Compose reads from the repo-root `.env`
+- non-secret defaults come from `config/default.yml` and the active
+  `config/{NODE_ENV}.yml` profile
+- Docker Compose reads secrets and bootstrap values from the repo-root `.env`
 - local non-Docker backend runs can use `backend/.env`
-- explicit shell variables still take precedence
+- `BACKEND_CONFIG_FILE` adds an optional YAML overlay; explicit environment
+  variables still take precedence
+- see [../docs/backend-configuration.md](../docs/backend-configuration.md) for
+  the complete precedence and secret-boundary rules
 
 ## Useful Scripts
 

@@ -1,4 +1,4 @@
-import { getOptionalEnvironmentVariable } from "@/configuration/environment";
+import { environment } from "@/configuration/environment";
 import BadRequestError from "@/errors/http/bad-request.error";
 import BadGatewayError from "@/errors/http/bad-gateway.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
@@ -24,18 +24,13 @@ interface GoogleTokenResponse {
 }
 
 function readAudiences(): string[] {
-  const value =
-    getOptionalEnvironmentVariable("GOOGLE_OAUTH_CLIENT_IDS") ??
-    getOptionalEnvironmentVariable("GOOGLE_OAUTH_CLIENT_ID");
+  const value = environment.getGoogleOAuthConfig().audiences;
 
-  if (!value) {
+  if (value.length === 0) {
     throw new BadRequestError("Google OAuth is not configured.");
   }
 
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  return value;
 }
 
 function readPrimaryClientId(): string {
@@ -49,15 +44,11 @@ function readPrimaryClientId(): string {
 }
 
 function readClientSecret(): string | undefined {
-  return getOptionalEnvironmentVariable("GOOGLE_OAUTH_CLIENT_SECRET");
+  return environment.getGoogleOAuthConfig().clientSecret;
 }
 
 function readFrontendBaseUrl(): string {
-  return (
-    getOptionalEnvironmentVariable("FRONTEND_URL") ??
-    getOptionalEnvironmentVariable("APP_BASE_URL") ??
-    "http://localhost:3040"
-  ).replace(/\/+$/, "");
+  return environment.getGoogleOAuthConfig().frontendBaseUrl;
 }
 
 function normalizeEmailVerified(value: boolean | string | undefined): boolean {

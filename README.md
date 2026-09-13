@@ -71,6 +71,7 @@ Package-specific docs:
 Project docs hub:
 
 - [docs/README.md](./docs/README.md)
+- [docs/backend-configuration.md](./docs/backend-configuration.md): layered YAML, secrets, and deployment overrides
 
 ## Common Commands
 

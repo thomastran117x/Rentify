@@ -1,7 +1,11 @@
 import { parseDisabledRouteModuleIds } from "@/configuration/bootstrap/routes/config";
 import type { RouteModuleId } from "@/configuration/bootstrap/routes/types";
 import { DEFAULT_LOG_FALLBACK_DIRECTORY } from "@/configuration/environment/constants";
-import { parseNumber } from "@/configuration/environment/shared";
+import {
+  normalizeBaseUrl,
+  parseBoolean,
+  parseNumber,
+} from "@/configuration/environment/shared";
 import type {
   AppEnvironment,
   NodeEnvironment,
@@ -76,6 +80,40 @@ export function buildServerConfig(
   };
 }
 
+export function buildApplicationConfig(
+  raw: RawEnvironmentValues,
+): AppEnvironment["application"] {
+  const frontendUrl = normalizeBaseUrl(
+    raw.FRONTEND_URL ?? "http://localhost:3040",
+  );
+
+  return {
+    name: raw.APP_NAME ?? "Rent",
+    frontendUrl,
+    baseUrl: normalizeBaseUrl(raw.APP_BASE_URL ?? frontendUrl),
+  };
+}
+
+export function buildHttpConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["http"] {
+  return {
+    requestTimeoutMs: parseNumber(raw, "REQUEST_TIMEOUT_MS", 15_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    requestBodyMaxBytes: parseNumber(
+      raw,
+      "REQUEST_BODY_MAX_BYTES",
+      1024 * 1024,
+      errors,
+      { integer: true, min: 1 },
+    ),
+    trustProxyHeaders: parseBoolean(raw.TRUST_PROXY_HEADERS, false),
+  };
+}
+
 export function buildLoggingConfig(
   raw: RawEnvironmentValues,
   nodeEnv: NodeEnvironment,
@@ -86,6 +124,7 @@ export function buildLoggingConfig(
     level: parseLogLevel(raw.LOG_LEVEL),
     mode: parseLoggingMode(nodeEnv),
     serviceName: raw.LOG_SERVICE_NAME ?? "backend",
+    silent: parseBoolean(raw.LOG_SILENT, false),
   };
 }
 

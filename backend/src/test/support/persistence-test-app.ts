@@ -240,6 +240,10 @@ export function applyPersistenceTestEnvironment(
     infra.elasticsearch.postingsIndexName;
   process.env.ELASTICSEARCH_REPORTS_INDEX =
     infra.elasticsearch.reportsIndexName;
+  process.env.ELASTICSEARCH_ORGANIZATIONS_INDEX =
+    infra.elasticsearch.organizationsIndexName;
+  process.env.ELASTICSEARCH_ORGANIZATION_BLOGS_INDEX =
+    infra.elasticsearch.organizationBlogsIndexName;
   process.env.RABBITMQ_URL = infra.rabbitMq.amqpUrl;
   process.env.FRONTEND_URL =
     process.env.FRONTEND_URL ?? "http://localhost:3040";

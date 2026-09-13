@@ -1,0 +1,34 @@
+database:
+  autoSeedEnabled: true
+  slowOperationThresholdMs: 500
+  slowQueryThresholdMs: 250
+
+redis:
+  host: redis
+  port: 6379
+
+elasticsearch:
+  enabled: true
+  url: http://elasticsearch:9200
+
+logging:
+  level: debug
+
+auth:
+  mfaBypassEmails:
+    - owner1@rentify.local
+    - owner2@rentify.local
+    - owner3@rentify.local
+    - owner4@rentify.local
+    - user1@rentify.local
+    - user2@rentify.local
+    - user3@rentify.local
+    - user4@rentify.local
+    - viewer1@rentify.local
+    - admin1@rentify.local
+    - moderator1@rentify.local
+    - user5@rentify.local
+    - user6@rentify.local
+    - user7@rentify.local
+    - user8@rentify.local
+    - oauth1@rentify.local

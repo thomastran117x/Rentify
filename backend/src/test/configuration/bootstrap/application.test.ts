@@ -26,6 +26,7 @@ jest.mock("@/configuration/bootstrap/routes", () => ({
 
 jest.mock("@/configuration/middlewares/cors.middleware", () => ({
   corsMiddleware: recordingMiddleware("cors"),
+  createCorsMiddleware: () => recordingMiddleware("cors"),
 }));
 
 jest.mock("@/configuration/middlewares/request-id.middleware", () => ({

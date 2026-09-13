@@ -18,7 +18,7 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
       dependencies: [],
       resolve: () =>
         new TotpService({
-          issuer: process.env.APP_NAME ?? "Rent",
+          issuer: environment.getApplicationConfig().name,
         }),
     });
     container.register({
