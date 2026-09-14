@@ -1390,6 +1390,20 @@ export class PostingsRepository extends BaseRepository {
       );
     }
 
+    // The columns use a case-insensitive collation, matching the lowercase
+    // normalizer on the Elasticsearch keyword subfields.
+    if (input.city) {
+      whereClauses.push(Prisma.sql`city = ${input.city}`);
+    }
+
+    if (input.region) {
+      whereClauses.push(Prisma.sql`region = ${input.region}`);
+    }
+
+    if (input.country) {
+      whereClauses.push(Prisma.sql`country = ${input.country}`);
+    }
+
     if (input.availabilityStatus) {
       whereClauses.push(
         Prisma.sql`availability_status = ${input.availabilityStatus}`,

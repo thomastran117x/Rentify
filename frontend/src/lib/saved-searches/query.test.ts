@@ -70,7 +70,7 @@ describe("buildSavedSearchHref", () => {
       "q=kayak&family=equipment&tags=boat&minDailyPrice=10&maxDailyPrice=90" +
         "&latitude=1&longitude=2&radiusKm=5&availabilityStatus=available" +
         "&cancellationPolicy=flexible&instantBooking=true" +
-        "&maxMinBookingDurationDays=3",
+        "&maxMinBookingDurationDays=3&city=Toronto&region=Ontario&country=Canada",
     );
 
     const href = buildSavedSearchHref(params);
@@ -118,6 +118,12 @@ describe("describeSavedSearchFilters", () => {
     expect(describeSavedSearchFilters({ latitude: 1, longitude: 2 })).toEqual([
       "near a location",
     ]);
+  });
+
+  it("describes an exact location filter", () => {
+    expect(
+      describeSavedSearchFilters({ city: "Toronto", country: "Canada" }),
+    ).toEqual(["in Toronto, Canada"]);
   });
 
   it("returns nothing for a search with no filters", () => {

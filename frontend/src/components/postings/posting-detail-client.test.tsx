@@ -169,6 +169,30 @@ describe("PostingDetailClient", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("links tags, category, and location to a fresh posting search", async () => {
+    render(<PostingDetailClient posting={buildPosting()} />);
+
+    await waitFor(() => {
+      expect(getOwnReviewMock).toHaveBeenCalledWith("posting-1");
+    });
+
+    expect(
+      screen.getByRole("link", { name: "Browse postings tagged wifi" }),
+    ).toHaveAttribute(
+      "href",
+      "/postings?sort=relevance&page=1&pageSize=20&tags=wifi",
+    );
+    expect(
+      screen.getByRole("link", { name: "Browse Workspace postings" }),
+    ).toHaveAttribute("href", expect.stringContaining("subtype=workspace"));
+    expect(
+      screen.getByRole("link", { name: "Filter by region Ontario" }),
+    ).toHaveAttribute(
+      "href",
+      "/postings?sort=relevance&page=1&pageSize=20&region=Ontario&country=Canada",
+    );
+  });
+
   it("hides the review form from viewers without a completed renting", async () => {
     render(<PostingDetailClient posting={buildPosting()} />);
 

@@ -7,6 +7,10 @@ import { Pagination } from "@/components/common/pagination";
 import { useAuth } from "@/components/auth/auth-context";
 import { useErrorToast } from "@/components/errors";
 import { PostingResultCard } from "@/components/postings/posting-result-card";
+import {
+  FRESH_SEARCH_BASE,
+  buildPostingFacetHrefs,
+} from "@/lib/postings/facet-href";
 import { SavePostingButton } from "@/components/postings/save-posting-button";
 import { useSavedPostings } from "@/components/postings/saved-postings-context";
 import { SavedTabs } from "@/components/postings/saved-tabs";
@@ -332,6 +336,7 @@ export function SavedPostingsWorkspace() {
             <PostingResultCard
               key={posting.id}
               posting={posting}
+              facetHrefs={buildPostingFacetHrefs(FRESH_SEARCH_BASE, posting)}
               actions={
                 <SavePostingButton
                   postingId={posting.id}

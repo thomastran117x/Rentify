@@ -26,6 +26,10 @@ export interface PublicPostingSearchParams {
   family?: string;
   subtype?: string;
   tags?: string[];
+  /** Exact location matches, compared case-insensitively. */
+  city?: string;
+  region?: string;
+  country?: string;
   availabilityStatus?: "available" | "limited" | "unavailable";
   minDailyPrice?: number;
   maxDailyPrice?: number;

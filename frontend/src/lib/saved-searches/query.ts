@@ -22,6 +22,9 @@ const STRING_KEYS = [
   "organizationId",
   "family",
   "subtype",
+  "city",
+  "region",
+  "country",
   "availabilityStatus",
   "startAt",
   "endAt",
@@ -141,6 +144,9 @@ export function describeSavedSearchFilters(
   if (params.subtype) chips.push(params.subtype.replaceAll("_", " "));
   if (params.organization) chips.push(`by ${params.organization}`);
   if (params.tags?.length) chips.push(params.tags.join(", "));
+
+  const location = [params.city, params.region, params.country].filter(Boolean);
+  if (location.length > 0) chips.push(`in ${location.join(", ")}`);
 
   if (
     params.minDailyPrice !== undefined &&

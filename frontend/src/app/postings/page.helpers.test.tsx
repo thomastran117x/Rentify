@@ -167,6 +167,9 @@ describe("postings page helpers", () => {
     );
     expect(screen.getByText("Price: 0 - 50")).toBeInTheDocument();
     expect(screen.getByText("Near 1, 2")).toBeInTheDocument();
+
+    rerender(<ActiveFilters q="" city="Toronto" country="Canada" />);
+    expect(screen.getByText("Location: Toronto, Canada")).toBeInTheDocument();
   });
 
   it("renders filter building blocks with active, inactive, hint, and no-hint states", () => {

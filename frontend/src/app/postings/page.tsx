@@ -27,6 +27,7 @@ import {
   type PublicPostingSummary,
 } from "@/lib/postings/search";
 import { buildSearchHref } from "@/lib/postings/search-href";
+import { buildPostingFacetHrefs } from "@/lib/postings/facet-href";
 import {
   groupPostingsByOrganization,
   isOrganizationSort,
@@ -103,6 +104,9 @@ interface PostingsPageProps {
     family?: string | string[];
     subtype?: string | string[];
     tags?: string | string[];
+    city?: string | string[];
+    region?: string | string[];
+    country?: string | string[];
     availabilityStatus?: string | string[];
     minDailyPrice?: string | string[];
     maxDailyPrice?: string | string[];
@@ -274,6 +278,9 @@ export function ActiveFilters({
   family,
   subtype,
   tags,
+  city,
+  region,
+  country,
   availabilityStatus,
   minDailyPrice,
   maxDailyPrice,
@@ -289,6 +296,9 @@ export function ActiveFilters({
   family?: string;
   subtype?: string;
   tags?: string[];
+  city?: string;
+  region?: string;
+  country?: string;
   availabilityStatus?: string;
   minDailyPrice?: number;
   maxDailyPrice?: number;
@@ -316,6 +326,8 @@ export function ActiveFilters({
     );
   }
   if (tags && tags.length > 0) filters.push(`Tags: ${tags.join(", ")}`);
+  const location = [city, region, country].filter(Boolean);
+  if (location.length > 0) filters.push(`Location: ${location.join(", ")}`);
   if (latitude !== undefined && longitude !== undefined) {
     filters.push(
       `Near ${latitude}, ${longitude}${radiusKm ? ` within ${radiusKm} km` : ""}`,
@@ -415,6 +427,12 @@ export default async function PostingsPage({
     return values.length > 0 ? values : undefined;
   })();
 
+  const city = readSingleParam(resolvedSearchParams?.city)?.trim() || undefined;
+  const region =
+    readSingleParam(resolvedSearchParams?.region)?.trim() || undefined;
+  const country =
+    readSingleParam(resolvedSearchParams?.country)?.trim() || undefined;
+
   const availabilityStatusRaw = readSingleParam(
     resolvedSearchParams?.availabilityStatus,
   );
@@ -469,6 +487,9 @@ export default async function PostingsPage({
       family,
       subtype,
       tags: tags && tags.length > 0 ? tags : undefined,
+      city,
+      region,
+      country,
       availabilityStatus,
       minDailyPrice,
       maxDailyPrice,
@@ -499,6 +520,9 @@ export default async function PostingsPage({
     family,
     subtype,
     tags: tags && tags.length > 0 ? tags : undefined,
+    city,
+    region,
+    country,
     availabilityStatus,
     minDailyPrice,
     maxDailyPrice,
@@ -572,6 +596,15 @@ export default async function PostingsPage({
               <input type="hidden" name="page" value="1" />
               {family ? (
                 <input type="hidden" name="family" value={family} />
+              ) : null}
+              {/* Location filters are set from a posting's location links and
+                  have no form field, so they ride along to survive a submit. */}
+              {city ? <input type="hidden" name="city" value={city} /> : null}
+              {region ? (
+                <input type="hidden" name="region" value={region} />
+              ) : null}
+              {country ? (
+                <input type="hidden" name="country" value={country} />
               ) : null}
 
               <div className={theme.marketplace.primarySearchShell}>
@@ -705,6 +738,9 @@ export default async function PostingsPage({
                 family={family}
                 subtype={subtype}
                 tags={tags}
+                city={city}
+                region={region}
+                country={country}
                 availabilityStatus={availabilityStatus}
                 minDailyPrice={minDailyPrice}
                 maxDailyPrice={maxDailyPrice}
@@ -1251,6 +1287,10 @@ function ResultCard({
           pageSize,
         })
       }
+      facetHrefs={buildPostingFacetHrefs(
+        { ...paginationProps, pageSize },
+        posting,
+      )}
       actions={
         <SavePostingButton postingId={posting.id} postingName={posting.name} />
       }
