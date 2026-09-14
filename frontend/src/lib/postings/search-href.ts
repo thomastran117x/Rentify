@@ -54,6 +54,9 @@ export function buildSearchHref(input: SearchHrefInput): string {
       searchParams.append("tags", tag);
     }
   }
+  if (input.city) searchParams.set("city", input.city);
+  if (input.region) searchParams.set("region", input.region);
+  if (input.country) searchParams.set("country", input.country);
   if (input.availabilityStatus)
     searchParams.set("availabilityStatus", input.availabilityStatus);
   if (input.minDailyPrice !== undefined) {

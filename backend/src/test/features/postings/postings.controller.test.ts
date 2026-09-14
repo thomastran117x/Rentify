@@ -190,6 +190,45 @@ describe("PostingsController", () => {
     expect(response.status).toBe(200);
   });
 
+  it("maps location search filters into the service input", async () => {
+    const searchPublic = jest.fn(async () => ({
+      postings: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      source: "elasticsearch" as const,
+    }));
+    const controller = createController(
+      {
+        searchPublic,
+      },
+      {
+        analytics: {
+          trackSearchImpressions: jest.fn(async () => undefined),
+        },
+      },
+    );
+    const context = createContext({
+      url: "https://example.test/postings?city=%20Toronto%20&region=Ontario&country=Canada",
+    });
+
+    const response = await invoke(controller.search, context);
+
+    expect(searchPublic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: "Toronto",
+        region: "Ontario",
+        country: "Canada",
+      }),
+    );
+    expect(response.status).toBe(200);
+  });
+
   it("maps organization search filters into the service input", async () => {
     const searchPublic = jest.fn(async () => ({
       postings: [],

@@ -82,6 +82,20 @@ describe("PostingsRepository.searchPublicFallback filter parity", () => {
     expect(combined).toContain("min_booking_duration_days <=");
   });
 
+  it("applies exact location filters", async () => {
+    const { repository, seenSql } = createRepository();
+
+    await repository.searchPublicFallback(
+      createInput({ city: "Toronto", region: "Ontario", country: "Canada" }),
+    );
+
+    const combined = seenSql.join(" ");
+
+    expect(combined).toContain("city =");
+    expect(combined).toContain("region =");
+    expect(combined).toContain("country =");
+  });
+
   it("leaves the three predicates out when the filters are absent", async () => {
     const { repository, seenSql } = createRepository();
 

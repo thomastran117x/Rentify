@@ -57,8 +57,9 @@ type ElasticsearchMappingResponse = Record<
  * quietly serving queries that can never match.
  *
  * 2: added `organizationName` (organization-name matching and sorting).
+ * 3: added `location.{city,region,country}.keyword` (exact location filters).
  */
-export const POSTINGS_INDEX_MAPPING_VERSION = 2;
+export const POSTINGS_INDEX_MAPPING_VERSION = 3;
 
 class ElasticsearchAliasStateError extends ElasticsearchUnavailableError {
   constructor(message: string) {
@@ -688,6 +689,10 @@ export class PostingsSearchIndexService {
                 type: "text",
                 analyzer: "search_text",
                 fields: {
+                  keyword: {
+                    type: "keyword",
+                    normalizer: "lowercase_normalizer",
+                  },
                   prefix: {
                     type: "text",
                     analyzer: "autocomplete_index",
@@ -699,6 +704,10 @@ export class PostingsSearchIndexService {
                 type: "text",
                 analyzer: "search_text",
                 fields: {
+                  keyword: {
+                    type: "keyword",
+                    normalizer: "lowercase_normalizer",
+                  },
                   prefix: {
                     type: "text",
                     analyzer: "autocomplete_index",
@@ -710,6 +719,10 @@ export class PostingsSearchIndexService {
                 type: "text",
                 analyzer: "search_text",
                 fields: {
+                  keyword: {
+                    type: "keyword",
+                    normalizer: "lowercase_normalizer",
+                  },
                   prefix: {
                     type: "text",
                     analyzer: "autocomplete_index",

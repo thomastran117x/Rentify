@@ -245,6 +245,26 @@ describe("toSearchPostingsInput", () => {
     });
   });
 
+  it("passes stored location filters through to the live search input", () => {
+    const input = toSearchPostingsInput(
+      parseParams({ city: "Toronto", region: "Ontario", country: "Canada" }),
+      1,
+      20,
+    );
+
+    expect(input).toMatchObject({
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+    });
+  });
+
+  it("rejects a location filter longer than the column allows", () => {
+    expect(
+      savedSearchQueryParamsSchema.safeParse({ city: "x".repeat(121) }).success,
+    ).toBe(false);
+  });
+
   it("does not leak the raw query keys the search input does not use", () => {
     const input = toSearchPostingsInput(parseParams({ q: "kayak" }), 1, 20);
 

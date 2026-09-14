@@ -36,6 +36,14 @@ import {
   humanizePostingValue,
 } from "@/lib/postings/public-format";
 import { formatExpiryDate } from "@/lib/postings/expiry";
+import {
+  FRESH_SEARCH_BASE,
+  buildPostingFacetHrefs,
+} from "@/lib/postings/facet-href";
+import {
+  PostingFacetLink,
+  PostingLocationLinks,
+} from "@/components/postings/posting-facet-link";
 import { organizationHref } from "@/lib/organizations/urls";
 import { theme } from "@/styles/theme";
 
@@ -61,6 +69,7 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
   ]
     .filter(Boolean)
     .join(", ");
+  const facetHrefs = buildPostingFacetHrefs(FRESH_SEARCH_BASE, posting);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [reviewsResult, setReviewsResult] =
     useState<ListPublicPostingReviewsResult | null>(null);
@@ -149,12 +158,20 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
             <div className="bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.10),transparent_26%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 sm:p-7 dark:bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.16),transparent_28%),linear-gradient(180deg,#0f172a_0%,#020617_100%)]">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
-                  <span className={theme.marketplace.metaBadge}>
+                  <PostingFacetLink
+                    href={facetHrefs.family()}
+                    label={`Browse ${humanizePostingValue(posting.variant.family)} postings`}
+                    className={theme.marketplace.metaBadge}
+                  >
                     {humanizePostingValue(posting.variant.family)}
-                  </span>
-                  <span className={theme.marketplace.metaBadge}>
+                  </PostingFacetLink>
+                  <PostingFacetLink
+                    href={facetHrefs.subtype()}
+                    label={`Browse ${humanizePostingValue(posting.variant.subtype)} postings`}
+                    className={theme.marketplace.metaBadge}
+                  >
                     {humanizePostingValue(posting.variant.subtype)}
-                  </span>
+                  </PostingFacetLink>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -449,7 +466,12 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               description="Where this posting is based."
             >
               <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                <p>{locationLine}</p>
+                <p>
+                  <PostingLocationLinks
+                    location={posting.location}
+                    hrefFor={facetHrefs.location}
+                  />
+                </p>
                 {posting.location.postalCode ? (
                   <p>Postal code: {posting.location.postalCode}</p>
                 ) : null}
@@ -527,9 +549,14 @@ export function PostingDetailClient({ posting }: PostingDetailClientProps) {
               {posting.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {posting.tags.map((tag) => (
-                    <span key={tag} className={theme.marketplace.summaryPill}>
+                    <PostingFacetLink
+                      key={tag}
+                      href={facetHrefs.tag(tag)}
+                      label={`Browse postings tagged ${tag}`}
+                      className={theme.marketplace.summaryPill}
+                    >
                       {formatPostingAttributeValue(tag)}
-                    </span>
+                    </PostingFacetLink>
                   ))}
                 </div>
               ) : (

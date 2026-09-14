@@ -76,6 +76,22 @@ describe("buildSearchHref", () => {
     expect(params.get("endAt")).toBe("2026-06-17T11:00:00.000Z");
   });
 
+  it("carries the location filters", () => {
+    const href = buildSearchHref({
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      sort: "relevance",
+      page: 1,
+      pageSize: 20,
+    });
+
+    const params = new URL(href, "https://rentify.local").searchParams;
+    expect(params.get("city")).toBe("Toronto");
+    expect(params.get("region")).toBe("Ontario");
+    expect(params.get("country")).toBe("Canada");
+  });
+
   it("emits the page token unescaped so it can be substituted", () => {
     const template = buildSearchHref({
       q: "loft",

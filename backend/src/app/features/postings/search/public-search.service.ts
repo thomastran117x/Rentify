@@ -309,6 +309,16 @@ export class PostingsPublicSearchService {
       });
     }
 
+    // The keyword subfields carry the lowercase normalizer, which Elasticsearch
+    // also applies to the term value, so the match is case-insensitive.
+    for (const field of ["city", "region", "country"] as const) {
+      const value = input[field];
+
+      if (value) {
+        filter.push({ term: { [`location.${field}.keyword`]: value } });
+      }
+    }
+
     if (input.availabilityStatus) {
       filter.push({
         term: {

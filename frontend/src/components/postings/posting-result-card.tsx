@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import { InstantBookBadge } from "@/components/postings/instant-book-badge";
+import {
+  PostingFacetLink,
+  PostingLocationLinks,
+} from "@/components/postings/posting-facet-link";
 import { organizationHref } from "@/lib/organizations/urls";
+import type { PostingFacetHrefs } from "@/lib/postings/facet-href";
 import {
   formatPostingPrice,
   formatPublishedDate,
@@ -22,6 +27,11 @@ interface PostingResultCardProps {
    * without a search query string, and the chip is not rendered.
    */
   buildOrganizationFilterHref?: (organizationId: string) => string;
+  /**
+   * Turns the category badges, location parts, and tags into search filter
+   * links. Omit it and they render as plain text.
+   */
+  facetHrefs?: PostingFacetHrefs;
   /** Rendered at the start of the top-right badge cluster. */
   actions?: ReactNode;
 }
@@ -29,6 +39,7 @@ interface PostingResultCardProps {
 export function PostingResultCard({
   posting,
   buildOrganizationFilterHref,
+  facetHrefs,
   actions,
 }: PostingResultCardProps) {
   const publishedDate = formatPublishedDate(posting.publishedAt);
@@ -37,6 +48,8 @@ export function PostingResultCard({
     posting.primaryPhotoUrl,
   ].find(isRenderablePreviewImageUrl);
   const organization = posting.organization;
+  const familyLabel = humanizePostingValue(posting.variant.family);
+  const subtypeLabel = humanizePostingValue(posting.variant.subtype);
 
   return (
     <article className={theme.marketplace.resultCard}>
@@ -59,12 +72,20 @@ export function PostingResultCard({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex flex-wrap gap-2">
-                <span className={theme.marketplace.metaBadge}>
-                  {humanizePostingValue(posting.variant.family)}
-                </span>
-                <span className={theme.marketplace.metaBadge}>
-                  {humanizePostingValue(posting.variant.subtype)}
-                </span>
+                <PostingFacetLink
+                  href={facetHrefs?.family()}
+                  label={`Filter by category ${familyLabel}`}
+                  className={theme.marketplace.metaBadge}
+                >
+                  {familyLabel}
+                </PostingFacetLink>
+                <PostingFacetLink
+                  href={facetHrefs?.subtype()}
+                  label={`Filter by category ${subtypeLabel}`}
+                  className={theme.marketplace.metaBadge}
+                >
+                  {subtypeLabel}
+                </PostingFacetLink>
               </div>
 
               <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">
@@ -95,8 +116,10 @@ export function PostingResultCard({
 
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
             <span className={theme.marketplace.metaBadge}>
-              {posting.location.city}, {posting.location.region},{" "}
-              {posting.location.country}
+              <PostingLocationLinks
+                location={posting.location}
+                hrefFor={facetHrefs?.location}
+              />
             </span>
             {publishedDate ? (
               <span className={theme.marketplace.metaBadge}>
@@ -136,11 +159,25 @@ export function PostingResultCard({
 
           {posting.tags.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-2">
-              {posting.tags.map((tag) => (
-                <span key={tag} className={theme.marketplace.summaryPill}>
-                  {tag}
-                </span>
-              ))}
+              {posting.tags.map((tag) => {
+                const active = facetHrefs?.isTagActive(tag) ?? false;
+
+                return (
+                  <PostingFacetLink
+                    key={tag}
+                    href={facetHrefs?.tag(tag)}
+                    label={
+                      active
+                        ? `Remove tag filter ${tag}`
+                        : `Filter by tag ${tag}`
+                    }
+                    active={active}
+                    className={theme.marketplace.summaryPill}
+                  >
+                    {tag}
+                  </PostingFacetLink>
+                );
+              })}
             </div>
           ) : null}
 

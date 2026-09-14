@@ -8036,6 +8036,33 @@ paths:
           example:
             - workspace
             - wifi
+        - name: city
+          in: query
+          required: false
+          description: Exact city filter, matched case-insensitively.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+          example: Toronto
+        - name: region
+          in: query
+          required: false
+          description: Exact region filter, matched case-insensitively.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+          example: Ontario
+        - name: country
+          in: query
+          required: false
+          description: Exact country filter, matched case-insensitively.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+          example: Canada
         - name: availabilityStatus
           in: query
           required: false
@@ -19146,6 +19173,18 @@ components:
           maxItems: 20
           items:
             type: string
+        city:
+          type: string
+          minLength: 1
+          maxLength: 120
+        region:
+          type: string
+          minLength: 1
+          maxLength: 120
+        country:
+          type: string
+          minLength: 1
+          maxLength: 120
         availabilityStatus:
           type: string
           enum:

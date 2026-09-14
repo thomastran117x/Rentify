@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PostingResultCard } from "./posting-result-card";
 import type { PublicPostingSummary } from "@/lib/postings/search";
+import { buildPostingFacetHrefs } from "@/lib/postings/facet-href";
 
 function makePosting(
   overrides: Partial<PublicPostingSummary> = {},
@@ -57,6 +58,51 @@ describe("PostingResultCard", () => {
     expect(
       screen.getByRole("link", { name: "Only this organization" }),
     ).toHaveAttribute("href", "/postings?organizationId=org-1");
+  });
+
+  it("links tags, category, and location to search filters", () => {
+    render(
+      <PostingResultCard
+        posting={makePosting({ tags: ["loft", "wifi"] })}
+        facetHrefs={buildPostingFacetHrefs(
+          { sort: "relevance", pageSize: 20, tags: ["loft"] },
+          makePosting(),
+        )}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Filter by tag wifi" }),
+    ).toHaveAttribute(
+      "href",
+      "/postings?sort=relevance&page=1&pageSize=20&tags=loft&tags=wifi",
+    );
+    // An applied tag is shown as active and clicking it removes the filter.
+    expect(
+      screen.getByRole("link", { name: "Remove tag filter loft" }),
+    ).toHaveAttribute("href", "/postings?sort=relevance&page=1&pageSize=20");
+    expect(
+      screen.getByRole("link", { name: "Filter by category Place" }),
+    ).toHaveAttribute("href", expect.stringContaining("family=place"));
+    expect(
+      screen.getByRole("link", { name: "Filter by category Workspace" }),
+    ).toHaveAttribute("href", expect.stringContaining("subtype=workspace"));
+    expect(
+      screen.getByRole("link", { name: "Filter by city Toronto" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("city=Toronto&region=Ontario&country=Canada"),
+    );
+  });
+
+  it("renders tags, category, and location as text without facet hrefs", () => {
+    render(<PostingResultCard posting={makePosting()} />);
+
+    expect(screen.getByText("loft")).toBeInTheDocument();
+    expect(screen.getByText("Toronto")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Filter by/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("omits the organization filter chip without a href builder", () => {

@@ -6818,6 +6818,24 @@ function buildOperations(): OperationDefinition[] {
           ["workspace", "wifi"],
         ),
         queryParam(
+          "city",
+          { type: "string", minLength: 1, maxLength: 120 },
+          "Exact city filter, matched case-insensitively.",
+          "Toronto",
+        ),
+        queryParam(
+          "region",
+          { type: "string", minLength: 1, maxLength: 120 },
+          "Exact region filter, matched case-insensitively.",
+          "Ontario",
+        ),
+        queryParam(
+          "country",
+          { type: "string", minLength: 1, maxLength: 120 },
+          "Exact country filter, matched case-insensitively.",
+          "Canada",
+        ),
+        queryParam(
           "availabilityStatus",
           { type: "string", enum: ["available", "limited", "unavailable"] },
           "Availability status filter.",
@@ -11121,6 +11139,9 @@ function buildComponents(): Record<string, unknown> {
             maxItems: 20,
             items: { type: "string" },
           },
+          city: { type: "string", minLength: 1, maxLength: 120 },
+          region: { type: "string", minLength: 1, maxLength: 120 },
+          country: { type: "string", minLength: 1, maxLength: 120 },
           availabilityStatus: {
             type: "string",
             enum: ["available", "limited", "unavailable"],

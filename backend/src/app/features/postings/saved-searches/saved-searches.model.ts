@@ -341,6 +341,12 @@ export function deriveSavedSearchName(params: SavedSearchQueryParams): string {
     parts.push(`by ${params.organization}`);
   }
 
+  const location = [params.city, params.region, params.country].filter(Boolean);
+
+  if (location.length > 0) {
+    parts.push(`in ${location.join(", ")}`);
+  }
+
   if (params.maxDailyPrice !== undefined) {
     parts.push(`under $${params.maxDailyPrice}/day`);
   } else if (params.minDailyPrice !== undefined) {

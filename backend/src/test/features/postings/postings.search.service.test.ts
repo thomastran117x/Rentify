@@ -556,6 +556,48 @@ describe("PostingsPublicSearchService", () => {
     expect(getPublicByIds).toHaveBeenCalledWith([]);
   });
 
+  it("adds exact location filters to Elasticsearch search requests", async () => {
+    const { requestJson, service } = createElasticsearchPublicSearchService();
+
+    await service.searchPublic({
+      page: 1,
+      pageSize: 20,
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+      sort: "relevance",
+    });
+
+    expect(readSearchRequest(requestJson).query.bool.filter).toEqual(
+      expect.arrayContaining([
+        { term: { "location.city.keyword": "Toronto" } },
+        { term: { "location.region.keyword": "Ontario" } },
+        { term: { "location.country.keyword": "Canada" } },
+      ]),
+    );
+  });
+
+  it("maps a normalized keyword subfield for each location part", async () => {
+    const requestJson = jest.fn().mockResolvedValueOnce({});
+    const service = new PostingsSearchIndexService({
+      getPostingsIndexName: () => "postings-test",
+      requestJson,
+      isEnabled: () => true,
+    } as any);
+
+    await service.createVersionedIndex("postings-test_v1");
+
+    const body = JSON.parse(
+      requestJson.mock.calls[0]?.[1]?.body as string,
+    ) as any;
+
+    for (const field of ["city", "region", "country"]) {
+      expect(
+        body.mappings.properties.location.properties[field].fields.keyword,
+      ).toEqual({ type: "keyword", normalizer: "lowercase_normalizer" });
+    }
+  });
+
   it("uses strict cross-field matching for multi-term Elasticsearch keyword searches", async () => {
     const { requestJson, service } = createElasticsearchPublicSearchService();
 

@@ -465,6 +465,11 @@ export const publicSearchPostingsFilterShape = {
   family: postingFamilySchema.optional(),
   subtype: postingSubtypeSchema.optional(),
   tags: z.array(postingTagSchema).max(20).optional(),
+  // Exact, case-insensitive location matches. Sized to the VarChar(120)
+  // columns; unlike `q` these never match a posting's name or description.
+  city: z.string().trim().min(1).max(120).optional(),
+  region: z.string().trim().min(1).max(120).optional(),
+  country: z.string().trim().min(1).max(120).optional(),
   availabilityStatus: postingAvailabilityStatusSchema.optional(),
   minDailyPrice: z.coerce.number().finite().nonnegative().optional(),
   maxDailyPrice: z.coerce.number().finite().nonnegative().optional(),
@@ -946,6 +951,10 @@ export interface SearchPostingsInput {
    * Multi-tag search is conjunctive: a posting must contain every requested tag.
    */
   tags?: string[];
+  /** Exact location matches, compared case-insensitively. */
+  city?: string;
+  region?: string;
+  country?: string;
   availabilityStatus?: PostingAvailabilityStatus;
   minDailyPrice?: number;
   maxDailyPrice?: number;
