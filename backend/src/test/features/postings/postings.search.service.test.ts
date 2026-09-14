@@ -2,7 +2,10 @@ import {
   POSTINGS_INDEX_MAPPING_VERSION,
   PostingsSearchIndexService,
 } from "@/features/postings/search/index.service";
-import { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
+import {
+  PostingsPublicSearchService,
+  resetLiveLocationMappingCheck,
+} from "@/features/postings/search/public-search.service";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 import type { PostingSearchDocument } from "@/features/postings/postings.model";
@@ -557,7 +560,11 @@ describe("PostingsPublicSearchService", () => {
   });
 
   it("adds exact location filters to Elasticsearch search requests", async () => {
-    const { requestJson, service } = createElasticsearchPublicSearchService();
+    resetLiveLocationMappingCheck();
+    const { requestJson, service } = createElasticsearchPublicSearchService([
+      { postings_v3: { mappings: { _meta: { mappingVersion: 3 } } } },
+      { hits: { total: { value: 0 }, hits: [] } },
+    ]);
 
     await service.searchPublic({
       page: 1,
@@ -568,13 +575,130 @@ describe("PostingsPublicSearchService", () => {
       sort: "relevance",
     });
 
-    expect(readSearchRequest(requestJson).query.bool.filter).toEqual(
+    expect(requestJson.mock.calls[0]?.[0]).toBe("/postings-test-read/_mapping");
+    expect(readSearchRequest(requestJson, 1).query.bool.filter).toEqual(
       expect.arrayContaining([
         { term: { "location.city.keyword": "Toronto" } },
         { term: { "location.region.keyword": "Ontario" } },
         { term: { "location.country.keyword": "Canada" } },
       ]),
     );
+  });
+
+  describe("location filters before the reindex completes", () => {
+    function createLocationSearchService(requestJson: jest.Mock) {
+      const searchPublicFallback = jest.fn(async () => ({
+        ids: [],
+        total: 0,
+      }));
+      const repository = {
+        searchPublicFallback,
+        batchFindPublic: jest.fn(async ({ ids }: { ids: string[] }) => ({
+          postings: [],
+          missingIds: ids,
+        })),
+      } as unknown as PostingsRepository;
+      const service = new PostingsPublicSearchService(
+        repository,
+        {
+          getPublicByIds: jest.fn(async () => ({
+            postings: [],
+            missingIds: [],
+          })),
+        } as unknown as PostingsPublicCacheService,
+        {
+          getPostingsIndexName: () => "postings-test",
+          requestJson,
+          isEnabled: () => true,
+        } as any,
+      );
+
+      return { searchPublicFallback, service };
+    }
+
+    const emptyHits = { hits: { total: { value: 0 }, hits: [] } };
+    const locationInput = {
+      page: 1,
+      pageSize: 20,
+      city: "Toronto",
+      sort: "relevance" as const,
+    };
+
+    beforeEach(() => {
+      resetLiveLocationMappingCheck();
+    });
+
+    it("routes location searches to the database while the live mapping predates the keyword fields", async () => {
+      // A term query on an unmapped field is a successful zero-hit search, so
+      // without this gate every location link would show no results.
+      const requestJson = jest.fn().mockResolvedValueOnce({
+        postings_v2: { mappings: { _meta: { mappingVersion: 2 } } },
+      });
+      const { searchPublicFallback, service } =
+        createLocationSearchService(requestJson);
+
+      const result = await service.searchPublic(locationInput);
+
+      expect(result.source).toBe("database");
+      expect(searchPublicFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ city: "Toronto" }),
+      );
+      expect(requestJson).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats an unstamped legacy index as not ready for location filters", async () => {
+      const requestJson = jest.fn().mockResolvedValueOnce({ postings_v1: {} });
+      const { searchPublicFallback, service } =
+        createLocationSearchService(requestJson);
+
+      await service.searchPublic(locationInput);
+
+      expect(searchPublicFallback).toHaveBeenCalled();
+    });
+
+    it("remembers a ready mapping instead of checking on every search", async () => {
+      const requestJson = jest
+        .fn()
+        .mockResolvedValueOnce({
+          postings_v3: { mappings: { _meta: { mappingVersion: 3 } } },
+        })
+        .mockResolvedValue(emptyHits);
+      const { searchPublicFallback, service } =
+        createLocationSearchService(requestJson);
+
+      await service.searchPublic(locationInput);
+      await service.searchPublic(locationInput);
+
+      const mappingCalls = requestJson.mock.calls.filter(
+        (call) => call[0] === "/postings-test-read/_mapping",
+      );
+      expect(mappingCalls).toHaveLength(1);
+      expect(searchPublicFallback).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the database when the mapping lookup fails", async () => {
+      const requestJson = jest
+        .fn()
+        .mockRejectedValueOnce(new Error("mapping lookup failed"));
+      const { searchPublicFallback, service } =
+        createLocationSearchService(requestJson);
+
+      const result = await service.searchPublic(locationInput);
+
+      expect(result.source).toBe("database");
+      expect(searchPublicFallback).toHaveBeenCalled();
+    });
+
+    it("skips the mapping check for searches without location filters", async () => {
+      const requestJson = jest.fn().mockResolvedValue(emptyHits);
+      const { service } = createLocationSearchService(requestJson);
+
+      await service.searchPublic({ page: 1, pageSize: 20, sort: "relevance" });
+
+      expect(requestJson.mock.calls[0]?.[0]).toBe(
+        "/postings-test-read/_search",
+      );
+    });
   });
 
   it("maps a normalized keyword subfield for each location part", async () => {

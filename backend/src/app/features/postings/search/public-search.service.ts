@@ -53,6 +53,30 @@ type ElasticsearchSearchHit = NonNullable<
 >[number];
 type SearchQueryMode = "strict" | "tolerant";
 
+type ElasticsearchMappingResponse = Record<
+  string,
+  { mappings?: { _meta?: { mappingVersion?: number } } } | undefined
+>;
+
+/** First postings mapping version with `location.*.keyword` subfields. */
+const LOCATION_FILTER_MAPPING_VERSION = 3;
+const STALE_MAPPING_RECHECK_MS = 30_000;
+
+/**
+ * Whether the live index can serve exact location filters.
+ *
+ * Until the reindex swaps the read alias onto a mapping that has the keyword
+ * subfields, a term query on them is a successful zero-hit search rather than
+ * an error, so nothing would trigger the database fallback. Kept at module
+ * scope because the service is resolved per request. A ready index cannot
+ * regress, so that answer is kept; a stale one is rechecked periodically.
+ */
+let liveLocationMapping: { ready: boolean; checkedAt: number } | null = null;
+
+export function resetLiveLocationMappingCheck(): void {
+  liveLocationMapping = null;
+}
+
 export class PostingsPublicSearchService {
   private readonly logger: Logger;
   private static readonly queryTokenPattern = /[\p{L}\p{N}]+/gu;
@@ -114,8 +138,16 @@ export class PostingsPublicSearchService {
     input: SearchPostingsInput,
   ): Promise<SearchIdsResult> {
     if (this.elasticsearch.isEnabled()) {
+      let locationMappingLive = true;
+
       try {
-        return await this.searchIdsInElasticsearch(input);
+        locationMappingLive =
+          !this.hasLocationFilter(input) ||
+          (await this.isLocationMappingLive());
+
+        if (locationMappingLive) {
+          return await this.searchIdsInElasticsearch(input);
+        }
       } catch (error) {
         if (error instanceof ElasticsearchCircuitOpenError) {
           this.logger.info(
@@ -131,9 +163,48 @@ export class PostingsPublicSearchService {
         );
         return this.searchIdsFromDatabase(input, "es-unavailable");
       }
+
+      this.logger.info(
+        "Postings search using database fallback because the live index predates the location mapping.",
+      );
+      return this.searchIdsFromDatabase(input, "index-drift");
     }
 
     return this.searchIdsFromDatabase(input, "es-unavailable");
+  }
+
+  private hasLocationFilter(input: SearchPostingsInput): boolean {
+    return Boolean(input.city || input.region || input.country);
+  }
+
+  private async isLocationMappingLive(): Promise<boolean> {
+    const cached = liveLocationMapping;
+
+    if (
+      cached &&
+      (cached.ready || Date.now() - cached.checkedAt < STALE_MAPPING_RECHECK_MS)
+    ) {
+      return cached.ready;
+    }
+
+    const readAlias = `${this.elasticsearch.getPostingsIndexName()}-read`;
+    const response =
+      await this.elasticsearch.requestJson<ElasticsearchMappingResponse>(
+        `/${encodeURIComponent(readAlias)}/_mapping`,
+        { method: "GET" },
+        { allowNotFound: true },
+      );
+    const versions = Object.values(response ?? {})
+      .map((index) => index?.mappings?._meta?.mappingVersion)
+      .filter((version): version is number => typeof version === "number");
+    // The oldest target decides, matching the search maintainer's drift check.
+    const ready =
+      versions.length > 0 &&
+      Math.min(...versions) >= LOCATION_FILTER_MAPPING_VERSION;
+
+    liveLocationMapping = { ready, checkedAt: Date.now() };
+
+    return ready;
   }
 
   private async searchIdsInElasticsearch(
