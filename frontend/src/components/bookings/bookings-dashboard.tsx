@@ -22,6 +22,11 @@ import {
   isOwnerRole,
 } from "@/lib/auth/roles";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import {
+  canConvertBooking,
+  canDecideBooking,
+  canPayBooking,
+} from "@/lib/bookings/actions";
 import { bookingsApi } from "@/lib/bookings/api";
 import {
   canDisputeRenting,
@@ -52,6 +57,10 @@ interface DashboardBanner {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
+export const DECISION_NOTE_MAX_LENGTH = 1000;
+export const CHECKOUT_UNAVAILABLE_MESSAGE =
+  "We couldn't start checkout right now. Please try again.";
 
 const STATUS_OPTIONS: Array<{ label: string; value?: BookingRequestStatus }> = [
   { label: "All statuses" },
@@ -210,7 +219,23 @@ interface BookingItemCardProps {
     value: string,
   ) => void;
   onCreateDispute: (rentingId: string) => Promise<void>;
+  // Booking decision, payment, and conversion actions. Optional so the card
+  // can still render read-only where no handlers are wired.
+  bookingActionPendingKey?: string | null;
+  declineFormOpenId?: string | null;
+  declineNoteByBookingId?: Record<string, string>;
+  onApprove?: (bookingRequestId: string) => Promise<void>;
+  onToggleDeclineForm?: (bookingRequestId: string) => void;
+  onDeclineNoteChange?: (bookingRequestId: string, value: string) => void;
+  onDecline?: (bookingRequestId: string) => Promise<void>;
+  onConvert?: (bookingRequestId: string) => Promise<void>;
+  onPay?: (bookingRequestId: string) => Promise<void>;
 }
+
+const PRIMARY_ACTION_CLASSES =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
+const SECONDARY_ACTION_CLASSES =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function BookingItemCard({
   item,
@@ -236,6 +261,15 @@ export function BookingItemCard({
   onCompleteReturn,
   onDisputeChange,
   onCreateDispute,
+  bookingActionPendingKey = null,
+  declineFormOpenId = null,
+  declineNoteByBookingId = {},
+  onApprove,
+  onToggleDeclineForm,
+  onDeclineNoteChange,
+  onDecline,
+  onConvert,
+  onPay,
 }: BookingItemCardProps) {
   const quote = item.bookingRequestId
     ? quoteByBookingId[item.bookingRequestId]
@@ -295,6 +329,36 @@ export function BookingItemCard({
   const showReviewAction = canLeaveReview(item, view);
   const reviewFormOpen =
     showReviewAction && reviewFormOpenRentingId === item.rentingId;
+  const bookingId =
+    item.kind === "booking_request"
+      ? (item.bookingRequestId ?? item.id)
+      : undefined;
+  const canManageBookingAsOwner =
+    Boolean(bookingId) && view === "owner" && canManageOwnerActions;
+  const showDecisionActions =
+    canManageBookingAsOwner &&
+    Boolean(onApprove && onDecline) &&
+    canDecideBooking(item.sourceStatus, item.holdExpiresAt);
+  const showConvertAction =
+    canManageBookingAsOwner &&
+    Boolean(onConvert) &&
+    canConvertBooking(item.sourceStatus, {
+      convertedAt: item.convertedAt,
+      rentingId: item.rentingId,
+    });
+  const showPayAction =
+    Boolean(bookingId) &&
+    view === "renter" &&
+    Boolean(onPay) &&
+    canPayBooking(item.sourceStatus, {
+      convertedAt: item.convertedAt,
+      rentingId: item.rentingId,
+      holdExpiresAt: item.holdExpiresAt,
+    });
+  const declineFormOpen =
+    showDecisionActions && declineFormOpenId === bookingId;
+  const isBookingActionPending = (action: string) =>
+    bookingActionPendingKey === `${action}:${bookingId}`;
 
   return (
     <article className="overflow-hidden rounded-[1.8rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
@@ -439,27 +503,124 @@ export function BookingItemCard({
                     </button>
                   ) : null}
                 </>
-              ) : canManageCurrentView &&
-                canReviewCancellation(item) &&
-                item.bookingRequestId ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void onReviewCancellation(item.bookingRequestId!)
-                  }
-                  disabled={
-                    quotePendingId === item.bookingRequestId ||
-                    cancelPendingId === item.bookingRequestId
-                  }
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {quotePendingId === item.bookingRequestId
-                    ? "Checking..."
-                    : "Review cancellation"}
-                </button>
-              ) : null}
+              ) : (
+                <>
+                  {showDecisionActions && bookingId ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void onApprove?.(bookingId)}
+                        disabled={
+                          isBookingActionPending("approve") ||
+                          isBookingActionPending("decline")
+                        }
+                        className={PRIMARY_ACTION_CLASSES}
+                      >
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        {isBookingActionPending("approve")
+                          ? "Approving..."
+                          : "Approve"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onToggleDeclineForm?.(bookingId)}
+                        aria-expanded={declineFormOpen}
+                        disabled={
+                          isBookingActionPending("approve") ||
+                          isBookingActionPending("decline")
+                        }
+                        className={SECONDARY_ACTION_CLASSES}
+                      >
+                        <XCircle className="h-4 w-4" aria-hidden="true" />
+                        Decline
+                      </button>
+                    </>
+                  ) : null}
+                  {showConvertAction && bookingId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onConvert?.(bookingId)}
+                      disabled={isBookingActionPending("convert")}
+                      className={PRIMARY_ACTION_CLASSES}
+                    >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      {isBookingActionPending("convert")
+                        ? "Converting..."
+                        : "Convert to renting"}
+                    </button>
+                  ) : null}
+                  {showPayAction && bookingId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onPay?.(bookingId)}
+                      disabled={isBookingActionPending("pay")}
+                      className={PRIMARY_ACTION_CLASSES}
+                    >
+                      <CircleDollarSign
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      {isBookingActionPending("pay")
+                        ? "Starting checkout..."
+                        : item.sourceStatus === "payment_failed"
+                          ? "Retry payment"
+                          : "Pay now"}
+                    </button>
+                  ) : null}
+                  {canManageCurrentView &&
+                  canReviewCancellation(item) &&
+                  item.bookingRequestId ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void onReviewCancellation(item.bookingRequestId!)
+                      }
+                      disabled={
+                        quotePendingId === item.bookingRequestId ||
+                        cancelPendingId === item.bookingRequestId
+                      }
+                      className={SECONDARY_ACTION_CLASSES}
+                    >
+                      {quotePendingId === item.bookingRequestId
+                        ? "Checking..."
+                        : "Review cancellation"}
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
+
+          {declineFormOpen && bookingId ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-4 py-4">
+              <label className="grid gap-2 text-sm text-rose-950 dark:text-rose-100">
+                <span className="font-medium">Decline note (optional)</span>
+                <textarea
+                  value={declineNoteByBookingId[bookingId] ?? ""}
+                  onChange={(event) =>
+                    onDeclineNoteChange?.(bookingId, event.target.value)
+                  }
+                  rows={3}
+                  maxLength={DECISION_NOTE_MAX_LENGTH}
+                  className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-white outline-none transition focus:border-rose-500"
+                  placeholder="Let the renter know why this request can't be accepted."
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void onDecline?.(bookingId)}
+                  disabled={isBookingActionPending("decline")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-700 px-5 text-sm font-semibold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
+                  {isBookingActionPending("decline")
+                    ? "Declining..."
+                    : "Confirm decline"}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
             <div className="rounded-[1.4rem] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-4">
@@ -970,9 +1131,15 @@ export function BookingsDashboard() {
   const [disputeDraftByRentingId, setDisputeDraftByRentingId] = useState<
     Record<string, { reason: string; details: string } | undefined>
   >({});
-  const [rentingMutationPendingKey, setRentingMutationPendingKey] = useState<
-    string | null
-  >(null);
+  const [mutationPendingKey, setMutationPendingKey] = useState<string | null>(
+    null,
+  );
+  const [declineFormOpenId, setDeclineFormOpenId] = useState<string | null>(
+    null,
+  );
+  const [declineNoteByBookingId, setDeclineNoteByBookingId] = useState<
+    Record<string, string>
+  >({});
 
   const showOwnerView =
     isOwnerRole(session?.user.role) ||
@@ -1136,14 +1303,14 @@ export function BookingsDashboard() {
     }
   }
 
-  async function runRentingMutation(
+  async function runMutation(
     pendingKey: string,
     request: () => Promise<void>,
     action: string,
     successText: string,
     fallbackErrorText: string,
   ) {
-    setRentingMutationPendingKey(pendingKey);
+    setMutationPendingKey(pendingKey);
     setBanner(null);
 
     try {
@@ -1162,14 +1329,14 @@ export function BookingsDashboard() {
         }),
       });
     } finally {
-      setRentingMutationPendingKey(null);
+      setMutationPendingKey(null);
     }
   }
 
   async function handleSaveInstructions(rentingId: string) {
     const draft = instructionDraftByRentingId[rentingId];
 
-    await runRentingMutation(
+    await runMutation(
       `save-instructions:${rentingId}`,
       async () => {
         await bookingsApi.updateRentingInstructions(rentingId, {
@@ -1184,7 +1351,7 @@ export function BookingsDashboard() {
   }
 
   async function handleMarkCheckInReady(rentingId: string) {
-    await runRentingMutation(
+    await runMutation(
       `check-in-ready:${rentingId}`,
       async () => {
         await bookingsApi.markRentingCheckInReady(rentingId);
@@ -1196,7 +1363,7 @@ export function BookingsDashboard() {
   }
 
   async function handleMarkCheckInComplete(rentingId: string) {
-    await runRentingMutation(
+    await runMutation(
       `check-in-complete:${rentingId}`,
       async () => {
         await bookingsApi.markRentingCheckInComplete(rentingId);
@@ -1208,7 +1375,7 @@ export function BookingsDashboard() {
   }
 
   async function handleCompleteReturn(rentingId: string) {
-    await runRentingMutation(
+    await runMutation(
       `complete-return:${rentingId}`,
       async () => {
         await bookingsApi.completeRentingReturn(rentingId);
@@ -1222,7 +1389,7 @@ export function BookingsDashboard() {
   async function handleCreateDispute(rentingId: string) {
     const draft = disputeDraftByRentingId[rentingId];
 
-    await runRentingMutation(
+    await runMutation(
       `open-dispute:${rentingId}`,
       async () => {
         await bookingsApi.createRentingDispute(rentingId, {
@@ -1238,6 +1405,77 @@ export function BookingsDashboard() {
       "Renting dispute opened.",
       "Renting dispute could not be opened.",
     );
+  }
+
+  async function handleApproveBooking(bookingRequestId: string) {
+    await runMutation(
+      `approve:${bookingRequestId}`,
+      async () => {
+        await bookingsApi.approve(bookingRequestId);
+      },
+      "approve this booking request",
+      "Booking request approved. The renter has been asked to pay.",
+      "Booking request could not be approved.",
+    );
+  }
+
+  async function handleDeclineBooking(bookingRequestId: string) {
+    const note = declineNoteByBookingId[bookingRequestId]?.trim() || null;
+
+    await runMutation(
+      `decline:${bookingRequestId}`,
+      async () => {
+        await bookingsApi.decline(bookingRequestId, { note });
+        setDeclineFormOpenId(null);
+        setDeclineNoteByBookingId((current) => ({
+          ...current,
+          [bookingRequestId]: "",
+        }));
+      },
+      "decline this booking request",
+      "Booking request declined.",
+      "Booking request could not be declined.",
+    );
+  }
+
+  async function handleConvertBooking(bookingRequestId: string) {
+    await runMutation(
+      `convert:${bookingRequestId}`,
+      async () => {
+        await bookingsApi.convertToRenting(bookingRequestId);
+      },
+      "convert this booking into a renting",
+      "Booking converted into a confirmed renting.",
+      "Booking could not be converted into a renting.",
+    );
+  }
+
+  async function handlePayBooking(bookingRequestId: string) {
+    setMutationPendingKey(`pay:${bookingRequestId}`);
+    setBanner(null);
+
+    try {
+      const payment = await bookingsApi.createPaymentSession(bookingRequestId);
+
+      if (payment.checkoutUrl) {
+        window.location.assign(payment.checkoutUrl);
+        return;
+      }
+
+      // The provider failure is recorded on the payment rather than thrown.
+      await refreshActiveDashboard();
+      setBanner({ tone: "error", text: CHECKOUT_UNAVAILABLE_MESSAGE });
+    } catch (error) {
+      setBanner({
+        tone: "error",
+        text: getApiErrorMessage(error, {
+          action: "start checkout",
+          fallback: CHECKOUT_UNAVAILABLE_MESSAGE,
+        }),
+      });
+    } finally {
+      setMutationPendingKey(null);
+    }
   }
 
   if (status === "loading" || loading) {
@@ -1652,7 +1890,25 @@ export function BookingsDashboard() {
                 disputeDraftByRentingId={disputeDraftByRentingId}
                 quotePendingId={quotePendingId}
                 cancelPendingId={cancelPendingId}
-                rentingMutationPendingKey={rentingMutationPendingKey}
+                rentingMutationPendingKey={mutationPendingKey}
+                bookingActionPendingKey={mutationPendingKey}
+                declineFormOpenId={declineFormOpenId}
+                declineNoteByBookingId={declineNoteByBookingId}
+                onApprove={handleApproveBooking}
+                onToggleDeclineForm={(bookingRequestId) =>
+                  setDeclineFormOpenId((current) =>
+                    current === bookingRequestId ? null : bookingRequestId,
+                  )
+                }
+                onDeclineNoteChange={(bookingRequestId, value) =>
+                  setDeclineNoteByBookingId((current) => ({
+                    ...current,
+                    [bookingRequestId]: value,
+                  }))
+                }
+                onDecline={handleDeclineBooking}
+                onConvert={handleConvertBooking}
+                onPay={handlePayBooking}
                 onReviewCancellation={handleReviewCancellation}
                 onReasonChange={(bookingRequestId, value) =>
                   setReasonByBookingId((current) => ({
