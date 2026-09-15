@@ -14,9 +14,11 @@ import type {
   CreateRefundBody,
   ListPayoutsInput,
   ListPayoutsQuery,
+  PaymentWebhookHeaders,
   RetryPaymentBody,
 } from "@/features/payments/payments.model";
 import {
+  PAYMENT_WEBHOOK_HEADER_NAMES,
   createPaymentSessionSchema,
   createRefundSchema,
   listPayoutsQuerySchema,
@@ -106,10 +108,23 @@ export class PaymentsController {
     });
   };
 
+  capture = async (request: Request, response: Response): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const result = await this.paymentsService.capturePayment(
+      this.requirePaymentId(request),
+      auth.sub,
+    );
+    ok(response, result, {
+      message: "Payment captured successfully.",
+    });
+  };
+
   webhook = async (request: Request, response: Response): Promise<void> => {
     const rawBody = readRawBody(request);
-    const signatureHeader = request.get("x-square-hmacsha256-signature");
-    await this.paymentsService.processSquareWebhook(rawBody, signatureHeader);
+    const headers: PaymentWebhookHeaders = Object.fromEntries(
+      PAYMENT_WEBHOOK_HEADER_NAMES.map((name) => [name, request.get(name)]),
+    );
+    await this.paymentsService.processPaymentWebhook(rawBody, headers);
     ok(
       response,
       { ok: true },

@@ -237,9 +237,8 @@ export const bookingsSeedModule: SeedModule = {
             rentalSubtotalAmount: fixture.payment.rentalSubtotalAmount,
             platformFeeAmount: fixture.payment.platformFeeAmount,
             totalAmount: fixture.payment.totalAmount,
-            squarePaymentId: fixture.payment.squarePaymentId ?? null,
-            squareOrderId: fixture.payment.squareOrderId ?? null,
-            squareLocationId: fixture.payment.squareLocationId ?? null,
+            providerPaymentId: fixture.payment.providerPaymentId ?? null,
+            providerOrderId: fixture.payment.providerOrderId ?? null,
             checkoutUrl: fixture.payment.checkoutUrl ?? null,
             lastAttemptedAt: fixture.payment.lastAttemptedAt
               ? new Date(fixture.payment.lastAttemptedAt)
@@ -269,7 +268,7 @@ export const bookingsSeedModule: SeedModule = {
               failureCode: attempt.failureCode ?? null,
               failureMessage: attempt.failureMessage ?? null,
               providerRequestId: attempt.providerRequestId ?? null,
-              squarePaymentId: attempt.squarePaymentId ?? null,
+              providerPaymentId: attempt.providerPaymentId ?? null,
               requestPayload: attempt.requestPayload
                 ? (attempt.requestPayload as never)
                 : undefined,
@@ -296,7 +295,7 @@ export const bookingsSeedModule: SeedModule = {
               amount: refund.amount,
               reason: refund.reason ?? null,
               idempotencyKey: refund.idempotencyKey,
-              squareRefundId: refund.squareRefundId ?? null,
+              providerRefundId: refund.providerRefundId ?? null,
               createdAt: new Date(refund.createdAt),
               completedAt: refund.completedAt
                 ? new Date(refund.completedAt)
@@ -320,7 +319,7 @@ export const bookingsSeedModule: SeedModule = {
               failedAt: fixture.payment.payout.failedAt
                 ? new Date(fixture.payment.payout.failedAt)
                 : null,
-              squarePayoutId: fixture.payment.payout.squarePayoutId ?? null,
+              providerPayoutId: fixture.payment.payout.providerPayoutId ?? null,
               failureMessage: fixture.payment.payout.failureMessage ?? null,
               createdAt: new Date(fixture.payment.payout.createdAt),
             },
@@ -332,7 +331,7 @@ export const bookingsSeedModule: SeedModule = {
             data: {
               id: event.id,
               paymentId: fixture.payment.id,
-              provider: "square",
+              provider: "paypal",
               providerEventId: event.providerEventId,
               eventType: event.eventType,
               signatureValid: event.signatureValid,

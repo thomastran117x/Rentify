@@ -39,8 +39,7 @@ type BookingSpec = {
   note: string;
 };
 
-const PAYMENT_PROVIDER = "square" as const;
-const PAYMENT_LOCATION_ID = "seed-square-location";
+const PAYMENT_PROVIDER = "paypal" as const;
 const REFUND_ISSUER_EMAIL = "admin1@rentify.local";
 
 function addHours(value: string, hours: number): string {
@@ -149,7 +148,7 @@ function createLedgerEntries(
 function createPaymentAttemptFixtures(
   index: number,
   lifecycle: BookingLifecycle,
-  squarePaymentId?: string,
+  providerPaymentId?: string,
 ): SeedPaymentAttemptFixture[] {
   const baseCreatedAt = addHours(`2026-04-02T09:00:00.000Z`, index);
 
@@ -215,7 +214,7 @@ function createPaymentAttemptFixtures(
       status: "succeeded",
       retryCount: 0,
       providerRequestId: `seed-request-${index}`,
-      squarePaymentId,
+      providerPaymentId,
       requestPayload: { source: "seed", attempt: 1 },
       responsePayload: { result: "captured" },
       createdAt: baseCreatedAt,
@@ -243,10 +242,10 @@ function createWebhookEvents(
 
   const eventType =
     lifecycle === "refunded"
-      ? "payment.refunded"
+      ? "PAYMENT.CAPTURE.REFUNDED"
       : lifecycle === "failed_retryable" || lifecycle === "failed_final"
-        ? "payment.failed"
-        : "payment.updated";
+        ? "PAYMENT.CAPTURE.DENIED"
+        : "PAYMENT.CAPTURE.COMPLETED";
 
   return [
     {
@@ -278,7 +277,7 @@ function createRefundFixtures(
       amount: subtotal,
       reason: "Guest cancelled after charge capture.",
       idempotencyKey: `seed-refund-${index}`,
-      squareRefundId: `sq-refund-${index}`,
+      providerRefundId: `pp-refund-${index}`,
       createdAt: addHours(`2026-04-03T10:00:00.000Z`, index),
       completedAt: addHours(`2026-04-03T11:00:00.000Z`, index),
     },
@@ -300,7 +299,7 @@ function createPayoutFixture(
     amount: subtotal,
     dueAt: addDays(`2026-04-04T09:00:00.000Z`, index),
     releasedAt: addDays(`2026-04-05T09:00:00.000Z`, index),
-    squarePayoutId: `sq-payout-${index}`,
+    providerPayoutId: `pp-payout-${index}`,
     createdAt: addHours(`2026-04-04T08:00:00.000Z`, index),
   };
 }
@@ -323,8 +322,8 @@ function createPaymentFixture(
   const rentalSubtotalAmount = estimatedTotal;
   const platformFeeAmount = roundMoney(estimatedTotal * 0.12);
   const totalAmount = roundMoney(rentalSubtotalAmount + platformFeeAmount);
-  const squarePaymentId =
-    lifecycle === "awaiting_payment" ? undefined : `sq-payment-${index}`;
+  const providerPaymentId =
+    lifecycle === "awaiting_payment" ? undefined : `pp-capture-${index}`;
   const statusByLifecycle: Record<
     Exclude<
       BookingLifecycle,
@@ -358,12 +357,11 @@ function createPaymentFixture(
     rentalSubtotalAmount,
     platformFeeAmount,
     totalAmount,
-    squarePaymentId,
-    squareOrderId: `sq-order-${index}`,
-    squareLocationId: PAYMENT_LOCATION_ID,
+    providerPaymentId,
+    providerOrderId: `pp-order-${index}`,
     checkoutUrl:
       lifecycle === "awaiting_payment" || lifecycle === "processing"
-        ? `https://checkout.square.local/seed-${index}`
+        ? `https://www.sandbox.paypal.com/checkoutnow?token=seed-order-${index}`
         : undefined,
     lastAttemptedAt:
       lifecycle === "awaiting_payment" ? undefined : addHours(createdAt, 2),
@@ -378,7 +376,7 @@ function createPaymentFixture(
         ? addHours(createdAt, 3)
         : undefined,
     createdAt,
-    attempts: createPaymentAttemptFixtures(index, lifecycle, squarePaymentId),
+    attempts: createPaymentAttemptFixtures(index, lifecycle, providerPaymentId),
     refunds: createRefundFixtures(index, lifecycle, rentalSubtotalAmount),
     payout: createPayoutFixture(index, lifecycle, rentalSubtotalAmount),
     webhookEvents: createWebhookEvents(

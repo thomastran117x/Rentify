@@ -45,6 +45,15 @@ describe("paymentsApi", () => {
     );
   });
 
+  it("captures approved payments", () => {
+    paymentsApi.capture("payment / 1");
+    expect(requestMock).toHaveBeenCalledWith(
+      "POST",
+      "/payments/payment%20%2F%201/capture",
+      {},
+    );
+  });
+
   it("gets payment records and performs refund and remediation operations", () => {
     paymentsApi.getById("payment / 1");
     paymentsApi.getByBookingRequest("booking / 1");

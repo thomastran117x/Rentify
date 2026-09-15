@@ -134,13 +134,17 @@ export interface PersistenceTestStubs {
       Promise<Record<string, unknown> | null>,
       [Record<string, unknown>]
     >;
+    capturePayment: jest.Mock<
+      Promise<Record<string, unknown>>,
+      [Record<string, unknown>]
+    >;
     createRefund: jest.Mock<
       Promise<Record<string, unknown>>,
       [Record<string, unknown>]
     >;
     verifyWebhookSignature: jest.Mock<
-      Record<string, unknown>,
-      [string, string | undefined]
+      Promise<Record<string, unknown>>,
+      [string, Record<string, string | undefined>]
     >;
     classifyError: jest.Mock<Record<string, unknown>, [unknown]>;
   };
@@ -225,15 +229,12 @@ export function applyPersistenceTestEnvironment(
   process.env.SMS_PROVIDER = process.env.SMS_PROVIDER ?? "noop";
   process.env.SMS_WORKER_PREFETCH = process.env.SMS_WORKER_PREFETCH ?? "10";
   process.env.SMS_MAX_ATTEMPTS = process.env.SMS_MAX_ATTEMPTS ?? "8";
-  process.env.SQUARE_ACCESS_TOKEN =
-    process.env.SQUARE_ACCESS_TOKEN ?? "seed-test-square-token";
-  process.env.SQUARE_LOCATION_ID =
-    process.env.SQUARE_LOCATION_ID ?? "seed-test-location";
-  process.env.SQUARE_WEBHOOK_SIGNATURE_KEY =
-    process.env.SQUARE_WEBHOOK_SIGNATURE_KEY ?? "seed-test-signature";
-  process.env.SQUARE_WEBHOOK_NOTIFICATION_URL =
-    process.env.SQUARE_WEBHOOK_NOTIFICATION_URL ??
-    "http://localhost:8040/api/v1/payments/webhooks/square";
+  process.env.PAYPAL_CLIENT_ID =
+    process.env.PAYPAL_CLIENT_ID ?? "seed-test-paypal-client-id";
+  process.env.PAYPAL_CLIENT_SECRET =
+    process.env.PAYPAL_CLIENT_SECRET ?? "seed-test-paypal-client-secret";
+  process.env.PAYPAL_WEBHOOK_ID =
+    process.env.PAYPAL_WEBHOOK_ID ?? "seed-test-paypal-webhook-id";
   process.env.ELASTICSEARCH_ENABLED = "true";
   process.env.ELASTICSEARCH_URL = infra.elasticsearch.url;
   process.env.ELASTICSEARCH_POSTINGS_INDEX =
@@ -872,13 +873,20 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
     },
     paymentProvider: {
       createPaymentSession: jest.fn(async (input) => ({
-        checkoutUrl: `https://square.example/checkout/${input.paymentId}`,
+        checkoutUrl: `https://www.sandbox.paypal.com/checkoutnow?token=provider-order-${String(input.paymentId)}`,
         providerRequestId: `provider-request-${String(input.paymentId)}`,
         providerPaymentId: `provider-payment-${String(input.paymentId)}`,
         providerOrderId: `provider-order-${String(input.paymentId)}`,
-        locationId: "seed-test-location",
         raw: {
           paymentId: input.paymentId,
+        },
+      })),
+      capturePayment: jest.fn(async (input) => ({
+        providerPaymentId: `provider-capture-${String(input.providerOrderId)}`,
+        providerOrderId: input.providerOrderId,
+        status: "COMPLETED",
+        raw: {
+          source: "test",
         },
       })),
       getPaymentStatus: jest.fn(async (input) => ({
@@ -902,22 +910,36 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
           source: "test",
         },
       })),
-      verifyWebhookSignature: jest.fn((rawBody, signatureHeader) => {
+      verifyWebhookSignature: jest.fn(async (rawBody, headers) => {
         const payload = JSON.parse(rawBody) as Record<string, unknown>;
-        const eventId =
-          typeof payload.id === "string"
-            ? payload.id
-            : typeof payload.event_id === "string"
-              ? payload.event_id
-              : randomUUID();
+        const resource = (payload.resource ?? {}) as Record<string, unknown>;
+        const relatedIds = ((
+          resource.supplementary_data as Record<string, unknown> | undefined
+        )?.related_ids ?? {}) as Record<string, unknown>;
         const eventType =
-          typeof payload.type === "string" ? payload.type : "payment.updated";
+          typeof payload.event_type === "string"
+            ? payload.event_type
+            : "PAYMENT.CAPTURE.COMPLETED";
+        const statusByEventType: Record<string, string> = {
+          "CHECKOUT.ORDER.APPROVED": "APPROVED",
+          "PAYMENT.CAPTURE.COMPLETED": "COMPLETED",
+          "PAYMENT.CAPTURE.DENIED": "FAILED",
+        };
+        const status = statusByEventType[eventType];
 
         return {
-          isValid: signatureHeader !== "invalid-signature",
-          eventId,
+          isValid: headers["paypal-transmission-sig"] !== "invalid-signature",
+          eventId: typeof payload.id === "string" ? payload.id : randomUUID(),
           eventType,
           payload,
+          details:
+            eventType === "CHECKOUT.ORDER.APPROVED"
+              ? { providerOrderId: resource.id as string | undefined, status }
+              : {
+                  providerPaymentId: resource.id as string | undefined,
+                  providerOrderId: relatedIds.order_id as string | undefined,
+                  status,
+                },
         };
       }),
       classifyError: jest.fn((error) => ({

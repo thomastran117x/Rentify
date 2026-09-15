@@ -63,13 +63,12 @@ const rateLimiterConfig = {
   refillTokensPerSecond: 1,
 };
 
-const squareConfig = {
-  accessToken: "square-test-access-token",
+const paypalConfig = {
+  clientId: "paypal-test-client-id",
+  clientSecret: "paypal-test-client-secret",
   environment: "sandbox" as const,
-  locationId: "square-test-location",
-  webhookSignatureKey: "square-test-signature-key",
-  webhookNotificationUrl: "http://localhost:8080/api/v1/payments/webhook",
-  apiBaseUrl: "https://connect.squareupsandbox.com",
+  webhookId: "paypal-test-webhook-id",
+  apiBaseUrl: "https://api-m.sandbox.paypal.com",
 };
 
 const smsConfig = {
@@ -422,8 +421,8 @@ export const environment = {
   getElasticsearchConfig() {
     return readElasticsearchConfig();
   },
-  getSquareConfig() {
-    return squareConfig;
+  getPayPalConfig() {
+    return paypalConfig;
   },
   getRouteModulesConfig() {
     return readRouteModulesConfig();
@@ -452,7 +451,7 @@ export const environment = {
         nodeEnv: readNodeEnvironment(),
         isProduction: readNodeEnvironment() === "production",
       },
-      square: squareConfig,
+      paypal: paypalConfig,
       usernameBloom: identityBloomConfig,
       emailBloom: identityBloomConfig,
     };

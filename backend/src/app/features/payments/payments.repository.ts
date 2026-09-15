@@ -261,7 +261,7 @@ export class PaymentsRepository extends BaseRepository {
           data: {
             status: "processing",
             providerRequestId: session.providerRequestId ?? null,
-            squarePaymentId: session.providerPaymentId ?? null,
+            providerPaymentId: session.providerPaymentId ?? null,
             responsePayload: session.raw as Prisma.InputJsonValue,
           },
         });
@@ -273,9 +273,8 @@ export class PaymentsRepository extends BaseRepository {
           data: {
             status: "processing",
             checkoutUrl: session.checkoutUrl ?? null,
-            squarePaymentId: session.providerPaymentId ?? null,
-            squareOrderId: session.providerOrderId ?? null,
-            squareLocationId: session.locationId ?? null,
+            providerPaymentId: session.providerPaymentId ?? null,
+            providerOrderId: session.providerOrderId ?? null,
             lastAttemptedAt: new Date(),
           },
         });
@@ -503,9 +502,9 @@ export class PaymentsRepository extends BaseRepository {
           throw new ResourceNotFoundError("Payment could not be found.");
         }
 
-        if (!payment.squarePaymentId) {
+        if (!payment.providerPaymentId) {
           throw new BadRequestError(
-            "This payment is not linked to a Square payment yet.",
+            "This payment is not linked to a PayPal capture yet.",
           );
         }
 
@@ -517,7 +516,7 @@ export class PaymentsRepository extends BaseRepository {
           return {
             refundId: existing.id,
             paymentId: asUuid(payment.id),
-            providerPaymentId: payment.squarePaymentId,
+            providerPaymentId: payment.providerPaymentId,
             pricingCurrency: payment.pricingCurrency,
           };
         }
@@ -551,7 +550,7 @@ export class PaymentsRepository extends BaseRepository {
         return {
           refundId: refund.id,
           paymentId: asUuid(payment.id),
-          providerPaymentId: payment.squarePaymentId,
+          providerPaymentId: payment.providerPaymentId,
           pricingCurrency: payment.pricingCurrency,
         };
       }),
@@ -584,7 +583,7 @@ export class PaymentsRepository extends BaseRepository {
                 : result.status === "FAILED"
                   ? "failed"
                   : "pending",
-            squareRefundId: result.providerRefundId ?? null,
+            providerRefundId: result.providerRefundId ?? null,
             completedAt: result.status === "COMPLETED" ? new Date() : null,
           },
         });
@@ -763,11 +762,11 @@ export class PaymentsRepository extends BaseRepository {
     );
   }
 
-  async findBySquareReferences(input: {
-    squarePaymentId?: string;
-    squareOrderId?: string;
+  async findByProviderReferences(input: {
+    providerPaymentId?: string;
+    providerOrderId?: string;
   }): Promise<PaymentRecord | null> {
-    if (!input.squarePaymentId && !input.squareOrderId) {
+    if (!input.providerPaymentId && !input.providerOrderId) {
       return null;
     }
 
@@ -775,11 +774,11 @@ export class PaymentsRepository extends BaseRepository {
       this.prisma.payment.findFirst({
         where: {
           OR: [
-            ...(input.squarePaymentId
-              ? [{ squarePaymentId: input.squarePaymentId }]
+            ...(input.providerPaymentId
+              ? [{ providerPaymentId: input.providerPaymentId }]
               : []),
-            ...(input.squareOrderId
-              ? [{ squareOrderId: input.squareOrderId }]
+            ...(input.providerOrderId
+              ? [{ providerOrderId: input.providerOrderId }]
               : []),
           ],
         },
@@ -820,10 +819,10 @@ export class PaymentsRepository extends BaseRepository {
           where: {
             OR: [
               ...(input.providerPaymentId
-                ? [{ squarePaymentId: input.providerPaymentId }]
+                ? [{ providerPaymentId: input.providerPaymentId }]
                 : []),
               ...(input.providerOrderId
-                ? [{ squareOrderId: input.providerOrderId }]
+                ? [{ providerOrderId: input.providerOrderId }]
                 : []),
             ],
           },
@@ -858,8 +857,9 @@ export class PaymentsRepository extends BaseRepository {
           },
           data: {
             status: "succeeded",
-            squarePaymentId: input.providerPaymentId ?? payment.squarePaymentId,
-            squareOrderId: input.providerOrderId ?? payment.squareOrderId,
+            providerPaymentId:
+              input.providerPaymentId ?? payment.providerPaymentId,
+            providerOrderId: input.providerOrderId ?? payment.providerOrderId,
             succeededAt: payment.succeededAt ?? new Date(),
             failedAt: null,
           },
@@ -873,8 +873,8 @@ export class PaymentsRepository extends BaseRepository {
             },
             data: {
               status: "succeeded",
-              squarePaymentId:
-                input.providerPaymentId ?? payment.squarePaymentId,
+              providerPaymentId:
+                input.providerPaymentId ?? payment.providerPaymentId,
               responsePayload: input.raw as Prisma.InputJsonValue,
               failureCategory: null,
               failureCode: null,
@@ -1070,10 +1070,10 @@ export class PaymentsRepository extends BaseRepository {
           where: {
             OR: [
               ...(input.providerPaymentId
-                ? [{ squarePaymentId: input.providerPaymentId }]
+                ? [{ providerPaymentId: input.providerPaymentId }]
                 : []),
               ...(input.providerOrderId
-                ? [{ squareOrderId: input.providerOrderId }]
+                ? [{ providerOrderId: input.providerOrderId }]
                 : []),
             ],
           },
@@ -1297,7 +1297,7 @@ export class PaymentsRepository extends BaseRepository {
     return rows.map((row) => ({
       paymentId: asUuid(row.id),
       bookingRequestId: asUuid(row.bookingRequestId),
-      squarePaymentId: row.squarePaymentId ?? undefined,
+      providerPaymentId: row.providerPaymentId ?? undefined,
       status: row.status,
       bookingStatus: row.bookingRequest.status,
     }));
@@ -1439,9 +1439,8 @@ export class PaymentsRepository extends BaseRepository {
       rentalSubtotalAmount: Number(payment.rentalSubtotalAmount),
       platformFeeAmount: Number(payment.platformFeeAmount),
       totalAmount: Number(payment.totalAmount),
-      squarePaymentId: payment.squarePaymentId ?? undefined,
-      squareOrderId: payment.squareOrderId ?? undefined,
-      squareLocationId: payment.squareLocationId ?? undefined,
+      providerPaymentId: payment.providerPaymentId ?? undefined,
+      providerOrderId: payment.providerOrderId ?? undefined,
       checkoutUrl: payment.checkoutUrl ?? undefined,
       lastAttemptedAt: payment.lastAttemptedAt?.toISOString(),
       succeededAt: payment.succeededAt?.toISOString(),
@@ -1468,7 +1467,7 @@ export class PaymentsRepository extends BaseRepository {
         failureCode: attempt.failureCode ?? undefined,
         failureMessage: attempt.failureMessage ?? undefined,
         providerRequestId: attempt.providerRequestId ?? undefined,
-        squarePaymentId: attempt.squarePaymentId ?? undefined,
+        providerPaymentId: attempt.providerPaymentId ?? undefined,
         nextRetryAt: attempt.nextRetryAt?.toISOString(),
         createdAt: attempt.createdAt.toISOString(),
         updatedAt: attempt.updatedAt.toISOString(),
@@ -1480,7 +1479,7 @@ export class PaymentsRepository extends BaseRepository {
         amount: Number(refund.amount),
         reason: refund.reason ?? undefined,
         idempotencyKey: refund.idempotencyKey,
-        squareRefundId: refund.squareRefundId ?? undefined,
+        providerRefundId: refund.providerRefundId ?? undefined,
         createdAt: refund.createdAt.toISOString(),
         updatedAt: refund.updatedAt.toISOString(),
         completedAt: refund.completedAt?.toISOString(),
@@ -1499,7 +1498,7 @@ export class PaymentsRepository extends BaseRepository {
       dueAt: payout.dueAt.toISOString(),
       releasedAt: payout.releasedAt?.toISOString(),
       failedAt: payout.failedAt?.toISOString(),
-      squarePayoutId: payout.squarePayoutId ?? undefined,
+      providerPayoutId: payout.providerPayoutId ?? undefined,
       failureMessage: payout.failureMessage ?? undefined,
       createdAt: payout.createdAt.toISOString(),
       updatedAt: payout.updatedAt.toISOString(),

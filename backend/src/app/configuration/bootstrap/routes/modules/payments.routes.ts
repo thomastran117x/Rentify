@@ -20,7 +20,7 @@ export const paymentsRouteModule: RouteModule = {
       ),
     );
     app.post(
-      "/payments/webhooks/square",
+      "/payments/webhooks/paypal",
       resolveHandler<PaymentsController>(
         containerTokens.paymentsController,
         "webhook",
@@ -45,6 +45,13 @@ export const paymentsRouteModule: RouteModule = {
       resolveHandler<PaymentsController>(
         containerTokens.paymentsController,
         "createRefund",
+      ),
+    );
+    app.post(
+      "/payments/:id/capture",
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "capture",
       ),
     );
     app.post(

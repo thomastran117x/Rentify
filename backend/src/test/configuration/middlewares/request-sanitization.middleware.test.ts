@@ -64,7 +64,7 @@ function createApp() {
 
       response.json(body);
     });
-    app.post("/payments/webhooks/square", (request, response) => {
+    app.post("/payments/webhooks/paypal", (request, response) => {
       response.json({ body: readRawBody(request) });
     });
 
@@ -172,7 +172,7 @@ describe("requestSanitizationMiddleware", () => {
   it("leaves raw-body webhook routes readable", async () => {
     const app = createApp();
     const response = await app.request(
-      "http://rent.test/payments/webhooks/square",
+      "http://rent.test/payments/webhooks/paypal",
       {
         method: "POST",
         headers: {
