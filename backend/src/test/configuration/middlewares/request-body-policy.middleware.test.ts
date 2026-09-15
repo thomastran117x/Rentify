@@ -37,7 +37,7 @@ function createApp() {
     app.post("/blob/upload", (request, response) => {
       response.json({ body: readRawBody(request) });
     });
-    app.post("/payments/webhooks/square", (request, response) => {
+    app.post("/payments/webhooks/paypal", (request, response) => {
       response.json({ body: readRawBody(request) });
     });
 
@@ -119,7 +119,7 @@ describe("requestBodyPolicyMiddleware", () => {
   it("allows raw webhook routes to keep reading their json payload as text", async () => {
     const app = createApp();
     const response = await app.request(
-      "http://rent.test/payments/webhooks/square",
+      "http://rent.test/payments/webhooks/paypal",
       {
         method: "POST",
         headers: {

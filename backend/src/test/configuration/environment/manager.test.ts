@@ -18,11 +18,9 @@ function buildRequiredEnv(
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
     GMAIL_APP_PASSWORD: "process-password",
-    SQUARE_ACCESS_TOKEN: "process-square-token",
-    SQUARE_LOCATION_ID: "process-square-location",
-    SQUARE_WEBHOOK_SIGNATURE_KEY: "process-square-signature-key",
-    SQUARE_WEBHOOK_NOTIFICATION_URL:
-      "http://localhost:8040/api/v1/payments/webhooks/square",
+    PAYPAL_CLIENT_ID: "process-paypal-client-id",
+    PAYPAL_CLIENT_SECRET: "process-paypal-client-secret",
+    PAYPAL_WEBHOOK_ID: "process-paypal-webhook-id",
     ...overrides,
   };
 }
@@ -218,7 +216,7 @@ describe("EnvironmentManager", () => {
     expect(manager.getFeaturesConfig()).toBe(environment.features);
     expect(manager.getRabbitMqConfig()).toBe(environment.rabbitmq);
     expect(manager.getElasticsearchConfig()).toBe(environment.elasticsearch);
-    expect(manager.getSquareConfig()).toBe(environment.square);
+    expect(manager.getPayPalConfig()).toBe(environment.paypal);
     expect(environment.auth.mfaBypassEmails).toEqual([
       "owner1@rentify.local",
       "user1@rentify.local",

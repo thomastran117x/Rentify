@@ -15,7 +15,7 @@ info:
     - Most protected routes use a bearer token in the `Authorization` header.
     - Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.
     - Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.
-    - `POST /payments/webhooks/square` uses the `x-square-hmacsha256-signature` header instead of bearer authentication.
+    - `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.
     - `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.
 servers:
   - url: http://localhost:8040/api/v1
@@ -14679,7 +14679,7 @@ paths:
     post:
       operationId: createPaymentSession
       summary: Create a payment session for a booking request
-      description: Creates a Square payment session for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.
+      description: Creates a PayPal checkout order for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.
       tags:
         - payments
       security:
@@ -14728,16 +14728,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: awaiting_method
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -14768,36 +14766,36 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /payments/webhooks/square:
+  /payments/webhooks/paypal:
     post:
-      operationId: handleSquareWebhook
-      summary: Handle a Square payment webhook
-      description: Processes a Square webhook event. The `x-square-hmacsha256-signature` header is required and verified against the raw request body.
+      operationId: handlePayPalWebhook
+      summary: Handle a PayPal payment webhook
+      description: Processes a PayPal webhook event. The `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmission-sig`, `paypal-cert-url`, and `paypal-auth-algo` headers are required and verified through PayPal's webhook signature verification API.
       tags:
         - payments
       security:
-        - squareWebhookSignature: []
+        - paypalWebhookSignature: []
       x-rentify-permissions:
         authMode: webhook-signature
         minimumRole: null
         patAllowed: false
       requestBody:
         required: true
-        description: Square webhook event payload.
+        description: PayPal webhook event payload.
         content:
           application/json:
             schema:
               type: object
               additionalProperties: true
             example:
-              merchant_id: merchant-1
-              type: payment.updated
-              data:
-                object:
-                  payment:
-                    id: sq-payment-1
-                    order_id: sq-order-1
-                    status: COMPLETED
+              id: WH-2WR32451HC0233532-67976317FL4543714
+              event_type: PAYMENT.CAPTURE.COMPLETED
+              resource:
+                id: 2GG279541U471931P
+                status: COMPLETED
+                supplementary_data:
+                  related_ids:
+                    order_id: 5O190127TN364715T
       responses:
         '200':
           description: Successful response.
@@ -14937,16 +14935,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: awaiting_method
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -15015,16 +15011,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: awaiting_method
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -15102,16 +15096,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: awaiting_method
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -15197,16 +15189,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: partially_refunded
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -15224,10 +15214,92 @@ paths:
                       amount: 100
                       reason: Partial inconvenience refund
                       idempotencyKey: refund-1
-                      squareRefundId: sq-refund-1
+                      providerRefundId: 1JU08902781691411
                       createdAt: '2026-05-26T10:00:00.000Z'
                       updatedAt: '2026-05-26T10:00:00.000Z'
                       completedAt: '2026-05-26T10:00:00.000Z'
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /payments/{id}/capture:
+    post:
+      operationId: capturePayment
+      summary: Capture an approved payment
+      description: 'Captures the PayPal order the renter approved at checkout and finalizes the payment. Safe to repeat: an already captured payment is returned unchanged. PAT bearer authentication is not allowed.'
+      tags:
+        - payments
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Payment identifier.
+          schema:
+            type: string
+          example: payment-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PaymentRecord'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Payment captured successfully.
+                data:
+                  id: payment-1
+                  bookingRequestId: booking-1
+                  postingId: posting-1
+                  renterId: user-1
+                  organizationId: org-1
+                  provider: paypal
+                  status: succeeded
+                  pricingCurrency: CAD
+                  rentalSubtotalAmount: 450
+                  platformFeeAmount: 45
+                  totalAmount: 495
+                  providerOrderId: 5O190127TN364715T
+                  createdAt: '2026-05-25T12:05:00.000Z'
+                  updatedAt: '2026-05-25T12:05:00.000Z'
+                  booking:
+                    id: booking-1
+                    status: awaiting_payment
+                    startAt: '2026-06-14T15:00:00.000Z'
+                    endAt: '2026-06-17T11:00:00.000Z'
+                    holdExpiresAt: '2026-05-28T12:00:00.000Z'
+                    paymentReconciliationRequired: false
+                  attempts: []
+                  refunds: []
+                  providerPaymentId: 2GG279541U471931P
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -15291,16 +15363,14 @@ paths:
                   postingId: posting-1
                   renterId: user-1
                   organizationId: org-1
-                  provider: square
+                  provider: paypal
                   status: succeeded
                   pricingCurrency: CAD
                   rentalSubtotalAmount: 450
                   platformFeeAmount: 45
                   totalAmount: 495
-                  squarePaymentId: sq-payment-1
-                  squareOrderId: sq-order-1
-                  squareLocationId: sq-location-1
-                  checkoutUrl: https://square.link/u/abc123
+                  providerOrderId: 5O190127TN364715T
+                  checkoutUrl: https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T
                   createdAt: '2026-05-25T12:05:00.000Z'
                   updatedAt: '2026-05-25T12:05:00.000Z'
                   booking:
@@ -16200,10 +16270,10 @@ components:
       type: apiKey
       in: header
       name: x-csrf-token
-    squareWebhookSignature:
+    paypalWebhookSignature:
       type: apiKey
       in: header
-      name: x-square-hmacsha256-signature
+      name: paypal-transmission-sig
     telnyxWebhookSignature:
       type: apiKey
       in: header

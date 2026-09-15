@@ -222,30 +222,28 @@ export function buildElasticsearchConfig(
   };
 }
 
-export function buildSquareConfig(
+export function buildPayPalConfig(
   raw: RawEnvironmentValues,
   errors: string[],
-  squareAccessToken: string,
-  squareLocationId: string,
-  squareWebhookSignatureKey: string,
-  squareWebhookNotificationUrl: string,
-): AppEnvironment["square"] {
-  const squareEnvironment = raw.SQUARE_ENVIRONMENT?.toLowerCase() ?? "sandbox";
+  paypalClientId: string,
+  paypalClientSecret: string,
+  paypalWebhookId: string,
+): AppEnvironment["paypal"] {
+  const paypalEnvironment = raw.PAYPAL_ENVIRONMENT?.toLowerCase() ?? "sandbox";
 
-  if (squareEnvironment !== "sandbox" && squareEnvironment !== "production") {
-    errors.push("SQUARE_ENVIRONMENT must be either sandbox or production.");
+  if (paypalEnvironment !== "sandbox" && paypalEnvironment !== "production") {
+    errors.push("PAYPAL_ENVIRONMENT must be either sandbox or production.");
   }
 
   return {
-    accessToken: squareAccessToken,
-    environment: squareEnvironment === "production" ? "production" : "sandbox",
-    locationId: squareLocationId,
-    webhookSignatureKey: squareWebhookSignatureKey,
-    webhookNotificationUrl: squareWebhookNotificationUrl,
+    clientId: paypalClientId,
+    clientSecret: paypalClientSecret,
+    environment: paypalEnvironment === "production" ? "production" : "sandbox",
+    webhookId: paypalWebhookId,
     apiBaseUrl:
-      squareEnvironment === "production"
-        ? "https://connect.squareup.com"
-        : "https://connect.squareupsandbox.com",
+      paypalEnvironment === "production"
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com",
   };
 }
 

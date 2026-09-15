@@ -5,7 +5,7 @@ import {
 } from "@/features/postings/postings.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 
-export const PAYMENT_PROVIDER = "square" as const;
+export const PAYMENT_PROVIDER = "paypal" as const;
 export const DEFAULT_PLATFORM_FEE_BPS = 1000;
 export const DEFAULT_BOOKING_DEPOSIT_BPS = 2500;
 export const MAX_RETRY_ATTEMPTS = 5;
@@ -88,7 +88,7 @@ export interface PaymentAttemptRecord {
   failureCode?: string;
   failureMessage?: string;
   providerRequestId?: string;
-  squarePaymentId?: string;
+  providerPaymentId?: string;
   nextRetryAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -101,7 +101,7 @@ export interface RefundRecord {
   amount: number;
   reason?: string;
   idempotencyKey: string;
-  squareRefundId?: string;
+  providerRefundId?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -116,7 +116,7 @@ export interface PayoutRecord {
   dueAt: string;
   releasedAt?: string;
   failedAt?: string;
-  squarePayoutId?: string;
+  providerPayoutId?: string;
   failureMessage?: string;
   createdAt: string;
   updatedAt: string;
@@ -134,9 +134,8 @@ export interface PaymentRecord {
   rentalSubtotalAmount: number;
   platformFeeAmount: number;
   totalAmount: number;
-  squarePaymentId?: string;
-  squareOrderId?: string;
-  squareLocationId?: string;
+  providerPaymentId?: string;
+  providerOrderId?: string;
   checkoutUrl?: string;
   lastAttemptedAt?: string;
   succeededAt?: string;
@@ -207,14 +206,17 @@ export interface ProviderPaymentSession {
   providerRequestId?: string;
   providerPaymentId?: string;
   providerOrderId?: string;
-  locationId?: string;
   raw: Record<string, unknown>;
 }
 
+/**
+ * APPROVED means the buyer approved the order but the charge has not been
+ * captured yet; the service captures it before treating it as paid.
+ */
 export interface ProviderPaymentStatus {
   providerPaymentId?: string;
   providerOrderId?: string;
-  status: "PENDING" | "COMPLETED" | "FAILED" | "CANCELED";
+  status: "PENDING" | "APPROVED" | "COMPLETED" | "FAILED" | "CANCELED";
   amount?: number;
   currency?: string;
   raw: Record<string, unknown>;
@@ -245,14 +247,35 @@ export interface PaymentRetryCandidate {
 export interface PaymentRepairCandidate {
   paymentId: Uuid;
   bookingRequestId: Uuid;
-  squarePaymentId?: string;
+  providerPaymentId?: string;
   status: PaymentStatus;
   bookingStatus: string;
 }
 
-export interface SquareWebhookVerificationResult {
+/** The transmission headers PayPal signs every webhook delivery with. */
+export const PAYMENT_WEBHOOK_HEADER_NAMES = [
+  "paypal-auth-algo",
+  "paypal-cert-url",
+  "paypal-transmission-id",
+  "paypal-transmission-sig",
+  "paypal-transmission-time",
+] as const;
+
+export type PaymentWebhookHeaders = Partial<
+  Record<(typeof PAYMENT_WEBHOOK_HEADER_NAMES)[number], string>
+>;
+
+/** Provider references and status carried by a webhook event, if any. */
+export interface PaymentWebhookDetails {
+  providerPaymentId?: string;
+  providerOrderId?: string;
+  status?: ProviderPaymentStatus["status"];
+}
+
+export interface PaymentWebhookVerificationResult {
   isValid: boolean;
   eventId: string;
   eventType: string;
   payload: Record<string, unknown>;
+  details: PaymentWebhookDetails;
 }

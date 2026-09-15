@@ -56,8 +56,7 @@ connection strings:
 - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`,
   `PERSONAL_ACCESS_TOKEN_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
-  secrets, `SQUARE_ACCESS_TOKEN`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, and
-  `TELNYX_API_KEY`
+  secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
 Never put those keys or their values in a YAML configuration file. The loader
 rejects secret-style environment keys because they are not part of the file

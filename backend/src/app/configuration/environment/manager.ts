@@ -323,8 +323,8 @@ export class EnvironmentManager {
     return this.get().elasticsearch;
   }
 
-  getSquareConfig(): AppEnvironment["square"] {
-    return this.get().square;
+  getPayPalConfig(): AppEnvironment["paypal"] {
+    return this.get().paypal;
   }
 
   getEnvironmentVariable(name: string): string {

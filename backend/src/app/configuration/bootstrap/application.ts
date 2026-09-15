@@ -26,7 +26,7 @@ import { securityHeadersMiddleware } from "../middlewares/security-headers.middl
  * verifies a provider signature over the exact bytes received.
  */
 const WEBHOOK_RAW_BODY_PATHS = [
-  "/payments/webhooks/square",
+  "/payments/webhooks/paypal",
   "/sms/webhooks/telnyx",
 ];
 

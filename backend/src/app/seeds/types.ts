@@ -149,7 +149,7 @@ export interface SeedPaymentAttemptFixture {
   failureCode?: string;
   failureMessage?: string;
   providerRequestId?: string;
-  squarePaymentId?: string;
+  providerPaymentId?: string;
   requestPayload?: Record<string, unknown>;
   responsePayload?: Record<string, unknown>;
   nextRetryAt?: string;
@@ -163,7 +163,7 @@ export interface SeedRefundFixture {
   amount: number;
   reason?: string;
   idempotencyKey: string;
-  squareRefundId?: string;
+  providerRefundId?: string;
   createdAt: string;
   completedAt?: string;
 }
@@ -175,7 +175,7 @@ export interface SeedPayoutFixture {
   dueAt: string;
   releasedAt?: string;
   failedAt?: string;
-  squarePayoutId?: string;
+  providerPayoutId?: string;
   failureMessage?: string;
   createdAt: string;
 }
@@ -206,7 +206,7 @@ export interface SeedPaymentLedgerEntryFixture {
 
 export interface SeedPaymentFixture {
   id: Uuid;
-  provider: "square";
+  provider: "paypal";
   status:
     | "awaiting_method"
     | "processing"
@@ -220,9 +220,9 @@ export interface SeedPaymentFixture {
   rentalSubtotalAmount: number;
   platformFeeAmount: number;
   totalAmount: number;
-  squarePaymentId?: string;
-  squareOrderId?: string;
-  squareLocationId?: string;
+  providerPaymentId?: string;
+  providerOrderId?: string;
+
   checkoutUrl?: string;
   lastAttemptedAt?: string;
   succeededAt?: string;

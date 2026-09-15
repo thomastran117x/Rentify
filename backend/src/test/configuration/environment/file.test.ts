@@ -48,9 +48,9 @@ describe("YAML configuration files", () => {
         cors: {
           allowedOrigins: ["${config.frontendOrigin}", "https://two.test"],
         },
-        square: {
-          webhookNotificationUrl:
-            "${config.backendOrigin}/api/v1/payments/webhooks/square",
+        paypal: {
+          environment: "production",
+          webhookId: "WH-${config.backendOrigin}",
         },
         features: { SEARCH_V2: { enabled: true } },
       }),
@@ -59,8 +59,8 @@ describe("YAML configuration files", () => {
         PORT: "9000",
         FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
-        SQUARE_WEBHOOK_NOTIFICATION_URL:
-          "https://api.test/api/v1/payments/webhooks/square",
+        PAYPAL_ENVIRONMENT: "production",
+        PAYPAL_WEBHOOK_ID: "WH-https://api.test",
       },
       features: {
         "search-v2": { enabled: true, source: "config" },
