@@ -18,10 +18,11 @@ import { formatDateRange, formatMoney } from "@/lib/rentings/format";
 import { theme } from "@/styles/theme";
 
 type ReturnState =
-  | { kind: "capturing" }
+  | { kind: "loading" }
   | { kind: "succeeded"; payment: PaymentRecord }
   | { kind: "pending"; payment: PaymentRecord }
   | { kind: "failed"; payment: PaymentRecord }
+  | { kind: "cancelled" }
   | { kind: "reconciliation" }
   | { kind: "error"; message: string };
 
@@ -63,11 +64,11 @@ export function PaymentReturnClient({
 }: PaymentReturnClientProps) {
   const router = useRouter();
   const { status } = useAuth();
-  const [state, setState] = useState<ReturnState>({ kind: "capturing" });
+  const [state, setState] = useState<ReturnState>({ kind: "loading" });
   const [retrying, setRetrying] = useState(false);
-  // Capturing is idempotent server-side, but StrictMode's double effect would
-  // still fire a second request; start the capture once per payment.
-  const captureStartedFor = useRef<string | null>(null);
+  // Both calls are idempotent server-side, but StrictMode's double effect
+  // would still fire a second request; start once per return visit.
+  const startedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -75,10 +76,23 @@ export function PaymentReturnClient({
     }
   }, [router, status]);
 
-  const capture = useCallback(async () => {
-    setState({ kind: "capturing" });
+  // A normal return captures the approved order. A cancelled return records the
+  // abandoned checkout so the renter can restart it; if PayPal shows the order
+  // was paid after all, the backend reports that instead.
+  const confirm = useCallback(async () => {
+    setState({ kind: "loading" });
 
     try {
+      if (cancelled) {
+        const payment = await paymentsApi.cancelCheckout(paymentId);
+        setState(
+          FAILED_STATUSES.has(payment.status)
+            ? { kind: "cancelled" }
+            : stateForPayment(payment),
+        );
+        return;
+      }
+
       setState(stateForPayment(await paymentsApi.capture(paymentId)));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -89,25 +103,25 @@ export function PaymentReturnClient({
       setState({
         kind: "error",
         message: getApiErrorMessage(error, {
-          action: "confirm your payment",
-          fallback: "We couldn't confirm your payment. Please try again.",
+          action: cancelled ? "update your checkout" : "confirm your payment",
+          fallback: cancelled
+            ? "We couldn't update your checkout. Please try again."
+            : "We couldn't confirm your payment. Please try again.",
         }),
       });
     }
-  }, [paymentId]);
+  }, [cancelled, paymentId]);
 
   useEffect(() => {
-    if (
-      cancelled ||
-      status !== "authenticated" ||
-      captureStartedFor.current === paymentId
-    ) {
+    const visit = `${paymentId}:${cancelled}`;
+
+    if (status !== "authenticated" || startedFor.current === visit) {
       return;
     }
 
-    captureStartedFor.current = paymentId;
-    void capture();
-  }, [cancelled, capture, paymentId, status]);
+    startedFor.current = visit;
+    void confirm();
+  }, [cancelled, confirm, paymentId, status]);
 
   const restartCheckout = useCallback(async () => {
     setRetrying(true);
@@ -144,24 +158,27 @@ export function PaymentReturnClient({
     </Link>
   );
 
-  if (cancelled) {
-    return (
-      <ReturnPanel
-        icon={<AlertTriangle className="h-10 w-10 text-amber-500" />}
-        title="Payment cancelled"
-        description="You left PayPal before approving the payment, so nothing was charged. Your booking request is still waiting for payment."
-      >
-        {backToBookings}
-      </ReturnPanel>
-    );
-  }
+  const restartButton = (label: string) => (
+    <button
+      type="button"
+      onClick={() => void restartCheckout()}
+      disabled={retrying}
+      className={theme.marketplace.primaryButton}
+    >
+      {retrying ? "Restarting checkout..." : label}
+    </button>
+  );
 
-  if (status === "loading" || state.kind === "capturing") {
+  if (status === "loading" || state.kind === "loading") {
     return (
       <ReturnPanel
         icon={<Loader2 className="h-10 w-10 animate-spin text-violet-500" />}
-        title="Confirming your payment"
-        description="Hold tight while we confirm your payment with PayPal."
+        title={cancelled ? "Checking your checkout" : "Confirming your payment"}
+        description={
+          cancelled
+            ? "Hold tight while we check your checkout with PayPal."
+            : "Hold tight while we confirm your payment with PayPal."
+        }
       />
     );
   }
@@ -188,7 +205,7 @@ export function PaymentReturnClient({
         >
           <button
             type="button"
-            onClick={() => void capture()}
+            onClick={() => void confirm()}
             className={theme.marketplace.primaryButton}
           >
             Check again
@@ -206,14 +223,18 @@ export function PaymentReturnClient({
             "PayPal couldn't complete this payment. You can try again with another payment method."
           }
         >
-          <button
-            type="button"
-            onClick={() => void restartCheckout()}
-            disabled={retrying}
-            className={theme.marketplace.primaryButton}
-          >
-            {retrying ? "Restarting checkout..." : "Try again with PayPal"}
-          </button>
+          {restartButton("Try again with PayPal")}
+          {backToBookings}
+        </ReturnPanel>
+      );
+    case "cancelled":
+      return (
+        <ReturnPanel
+          icon={<AlertTriangle className="h-10 w-10 text-amber-500" />}
+          title="Payment cancelled"
+          description="You left PayPal before approving the payment, so nothing was charged. You can restart checkout while your booking hold is still active."
+        >
+          {restartButton("Restart checkout")}
           {backToBookings}
         </ReturnPanel>
       );
@@ -231,12 +252,16 @@ export function PaymentReturnClient({
       return (
         <ReturnPanel
           icon={<AlertTriangle className="h-10 w-10 text-rose-500" />}
-          title="We couldn't confirm your payment"
+          title={
+            cancelled
+              ? "We couldn't update your checkout"
+              : "We couldn't confirm your payment"
+          }
           description={state.message}
         >
           <button
             type="button"
-            onClick={() => void capture()}
+            onClick={() => void confirm()}
             className={theme.marketplace.primaryButton}
           >
             Try again

@@ -123,6 +123,70 @@ describe("Payments persistence integration", () => {
     });
   });
 
+  it("records abandoned checkouts so the renter can restart them", async () => {
+    const booking = SEED_BOOKINGS[16]!;
+    const renter = await createAuthenticatedRequestContext({
+      email: booking.renterEmail,
+    });
+
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${booking.id}/payment-session`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "persistence-cancel-checkout-1",
+        }),
+      },
+    );
+    expect(createResponse.status).toBe(201);
+
+    const payment = await getPaymentForBooking(persistenceApp, booking.id);
+    persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+      {
+        providerOrderId: payment.providerOrderId,
+        status: "PENDING",
+        raw: { source: "test" },
+      },
+    );
+
+    const cancelResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/cancel-checkout`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(cancelResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, booking.id),
+    ).toMatchObject({
+      status: "failed_final",
+      bookingRequest: {
+        status: "payment_failed",
+      },
+    });
+
+    const retryResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/retry`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "persistence-cancel-checkout-retry-1",
+        }),
+      },
+    );
+
+    expect(retryResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, booking.id),
+    ).toMatchObject({
+      status: "processing",
+    });
+  });
+
   it("captures approved orders through the return endpoint and enforces access", async () => {
     const captureBooking = SEED_BOOKINGS[18]!;
     const renter = await createAuthenticatedRequestContext({

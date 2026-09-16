@@ -599,6 +599,95 @@ describe("PaymentsRepository", () => {
     expect(bookingUpdates[0]).not.toHaveProperty("status");
   });
 
+  it("finds stored refunds by their provider refund id", async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: "refund-1",
+        paymentId: PAYMENT_1_ID,
+        status: "pending",
+      })
+      .mockResolvedValueOnce(null);
+    const repository = new PaymentsRepository({
+      refund: { findUnique },
+    } as any);
+
+    await expect(
+      repository.findRefundByProviderRefundId("refund-provider-1"),
+    ).resolves.toEqual({
+      refundId: "refund-1",
+      paymentId: PAYMENT_1_ID,
+      status: "pending",
+    });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { providerRefundId: "refund-provider-1" },
+      select: { id: true, paymentId: true, status: true },
+    });
+    await expect(
+      repository.findRefundByProviderRefundId("missing"),
+    ).resolves.toBeNull();
+  });
+
+  it("writes the refund ledger entry only when a refund first settles", async () => {
+    const createLedgerEntry = jest.fn(async () => undefined);
+    const storedRefund = {
+      id: "refund-1",
+      paymentId: PAYMENT_1_ID,
+      amount: new Prisma.Decimal(50),
+      status: "pending",
+    };
+    const findRefund = jest.fn(async () => storedRefund);
+    const transaction = {
+      refund: {
+        findUniqueOrThrow: findRefund,
+        update: jest.fn(async () => undefined),
+        findMany: jest.fn(async () => []),
+      },
+      payment: {
+        findUniqueOrThrow: jest.fn(async () =>
+          createPaymentPersistence({ status: "succeeded" }),
+        ),
+        update: jest.fn(async () => undefined),
+      },
+      bookingRequest: {
+        update: jest.fn(async () => undefined),
+      },
+      postingAvailabilityBlock: {
+        deleteMany: jest.fn(async () => undefined),
+      },
+      paymentLedgerEntry: {
+        create: createLedgerEntry,
+      },
+    };
+    const repository = new PaymentsRepository({
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
+    } as any);
+
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "PENDING",
+      raw: {},
+    });
+    expect(createLedgerEntry).not.toHaveBeenCalled();
+
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "COMPLETED",
+      raw: { ok: true },
+    });
+    expect(createLedgerEntry).toHaveBeenCalledTimes(1);
+
+    findRefund.mockResolvedValueOnce({ ...storedRefund, status: "succeeded" });
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "COMPLETED",
+      raw: { ok: true },
+    });
+    expect(createLedgerEntry).toHaveBeenCalledTimes(1);
+  });
+
   it("can preserve the current booking status while recording a successful refund", async () => {
     const bookingUpdates: Array<Record<string, unknown>> = [];
     const deletedBlocks: string[] = [];

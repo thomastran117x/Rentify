@@ -168,6 +168,13 @@ export const paymentsApi = {
       {},
     );
   },
+  cancelCheckout(paymentId: string): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, Record<string, never>>(
+      "POST",
+      `/payments/${encodeURIComponent(paymentId)}/cancel-checkout`,
+      {},
+    );
+  },
   retry(
     paymentId: string,
     input: RetryPaymentInput = {},

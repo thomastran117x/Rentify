@@ -119,6 +119,20 @@ export class PaymentsController {
     });
   };
 
+  cancelCheckout = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const result = await this.paymentsService.cancelCheckout(
+      this.requirePaymentId(request),
+      auth.sub,
+    );
+    ok(response, result, {
+      message: "Checkout cancellation recorded successfully.",
+    });
+  };
+
   webhook = async (request: Request, response: Response): Promise<void> => {
     const rawBody = readRawBody(request);
     const headers: PaymentWebhookHeaders = Object.fromEntries(

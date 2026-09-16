@@ -15,10 +15,12 @@ import type {
   CreateRefundInput,
   ListPayoutsInput,
   PaymentRecord,
+  PaymentWebhookDetails,
   PaymentWebhookHeaders,
   PayoutListResult,
   ProviderPaymentStatus,
   RetryPaymentInput,
+  StoredRefundReference,
 } from "@/features/payments/payments.model";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { createPaymentIdempotencyKey } from "@/features/payments/payments.utils";
@@ -143,12 +145,18 @@ export class PaymentsService {
   }
 
   /**
-   * Captures the provider order the buyer approved. Called when the buyer is
+   * Captures the provider order the buyer approved. Capturing finalizes the
+   * booking, so only the renter or a member who can manage the organization's
+   * payments may do it. Called when the buyer is
    * redirected back from checkout; the webhook and repair paths cover buyers
    * who never make it back.
    */
   async capturePayment(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
-    const payment = await this.requirePaymentAccess(paymentId, userId, "read");
+    const payment = await this.requirePaymentAccess(
+      paymentId,
+      userId,
+      "manage",
+    );
 
     if (CAPTURED_PAYMENT_STATUSES.has(payment.status)) {
       return payment;
@@ -203,6 +211,61 @@ export class PaymentsService {
     return result.payment ?? payment;
   }
 
+  /**
+   * Records that the buyer left PayPal without approving, so the payment can be
+   * retried. If PayPal shows the order was approved or paid after all, that
+   * outcome is applied instead.
+   */
+  async cancelCheckout(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
+    const payment = await this.requirePaymentAccess(
+      paymentId,
+      userId,
+      "manage",
+    );
+
+    if (payment.status !== "processing" || !payment.providerOrderId) {
+      return payment;
+    }
+
+    let status: ProviderPaymentStatus | null;
+
+    try {
+      status = await this.paymentProvider.getPaymentStatus({
+        providerOrderId: payment.providerOrderId,
+      });
+    } catch {
+      throw new ServiceNotAvaliableError(
+        "PayPal is temporarily unavailable. Please try again.",
+      );
+    }
+
+    if (status && status.status !== "PENDING") {
+      const result = await this.applyProviderStatus(status, payment);
+
+      if (result.reconciliationRequired) {
+        throw new ConflictError(RECONCILIATION_REQUIRED_MESSAGE);
+      }
+
+      return result.payment ?? payment;
+    }
+
+    const cancelledCheckout = await this.applyProviderStatus(
+      {
+        providerOrderId: payment.providerOrderId,
+        status: "CANCELED",
+        failureCode: "CHECKOUT_CANCELLED",
+        failureMessage:
+          "Checkout was cancelled before the payment was approved.",
+        raw: {
+          reason: "buyer_cancelled_checkout",
+        },
+      },
+      payment,
+    );
+
+    return cancelledCheckout.payment ?? payment;
+  }
+
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
     await this.requirePaymentAccess(
       input.paymentId,
@@ -229,12 +292,10 @@ export class PaymentsService {
       refundId,
       result,
     );
-    await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
-      postingId: payment.postingId,
-      organizationId: payment.organizationId,
-      occurredAt: new Date().toISOString(),
-      refundedAmount: input.amount,
-    });
+    // A pending refund is recorded when PayPal's completion webhook arrives.
+    if (result.status === "COMPLETED") {
+      await this.enqueueRefundRecordedAnalytics(payment, input.amount);
+    }
     await this.enqueueSearchSync(payment.postingId);
     return payment;
   }
@@ -265,6 +326,11 @@ export class PaymentsService {
       headers,
     );
     const { details } = verification;
+    const refund = details.refund
+      ? await this.paymentsRepository.findRefundByProviderRefundId(
+          details.refund.providerRefundId,
+        )
+      : null;
     const payment = await this.paymentsRepository.findByProviderReferences({
       providerPaymentId: details.providerPaymentId,
       providerOrderId: details.providerOrderId,
@@ -275,7 +341,7 @@ export class PaymentsService {
       eventType: verification.eventType,
       signatureValid: verification.isValid,
       payload: verification.payload,
-      paymentId: asOptionalUuid(payment?.id),
+      paymentId: asOptionalUuid(payment?.id ?? refund?.paymentId),
     });
 
     if (!verification.isValid) {
@@ -288,7 +354,19 @@ export class PaymentsService {
       return;
     }
 
-    if (details.status) {
+    if (details.refund) {
+      // A refund Rentify has no record of stays unprocessed so it can be
+      // reconciled by hand instead of being silently dropped.
+      if (!refund) {
+        return;
+      }
+
+      await this.applyRefundStatus(
+        refund,
+        details.refund,
+        verification.payload,
+      );
+    } else if (details.status) {
       const failed =
         details.status === "FAILED" || details.status === "CANCELED";
 
@@ -486,6 +564,48 @@ export class PaymentsService {
       default:
         return { payment, reconciliationRequired: false };
     }
+  }
+
+  /** Finalizes a refund that PayPal first reported as pending. */
+  private async applyRefundStatus(
+    refund: StoredRefundReference,
+    update: NonNullable<PaymentWebhookDetails["refund"]>,
+    raw: Record<string, unknown>,
+  ): Promise<void> {
+    if (refund.status !== "pending" || update.status === "PENDING") {
+      return;
+    }
+
+    const payment = await this.paymentsRepository.completeRefund(
+      refund.refundId,
+      {
+        providerRefundId: update.providerRefundId,
+        status: update.status,
+        raw,
+      },
+    );
+
+    if (update.status === "COMPLETED") {
+      await this.enqueueRefundRecordedAnalytics(
+        payment,
+        payment.refunds.find((item) => item.id === refund.refundId)?.amount ??
+          0,
+      );
+    }
+
+    await this.enqueueSearchSync(payment.postingId);
+  }
+
+  private async enqueueRefundRecordedAnalytics(
+    payment: PaymentRecord,
+    refundedAmount: number,
+  ): Promise<void> {
+    await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
+      postingId: payment.postingId,
+      organizationId: payment.organizationId,
+      occurredAt: new Date().toISOString(),
+      refundedAmount,
+    });
   }
 
   private async enqueueSearchSync(postingId?: Uuid): Promise<void> {

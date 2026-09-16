@@ -163,7 +163,7 @@ describe("PaymentsController", () => {
     });
   });
 
-  it("maps retry, refund, get-by-id, capture, and reconcile calls to the service layer", async () => {
+  it("maps retry, refund, get-by-id, capture, cancel-checkout, and reconcile calls to the service layer", async () => {
     const service = {
       getPaymentById: jest.fn(async () => ({ id: PAYMENT_ID })),
       retryPayment: jest.fn(async () => ({
@@ -171,6 +171,10 @@ describe("PaymentsController", () => {
         status: "processing",
       })),
       createRefund: jest.fn(async () => ({ id: "refund-1" })),
+      cancelCheckout: jest.fn(async () => ({
+        id: PAYMENT_ID,
+        status: "failed_final",
+      })),
       capturePayment: jest.fn(async () => ({
         id: PAYMENT_ID,
         status: "succeeded",
@@ -196,6 +200,7 @@ describe("PaymentsController", () => {
     await invoke(controller.retry, context);
     await invoke(controller.createRefund, context);
     await invoke(controller.capture, context);
+    await invoke(controller.cancelCheckout, context);
     await invoke(controller.reconcile, context);
 
     expect(service.getPaymentById).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
@@ -212,6 +217,7 @@ describe("PaymentsController", () => {
       idempotencyKey: "retry-1",
     });
     expect(service.capturePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
+    expect(service.cancelCheckout).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
     expect(service.reconcilePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
   });
 

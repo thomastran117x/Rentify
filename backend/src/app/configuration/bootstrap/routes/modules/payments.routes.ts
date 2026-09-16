@@ -48,6 +48,13 @@ export const paymentsRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/payments/:id/cancel-checkout",
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "cancelCheckout",
+      ),
+    );
+    app.post(
       "/payments/:id/capture",
       resolveHandler<PaymentsController>(
         containerTokens.paymentsController,

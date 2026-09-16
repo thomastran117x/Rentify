@@ -428,6 +428,29 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
                 ? "PENDING"
                 : "FAILED",
         };
+      case "PAYMENT.CAPTURE.REFUNDED":
+      case "PAYMENT.REFUND.PENDING":
+      case "PAYMENT.REFUND.FAILED": {
+        const providerRefundId = readString(resource, ["id"]);
+
+        if (!providerRefundId) {
+          return {};
+        }
+
+        return {
+          refund: {
+            providerRefundId,
+            status: this.normalizeRefundStatus(
+              readString(resource, ["status"]) ??
+                (eventType === "PAYMENT.CAPTURE.REFUNDED"
+                  ? "COMPLETED"
+                  : eventType === "PAYMENT.REFUND.FAILED"
+                    ? "FAILED"
+                    : "PENDING"),
+            ),
+          },
+        };
+      }
       default:
         return {};
     }

@@ -9,11 +9,14 @@ import {
   routerReplaceMock,
 } from "@/test/mocks/next-navigation";
 
-const { useAuthMock, captureMock, retryMock } = vi.hoisted(() => ({
-  useAuthMock: vi.fn(),
-  captureMock: vi.fn(),
-  retryMock: vi.fn(),
-}));
+const { useAuthMock, captureMock, cancelCheckoutMock, retryMock } = vi.hoisted(
+  () => ({
+    useAuthMock: vi.fn(),
+    captureMock: vi.fn(),
+    cancelCheckoutMock: vi.fn(),
+    retryMock: vi.fn(),
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -40,6 +43,7 @@ vi.mock("@/components/auth/auth-context", () => ({
 vi.mock("@/lib/payments/api", () => ({
   paymentsApi: {
     capture: captureMock,
+    cancelCheckout: cancelCheckoutMock,
     retry: retryMock,
   },
 }));
@@ -118,14 +122,52 @@ describe("PaymentReturnClient", () => {
     expect(captureMock).not.toHaveBeenCalled();
   });
 
-  it("shows the cancelled state without capturing", () => {
+  it("records a cancelled checkout and lets the renter restart it", async () => {
+    cancelCheckoutMock.mockResolvedValue(
+      buildPayment({ status: "failed_final" }),
+    );
+    retryMock.mockResolvedValue(buildPayment({ status: "failed_retryable" }));
+
     renderReturn(true);
 
-    expect(screen.getByText("Payment cancelled")).toBeInTheDocument();
+    expect(screen.getByText("Checking your checkout")).toBeInTheDocument();
+    expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
+    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1");
+    expect(captureMock).not.toHaveBeenCalled();
     expect(
       screen.getByRole("link", { name: "Back to bookings" }),
     ).toHaveAttribute("href", "/bookings");
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart checkout" }));
+
+    expect(retryMock).toHaveBeenCalledWith("payment-1");
+    expect(
+      await screen.findByText("Payment didn't go through"),
+    ).toBeInTheDocument();
+  });
+
+  it("confirms the payment when a cancelled checkout was actually paid", async () => {
+    cancelCheckoutMock.mockResolvedValue(buildPayment());
+
+    renderReturn(true);
+
+    expect(await screen.findByText("Payment confirmed")).toBeInTheDocument();
     expect(captureMock).not.toHaveBeenCalled();
+  });
+
+  it("offers to retry when recording a cancelled checkout fails", async () => {
+    cancelCheckoutMock
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce(buildPayment({ status: "failed_final" }));
+
+    renderReturn(true);
+
+    expect(
+      await screen.findByText("We couldn't update your checkout"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
   });
 
   it("captures once and shows the confirmed payment", async () => {

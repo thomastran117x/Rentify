@@ -17,6 +17,7 @@ import type {
   ProviderPaymentSession,
   ProviderPaymentStatus,
   ProviderRefundResult,
+  StoredRefundReference,
 } from "@/features/payments/payments.model";
 import {
   DEFAULT_BOOKING_DEPOSIT_BPS,
@@ -673,16 +674,20 @@ export class PaymentsRepository extends BaseRepository {
           });
         }
 
-        await transaction.paymentLedgerEntry.create({
-          data: {
-            id: newUuid(),
-            paymentId: paymentRow.id,
-            type: "refund_issued",
-            amount: refund.amount,
-            currency: paymentRow.pricingCurrency,
-            metadata: result.raw as Prisma.InputJsonValue,
-          },
-        });
+        // Money only leaves when a refund settles. A refund PayPal reports as
+        // pending is recorded when its completion webhook arrives, once.
+        if (result.status === "COMPLETED" && refund.status !== "succeeded") {
+          await transaction.paymentLedgerEntry.create({
+            data: {
+              id: newUuid(),
+              paymentId: paymentRow.id,
+              type: "refund_issued",
+              amount: refund.amount,
+              currency: paymentRow.pricingCurrency,
+              metadata: result.raw as Prisma.InputJsonValue,
+            },
+          });
+        }
 
         return transaction.payment.findUniqueOrThrow({
           where: {
@@ -707,6 +712,31 @@ export class PaymentsRepository extends BaseRepository {
     );
 
     return this.mapPayment(payment);
+  }
+
+  async findRefundByProviderRefundId(
+    providerRefundId: string,
+  ): Promise<StoredRefundReference | null> {
+    const refund = await this.executeAsync(() =>
+      this.prisma.refund.findUnique({
+        where: {
+          providerRefundId,
+        },
+        select: {
+          id: true,
+          paymentId: true,
+          status: true,
+        },
+      }),
+    );
+
+    return refund
+      ? {
+          refundId: refund.id,
+          paymentId: asUuid(refund.paymentId),
+          status: refund.status,
+        }
+      : null;
   }
 
   async upsertWebhookEvent(input: {

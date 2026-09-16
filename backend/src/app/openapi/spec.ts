@@ -8314,11 +8314,39 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/payments/:id/cancel-checkout",
+      operationId: "cancelPaymentCheckout",
+      summary: "Record an abandoned PayPal checkout",
+      description:
+        "Called when the renter returns from PayPal without approving. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted through the retry endpoint. Only the renter or a member who can manage the organization's payments may call it. PAT bearer authentication is not allowed.",
+      tags: ["payments"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Payment identifier.", "payment-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Checkout cancellation recorded successfully.",
+          "PaymentRecord",
+          {
+            ...paymentExample,
+            status: "failed_final",
+          },
+        ),
+        ...commonErrors([401, 403, 404, 409, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
       path: "/payments/:id/capture",
       operationId: "capturePayment",
       summary: "Capture an approved payment",
       description:
-        "Captures the PayPal order the renter approved at checkout and finalizes the payment. Safe to repeat: an already captured payment is returned unchanged. PAT bearer authentication is not allowed.",
+        "Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the renter or a member who can manage the organization's payments may capture. Safe to repeat: an already captured payment is returned unchanged. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {

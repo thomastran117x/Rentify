@@ -704,7 +704,33 @@ describe("PayPalPaymentAdapter", () => {
           status: "FAILED",
         },
       ],
-      ["PAYMENT.CAPTURE.REFUNDED", { id: "REFUND-1" }, {}],
+      [
+        "PAYMENT.CAPTURE.REFUNDED",
+        { id: "REFUND-1", status: "COMPLETED" },
+        { refund: { providerRefundId: "REFUND-1", status: "COMPLETED" } },
+      ],
+      [
+        "PAYMENT.CAPTURE.REFUNDED",
+        { id: "REFUND-1" },
+        { refund: { providerRefundId: "REFUND-1", status: "COMPLETED" } },
+      ],
+      [
+        "PAYMENT.REFUND.PENDING",
+        { id: "REFUND-1" },
+        { refund: { providerRefundId: "REFUND-1", status: "PENDING" } },
+      ],
+      [
+        "PAYMENT.REFUND.FAILED",
+        { id: "REFUND-1", status: "CANCELLED" },
+        { refund: { providerRefundId: "REFUND-1", status: "FAILED" } },
+      ],
+      [
+        "PAYMENT.REFUND.FAILED",
+        { id: "REFUND-1" },
+        { refund: { providerRefundId: "REFUND-1", status: "FAILED" } },
+      ],
+      ["PAYMENT.CAPTURE.REFUNDED", {}, {}],
+      ["PAYMENT.CAPTURE.REVERSED", { id: "REFUND-1" }, {}],
     ])("reads %s webhook details", async (eventType, resource, details) => {
       const adapter = new PayPalPaymentAdapter();
 

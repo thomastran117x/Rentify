@@ -45,11 +45,17 @@ describe("paymentsApi", () => {
     );
   });
 
-  it("captures approved payments", () => {
+  it("captures payments and records cancelled checkouts", () => {
     paymentsApi.capture("payment / 1");
+    paymentsApi.cancelCheckout("payment / 1");
     expect(requestMock).toHaveBeenCalledWith(
       "POST",
       "/payments/payment%20%2F%201/capture",
+      {},
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      "POST",
+      "/payments/payment%20%2F%201/cancel-checkout",
       {},
     );
   });

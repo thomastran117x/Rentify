@@ -270,6 +270,18 @@ export interface PaymentWebhookDetails {
   providerPaymentId?: string;
   providerOrderId?: string;
   status?: ProviderPaymentStatus["status"];
+  /** Set for refund lifecycle events, which reference a refund, not a payment. */
+  refund?: {
+    providerRefundId: string;
+    status: ProviderRefundResult["status"];
+  };
+}
+
+/** A stored refund located by the provider's refund id. */
+export interface StoredRefundReference {
+  refundId: string;
+  paymentId: Uuid;
+  status: RefundStatus;
 }
 
 export interface PaymentWebhookVerificationResult {

@@ -240,7 +240,7 @@ function isPaymentMutationRoute(request: Request, pathname: string): boolean {
   return (
     request.method === "POST" &&
     (/^\/booking-requests\/[^/]+\/payment-session$/.test(pathname) ||
-      /^\/payments\/[^/]+\/(retry|refunds|capture|reconcile|repair)$/.test(
+      /^\/payments\/[^/]+\/(retry|refunds|capture|cancel-checkout|reconcile|repair)$/.test(
         pathname,
       ))
   );
