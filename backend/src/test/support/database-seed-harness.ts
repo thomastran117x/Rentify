@@ -32,15 +32,12 @@ export function applyDatabaseSeedTestEnvironment(
   process.env.SMS_PROVIDER = process.env.SMS_PROVIDER ?? "noop";
   process.env.SMS_WORKER_PREFETCH = process.env.SMS_WORKER_PREFETCH ?? "10";
   process.env.SMS_MAX_ATTEMPTS = process.env.SMS_MAX_ATTEMPTS ?? "8";
-  process.env.SQUARE_ACCESS_TOKEN =
-    process.env.SQUARE_ACCESS_TOKEN ?? "seed-test-square-token";
-  process.env.SQUARE_LOCATION_ID =
-    process.env.SQUARE_LOCATION_ID ?? "seed-test-location";
-  process.env.SQUARE_WEBHOOK_SIGNATURE_KEY =
-    process.env.SQUARE_WEBHOOK_SIGNATURE_KEY ?? "seed-test-signature";
-  process.env.SQUARE_WEBHOOK_NOTIFICATION_URL =
-    process.env.SQUARE_WEBHOOK_NOTIFICATION_URL ??
-    "http://localhost:8040/api/v1/payments/webhooks/square";
+  process.env.PAYPAL_CLIENT_ID =
+    process.env.PAYPAL_CLIENT_ID ?? "seed-test-paypal-client-id";
+  process.env.PAYPAL_CLIENT_SECRET =
+    process.env.PAYPAL_CLIENT_SECRET ?? "seed-test-paypal-client-secret";
+  process.env.PAYPAL_WEBHOOK_ID =
+    process.env.PAYPAL_WEBHOOK_ID ?? "seed-test-paypal-webhook-id";
   process.env.ELASTICSEARCH_ENABLED =
     process.env.ELASTICSEARCH_ENABLED ?? "false";
   process.env.RABBITMQ_URL = process.env.RABBITMQ_URL ?? "";

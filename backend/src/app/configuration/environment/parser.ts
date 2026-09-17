@@ -21,8 +21,8 @@ import {
   buildElasticsearchConfig,
   buildRabbitMqConfig,
   buildRedisConfig,
+  buildPayPalConfig,
   buildSmsConfig,
-  buildSquareConfig,
   validateInfrastructureConfig,
 } from "@/configuration/environment/domains/infrastructure";
 import { buildFeaturesConfig } from "@/configuration/environment/domains/features";
@@ -108,26 +108,13 @@ export function parseEnvironmentState(
     "GMAIL_APP_PASSWORD",
     errors,
   );
-  const squareAccessToken = readRequiredString(
+  const paypalClientId = readRequiredString(raw, "PAYPAL_CLIENT_ID", errors);
+  const paypalClientSecret = readRequiredString(
     raw,
-    "SQUARE_ACCESS_TOKEN",
+    "PAYPAL_CLIENT_SECRET",
     errors,
   );
-  const squareLocationId = readRequiredString(
-    raw,
-    "SQUARE_LOCATION_ID",
-    errors,
-  );
-  const squareWebhookSignatureKey = readRequiredString(
-    raw,
-    "SQUARE_WEBHOOK_SIGNATURE_KEY",
-    errors,
-  );
-  const squareWebhookNotificationUrl = readRequiredString(
-    raw,
-    "SQUARE_WEBHOOK_NOTIFICATION_URL",
-    errors,
-  );
+  const paypalWebhookId = readRequiredString(raw, "PAYPAL_WEBHOOK_ID", errors);
   validateInfrastructureConfig(raw, nodeEnv, errors);
 
   const config: AppEnvironment = {
@@ -163,13 +150,12 @@ export function parseEnvironmentState(
     features: buildFeaturesConfig(source, configuredFeatures),
     rabbitmq: buildRabbitMqConfig(raw),
     elasticsearch: buildElasticsearchConfig(raw, errors),
-    square: buildSquareConfig(
+    paypal: buildPayPalConfig(
       raw,
       errors,
-      squareAccessToken,
-      squareLocationId,
-      squareWebhookSignatureKey,
-      squareWebhookNotificationUrl,
+      paypalClientId,
+      paypalClientSecret,
+      paypalWebhookId,
     ),
   };
 

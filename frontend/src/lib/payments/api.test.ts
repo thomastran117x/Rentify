@@ -58,7 +58,7 @@ describe("paymentsApi", () => {
               postingId: "posting-1",
               renterId: "user-1",
               organizationId: "org-1",
-              provider: "square",
+              provider: "paypal",
               status: "awaiting_method",
               pricingCurrency: "CAD",
               rentalSubtotalAmount: 100,

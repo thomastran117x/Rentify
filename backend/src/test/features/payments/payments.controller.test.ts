@@ -125,10 +125,10 @@ describe("PaymentsController", () => {
     });
   });
 
-  it("passes webhook raw bodies and signatures through to the service", async () => {
-    const processSquareWebhook = jest.fn(async () => undefined);
+  it("passes webhook raw bodies and PayPal transmission headers through to the service", async () => {
+    const processPaymentWebhook = jest.fn(async () => undefined);
     const controller = new PaymentsController({
-      processSquareWebhook,
+      processPaymentWebhook,
     } as any);
 
     const response = await invoke(
@@ -136,14 +136,24 @@ describe("PaymentsController", () => {
       createContext({
         text: '{"type":`${PAYMENT_ID}.updated`}',
         headers: {
-          "x-square-hmacsha256-signature": "signature-1",
+          "paypal-auth-algo": "SHA256withRSA",
+          "paypal-cert-url": "https://api.paypal.com/cert.pem",
+          "paypal-transmission-id": "transmission-1",
+          "paypal-transmission-sig": "signature-1",
+          "paypal-transmission-time": "2026-09-14T12:00:00Z",
         },
       }),
     );
 
-    expect(processSquareWebhook).toHaveBeenCalledWith(
+    expect(processPaymentWebhook).toHaveBeenCalledWith(
       '{"type":`${PAYMENT_ID}.updated`}',
-      "signature-1",
+      {
+        "paypal-auth-algo": "SHA256withRSA",
+        "paypal-cert-url": "https://api.paypal.com/cert.pem",
+        "paypal-transmission-id": "transmission-1",
+        "paypal-transmission-sig": "signature-1",
+        "paypal-transmission-time": "2026-09-14T12:00:00Z",
+      },
     );
     await expect(response.json()).resolves.toMatchObject({
       message: "Payment webhook processed successfully.",
@@ -153,7 +163,7 @@ describe("PaymentsController", () => {
     });
   });
 
-  it("maps retry, refund, get-by-id, and reconcile calls to the service layer", async () => {
+  it("maps retry, refund, get-by-id, capture, cancel-checkout, and reconcile calls to the service layer", async () => {
     const service = {
       getPaymentById: jest.fn(async () => ({ id: PAYMENT_ID })),
       retryPayment: jest.fn(async () => ({
@@ -161,6 +171,14 @@ describe("PaymentsController", () => {
         status: "processing",
       })),
       createRefund: jest.fn(async () => ({ id: "refund-1" })),
+      cancelCheckout: jest.fn(async () => ({
+        id: PAYMENT_ID,
+        status: "failed_final",
+      })),
+      capturePayment: jest.fn(async () => ({
+        id: PAYMENT_ID,
+        status: "succeeded",
+      })),
       reconcilePayment: jest.fn(async () => ({
         id: PAYMENT_ID,
         status: "succeeded",
@@ -181,6 +199,8 @@ describe("PaymentsController", () => {
     await invoke(controller.getById, context);
     await invoke(controller.retry, context);
     await invoke(controller.createRefund, context);
+    await invoke(controller.capture, context);
+    await invoke(controller.cancelCheckout, context);
     await invoke(controller.reconcile, context);
 
     expect(service.getPaymentById).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
@@ -196,6 +216,8 @@ describe("PaymentsController", () => {
       reason: "guest_request",
       idempotencyKey: "retry-1",
     });
+    expect(service.capturePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
+    expect(service.cancelCheckout).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
     expect(service.reconcilePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
   });
 

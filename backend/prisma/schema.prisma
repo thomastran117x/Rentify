@@ -655,9 +655,8 @@ model Payment {
   rentalSubtotalAmount Decimal        @map("rental_subtotal_amount") @db.Decimal(18, 2)
   platformFeeAmount    Decimal        @map("platform_fee_amount") @db.Decimal(18, 2)
   totalAmount          Decimal        @map("total_amount") @db.Decimal(18, 2)
-  squarePaymentId      String?        @unique @map("square_payment_id") @db.VarChar(128)
-  squareOrderId        String?        @unique @map("square_order_id") @db.VarChar(128)
-  squareLocationId     String?        @map("square_location_id") @db.VarChar(128)
+  providerPaymentId    String?        @unique @map("provider_payment_id") @db.VarChar(128)
+  providerOrderId      String?        @unique @map("provider_order_id") @db.VarChar(128)
   checkoutUrl          String?        @map("checkout_url") @db.VarChar(2048)
   lastAttemptedAt      DateTime?      @map("last_attempted_at") @db.DateTime(6)
   succeededAt          DateTime?      @map("succeeded_at") @db.DateTime(6)
@@ -691,7 +690,7 @@ model PaymentAttempt {
   failureCode       String?                 @map("failure_code") @db.VarChar(255)
   failureMessage    String?                 @map("failure_message") @db.VarChar(2048)
   providerRequestId String?                 @map("provider_request_id") @db.VarChar(255)
-  squarePaymentId   String?                 @map("square_payment_id") @db.VarChar(128)
+  providerPaymentId String?                 @map("provider_payment_id") @db.VarChar(128)
   requestPayload    Json?                   @map("request_payload")
   responsePayload   Json?                   @map("response_payload")
   nextRetryAt       DateTime?               @map("next_retry_at") @db.DateTime(6)
@@ -712,7 +711,7 @@ model Refund {
   amount         Decimal      @db.Decimal(18, 2)
   reason         String?      @db.VarChar(1000)
   idempotencyKey String       @unique @map("idempotency_key") @db.VarChar(255)
-  squareRefundId String?      @unique @map("square_refund_id") @db.VarChar(128)
+  providerRefundId String?    @unique @map("provider_refund_id") @db.VarChar(128)
   createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.DateTime(6)
   completedAt    DateTime?    @map("completed_at") @db.DateTime(6)
@@ -732,7 +731,7 @@ model Payout {
   dueAt          DateTime     @map("due_at") @db.DateTime(6)
   releasedAt     DateTime?    @map("released_at") @db.DateTime(6)
   failedAt       DateTime?    @map("failed_at") @db.DateTime(6)
-  squarePayoutId String?      @unique @map("square_payout_id") @db.VarChar(128)
+  providerPayoutId String?    @unique @map("provider_payout_id") @db.VarChar(128)
   failureMessage String?      @map("failure_message") @db.VarChar(2048)
   createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.DateTime(6)
@@ -1569,7 +1568,7 @@ enum RentingStatus {
 }
 
 enum PaymentProvider {
-  square
+  paypal
 }
 
 enum PaymentStatus {

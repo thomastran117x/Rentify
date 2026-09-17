@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   PaymentFailureCategory,
   ProviderErrorInfo,
@@ -39,29 +39,9 @@ export function createExponentialBackoffDate(
   return new Date(Date.now() + delay + jitter);
 }
 
-export function verifySquareSignature(input: {
-  signatureKey: string;
-  notificationUrl: string;
-  rawBody: string;
-  signatureHeader?: string;
-}): boolean {
-  if (!input.signatureHeader) {
-    return false;
-  }
-
-  const payload = `${input.notificationUrl}${input.rawBody}`;
-  const digest = createHmac("sha256", input.signatureKey)
-    .update(payload)
-    .digest("base64");
-
-  const expected = Buffer.from(digest);
-  const actual = Buffer.from(input.signatureHeader);
-
-  if (expected.length !== actual.length) {
-    return false;
-  }
-
-  return timingSafeEqual(expected, actual);
+/** Formats an amount as the two-decimal string PayPal expects, e.g. "12.50". */
+export function formatMoneyValue(amount: number): string {
+  return (Math.round(amount * 100) / 100).toFixed(2);
 }
 
 export function classifyHttpError(

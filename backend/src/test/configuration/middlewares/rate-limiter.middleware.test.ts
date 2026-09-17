@@ -120,7 +120,7 @@ function createApp(
     instance.post("/auth/oauth/google/link", ok);
     instance.delete("/auth/oauth/google", ok);
     instance.post("/payments/:id/refunds", ok);
-    instance.post("/payments/webhooks/square", ok);
+    instance.post("/payments/webhooks/paypal", ok);
     instance.post("/sms/webhooks/telnyx", ok);
     instance.post("/postings", ok);
     instance.use(handleApplicationError);
@@ -258,9 +258,9 @@ describe("resolveRateLimitPolicy", () => {
     });
   });
 
-  it("assigns the token-bucket webhook policy to the Square webhook route", () => {
+  it("assigns the token-bucket webhook policy to the PayPal webhook route", () => {
     const policy = resolveRateLimitPolicy(
-      policyRequest("http://rent.test/payments/webhooks/square", {
+      policyRequest("http://rent.test/payments/webhooks/paypal", {
         method: "POST",
       }),
     );
@@ -344,7 +344,7 @@ describe("rateLimiterMiddleware", () => {
       jest.fn().mockResolvedValue([1, 119, 0]),
     );
     const response = await app.request(
-      "http://rent.test/payments/webhooks/square",
+      "http://rent.test/payments/webhooks/paypal",
       {
         method: "POST",
       },
@@ -637,7 +637,7 @@ describe("rateLimiterMiddleware", () => {
     try {
       for (let attempt = 0; attempt < 120; attempt += 1) {
         const response = await app.request(
-          "http://rent.test/payments/webhooks/square",
+          "http://rent.test/payments/webhooks/paypal",
           {
             method: "POST",
           },
@@ -648,7 +648,7 @@ describe("rateLimiterMiddleware", () => {
       }
 
       const limitedResponse = await app.request(
-        "http://rent.test/payments/webhooks/square",
+        "http://rent.test/payments/webhooks/paypal",
         {
           method: "POST",
         },

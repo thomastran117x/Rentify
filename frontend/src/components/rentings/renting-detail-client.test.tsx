@@ -127,7 +127,7 @@ function buildPayment(overrides: Partial<PaymentRecord> = {}): PaymentRecord {
     postingId: "posting-1",
     renterId: "renter-1",
     organizationId: "org-1",
-    provider: "square",
+    provider: "paypal",
     status: "succeeded",
     pricingCurrency: "USD",
     rentalSubtotalAmount: 375,

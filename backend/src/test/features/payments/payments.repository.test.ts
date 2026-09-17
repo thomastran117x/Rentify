@@ -53,15 +53,14 @@ function createPaymentPersistence(
     postingId: "posting-1",
     renterId: RENTER_1_ID,
     ownerId: "owner-1",
-    provider: "square",
+    provider: "paypal",
     status: "awaiting_method",
     pricingCurrency: "CAD",
     rentalSubtotalAmount: new Prisma.Decimal(100),
     platformFeeAmount: new Prisma.Decimal(10),
     totalAmount: new Prisma.Decimal(110),
-    squarePaymentId: null,
-    squareOrderId: null,
-    squareLocationId: null,
+    providerPaymentId: null,
+    providerOrderId: null,
     checkoutUrl: null,
     lastAttemptedAt: null,
     succeededAt: null,
@@ -95,7 +94,7 @@ function createPayoutPersistence(overrides?: Partial<Record<string, unknown>>) {
     dueAt: new Date("2026-04-21T00:00:00.000Z"),
     releasedAt: null,
     failedAt: null,
-    squarePayoutId: null,
+    providerPayoutId: null,
     failureMessage: null,
     createdAt: new Date("2026-04-20T00:00:00.000Z"),
     updatedAt: new Date("2026-04-20T00:00:00.000Z"),
@@ -235,8 +234,8 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
-      providerPaymentId: "square-pay-1",
-      providerOrderId: "square-order-1",
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
       status: "COMPLETED",
       raw: {
         ok: true,
@@ -317,8 +316,8 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
-      providerPaymentId: "square-pay-1",
-      providerOrderId: "square-order-1",
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
       status: "COMPLETED",
       raw: {
         ok: true,
@@ -349,7 +348,7 @@ describe("PaymentsRepository", () => {
         dueAt: new Date("2026-05-01T00:00:00.000Z"),
         releasedAt: null,
         failedAt: null,
-        squarePayoutId: null,
+        providerPayoutId: null,
         failureMessage: null,
         createdAt: new Date("2026-04-20T01:00:00.000Z"),
         updatedAt: new Date("2026-04-20T01:00:00.000Z"),
@@ -396,8 +395,8 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     const result = await repository.markPaymentSucceeded({
-      providerPaymentId: "square-pay-1",
-      providerOrderId: "square-order-1",
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
       status: "COMPLETED",
       raw: {
         ok: true,
@@ -421,7 +420,7 @@ describe("PaymentsRepository", () => {
       status: "pending",
       reason: null,
       idempotencyKey: "refund-idem-1",
-      squareRefundId: null,
+      providerRefundId: null,
       createdAt: new Date("2026-04-20T00:00:00.000Z"),
       updatedAt: new Date("2026-04-20T00:00:00.000Z"),
       completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -440,7 +439,7 @@ describe("PaymentsRepository", () => {
           amount: new Prisma.Decimal(110),
           reason: null,
           idempotencyKey: "refund-idem-1",
-          squareRefundId: "square-refund-1",
+          providerRefundId: "refund-provider-1",
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:10:00.000Z"),
           completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -459,7 +458,7 @@ describe("PaymentsRepository", () => {
             amount: new Prisma.Decimal(110),
             reason: null,
             idempotencyKey: "refund-idem-1",
-            squareRefundId: "square-refund-1",
+            providerRefundId: "refund-provider-1",
             createdAt: new Date("2026-04-20T00:00:00.000Z"),
             updatedAt: new Date("2026-04-20T00:10:00.000Z"),
             completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -493,7 +492,7 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     await repository.completeRefund("refund-1", {
-      providerRefundId: "square-refund-1",
+      providerRefundId: "refund-provider-1",
       status: "COMPLETED",
       raw: {
         ok: true,
@@ -516,7 +515,7 @@ describe("PaymentsRepository", () => {
       status: "pending",
       reason: null,
       idempotencyKey: "refund-idem-1",
-      squareRefundId: null,
+      providerRefundId: null,
       createdAt: new Date("2026-04-20T00:00:00.000Z"),
       updatedAt: new Date("2026-04-20T00:00:00.000Z"),
       completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -535,7 +534,7 @@ describe("PaymentsRepository", () => {
           amount: new Prisma.Decimal(110),
           reason: null,
           idempotencyKey: "refund-idem-1",
-          squareRefundId: "square-refund-1",
+          providerRefundId: "refund-provider-1",
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:10:00.000Z"),
           completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -554,7 +553,7 @@ describe("PaymentsRepository", () => {
             amount: new Prisma.Decimal(110),
             reason: null,
             idempotencyKey: "refund-idem-1",
-            squareRefundId: "square-refund-1",
+            providerRefundId: "refund-provider-1",
             createdAt: new Date("2026-04-20T00:00:00.000Z"),
             updatedAt: new Date("2026-04-20T00:10:00.000Z"),
             completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -586,7 +585,7 @@ describe("PaymentsRepository", () => {
 
     const repository = new PaymentsRepository(database as any);
     await repository.completeRefund("refund-1", {
-      providerRefundId: "square-refund-1",
+      providerRefundId: "refund-provider-1",
       status: "COMPLETED",
       raw: {
         ok: true,
@@ -600,6 +599,95 @@ describe("PaymentsRepository", () => {
     expect(bookingUpdates[0]).not.toHaveProperty("status");
   });
 
+  it("finds stored refunds by their provider refund id", async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: "refund-1",
+        paymentId: PAYMENT_1_ID,
+        status: "pending",
+      })
+      .mockResolvedValueOnce(null);
+    const repository = new PaymentsRepository({
+      refund: { findUnique },
+    } as any);
+
+    await expect(
+      repository.findRefundByProviderRefundId("refund-provider-1"),
+    ).resolves.toEqual({
+      refundId: "refund-1",
+      paymentId: PAYMENT_1_ID,
+      status: "pending",
+    });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { providerRefundId: "refund-provider-1" },
+      select: { id: true, paymentId: true, status: true },
+    });
+    await expect(
+      repository.findRefundByProviderRefundId("missing"),
+    ).resolves.toBeNull();
+  });
+
+  it("writes the refund ledger entry only when a refund first settles", async () => {
+    const createLedgerEntry = jest.fn(async () => undefined);
+    const storedRefund = {
+      id: "refund-1",
+      paymentId: PAYMENT_1_ID,
+      amount: new Prisma.Decimal(50),
+      status: "pending",
+    };
+    const findRefund = jest.fn(async () => storedRefund);
+    const transaction = {
+      refund: {
+        findUniqueOrThrow: findRefund,
+        update: jest.fn(async () => undefined),
+        findMany: jest.fn(async () => []),
+      },
+      payment: {
+        findUniqueOrThrow: jest.fn(async () =>
+          createPaymentPersistence({ status: "succeeded" }),
+        ),
+        update: jest.fn(async () => undefined),
+      },
+      bookingRequest: {
+        update: jest.fn(async () => undefined),
+      },
+      postingAvailabilityBlock: {
+        deleteMany: jest.fn(async () => undefined),
+      },
+      paymentLedgerEntry: {
+        create: createLedgerEntry,
+      },
+    };
+    const repository = new PaymentsRepository({
+      $transaction: async <T>(
+        callback: (client: typeof transaction) => Promise<T>,
+      ) => callback(transaction),
+    } as any);
+
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "PENDING",
+      raw: {},
+    });
+    expect(createLedgerEntry).not.toHaveBeenCalled();
+
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "COMPLETED",
+      raw: { ok: true },
+    });
+    expect(createLedgerEntry).toHaveBeenCalledTimes(1);
+
+    findRefund.mockResolvedValueOnce({ ...storedRefund, status: "succeeded" });
+    await repository.completeRefund("refund-1", {
+      providerRefundId: "refund-provider-1",
+      status: "COMPLETED",
+      raw: { ok: true },
+    });
+    expect(createLedgerEntry).toHaveBeenCalledTimes(1);
+  });
+
   it("can preserve the current booking status while recording a successful refund", async () => {
     const bookingUpdates: Array<Record<string, unknown>> = [];
     const deletedBlocks: string[] = [];
@@ -610,7 +698,7 @@ describe("PaymentsRepository", () => {
       status: "pending",
       reason: null,
       idempotencyKey: "refund-idem-1",
-      squareRefundId: null,
+      providerRefundId: null,
       createdAt: new Date("2026-04-20T00:00:00.000Z"),
       updatedAt: new Date("2026-04-20T00:00:00.000Z"),
       completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -629,7 +717,7 @@ describe("PaymentsRepository", () => {
           amount: new Prisma.Decimal(110),
           reason: null,
           idempotencyKey: "refund-idem-1",
-          squareRefundId: "square-refund-1",
+          providerRefundId: "refund-provider-1",
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:10:00.000Z"),
           completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -648,7 +736,7 @@ describe("PaymentsRepository", () => {
             amount: new Prisma.Decimal(110),
             reason: null,
             idempotencyKey: "refund-idem-1",
-            squareRefundId: "square-refund-1",
+            providerRefundId: "refund-provider-1",
             createdAt: new Date("2026-04-20T00:00:00.000Z"),
             updatedAt: new Date("2026-04-20T00:10:00.000Z"),
             completedAt: new Date("2026-04-20T00:10:00.000Z"),
@@ -684,7 +772,7 @@ describe("PaymentsRepository", () => {
     await repository.completeRefund(
       "refund-1",
       {
-        providerRefundId: "square-refund-1",
+        providerRefundId: "refund-provider-1",
         status: "COMPLETED",
         raw: {
           ok: true,
@@ -707,10 +795,9 @@ describe("PaymentsRepository", () => {
     const bookingRequestUpdate = jest.fn(async () => undefined);
     const paymentRow = createPaymentPersistence({
       status: "processing",
-      checkoutUrl: "https://square.test/checkout",
-      squarePaymentId: "square-pay-1",
-      squareOrderId: "square-order-1",
-      squareLocationId: "location-1",
+      checkoutUrl: "https://www.sandbox.paypal.com/checkoutnow?token=order-1",
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
       lastAttemptedAt: new Date("2026-04-20T00:05:00.000Z"),
       attempts: [
         {
@@ -723,7 +810,7 @@ describe("PaymentsRepository", () => {
           failureCode: null,
           failureMessage: null,
           providerRequestId: "provider-request-1",
-          squarePaymentId: "square-pay-1",
+          providerPaymentId: "capture-1",
           nextRetryAt: null,
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:05:00.000Z"),
@@ -761,10 +848,9 @@ describe("PaymentsRepository", () => {
       "attempt-1",
       {
         providerRequestId: "provider-request-1",
-        providerPaymentId: "square-pay-1",
-        providerOrderId: "square-order-1",
-        checkoutUrl: "https://square.test/checkout",
-        locationId: "location-1",
+        providerPaymentId: "capture-1",
+        providerOrderId: "order-1",
+        checkoutUrl: "https://www.sandbox.paypal.com/checkoutnow?token=order-1",
         raw: {
           ok: true,
         },
@@ -781,9 +867,9 @@ describe("PaymentsRepository", () => {
     });
     expect(result).toMatchObject({
       status: "processing",
-      checkoutUrl: "https://square.test/checkout",
-      squarePaymentId: "square-pay-1",
-      squareOrderId: "square-order-1",
+      checkoutUrl: "https://www.sandbox.paypal.com/checkoutnow?token=order-1",
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
     });
   });
 
@@ -803,7 +889,7 @@ describe("PaymentsRepository", () => {
           failureCode: "TEMP_DOWN",
           failureMessage: "temporary outage",
           providerRequestId: null,
-          squarePaymentId: null,
+          providerPaymentId: null,
           nextRetryAt: new Date("2026-04-20T00:00:04.000Z"),
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:00:01.000Z"),
@@ -896,7 +982,7 @@ describe("PaymentsRepository", () => {
           payment: {
             findUnique: jest.fn(async () => ({
               id: PAYMENT_1_ID,
-              squarePaymentId: "square-pay-1",
+              providerPaymentId: "capture-1",
               pricingCurrency: "CAD",
               totalAmount: new Prisma.Decimal(110),
               refunds: [
@@ -922,7 +1008,7 @@ describe("PaymentsRepository", () => {
     expect(result).toEqual({
       refundId: "refund-1",
       paymentId: PAYMENT_1_ID,
-      providerPaymentId: "square-pay-1",
+      providerPaymentId: "capture-1",
       pricingCurrency: "CAD",
     });
   });
@@ -938,7 +1024,7 @@ describe("PaymentsRepository", () => {
           payment: {
             findUnique: jest.fn(async () => ({
               id: PAYMENT_1_ID,
-              squarePaymentId: "square-pay-1",
+              providerPaymentId: "capture-1",
               pricingCurrency: "CAD",
               totalAmount: new Prisma.Decimal(110),
               refunds: [
@@ -982,7 +1068,7 @@ describe("PaymentsRepository", () => {
           failureCode: "TEMP_DOWN",
           failureMessage: "temporary outage",
           providerRequestId: null,
-          squarePaymentId: null,
+          providerPaymentId: null,
           nextRetryAt: new Date("2026-04-20T00:00:04.000Z"),
           createdAt: new Date("2026-04-20T00:00:00.000Z"),
           updatedAt: new Date("2026-04-20T00:00:01.000Z"),
@@ -1025,8 +1111,8 @@ describe("PaymentsRepository", () => {
 
     const result = await repository.markPaymentFailed(
       {
-        providerPaymentId: "square-pay-1",
-        providerOrderId: "square-order-1",
+        providerPaymentId: "capture-1",
+        providerOrderId: "order-1",
         status: "FAILED",
         raw: {
           ok: false,
@@ -1129,7 +1215,7 @@ describe("PaymentsRepository", () => {
           {
             id: PAYMENT_1_ID,
             bookingRequestId: BOOKING_1_ID,
-            squarePaymentId: "square-pay-1",
+            providerPaymentId: "capture-1",
             status: "processing",
             bookingRequest: {
               status: "payment_processing",
@@ -1145,7 +1231,7 @@ describe("PaymentsRepository", () => {
       {
         paymentId: PAYMENT_1_ID,
         bookingRequestId: BOOKING_1_ID,
-        squarePaymentId: "square-pay-1",
+        providerPaymentId: "capture-1",
         status: "processing",
         bookingStatus: "payment_processing",
       },

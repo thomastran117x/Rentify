@@ -166,7 +166,7 @@ function createPaymentRecord(overrides: Partial<Record<string, unknown>> = {}) {
     renterId: RENTER_1_ID,
     ownerId: OWNER_1_ID,
     organizationId: ORG_1_ID,
-    provider: "square",
+    provider: "paypal",
     status: "succeeded",
     pricingCurrency: "CAD",
     rentalSubtotalAmount: 300,
@@ -291,14 +291,14 @@ function createService(options?: {
     createRefundRecord: jest.fn(async () => ({
       refundId: REFUND_1_ID,
       paymentId: PAYMENT_1_ID,
-      providerPaymentId: "square-pay-1",
+      providerPaymentId: "capture-1",
       pricingCurrency: "CAD",
     })),
     completeRefund: jest.fn(async () => createPaymentRecord()),
   } as unknown as PaymentsRepository;
   const paymentProvider = {
     createRefund: jest.fn(async () => ({
-      providerRefundId: "square-refund-1",
+      providerRefundId: "refund-provider-1",
       status: "COMPLETED",
       raw: { ok: true },
     })),
@@ -1439,7 +1439,7 @@ describe("BookingsService", () => {
       createdBooking: booking,
     });
     failedRefund.paymentProvider.createRefund.mockResolvedValueOnce({
-      providerRefundId: "square-refund-1",
+      providerRefundId: "refund-provider-1",
       status: "FAILED",
       raw: { ok: false },
     });

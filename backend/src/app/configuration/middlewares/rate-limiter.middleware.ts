@@ -240,7 +240,9 @@ function isPaymentMutationRoute(request: Request, pathname: string): boolean {
   return (
     request.method === "POST" &&
     (/^\/booking-requests\/[^/]+\/payment-session$/.test(pathname) ||
-      /^\/payments\/[^/]+\/(retry|refunds|reconcile|repair)$/.test(pathname))
+      /^\/payments\/[^/]+\/(retry|refunds|capture|cancel-checkout|reconcile|repair)$/.test(
+        pathname,
+      ))
   );
 }
 
@@ -297,7 +299,7 @@ function isBlogCommentWriteRoute(request: Request, pathname: string): boolean {
 }
 
 function isPaymentWebhookRoute(request: Request, pathname: string): boolean {
-  return request.method === "POST" && pathname === "/payments/webhooks/square";
+  return request.method === "POST" && pathname === "/payments/webhooks/paypal";
 }
 
 function isSmsWebhookRoute(request: Request, pathname: string): boolean {

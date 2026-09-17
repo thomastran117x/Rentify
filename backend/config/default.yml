@@ -94,10 +94,10 @@ blobStorage:
   containerName: null
   uploadSasTtlSeconds: 900
 
-square:
+paypal:
   environment: sandbox
-  locationId: change-me-square-location
-  webhookNotificationUrl: "${config.backendOrigin}/api/v1/payments/webhooks/square"
+  clientId: change-me-paypal-client-id
+  webhookId: change-me-paypal-webhook-id
 
 rateLimiter:
   enabled: true

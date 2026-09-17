@@ -73,6 +73,10 @@ export type RawEnvironmentValues = {
   MFA_TOTP_ENCRYPTION_KEY?: string;
   MICROSOFT_OAUTH_TENANT?: string;
   NODE_ENV?: string;
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_ENVIRONMENT?: string;
+  PAYPAL_WEBHOOK_ID?: string;
   PORT?: string;
   REQUEST_BODY_MAX_BYTES?: string;
   REQUEST_TIMEOUT_MS?: string;
@@ -134,11 +138,6 @@ export type RawEnvironmentValues = {
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
-  SQUARE_ACCESS_TOKEN?: string;
-  SQUARE_ENVIRONMENT?: string;
-  SQUARE_LOCATION_ID?: string;
-  SQUARE_WEBHOOK_NOTIFICATION_URL?: string;
-  SQUARE_WEBHOOK_SIGNATURE_KEY?: string;
   TELNYX_API_KEY?: string;
   TELNYX_MESSAGING_PROFILE_ID?: string;
   TELNYX_PUBLIC_KEY?: string;
@@ -405,12 +404,11 @@ export interface AppEnvironment {
     circuitBreakerFailureThreshold: number;
     circuitBreakerCooldownMs: number;
   };
-  square: {
-    accessToken: string;
+  paypal: {
+    clientId: string;
+    clientSecret: string;
     environment: "sandbox" | "production";
-    locationId: string;
-    webhookSignatureKey: string;
-    webhookNotificationUrl: string;
+    webhookId: string;
     apiBaseUrl: string;
   };
 }

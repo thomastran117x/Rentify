@@ -30,7 +30,7 @@ export interface PaymentAttemptRecord {
   failureCode?: string;
   failureMessage?: string;
   providerRequestId?: string;
-  squarePaymentId?: string;
+  providerPaymentId?: string;
   nextRetryAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -43,7 +43,7 @@ export interface RefundRecord {
   amount: number;
   reason?: string;
   idempotencyKey: string;
-  squareRefundId?: string;
+  providerRefundId?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -58,7 +58,7 @@ export interface PayoutRecord {
   dueAt: string;
   releasedAt?: string;
   failedAt?: string;
-  squarePayoutId?: string;
+  providerPayoutId?: string;
   failureMessage?: string;
   createdAt: string;
   updatedAt: string;
@@ -70,15 +70,14 @@ export interface PaymentRecord {
   postingId: string;
   renterId: string;
   organizationId: string;
-  provider: "square";
+  provider: "paypal";
   status: PaymentStatus;
   pricingCurrency: string;
   rentalSubtotalAmount: number;
   platformFeeAmount: number;
   totalAmount: number;
-  squarePaymentId?: string;
-  squareOrderId?: string;
-  squareLocationId?: string;
+  providerPaymentId?: string;
+  providerOrderId?: string;
   checkoutUrl?: string;
   lastAttemptedAt?: string;
   succeededAt?: string;
@@ -160,6 +159,20 @@ export const paymentsApi = {
     return authenticatedJson<PaymentRecord>(
       "GET",
       `/booking-requests/${encodeURIComponent(bookingRequestId)}/payment`,
+    );
+  },
+  capture(paymentId: string): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, Record<string, never>>(
+      "POST",
+      `/payments/${encodeURIComponent(paymentId)}/capture`,
+      {},
+    );
+  },
+  cancelCheckout(paymentId: string): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, Record<string, never>>(
+      "POST",
+      `/payments/${encodeURIComponent(paymentId)}/cancel-checkout`,
+      {},
     );
   },
   retry(

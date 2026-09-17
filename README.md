@@ -17,7 +17,7 @@ Rentify is a full-stack rental marketplace for listing, discovering, booking, pa
 - backend: `Node.js 24`, `Express`, `Prisma`
 - infrastructure: `MySQL`, `Redis`, `Elasticsearch`, `RabbitMQ`
 - testing: `Vitest`, `Jest`, `Playwright`
-- integrations: `Azure Blob Storage`, `Square`, OAuth providers
+- integrations: `Azure Blob Storage`, `PayPal`, OAuth providers
 
 ## Start Here
 
