@@ -3,6 +3,8 @@ import {
   canConvertBooking,
   canDecideBooking,
   canPayBooking,
+  checkoutPath,
+  payActionLabel,
 } from "@/lib/bookings/actions";
 
 const NOW = Date.parse("2026-09-14T12:00:00.000Z");
@@ -23,9 +25,12 @@ describe("canDecideBooking", () => {
 });
 
 describe("canPayBooking", () => {
-  it("allows awaiting and failed payments with an active hold", () => {
+  it("allows awaiting, in-progress, and failed payments with an active hold", () => {
     expect(
       canPayBooking("awaiting_payment", { holdExpiresAt: FUTURE }, NOW),
+    ).toBe(true);
+    expect(
+      canPayBooking("payment_processing", { holdExpiresAt: FUTURE }, NOW),
     ).toBe(true);
     expect(
       canPayBooking("payment_failed", { holdExpiresAt: FUTURE }, NOW),
@@ -53,6 +58,20 @@ describe("canPayBooking", () => {
     expect(canPayBooking("pending", { holdExpiresAt: FUTURE }, NOW)).toBe(
       false,
     );
+  });
+});
+
+describe("payActionLabel", () => {
+  it("names the pay action after the booking's payment state", () => {
+    expect(payActionLabel("awaiting_payment")).toBe("Pay now");
+    expect(payActionLabel("payment_processing")).toBe("Continue checkout");
+    expect(payActionLabel("payment_failed")).toBe("Retry payment");
+  });
+});
+
+describe("checkoutPath", () => {
+  it("links to the booking's checkout page", () => {
+    expect(checkoutPath("booking 1")).toBe("/bookings/booking%201/checkout");
   });
 });
 

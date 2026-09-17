@@ -13,6 +13,13 @@ export const paymentsRouteModule: RouteModule = {
       ),
     );
     app.get(
+      "/booking-requests/:id/checkout",
+      resolveHandler<PaymentsController>(
+        containerTokens.paymentsController,
+        "getCheckoutSummary",
+      ),
+    );
+    app.get(
       "/booking-requests/:id/payment",
       resolveHandler<PaymentsController>(
         containerTokens.paymentsController,

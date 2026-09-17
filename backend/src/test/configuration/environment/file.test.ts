@@ -51,6 +51,7 @@ describe("YAML configuration files", () => {
         paypal: {
           environment: "production",
           webhookId: "WH-${config.backendOrigin}",
+          checkoutMethods: ["paypal", "card"],
         },
         features: { SEARCH_V2: { enabled: true } },
       }),
@@ -59,6 +60,7 @@ describe("YAML configuration files", () => {
         PORT: "9000",
         FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
+        PAYPAL_CHECKOUT_METHODS: "paypal,card",
         PAYPAL_ENVIRONMENT: "production",
         PAYPAL_WEBHOOK_ID: "WH-https://api.test",
       },

@@ -98,6 +98,12 @@ paypal:
   environment: sandbox
   clientId: change-me-paypal-client-id
   webhookId: change-me-paypal-webhook-id
+  # Embedded checkout methods. apple_pay and google_pay need account setup
+  # (see docs/local-development.md); the PayPal redirect is always available.
+  checkoutMethods:
+    - paypal
+    - paypal_guest
+    - card
 
 rateLimiter:
   enabled: true

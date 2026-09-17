@@ -65,6 +65,25 @@ export async function parseRequestBody<TSchema extends ZodType>(
  * the allowlist sanitizer before persistence. All other fields are still
  * inspected for unsafe markup and injection patterns.
  */
+/**
+ * Variant of {@link parseRequestBody} for endpoints whose body is optional: a
+ * request without a body is validated as `{}`.
+ */
+export async function parseOptionalRequestBody<TSchema extends ZodType>(
+  request: Request,
+  schema: TSchema,
+): Promise<output<TSchema>> {
+  if (!hasRequestBody(request)) {
+    try {
+      return schema.parse({});
+    } catch (error) {
+      return handleParseError(error);
+    }
+  }
+
+  return parseRequestBody(request, schema);
+}
+
 export async function parseRequestBodyWithRichText<TSchema extends ZodType>(
   request: Request,
   schema: TSchema,

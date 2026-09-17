@@ -45,13 +45,40 @@ describe("paymentsApi", () => {
     );
   });
 
+  it("sends the embedded checkout method with the session request", () => {
+    paymentsApi.createSession("booking / 1", {
+      idempotencyKey: "card-key",
+      method: "card",
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      "POST",
+      "/booking-requests/booking%20%2F%201/payment-session",
+      { idempotencyKey: "card-key", method: "card" },
+      { "idempotency-key": "card-key", "x-idempotency-key": "card-key" },
+    );
+  });
+
+  it("reads the checkout summary for a booking", () => {
+    paymentsApi.getCheckoutSummary("booking / 1");
+    expect(requestMock).toHaveBeenCalledWith(
+      "GET",
+      "/booking-requests/booking%20%2F%201/checkout",
+    );
+  });
+
   it("captures payments and records cancelled checkouts", () => {
     paymentsApi.capture("payment / 1");
+    paymentsApi.capture("payment / 1", { orderId: "ORDER-1" });
     paymentsApi.cancelCheckout("payment / 1");
     expect(requestMock).toHaveBeenCalledWith(
       "POST",
       "/payments/payment%20%2F%201/capture",
       {},
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      "POST",
+      "/payments/payment%20%2F%201/capture",
+      { orderId: "ORDER-1" },
     );
     expect(requestMock).toHaveBeenCalledWith(
       "POST",

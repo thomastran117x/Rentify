@@ -151,6 +151,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "sms.telnyx.messagingProfileId": "TELNYX_MESSAGING_PROFILE_ID",
   "sms.telnyx.publicKey": "TELNYX_PUBLIC_KEY",
   "sms.webhookPublicUrl": "SMS_WEBHOOK_PUBLIC_URL",
+  "paypal.checkoutMethods": "PAYPAL_CHECKOUT_METHODS",
   "paypal.clientId": "PAYPAL_CLIENT_ID",
   "paypal.environment": "PAYPAL_ENVIRONMENT",
   "paypal.webhookId": "PAYPAL_WEBHOOK_ID",
@@ -216,6 +217,7 @@ const ARRAY_FILE_KEYS = new Set([
   "oauth.apple.clientIds",
   "oauth.google.clientIds",
   "oauth.microsoft.clientIds",
+  "paypal.checkoutMethods",
   "routeModules.disabledIds",
 ]);
 

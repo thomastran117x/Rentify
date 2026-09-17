@@ -336,19 +336,29 @@ describe("BookingDetailClient", () => {
     });
   });
 
-  it("shows a checkout error when the renter's payment session has no link", async () => {
+  it("sends the renter to the checkout page to pay", async () => {
     getBookingByIdMock.mockResolvedValue(
       buildBooking({ status: "awaiting_payment" }),
     );
-    createPaymentSessionMock.mockResolvedValue({ attempts: [] });
 
     renderClient();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Pay now" }));
+    expect(
+      await screen.findByRole("link", { name: "Pay now" }),
+    ).toHaveAttribute("href", "/bookings/booking-1/checkout");
+    expect(createPaymentSessionMock).not.toHaveBeenCalled();
+  });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "We couldn't start checkout right now. Please try again.",
+  it("lets the renter continue an unfinished checkout", async () => {
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ status: "payment_processing" }),
     );
+
+    renderClient();
+
+    expect(
+      await screen.findByRole("link", { name: "Continue checkout" }),
+    ).toHaveAttribute("href", "/bookings/booking-1/checkout");
   });
 
   it("shows the API's reason when a decision is rejected", async () => {

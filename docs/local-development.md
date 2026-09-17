@@ -88,6 +88,51 @@ If you change `NEXT_PUBLIC_*` values, rebuild the frontend container:
 docker compose up --build
 ```
 
+## PayPal Sandbox Checkout
+
+Approved bookings are paid on `/bookings/<id>/checkout`, which shows the price
+breakdown, cancellation policy, and hold countdown before any money moves.
+Without PayPal credentials the page still renders and offers "Continue to
+PayPal", which fails with a banner because the placeholder credentials cannot
+create orders.
+
+To pay against the PayPal sandbox:
+
+1. Create a sandbox REST app at developer.paypal.com and a sandbox personal
+   (buyer) account.
+2. Set these in the repo-root `.env`, using the same client ID twice:
+
+   ```bash
+   PAYPAL_CLIENT_ID=<sandbox client id>
+   PAYPAL_CLIENT_SECRET=<sandbox secret>
+   PAYPAL_WEBHOOK_ID=<sandbox webhook id, optional locally>
+   NEXT_PUBLIC_PAYPAL_CLIENT_ID=<sandbox client id>
+   ```
+
+3. Rebuild so the frontend picks up the client ID:
+   `docker compose up --build`.
+4. Sign in as `renter-five` / `user5@rentify.local` / `Rentify123!` and open the
+   seeded booking "Team offsite; approved and waiting on checkout" (booking
+   `00000000-0000-0000-3000-000000000057`).
+
+Card fields need **advanced card processing** enabled on the sandbox business
+account. Use the test cards and 3-D Secure scenarios from PayPal's sandbox card
+testing tools.
+
+Wallets are opt-in with `PAYPAL_CHECKOUT_METHODS`:
+
+- **Google Pay** works in Chrome against Google's TEST environment once Google
+  Pay is enabled on the sandbox app.
+- **Apple Pay** needs Safari with an Apple sandbox tester account, a public
+  HTTPS host (for example a tunnel to the frontend, with `FRONTEND_URL` and CORS
+  updated to match), the sandbox domain association file in
+  `APPLE_PAY_DOMAIN_ASSOCIATION`, and that domain registered in the PayPal
+  sandbox app. It cannot be tested on `localhost`.
+
+The Pay Later button only appears when PayPal offers Pay Later for the buyer's
+country and the booking currency, so expect it to be missing for many sandbox
+buyers.
+
 ## Seed Data
 
 In `development` and `test`, the backend seeds automatically when the database is empty.

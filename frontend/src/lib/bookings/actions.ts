@@ -28,16 +28,36 @@ export function canDecideBooking(
   return status === "pending" && isHoldActive(holdExpiresAt, now);
 }
 
+// payment_processing stays payable: a renter who abandoned an unapproved
+// checkout can start over, and the API replaces the old order.
+const PAYABLE_BOOKING_STATUSES = [
+  "awaiting_payment",
+  "payment_processing",
+  "payment_failed",
+];
+
 export function canPayBooking(
   status: string,
   state: ConversionState & { holdExpiresAt?: string },
   now: number = Date.now(),
 ): boolean {
   return (
-    ["awaiting_payment", "payment_failed"].includes(status) &&
+    PAYABLE_BOOKING_STATUSES.includes(status) &&
     !isConverted(state) &&
     isHoldActive(state.holdExpiresAt, now)
   );
+}
+
+export function payActionLabel(status: string): string {
+  if (status === "payment_failed") {
+    return "Retry payment";
+  }
+
+  return status === "payment_processing" ? "Continue checkout" : "Pay now";
+}
+
+export function checkoutPath(bookingRequestId: string): string {
+  return `/bookings/${encodeURIComponent(bookingRequestId)}/checkout`;
 }
 
 export function canConvertBooking(

@@ -81,8 +81,113 @@ describe("PaymentsController", () => {
       bookingRequestId: BOOKING_ID,
       renterId: USER_ID,
       idempotencyKey: "booking-1-payment",
+      method: "paypal_redirect",
     });
     expect(response.status).toBe(201);
+  });
+
+  it("passes the embedded checkout method through to the service", async () => {
+    const createPaymentSession = jest.fn(async () => ({ id: PAYMENT_ID }));
+    const controller = new PaymentsController({
+      createPaymentSession,
+    } as any);
+
+    await invoke(
+      controller.createSessionForBooking,
+      createContext({
+        params: { id: BOOKING_ID },
+        body: { idempotencyKey: "booking-1-card", method: "card" },
+      }),
+    );
+
+    expect(createPaymentSession).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "card" }),
+    );
+  });
+
+  it("rejects unknown checkout methods", async () => {
+    const createPaymentSession = jest.fn();
+    const controller = new PaymentsController({
+      createPaymentSession,
+    } as any);
+
+    await expect(
+      invoke(
+        controller.createSessionForBooking,
+        createContext({
+          params: { id: BOOKING_ID },
+          body: { method: "bitcoin" },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(RequestValidationError);
+    expect(createPaymentSession).not.toHaveBeenCalled();
+  });
+
+  it("creates redirect payment sessions for requests without a body", async () => {
+    const createPaymentSession = jest.fn(async () => ({ id: PAYMENT_ID }));
+    const controller = new PaymentsController({
+      createPaymentSession,
+    } as any);
+
+    await invoke(
+      controller.createSessionForBooking,
+      createContext({
+        params: { id: BOOKING_ID },
+        headers: { "content-length": "0" },
+      }),
+    );
+
+    expect(createPaymentSession).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "paypal_redirect" }),
+    );
+  });
+
+  it("returns the checkout summary for the booking", async () => {
+    const getCheckoutSummary = jest.fn(async () => ({
+      checkout: { eligible: true },
+    }));
+    const controller = new PaymentsController({
+      getCheckoutSummary,
+    } as any);
+
+    const response = await invoke(
+      controller.getCheckoutSummary,
+      createContext({
+        params: { id: BOOKING_ID },
+      }),
+    );
+
+    expect(getCheckoutSummary).toHaveBeenCalledWith(BOOKING_ID, USER_ID);
+    expect(response.status).toBe(200);
+  });
+
+  it("forwards the approved order id to capture", async () => {
+    const capturePayment = jest.fn(async () => ({ id: PAYMENT_ID }));
+    const controller = new PaymentsController({
+      capturePayment,
+    } as any);
+
+    await invoke(
+      controller.capture,
+      createContext({
+        params: { id: PAYMENT_ID },
+        body: { orderId: "ORDER-1" },
+      }),
+    );
+    await invoke(
+      controller.capture,
+      createContext({
+        params: { id: PAYMENT_ID },
+        headers: { "content-length": "0" },
+      }),
+    );
+
+    expect(capturePayment).toHaveBeenNthCalledWith(1, PAYMENT_ID, USER_ID, {
+      orderId: "ORDER-1",
+    });
+    expect(capturePayment).toHaveBeenNthCalledWith(2, PAYMENT_ID, USER_ID, {
+      orderId: undefined,
+    });
   });
 
   it("maps payout list queries into service input and response metadata", async () => {
@@ -216,7 +321,9 @@ describe("PaymentsController", () => {
       reason: "guest_request",
       idempotencyKey: "retry-1",
     });
-    expect(service.capturePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
+    expect(service.capturePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID, {
+      orderId: undefined,
+    });
     expect(service.cancelCheckout).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
     expect(service.reconcilePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
   });

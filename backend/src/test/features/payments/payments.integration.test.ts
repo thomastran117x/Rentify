@@ -581,4 +581,332 @@ describe("Payments persistence integration", () => {
     };
     expect(Array.isArray(payouts.data.payouts)).toBe(true);
   });
+  describe("embedded checkout", () => {
+    // Seeded for renter-five, who is not a member of the owning organization.
+    const awaitingPaymentBooking = SEED_BOOKINGS.find(
+      (booking) =>
+        booking.note === "Team offsite; approved and waiting on checkout.",
+    )!;
+
+    it("serves the checkout summary to the renter only", async () => {
+      const renter = await createAuthenticatedRequestContext({
+        email: awaitingPaymentBooking.renterEmail,
+      });
+      const summaryResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/checkout`)}`,
+        {
+          method: "GET",
+          headers: renter.headers(),
+        },
+      );
+
+      expect(summaryResponse.status).toBe(200);
+      const stayTotal = awaitingPaymentBooking.estimatedTotal;
+      const depositAmount = Math.round(stayTotal * 0.25 * 100) / 100;
+      const platformFeeAmount = Math.round(depositAmount * 0.1 * 100) / 100;
+      await expect(summaryResponse.json()).resolves.toMatchObject({
+        data: {
+          booking: {
+            id: awaitingPaymentBooking.id,
+            status: "awaiting_payment",
+            guestCount: awaitingPaymentBooking.guestCount,
+            currency: "CAD",
+          },
+          posting: {
+            id: awaitingPaymentBooking.postingId,
+            name: expect.any(String),
+          },
+          pricing: {
+            currency: "CAD",
+            stayTotal,
+            depositAmount,
+            platformFeeAmount,
+            totalDueNow:
+              Math.round((depositAmount + platformFeeAmount) * 100) / 100,
+            depositBps: 2500,
+            platformFeeBps: 1000,
+            source: "quote",
+          },
+          cancellationPolicy: {
+            code: "platform_default_v1",
+            hostNotes: expect.any(String),
+          },
+          checkout: { eligible: true },
+          payment: null,
+          paypal: {
+            environment: "sandbox",
+            enabledMethods: expect.arrayContaining(["paypal", "card"]),
+          },
+        },
+      });
+
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const ownerResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/checkout`)}`,
+        {
+          method: "GET",
+          headers: owner.headers(),
+        },
+      );
+      expect(ownerResponse.status).toBe(403);
+
+      const missingResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${ABSENT_BOOKING_ID}/checkout`)}`,
+        {
+          method: "GET",
+          headers: renter.headers(),
+        },
+      );
+      expect(missingResponse.status).toBe(404);
+
+      const paidBooking = SEED_BOOKINGS[11]!;
+      const paidRenter = await createAuthenticatedRequestContext({
+        email: paidBooking.renterEmail,
+      });
+      const paidResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${paidBooking.id}/checkout`)}`,
+        {
+          method: "GET",
+          headers: paidRenter.headers(),
+        },
+      );
+      expect(paidResponse.status).toBe(200);
+      await expect(paidResponse.json()).resolves.toMatchObject({
+        data: {
+          checkout: { eligible: false, reason: "converted" },
+          pricing: { source: "payment" },
+        },
+      });
+    });
+
+    it("creates embedded orders, supersedes unapproved ones, and only captures the current order", async () => {
+      persistenceApp.stubs.paymentProvider.capturePayment.mockClear();
+      const renter = await createAuthenticatedRequestContext({
+        email: awaitingPaymentBooking.renterEmail,
+      });
+
+      const cardResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/payment-session`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({
+            idempotencyKey: "embedded-card-1",
+            method: "card",
+          }),
+        },
+      );
+
+      expect(cardResponse.status).toBe(201);
+      const cardPayment = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+      const firstOrderId = cardPayment.providerOrderId!;
+      expect(cardPayment).toMatchObject({
+        status: "processing",
+        bookingRequest: { status: "payment_processing" },
+      });
+      expect(cardPayment.attempts[0]).toMatchObject({
+        paymentMethod: "card",
+        providerOrderId: firstOrderId,
+      });
+      expect(
+        persistenceApp.stubs.paymentProvider.createPaymentSession,
+      ).toHaveBeenLastCalledWith(expect.objectContaining({ method: "card" }));
+
+      // Replaying the same request returns the same order instead of a 400.
+      const replayResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/payment-session`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({
+            idempotencyKey: "embedded-card-1",
+            method: "card",
+          }),
+        },
+      );
+      expect(replayResponse.status).toBe(201);
+      await expect(replayResponse.json()).resolves.toMatchObject({
+        data: { providerOrderId: firstOrderId },
+      });
+
+      // The renter closes the card flow and picks PayPal instead.
+      persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+        {
+          providerOrderId: firstOrderId,
+          status: "PENDING",
+          raw: { source: "test" },
+        },
+      );
+      const paypalResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/payment-session`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({
+            idempotencyKey: "embedded-paypal-1",
+            method: "paypal",
+          }),
+        },
+      );
+
+      expect(paypalResponse.status).toBe(201);
+      const superseded = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+      const secondOrderId = superseded.providerOrderId!;
+      expect(secondOrderId).not.toBe(firstOrderId);
+      expect(superseded.bookingRequest.status).toBe("payment_processing");
+      expect(superseded.attempts).toEqual([
+        expect.objectContaining({
+          paymentMethod: "paypal",
+          providerOrderId: secondOrderId,
+          status: "processing",
+        }),
+        expect.objectContaining({
+          paymentMethod: "card",
+          providerOrderId: firstOrderId,
+          status: "failed_final",
+          failureCode: "CHECKOUT_SUPERSEDED",
+        }),
+      ]);
+
+      const staleCapture = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${superseded.id}/capture`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({ orderId: firstOrderId }),
+        },
+      );
+      expect(staleCapture.status).toBe(409);
+      await expect(staleCapture.json()).resolves.toMatchObject({
+        error: { details: { reason: "stale_order" } },
+      });
+      expect(
+        persistenceApp.stubs.paymentProvider.capturePayment,
+      ).not.toHaveBeenCalled();
+
+      persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+        {
+          providerOrderId: secondOrderId,
+          status: "APPROVED",
+          order: {
+            paymentSource: "paypal",
+            customId: superseded.id,
+            amount: Number(superseded.totalAmount),
+            currency: superseded.pricingCurrency,
+          },
+          raw: { source: "test" },
+        },
+      );
+      const captureResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${superseded.id}/capture`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({ orderId: secondOrderId }),
+        },
+      );
+
+      expect(captureResponse.status).toBe(200);
+      expect(
+        persistenceApp.stubs.paymentProvider.capturePayment,
+      ).toHaveBeenCalledWith({
+        providerOrderId: secondOrderId,
+        idempotencyKey: `capture-${secondOrderId}`,
+      });
+      expect(
+        await getPaymentForBooking(persistenceApp, awaitingPaymentBooking.id),
+      ).toMatchObject({
+        status: "succeeded",
+        bookingRequest: { status: "paid" },
+      });
+
+      const paidSummary = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/checkout`)}`,
+        {
+          method: "GET",
+          headers: renter.headers(),
+        },
+      );
+      await expect(paidSummary.json()).resolves.toMatchObject({
+        data: {
+          checkout: { eligible: false, reason: "already_paid" },
+          payment: { status: "succeeded", method: "paypal" },
+        },
+      });
+    });
+
+    it("refuses to capture card orders that failed 3-D Secure", async () => {
+      persistenceApp.stubs.paymentProvider.capturePayment.mockClear();
+      const renter = await createAuthenticatedRequestContext({
+        email: awaitingPaymentBooking.renterEmail,
+      });
+      const sessionResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/booking-requests/${awaitingPaymentBooking.id}/payment-session`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({
+            idempotencyKey: "embedded-card-3ds",
+            method: "card",
+          }),
+        },
+      );
+      expect(sessionResponse.status).toBe(201);
+      const payment = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+
+      persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+        {
+          providerOrderId: payment.providerOrderId,
+          status: "APPROVED",
+          order: {
+            paymentSource: "card",
+            customId: payment.id,
+            amount: Number(payment.totalAmount),
+            currency: payment.pricingCurrency,
+            cardAuthentication: {
+              liabilityShift: "NO",
+              enrollmentStatus: "Y",
+              authenticationStatus: "R",
+            },
+          },
+          raw: { source: "test" },
+        },
+      );
+      const captureResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${payment.id}/capture`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({ orderId: payment.providerOrderId }),
+        },
+      );
+
+      expect(captureResponse.status).toBe(200);
+      expect(
+        persistenceApp.stubs.paymentProvider.capturePayment,
+      ).not.toHaveBeenCalled();
+      const rejected = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+      expect(rejected).toMatchObject({
+        status: "failed_final",
+        bookingRequest: { status: "payment_failed" },
+      });
+      expect(rejected.attempts[0]).toMatchObject({
+        failureCode: "CARD_AUTHENTICATION_FAILED",
+      });
+    });
+  });
 });

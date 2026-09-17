@@ -118,6 +118,7 @@ export interface SeedPostingFixture {
   details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
   availabilityNotes?: string | null;
+  cancellationPolicyNotes?: string | null;
   maxBookingDurationDays?: number | null;
   /**
    * Days from seed time until the posting expires. Relative rather than an

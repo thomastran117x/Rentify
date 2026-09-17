@@ -5,6 +5,7 @@ import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.m
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import {
   RequestValidationError,
+  parseOptionalRequestBody,
   parseRequestBody,
 } from "@/configuration/validation/request";
 import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
@@ -19,6 +20,7 @@ import type {
 } from "@/features/payments/payments.model";
 import {
   PAYMENT_WEBHOOK_HEADER_NAMES,
+  capturePaymentSchema,
   createPaymentSessionSchema,
   createRefundSchema,
   listPayoutsQuerySchema,
@@ -35,15 +37,31 @@ export class PaymentsController {
     response: Response,
   ): Promise<void> => {
     const auth = await this.requireAuth(request);
-    const body = await parseRequestBody(request, createPaymentSessionSchema);
+    const body = await parseOptionalRequestBody(
+      request,
+      createPaymentSessionSchema,
+    );
     const result = await this.paymentsService.createPaymentSession({
       bookingRequestId: asUuid(this.requireBookingRequestId(request)),
       renterId: asUuid(auth.sub),
       idempotencyKey: resolveIdempotencyKey(request, body.idempotencyKey),
+      method: body.method,
     });
     created(response, result, {
       message: "Payment session created successfully.",
     });
+  };
+
+  getCheckoutSummary = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const auth = await this.requireAuth(request);
+    const result = await this.paymentsService.getCheckoutSummary(
+      this.requireBookingRequestId(request),
+      asUuid(auth.sub),
+    );
+    ok(response, result);
   };
 
   getById = async (request: Request, response: Response): Promise<void> => {
@@ -110,9 +128,11 @@ export class PaymentsController {
 
   capture = async (request: Request, response: Response): Promise<void> => {
     const auth = await this.requireAuth(request);
+    const body = await parseOptionalRequestBody(request, capturePaymentSchema);
     const result = await this.paymentsService.capturePayment(
       this.requirePaymentId(request),
       auth.sub,
+      { orderId: body.orderId },
     );
     ok(response, result, {
       message: "Payment captured successfully.",
