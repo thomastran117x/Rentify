@@ -221,6 +221,9 @@ interface BookingItemCardProps {
   onCreateDispute: (rentingId: string) => Promise<void>;
   // Booking decision, payment, and conversion actions. Optional so the card
   // can still render read-only where no handlers are wired.
+  // Manage rights for decisions and conversion. The owner dashboard lists only
+  // the active organization's bookings, so this is that membership's role.
+  canManageBookingDecisions?: boolean;
   bookingActionPendingKey?: string | null;
   declineFormOpenId?: string | null;
   declineNoteByBookingId?: Record<string, string>;
@@ -261,6 +264,7 @@ export function BookingItemCard({
   onCompleteReturn,
   onDisputeChange,
   onCreateDispute,
+  canManageBookingDecisions = false,
   bookingActionPendingKey = null,
   declineFormOpenId = null,
   declineNoteByBookingId = {},
@@ -334,7 +338,7 @@ export function BookingItemCard({
       ? (item.bookingRequestId ?? item.id)
       : undefined;
   const canManageBookingAsOwner =
-    Boolean(bookingId) && view === "owner" && canManageOwnerActions;
+    Boolean(bookingId) && view === "owner" && canManageBookingDecisions;
   const showDecisionActions =
     canManageBookingAsOwner &&
     Boolean(onApprove && onDecline) &&
@@ -1147,6 +1151,12 @@ export function BookingsDashboard() {
   const canManageOwnerView =
     isOwnerRole(session?.user.role) ||
     canManageOrganizationPostings(session?.user.activeOrganization);
+  // Decisions and conversion are enforced against the booking's organization
+  // membership, and this view lists only the active organization's bookings,
+  // so the site-wide owner role must not grant them.
+  const canManageBookingDecisions = canManageOrganizationPostings(
+    session?.user.activeOrganization,
+  );
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -1309,6 +1319,7 @@ export function BookingsDashboard() {
     action: string,
     successText: string,
     fallbackErrorText: string,
+    options: { preserveClientMessage?: boolean } = {},
   ) {
     setMutationPendingKey(pendingKey);
     setBanner(null);
@@ -1326,6 +1337,7 @@ export function BookingsDashboard() {
         text: getApiErrorMessage(error, {
           action,
           fallback: fallbackErrorText,
+          preserveClientMessage: options.preserveClientMessage,
         }),
       });
     } finally {
@@ -1416,6 +1428,8 @@ export function BookingsDashboard() {
       "approve this booking request",
       "Booking request approved. The renter has been asked to pay.",
       "Booking request could not be approved.",
+      // A stale decision carries a reason worth showing over the fallback.
+      { preserveClientMessage: true },
     );
   }
 
@@ -1435,6 +1449,7 @@ export function BookingsDashboard() {
       "decline this booking request",
       "Booking request declined.",
       "Booking request could not be declined.",
+      { preserveClientMessage: true },
     );
   }
 
@@ -1447,6 +1462,7 @@ export function BookingsDashboard() {
       "convert this booking into a renting",
       "Booking converted into a confirmed renting.",
       "Booking could not be converted into a renting.",
+      { preserveClientMessage: true },
     );
   }
 
@@ -1471,6 +1487,7 @@ export function BookingsDashboard() {
         text: getApiErrorMessage(error, {
           action: "start checkout",
           fallback: CHECKOUT_UNAVAILABLE_MESSAGE,
+          preserveClientMessage: true,
         }),
       });
     } finally {
@@ -1891,6 +1908,7 @@ export function BookingsDashboard() {
                 quotePendingId={quotePendingId}
                 cancelPendingId={cancelPendingId}
                 rentingMutationPendingKey={mutationPendingKey}
+                canManageBookingDecisions={canManageBookingDecisions}
                 bookingActionPendingKey={mutationPendingKey}
                 declineFormOpenId={declineFormOpenId}
                 declineNoteByBookingId={declineNoteByBookingId}

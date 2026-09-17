@@ -417,6 +417,61 @@ function createService(options?: {
 }
 
 describe("BookingsService", () => {
+  describe("getByIdForViewer", () => {
+    const OPERATOR_ID = testUuid(9000, 700001);
+    const OUTSIDER_ID = testUuid(9000, 700002);
+
+    it("marks the renter as the renter side", async () => {
+      const { service } = createService();
+
+      await expect(
+        service.getByIdForViewer(BOOKING_1_ID, RENTER_1_ID),
+      ).resolves.toMatchObject({
+        id: BOOKING_1_ID,
+        viewerAccess: { side: "renter", canManage: true },
+      });
+    });
+
+    it("grants manage access to a manager of the booking's organization", async () => {
+      const { service } = createService();
+
+      await expect(
+        service.getByIdForViewer(BOOKING_1_ID, OWNER_1_ID),
+      ).resolves.toMatchObject({
+        viewerAccess: { side: "owner", canManage: true },
+      });
+    });
+
+    it("reports read-only access for an operator of the booking's organization", async () => {
+      const { service, organizationAccessService } = createService();
+      const operatorMembership = {
+        organizationId: ORG_1_ID,
+        userId: OPERATOR_ID,
+        role: "operator",
+      };
+      organizationAccessService.findMembership.mockResolvedValueOnce(
+        operatorMembership,
+      );
+      organizationAccessService.requireMembership.mockResolvedValueOnce(
+        operatorMembership,
+      );
+
+      await expect(
+        service.getByIdForViewer(BOOKING_1_ID, OPERATOR_ID),
+      ).resolves.toMatchObject({
+        viewerAccess: { side: "owner", canManage: false },
+      });
+    });
+
+    it("rejects callers who are neither the renter nor a member", async () => {
+      const { service } = createService();
+
+      await expect(
+        service.getByIdForViewer(BOOKING_1_ID, OUTSIDER_ID),
+      ).rejects.toThrow("You do not have access to this booking request.");
+    });
+  });
+
   it("allows overlapping booking requests before payment when the posting is otherwise available", async () => {
     const {
       service,

@@ -1,9 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 import { login } from "./helpers/auth";
 
-// Mutates seeded bookings (approve, decline, convert), so it runs serially and
-// finds its targets through dashboard filters instead of fixed ids.
+// Consumes the pending owner-one requests seeded as fixtures 54-56
+// (backend/src/app/seeds/fixtures/bookings.ts): 54 is approved and then paid for
+// by renter-five, 55 is approved from a second tab to exercise a stale
+// decision, and 56 is declined. Re-seed (`npm --prefix backend run seed`)
+// before re-running. Conversion is not exercised here: a paid, unconverted
+// booking cannot be seeded without tripping the payment repair invariant, so it
+// is covered by unit and backend tests instead.
 test.describe.configure({ mode: "serial" });
+
+const APPROVE_BOOKING_ID = "00000000-0000-0000-3000-000000000054";
+const STALE_BOOKING_ID = "00000000-0000-0000-3000-000000000055";
+const DECLINE_BOOKING_ID = "00000000-0000-0000-3000-000000000056";
 
 function collectUnexpectedConsoleErrors(page: Page) {
   const errors: string[] = [];
@@ -22,15 +31,20 @@ function collectUnexpectedConsoleErrors(page: Page) {
   return errors;
 }
 
-async function openOwnerQueue(page: Page, actionLabel: string) {
+async function openOwnerApprovalQueue(page: Page) {
   await page.goto("/bookings");
-  await expect(page.getByRole("button", { name: "Owner" })).toBeVisible();
   await page.getByRole("button", { name: "Owner" }).click();
-  await page.getByLabel("Action needed").selectOption({ label: actionLabel });
+  await page.getByLabel("Action needed").selectOption({ label: "Approval" });
+}
+
+function bookingCard(page: Page, bookingId: string) {
+  return page.locator("article").filter({
+    has: page.locator(`a[href="/bookings/${bookingId}"]`),
+  });
 }
 
 test.describe("owner booking decisions", () => {
-  test("owner approves, declines, and converts; stale approval is rejected", async ({
+  test("an owner approves, declines, and is told when a decision is stale", async ({
     browser,
   }) => {
     const context = await browser.newContext();
@@ -39,46 +53,32 @@ test.describe("owner booking decisions", () => {
 
     try {
       await login(page, "owner-one", { nextPath: "/bookings" });
+      await openOwnerApprovalQueue(page);
 
-      // Approve from the dashboard.
-      await openOwnerQueue(page, "Approval");
-      const approveButtons = page.getByRole("button", { name: "Approve" });
-      await expect(approveButtons.first()).toBeVisible();
-      const pendingBefore = await approveButtons.count();
-      test.info().annotations.push({
-        type: "pending-before",
-        description: String(pendingBefore),
-      });
-      expect(pendingBefore).toBeGreaterThanOrEqual(2);
-
-      await approveButtons.first().click();
+      // Approve from the dashboard, and confirm it persists across a reload.
+      const approveCard = bookingCard(page, APPROVE_BOOKING_ID);
+      await approveCard.getByRole("button", { name: "Approve" }).click();
       await expect(
         page.getByText(
           "Booking request approved. The renter has been asked to pay.",
         ),
       ).toBeVisible();
-      await expect(approveButtons).toHaveCount(pendingBefore - 1);
-
-      // Persisted across a reload.
+      await expect(approveCard).toHaveCount(0);
       await page.reload();
       await page
         .getByLabel("Action needed")
         .selectOption({ label: "Approval" });
-      await expect(approveButtons).toHaveCount(pendingBefore - 1);
+      await expect(bookingCard(page, APPROVE_BOOKING_ID)).toHaveCount(0);
 
-      // Stale decision: approve the next request from its detail page in a
-      // second tab, then retry from the dashboard that still shows it pending.
-      const staleCard = page
-        .locator("article")
-        .filter({ has: page.getByRole("button", { name: "Approve" }) })
-        .first();
-      const staleHref = await staleCard
-        .getByRole("link", { name: "Messages" })
-        .getAttribute("href");
-      expect(staleHref).toMatch(/^\/bookings\/[0-9a-f-]+$/i);
+      // Stale decision: approve from the detail page in a second tab, then
+      // retry from the dashboard that still shows the request as pending.
+      const staleCard = bookingCard(page, STALE_BOOKING_ID);
+      await expect(
+        staleCard.getByRole("button", { name: "Approve" }),
+      ).toBeVisible();
 
       const detailPage = await context.newPage();
-      await detailPage.goto(staleHref!);
+      await detailPage.goto(`/bookings/${STALE_BOOKING_ID}`);
       await detailPage.getByRole("button", { name: "Approve" }).click();
       await expect(
         detailPage.getByText(
@@ -95,46 +95,19 @@ test.describe("owner booking decisions", () => {
         page.getByText("Only pending booking requests can be approved."),
       ).toBeVisible();
 
-      // Decline with a note from the detail page, if a pending request remains.
-      await page.reload();
+      // Decline with a note from the detail page; the note survives a reload.
+      await page.goto(`/bookings/${DECLINE_BOOKING_ID}`);
+      await page.getByRole("button", { name: "Decline" }).click();
       await page
-        .getByLabel("Action needed")
-        .selectOption({ label: "Approval" });
-      if ((await approveButtons.count()) > 0) {
-        const declineHref = await page
-          .locator("article")
-          .filter({ has: page.getByRole("button", { name: "Approve" }) })
-          .first()
-          .getByRole("link", { name: "Messages" })
-          .getAttribute("href");
-        await page.goto(declineHref!);
-        await page.getByRole("button", { name: "Decline" }).click();
-        await page
-          .getByRole("textbox", { name: "Decline note (optional)" })
-          .fill("Playwright: dates conflict");
-        await page.getByRole("button", { name: "Confirm decline" }).click();
-        await expect(page.getByText("Booking request declined.")).toBeVisible();
-        await expect(
-          page.getByText("Playwright: dates conflict"),
-        ).toBeVisible();
-        await page.reload();
-        await expect(
-          page.getByText("Playwright: dates conflict"),
-        ).toBeVisible();
-      }
-
-      // Convert a paid booking into a renting.
-      await openOwnerQueue(page, "Convert to renting");
-      const convertButtons = page.getByRole("button", {
-        name: "Convert to renting",
-      });
-      await expect(convertButtons.first()).toBeVisible();
-      const convertBefore = await convertButtons.count();
-      await convertButtons.first().click();
-      await expect(
-        page.getByText("Booking converted into a confirmed renting."),
-      ).toBeVisible();
-      await expect(convertButtons).toHaveCount(convertBefore - 1);
+        .getByRole("textbox", { name: "Decline note (optional)" })
+        .fill("Playwright: dates conflict");
+      await page.getByRole("button", { name: "Confirm decline" }).click();
+      await expect(page.getByText("Booking request declined.")).toBeVisible();
+      await page.reload();
+      await expect(page.getByText("Playwright: dates conflict")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(
+        0,
+      );
 
       expect(consoleErrors).toEqual([]);
     } finally {
@@ -150,7 +123,7 @@ test.describe("owner booking decisions", () => {
 
     try {
       await login(page, "renter-two", { nextPath: "/bookings" });
-      await openOwnerQueue(page, "Approval");
+      await openOwnerApprovalQueue(page);
       await expect(page.locator("article").first()).toBeVisible();
       await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(
         0,
@@ -163,7 +136,7 @@ test.describe("owner booking decisions", () => {
     }
   });
 
-  test("a renter can start payment on an approved booking", async ({
+  test("the renter can start payment on the approved booking", async ({
     browser,
   }) => {
     const context = await browser.newContext();
@@ -171,26 +144,19 @@ test.describe("owner booking decisions", () => {
     const consoleErrors = collectUnexpectedConsoleErrors(page);
 
     try {
-      await login(page, "renter-one", { nextPath: "/bookings" });
-      await page.getByRole("button", { name: "Renter" }).click();
+      await login(page, "renter-five", {
+        nextPath: `/bookings/${APPROVE_BOOKING_ID}`,
+      });
 
-      const payButton = page
-        .getByRole("button", { name: /^(Pay now|Retry payment)$/ })
-        .first();
-      await expect(payButton).toBeVisible();
-      await payButton.click();
+      await page.getByRole("button", { name: "Pay now" }).click();
 
-      // Local PayPal credentials are placeholders, so checkout either fails
-      // gracefully (banner) or, with real sandbox credentials, redirects.
+      // With PayPal sandbox credentials this redirects to checkout; with the
+      // placeholder local credentials it fails gracefully with a banner.
       await expect
         .poll(
           async () =>
-            !page.url().startsWith("http://127.0.0.1:3040") ||
-            (await page
-              .getByText(
-                "We couldn't start checkout right now. Please try again.",
-              )
-              .isVisible()),
+            !new URL(page.url()).pathname.startsWith("/bookings/") ||
+            (await page.getByRole("alert").isVisible()),
           { timeout: 20000 },
         )
         .toBe(true);

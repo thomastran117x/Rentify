@@ -62,7 +62,7 @@ vi.mock("@/components/bookings/booking-messages-panel", () => ({
   },
 }));
 
-const { ApiError } = await import("@/lib/api/types");
+const { ApiClientError, ApiError } = await import("@/lib/api/types");
 const { BookingDetailClient } = await import(
   "@/components/bookings/booking-detail-client"
 );
@@ -99,9 +99,12 @@ function buildBooking(overrides: Record<string, unknown> = {}) {
     note: "Quiet work trip.",
     holdExpiresAt: "2099-01-01T00:00:00.000Z",
     posting: { id: "posting-1", name: "Sunny loft workspace" },
+    viewerAccess: { side: "renter", canManage: true },
     ...overrides,
   };
 }
+
+const OWNER_MANAGER_ACCESS = { side: "owner", canManage: true };
 
 const managerSession = () =>
   buildSession({
@@ -207,7 +210,14 @@ describe("BookingDetailClient", () => {
       status: "authenticated",
       session: managerSession(),
     });
-    approveMock.mockResolvedValue(buildBooking({ status: "awaiting_payment" }));
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ viewerAccess: OWNER_MANAGER_ACCESS }),
+    );
+    // Decision responses carry no viewerAccess; the page must keep what it
+    // loaded rather than drop the viewer's rights.
+    approveMock.mockResolvedValue(
+      buildBooking({ status: "awaiting_payment", viewerAccess: undefined }),
+    );
 
     renderClient();
 
@@ -231,6 +241,9 @@ describe("BookingDetailClient", () => {
       status: "authenticated",
       session: managerSession(),
     });
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ viewerAccess: OWNER_MANAGER_ACCESS }),
+    );
     declineMock.mockResolvedValue(
       buildBooking({ status: "declined", decisionNote: "Dates conflict" }),
     );
@@ -261,14 +274,19 @@ describe("BookingDetailClient", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not offer owner actions to managers of another organization", async () => {
+  it("does not offer owner actions to read-only members of the booking's organization", async () => {
+    // A site owner whose active organization matches but who is only an
+    // operator there: the API reports no manage rights, so nothing is offered.
     useAuthMock.mockReturnValue({
       status: "authenticated",
       session: buildSession({
-        id: "manager-2",
-        activeOrganization: { id: "org-2", role: "manager" },
+        id: "operator-1",
+        activeOrganization: { id: "org-1", role: "operator" },
       }),
     });
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ viewerAccess: { side: "owner", canManage: false } }),
+    );
 
     renderClient();
 
@@ -278,12 +296,33 @@ describe("BookingDetailClient", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers owner actions to a manager of the booking's organization while another organization is active", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession({
+        id: "manager-2",
+        activeOrganization: { id: "org-2", role: "manager" },
+      }),
+    });
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ viewerAccess: OWNER_MANAGER_ACCESS }),
+    );
+
+    renderClient();
+
+    expect(
+      await screen.findByRole("button", { name: "Approve" }),
+    ).toBeInTheDocument();
+  });
+
   it("converts a paid booking and opens the new renting", async () => {
     useAuthMock.mockReturnValue({
       status: "authenticated",
       session: managerSession(),
     });
-    getBookingByIdMock.mockResolvedValue(buildBooking({ status: "paid" }));
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ status: "paid", viewerAccess: OWNER_MANAGER_ACCESS }),
+    );
     convertMock.mockResolvedValue({ id: "renting-9" });
 
     renderClient();
@@ -309,6 +348,36 @@ describe("BookingDetailClient", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "We couldn't start checkout right now. Please try again.",
+    );
+  });
+
+  it("shows the API's reason when a decision is rejected", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: managerSession(),
+    });
+    getBookingByIdMock.mockResolvedValue(
+      buildBooking({ viewerAccess: OWNER_MANAGER_ACCESS }),
+    );
+    approveMock.mockRejectedValue(
+      new ApiClientError("Only pending booking requests can be approved.", {
+        status: 400,
+        code: "BAD_REQUEST",
+        request: {
+          method: "POST",
+          path: "/booking-requests/booking-1/approve",
+          requestUrl:
+            "https://api.test/api/v1/booking-requests/booking-1/approve",
+        },
+      }),
+    );
+
+    renderClient();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Only pending booking requests can be approved.",
     );
   });
 });

@@ -242,6 +242,13 @@ export interface BookingRequestPostingSummary {
 }
 
 export interface BookingRequestRecord {
+  // Present only on the single-booking read: which side of the booking the
+  // caller is on and whether they may take manage-level actions, resolved
+  // against the booking's organization rather than the caller's active one.
+  viewerAccess?: {
+    side: "renter" | "owner";
+    canManage: boolean;
+  };
   id: Uuid;
   postingId: Uuid;
   renterId: Uuid;

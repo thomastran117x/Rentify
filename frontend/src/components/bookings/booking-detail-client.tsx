@@ -14,14 +14,16 @@ import { useAuth } from "@/components/auth/auth-context";
 import { BookingMessagesPanel } from "@/components/bookings/booking-messages-panel";
 import { ApiError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
-import { canManageOrganizationPostings, isOwnerRole } from "@/lib/auth/roles";
 import {
   canConvertBooking,
   canDecideBooking,
   canPayBooking,
 } from "@/lib/bookings/actions";
 import { bookingsApi } from "@/lib/bookings/api";
-import type { BookingRequestRecord } from "@/lib/bookings/types";
+import type {
+  BookingRequestRecord,
+  BookingViewerAccess,
+} from "@/lib/bookings/types";
 import {
   formatDateRange,
   formatMoney,
@@ -103,6 +105,11 @@ export function BookingDetailClient({
   const { status, session } = useAuth();
 
   const [booking, setBooking] = useState<BookingRequestRecord | null>(null);
+  // Kept apart from the booking: only the single-booking read returns it, and
+  // decision responses replace the booking without it.
+  const [viewerAccess, setViewerAccess] = useState<BookingViewerAccess | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [forbidden, setForbidden] = useState(false);
@@ -138,6 +145,7 @@ export function BookingDetailClient({
 
         startTransition(() => {
           setBooking(record);
+          setViewerAccess(record.viewerAccess ?? null);
         });
       } catch (error) {
         if (!active) {
@@ -207,14 +215,11 @@ export function BookingDetailClient({
   }
 
   const currentBooking = booking;
-  const activeOrganization = session.user.activeOrganization;
-  const isRenter = session.user.id === currentBooking.renterId;
-  // The API enforces organization permissions; this only decides what to offer.
+  // Resolved by the API against the booking's organization, so the offered
+  // actions match what the manage-level endpoints will accept.
+  const isRenter = viewerAccess?.side === "renter";
   const isManager =
-    !isRenter &&
-    activeOrganization?.id === currentBooking.organizationId &&
-    (isOwnerRole(session.user.role) ||
-      canManageOrganizationPostings(activeOrganization));
+    viewerAccess?.side === "owner" && viewerAccess.canManage === true;
   const conversionState = {
     convertedAt: currentBooking.convertedAt,
     rentingId: currentBooking.rentingId,
@@ -246,7 +251,13 @@ export function BookingDetailClient({
     } catch (error) {
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, { action, fallback }),
+        // Rejections such as a request that was already decided carry a
+        // reason the viewer can act on, so surface it over the fallback.
+        text: getApiErrorMessage(error, {
+          action,
+          fallback,
+          preserveClientMessage: true,
+        }),
       });
     } finally {
       setPendingAction(null);

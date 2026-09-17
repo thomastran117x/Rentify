@@ -40,7 +40,10 @@ import {
   PARTIAL_REFUND_CUTOFF_HOURS,
   PENDING_BOOKING_HOLD_HOURS,
 } from "@/features/bookings/bookings.model";
-import { resolveBookingParticipant } from "@/features/bookings/booking-participants";
+import {
+  resolveBookingParticipant,
+  resolveBookingParticipantAccess,
+} from "@/features/bookings/booking-participants";
 import type { BookingsRepository } from "@/features/bookings/bookings.repository";
 import type { CacheService } from "@/features/cache/cache.service";
 import { flowLockKeys, withFlowLocks } from "@/features/cache/cache-locks";
@@ -481,6 +484,25 @@ export class BookingsService {
     }
 
     return bookingRequest;
+  }
+
+  /**
+   * The booking request plus what the caller may do on it. Access is resolved
+   * against the booking's organization, not the caller's active one, so clients
+   * can offer exactly the actions the manage-level endpoints will accept.
+   */
+  async getByIdForViewer(
+    id: string,
+    userId: Uuid,
+  ): Promise<BookingRequestRecord> {
+    const bookingRequest = await this.getById(id, userId);
+    const viewerAccess = await resolveBookingParticipantAccess(
+      this.organizationAccessService,
+      bookingRequest,
+      userId,
+    );
+
+    return { ...bookingRequest, viewerAccess };
   }
 
   async updateOwnPending(

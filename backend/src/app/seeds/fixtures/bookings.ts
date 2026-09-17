@@ -1320,7 +1320,52 @@ const ADDITIONAL_BOOKING_SPEC_INPUTS: ExpandedBookingSpecInput[] = [
 const ADDITIONAL_BOOKING_SPECS: BookingSpec[] =
   ADDITIONAL_BOOKING_SPEC_INPUTS.map(createExpandedBookingSpec);
 
+// Pending requests on owner-one's organization from renters who are not members
+// of it. Late template windows keep their holds live for months after seeding,
+// so the owner decision flow always has something to approve and decline. The
+// booking-decisions e2e spec consumes these by id; re-seed before re-running it.
+// Appended last so existing SEED_BOOKINGS positions used by tests do not shift.
+const OWNER_DECISION_BOOKING_SPECS: BookingSpec[] = [
+  {
+    index: 54,
+    postingIndex: 3,
+    renterEmail: "user5@rentify.local",
+    lifecycle: "pending",
+    startAt: "2026-08-17T15:00:00.000Z",
+    endAt: "2026-08-19T15:00:00.000Z",
+    guestCount: 2,
+    dailyPriceAmount: 150,
+    contactName: "Leila Brooks",
+    note: "Weekend studio session for a portfolio refresh.",
+  },
+  {
+    index: 55,
+    postingIndex: 4,
+    renterEmail: "user6@rentify.local",
+    lifecycle: "pending",
+    startAt: "2026-08-21T15:00:00.000Z",
+    endAt: "2026-08-23T15:00:00.000Z",
+    guestCount: 2,
+    dailyPriceAmount: 130,
+    contactName: "Marcus Bell",
+    note: "Short workshop stay for a prototype build.",
+  },
+  {
+    index: 56,
+    postingIndex: 1,
+    renterEmail: "user6@rentify.local",
+    lifecycle: "pending",
+    startAt: "2026-08-25T16:00:00.000Z",
+    endAt: "2026-08-27T16:00:00.000Z",
+    guestCount: 2,
+    dailyPriceAmount: 180,
+    contactName: "Marcus Bell",
+    note: "Photo shoot request pending owner review.",
+  },
+];
+
 export const SEED_BOOKINGS: SeedBookingFixture[] = [
   ...BASE_BOOKING_SPECS,
   ...ADDITIONAL_BOOKING_SPECS,
+  ...OWNER_DECISION_BOOKING_SPECS,
 ].map(createBookingFixture);

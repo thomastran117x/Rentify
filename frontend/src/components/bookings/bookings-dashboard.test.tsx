@@ -8,6 +8,7 @@ import type {
   OwnerBookingDashboardResult,
   RenterBookingDashboardResult,
 } from "@/lib/bookings/types";
+import { ApiClientError } from "@/lib/api/types";
 import { BookingsDashboard } from "./bookings-dashboard";
 import {
   resetRouterMocks,
@@ -560,6 +561,70 @@ describe("BookingsDashboard", () => {
     expect(
       await screen.findByText("Booking request could not be approved."),
     ).toBeInTheDocument();
+  });
+
+  it("shows the API's reason when a decision is rejected", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    approveMock.mockRejectedValue(
+      new ApiClientError("Only pending booking requests can be approved.", {
+        status: 400,
+        code: "BAD_REQUEST",
+        request: {
+          method: "POST",
+          path: "/booking-requests/booking-1/approve",
+          requestUrl:
+            "https://api.test/api/v1/booking-requests/booking-1/approve",
+        },
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Only pending booking requests can be approved."),
+    ).toBeInTheDocument();
+  });
+
+  it("hides decision actions from a site owner who is only an operator in the active organization", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner", {
+        id: "org-1",
+        name: "Org One",
+        role: "operator",
+      }),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    expect(await screen.findByText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
   });
 
   it("converts a paid booking into a renting", async () => {

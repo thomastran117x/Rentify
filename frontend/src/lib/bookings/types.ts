@@ -48,7 +48,15 @@ export interface BookingRequestPostingSummary {
   effectiveMaxBookingDurationDays: number;
 }
 
+export interface BookingViewerAccess {
+  side: "renter" | "owner";
+  canManage: boolean;
+}
+
 export interface BookingRequestRecord {
+  // Present on the single-booking read: the caller's side and whether they may
+  // take manage-level actions, resolved against the booking's organization.
+  viewerAccess?: BookingViewerAccess;
   id: string;
   postingId: string;
   renterId: string;
