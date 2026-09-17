@@ -151,9 +151,9 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "sms.telnyx.messagingProfileId": "TELNYX_MESSAGING_PROFILE_ID",
   "sms.telnyx.publicKey": "TELNYX_PUBLIC_KEY",
   "sms.webhookPublicUrl": "SMS_WEBHOOK_PUBLIC_URL",
-  "square.environment": "SQUARE_ENVIRONMENT",
-  "square.locationId": "SQUARE_LOCATION_ID",
-  "square.webhookNotificationUrl": "SQUARE_WEBHOOK_NOTIFICATION_URL",
+  "paypal.clientId": "PAYPAL_CLIENT_ID",
+  "paypal.environment": "PAYPAL_ENVIRONMENT",
+  "paypal.webhookId": "PAYPAL_WEBHOOK_ID",
   "workers.analytics.batchSize": "POSTINGS_ANALYTICS_OUTBOX_BATCH_SIZE",
   "workers.analytics.pollIntervalMs":
     "POSTINGS_ANALYTICS_OUTBOX_POLL_INTERVAL_MS",
@@ -262,9 +262,9 @@ const STRING_FILE_KEYS = new Set([
   "sms.telnyx.messagingProfileId",
   "sms.telnyx.publicKey",
   "sms.webhookPublicUrl",
-  "square.environment",
-  "square.locationId",
-  "square.webhookNotificationUrl",
+  "paypal.clientId",
+  "paypal.environment",
+  "paypal.webhookId",
 ]);
 
 function isMapping(value: unknown): value is ConfigurationDocument {

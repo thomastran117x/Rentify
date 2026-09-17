@@ -4,7 +4,7 @@ import type { PaymentProviderAdapter } from "@/features/payments/payment-provide
 import { PaymentsController } from "@/features/payments/payments.controller";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { PaymentsService } from "@/features/payments/payments.service";
-import { SquarePaymentAdapter } from "@/features/payments/square.adapter";
+import { PayPalPaymentAdapter } from "@/features/payments/paypal.adapter";
 
 export const paymentsRegistrationModule: ContainerRegistrationModule = {
   id: "payments",
@@ -19,7 +19,7 @@ export const paymentsRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.paymentProvider,
       lifetime: "singleton",
       dependencies: [],
-      resolve: () => new SquarePaymentAdapter() as PaymentProviderAdapter,
+      resolve: () => new PayPalPaymentAdapter() as PaymentProviderAdapter,
     });
     container.register({
       token: containerTokens.paymentsService,

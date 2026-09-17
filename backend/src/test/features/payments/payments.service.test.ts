@@ -2,6 +2,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -21,7 +22,7 @@ const PAYOUT_2_ID = testUuid(9200, 783167);
 const POSTING_1_ID = testUuid(9200, 254272);
 const POSTING_2_ID = testUuid(9200, 254273);
 const REFUND_1_ID = testUuid(9200, 376102);
-const SQUARE_PAY_1_ID = testUuid(9200, 565949);
+const CAPTURE_1_ID = testUuid(9200, 565949);
 const STRANGER_1_ID = testUuid(9000, 244047);
 
 const BOOKING_1_ID = testUuid(9000, 996753);
@@ -38,14 +39,14 @@ function createPaymentRecord(overrides: Record<string, unknown> = {}) {
     renterId: RENTER_1_ID,
     ownerId: OWNER_1_ID,
     organizationId: ORG_1_ID,
-    provider: "square" as const,
+    provider: "paypal" as const,
     status: "succeeded" as const,
     pricingCurrency: "CAD",
     rentalSubtotalAmount: 100,
     platformFeeAmount: 10,
     totalAmount: 110,
-    squarePaymentId: SQUARE_PAY_1_ID,
-    squareOrderId: "square-order-1",
+    providerPaymentId: CAPTURE_1_ID,
+    providerOrderId: "order-1",
     failedAt: "2026-04-20T00:10:00.000Z",
     createdAt: "2026-04-20T00:00:00.000Z",
     updatedAt: "2026-04-20T00:00:00.000Z",
@@ -94,11 +95,12 @@ function createService(overrides?: {
       }),
     ),
     findById: jest.fn(async () => createPaymentRecord()),
-    findBySquareReferences: jest.fn(async () => createPaymentRecord()),
+    findByProviderReferences: jest.fn(async () => createPaymentRecord()),
+    findRefundByProviderRefundId: jest.fn(async () => null),
     createRefundRecord: jest.fn(async () => ({
       refundId: REFUND_1_ID,
       paymentId: PAYMENT_1_ID,
-      providerPaymentId: SQUARE_PAY_1_ID,
+      providerPaymentId: CAPTURE_1_ID,
       pricingCurrency: "CAD",
     })),
     completeRefund: jest.fn(async () =>
@@ -142,10 +144,9 @@ function createService(overrides?: {
   const paymentProvider = {
     createPaymentSession: jest.fn(async () => ({
       providerRequestId: "provider-request-1",
-      providerPaymentId: SQUARE_PAY_1_ID,
-      providerOrderId: "square-order-1",
-      checkoutUrl: "https://square.test/checkout",
-      locationId: "location-1",
+      providerPaymentId: CAPTURE_1_ID,
+      providerOrderId: "order-1",
+      checkoutUrl: "https://www.sandbox.paypal.com/checkoutnow?token=order-1",
       raw: {
         ok: true,
       },
@@ -157,31 +158,32 @@ function createService(overrides?: {
       code: "TEMP_DOWN",
     })),
     createRefund: jest.fn(async () => ({
-      providerRefundId: "square-refund-1",
+      providerRefundId: "refund-provider-1",
       status: "COMPLETED",
       raw: {
         ok: true,
       },
     })),
     verifyWebhookSignature: jest.fn(() => ({
-      payload: {
-        data: {
-          object: {
-            payment: {
-              id: SQUARE_PAY_1_ID,
-              order_id: "square-order-1",
-              status: "COMPLETED",
-            },
-          },
-        },
+      payload: { resource: { id: CAPTURE_1_ID } },
+      details: {
+        providerPaymentId: CAPTURE_1_ID,
+        providerOrderId: "order-1",
+        status: "COMPLETED",
       },
       eventId: "event-1",
-      eventType: "payment.updated",
+      eventType: "PAYMENT.CAPTURE.COMPLETED",
       isValid: true,
     })),
+    capturePayment: jest.fn(async () => ({
+      providerPaymentId: CAPTURE_1_ID,
+      providerOrderId: "order-1",
+      status: "COMPLETED",
+      raw: {},
+    })),
     getPaymentStatus: jest.fn(async () => ({
-      providerPaymentId: SQUARE_PAY_1_ID,
-      providerOrderId: "square-order-1",
+      providerPaymentId: CAPTURE_1_ID,
+      providerOrderId: "order-1",
       status: "COMPLETED",
       raw: {},
     })),
@@ -318,7 +320,7 @@ describe("PaymentsService", () => {
       PAYMENT_1_ID,
       ATTEMPT_1_ID,
       expect.objectContaining({
-        providerPaymentId: SQUARE_PAY_1_ID,
+        providerPaymentId: CAPTURE_1_ID,
       }),
     );
     expect(
@@ -339,7 +341,7 @@ describe("PaymentsService", () => {
     } = createService({
       provider: {
         createPaymentSession: jest.fn(async () => {
-          throw new Error("square unavailable");
+          throw new Error("paypal unavailable");
         }),
       },
       repository: {
@@ -437,7 +439,7 @@ describe("PaymentsService", () => {
       paymentProvider.createRefund as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerPaymentId: SQUARE_PAY_1_ID,
+        providerPaymentId: CAPTURE_1_ID,
         amount: 42,
         currency: "CAD",
       }),
@@ -488,26 +490,23 @@ describe("PaymentsService", () => {
     const { service, paymentsRepository } = createService({
       provider: {
         verifyWebhookSignature: jest.fn(() => ({
-          payload: {
-            data: {
-              object: {
-                payment: {
-                  id: SQUARE_PAY_1_ID,
-                  order_id: "square-order-1",
-                  status: "COMPLETED",
-                },
-              },
-            },
+          payload: { resource: { id: CAPTURE_1_ID } },
+          details: {
+            providerPaymentId: CAPTURE_1_ID,
+            providerOrderId: "order-1",
+            status: "COMPLETED",
           },
           eventId: "event-1",
-          eventType: "payment.updated",
+          eventType: "PAYMENT.CAPTURE.COMPLETED",
           isValid: false,
         })),
       },
     });
 
     await expect(
-      service.processSquareWebhook("{}", "bad-sig"),
+      service.processPaymentWebhook("{}", {
+        "paypal-transmission-sig": "bad-sig",
+      }),
     ).rejects.toBeInstanceOf(BadRequestError);
     expect(
       paymentsRepository.upsertWebhookEvent as unknown as jest.Mock,
@@ -526,7 +525,7 @@ describe("PaymentsService", () => {
       },
     });
 
-    await service.processSquareWebhook("{}", "sig");
+    await service.processPaymentWebhook("{}", {});
 
     expect(
       paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
@@ -540,19 +539,14 @@ describe("PaymentsService", () => {
     const { service, paymentsRepository, analyticsRepository } = createService({
       provider: {
         verifyWebhookSignature: jest.fn(() => ({
-          payload: {
-            data: {
-              object: {
-                payment: {
-                  id: SQUARE_PAY_1_ID,
-                  order_id: "square-order-1",
-                  status: "FAILED",
-                },
-              },
-            },
+          payload: { resource: { id: CAPTURE_1_ID } },
+          details: {
+            providerPaymentId: CAPTURE_1_ID,
+            providerOrderId: "order-1",
+            status: "FAILED",
           },
           eventId: "event-2",
-          eventType: "payment.updated",
+          eventType: "PAYMENT.CAPTURE.DENIED",
           isValid: true,
         })),
       },
@@ -566,14 +560,14 @@ describe("PaymentsService", () => {
       },
     });
 
-    await service.processSquareWebhook("{}", "sig");
+    await service.processPaymentWebhook("{}", {});
 
     expect(
       paymentsRepository.markPaymentFailed as unknown as jest.Mock,
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "FAILED",
-        failureCode: "payment.updated",
+        failureCode: "PAYMENT.CAPTURE.DENIED",
       }),
       "permanent",
     );
@@ -635,7 +629,7 @@ describe("PaymentsService", () => {
       });
 
     await expect(
-      service.processSquareWebhook("{}", "sig"),
+      service.processPaymentWebhook("{}", {}),
     ).resolves.toBeUndefined();
     expect(
       paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
@@ -675,7 +669,7 @@ describe("PaymentsService", () => {
       PAYMENT_1_ID,
       ATTEMPT_1_ID,
       expect.objectContaining({
-        providerPaymentId: SQUARE_PAY_1_ID,
+        providerPaymentId: CAPTURE_1_ID,
       }),
     );
   });
@@ -703,8 +697,8 @@ describe("PaymentsService", () => {
       },
       provider: {
         getPaymentStatus: jest.fn(async () => ({
-          providerPaymentId: SQUARE_PAY_1_ID,
-          providerOrderId: "square-order-1",
+          providerPaymentId: CAPTURE_1_ID,
+          providerOrderId: "order-1",
           status: "PENDING",
           raw: {},
         })),
@@ -746,6 +740,824 @@ describe("PaymentsService", () => {
     expect(
       paymentsRepository.markPayoutFailed as unknown as jest.Mock,
     ).toHaveBeenCalledWith(PAYOUT_2_ID, "bank offline");
+  });
+
+  describe("capturePayment", () => {
+    it("rejects capture by members who cannot manage the organization's payments", async () => {
+      const { service, paymentProvider, organizationAccessService } =
+        createService({
+          repository: {
+            findById: jest.fn(async () =>
+              createPaymentRecord({ status: "processing" }),
+            ),
+          },
+          orgAccess: {
+            assertCanManage: jest.fn(() => {
+              throw new ForbiddenError(
+                "You do not have permission to manage this payment.",
+              );
+            }),
+          },
+        });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, MANAGER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        organizationAccessService.requireMembership as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        MANAGER_1_ID,
+        ORG_1_ID,
+        "You do not have access to this payment.",
+      );
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("captures the approved order and finalizes the payment", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+        },
+      });
+
+      const result = await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).toHaveBeenCalledWith({
+        providerOrderId: "order-1",
+        idempotencyKey: "capture-order-1",
+      });
+      expect(
+        paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerPaymentId: CAPTURE_1_ID,
+          status: "COMPLETED",
+        }),
+      );
+      expect(result.status).toBe("succeeded");
+    });
+
+    it("returns an already captured payment without calling the provider", async () => {
+      const { service, paymentProvider } = createService();
+
+      const result = await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(result.status).toBe("succeeded");
+    });
+
+    it("rejects capture when the payment has no provider order", async () => {
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({
+              status: "awaiting_method",
+              providerOrderId: undefined,
+            }),
+          ),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("marks the payment failed when PayPal rejects the capture", async () => {
+      const { service, paymentsRepository, analyticsRepository } =
+        createService({
+          repository: {
+            findById: jest.fn(async () =>
+              createPaymentRecord({ status: "processing" }),
+            ),
+          },
+          provider: {
+            capturePayment: jest.fn(async () => {
+              throw new Error("declined");
+            }),
+            classifyError: jest.fn(() => ({
+              category: "permanent",
+              code: "INSTRUMENT_DECLINED",
+              message: "The instrument presented was declined.",
+              retryable: false,
+            })),
+          },
+        });
+
+      const result = await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerOrderId: "order-1",
+          status: "FAILED",
+          failureCode: "INSTRUMENT_DECLINED",
+        }),
+        "permanent",
+      );
+      expect(
+        analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
+      ).toHaveBeenCalled();
+      expect(result.status).toBe("failed_final");
+    });
+
+    it("falls back to the stored payment when a rejected capture matches nothing", async () => {
+      const payment = createPaymentRecord({ status: "processing" });
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+          markPaymentFailed: jest.fn(async () => null),
+        },
+        provider: {
+          capturePayment: jest.fn(async () => {
+            throw new Error("declined");
+          }),
+          classifyError: jest.fn(() => ({
+            category: "permanent",
+            message: "declined",
+            retryable: false,
+          })),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+    });
+
+    it("surfaces transient capture failures as service unavailable", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+        },
+        provider: {
+          capturePayment: jest.fn(async () => {
+            throw new Error("paypal down");
+          }),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ServiceNotAvaliableError);
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("throws ConflictError when the captured booking needs reconciliation", async () => {
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+          markPaymentSucceeded: jest.fn(async () => ({
+            payment: createPaymentRecord(),
+            reconciliationRequired: true,
+          })),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("leaves the payment unchanged while the capture is pending", async () => {
+      const payment = createPaymentRecord({ status: "processing" });
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+        },
+        provider: {
+          capturePayment: jest.fn(async () => ({
+            providerPaymentId: CAPTURE_1_ID,
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+      expect(
+        paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the stored payment when a completed capture matches nothing", async () => {
+      const payment = createPaymentRecord({ status: "processing" });
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+          markPaymentSucceeded: jest.fn(async () => ({
+            payment: null,
+            reconciliationRequired: false,
+          })),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+    });
+  });
+
+  it("captures approved orders reported by webhook", async () => {
+    const { service, paymentProvider, paymentsRepository } = createService({
+      provider: {
+        verifyWebhookSignature: jest.fn(async () => ({
+          payload: { resource: { id: "order-1" } },
+          details: { providerOrderId: "order-1", status: "APPROVED" },
+          eventId: "event-3",
+          eventType: "CHECKOUT.ORDER.APPROVED",
+          isValid: true,
+        })),
+      },
+    });
+
+    await service.processPaymentWebhook("{}", {});
+
+    expect(
+      paymentProvider.capturePayment as unknown as jest.Mock,
+    ).toHaveBeenCalledWith({
+      providerOrderId: "order-1",
+      idempotencyKey: "capture-order-1",
+    });
+    expect(
+      paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+    ).toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-3");
+  });
+
+  it("skips capture for approved webhooks without a matching payment", async () => {
+    const { service, paymentProvider, paymentsRepository } = createService({
+      repository: {
+        findByProviderReferences: jest.fn(async () => null),
+      },
+      provider: {
+        verifyWebhookSignature: jest.fn(async () => ({
+          payload: {},
+          details: { providerOrderId: "order-unknown", status: "APPROVED" },
+          eventId: "event-4",
+          eventType: "CHECKOUT.ORDER.APPROVED",
+          isValid: true,
+        })),
+      },
+    });
+
+    await service.processPaymentWebhook("{}", {});
+
+    expect(
+      paymentProvider.capturePayment as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-4");
+  });
+
+  it("records webhook events that carry no payment status", async () => {
+    const { service, paymentsRepository } = createService({
+      provider: {
+        verifyWebhookSignature: jest.fn(async () => ({
+          payload: {},
+          details: {},
+          eventId: "event-5",
+          eventType: "PAYMENT.CAPTURE.REFUNDED",
+          isValid: true,
+        })),
+      },
+    });
+
+    await service.processPaymentWebhook("{}", {});
+
+    expect(
+      paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith("event-5");
+  });
+
+  it("captures approved orders found during reconciliation", async () => {
+    const { service, paymentProvider } = createService({
+      repository: {
+        findById: jest.fn(async () =>
+          createPaymentRecord({ status: "processing" }),
+        ),
+      },
+      provider: {
+        getPaymentStatus: jest.fn(async () => ({
+          providerOrderId: "order-1",
+          status: "APPROVED",
+          raw: {},
+        })),
+      },
+    });
+
+    const result = await service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+    expect(
+      paymentProvider.capturePayment as unknown as jest.Mock,
+    ).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("succeeded");
+  });
+
+  it("does not re-capture when PayPal still reports the order as approved", async () => {
+    const { service, paymentProvider, paymentsRepository } = createService({
+      provider: {
+        getPaymentStatus: jest.fn(async () => ({
+          status: "APPROVED",
+          raw: {},
+        })),
+        capturePayment: jest.fn(async () => ({
+          providerOrderId: "order-1",
+          status: "APPROVED",
+          raw: {},
+        })),
+      },
+    });
+
+    await service.repairPayment(PAYMENT_1_ID);
+
+    expect(
+      paymentProvider.capturePayment as unknown as jest.Mock,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      paymentsRepository.markPaymentSucceeded as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("does not capture approved statuses when no order reference is known", async () => {
+    const { service, paymentProvider } = createService({
+      repository: {
+        findById: jest.fn(async () =>
+          createPaymentRecord({ providerOrderId: undefined }),
+        ),
+      },
+      provider: {
+        getPaymentStatus: jest.fn(async () => ({
+          status: "APPROVED",
+          raw: {},
+        })),
+      },
+    });
+
+    await service.repairPayment(PAYMENT_1_ID);
+
+    expect(
+      paymentProvider.capturePayment as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("records failed provider statuses found during repair", async () => {
+    const { service, paymentsRepository } = createService({
+      provider: {
+        getPaymentStatus: jest.fn(async () => ({
+          providerPaymentId: CAPTURE_1_ID,
+          status: "FAILED",
+          raw: {},
+        })),
+      },
+    });
+
+    await service.repairPayment(PAYMENT_1_ID);
+
+    expect(
+      paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "FAILED" }),
+      "permanent",
+    );
+  });
+
+  it("skips repair when the payment or provider record is missing", async () => {
+    const missingPayment = createService({
+      repository: {
+        findById: jest.fn(async () => null),
+      },
+    });
+    await missingPayment.service.repairPayment(PAYMENT_1_ID);
+    expect(
+      missingPayment.paymentProvider.getPaymentStatus as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+
+    const missingStatus = createService({
+      provider: {
+        getPaymentStatus: jest.fn(async () => null),
+      },
+    });
+    await missingStatus.service.repairPayment(PAYMENT_1_ID);
+    expect(
+      missingStatus.paymentsRepository
+        .markPaymentSucceeded as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("throws when a cancelled reconciliation matches no payment", async () => {
+    const { service } = createService({
+      repository: {
+        markPaymentFailed: jest.fn(async () => null),
+      },
+      provider: {
+        getPaymentStatus: jest.fn(async () => ({
+          providerOrderId: "order-1",
+          status: "CANCELED",
+          raw: {},
+        })),
+      },
+    });
+
+    await expect(
+      service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  it("does not record refund analytics while PayPal reports the refund pending", async () => {
+    const { service, analyticsRepository, paymentsRepository } = createService({
+      provider: {
+        createRefund: jest.fn(async () => ({
+          providerRefundId: "refund-provider-1",
+          status: "PENDING",
+          raw: {},
+        })),
+      },
+    });
+
+    await service.createRefund({
+      paymentId: PAYMENT_1_ID,
+      actorUserId: RENTER_1_ID,
+      amount: 42,
+    });
+
+    expect(
+      paymentsRepository.completeRefund as unknown as jest.Mock,
+    ).toHaveBeenCalledWith(
+      REFUND_1_ID,
+      expect.objectContaining({ status: "PENDING" }),
+    );
+    expect(
+      analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+  });
+
+  describe("cancelCheckout", () => {
+    it("marks an unapproved checkout cancelled so it can be retried", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      const result = await service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).toHaveBeenCalledWith({ providerOrderId: "order-1" });
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerOrderId: "order-1",
+          status: "CANCELED",
+          failureCode: "CHECKOUT_CANCELLED",
+        }),
+        "unknown",
+      );
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(result.status).toBe("failed_final");
+    });
+
+    it("cancels checkouts PayPal has no record of", async () => {
+      const payment = createPaymentRecord({ status: "processing" });
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+          markPaymentFailed: jest.fn(async () => null),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+    });
+
+    it("captures instead when PayPal shows the order was approved", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "APPROVED",
+            raw: {},
+          })),
+        },
+      });
+
+      const result = await service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(result.status).toBe("succeeded");
+    });
+
+    it("throws ConflictError when an approved checkout needs reconciliation", async () => {
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+          markPaymentSucceeded: jest.fn(async () => ({
+            payment: createPaymentRecord(),
+            reconciliationRequired: true,
+          })),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "COMPLETED",
+            raw: {},
+          })),
+        },
+      });
+
+      await expect(
+        service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("falls back to the stored payment when a provider outcome matches nothing", async () => {
+      const payment = createPaymentRecord({ status: "processing" });
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+          markPaymentFailed: jest.fn(async () => null),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "FAILED",
+            raw: {},
+          })),
+        },
+      });
+
+      await expect(
+        service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+    });
+
+    it("leaves payments that are no longer awaiting checkout unchanged", async () => {
+      const { service, paymentProvider } = createService();
+
+      const result = await service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(result.status).toBe("succeeded");
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("surfaces PayPal lookup failures as service unavailable", async () => {
+      const { service } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "processing" }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => {
+            throw new Error("paypal down");
+          }),
+        },
+      });
+
+      await expect(
+        service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ServiceNotAvaliableError);
+    });
+
+    it("requires manage access for organization members", async () => {
+      const { service } = createService({
+        orgAccess: {
+          assertCanManage: jest.fn(() => {
+            throw new ForbiddenError(
+              "You do not have permission to manage this payment.",
+            );
+          }),
+        },
+      });
+
+      await expect(
+        service.cancelCheckout(PAYMENT_1_ID, MANAGER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
+  });
+
+  describe("refund webhooks", () => {
+    function refundWebhook(status: "COMPLETED" | "FAILED" | "PENDING") {
+      return jest.fn(async () => ({
+        payload: { resource: { id: "refund-provider-1", status } },
+        details: {
+          refund: { providerRefundId: "refund-provider-1", status },
+        },
+        eventId: "event-refund",
+        eventType: "PAYMENT.CAPTURE.REFUNDED",
+        isValid: true,
+      }));
+    }
+
+    it("finalizes a pending refund when PayPal reports it completed", async () => {
+      const { service, paymentsRepository, analyticsRepository } =
+        createService({
+          repository: {
+            findByProviderReferences: jest.fn(async () => null),
+            findRefundByProviderRefundId: jest.fn(async () => ({
+              refundId: REFUND_1_ID,
+              paymentId: PAYMENT_1_ID,
+              status: "pending",
+            })),
+            completeRefund: jest.fn(async () =>
+              createPaymentRecord({
+                status: "refunded",
+                refunds: [{ id: REFUND_1_ID, amount: 42 }],
+              }),
+            ),
+          },
+          provider: {
+            verifyWebhookSignature: refundWebhook("COMPLETED"),
+          },
+        });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        paymentsRepository.upsertWebhookEvent as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentId: PAYMENT_1_ID }),
+      );
+      expect(
+        paymentsRepository.completeRefund as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(REFUND_1_ID, {
+        providerRefundId: "refund-provider-1",
+        status: "COMPLETED",
+        raw: { resource: { id: "refund-provider-1", status: "COMPLETED" } },
+      });
+      expect(
+        analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(expect.objectContaining({ refundedAmount: 42 }));
+      expect(
+        paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith("event-refund");
+    });
+
+    it("records zero refunded analytics when the refund is missing from the payment", async () => {
+      const { service, analyticsRepository } = createService({
+        repository: {
+          findRefundByProviderRefundId: jest.fn(async () => ({
+            refundId: REFUND_1_ID,
+            paymentId: PAYMENT_1_ID,
+            status: "pending",
+          })),
+        },
+        provider: {
+          verifyWebhookSignature: refundWebhook("COMPLETED"),
+        },
+      });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(expect.objectContaining({ refundedAmount: 0 }));
+    });
+
+    it("records failed refunds without refund analytics", async () => {
+      const { service, paymentsRepository, analyticsRepository } =
+        createService({
+          repository: {
+            findRefundByProviderRefundId: jest.fn(async () => ({
+              refundId: REFUND_1_ID,
+              paymentId: PAYMENT_1_ID,
+              status: "pending",
+            })),
+          },
+          provider: {
+            verifyWebhookSignature: refundWebhook("FAILED"),
+          },
+        });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        paymentsRepository.completeRefund as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        REFUND_1_ID,
+        expect.objectContaining({ status: "FAILED" }),
+      );
+      expect(
+        analyticsRepository.enqueueRefundRecordedEvent as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("ignores refunds that already settled or are still pending", async () => {
+      const settled = createService({
+        repository: {
+          findRefundByProviderRefundId: jest.fn(async () => ({
+            refundId: REFUND_1_ID,
+            paymentId: PAYMENT_1_ID,
+            status: "succeeded",
+          })),
+        },
+        provider: {
+          verifyWebhookSignature: refundWebhook("COMPLETED"),
+        },
+      });
+      await settled.service.processPaymentWebhook("{}", {});
+      expect(
+        settled.paymentsRepository.completeRefund as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        settled.paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith("event-refund");
+
+      const stillPending = createService({
+        repository: {
+          findRefundByProviderRefundId: jest.fn(async () => ({
+            refundId: REFUND_1_ID,
+            paymentId: PAYMENT_1_ID,
+            status: "pending",
+          })),
+        },
+        provider: {
+          verifyWebhookSignature: refundWebhook("PENDING"),
+        },
+      });
+      await stillPending.service.processPaymentWebhook("{}", {});
+      expect(
+        stillPending.paymentsRepository.completeRefund as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("leaves refund events Rentify has no record of unprocessed", async () => {
+      const { service, paymentsRepository } = createService({
+        provider: {
+          verifyWebhookSignature: refundWebhook("COMPLETED"),
+        },
+      });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        paymentsRepository.upsertWebhookEvent as unknown as jest.Mock,
+      ).toHaveBeenCalled();
+      expect(
+        paymentsRepository.completeRefund as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe("getPaymentByBookingRequest", () => {

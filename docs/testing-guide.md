@@ -28,8 +28,9 @@ suite runs the production application composition against real MySQL, Redis,
 Elasticsearch, and RabbitMQ, so `npm run test:integration` requires the Docker
 Compose stack.
 
-Third-party providers are still stubbed — payments, OAuth, captcha, blob
-storage, and SMS all call out to services we do not run — but everything the
+Third-party providers are still stubbed — payments (the PayPal adapter is
+replaced by a provider stub), OAuth, captcha, blob storage, and SMS all call
+out to services we do not run — but everything the
 application owns is real. There is deliberately no mocked-infrastructure
 variant: a second suite type meant every endpoint had two possible homes and
 the weaker one was usually chosen.

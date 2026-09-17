@@ -1,6 +1,7 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import type { CacheService } from "@/features/cache/cache.service";
 import { flowLockKeys, withFlowLock } from "@/features/cache/cache-locks";
 import type { PostingsAnalyticsRepository } from "@/features/postings/analytics/analytics.repository";
@@ -14,47 +15,39 @@ import type {
   CreateRefundInput,
   ListPayoutsInput,
   PaymentRecord,
+  PaymentWebhookDetails,
+  PaymentWebhookHeaders,
   PayoutListResult,
   ProviderPaymentStatus,
   RetryPaymentInput,
+  StoredRefundReference,
 } from "@/features/payments/payments.model";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { createPaymentIdempotencyKey } from "@/features/payments/payments.utils";
-import {
-  asOptionalUuid,
-  asUuid,
-  type Uuid,
-} from "@/configuration/validation/uuid";
+import { asOptionalUuid, type Uuid } from "@/configuration/validation/uuid";
 
-function readEventPaymentDetails(payload: Record<string, unknown>): {
-  paymentId?: Uuid;
-  orderId?: string;
-  refundId?: string;
-  status?: string;
-} {
-  const entity = (payload.data as Record<string, unknown> | undefined)
-    ?.object as Record<string, unknown> | undefined;
-  const payment =
-    (entity?.payment as Record<string, unknown> | undefined) ?? entity;
-  const refund =
-    (entity?.refund as Record<string, unknown> | undefined) ?? entity;
+const RECONCILIATION_REQUIRED_MESSAGE =
+  "Payment succeeded, but the booking now requires reconciliation before it can be finalized.";
 
-  return {
-    paymentId: asOptionalUuid(
-      (payment?.id as string | undefined) ??
-        ((payload.payment_id as string | undefined) || undefined),
-    ),
-    orderId:
-      (payment?.order_id as string | undefined) ??
-      ((payload.order_id as string | undefined) || undefined),
-    refundId:
-      (refund?.id as string | undefined) ??
-      ((payload.refund_id as string | undefined) || undefined),
-    status:
-      (payment?.status as string | undefined) ??
-      (refund?.status as string | undefined),
-  };
+/** Payment statuses that already hold a captured charge. */
+const CAPTURED_PAYMENT_STATUSES = new Set([
+  "succeeded",
+  "refunded",
+  "partially_refunded",
+]);
+
+/**
+ * Each provider order is captured at most once, so every capture path (return
+ * page, webhook, reconcile, repair) shares one idempotency key per order.
+ */
+function createCaptureIdempotencyKey(providerOrderId: string): string {
+  return `capture-${providerOrderId}`;
 }
+
+type ProviderStatusResult = {
+  payment: PaymentRecord | null;
+  reconciliationRequired: boolean;
+};
 
 export class PaymentsService {
   constructor(
@@ -151,6 +144,128 @@ export class PaymentsService {
     return this.requirePaymentRecordAccess(payment, userId, "read");
   }
 
+  /**
+   * Captures the provider order the buyer approved. Capturing finalizes the
+   * booking, so only the renter or a member who can manage the organization's
+   * payments may do it. Called when the buyer is
+   * redirected back from checkout; the webhook and repair paths cover buyers
+   * who never make it back.
+   */
+  async capturePayment(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
+    const payment = await this.requirePaymentAccess(
+      paymentId,
+      userId,
+      "manage",
+    );
+
+    if (CAPTURED_PAYMENT_STATUSES.has(payment.status)) {
+      return payment;
+    }
+
+    if (!payment.providerOrderId) {
+      throw new BadRequestError(
+        "This payment does not have a PayPal order to capture yet.",
+      );
+    }
+
+    let captured: ProviderPaymentStatus;
+
+    try {
+      captured = await this.paymentProvider.capturePayment({
+        providerOrderId: payment.providerOrderId,
+        idempotencyKey: createCaptureIdempotencyKey(payment.providerOrderId),
+      });
+    } catch (error) {
+      const errorInfo = this.paymentProvider.classifyError(error);
+
+      if (errorInfo.retryable) {
+        throw new ServiceNotAvaliableError(
+          "PayPal is temporarily unavailable. Please try again.",
+        );
+      }
+
+      // Declined instruments and similar rejections end this order; the renter
+      // can start a new checkout through the retry endpoint.
+      const failed = await this.applyProviderStatus(
+        {
+          providerOrderId: payment.providerOrderId,
+          status: "FAILED",
+          failureCode: errorInfo.code,
+          failureMessage: errorInfo.message,
+          raw: {
+            code: errorInfo.code,
+            message: errorInfo.message,
+          },
+        },
+        payment,
+      );
+      return failed.payment ?? payment;
+    }
+
+    const result = await this.applyProviderStatus(captured, payment);
+
+    if (result.reconciliationRequired) {
+      throw new ConflictError(RECONCILIATION_REQUIRED_MESSAGE);
+    }
+
+    return result.payment ?? payment;
+  }
+
+  /**
+   * Records that the buyer left PayPal without approving, so the payment can be
+   * retried. If PayPal shows the order was approved or paid after all, that
+   * outcome is applied instead.
+   */
+  async cancelCheckout(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
+    const payment = await this.requirePaymentAccess(
+      paymentId,
+      userId,
+      "manage",
+    );
+
+    if (payment.status !== "processing" || !payment.providerOrderId) {
+      return payment;
+    }
+
+    let status: ProviderPaymentStatus | null;
+
+    try {
+      status = await this.paymentProvider.getPaymentStatus({
+        providerOrderId: payment.providerOrderId,
+      });
+    } catch {
+      throw new ServiceNotAvaliableError(
+        "PayPal is temporarily unavailable. Please try again.",
+      );
+    }
+
+    if (status && status.status !== "PENDING") {
+      const result = await this.applyProviderStatus(status, payment);
+
+      if (result.reconciliationRequired) {
+        throw new ConflictError(RECONCILIATION_REQUIRED_MESSAGE);
+      }
+
+      return result.payment ?? payment;
+    }
+
+    const cancelledCheckout = await this.applyProviderStatus(
+      {
+        providerOrderId: payment.providerOrderId,
+        status: "CANCELED",
+        failureCode: "CHECKOUT_CANCELLED",
+        failureMessage:
+          "Checkout was cancelled before the payment was approved.",
+        raw: {
+          reason: "buyer_cancelled_checkout",
+        },
+      },
+      payment,
+    );
+
+    return cancelledCheckout.payment ?? payment;
+  }
+
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
     await this.requirePaymentAccess(
       input.paymentId,
@@ -177,12 +292,10 @@ export class PaymentsService {
       refundId,
       result,
     );
-    await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
-      postingId: payment.postingId,
-      organizationId: payment.organizationId,
-      occurredAt: new Date().toISOString(),
-      refundedAmount: input.amount,
-    });
+    // A pending refund is recorded when PayPal's completion webhook arrives.
+    if (result.status === "COMPLETED") {
+      await this.enqueueRefundRecordedAnalytics(payment, input.amount);
+    }
     await this.enqueueSearchSync(payment.postingId);
     return payment;
   }
@@ -204,19 +317,23 @@ export class PaymentsService {
     });
   }
 
-  async processSquareWebhook(
+  async processPaymentWebhook(
     rawBody: string,
-    signatureHeader: string | undefined,
+    headers: PaymentWebhookHeaders,
   ): Promise<void> {
-    const verification = this.paymentProvider.verifyWebhookSignature(
+    const verification = await this.paymentProvider.verifyWebhookSignature(
       rawBody,
-      signatureHeader,
+      headers,
     );
-
-    const details = readEventPaymentDetails(verification.payload);
-    const payment = await this.paymentsRepository.findBySquareReferences({
-      squarePaymentId: details.paymentId,
-      squareOrderId: details.orderId,
+    const { details } = verification;
+    const refund = details.refund
+      ? await this.paymentsRepository.findRefundByProviderRefundId(
+          details.refund.providerRefundId,
+        )
+      : null;
+    const payment = await this.paymentsRepository.findByProviderReferences({
+      providerPaymentId: details.providerPaymentId,
+      providerOrderId: details.providerOrderId,
     });
 
     const stored = await this.paymentsRepository.upsertWebhookEvent({
@@ -224,12 +341,12 @@ export class PaymentsService {
       eventType: verification.eventType,
       signatureValid: verification.isValid,
       payload: verification.payload,
-      paymentId: asOptionalUuid(payment?.id),
+      paymentId: asOptionalUuid(payment?.id ?? refund?.paymentId),
     });
 
     if (!verification.isValid) {
       throw new BadRequestError(
-        "Square webhook signature verification failed.",
+        "PayPal webhook signature verification failed.",
       );
     }
 
@@ -237,32 +354,39 @@ export class PaymentsService {
       return;
     }
 
-    if (verification.eventType.startsWith("payment.")) {
-      const status = (details.status ?? "").toUpperCase();
-
-      if (status === "COMPLETED") {
-        const result = await this.markCompletedPaymentStatus({
-          providerPaymentId: details.paymentId,
-          providerOrderId: details.orderId,
-          status: "COMPLETED",
-          raw: verification.payload,
-        });
-        await this.enqueueSearchSync(result.payment?.postingId);
-      } else if (status === "FAILED" || status === "CANCELED") {
-        const payment = await this.paymentsRepository.markPaymentFailed(
-          {
-            providerPaymentId: details.paymentId,
-            providerOrderId: details.orderId,
-            status: status === "FAILED" ? "FAILED" : "CANCELED",
-            raw: verification.payload,
-            failureCode: verification.eventType,
-            failureMessage: `Square webhook reported ${status.toLowerCase()}.`,
-          },
-          status === "FAILED" ? "permanent" : "unknown",
-        );
-        await this.enqueuePaymentFailedAnalytics(payment);
-        await this.enqueueSearchSync(payment?.postingId);
+    if (details.refund) {
+      // A refund Rentify has no record of stays unprocessed so it can be
+      // reconciled by hand instead of being silently dropped.
+      if (!refund) {
+        return;
       }
+
+      await this.applyRefundStatus(
+        refund,
+        details.refund,
+        verification.payload,
+      );
+    } else if (details.status) {
+      const failed =
+        details.status === "FAILED" || details.status === "CANCELED";
+
+      // A webhook never throws for reconciliation: the booking is flagged and
+      // the repair worker finishes it.
+      await this.applyProviderStatus(
+        {
+          providerPaymentId: details.providerPaymentId,
+          providerOrderId: details.providerOrderId,
+          status: details.status,
+          raw: verification.payload,
+          ...(failed
+            ? {
+                failureCode: verification.eventType,
+                failureMessage: `PayPal webhook reported ${verification.eventType}.`,
+              }
+            : {}),
+        },
+        payment,
+      );
     }
 
     await this.paymentsRepository.markWebhookProcessed(verification.eventId);
@@ -278,8 +402,8 @@ export class PaymentsService {
       "manage",
     );
     const status = await this.paymentProvider.getPaymentStatus({
-      providerPaymentId: payment.squarePaymentId,
-      providerOrderId: payment.squareOrderId,
+      providerPaymentId: payment.providerPaymentId,
+      providerOrderId: payment.providerOrderId,
     });
 
     if (!status) {
@@ -288,43 +412,17 @@ export class PaymentsService {
       );
     }
 
-    if (status.status === "COMPLETED") {
-      const result = await this.markCompletedPaymentStatus(
-        status,
-        payment.postingId,
-      );
+    const result = await this.applyProviderStatus(status, payment);
 
-      if (!result.payment) {
-        throw new ResourceNotFoundError("Payment could not be reconciled.");
-      }
-
-      await this.enqueueSearchSync(result.payment.postingId);
-
-      if (result.reconciliationRequired) {
-        throw new ConflictError(
-          "Payment succeeded, but the booking now requires reconciliation before it can be finalized.",
-        );
-      }
-
-      return result.payment;
+    if (!result.payment) {
+      throw new ResourceNotFoundError("Payment could not be reconciled.");
     }
 
-    if (status.status === "FAILED" || status.status === "CANCELED") {
-      const result = await this.paymentsRepository.markPaymentFailed(
-        status,
-        status.status === "FAILED" ? "permanent" : "unknown",
-      );
-
-      if (!result) {
-        throw new ResourceNotFoundError("Payment could not be reconciled.");
-      }
-
-      await this.enqueuePaymentFailedAnalytics(result);
-      await this.enqueueSearchSync(result.postingId);
-      return result;
+    if (result.reconciliationRequired) {
+      throw new ConflictError(RECONCILIATION_REQUIRED_MESSAGE);
     }
 
-    return payment;
+    return result.payment;
   }
 
   async repairPayment(paymentId: Uuid): Promise<void> {
@@ -335,31 +433,15 @@ export class PaymentsService {
     }
 
     const status = await this.paymentProvider.getPaymentStatus({
-      providerPaymentId: payment.squarePaymentId,
-      providerOrderId: payment.squareOrderId,
+      providerPaymentId: payment.providerPaymentId,
+      providerOrderId: payment.providerOrderId,
     });
 
     if (!status) {
       return;
     }
 
-    if (status.status === "COMPLETED") {
-      const result = await this.markCompletedPaymentStatus(
-        status,
-        payment.postingId,
-      );
-      await this.enqueueSearchSync(result.payment?.postingId);
-      return;
-    }
-
-    if (status.status === "FAILED" || status.status === "CANCELED") {
-      const result = await this.paymentsRepository.markPaymentFailed(
-        status,
-        status.status === "FAILED" ? "permanent" : "unknown",
-      );
-      await this.enqueuePaymentFailedAnalytics(result);
-      await this.enqueueSearchSync(result?.postingId);
-    }
+    await this.applyProviderStatus(status, payment);
   }
 
   async processRetryQueue(limit: number): Promise<number> {
@@ -432,6 +514,100 @@ export class PaymentsService {
     return payouts.length;
   }
 
+  /**
+   * Moves a payment to match the provider's state: captures approved orders,
+   * finalizes completed charges, and records failures.
+   */
+  private async applyProviderStatus(
+    status: ProviderPaymentStatus,
+    payment: PaymentRecord | null,
+  ): Promise<ProviderStatusResult> {
+    switch (status.status) {
+      case "APPROVED": {
+        const providerOrderId =
+          status.providerOrderId ?? payment?.providerOrderId;
+
+        if (!payment || !providerOrderId) {
+          return { payment, reconciliationRequired: false };
+        }
+
+        const captured = await this.paymentProvider.capturePayment({
+          providerOrderId,
+          idempotencyKey: createCaptureIdempotencyKey(providerOrderId),
+        });
+
+        // Guard against re-capturing forever if the order is still APPROVED.
+        if (captured.status === "APPROVED") {
+          return { payment, reconciliationRequired: false };
+        }
+
+        return this.applyProviderStatus(captured, payment);
+      }
+      case "COMPLETED": {
+        const result = await this.markCompletedPaymentStatus(
+          status,
+          payment?.postingId,
+        );
+        await this.enqueueSearchSync(result.payment?.postingId);
+        return result;
+      }
+      case "FAILED":
+      case "CANCELED": {
+        const failed = await this.paymentsRepository.markPaymentFailed(
+          status,
+          status.status === "FAILED" ? "permanent" : "unknown",
+        );
+        await this.enqueuePaymentFailedAnalytics(failed);
+        await this.enqueueSearchSync(failed?.postingId);
+        return { payment: failed, reconciliationRequired: false };
+      }
+      default:
+        return { payment, reconciliationRequired: false };
+    }
+  }
+
+  /** Finalizes a refund that PayPal first reported as pending. */
+  private async applyRefundStatus(
+    refund: StoredRefundReference,
+    update: NonNullable<PaymentWebhookDetails["refund"]>,
+    raw: Record<string, unknown>,
+  ): Promise<void> {
+    if (refund.status !== "pending" || update.status === "PENDING") {
+      return;
+    }
+
+    const payment = await this.paymentsRepository.completeRefund(
+      refund.refundId,
+      {
+        providerRefundId: update.providerRefundId,
+        status: update.status,
+        raw,
+      },
+    );
+
+    if (update.status === "COMPLETED") {
+      await this.enqueueRefundRecordedAnalytics(
+        payment,
+        payment.refunds.find((item) => item.id === refund.refundId)?.amount ??
+          0,
+      );
+    }
+
+    await this.enqueueSearchSync(payment.postingId);
+  }
+
+  private async enqueueRefundRecordedAnalytics(
+    payment: PaymentRecord,
+    refundedAmount: number,
+  ): Promise<void> {
+    await this.postingsAnalyticsRepository.enqueueRefundRecordedEvent({
+      postingId: payment.postingId,
+      organizationId: payment.organizationId,
+      occurredAt: new Date().toISOString(),
+      refundedAmount,
+    });
+  }
+
   private async enqueueSearchSync(postingId?: Uuid): Promise<void> {
     if (!postingId) {
       return;
@@ -500,15 +676,12 @@ export class PaymentsService {
   private async markCompletedPaymentStatus(
     status: ProviderPaymentStatus,
     postingId?: Uuid,
-  ): Promise<{
-    payment: PaymentRecord | null;
-    reconciliationRequired: boolean;
-  }> {
+  ): Promise<ProviderStatusResult> {
     const existingPayment =
       postingId === undefined
-        ? await this.paymentsRepository.findBySquareReferences({
-            squarePaymentId: status.providerPaymentId,
-            squareOrderId: status.providerOrderId,
+        ? await this.paymentsRepository.findByProviderReferences({
+            providerPaymentId: status.providerPaymentId,
+            providerOrderId: status.providerOrderId,
           })
         : null;
     const lockPostingId = postingId ?? existingPayment?.postingId;

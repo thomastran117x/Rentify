@@ -123,6 +123,116 @@ describe("Payments persistence integration", () => {
     });
   });
 
+  it("records abandoned checkouts so the renter can restart them", async () => {
+    const booking = SEED_BOOKINGS[16]!;
+    const renter = await createAuthenticatedRequestContext({
+      email: booking.renterEmail,
+    });
+
+    const createResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/booking-requests/${booking.id}/payment-session`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "persistence-cancel-checkout-1",
+        }),
+      },
+    );
+    expect(createResponse.status).toBe(201);
+
+    const payment = await getPaymentForBooking(persistenceApp, booking.id);
+    persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+      {
+        providerOrderId: payment.providerOrderId,
+        status: "PENDING",
+        raw: { source: "test" },
+      },
+    );
+
+    const cancelResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/cancel-checkout`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(cancelResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, booking.id),
+    ).toMatchObject({
+      status: "failed_final",
+      bookingRequest: {
+        status: "payment_failed",
+      },
+    });
+
+    const retryResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/retry`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "persistence-cancel-checkout-retry-1",
+        }),
+      },
+    );
+
+    expect(retryResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, booking.id),
+    ).toMatchObject({
+      status: "processing",
+    });
+  });
+
+  it("captures approved orders through the return endpoint and enforces access", async () => {
+    const captureBooking = SEED_BOOKINGS[18]!;
+    const renter = await createAuthenticatedRequestContext({
+      email: captureBooking.renterEmail,
+    });
+    const payment = await getPaymentForBooking(
+      persistenceApp,
+      captureBooking.id,
+    );
+    const strangerEmail = ["user6@rentify.local", "user5@rentify.local"].find(
+      (email) => email !== captureBooking.renterEmail,
+    )!;
+    const stranger = await createAuthenticatedRequestContext({
+      email: strangerEmail,
+    });
+
+    const forbiddenResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/capture`)}`,
+      {
+        method: "POST",
+        headers: stranger.headers(),
+      },
+    );
+
+    expect([403, 404]).toContain(forbiddenResponse.status);
+
+    const captureResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${payment.id}/capture`)}`,
+      {
+        method: "POST",
+        headers: renter.headers(),
+      },
+    );
+
+    expect(captureResponse.status).toBe(200);
+    expect(
+      await getPaymentForBooking(persistenceApp, captureBooking.id),
+    ).toMatchObject({
+      status: "succeeded",
+      providerPaymentId: expect.any(String),
+      bookingRequest: {
+        status: "paid",
+      },
+    });
+  });
+
   it("persists refunds, reconciliations, webhook effects, and admin repairs", async () => {
     const managedBooking = SEED_BOOKINGS[11]!;
     const owner = await createAuthenticatedRequestContext({
@@ -177,7 +287,7 @@ describe("Payments persistence integration", () => {
     );
 
     expect(persistedRefund.status).toBe("succeeded");
-    expect(persistedRefund.squareRefundId).toEqual(expect.any(String));
+    expect(persistedRefund.providerRefundId).toEqual(expect.any(String));
     expect(Number(persistedRefund.amount)).toBe(50);
 
     const reconcileBooking = SEED_BOOKINGS[18]!;
@@ -214,22 +324,22 @@ describe("Payments persistence integration", () => {
     );
 
     const webhookResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/payments/webhooks/square")}`,
+      `http://rent.test${buildApiPath("/payments/webhooks/paypal")}`,
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-square-hmacsha256-signature": "signature-ok",
+          "paypal-transmission-sig": "signature-ok",
         },
         body: JSON.stringify({
           id: "evt-persistence-1",
-          type: "payment.updated",
-          data: {
-            object: {
-              payment: {
-                id: webhookPayment.squarePaymentId,
-                order_id: webhookPayment.squareOrderId,
-                status: "COMPLETED",
+          event_type: "PAYMENT.CAPTURE.COMPLETED",
+          resource: {
+            id: webhookPayment.providerPaymentId,
+            status: "COMPLETED",
+            supplementary_data: {
+              related_ids: {
+                order_id: webhookPayment.providerOrderId,
               },
             },
           },

@@ -183,10 +183,9 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
-      SQUARE_ACCESS_TOKEN: ci-square-token
-      SQUARE_LOCATION_ID: ci-square-location
-      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
-      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+      PAYPAL_CLIENT_ID: ci-paypal-client-id
+      PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
+      PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -237,10 +236,9 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
-      SQUARE_ACCESS_TOKEN: ci-square-token
-      SQUARE_LOCATION_ID: ci-square-location
-      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
-      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+      PAYPAL_CLIENT_ID: ci-paypal-client-id
+      PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
+      PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -334,10 +332,9 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
-      SQUARE_ACCESS_TOKEN: ci-square-token
-      SQUARE_LOCATION_ID: ci-square-location
-      SQUARE_WEBHOOK_SIGNATURE_KEY: ci-square-signature
-      SQUARE_WEBHOOK_NOTIFICATION_URL: http://localhost:8040/api/v1/payments/webhooks/square
+      PAYPAL_CLIENT_ID: ci-paypal-client-id
+      PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
+      PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

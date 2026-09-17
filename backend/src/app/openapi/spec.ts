@@ -987,16 +987,15 @@ const paymentExample = {
   postingId: "posting-1",
   renterId: "user-1",
   organizationId: "org-1",
-  provider: "square",
+  provider: "paypal",
   status: "awaiting_method",
   pricingCurrency: "CAD",
   rentalSubtotalAmount: 450,
   platformFeeAmount: 45,
   totalAmount: 495,
-  squarePaymentId: "sq-payment-1",
-  squareOrderId: "sq-order-1",
-  squareLocationId: "sq-location-1",
-  checkoutUrl: "https://square.link/u/abc123",
+  providerOrderId: "5O190127TN364715T",
+  checkoutUrl:
+    "https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T",
   createdAt: "2026-05-25T12:05:00.000Z",
   updatedAt: "2026-05-25T12:05:00.000Z",
   booking: {
@@ -8051,7 +8050,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPaymentSession",
       summary: "Create a payment session for a booking request",
       description:
-        "Creates a Square payment session for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.",
+        "Creates a PayPal checkout order for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {
@@ -8079,13 +8078,13 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
-      path: "/payments/webhooks/square",
-      operationId: "handleSquareWebhook",
-      summary: "Handle a Square payment webhook",
+      path: "/payments/webhooks/paypal",
+      operationId: "handlePayPalWebhook",
+      summary: "Handle a PayPal payment webhook",
       description:
-        "Processes a Square webhook event. The `x-square-hmacsha256-signature` header is required and verified against the raw request body.",
+        "Processes a PayPal webhook event. The `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmission-sig`, `paypal-cert-url`, and `paypal-auth-algo` headers are required and verified through PayPal's webhook signature verification API.",
       tags: ["payments"],
-      security: [{ squareWebhookSignature: [] }],
+      security: [{ paypalWebhookSignature: [] }],
       permissions: {
         authMode: "webhook-signature",
         minimumRole: null,
@@ -8093,7 +8092,7 @@ function buildOperations(): OperationDefinition[] {
       },
       requestBody: {
         required: true,
-        description: "Square webhook event payload.",
+        description: "PayPal webhook event payload.",
         content: {
           "application/json": {
             schema: {
@@ -8101,14 +8100,14 @@ function buildOperations(): OperationDefinition[] {
               additionalProperties: true,
             },
             example: {
-              merchant_id: "merchant-1",
-              type: "payment.updated",
-              data: {
-                object: {
-                  payment: {
-                    id: "sq-payment-1",
-                    order_id: "sq-order-1",
-                    status: "COMPLETED",
+              id: "WH-2WR32451HC0233532-67976317FL4543714",
+              event_type: "PAYMENT.CAPTURE.COMPLETED",
+              resource: {
+                id: "2GG279541U471931P",
+                status: "COMPLETED",
+                supplementary_data: {
+                  related_ids: {
+                    order_id: "5O190127TN364715T",
                   },
                 },
               },
@@ -8302,12 +8301,70 @@ function buildOperations(): OperationDefinition[] {
                 amount: 100,
                 reason: "Partial inconvenience refund",
                 idempotencyKey: "refund-1",
-                squareRefundId: "sq-refund-1",
+                providerRefundId: "1JU08902781691411",
                 createdAt: "2026-05-26T10:00:00.000Z",
                 updatedAt: "2026-05-26T10:00:00.000Z",
                 completedAt: "2026-05-26T10:00:00.000Z",
               },
             ],
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/payments/:id/cancel-checkout",
+      operationId: "cancelPaymentCheckout",
+      summary: "Record an abandoned PayPal checkout",
+      description:
+        "Called when the renter returns from PayPal without approving. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted through the retry endpoint. Only the renter or a member who can manage the organization's payments may call it. PAT bearer authentication is not allowed.",
+      tags: ["payments"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Payment identifier.", "payment-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Checkout cancellation recorded successfully.",
+          "PaymentRecord",
+          {
+            ...paymentExample,
+            status: "failed_final",
+          },
+        ),
+        ...commonErrors([401, 403, 404, 409, 429, 500, 503]),
+      },
+    },
+    {
+      method: "post",
+      path: "/payments/:id/capture",
+      operationId: "capturePayment",
+      summary: "Capture an approved payment",
+      description:
+        "Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the renter or a member who can manage the organization's payments may capture. Safe to repeat: an already captured payment is returned unchanged. PAT bearer authentication is not allowed.",
+      tags: ["payments"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Payment identifier.", "payment-1")],
+      responses: {
+        "200": successResponse(
+          200,
+          "Payment captured successfully.",
+          "PaymentRecord",
+          {
+            ...paymentExample,
+            status: "succeeded",
+            providerPaymentId: "2GG279541U471931P",
+            checkoutUrl: undefined,
           },
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500, 503]),
@@ -8730,10 +8787,10 @@ function buildComponents(): Record<string, unknown> {
         in: "header",
         name: "x-csrf-token",
       },
-      squareWebhookSignature: {
+      paypalWebhookSignature: {
         type: "apiKey",
         in: "header",
-        name: "x-square-hmacsha256-signature",
+        name: "paypal-transmission-sig",
       },
       telnyxWebhookSignature: {
         type: "apiKey",
@@ -11921,7 +11978,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         "- Most protected routes use a bearer token in the `Authorization` header.",
         "- Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.",
         "- Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.",
-        "- `POST /payments/webhooks/square` uses the `x-square-hmacsha256-signature` header instead of bearer authentication.",
+        "- `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.",
         "- `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.",
       ].join("\n"),
     },

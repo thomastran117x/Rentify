@@ -1,12 +1,11 @@
-import { createHmac } from "node:crypto";
 import {
   calculatePlatformFeeAmount,
   classifyHttpError,
   createExponentialBackoffDate,
   createPaymentIdempotencyKey,
+  formatMoneyValue,
   minorUnitsToMoney,
   moneyToMinorUnits,
-  verifySquareSignature,
 } from "@/features/payments/payments.utils";
 
 describe("payments.utils", () => {
@@ -44,40 +43,10 @@ describe("payments.utils", () => {
     expect(scheduledAt.toISOString()).toBe("2023-11-14T22:13:51.500Z");
   });
 
-  it("verifies Square signatures using the notification URL and raw body", () => {
-    const notificationUrl = "https://rent.test/api/v1/payments/webhooks/square";
-    const rawBody = JSON.stringify({ type: "payment.updated", id: "evt-1" });
-    const signature = createHmac("sha256", "square-secret")
-      .update(`${notificationUrl}${rawBody}`)
-      .digest("base64");
-
-    expect(
-      verifySquareSignature({
-        signatureKey: "square-secret",
-        notificationUrl,
-        rawBody,
-        signatureHeader: signature,
-      }),
-    ).toBe(true);
-  });
-
-  it("rejects missing or mismatched Square signatures", () => {
-    expect(
-      verifySquareSignature({
-        signatureKey: "square-secret",
-        notificationUrl: "https://rent.test/webhook",
-        rawBody: "{}",
-      }),
-    ).toBe(false);
-
-    expect(
-      verifySquareSignature({
-        signatureKey: "square-secret",
-        notificationUrl: "https://rent.test/webhook",
-        rawBody: "{}",
-        signatureHeader: "invalid-signature",
-      }),
-    ).toBe(false);
+  it("formats money values as two-decimal strings", () => {
+    expect(formatMoneyValue(12.5)).toBe("12.50");
+    expect(formatMoneyValue(123.456)).toBe("123.46");
+    expect(formatMoneyValue(0)).toBe("0.00");
   });
 
   it("classifies undefined HTTP errors as retryable unknown failures", () => {

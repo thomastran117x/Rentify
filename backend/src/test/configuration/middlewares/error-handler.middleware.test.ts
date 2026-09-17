@@ -153,7 +153,7 @@ describe("error-handler.middleware", () => {
   it("renders xml error bodies when xml output is requested", async () => {
     const { response, logger } = await handle(
       new BadRequestError("Webhook signature is invalid.", {
-        provider: "square",
+        provider: "paypal",
       }),
       { requestId: "req-xml", outputFormat: "xml" },
     );
@@ -166,7 +166,7 @@ describe("error-handler.middleware", () => {
     expect(body).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(body).toContain("<message>Webhook signature is invalid.</message>");
     expect(body).toContain("<code>BAD_REQUEST</code>");
-    expect(body).toContain("<provider>square</provider>");
+    expect(body).toContain("<provider>paypal</provider>");
     expect(body).toContain("<requestId>req-xml</requestId>");
     expect(logger.error).not.toHaveBeenCalled();
   });
