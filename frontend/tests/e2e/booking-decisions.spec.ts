@@ -180,7 +180,7 @@ test.describe("owner booking decisions", () => {
       await expect(payButton).toBeVisible();
       await payButton.click();
 
-      // Local Square credentials are placeholders, so checkout either fails
+      // Local PayPal credentials are placeholders, so checkout either fails
       // gracefully (banner) or, with real sandbox credentials, redirects.
       await expect
         .poll(

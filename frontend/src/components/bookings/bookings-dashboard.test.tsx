@@ -700,7 +700,7 @@ describe("BookingsDashboard", () => {
         }),
       );
       createPaymentSessionMock.mockResolvedValue({
-        checkoutUrl: "https://square.test/checkout/abc",
+        checkoutUrl: "https://paypal.test/checkout/abc",
         attempts: [],
       });
 
@@ -710,7 +710,7 @@ describe("BookingsDashboard", () => {
 
       await waitFor(() => {
         expect(assignSpy).toHaveBeenCalledWith(
-          "https://square.test/checkout/abc",
+          "https://paypal.test/checkout/abc",
         );
       });
     } finally {
