@@ -419,9 +419,10 @@ describe("BookingsController", () => {
     mockRequireJwtAuth.mockResolvedValue(
       createClaims({ sub: OWNER_TWO_ID, role: "owner" }),
     );
-    const getById = jest.fn(async () => ({
+    const getByIdForViewer = jest.fn(async () => ({
       id: BOOKING_TWO_ID,
       status: "pending",
+      viewerAccess: { side: "owner", canManage: true },
     }));
     const updateOwnPending = jest.fn(async () => ({
       id: BOOKING_TWO_ID,
@@ -437,7 +438,7 @@ describe("BookingsController", () => {
     }));
     const controller = new BookingsController(
       {
-        getById,
+        getByIdForViewer,
         updateOwnPending,
         approve,
         decline,
@@ -490,7 +491,7 @@ describe("BookingsController", () => {
       }),
     );
 
-    expect(getById).toHaveBeenCalledWith(BOOKING_TWO_ID, OWNER_TWO_ID);
+    expect(getByIdForViewer).toHaveBeenCalledWith(BOOKING_TWO_ID, OWNER_TWO_ID);
     expect(updateOwnPending).toHaveBeenCalledWith({
       bookingRequestId: BOOKING_TWO_ID,
       renterId: OWNER_TWO_ID,

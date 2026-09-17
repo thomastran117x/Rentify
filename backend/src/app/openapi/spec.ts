@@ -7630,7 +7630,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getBookingRequestById",
       summary: "Get a booking request by ID",
       description:
-        "Returns a booking request when the authenticated caller is allowed to access it. PAT bearer authentication with `mcp:read` is allowed.",
+        "Returns a booking request when the authenticated caller is allowed to access it. The response includes `viewerAccess`: which side of the booking the caller is on (`renter` or `owner`) and whether they may take manage-level actions such as approve, decline, and convert. Access is resolved against the booking's organization, not the caller's active organization. PAT bearer authentication with `mcp:read` is allowed.",
       tags: ["booking-requests"],
       security: ownerSecurity,
       permissions: {
@@ -7647,7 +7647,10 @@ function buildOperations(): OperationDefinition[] {
           200,
           "Request completed successfully.",
           "BookingRequestRecord",
-          bookingRequestExample,
+          {
+            ...bookingRequestExample,
+            viewerAccess: { side: "owner", canManage: true },
+          },
         ),
         ...commonErrors([401, 403, 404, 429, 500]),
       },

@@ -20279,7 +20279,7 @@
       "get": {
         "operationId": "getBookingRequestById",
         "summary": "Get a booking request by ID",
-        "description": "Returns a booking request when the authenticated caller is allowed to access it. PAT bearer authentication with `mcp:read` is allowed.",
+        "description": "Returns a booking request when the authenticated caller is allowed to access it. The response includes `viewerAccess`: which side of the booking the caller is on (`renter` or `owner`) and whether they may take manage-level actions such as approve, decline, and convert. Access is resolved against the booking's organization, not the caller's active organization. PAT bearer authentication with `mcp:read` is allowed.",
         "tags": [
           "booking-requests"
         ],
@@ -20369,6 +20369,10 @@
                       "name": "Sunny loft workspace",
                       "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
                       "effectiveMaxBookingDurationDays": 30
+                    },
+                    "viewerAccess": {
+                      "side": "owner",
+                      "canManage": true
                     }
                   },
                   "error": null,

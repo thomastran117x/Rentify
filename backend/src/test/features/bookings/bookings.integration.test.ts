@@ -109,6 +109,39 @@ describe("Bookings persistence integration", () => {
     });
     expect(createdBooking.holdExpiresAt).toBeTruthy();
 
+    // The single-booking read reports each caller's side and manage rights,
+    // resolved against the booking's organization membership.
+    const viewerAccessFor = async (headers: Record<string, string>) => {
+      const response = await request(`/booking-requests/${createdBooking.id}`, {
+        headers,
+      });
+      expect(response.status).toBe(200);
+      return (
+        await readData<{ viewerAccess: { side: string; canManage: boolean } }>(
+          response,
+        )
+      ).viewerAccess;
+    };
+    const organizationManager = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const organizationOperator = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+
+    expect(await viewerAccessFor(renter.headers())).toEqual({
+      side: "renter",
+      canManage: true,
+    });
+    expect(await viewerAccessFor(organizationManager.headers())).toEqual({
+      side: "owner",
+      canManage: true,
+    });
+    expect(await viewerAccessFor(organizationOperator.headers())).toEqual({
+      side: "owner",
+      canManage: false,
+    });
+
     const bookingCreatedEvent =
       await waitForRabbitMqPayload<RecommendationActivityEventPayload>(
         persistenceApp.infra.rabbitMq,

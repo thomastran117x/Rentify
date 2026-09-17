@@ -8,6 +8,7 @@ import type {
   OwnerBookingDashboardResult,
   RenterBookingDashboardResult,
 } from "@/lib/bookings/types";
+import { ApiClientError } from "@/lib/api/types";
 import { BookingsDashboard } from "./bookings-dashboard";
 import {
   resetRouterMocks,
@@ -26,7 +27,15 @@ const {
   markCompleteMock,
   completeReturnMock,
   createDisputeMock,
+  approveMock,
+  declineMock,
+  convertMock,
+  createPaymentSessionMock,
 } = vi.hoisted(() => ({
+  approveMock: vi.fn(),
+  declineMock: vi.fn(),
+  convertMock: vi.fn(),
+  createPaymentSessionMock: vi.fn(),
   useAuthMock: vi.fn(),
   getMyDashboardMock: vi.fn(),
   getOwnerDashboardMock: vi.fn(),
@@ -73,8 +82,26 @@ vi.mock("@/lib/bookings/api", () => ({
     markRentingCheckInComplete: markCompleteMock,
     completeRentingReturn: completeReturnMock,
     createRentingDispute: createDisputeMock,
+    approve: approveMock,
+    decline: declineMock,
+    convertToRenting: convertMock,
+    createPaymentSession: createPaymentSessionMock,
   },
 }));
+
+const FUTURE_HOLD = "2099-01-01T00:00:00.000Z";
+const PAST_HOLD = "2020-01-01T00:00:00.000Z";
+
+function useManagerSession() {
+  useAuthMock.mockReturnValue({
+    status: "authenticated",
+    session: buildSession("owner", {
+      id: "org-1",
+      name: "Org One",
+      role: "primary_manager",
+    }),
+  });
+}
 
 vi.mock("@/lib/postings/api", () => ({
   postingsApi: {
@@ -446,6 +473,337 @@ describe("BookingsDashboard", () => {
     expect(
       screen.queryByRole("button", { name: "Review cancellation" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("approves a pending booking request from the owner view", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    approveMock.mockResolvedValue({ id: "booking-1" });
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(approveMock).toHaveBeenCalledWith("booking-1");
+    });
+    expect(
+      await screen.findByText(
+        "Booking request approved. The renter has been asked to pay.",
+      ),
+    ).toBeInTheDocument();
+    expect(getOwnerDashboardMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("declines a pending booking request with an optional note", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    declineMock.mockResolvedValue({ id: "booking-1" });
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Decline note (optional)" }),
+      { target: { value: "  Dates conflict  " } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm decline" }));
+
+    await waitFor(() => {
+      expect(declineMock).toHaveBeenCalledWith("booking-1", {
+        note: "Dates conflict",
+      });
+    });
+    expect(
+      await screen.findByText("Booking request declined."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an error banner when approval fails", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    approveMock.mockRejectedValue(new Error("boom"));
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Booking request could not be approved."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the API's reason when a decision is rejected", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    approveMock.mockRejectedValue(
+      new ApiClientError("Only pending booking requests can be approved.", {
+        status: 400,
+        code: "BAD_REQUEST",
+        request: {
+          method: "POST",
+          path: "/booking-requests/booking-1/approve",
+          requestUrl:
+            "https://api.test/api/v1/booking-requests/booking-1/approve",
+        },
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText("Only pending booking requests can be approved."),
+    ).toBeInTheDocument();
+  });
+
+  it("hides decision actions from a site owner who is only an operator in the active organization", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("owner", {
+        id: "org-1",
+        name: "Org One",
+        role: "operator",
+      }),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    expect(await screen.findByText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("converts a paid booking into a renting", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "paid",
+            sourceStatus: "paid",
+          }),
+        ],
+      }),
+    );
+    convertMock.mockResolvedValue({ id: "renting-1" });
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Convert to renting" }),
+    );
+
+    await waitFor(() => {
+      expect(convertMock).toHaveBeenCalledWith("booking-1");
+    });
+    expect(
+      await screen.findByText("Booking converted into a confirmed renting."),
+    ).toBeInTheDocument();
+  });
+
+  it("hides decision and conversion actions from operators", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      session: buildSession("user", {
+        id: "org-1",
+        name: "Org One",
+        role: "operator",
+      }),
+    });
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            id: "pending-item",
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+          buildDashboardItem({
+            id: "paid-item",
+            bookingRequestId: "booking-2",
+            status: "paid",
+            sourceStatus: "paid",
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    expect(await screen.findAllByText("Lake House Retreat")).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Convert to renting" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer approval once the hold has expired", async () => {
+    useManagerSession();
+    getOwnerDashboardMock.mockResolvedValue(
+      buildOwnerDashboard({
+        items: [
+          buildDashboardItem({
+            status: "pending",
+            sourceStatus: "pending",
+            holdExpiresAt: PAST_HOLD,
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    expect(await screen.findByText("Lake House Retreat")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a checkout error when the payment session has no checkout link", async () => {
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [
+          buildDashboardItem({
+            status: "awaiting_payment",
+            sourceStatus: "awaiting_payment",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+    createPaymentSessionMock.mockResolvedValue({ attempts: [] });
+
+    render(<BookingsDashboard />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pay now" }));
+
+    await waitFor(() => {
+      expect(createPaymentSessionMock).toHaveBeenCalledWith("booking-1");
+    });
+    expect(
+      await screen.findByText(
+        "We couldn't start checkout right now. Please try again.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the renter to the checkout link when paying", async () => {
+    const originalLocation = window.location;
+    const assignSpy = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, assign: assignSpy },
+    });
+
+    try {
+      getMyDashboardMock.mockResolvedValue(
+        buildRenterDashboard({
+          items: [
+            buildDashboardItem({
+              status: "awaiting_payment",
+              sourceStatus: "awaiting_payment",
+              holdExpiresAt: FUTURE_HOLD,
+            }),
+          ],
+        }),
+      );
+      createPaymentSessionMock.mockResolvedValue({
+        checkoutUrl: "https://paypal.test/checkout/abc",
+        attempts: [],
+      });
+
+      render(<BookingsDashboard />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Pay now" }));
+
+      await waitFor(() => {
+        expect(assignSpy).toHaveBeenCalledWith(
+          "https://paypal.test/checkout/abc",
+        );
+      });
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
+  });
+
+  it("offers a retry payment action after a failed payment", async () => {
+    getMyDashboardMock.mockResolvedValue(
+      buildRenterDashboard({
+        items: [
+          buildDashboardItem({
+            status: "payment_failed",
+            sourceStatus: "payment_failed",
+            holdExpiresAt: FUTURE_HOLD,
+          }),
+        ],
+      }),
+    );
+
+    render(<BookingsDashboard />);
+
+    expect(
+      await screen.findByRole("button", { name: "Retry payment" }),
+    ).toBeInTheDocument();
   });
 
   it("offers a review form on completed rentings in the renter view", async () => {

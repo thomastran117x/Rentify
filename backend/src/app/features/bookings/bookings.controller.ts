@@ -150,7 +150,7 @@ export class BookingsController {
 
   getById = async (request: Request, response: Response): Promise<void> => {
     const auth = await this.requireAuth(request);
-    const result = await this.bookingsService.getById(
+    const result = await this.bookingsService.getByIdForViewer(
       this.requireBookingRequestId(request),
       auth.sub,
     );
