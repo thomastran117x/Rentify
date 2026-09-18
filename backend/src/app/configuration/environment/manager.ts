@@ -303,6 +303,10 @@ export class EnvironmentManager {
     return this.get().blobStorage;
   }
 
+  getImageUploadsConfig(): AppEnvironment["imageUploads"] {
+    return this.get().imageUploads;
+  }
+
   getLoggingConfig(): AppEnvironment["logging"] {
     return this.get().logging;
   }

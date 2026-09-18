@@ -1,3 +1,5 @@
+import { SUPPORTED_IMAGE_CONTENT_TYPES } from "@/configuration/environment/constants";
+
 const tokenConfig = {
   accessTokenSecret: "test-access-secret-value-with-32chars",
   refreshTokenSecret: "test-refresh-secret-value-with-32c",
@@ -178,6 +180,23 @@ function readBlobStorageConfig() {
   };
 }
 
+function readImageUploadsConfig() {
+  const configured = (process.env.ALLOWED_IMAGE_TYPES ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+  return {
+    allowedContentTypes: configured.length
+      ? configured
+      : [...SUPPORTED_IMAGE_CONTENT_TYPES],
+    maxSizeBytes: readNumber(process.env.MAX_IMAGE_SIZE_BYTES, 5 * 1024 * 1024),
+    maxWidth: readNumber(process.env.MAX_IMAGE_WIDTH, 8_000),
+    maxHeight: readNumber(process.env.MAX_IMAGE_HEIGHT, 8_000),
+    maxPixels: readNumber(process.env.MAX_IMAGE_PIXELS, 40_000_000),
+  };
+}
+
 function readHttpConfig() {
   return {
     requestTimeoutMs: readNumber(process.env.REQUEST_TIMEOUT_MS, 15_000),
@@ -201,6 +220,14 @@ const blobStorageConfig = {
   connectionString: undefined,
   containerName: undefined,
   uploadSasTtlSeconds: 15 * 60,
+};
+
+const imageUploadsConfig = {
+  allowedContentTypes: [...SUPPORTED_IMAGE_CONTENT_TYPES],
+  maxSizeBytes: 5 * 1024 * 1024,
+  maxWidth: 8_000,
+  maxHeight: 8_000,
+  maxPixels: 40_000_000,
 };
 
 const identityBloomConfig = {
@@ -380,6 +407,9 @@ export const environment = {
   getBlobStorageConfig() {
     return readBlobStorageConfig();
   },
+  getImageUploadsConfig() {
+    return readImageUploadsConfig();
+  },
   getCorsAllowedOrigins() {
     return readOriginList(
       process.env.CORS_ALLOWED_ORIGINS,
@@ -444,6 +474,7 @@ export const environment = {
       http: readHttpConfig(),
       email: emailConfig,
       blobStorage: blobStorageConfig,
+      imageUploads: imageUploadsConfig,
       captcha: captchaConfig,
       database: readDatabaseConfig(),
       elasticsearch: elasticsearchConfig,

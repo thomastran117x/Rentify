@@ -16,6 +16,7 @@ export type ConfigurationFeatureSource = "config" | "env";
 export type RawEnvironmentValues = {
   ACCESS_TOKEN_SECRET?: string;
   ACCESS_TOKEN_TTL_SECONDS?: string;
+  ALLOWED_IMAGE_TYPES?: string;
   APP_BASE_URL?: string;
   APP_NAME?: string;
   AZURE_STORAGE_CONNECTION_STRING?: string;
@@ -72,6 +73,10 @@ export type RawEnvironmentValues = {
   LOG_LEVEL?: string;
   LOG_SILENT?: string;
   LOG_SERVICE_NAME?: string;
+  MAX_IMAGE_HEIGHT?: string;
+  MAX_IMAGE_PIXELS?: string;
+  MAX_IMAGE_SIZE_BYTES?: string;
+  MAX_IMAGE_WIDTH?: string;
   MICROSOFT_OAUTH_CLIENT_ID?: string;
   MICROSOFT_OAUTH_CLIENT_IDS?: string;
   MICROSOFT_OAUTH_CLIENT_SECRET?: string;
@@ -380,6 +385,13 @@ export interface AppEnvironment {
     connectionString?: string;
     containerName?: string;
     uploadSasTtlSeconds: number;
+  };
+  imageUploads: {
+    allowedContentTypes: string[];
+    maxSizeBytes: number;
+    maxWidth: number;
+    maxHeight: number;
+    maxPixels: number;
   };
   logging: {
     fallbackDirectory: string;

@@ -3,6 +3,7 @@ import type { EnvironmentVariableName } from "@/configuration/environment/types"
 export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "ACCESS_TOKEN_SECRET",
   "ACCESS_TOKEN_TTL_SECONDS",
+  "ALLOWED_IMAGE_TYPES",
   "APP_BASE_URL",
   "APP_NAME",
   "AZURE_STORAGE_CONNECTION_STRING",
@@ -70,6 +71,10 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "LOG_LEVEL",
   "LOG_SILENT",
   "LOG_SERVICE_NAME",
+  "MAX_IMAGE_HEIGHT",
+  "MAX_IMAGE_PIXELS",
+  "MAX_IMAGE_SIZE_BYTES",
+  "MAX_IMAGE_WIDTH",
   "MICROSOFT_OAUTH_CLIENT_ID",
   "MICROSOFT_OAUTH_CLIENT_IDS",
   "MICROSOFT_OAUTH_CLIENT_SECRET",
@@ -153,6 +158,28 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "USERNAME_BLOOM_REBUILD_BATCH_SIZE",
   "USERNAME_BLOOM_REBUILD_LOCK_TTL_MS",
 ];
+
+// The image formats the upload pipeline can actually validate: each one has a
+// sharp decoder, a canonical extension, and a magic-byte signature. SVG, GIF,
+// TIFF, and HEIC are excluded on purpose. Lives here rather than in the blob
+// feature so the environment parser can validate ALLOWED_IMAGE_TYPES against it
+// without importing a feature module.
+export const SUPPORTED_IMAGE_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export type SupportedImageContentType =
+  (typeof SUPPORTED_IMAGE_CONTENT_TYPES)[number];
+
+export function isSupportedImageContentType(
+  value: string,
+): value is SupportedImageContentType {
+  return SUPPORTED_IMAGE_CONTENT_TYPES.includes(
+    value as SupportedImageContentType,
+  );
+}
 
 export const DEFAULT_FRONTEND_URL = "http://localhost:3040";
 export const DEFAULT_EMAIL_APP_BASE_URL = "http://localhost:3000";

@@ -94,6 +94,21 @@ blobStorage:
   containerName: null
   uploadSasTtlSeconds: 900
 
+# Upload policy for image blobs. allowedContentTypes may only narrow the
+# built-in set (image/jpeg, image/png, image/webp) - listing anything else is a
+# startup error. Note that the local /blob/upload path is additionally capped by
+# http.requestBodyMaxBytes, so the effective local ceiling is the smaller of the
+# two.
+imageUploads:
+  allowedContentTypes:
+    - image/jpeg
+    - image/png
+    - image/webp
+  maxSizeBytes: 5242880
+  maxWidth: 8000
+  maxHeight: 8000
+  maxPixels: 40000000
+
 paypal:
   environment: sandbox
   clientId: change-me-paypal-client-id
