@@ -872,11 +872,13 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       })),
     },
     paymentProvider: {
+      // Each attempt gets its own order, like PayPal, so superseding a
+      // checkout produces a new order id.
       createPaymentSession: jest.fn(async (input) => ({
         checkoutUrl: `https://www.sandbox.paypal.com/checkoutnow?token=provider-order-${String(input.paymentId)}`,
         providerRequestId: `provider-request-${String(input.paymentId)}`,
         providerPaymentId: `provider-payment-${String(input.paymentId)}`,
-        providerOrderId: `provider-order-${String(input.paymentId)}`,
+        providerOrderId: `provider-order-${String(input.paymentId)}-${String(input.idempotencyKey).slice(0, 60)}`,
         raw: {
           paymentId: input.paymentId,
         },

@@ -21,6 +21,7 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@paypal/react-paypal-js": "10.5.0",
     "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-link": "^3.31.3",
     "@tiptap/pm": "^3.31.3",

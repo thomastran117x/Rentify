@@ -11,6 +11,7 @@ import type { OrganizationAccessService } from "@/features/organizations/organiz
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import { PaymentsService } from "@/features/payments/payments.service";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
+import { getEnvironment } from "@/configuration/environment/index";
 import { testUuid } from "../../support/uuid";
 const ATTEMPT_1_ID = testUuid(9200, 451335);
 const IGNORED_BY_SERVICE_ID = testUuid(9200, 16965);
@@ -64,6 +65,57 @@ function createPaymentRecord(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** A GET order response for an approved, not yet captured order. */
+function approvedOrder(overrides: Record<string, unknown> = {}) {
+  return {
+    providerOrderId: "order-1",
+    status: "APPROVED" as const,
+    raw: {},
+    order: {
+      paymentSource: "paypal" as const,
+      customId: PAYMENT_1_ID,
+      amount: 110,
+      currency: "CAD",
+    },
+    ...overrides,
+  };
+}
+
+function createCheckoutContext(
+  overrides: {
+    booking?: Record<string, unknown>;
+    posting?: Record<string, unknown>;
+    payment?: unknown;
+  } = {},
+) {
+  return {
+    booking: {
+      id: BOOKING_1_ID,
+      renterId: RENTER_1_ID,
+      status: "awaiting_payment",
+      startAt: new Date("2099-05-01T00:00:00.000Z"),
+      endAt: new Date("2099-05-11T00:00:00.000Z"),
+      durationDays: 10,
+      guestCount: 2,
+      holdExpiresAt: new Date("2099-04-21T00:00:00.000Z"),
+      dailyPriceAmount: 100,
+      estimatedTotal: 1000,
+      pricingCurrency: "CAD",
+      converted: false,
+      paymentReconciliationRequired: false,
+      ...overrides.booking,
+    },
+    posting: {
+      id: POSTING_1_ID,
+      name: "Lakeside cabin",
+      primaryPhotoUrl: "https://blob.example/photo.jpg",
+      cancellationPolicyNotes: "Check-in after 4pm.",
+      ...overrides.posting,
+    },
+    payment: overrides.payment ?? null,
+  };
+}
+
 function createService(overrides?: {
   repository?: Record<string, unknown>;
   provider?: Record<string, unknown>;
@@ -95,6 +147,11 @@ function createService(overrides?: {
       }),
     ),
     findById: jest.fn(async () => createPaymentRecord()),
+    findByBookingRequestId: jest.fn(async () => null),
+    findCheckoutContext: jest.fn(async () => createCheckoutContext()),
+    rejectCheckoutAttempt: jest.fn(async () =>
+      createPaymentRecord({ status: "failed_final" }),
+    ),
     findByProviderReferences: jest.fn(async () => createPaymentRecord()),
     findRefundByProviderRefundId: jest.fn(async () => null),
     createRefundRecord: jest.fn(async () => ({
@@ -322,6 +379,7 @@ describe("PaymentsService", () => {
       expect.objectContaining({
         providerPaymentId: CAPTURE_1_ID,
       }),
+      { expectedProviderOrderId: "order-1" },
     );
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
@@ -371,6 +429,7 @@ describe("PaymentsService", () => {
       expect.objectContaining({
         message: "provider unavailable",
       }),
+      { scheduleRetry: true },
     );
     expect(
       analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
@@ -597,8 +656,13 @@ describe("PaymentsService", () => {
       service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(
-      (cacheService.acquireLock as unknown as jest.Mock).mock.calls[0]?.[0],
-    ).toBe(`posting:${POSTING_1_ID}:booking-window`);
+      (cacheService.acquireLock as unknown as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      ),
+    ).toEqual([
+      `booking-request:${BOOKING_1_ID}:state`,
+      `posting:${POSTING_1_ID}:booking-window`,
+    ]);
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
     ).toHaveBeenCalledWith(POSTING_1_ID);
@@ -782,6 +846,9 @@ describe("PaymentsService", () => {
             createPaymentRecord({ status: "processing" }),
           ),
         },
+        provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
+        },
       });
 
       const result = await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
@@ -840,6 +907,7 @@ describe("PaymentsService", () => {
             ),
           },
           provider: {
+            getPaymentStatus: jest.fn(async () => approvedOrder()),
             capturePayment: jest.fn(async () => {
               throw new Error("declined");
             }),
@@ -878,6 +946,7 @@ describe("PaymentsService", () => {
           markPaymentFailed: jest.fn(async () => null),
         },
         provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
           capturePayment: jest.fn(async () => {
             throw new Error("declined");
           }),
@@ -902,6 +971,7 @@ describe("PaymentsService", () => {
           ),
         },
         provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
           capturePayment: jest.fn(async () => {
             throw new Error("paypal down");
           }),
@@ -941,6 +1011,7 @@ describe("PaymentsService", () => {
           findById: jest.fn(async () => payment),
         },
         provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
           capturePayment: jest.fn(async () => ({
             providerPaymentId: CAPTURE_1_ID,
             providerOrderId: "order-1",
@@ -978,7 +1049,13 @@ describe("PaymentsService", () => {
 
   it("captures approved orders reported by webhook", async () => {
     const { service, paymentProvider, paymentsRepository } = createService({
+      repository: {
+        findByProviderReferences: jest.fn(async () =>
+          createPaymentRecord({ status: "processing" }),
+        ),
+      },
       provider: {
+        getPaymentStatus: jest.fn(async () => approvedOrder()),
         verifyWebhookSignature: jest.fn(async () => ({
           payload: { resource: { id: "order-1" } },
           details: { providerOrderId: "order-1", status: "APPROVED" },
@@ -1347,6 +1424,65 @@ describe("PaymentsService", () => {
       ).resolves.toBe(payment);
     });
 
+    it("refuses to cancel an order a newer checkout replaced", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({
+              status: "processing",
+              providerOrderId: "order-2",
+            }),
+          ),
+        },
+      });
+
+      const error = await service
+        .cancelCheckout(PAYMENT_1_ID, RENTER_1_ID, { orderId: "order-1" })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "stale_order",
+      });
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("cancels the order the renter actually abandoned", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({
+              status: "processing",
+              providerOrderId: "order-1",
+            }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID, {
+        orderId: "order-1",
+      });
+
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ failureCode: "CHECKOUT_CANCELLED" }),
+        "unknown",
+      );
+    });
+
     it("leaves payments that are no longer awaiting checkout unchanged", async () => {
       const { service, paymentProvider } = createService();
 
@@ -1638,6 +1774,1017 @@ describe("PaymentsService", () => {
       await expect(
         service.getPaymentByBookingRequest(BOOKING_MISSING_ID, RENTER_1_ID),
       ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    });
+  });
+  describe("embedded checkout", () => {
+    function processingPayment(overrides: Record<string, unknown> = {}) {
+      return createPaymentRecord({
+        status: "processing",
+        providerPaymentId: undefined,
+        booking: {
+          id: BOOKING_1_ID,
+          status: "payment_processing",
+          startAt: "2099-05-01T00:00:00.000Z",
+          endAt: "2099-05-04T00:00:00.000Z",
+          holdExpiresAt: "2099-04-21T00:00:00.000Z",
+          paymentReconciliationRequired: false,
+        },
+        ...overrides,
+      });
+    }
+
+    it("passes the chosen method to the repository and provider without scheduling retries", async () => {
+      const { service, paymentsRepository, paymentProvider } = createService({
+        provider: {
+          createPaymentSession: jest.fn(async () => {
+            throw new Error("paypal down");
+          }),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-card",
+        method: "card",
+      });
+
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ method: "card", supersede: undefined }),
+      );
+      expect(
+        paymentProvider.createPaymentSession as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(expect.objectContaining({ method: "card" }));
+      expect(
+        paymentsRepository.recordAttemptFailure as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(PAYMENT_1_ID, ATTEMPT_1_ID, expect.anything(), {
+        scheduleRetry: false,
+      });
+    });
+
+    it("only attaches a session while the attempt is still the live checkout", async () => {
+      const { service, paymentsRepository } = createService();
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-1",
+        method: "paypal",
+      });
+
+      expect(
+        paymentsRepository.attachPaymentSession as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(PAYMENT_1_ID, ATTEMPT_1_ID, expect.anything(), {
+        expectedProviderOrderId: "order-1",
+      });
+    });
+
+    it("renews the checkout lock while the provider call is in flight", async () => {
+      jest.useFakeTimers();
+      const extend = jest.fn(async () => true);
+      const release = jest.fn(async () => true);
+      let finishProvider: () => void = () => undefined;
+      const { service } = createService({
+        cache: {
+          acquireLock: jest.fn(async (key: string) => ({
+            key,
+            token: "token",
+            release,
+            extend,
+          })),
+        },
+        provider: {
+          createPaymentSession: jest.fn(
+            async () =>
+              new Promise((resolve) => {
+                finishProvider = () =>
+                  resolve({ providerOrderId: "order-1", raw: {} });
+              }),
+          ),
+        },
+      });
+
+      try {
+        const pending = service.createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-slow",
+          method: "paypal",
+        });
+
+        await Promise.resolve();
+        await jest.advanceTimersByTimeAsync(12_000);
+        expect(extend.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+        finishProvider();
+        await pending;
+        expect(release).toHaveBeenCalled();
+
+        extend.mockClear();
+        await jest.advanceTimersByTimeAsync(30_000);
+        expect(extend).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("rejects methods that are not enabled for checkout", async () => {
+      const paypal = getEnvironment().paypal;
+      const original = [...paypal.checkoutMethods];
+      paypal.checkoutMethods.splice(0, paypal.checkoutMethods.length, "paypal");
+      const { service, paymentsRepository } = createService();
+
+      try {
+        await expect(
+          service.createPaymentSession({
+            bookingRequestId: BOOKING_1_ID,
+            renterId: RENTER_1_ID,
+            method: "card",
+          }),
+        ).rejects.toBeInstanceOf(BadRequestError);
+      } finally {
+        paypal.checkoutMethods.splice(
+          0,
+          paypal.checkoutMethods.length,
+          ...original,
+        );
+      }
+
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("reports a busy checkout when the booking lock is held", async () => {
+      const { service } = createService({
+        cache: {
+          acquireLock: jest.fn(async () => null),
+        },
+      });
+
+      const error = await service
+        .createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          method: "paypal",
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "checkout_busy",
+      });
+    });
+
+    it("supersedes an unapproved order before creating a new one", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "card",
+      });
+
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          supersede: { expectedProviderOrderId: "order-1" },
+        }),
+      );
+    });
+
+    it("supersedes orders PayPal no longer knows about", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => null),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "paypal",
+      });
+
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          supersede: { expectedProviderOrderId: "order-1" },
+        }),
+      );
+    });
+
+    it("supersedes without asking PayPal when no order was attached", async () => {
+      const { service, paymentsRepository, paymentProvider } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () =>
+            processingPayment({
+              status: "awaiting_method",
+              providerOrderId: undefined,
+            }),
+          ),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "paypal",
+      });
+
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          supersede: { expectedProviderOrderId: null },
+        }),
+      );
+    });
+
+    it("does not look up the provider for replays, strangers, or idle payments", async () => {
+      const replay = processingPayment({
+        attempts: [{ id: ATTEMPT_1_ID, idempotencyKey: "idem-1" }],
+      });
+
+      for (const payment of [
+        replay,
+        processingPayment({ renterId: STRANGER_1_ID }),
+        createPaymentRecord({ status: "failed_final" }),
+      ]) {
+        const { service, paymentProvider } = createService({
+          repository: {
+            findByBookingRequestId: jest.fn(async () => payment),
+          },
+        });
+
+        await service.createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-1",
+          method: "paypal",
+        });
+
+        expect(
+          paymentProvider.getPaymentStatus as unknown as jest.Mock,
+        ).not.toHaveBeenCalled();
+      }
+    });
+
+    it("captures an already approved order instead of replacing it", async () => {
+      const { service, paymentsRepository, paymentProvider } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
+        },
+      });
+
+      const error = await service
+        .createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "card",
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "payment_in_progress",
+      });
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).toHaveBeenCalledWith({
+        providerOrderId: "order-1",
+        idempotencyKey: "capture-order-1",
+      });
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("refuses to replace an order whose capture is still settling", async () => {
+      const { service } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            providerPaymentId: CAPTURE_1_ID,
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await expect(
+        service.createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "paypal",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("surfaces reconciliation when the old order completed into a conflict", async () => {
+      const { service } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+          markPaymentSucceeded: jest.fn(async () => ({
+            payment: createPaymentRecord(),
+            reconciliationRequired: true,
+          })),
+        },
+      });
+
+      const error = await service
+        .createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "paypal",
+        })
+        .catch((caught: unknown) => caught);
+
+      expect((error as ConflictError).details).toEqual({
+        reason: "reconciliation_required",
+      });
+    });
+
+    it("continues with a new order once the old order is found declined", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "FAILED",
+            raw: {},
+          })),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "paypal",
+      });
+
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).toHaveBeenCalled();
+      expect(
+        paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(expect.objectContaining({ supersede: undefined }));
+    });
+
+    it("surfaces PayPal lookup failures while settling an open order", async () => {
+      const { service } = createService({
+        repository: {
+          findByBookingRequestId: jest.fn(async () => processingPayment()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => {
+            throw new Error("paypal down");
+          }),
+        },
+      });
+
+      await expect(
+        service.createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "paypal",
+        }),
+      ).rejects.toBeInstanceOf(ServiceNotAvaliableError);
+    });
+
+    it("returns an existing attempt that already has an order", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          createPaymentAttemptForBooking: jest.fn(async () => ({
+            paymentId: PAYMENT_1_ID,
+            attemptId: ATTEMPT_1_ID,
+            amount: 110,
+            currency: "CAD",
+            payment: processingPayment({
+              attempts: [{ id: ATTEMPT_1_ID, providerOrderId: "order-1" }],
+            }),
+          })),
+        },
+      });
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-1",
+        method: "paypal",
+      });
+
+      expect(
+        paymentProvider.createPaymentSession as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("capture guards", () => {
+    function capturable(overrides: Record<string, unknown> = {}) {
+      return createPaymentRecord({
+        status: "processing",
+        providerPaymentId: undefined,
+        booking: {
+          id: BOOKING_1_ID,
+          status: "payment_processing",
+          startAt: "2099-05-01T00:00:00.000Z",
+          endAt: "2099-05-04T00:00:00.000Z",
+          holdExpiresAt: "2099-04-21T00:00:00.000Z",
+          paymentReconciliationRequired: false,
+        },
+        ...overrides,
+      });
+    }
+
+    it("rejects a capture for an order that a newer checkout replaced", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          findById: jest.fn(async () => capturable()),
+        },
+      });
+
+      const error = await service
+        .capturePayment(PAYMENT_1_ID, RENTER_1_ID, { orderId: "order-old" })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "stale_order",
+      });
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("leaves a payment unchanged while its order is not yet approved", async () => {
+      const payment = capturable();
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID, {
+          orderId: "order-1",
+        }),
+      ).resolves.toBe(payment);
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("leaves a payment unchanged when PayPal has no record of the order", async () => {
+      const payment = capturable();
+      const { service, paymentProvider } = createService({
+        repository: {
+          findById: jest.fn(async () => payment),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        service.capturePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toBe(payment);
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("refuses to capture once the booking hold has expired", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            capturable({
+              booking: {
+                id: BOOKING_1_ID,
+                status: "payment_processing",
+                startAt: "2099-05-01T00:00:00.000Z",
+                endAt: "2099-05-04T00:00:00.000Z",
+                holdExpiresAt: "2020-01-01T00:00:00.000Z",
+                paymentReconciliationRequired: false,
+              },
+            }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => approvedOrder()),
+        },
+      });
+
+      const result = await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.rejectCheckoutAttempt as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerOrderId: "order-1",
+          failureCode: "HOLD_EXPIRED",
+        }),
+      );
+      expect(result.status).toBe("failed_final");
+    });
+
+    it("refuses to capture for a booking that is no longer payable", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            capturable({
+              booking: {
+                id: BOOKING_1_ID,
+                status: "expired",
+                startAt: "2099-05-01T00:00:00.000Z",
+                endAt: "2099-05-04T00:00:00.000Z",
+                holdExpiresAt: "2099-04-21T00:00:00.000Z",
+                paymentReconciliationRequired: false,
+              },
+            }),
+          ),
+        },
+      });
+
+      await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["custom id", { customId: PAYMENT_2_ID }],
+      ["amount", { amount: 999 }],
+      ["currency", { currency: "USD" }],
+    ])(
+      "refuses to capture an order whose %s does not match the payment",
+      async (_label, mismatch) => {
+        const { service, paymentProvider, paymentsRepository } = createService({
+          repository: {
+            findById: jest.fn(async () => capturable()),
+          },
+          provider: {
+            getPaymentStatus: jest.fn(async () =>
+              approvedOrder({
+                order: {
+                  paymentSource: "paypal",
+                  customId: PAYMENT_1_ID,
+                  amount: 110,
+                  currency: "CAD",
+                  ...mismatch,
+                },
+              }),
+            ),
+          },
+        });
+
+        await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+        expect(
+          paymentProvider.capturePayment as unknown as jest.Mock,
+        ).not.toHaveBeenCalled();
+        expect(
+          paymentsRepository.rejectCheckoutAttempt as unknown as jest.Mock,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ failureCode: "ORDER_MISMATCH" }),
+        );
+      },
+    );
+
+    it("captures card orders whose 3-D Secure shifted liability", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          findById: jest.fn(async () => capturable()),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () =>
+            approvedOrder({
+              order: {
+                paymentSource: "card",
+                customId: PAYMENT_1_ID,
+                amount: 110,
+                currency: "CAD",
+                cardAuthentication: {
+                  liabilityShift: "POSSIBLE",
+                  enrollmentStatus: "Y",
+                  authenticationStatus: "Y",
+                },
+              },
+            }),
+          ),
+        },
+      });
+
+      await service.capturePayment(PAYMENT_1_ID, RENTER_1_ID);
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).toHaveBeenCalled();
+    });
+
+    it("never captures a card order that failed 3-D Secure, even from a webhook", async () => {
+      const {
+        service,
+        paymentProvider,
+        paymentsRepository,
+        analyticsRepository,
+      } = createService({
+        repository: {
+          findByProviderReferences: jest.fn(async () => capturable()),
+        },
+        provider: {
+          verifyWebhookSignature: jest.fn(async () => ({
+            payload: { resource: { id: "order-1" } },
+            details: { providerOrderId: "order-1", status: "APPROVED" },
+            eventId: "event-3ds",
+            eventType: "CHECKOUT.ORDER.APPROVED",
+            isValid: true,
+          })),
+          getPaymentStatus: jest.fn(async () =>
+            approvedOrder({
+              order: {
+                paymentSource: "card",
+                customId: PAYMENT_1_ID,
+                amount: 110,
+                currency: "CAD",
+                cardAuthentication: {
+                  liabilityShift: "NO",
+                  enrollmentStatus: "Y",
+                  authenticationStatus: "N",
+                },
+              },
+            }),
+          ),
+        },
+      });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.rejectCheckoutAttempt as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          failureCode: "CARD_AUTHENTICATION_FAILED",
+        }),
+      );
+      expect(
+        analyticsRepository.enqueuePaymentFailedEvent as unknown as jest.Mock,
+      ).toHaveBeenCalled();
+      expect(
+        paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith("event-3ds");
+    });
+
+    it("ignores approvals for orders the payment no longer tracks", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          findByProviderReferences: jest.fn(async () => capturable()),
+        },
+        provider: {
+          verifyWebhookSignature: jest.fn(async () => ({
+            payload: { resource: { id: "order-old" } },
+            details: { providerOrderId: "order-old", status: "APPROVED" },
+            eventId: "event-old",
+            eventType: "CHECKOUT.ORDER.APPROVED",
+            isValid: true,
+          })),
+        },
+      });
+
+      await service.processPaymentWebhook("{}", {});
+
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentProvider.capturePayment as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("lets PayPal redeliver a webhook while a checkout request holds the booking", async () => {
+      const { service, paymentsRepository } = createService({
+        cache: {
+          acquireLock: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        service.processPaymentWebhook("{}", {}),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(
+        paymentsRepository.markWebhookProcessed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("skips repair while a checkout request holds the booking", async () => {
+      const { service, paymentProvider } = createService({
+        cache: {
+          acquireLock: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        service.repairPayment(PAYMENT_1_ID),
+      ).resolves.toBeUndefined();
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("rethrows unexpected repair errors", async () => {
+      const { service } = createService({
+        provider: {
+          getPaymentStatus: jest.fn(async () => {
+            throw new Error("boom");
+          }),
+        },
+      });
+
+      await expect(service.repairPayment(PAYMENT_1_ID)).rejects.toThrow("boom");
+    });
+
+    it("recreates retried redirect checkouts with the redirect method", async () => {
+      const { service, paymentProvider } = createService({
+        repository: {
+          listRetryCandidates: jest.fn(async () => [
+            {
+              attemptId: ATTEMPT_1_ID,
+              paymentId: PAYMENT_1_ID,
+              idempotencyKey: "idem-1",
+              retryCount: 1,
+            },
+          ]),
+          markAttemptForRetry: jest.fn(async () => ({
+            paymentId: PAYMENT_1_ID,
+            bookingRequestId: BOOKING_1_ID,
+            idempotencyKey: "idem-1",
+            amount: 110,
+            currency: "CAD",
+          })),
+        },
+      });
+
+      await service.processRetryQueue(1);
+
+      expect(
+        paymentProvider.createPaymentSession as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ method: "paypal_redirect" }),
+      );
+    });
+  });
+
+  describe("getCheckoutSummary", () => {
+    it("quotes the deposit, fee, and balance before any payment exists", async () => {
+      const { service } = createService();
+
+      const summary = await service.getCheckoutSummary(
+        BOOKING_1_ID,
+        RENTER_1_ID,
+      );
+
+      expect(summary.pricing).toEqual({
+        currency: "CAD",
+        stayTotal: 1000,
+        depositAmount: 250,
+        platformFeeAmount: 25,
+        totalDueNow: 275,
+        remainingBalance: 750,
+        depositBps: 2500,
+        platformFeeBps: 1000,
+        source: "quote",
+      });
+      expect(summary.checkout).toEqual({ eligible: true });
+      expect(summary.cancellationPolicy).toEqual({
+        code: "platform_default_v1",
+        fullRefundCutoffHours: 48,
+        partialRefundCutoffHours: 24,
+        partialRefundPercent: 50,
+        ownerCancellationFullRefund: true,
+        refundBase: "total_paid",
+        hostNotes: "Check-in after 4pm.",
+      });
+      expect(summary.posting).toEqual({
+        id: POSTING_1_ID,
+        name: "Lakeside cabin",
+        primaryPhotoUrl: "https://blob.example/photo.jpg",
+      });
+      expect(summary.booking).toEqual(
+        expect.objectContaining({
+          id: BOOKING_1_ID,
+          durationDays: 10,
+          guestCount: 2,
+          currency: "CAD",
+          holdExpiresAt: "2099-04-21T00:00:00.000Z",
+        }),
+      );
+      expect(summary.payment).toBeNull();
+      expect(summary.paypal).toEqual({
+        clientId: "paypal-test-client-id",
+        environment: "sandbox",
+        enabledMethods: expect.arrayContaining(["paypal", "card"]),
+      });
+    });
+
+    it("reports the stored amounts of an existing payment", async () => {
+      const { service } = createService({
+        repository: {
+          findCheckoutContext: jest.fn(async () =>
+            createCheckoutContext({
+              payment: createPaymentRecord({
+                status: "processing",
+                rentalSubtotalAmount: 250,
+                platformFeeAmount: 25,
+                totalAmount: 275,
+                attempts: [
+                  {
+                    id: ATTEMPT_1_ID,
+                    providerOrderId: "order-old",
+                    paymentMethod: "paypal",
+                  },
+                  {
+                    id: ATTEMPT_1_ID,
+                    providerOrderId: "order-1",
+                    paymentMethod: "card",
+                  },
+                ],
+              }),
+            }),
+          ),
+        },
+      });
+
+      const summary = await service.getCheckoutSummary(
+        BOOKING_1_ID,
+        RENTER_1_ID,
+      );
+
+      expect(summary.pricing.source).toBe("payment");
+      expect(summary.pricing.depositBps).toBe(2500);
+      expect(summary.payment).toEqual({
+        id: PAYMENT_1_ID,
+        status: "processing",
+        providerOrderId: "order-1",
+        method: "card",
+      });
+    });
+
+    it("hides percentages when stored amounts predate the current formula", async () => {
+      const { service } = createService({
+        repository: {
+          findCheckoutContext: jest.fn(async () =>
+            createCheckoutContext({
+              payment: createPaymentRecord({
+                status: "failed_final",
+                rentalSubtotalAmount: 1000,
+                platformFeeAmount: 120,
+                totalAmount: 1120,
+              }),
+            }),
+          ),
+        },
+      });
+
+      const summary = await service.getCheckoutSummary(
+        BOOKING_1_ID,
+        RENTER_1_ID,
+      );
+
+      expect(summary.pricing).toEqual(
+        expect.objectContaining({
+          depositAmount: 1000,
+          totalDueNow: 1120,
+          remainingBalance: 0,
+          depositBps: null,
+          platformFeeBps: null,
+        }),
+      );
+    });
+
+    it.each([
+      [{ booking: { converted: true, status: "paid" } }, "converted"],
+      [{ booking: { status: "paid" } }, "already_paid"],
+      [
+        { payment: createPaymentRecord({ status: "succeeded" }) },
+        "already_paid",
+      ],
+      [{ booking: { paymentReconciliationRequired: true } }, "reconciliation"],
+      [{ booking: { status: "expired" } }, "hold_expired"],
+      [{ booking: { status: "cancelled" } }, "not_payable"],
+      [
+        { booking: { holdExpiresAt: new Date("2020-01-01T00:00:00.000Z") } },
+        "hold_expired",
+      ],
+    ])("marks checkout ineligible (%j -> %s)", async (overrides, reason) => {
+      const { service } = createService({
+        repository: {
+          findCheckoutContext: jest.fn(async () =>
+            createCheckoutContext(overrides),
+          ),
+        },
+      });
+
+      const summary = await service.getCheckoutSummary(
+        BOOKING_1_ID,
+        RENTER_1_ID,
+      );
+
+      expect(summary.checkout).toEqual({ eligible: false, reason });
+    });
+
+    it("allows checkout to continue while an order is open", async () => {
+      const { service } = createService({
+        repository: {
+          findCheckoutContext: jest.fn(async () =>
+            createCheckoutContext({
+              booking: { status: "payment_processing" },
+              payment: createPaymentRecord({ status: "processing" }),
+            }),
+          ),
+        },
+      });
+
+      const summary = await service.getCheckoutSummary(
+        BOOKING_1_ID,
+        RENTER_1_ID,
+      );
+
+      expect(summary.checkout).toEqual({ eligible: true });
+    });
+
+    it("returns 404 for unknown bookings and 403 for anyone but the renter", async () => {
+      const missing = createService({
+        repository: {
+          findCheckoutContext: jest.fn(async () => null),
+        },
+      });
+
+      await expect(
+        missing.service.getCheckoutSummary(BOOKING_MISSING_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ResourceNotFoundError);
+
+      const { service } = createService();
+
+      await expect(
+        service.getCheckoutSummary(BOOKING_1_ID, OWNER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
 });

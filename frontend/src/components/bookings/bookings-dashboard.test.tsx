@@ -716,7 +716,7 @@ describe("BookingsDashboard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a checkout error when the payment session has no checkout link", async () => {
+  it("sends the renter to the checkout page when paying", async () => {
     getMyDashboardMock.mockResolvedValue(
       buildRenterDashboard({
         items: [
@@ -728,62 +728,13 @@ describe("BookingsDashboard", () => {
         ],
       }),
     );
-    createPaymentSessionMock.mockResolvedValue({ attempts: [] });
 
     render(<BookingsDashboard />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Pay now" }));
-
-    await waitFor(() => {
-      expect(createPaymentSessionMock).toHaveBeenCalledWith("booking-1");
-    });
     expect(
-      await screen.findByText(
-        "We couldn't start checkout right now. Please try again.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("sends the renter to the checkout link when paying", async () => {
-    const originalLocation = window.location;
-    const assignSpy = vi.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...originalLocation, assign: assignSpy },
-    });
-
-    try {
-      getMyDashboardMock.mockResolvedValue(
-        buildRenterDashboard({
-          items: [
-            buildDashboardItem({
-              status: "awaiting_payment",
-              sourceStatus: "awaiting_payment",
-              holdExpiresAt: FUTURE_HOLD,
-            }),
-          ],
-        }),
-      );
-      createPaymentSessionMock.mockResolvedValue({
-        checkoutUrl: "https://paypal.test/checkout/abc",
-        attempts: [],
-      });
-
-      render(<BookingsDashboard />);
-
-      fireEvent.click(await screen.findByRole("button", { name: "Pay now" }));
-
-      await waitFor(() => {
-        expect(assignSpy).toHaveBeenCalledWith(
-          "https://paypal.test/checkout/abc",
-        );
-      });
-    } finally {
-      Object.defineProperty(window, "location", {
-        configurable: true,
-        value: originalLocation,
-      });
-    }
+      await screen.findByRole("link", { name: "Pay now" }),
+    ).toHaveAttribute("href", "/bookings/booking-1/checkout");
+    expect(createPaymentSessionMock).not.toHaveBeenCalled();
   });
 
   it("offers a retry payment action after a failed payment", async () => {
@@ -802,8 +753,8 @@ describe("BookingsDashboard", () => {
     render(<BookingsDashboard />);
 
     expect(
-      await screen.findByRole("button", { name: "Retry payment" }),
-    ).toBeInTheDocument();
+      await screen.findByRole("link", { name: "Retry payment" }),
+    ).toHaveAttribute("href", "/bookings/booking-1/checkout");
   });
 
   it("offers a review form on completed rentings in the renter view", async () => {

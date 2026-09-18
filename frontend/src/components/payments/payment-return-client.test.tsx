@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode, type AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/lib/api/types";
@@ -9,14 +9,11 @@ import {
   routerReplaceMock,
 } from "@/test/mocks/next-navigation";
 
-const { useAuthMock, captureMock, cancelCheckoutMock, retryMock } = vi.hoisted(
-  () => ({
-    useAuthMock: vi.fn(),
-    captureMock: vi.fn(),
-    cancelCheckoutMock: vi.fn(),
-    retryMock: vi.fn(),
-  }),
-);
+const { useAuthMock, captureMock, cancelCheckoutMock } = vi.hoisted(() => ({
+  useAuthMock: vi.fn(),
+  captureMock: vi.fn(),
+  cancelCheckoutMock: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -44,7 +41,6 @@ vi.mock("@/lib/payments/api", () => ({
   paymentsApi: {
     capture: captureMock,
     cancelCheckout: cancelCheckoutMock,
-    retry: retryMock,
   },
 }));
 
@@ -78,10 +74,11 @@ function buildPayment(overrides: Partial<PaymentRecord> = {}): PaymentRecord {
   };
 }
 
-function apiError(status: number, code: string) {
+function apiError(status: number, code: string, details?: unknown) {
   return new ApiClientError("Request failed", {
     status,
     code,
+    details,
     request: {
       method: "POST",
       path: "/payments/payment-1/capture",
@@ -90,9 +87,13 @@ function apiError(status: number, code: string) {
   });
 }
 
-function renderReturn(cancelled = false) {
+function renderReturn(cancelled = false, orderId?: string) {
   return render(
-    <PaymentReturnClient paymentId="payment-1" cancelled={cancelled} />,
+    <PaymentReturnClient
+      paymentId="payment-1"
+      cancelled={cancelled}
+      orderId={orderId}
+    />,
   );
 }
 
@@ -126,24 +127,21 @@ describe("PaymentReturnClient", () => {
     cancelCheckoutMock.mockResolvedValue(
       buildPayment({ status: "failed_final" }),
     );
-    retryMock.mockResolvedValue(buildPayment({ status: "failed_retryable" }));
 
     renderReturn(true);
 
     expect(screen.getByText("Checking your checkout")).toBeInTheDocument();
     expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
-    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1");
+    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1", {
+      orderId: undefined,
+    });
     expect(captureMock).not.toHaveBeenCalled();
     expect(
       screen.getByRole("link", { name: "Back to bookings" }),
     ).toHaveAttribute("href", "/bookings");
-
-    fireEvent.click(screen.getByRole("button", { name: "Restart checkout" }));
-
-    expect(retryMock).toHaveBeenCalledWith("payment-1");
     expect(
-      await screen.findByText("Payment didn't go through"),
-    ).toBeInTheDocument();
+      screen.getByRole("link", { name: "Restart checkout" }),
+    ).toHaveAttribute("href", "/bookings/booking-1/checkout");
   });
 
   it("confirms the payment when a cancelled checkout was actually paid", async () => {
@@ -182,7 +180,57 @@ describe("PaymentReturnClient", () => {
     expect(await screen.findByText("Payment confirmed")).toBeInTheDocument();
     expect(screen.getByText(/\$412\.50/)).toBeInTheDocument();
     expect(captureMock).toHaveBeenCalledTimes(1);
-    expect(captureMock).toHaveBeenCalledWith("payment-1");
+    expect(captureMock).toHaveBeenCalledWith("payment-1", {
+      orderId: undefined,
+    });
+  });
+
+  it("captures the order PayPal returned with", async () => {
+    captureMock.mockResolvedValue(buildPayment());
+
+    renderReturn(false, "ORDER-9");
+
+    expect(await screen.findByText("Payment confirmed")).toBeInTheDocument();
+    expect(captureMock).toHaveBeenCalledWith("payment-1", {
+      orderId: "ORDER-9",
+    });
+  });
+
+  it("cancels only the order PayPal sent the renter back from", async () => {
+    cancelCheckoutMock.mockResolvedValue(
+      buildPayment({ status: "failed_final" }),
+    );
+
+    renderReturn(true, "ORDER-9");
+
+    expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
+    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1", {
+      orderId: "ORDER-9",
+    });
+  });
+
+  it("explains that a replaced checkout was not cancelled either", async () => {
+    cancelCheckoutMock.mockRejectedValue(
+      apiError(409, "CONFLICT", { reason: "stale_order" }),
+    );
+
+    renderReturn(true, "ORDER-OLD");
+
+    expect(
+      await screen.findByText("This checkout was replaced"),
+    ).toBeInTheDocument();
+  });
+
+  it("explains that a replaced checkout was not charged", async () => {
+    captureMock.mockRejectedValue(
+      apiError(409, "CONFLICT", { reason: "stale_order" }),
+    );
+
+    renderReturn(false, "ORDER-OLD");
+
+    expect(
+      await screen.findByText("This checkout was replaced"),
+    ).toBeInTheDocument();
   });
 
   it("lets the renter check a pending payment again", async () => {
@@ -201,7 +249,7 @@ describe("PaymentReturnClient", () => {
     expect(captureMock).toHaveBeenCalledTimes(2);
   });
 
-  it("shows the decline reason and restarts checkout on retry", async () => {
+  it("shows the decline reason and links back to checkout", async () => {
     captureMock.mockResolvedValue(
       buildPayment({
         status: "failed_final",
@@ -219,55 +267,32 @@ describe("PaymentReturnClient", () => {
         ],
       }),
     );
-    let resolveRetry: (payment: PaymentRecord) => void = () => undefined;
-    retryMock.mockReturnValue(
-      new Promise<PaymentRecord>((resolve) => {
-        resolveRetry = resolve;
-      }),
-    );
 
     renderReturn();
 
     expect(
       await screen.findByText("The instrument presented was declined."),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Try again with PayPal" }),
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Restarting checkout..." }),
-    ).toBeDisabled();
-    expect(retryMock).toHaveBeenCalledWith("payment-1");
-
-    resolveRetry(buildPayment({ status: "failed_retryable" }));
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Try again with PayPal" }),
-      ).toBeEnabled(),
+    expect(screen.getByRole("link", { name: "Try again" })).toHaveAttribute(
+      "href",
+      "/bookings/booking-1/checkout",
     );
   });
 
-  it("falls back to a generic decline message and surfaces retry errors", async () => {
+  it("falls back to a generic decline message", async () => {
     captureMock.mockResolvedValue(buildPayment({ status: "cancelled" }));
-    retryMock.mockRejectedValue(new Error("network down"));
 
     renderReturn();
 
     expect(
-      await screen.findByText(/PayPal couldn't complete this payment/),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Try again with PayPal" }),
-    );
-
-    expect(
-      await screen.findByText("We couldn't confirm your payment"),
+      await screen.findByText(/The payment didn't go through/),
     ).toBeInTheDocument();
   });
 
   it("explains when a paid booking needs reconciliation", async () => {
-    captureMock.mockRejectedValue(apiError(409, "CONFLICT"));
+    captureMock.mockRejectedValue(
+      apiError(409, "CONFLICT", { reason: "reconciliation_required" }),
+    );
 
     renderReturn();
 

@@ -311,10 +311,17 @@ function createPaymentFixture(
   estimatedTotal: number,
   createdAt: string,
 ): SeedPaymentFixture | undefined {
+  // Approving a booking creates no payment; one only exists once checkout
+  // starts, so awaiting_payment bookings are seeded without one too.
   if (
-    ["pending", "approved", "declined", "expired", "cancelled"].includes(
-      lifecycle,
-    )
+    [
+      "pending",
+      "approved",
+      "awaiting_payment",
+      "declined",
+      "expired",
+      "cancelled",
+    ].includes(lifecycle)
   ) {
     return undefined;
   }
@@ -1364,8 +1371,28 @@ const OWNER_DECISION_BOOKING_SPECS: BookingSpec[] = [
   },
 ];
 
+// An approved booking waiting on the renter's payment, for the checkout page.
+// renter-five is not a member of owner-one's organization. A late template
+// window keeps the hold live long after seeding. Appended last so existing
+// SEED_BOOKINGS positions used by tests do not shift.
+const CHECKOUT_BOOKING_SPECS: BookingSpec[] = [
+  {
+    index: 57,
+    postingIndex: 8,
+    renterEmail: "user5@rentify.local",
+    lifecycle: "awaiting_payment",
+    startAt: "2026-09-08T15:00:00.000Z",
+    endAt: "2026-09-12T15:00:00.000Z",
+    guestCount: 4,
+    dailyPriceAmount: 240,
+    contactName: "Leila Brooks",
+    note: "Team offsite; approved and waiting on checkout.",
+  },
+];
+
 export const SEED_BOOKINGS: SeedBookingFixture[] = [
   ...BASE_BOOKING_SPECS,
   ...ADDITIONAL_BOOKING_SPECS,
   ...OWNER_DECISION_BOOKING_SPECS,
+  ...CHECKOUT_BOOKING_SPECS,
 ].map(createBookingFixture);

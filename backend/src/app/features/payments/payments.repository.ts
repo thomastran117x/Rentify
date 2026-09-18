@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
+import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
   CreateRefundInput,
   ListPayoutsPersistenceInput,
   PaymentFailureCategory,
+  PaymentMethod,
   PaymentRecord,
   PaymentRepairCandidate,
   PaymentRetryCandidate,
@@ -23,11 +25,14 @@ import {
   DEFAULT_BOOKING_DEPOSIT_BPS,
   DEFAULT_PLATFORM_FEE_BPS,
   MAX_RETRY_ATTEMPTS,
+  PAYMENT_CONFLICT_REASONS,
+  PAYMENT_FAILURE_CODES,
   PAYMENT_PROVIDER,
   PAYMENT_PROCESSING_TIMEOUT_MINUTES,
+  paymentMethodSchema,
 } from "@/features/payments/payments.model";
 import {
-  calculatePlatformFeeAmount,
+  calculateBookingCharge,
   createExponentialBackoffDate,
 } from "@/features/payments/payments.utils";
 import {
@@ -56,11 +61,56 @@ type PaymentPersistence = Prisma.PaymentGetPayload<{
 
 type PayoutPersistence = Prisma.PayoutGetPayload<object>;
 
+/** Booking statuses from which a checkout attempt may start or capture. */
+export const PAYABLE_BOOKING_STATUSES = new Set([
+  "awaiting_payment",
+  "payment_processing",
+  "payment_failed",
+]);
+
+/** A booking plus what the checkout page shows about it. */
+export interface CheckoutContext {
+  booking: {
+    id: Uuid;
+    renterId: Uuid;
+    status: string;
+    startAt: Date;
+    endAt: Date;
+    durationDays: number;
+    guestCount: number;
+    holdExpiresAt: Date;
+    dailyPriceAmount: number;
+    estimatedTotal: number;
+    pricingCurrency: string;
+    converted: boolean;
+    paymentReconciliationRequired: boolean;
+  };
+  posting: {
+    id: Uuid;
+    name: string;
+    primaryPhotoUrl?: string;
+    cancellationPolicyNotes?: string;
+  };
+  payment: PaymentRecord | null;
+}
+
+function toPaymentMethod(value: string | null): PaymentMethod | undefined {
+  const parsed = paymentMethodSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 export class PaymentsRepository extends BaseRepository {
+  /**
+   * Opens a new payment attempt for a booking. When `supersede` is given, a
+   * payment still waiting on an unapproved order is moved to the new attempt,
+   * provided its current order is still `expectedProviderOrderId`.
+   */
   async createPaymentAttemptForBooking(input: {
     bookingRequestId: Uuid;
     renterId: Uuid;
     idempotencyKey: string;
+    method?: PaymentMethod;
+    supersede?: { expectedProviderOrderId: string | null };
     platformFeeBps?: number;
     depositBps?: number;
   }): Promise<{
@@ -116,13 +166,49 @@ export class PaymentsRepository extends BaseRepository {
           );
         }
 
+        const method = input.method ?? "paypal_redirect";
+
+        // A replayed request is answered before the status checks, because the
+        // first request already moved the booking to payment_processing.
+        if (booking.payment) {
+          const existingAttempt = booking.payment.attempts.find(
+            (attempt) => attempt.idempotencyKey === input.idempotencyKey,
+          );
+
+          if (existingAttempt) {
+            if (
+              (toPaymentMethod(existingAttempt.paymentMethod) ??
+                "paypal_redirect") !== method
+            ) {
+              throw new ConflictError(
+                "This idempotency key was already used for a different payment method.",
+              );
+            }
+
+            return {
+              paymentId: asUuid(booking.payment.id),
+              attemptId: existingAttempt.id,
+              amount: Number(booking.payment.totalAmount),
+              currency: booking.payment.pricingCurrency,
+              payment: this.mapPayment(booking.payment),
+            };
+          }
+        }
+
         if (booking.renting || booking.convertedAt) {
           throw new BadRequestError(
             "This booking request has already been finalized.",
           );
         }
 
-        if (!["awaiting_payment", "payment_failed"].includes(booking.status)) {
+        const inFlight =
+          booking.status === "payment_processing" ||
+          booking.payment?.status === "processing";
+
+        if (
+          !PAYABLE_BOOKING_STATUSES.has(booking.status) ||
+          (inFlight && !input.supersede)
+        ) {
           throw new BadRequestError(
             "This booking request is not ready for payment.",
           );
@@ -134,32 +220,33 @@ export class PaymentsRepository extends BaseRepository {
           );
         }
 
-        if (booking.payment) {
-          const existingAttempt = booking.payment.attempts.find(
-            (attempt) => attempt.idempotencyKey === input.idempotencyKey,
-          );
-
-          if (existingAttempt) {
-            return {
-              paymentId: asUuid(booking.payment.id),
-              attemptId: existingAttempt.id,
-              amount: Number(booking.payment.totalAmount),
-              currency: booking.payment.pricingCurrency,
-              payment: this.mapPayment(booking.payment),
-            };
+        if (inFlight && booking.payment && input.supersede) {
+          if (
+            (booking.payment.providerOrderId ?? null) !==
+            input.supersede.expectedProviderOrderId
+          ) {
+            throw new ConflictError(
+              "Checkout changed while starting a new payment. Please retry.",
+              { reason: PAYMENT_CONFLICT_REASONS.checkoutBusy },
+            );
           }
+
+          await this.supersedeOpenAttempts(transaction, booking.payment.id);
         }
 
-        const rentalSubtotal =
-          Math.round(
-            Number(booking.estimatedTotal) * (depositBps / 10_000) * 100,
-          ) / 100;
-        const platformFeeAmount = calculatePlatformFeeAmount(
-          rentalSubtotal,
-          platformFeeBps,
-        );
-        const totalAmount =
-          Math.round((rentalSubtotal + platformFeeAmount) * 100) / 100;
+        // Once a payment exists its stored amounts are what gets charged, so a
+        // new attempt never sends PayPal a different total.
+        const charge = booking.payment
+          ? {
+              depositAmount: Number(booking.payment.rentalSubtotalAmount),
+              platformFeeAmount: Number(booking.payment.platformFeeAmount),
+              totalAmount: Number(booking.payment.totalAmount),
+            }
+          : calculateBookingCharge(Number(booking.estimatedTotal), {
+              depositBps,
+              platformFeeBps,
+            });
+        const totalAmount = charge.totalAmount;
 
         const payment =
           booking.payment ??
@@ -173,9 +260,9 @@ export class PaymentsRepository extends BaseRepository {
               provider: PAYMENT_PROVIDER,
               status: "awaiting_method",
               pricingCurrency: booking.pricingCurrency,
-              rentalSubtotalAmount: new Prisma.Decimal(rentalSubtotal),
-              platformFeeAmount: new Prisma.Decimal(platformFeeAmount),
-              totalAmount: new Prisma.Decimal(totalAmount),
+              rentalSubtotalAmount: new Prisma.Decimal(charge.depositAmount),
+              platformFeeAmount: new Prisma.Decimal(charge.platformFeeAmount),
+              totalAmount: new Prisma.Decimal(charge.totalAmount),
             },
             include: {
               bookingRequest: true,
@@ -198,6 +285,7 @@ export class PaymentsRepository extends BaseRepository {
             id: newUuid(),
             paymentId: payment.id,
             idempotencyKey: input.idempotencyKey,
+            paymentMethod: method,
             status: "pending",
           },
         });
@@ -248,13 +336,62 @@ export class PaymentsRepository extends BaseRepository {
     return result;
   }
 
+  /**
+   * Ends every open attempt on a payment whose order was never approved. The
+   * booking keeps its status: nothing failed, the renter just started over.
+   */
+  private async supersedeOpenAttempts(
+    transaction: Prisma.TransactionClient,
+    paymentId: string,
+  ): Promise<void> {
+    await transaction.paymentAttempt.updateMany({
+      where: {
+        paymentId,
+        status: {
+          in: ["pending", "processing", "failed_retryable"],
+        },
+      },
+      data: {
+        status: "failed_final",
+        failureCategory: "unknown",
+        failureCode: PAYMENT_FAILURE_CODES.checkoutSuperseded,
+        failureMessage: "A newer checkout replaced this unapproved order.",
+        nextRetryAt: null,
+      },
+    });
+
+    await transaction.payment.update({
+      where: {
+        id: paymentId,
+      },
+      data: {
+        status: "awaiting_method",
+        providerOrderId: null,
+        checkoutUrl: null,
+      },
+    });
+  }
+
+  /**
+   * Records the provider session on an attempt. `expectedProviderOrderId`
+   * guards against a checkout whose lock lapsed: if the attempt was already
+   * superseded, or the payment moved to another order, nothing is written.
+   */
   async attachPaymentSession(
     paymentId: Uuid,
     attemptId: string,
     session: ProviderPaymentSession,
+    options?: { expectedProviderOrderId?: string | null },
   ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
+        await this.assertAttemptStillCurrent(
+          transaction,
+          paymentId,
+          attemptId,
+          options?.expectedProviderOrderId,
+        );
+
         await transaction.paymentAttempt.update({
           where: {
             id: attemptId,
@@ -263,6 +400,7 @@ export class PaymentsRepository extends BaseRepository {
             status: "processing",
             providerRequestId: session.providerRequestId ?? null,
             providerPaymentId: session.providerPaymentId ?? null,
+            providerOrderId: session.providerOrderId ?? null,
             responsePayload: session.raw as Prisma.InputJsonValue,
           },
         });
@@ -319,10 +457,63 @@ export class PaymentsRepository extends BaseRepository {
     return this.mapPayment(payment);
   }
 
+  /**
+   * Fails when the attempt is no longer the payment's live checkout, so a
+   * request whose lock lapsed cannot overwrite the checkout that replaced it.
+   */
+  private async assertAttemptStillCurrent(
+    transaction: Prisma.TransactionClient,
+    paymentId: Uuid,
+    attemptId: string,
+    expectedProviderOrderId?: string | null,
+  ): Promise<void> {
+    const attempt = await transaction.paymentAttempt.findUniqueOrThrow({
+      where: {
+        id: attemptId,
+      },
+      select: {
+        status: true,
+        failureCode: true,
+      },
+    });
+
+    if (attempt.status !== "pending" && attempt.status !== "processing") {
+      throw new ConflictError(
+        "This checkout was replaced while it was being set up. Please retry.",
+        { reason: PAYMENT_CONFLICT_REASONS.checkoutBusy },
+      );
+    }
+
+    if (expectedProviderOrderId === undefined) {
+      return;
+    }
+
+    const payment = await transaction.payment.findUniqueOrThrow({
+      where: {
+        id: paymentId,
+      },
+      select: {
+        providerOrderId: true,
+      },
+    });
+
+    if ((payment.providerOrderId ?? null) !== expectedProviderOrderId) {
+      throw new ConflictError(
+        "This checkout was replaced while it was being set up. Please retry.",
+        { reason: PAYMENT_CONFLICT_REASONS.checkoutBusy },
+      );
+    }
+  }
+
+  /**
+   * Records a failed provider call. `scheduleRetry: false` keeps the retry
+   * worker away from embedded checkouts, where the renter retries on the page.
+   */
   async recordAttemptFailure(
     paymentId: Uuid,
     attemptId: string,
     errorInfo: ProviderErrorInfo,
+    options?: { scheduleRetry?: boolean },
   ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
@@ -333,8 +524,37 @@ export class PaymentsRepository extends BaseRepository {
             },
           });
 
+        // A superseded attempt keeps its own failure, but the payment and the
+        // booking now belong to the checkout that replaced it.
+        if (
+          existingAttempt.status === "failed_final" &&
+          existingAttempt.failureCode ===
+            PAYMENT_FAILURE_CODES.checkoutSuperseded
+        ) {
+          return transaction.payment.findUniqueOrThrow({
+            where: {
+              id: paymentId,
+            },
+            include: {
+              bookingRequest: true,
+              attempts: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              refunds: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              payout: true,
+            },
+          });
+        }
+
         const retryable =
           errorInfo.retryable &&
+          options?.scheduleRetry !== false &&
           existingAttempt.retryCount + 1 < MAX_RETRY_ATTEMPTS;
         const nextRetryAt = retryable
           ? createExponentialBackoffDate(
@@ -412,6 +632,183 @@ export class PaymentsRepository extends BaseRepository {
     );
 
     return this.mapPayment(payment);
+  }
+
+  /**
+   * Ends the attempt for an order Rentify refused to capture (failed 3-D
+   * Secure, expired hold, mismatched order). The booking only moves to
+   * payment_failed while it is still payable, so an expired booking stays
+   * expired.
+   */
+  async rejectCheckoutAttempt(input: {
+    paymentId: Uuid;
+    providerOrderId: string;
+    failureCode: string;
+    failureMessage: string;
+  }): Promise<PaymentRecord> {
+    const payment = await this.executeAsync(() =>
+      this.prisma.$transaction(async (transaction) => {
+        const paymentRow = await transaction.payment.findUniqueOrThrow({
+          where: {
+            id: input.paymentId,
+          },
+          include: {
+            bookingRequest: true,
+            attempts: {
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+          },
+        });
+        const attempt =
+          paymentRow.attempts.find(
+            (item) => item.providerOrderId === input.providerOrderId,
+          ) ?? paymentRow.attempts[0];
+
+        if (attempt) {
+          await transaction.paymentAttempt.update({
+            where: {
+              id: attempt.id,
+            },
+            data: {
+              status: "failed_final",
+              failureCategory: "permanent",
+              failureCode: input.failureCode,
+              failureMessage: input.failureMessage,
+              nextRetryAt: null,
+            },
+          });
+        }
+
+        if (paymentRow.providerOrderId === input.providerOrderId) {
+          await transaction.payment.update({
+            where: {
+              id: paymentRow.id,
+            },
+            data: {
+              status: "failed_final",
+              failedAt: new Date(),
+            },
+          });
+
+          if (PAYABLE_BOOKING_STATUSES.has(paymentRow.bookingRequest.status)) {
+            await transaction.bookingRequest.update({
+              where: {
+                id: paymentRow.bookingRequestId,
+              },
+              data: {
+                status: "payment_failed",
+                paymentFailedAt: new Date(),
+              },
+            });
+          }
+        }
+
+        return transaction.payment.findUniqueOrThrow({
+          where: {
+            id: paymentRow.id,
+          },
+          include: {
+            bookingRequest: true,
+            attempts: {
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+            refunds: {
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+            payout: true,
+          },
+        });
+      }),
+    );
+
+    return this.mapPayment(payment);
+  }
+
+  async findCheckoutContext(
+    bookingRequestId: Uuid,
+  ): Promise<CheckoutContext | null> {
+    const booking = await this.executeAsync(() =>
+      this.prisma.bookingRequest.findUnique({
+        where: {
+          id: bookingRequestId,
+        },
+        include: {
+          posting: {
+            select: {
+              id: true,
+              name: true,
+              cancellationPolicyNotes: true,
+              photos: {
+                orderBy: {
+                  position: "asc",
+                },
+                take: 1,
+                select: {
+                  blobUrl: true,
+                },
+              },
+            },
+          },
+          renting: {
+            select: {
+              id: true,
+            },
+          },
+          payment: {
+            include: {
+              bookingRequest: true,
+              attempts: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              refunds: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              payout: true,
+            },
+          },
+        },
+      }),
+    );
+
+    if (!booking) {
+      return null;
+    }
+
+    return {
+      booking: {
+        id: asUuid(booking.id),
+        renterId: asUuid(booking.renterId),
+        status: booking.status,
+        startAt: booking.startAt,
+        endAt: booking.endAt,
+        durationDays: booking.durationDays,
+        guestCount: booking.guestCount,
+        holdExpiresAt: booking.holdExpiresAt,
+        dailyPriceAmount: Number(booking.dailyPriceAmount),
+        estimatedTotal: Number(booking.estimatedTotal),
+        pricingCurrency: booking.pricingCurrency,
+        converted: Boolean(booking.renting || booking.convertedAt),
+        paymentReconciliationRequired: booking.paymentReconciliationRequired,
+      },
+      posting: {
+        id: asUuid(booking.posting.id),
+        name: booking.posting.name,
+        primaryPhotoUrl: booking.posting.photos[0]?.blobUrl ?? undefined,
+        cancellationPolicyNotes:
+          booking.posting.cancellationPolicyNotes ?? undefined,
+      },
+      payment: booking.payment ? this.mapPayment(booking.payment) : null,
+    };
   }
 
   async findById(id: string): Promise<PaymentRecord | null> {
@@ -802,16 +1199,7 @@ export class PaymentsRepository extends BaseRepository {
 
     const payment = await this.executeAsync(() =>
       this.prisma.payment.findFirst({
-        where: {
-          OR: [
-            ...(input.providerPaymentId
-              ? [{ providerPaymentId: input.providerPaymentId }]
-              : []),
-            ...(input.providerOrderId
-              ? [{ providerOrderId: input.providerOrderId }]
-              : []),
-          ],
-        },
+        where: this.providerReferenceWhere(input),
         include: {
           bookingRequest: true,
           attempts: {
@@ -846,16 +1234,7 @@ export class PaymentsRepository extends BaseRepository {
     return this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
         const payment = await transaction.payment.findFirst({
-          where: {
-            OR: [
-              ...(input.providerPaymentId
-                ? [{ providerPaymentId: input.providerPaymentId }]
-                : []),
-              ...(input.providerOrderId
-                ? [{ providerOrderId: input.providerOrderId }]
-                : []),
-            ],
-          },
+          where: this.providerReferenceWhere(input),
           include: {
             bookingRequest: true,
             attempts: {
@@ -879,6 +1258,27 @@ export class PaymentsRepository extends BaseRepository {
           };
         }
 
+        // A capture on an order this payment no longer tracks means money
+        // moved twice for one booking; flag it instead of finalizing again.
+        if (
+          payment.status === "succeeded" &&
+          !this.isCurrentProviderReference(payment, input)
+        ) {
+          await transaction.bookingRequest.update({
+            where: {
+              id: payment.bookingRequestId,
+            },
+            data: {
+              paymentReconciliationRequired: true,
+            },
+          });
+
+          return {
+            payment: this.mapPayment(payment),
+            reconciliationRequired: true,
+          };
+        }
+
         const paymentJustSucceeded = payment.status !== "succeeded";
 
         await transaction.payment.update({
@@ -895,7 +1295,12 @@ export class PaymentsRepository extends BaseRepository {
           },
         });
 
-        const latestAttempt = payment.attempts[0];
+        const latestAttempt =
+          payment.attempts.find(
+            (attempt) =>
+              input.providerOrderId !== undefined &&
+              attempt.providerOrderId === input.providerOrderId,
+          ) ?? payment.attempts[0];
         if (latestAttempt && latestAttempt.status !== "succeeded") {
           await transaction.paymentAttempt.update({
             where: {
@@ -1200,6 +1605,9 @@ export class PaymentsRepository extends BaseRepository {
       this.prisma.paymentAttempt.findMany({
         where: {
           status: "failed_retryable",
+          // Only redirect checkouts are retried in the background; an embedded
+          // order needs the renter on the page to approve it.
+          OR: [{ paymentMethod: null }, { paymentMethod: "paypal_redirect" }],
           nextRetryAt: {
             lte: new Date(),
           },
@@ -1456,6 +1864,47 @@ export class PaymentsRepository extends BaseRepository {
     };
   }
 
+  private providerReferenceWhere(input: {
+    providerPaymentId?: string;
+    providerOrderId?: string;
+  }): Prisma.PaymentWhereInput {
+    return {
+      OR: [
+        ...(input.providerPaymentId
+          ? [{ providerPaymentId: input.providerPaymentId }]
+          : []),
+        ...(input.providerOrderId
+          ? [
+              { providerOrderId: input.providerOrderId },
+              // Orders replaced by a newer checkout are only on the attempt.
+              {
+                attempts: {
+                  some: {
+                    providerOrderId: input.providerOrderId,
+                  },
+                },
+              },
+            ]
+          : []),
+      ],
+    };
+  }
+
+  private isCurrentProviderReference(
+    payment: {
+      providerPaymentId: string | null;
+      providerOrderId: string | null;
+    },
+    input: { providerPaymentId?: string; providerOrderId?: string },
+  ): boolean {
+    return (
+      (input.providerPaymentId !== undefined &&
+        input.providerPaymentId === payment.providerPaymentId) ||
+      (input.providerOrderId !== undefined &&
+        input.providerOrderId === payment.providerOrderId)
+    );
+  }
+
   private mapPayment(payment: PaymentPersistence): PaymentRecord {
     return {
       id: asUuid(payment.id),
@@ -1498,6 +1947,8 @@ export class PaymentsRepository extends BaseRepository {
         failureMessage: attempt.failureMessage ?? undefined,
         providerRequestId: attempt.providerRequestId ?? undefined,
         providerPaymentId: attempt.providerPaymentId ?? undefined,
+        providerOrderId: attempt.providerOrderId ?? undefined,
+        paymentMethod: toPaymentMethod(attempt.paymentMethod),
         nextRetryAt: attempt.nextRetryAt?.toISOString(),
         createdAt: attempt.createdAt.toISOString(),
         updatedAt: attempt.updatedAt.toISOString(),

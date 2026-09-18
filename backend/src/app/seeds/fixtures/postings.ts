@@ -306,6 +306,8 @@ const BASE_SEED_POSTINGS: SeedPostingFixture[] = [
   {
     id: createFixtureId(2000, 8),
     ownerEmail: "owner1@rentify.local",
+    cancellationPolicyNotes:
+      "Please leave the loft as you found it. Early check-in on request.",
     status: "published",
     family: "place",
     subtype: "workspace",

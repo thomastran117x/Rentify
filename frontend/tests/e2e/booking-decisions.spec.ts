@@ -3,7 +3,7 @@ import { login } from "./helpers/auth";
 
 // Consumes the pending owner-one requests seeded as fixtures 54-56
 // (backend/src/app/seeds/fixtures/bookings.ts): 54 is approved and then paid for
-// by renter-five, 55 is approved from a second tab to exercise a stale
+// by renter-five through the checkout page, 55 is approved from a second tab to exercise a stale
 // decision, and 56 is declined. Re-seed (`npm --prefix backend run seed`)
 // before re-running. Conversion is not exercised here: a paid, unconverted
 // booking cannot be seeded without tripping the payment repair invariant, so it
@@ -136,7 +136,7 @@ test.describe("owner booking decisions", () => {
     }
   });
 
-  test("the renter can start payment on the approved booking", async ({
+  test("the renter reviews the price on the checkout page before paying", async ({
     browser,
   }) => {
     const context = await browser.newContext();
@@ -148,18 +148,22 @@ test.describe("owner booking decisions", () => {
         nextPath: `/bookings/${APPROVE_BOOKING_ID}`,
       });
 
-      await page.getByRole("button", { name: "Pay now" }).click();
+      await page.getByRole("link", { name: "Pay now" }).click();
 
-      // With PayPal sandbox credentials this redirects to checkout; with the
-      // placeholder local credentials it fails gracefully with a banner.
-      await expect
-        .poll(
-          async () =>
-            !new URL(page.url()).pathname.startsWith("/bookings/") ||
-            (await page.getByRole("alert").isVisible()),
-          { timeout: 20000 },
-        )
-        .toBe(true);
+      await expect(page).toHaveURL(
+        new RegExp(`/bookings/${APPROVE_BOOKING_ID}/checkout$`),
+      );
+      await expect(page.getByText("Charged today")).toBeVisible();
+      await expect(page.getByText("Cancellation policy")).toBeVisible();
+      await expect(page.getByRole("timer")).toContainText("Hold expires in");
+
+      // Without a frontend PayPal client ID the page offers only the redirect;
+      // with sandbox credentials it also embeds the PayPal buttons.
+      await expect(
+        page
+          .getByRole("button", { name: "Continue to PayPal" })
+          .or(page.getByRole("button", { name: /Pay on PayPal\.com/ })),
+      ).toBeVisible();
 
       expect(consoleErrors).toEqual([]);
     } finally {

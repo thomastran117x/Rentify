@@ -69,6 +69,13 @@ const paypalConfig = {
   environment: "sandbox" as const,
   webhookId: "paypal-test-webhook-id",
   apiBaseUrl: "https://api-m.sandbox.paypal.com",
+  checkoutMethods: [
+    "paypal" as const,
+    "paypal_guest" as const,
+    "card" as const,
+    "apple_pay" as const,
+    "google_pay" as const,
+  ],
 };
 
 const smsConfig = {

@@ -3,11 +3,13 @@ import {
   DEFAULT_REDIS_HOST,
 } from "@/configuration/environment/constants";
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
-import type {
-  AppEnvironment,
-  NodeEnvironment,
-  RawEnvironmentValues,
-  SmsProvider,
+import {
+  PAYPAL_CHECKOUT_METHODS,
+  type AppEnvironment,
+  type NodeEnvironment,
+  type PayPalCheckoutMethod,
+  type RawEnvironmentValues,
+  type SmsProvider,
 } from "@/configuration/environment/types";
 
 export function validateInfrastructureConfig(
@@ -222,6 +224,39 @@ export function buildElasticsearchConfig(
   };
 }
 
+/** Card and PayPal work without extra account setup; wallets are opt-in. */
+const DEFAULT_PAYPAL_CHECKOUT_METHODS: PayPalCheckoutMethod[] = [
+  "paypal",
+  "paypal_guest",
+  "card",
+];
+
+function readPayPalCheckoutMethods(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): PayPalCheckoutMethod[] {
+  if (raw.PAYPAL_CHECKOUT_METHODS === undefined) {
+    return [...DEFAULT_PAYPAL_CHECKOUT_METHODS];
+  }
+
+  const values = raw.PAYPAL_CHECKOUT_METHODS.split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0);
+  const invalid = values.filter(
+    (value) => !(PAYPAL_CHECKOUT_METHODS as readonly string[]).includes(value),
+  );
+
+  if (invalid.length > 0) {
+    errors.push(
+      `PAYPAL_CHECKOUT_METHODS contains unknown methods: ${invalid.join(", ")}.`,
+    );
+  }
+
+  return [...new Set(values)].filter((value): value is PayPalCheckoutMethod =>
+    (PAYPAL_CHECKOUT_METHODS as readonly string[]).includes(value),
+  );
+}
+
 export function buildPayPalConfig(
   raw: RawEnvironmentValues,
   errors: string[],
@@ -238,6 +273,7 @@ export function buildPayPalConfig(
   return {
     clientId: paypalClientId,
     clientSecret: paypalClientSecret,
+    checkoutMethods: readPayPalCheckoutMethods(raw, errors),
     environment: paypalEnvironment === "production" ? "production" : "sandbox",
     webhookId: paypalWebhookId,
     apiBaseUrl:

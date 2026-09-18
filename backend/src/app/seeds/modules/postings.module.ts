@@ -180,6 +180,8 @@ export const postingsSeedModule: SeedModule = {
           ),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
+          cancellationPolicyNotes:
+            fixturePosting.cancellationPolicyNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,
           latitude: fixturePosting.latitude,
           longitude: fixturePosting.longitude,
@@ -210,6 +212,8 @@ export const postingsSeedModule: SeedModule = {
           ),
           availabilityStatus: fixturePosting.availabilityStatus,
           availabilityNotes: fixturePosting.availabilityNotes ?? null,
+          cancellationPolicyNotes:
+            fixturePosting.cancellationPolicyNotes ?? null,
           maxBookingDurationDays: fixturePosting.maxBookingDurationDays ?? null,
           latitude: fixturePosting.latitude,
           longitude: fixturePosting.longitude,

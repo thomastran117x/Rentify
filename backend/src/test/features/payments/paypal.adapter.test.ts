@@ -8,6 +8,7 @@ jest.mock("@/configuration/environment/index", () => ({
   },
 }));
 
+import type { PaymentMethod } from "@/features/payments/payments.model";
 import { PayPalPaymentAdapter } from "@/features/payments/paypal.adapter";
 import { testUuid } from "../../support/uuid";
 
@@ -95,6 +96,7 @@ async function captureError(promise: Promise<unknown>): Promise<unknown> {
 function createSession(
   adapter: PayPalPaymentAdapter,
   idempotencyKey = "idem-1",
+  method: PaymentMethod = "paypal_redirect",
 ) {
   return adapter.createPaymentSession({
     idempotencyKey,
@@ -102,6 +104,7 @@ function createSession(
     currency: "CAD",
     bookingRequestId: BOOKING_1_ID,
     paymentId: PAYMENT_1_ID,
+    method,
   });
 }
 
@@ -207,6 +210,46 @@ describe("PayPalPaymentAdapter", () => {
       });
     });
 
+    it.each([
+      [
+        "paypal",
+        {
+          paypal: {
+            experience_context: {
+              return_url: `http://localhost:3040/payments/${PAYMENT_1_ID}/return`,
+              cancel_url: `http://localhost:3040/payments/${PAYMENT_1_ID}/return?cancelled=1`,
+              user_action: "PAY_NOW",
+              shipping_preference: "NO_SHIPPING",
+            },
+          },
+        },
+      ],
+      [
+        "card",
+        {
+          card: {
+            attributes: { verification: { method: "SCA_WHEN_REQUIRED" } },
+            experience_context: {
+              return_url: `http://localhost:3040/payments/${PAYMENT_1_ID}/return`,
+              cancel_url: `http://localhost:3040/payments/${PAYMENT_1_ID}/return?cancelled=1`,
+            },
+          },
+        },
+      ],
+      ["paypal_guest", undefined],
+    ] as Array<[PaymentMethod, unknown]>)(
+      "builds the %s order payment source",
+      async (method, expectedSource) => {
+        const fetchMock = mockPayPal(jsonResponse(200, { id: "ORDER-1" }));
+        const adapter = new PayPalPaymentAdapter();
+
+        await createSession(adapter, "idem-1", method);
+
+        const [[, init]] = apiCalls(fetchMock);
+        expect(requestBody(init).payment_source).toEqual(expectedSource);
+      },
+    );
+
     it("falls back to the approve link and hashes long idempotency keys", async () => {
       const fetchMock = mockPayPal(
         jsonResponse(200, {
@@ -286,6 +329,7 @@ describe("PayPalPaymentAdapter", () => {
         currency: "CAD",
         failureCode: undefined,
         failureMessage: undefined,
+        order: {},
         raw: order,
       });
     });
@@ -456,9 +500,83 @@ describe("PayPalPaymentAdapter", () => {
       ).resolves.toEqual({
         providerOrderId: "ORDER-1",
         status: expected,
+        order: {},
         raw: order,
       });
     });
+
+    it("reads the payment source, amount, and card 3-D Secure result from an order", async () => {
+      const order = {
+        id: "ORDER-1",
+        status: "APPROVED",
+        purchase_units: [
+          {
+            custom_id: PAYMENT_1_ID,
+            amount: { currency_code: "CAD", value: "275.00" },
+          },
+        ],
+        payment_source: {
+          card: {
+            last_digits: "1111",
+            authentication_result: {
+              liability_shift: "NO",
+              three_d_secure: {
+                enrollment_status: "Y",
+                authentication_status: "N",
+              },
+            },
+          },
+        },
+      };
+      mockPayPal(jsonResponse(200, order));
+      const adapter = new PayPalPaymentAdapter();
+
+      await expect(
+        adapter.getPaymentStatus({ providerOrderId: "ORDER-1" }),
+      ).resolves.toEqual({
+        providerOrderId: "ORDER-1",
+        status: "APPROVED",
+        order: {
+          paymentSource: "card",
+          customId: PAYMENT_1_ID,
+          amount: 275,
+          currency: "CAD",
+          cardAuthentication: {
+            liabilityShift: "NO",
+            enrollmentStatus: "Y",
+            authenticationStatus: "N",
+          },
+        },
+        raw: order,
+      });
+    });
+
+    it.each([
+      [{ apple_pay: { name: "Buyer" } }, "apple_pay", undefined],
+      [{ paypal: { email_address: "buyer@example.com" } }, "paypal", undefined],
+      [{ venmo: {} }, "venmo", undefined],
+      [{ ideal: {} }, "unknown", undefined],
+    ])(
+      "maps order payment source %j",
+      async (paymentSource, expectedSource, expectedAuthentication) => {
+        const order = {
+          id: "ORDER-1",
+          status: "APPROVED",
+          payment_source: paymentSource,
+        };
+        mockPayPal(jsonResponse(200, order));
+        const adapter = new PayPalPaymentAdapter();
+
+        const result = await adapter.getPaymentStatus({
+          providerOrderId: "ORDER-1",
+        });
+
+        expect(result?.order?.paymentSource).toBe(expectedSource);
+        expect(result?.order?.cardAuthentication).toEqual(
+          expectedAuthentication,
+        );
+      },
+    );
 
     it("returns null when PayPal has no matching record", async () => {
       const fetchMock = mockPayPal(

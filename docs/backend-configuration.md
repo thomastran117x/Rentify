@@ -104,6 +104,43 @@ committed development profile by default. YAML records the API pool default as
 `10/2`, while Compose deliberately pins the API to `10/2` and each worker to
 `5/1` as process-specific deployment overrides.
 
+## PayPal checkout
+
+The PayPal REST app is configured in three places:
+
+- `paypal.environment` (`sandbox` or `production`), `paypal.clientId`, and
+  `paypal.webhookId` in YAML, or `PAYPAL_ENVIRONMENT`, `PAYPAL_CLIENT_ID`, and
+  `PAYPAL_WEBHOOK_ID` in the environment
+- `PAYPAL_CLIENT_SECRET`, which is environment-only
+- `paypal.checkoutMethods`, the payment methods the renter checkout page embeds
+  through the PayPal JS SDK
+
+```yaml
+paypal:
+  checkoutMethods:
+    - paypal # PayPal and, where eligible, Pay Later
+    - paypal_guest # PayPal's guest debit and credit card form
+    - card # Card fields with 3-D Secure; needs advanced card processing
+```
+
+`PAYPAL_CHECKOUT_METHODS=paypal,card` overrides the list, and an empty value
+turns every embedded method off. Unknown names stop startup, and all three are
+enabled by default. The PayPal redirect (`paypal_redirect`) is always available
+and is not listed. The API rejects order requests for methods that are not
+enabled, and the checkout summary tells the frontend which to show. Apple Pay
+and Google Pay are not supported yet.
+
+The frontend needs the same client ID at build time as
+`NEXT_PUBLIC_PAYPAL_CLIENT_ID`. The PayPal JS SDK can only approve orders that
+the same PayPal app created, so when the frontend value is empty, a
+`change-me-` placeholder, or different from the backend's client ID, the
+checkout page offers only the PayPal redirect.
+
+The frontend does not send a Content Security Policy today. If one is added, it
+must allow the PayPal SDK's scripts, frames, and API calls:
+`https://www.paypal.com`, `https://www.sandbox.paypal.com`,
+`https://*.paypal.com`, and `https://*.paypalobjects.com`.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:

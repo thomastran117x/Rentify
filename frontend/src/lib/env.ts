@@ -63,6 +63,7 @@ export const publicEnv = {
     process.env.NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT?.trim() || "consumers",
   appleOAuthClientId:
     process.env.NEXT_PUBLIC_APPLE_OAUTH_CLIENT_ID?.trim() || "",
+  paypalClientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID?.trim() || "",
 } as const;
 
 export const serverEnv = {

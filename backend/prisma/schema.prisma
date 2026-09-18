@@ -691,6 +691,8 @@ model PaymentAttempt {
   failureMessage    String?                 @map("failure_message") @db.VarChar(2048)
   providerRequestId String?                 @map("provider_request_id") @db.VarChar(255)
   providerPaymentId String?                 @map("provider_payment_id") @db.VarChar(128)
+  providerOrderId   String?                 @map("provider_order_id") @db.VarChar(128)
+  paymentMethod     String?                 @map("payment_method") @db.VarChar(32)
   requestPayload    Json?                   @map("request_payload")
   responsePayload   Json?                   @map("response_payload")
   nextRetryAt       DateTime?               @map("next_retry_at") @db.DateTime(6)
@@ -700,6 +702,7 @@ model PaymentAttempt {
 
   @@index([paymentId, createdAt])
   @@index([status, nextRetryAt])
+  @@index([providerOrderId])
   @@map("payment_attempts")
 }
 

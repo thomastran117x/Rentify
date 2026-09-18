@@ -2,12 +2,17 @@ import { createHash } from "node:crypto";
 import { environment, getEnvironment } from "@/configuration/environment/index";
 import type { PaymentProviderAdapter } from "@/features/payments/payment-provider";
 import type {
+  CardAuthenticationResult,
   PaymentFailureCategory,
+  PaymentMethod,
   PaymentWebhookDetails,
   PaymentWebhookHeaders,
   PaymentWebhookVerificationResult,
   ProviderErrorInfo,
+  ProviderOrderDetails,
   ProviderPaymentSession,
+  ProviderPaymentSessionRequest,
+  ProviderPaymentSource,
   ProviderPaymentStatus,
   ProviderRefundResult,
 } from "@/features/payments/payments.model";
@@ -15,7 +20,6 @@ import {
   classifyHttpError,
   formatMoneyValue,
 } from "@/features/payments/payments.utils";
-import type { Uuid } from "@/configuration/validation/uuid";
 
 type PayPalApiErrorResponse = {
   name?: string;
@@ -39,6 +43,14 @@ const ACCESS_TOKEN_EXPIRY_MARGIN_MS = 60_000;
 /** PayPal rejects PayPal-Request-Id values longer than this. */
 const MAX_REQUEST_ID_LENGTH = 108;
 const MAX_REFUND_NOTE_LENGTH = 255;
+
+const PAYMENT_SOURCE_KEYS: Record<string, ProviderPaymentSource> = {
+  paypal: "paypal",
+  card: "card",
+  apple_pay: "apple_pay",
+  google_pay: "google_pay",
+  venmo: "venmo",
+};
 
 function readPath(input: unknown, path: Array<string | number>): unknown {
   let current: unknown = input;
@@ -122,14 +134,11 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
     this.frontendUrl = environment.application.frontendUrl;
   }
 
-  async createPaymentSession(input: {
-    idempotencyKey: string;
-    amount: number;
-    currency: string;
-    bookingRequestId: Uuid;
-    paymentId: Uuid;
-  }): Promise<ProviderPaymentSession> {
+  async createPaymentSession(
+    input: ProviderPaymentSessionRequest,
+  ): Promise<ProviderPaymentSession> {
     const returnUrl = `${this.frontendUrl}/payments/${input.paymentId}/return`;
+    const paymentSource = this.buildPaymentSource(input.method, returnUrl);
     const response = await this.requestJson("/v2/checkout/orders", {
       method: "POST",
       body: JSON.stringify({
@@ -145,16 +154,7 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
             },
           },
         ],
-        payment_source: {
-          paypal: {
-            experience_context: {
-              return_url: returnUrl,
-              cancel_url: `${returnUrl}?cancelled=1`,
-              user_action: "PAY_NOW",
-              shipping_preference: "NO_SHIPPING",
-            },
-          },
-        },
+        ...(paymentSource ? { payment_source: paymentSource } : {}),
       }),
       headers: this.mutationHeaders(input.idempotencyKey),
     });
@@ -393,6 +393,100 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
     return readString(response.body, ["verification_status"]) === "SUCCESS";
   }
 
+  /**
+   * The `payment_source` for a new order. Guest checkout attaches its source
+   * when the SDK confirms the order, so it sends none.
+   */
+  private buildPaymentSource(
+    method: PaymentMethod,
+    returnUrl: string,
+  ): Record<string, unknown> | undefined {
+    const experienceContext = {
+      return_url: returnUrl,
+      cancel_url: `${returnUrl}?cancelled=1`,
+    };
+    const scaWhenRequired = {
+      verification: {
+        method: "SCA_WHEN_REQUIRED",
+      },
+    };
+
+    switch (method) {
+      case "paypal_redirect":
+      case "paypal":
+        // The SDK can fall back to a full-page redirect, so embedded PayPal
+        // orders keep the return URL too.
+        return {
+          paypal: {
+            experience_context: {
+              ...experienceContext,
+              user_action: "PAY_NOW",
+              shipping_preference: "NO_SHIPPING",
+            },
+          },
+        };
+      case "card":
+        return {
+          card: {
+            attributes: scaWhenRequired,
+            experience_context: experienceContext,
+          },
+        };
+      case "paypal_guest":
+        return undefined;
+    }
+  }
+
+  private readOrderDetails(
+    body: Record<string, unknown>,
+  ): ProviderOrderDetails {
+    const paymentSource = readRecord(body, ["payment_source"]);
+    const sourceKey = paymentSource ? Object.keys(paymentSource)[0] : undefined;
+    const amountValue = readString(body, [
+      "purchase_units",
+      0,
+      "amount",
+      "value",
+    ]);
+
+    return {
+      paymentSource: sourceKey
+        ? (PAYMENT_SOURCE_KEYS[sourceKey] ?? "unknown")
+        : undefined,
+      cardAuthentication: this.readCardAuthentication(paymentSource),
+      customId: readString(body, ["purchase_units", 0, "custom_id"]),
+      amount: amountValue === undefined ? undefined : Number(amountValue),
+      currency: readString(body, [
+        "purchase_units",
+        0,
+        "amount",
+        "currency_code",
+      ]),
+    };
+  }
+
+  private readCardAuthentication(
+    paymentSource: Record<string, unknown> | undefined,
+  ): CardAuthenticationResult | undefined {
+    const result = readRecord(paymentSource, ["card", "authentication_result"]);
+
+    if (!result) {
+      return undefined;
+    }
+
+    return {
+      liabilityShift: readString(result, ["liability_shift"]),
+      enrollmentStatus: readString(result, [
+        "three_d_secure",
+        "enrollment_status",
+      ]),
+      authenticationStatus: readString(result, [
+        "three_d_secure",
+        "authentication_status",
+      ]),
+    };
+  }
+
   private readWebhookDetails(
     eventType: string,
     payload: Record<string, unknown>,
@@ -467,7 +561,10 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
     ]);
 
     if (capture) {
-      return this.mapCapture(capture, orderId, body);
+      return {
+        ...this.mapCapture(capture, orderId, body),
+        order: this.readOrderDetails(body),
+      };
     }
 
     const orderStatus = readString(body, ["status"]);
@@ -480,6 +577,7 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
           : orderStatus === "VOIDED"
             ? "CANCELED"
             : "PENDING",
+      order: this.readOrderDetails(body),
       raw: body,
     };
   }

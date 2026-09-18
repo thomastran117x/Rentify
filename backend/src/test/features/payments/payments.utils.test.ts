@@ -1,9 +1,12 @@
 import {
+  calculateBookingCharge,
   calculatePlatformFeeAmount,
   classifyHttpError,
   createExponentialBackoffDate,
   createPaymentIdempotencyKey,
+  evaluateCardAuthentication,
   formatMoneyValue,
+  isSameMoneyAmount,
   minorUnitsToMoney,
   moneyToMinorUnits,
 } from "@/features/payments/payments.utils";
@@ -87,6 +90,133 @@ describe("payments.utils", () => {
       code: "302",
       message: "redirected",
       retryable: false,
+    });
+  });
+  describe("calculateBookingCharge", () => {
+    it("charges a deposit share of the stay plus the fee on that deposit", () => {
+      expect(
+        calculateBookingCharge(1000, {
+          depositBps: 2500,
+          platformFeeBps: 1000,
+        }),
+      ).toEqual({
+        depositAmount: 250,
+        platformFeeAmount: 25,
+        totalAmount: 275,
+      });
+    });
+
+    it("rounds each amount to cents", () => {
+      expect(
+        calculateBookingCharge(333.33, {
+          depositBps: 2500,
+          platformFeeBps: 1000,
+        }),
+      ).toEqual({
+        depositAmount: 83.33,
+        platformFeeAmount: 8.33,
+        totalAmount: 91.66,
+      });
+    });
+  });
+
+  it("compares money amounts at cent precision", () => {
+    expect(isSameMoneyAmount(0.1 + 0.2, 0.3)).toBe(true);
+    expect(isSameMoneyAmount(10, 10.01)).toBe(false);
+  });
+
+  describe("evaluateCardAuthentication", () => {
+    it.each([
+      ["no 3-D Secure result", undefined],
+      ["no liability shift", {}],
+      [
+        "liability shift POSSIBLE",
+        {
+          liabilityShift: "POSSIBLE",
+          enrollmentStatus: "Y",
+          authenticationStatus: "Y",
+        },
+      ],
+      ["liability shift YES", { liabilityShift: "YES" }],
+      [
+        "an attempted authentication",
+        {
+          liabilityShift: "possible",
+          enrollmentStatus: "Y",
+          authenticationStatus: "A",
+        },
+      ],
+      ["a card not enrolled", { liabilityShift: "NO", enrollmentStatus: "N" }],
+      [
+        "an unavailable enrollment check",
+        { liabilityShift: "NO", enrollmentStatus: "U" },
+      ],
+      [
+        "a bypassed authentication",
+        { liabilityShift: "NO", enrollmentStatus: "B" },
+      ],
+    ])("captures with %s", (_label, result) => {
+      expect(evaluateCardAuthentication(result)).toEqual({ capture: true });
+    });
+
+    it.each([
+      [
+        "a failed authentication",
+        {
+          liabilityShift: "NO",
+          enrollmentStatus: "Y",
+          authenticationStatus: "N",
+        },
+      ],
+      [
+        "a rejected authentication",
+        {
+          liabilityShift: "NO",
+          enrollmentStatus: "Y",
+          authenticationStatus: "R",
+        },
+      ],
+      [
+        "an enrolled card without a result",
+        { liabilityShift: "NO", enrollmentStatus: "Y" },
+      ],
+      ["no enrollment result", { liabilityShift: "NO" }],
+    ])("refuses %s", (_label, result) => {
+      expect(evaluateCardAuthentication(result)).toEqual({
+        capture: false,
+        code: "CARD_AUTHENTICATION_FAILED",
+        message: expect.stringContaining("could not verify"),
+      });
+    });
+
+    it.each([
+      [
+        "an unknown liability shift",
+        { liabilityShift: "UNKNOWN", enrollmentStatus: "Y" },
+      ],
+      [
+        "an unavailable authentication",
+        {
+          liabilityShift: "NO",
+          enrollmentStatus: "Y",
+          authenticationStatus: "U",
+        },
+      ],
+      [
+        "a challenge that never finished",
+        {
+          liabilityShift: "NO",
+          enrollmentStatus: "Y",
+          authenticationStatus: "C",
+        },
+      ],
+      ["an unrecognized liability shift", { liabilityShift: "MAYBE" }],
+    ])("asks the renter to retry for %s", (_label, result) => {
+      expect(evaluateCardAuthentication(result)).toEqual({
+        capture: false,
+        code: "CARD_AUTHENTICATION_UNAVAILABLE",
+        message: expect.stringContaining("unavailable"),
+      });
     });
   });
 });

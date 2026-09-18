@@ -89,6 +89,41 @@ If you change `NEXT_PUBLIC_*` values, rebuild the frontend container:
 docker compose up --build
 ```
 
+## PayPal Sandbox Checkout
+
+Approved bookings are paid on `/bookings/<id>/checkout`, which shows the price
+breakdown, cancellation policy, and hold countdown before any money moves.
+Without PayPal credentials the page still renders and offers "Continue to
+PayPal", which fails with a banner because the placeholder credentials cannot
+create orders.
+
+To pay against the PayPal sandbox:
+
+1. Create a sandbox REST app at developer.paypal.com and a sandbox personal
+   (buyer) account.
+2. Set these in the repo-root `.env`, using the same client ID twice:
+
+   ```bash
+   PAYPAL_CLIENT_ID=<sandbox client id>
+   PAYPAL_CLIENT_SECRET=<sandbox secret>
+   PAYPAL_WEBHOOK_ID=<sandbox webhook id, optional locally>
+   NEXT_PUBLIC_PAYPAL_CLIENT_ID=<sandbox client id>
+   ```
+
+3. Rebuild so the frontend picks up the client ID:
+   `docker compose up --build`.
+4. Sign in as `renter-five` / `user5@rentify.local` / `Rentify123!` and open the
+   seeded booking "Team offsite; approved and waiting on checkout" (booking
+   `00000000-0000-0000-3000-000000000057`).
+
+Card fields need **advanced card processing** enabled on the sandbox business
+account. Use the test cards and 3-D Secure scenarios from PayPal's sandbox card
+testing tools.
+
+The Pay Later button only appears when PayPal offers Pay Later for the buyer's
+country and the booking currency, so expect it to be missing for many sandbox
+buyers. Apple Pay and Google Pay are not available yet.
+
 ## Seed Data
 
 In `development` and `test`, the backend seeds automatically when the database is empty.

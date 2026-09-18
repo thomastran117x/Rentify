@@ -5,6 +5,12 @@ export type RefreshTokenMode = "stateless" | "stateful";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
+export const PAYPAL_CHECKOUT_METHODS = [
+  "paypal",
+  "paypal_guest",
+  "card",
+] as const;
+export type PayPalCheckoutMethod = (typeof PAYPAL_CHECKOUT_METHODS)[number];
 export type ConfigurationFeatureSource = "config" | "env";
 
 export type RawEnvironmentValues = {
@@ -73,6 +79,7 @@ export type RawEnvironmentValues = {
   MFA_TOTP_ENCRYPTION_KEY?: string;
   MICROSOFT_OAUTH_TENANT?: string;
   NODE_ENV?: string;
+  PAYPAL_CHECKOUT_METHODS?: string;
   PAYPAL_CLIENT_ID?: string;
   PAYPAL_CLIENT_SECRET?: string;
   PAYPAL_ENVIRONMENT?: string;
@@ -410,6 +417,8 @@ export interface AppEnvironment {
     environment: "sandbox" | "production";
     webhookId: string;
     apiBaseUrl: string;
+    /** Embedded checkout methods offered to renters; the redirect is always on. */
+    checkoutMethods: PayPalCheckoutMethod[];
   };
 }
 

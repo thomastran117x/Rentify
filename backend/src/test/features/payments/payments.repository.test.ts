@@ -1,4 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
+import BadRequestError from "@/errors/http/bad-request.error";
+import ConflictError from "@/errors/http/conflict.error";
 import { PaymentsRepository } from "@/features/payments/payments.repository";
 import { testUuid } from "../../support/uuid";
 const BOOKING_1_ID = testUuid(9000, 996753);
@@ -339,6 +341,8 @@ describe("PaymentsRepository", () => {
     const payment = createPaymentPersistence({
       status: "succeeded",
       succeededAt: new Date("2026-04-20T01:00:00.000Z"),
+      providerPaymentId: "capture-1",
+      providerOrderId: "order-1",
       payout: {
         id: "payout-1",
         paymentId: PAYMENT_1_ID,
@@ -821,6 +825,10 @@ describe("PaymentsRepository", () => {
 
     const transaction = {
       paymentAttempt: {
+        findUniqueOrThrow: jest.fn(async () => ({
+          status: "pending",
+          failureCode: null,
+        })),
         update: jest.fn(async () => undefined),
       },
       payment: {
@@ -1346,5 +1354,787 @@ describe("PaymentsRepository", () => {
       hasPreviousPage: true,
     });
     expect(result.status).toBe("released");
+  });
+  describe("embedded checkout", () => {
+    function inTransaction<T extends Record<string, unknown>>(transaction: T) {
+      return {
+        $transaction: async <R>(callback: (client: T) => Promise<R>) =>
+          callback(transaction),
+      };
+    }
+
+    function attemptPersistence(overrides: Record<string, unknown> = {}) {
+      return {
+        id: "attempt-1",
+        paymentId: PAYMENT_1_ID,
+        idempotencyKey: "idem-1",
+        status: "processing",
+        retryCount: 0,
+        failureCategory: null,
+        failureCode: null,
+        failureMessage: null,
+        providerRequestId: "debug-1",
+        providerPaymentId: null,
+        providerOrderId: "order-1",
+        paymentMethod: "paypal",
+        nextRetryAt: null,
+        createdAt: new Date("2026-04-20T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-20T00:00:00.000Z"),
+        ...overrides,
+      };
+    }
+
+    function inFlightBooking(paymentOverrides: Record<string, unknown> = {}) {
+      return createBookingPersistence({
+        status: "payment_processing",
+        payment: createPaymentPersistence({
+          status: "processing",
+          providerOrderId: "order-1",
+          rentalSubtotalAmount: new Prisma.Decimal(100),
+          platformFeeAmount: new Prisma.Decimal(10),
+          totalAmount: new Prisma.Decimal(110),
+          attempts: [attemptPersistence()],
+          ...paymentOverrides,
+        }),
+      });
+    }
+
+    it("answers a replayed idempotency key before checking the booking status", async () => {
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => inFlightBooking()),
+        },
+        paymentAttempt: {
+          create: jest.fn(),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const result = await repository.createPaymentAttemptForBooking({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-1",
+        method: "paypal",
+      });
+
+      expect(result.attemptId).toBe("attempt-1");
+      expect(result.amount).toBe(110);
+      expect(result.payment.attempts[0]).toMatchObject({
+        providerOrderId: "order-1",
+        paymentMethod: "paypal",
+      });
+      expect(transaction.paymentAttempt.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects a replayed idempotency key used for another method", async () => {
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => inFlightBooking()),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await expect(
+        repository.createPaymentAttemptForBooking({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-1",
+          method: "card",
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("treats attempts recorded before methods existed as redirect checkouts", async () => {
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () =>
+            inFlightBooking({
+              attempts: [attemptPersistence({ paymentMethod: null })],
+            }),
+          ),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const result = await repository.createPaymentAttemptForBooking({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-1",
+      });
+
+      expect(result.payment.attempts[0]?.paymentMethod).toBeUndefined();
+    });
+
+    it("refuses a second order while one is in flight unless superseding", async () => {
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => inFlightBooking()),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await expect(
+        repository.createPaymentAttemptForBooking({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "card",
+        }),
+      ).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("reports a busy checkout when the open order changed underneath", async () => {
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => inFlightBooking()),
+        },
+        paymentAttempt: {
+          updateMany: jest.fn(),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const error = await repository
+        .createPaymentAttemptForBooking({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-2",
+          method: "card",
+          supersede: { expectedProviderOrderId: "order-other" },
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "checkout_busy",
+      });
+      expect(transaction.paymentAttempt.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("supersedes the open order and charges the stored amounts", async () => {
+      const attemptCreates: Array<Record<string, unknown>> = [];
+      const booking = inFlightBooking({
+        // Stored amounts from an older formula must still be what is charged.
+        rentalSubtotalAmount: new Prisma.Decimal(90),
+        platformFeeAmount: new Prisma.Decimal(9),
+        totalAmount: new Prisma.Decimal(99),
+      });
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => booking),
+          update: jest.fn(),
+        },
+        payment: {
+          create: jest.fn(),
+          update: jest.fn(async () => undefined),
+          findUniqueOrThrow: jest.fn(async () => booking.payment),
+        },
+        paymentAttempt: {
+          updateMany: jest.fn(async () => ({ count: 1 })),
+          create: jest.fn(
+            async ({ data }: { data: Record<string, unknown> }) => {
+              attemptCreates.push(data);
+              return { id: "attempt-2" };
+            },
+          ),
+        },
+        paymentLedgerEntry: {
+          create: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const result = await repository.createPaymentAttemptForBooking({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "card",
+        supersede: { expectedProviderOrderId: "order-1" },
+      });
+
+      expect(transaction.paymentAttempt.updateMany).toHaveBeenCalledWith({
+        where: {
+          paymentId: PAYMENT_1_ID,
+          status: { in: ["pending", "processing", "failed_retryable"] },
+        },
+        data: expect.objectContaining({
+          status: "failed_final",
+          failureCode: "CHECKOUT_SUPERSEDED",
+        }),
+      });
+      expect(transaction.payment.update).toHaveBeenCalledWith({
+        where: { id: PAYMENT_1_ID },
+        data: {
+          status: "awaiting_method",
+          providerOrderId: null,
+          checkoutUrl: null,
+        },
+      });
+      expect(transaction.payment.create).not.toHaveBeenCalled();
+      expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+      expect(attemptCreates[0]).toMatchObject({
+        idempotencyKey: "idem-2",
+        paymentMethod: "card",
+        status: "pending",
+      });
+      expect(result.amount).toBe(99);
+    });
+
+    it("skips order marking when a supersede finds nothing in flight", async () => {
+      const booking = createBookingPersistence({
+        status: "payment_failed",
+        payment: createPaymentPersistence({ status: "failed_final" }),
+      });
+      const transaction = {
+        bookingRequest: {
+          findUnique: jest.fn(async () => booking),
+        },
+        payment: {
+          findUniqueOrThrow: jest.fn(async () => booking.payment),
+        },
+        paymentAttempt: {
+          updateMany: jest.fn(),
+          create: jest.fn(async () => ({ id: "attempt-2" })),
+        },
+        paymentLedgerEntry: {
+          create: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await repository.createPaymentAttemptForBooking({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-2",
+        method: "paypal",
+        supersede: { expectedProviderOrderId: null },
+      });
+
+      expect(transaction.paymentAttempt.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("stores the provider order on the attempt when a session attaches", async () => {
+      const attemptUpdate = jest.fn(async () => undefined);
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () => ({
+            status: "pending",
+            failureCode: null,
+          })),
+          update: attemptUpdate,
+        },
+        payment: {
+          update: jest.fn(async () => undefined),
+          findUniqueOrThrow: jest
+            .fn()
+            .mockResolvedValueOnce({ bookingRequestId: BOOKING_1_ID })
+            .mockResolvedValueOnce(createPaymentPersistence()),
+        },
+        bookingRequest: {
+          update: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await repository.attachPaymentSession(PAYMENT_1_ID, "attempt-1", {
+        providerOrderId: "order-2",
+        raw: {},
+      });
+
+      expect(attemptUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ providerOrderId: "order-2" }),
+        }),
+      );
+    });
+
+    it.each([
+      [
+        "the attempt was already superseded",
+        { status: "failed_final", failureCode: "CHECKOUT_SUPERSEDED" },
+        { providerOrderId: null },
+        { expectedProviderOrderId: null },
+      ],
+      [
+        "the payment moved to another order",
+        { status: "pending", failureCode: null },
+        { providerOrderId: "order-2" },
+        { expectedProviderOrderId: null },
+      ],
+    ])(
+      "refuses to attach a session when %s",
+      async (_label, attemptRow, paymentRow, options) => {
+        const transaction = {
+          paymentAttempt: {
+            findUniqueOrThrow: jest.fn(async () => attemptRow),
+            update: jest.fn(),
+          },
+          payment: {
+            findUniqueOrThrow: jest.fn(async () => paymentRow),
+            update: jest.fn(),
+          },
+          bookingRequest: {
+            update: jest.fn(),
+          },
+        };
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        const error = await repository
+          .attachPaymentSession(
+            PAYMENT_1_ID,
+            "attempt-1",
+            { providerOrderId: "order-3", raw: {} },
+            options,
+          )
+          .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect((error as ConflictError).details).toEqual({
+          reason: "checkout_busy",
+        });
+        expect(transaction.paymentAttempt.update).not.toHaveBeenCalled();
+        expect(transaction.payment.update).not.toHaveBeenCalled();
+        expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("attaches a session without a compare-and-swap for retried checkouts", async () => {
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () => ({
+            status: "processing",
+            failureCode: null,
+          })),
+          update: jest.fn(async () => undefined),
+        },
+        payment: {
+          update: jest.fn(async () => undefined),
+          findUniqueOrThrow: jest
+            .fn()
+            .mockResolvedValueOnce({ bookingRequestId: BOOKING_1_ID })
+            .mockResolvedValueOnce(createPaymentPersistence()),
+        },
+        bookingRequest: {
+          update: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await repository.attachPaymentSession(PAYMENT_1_ID, "attempt-1", {
+        providerOrderId: "order-9",
+        raw: {},
+      });
+
+      expect(transaction.paymentAttempt.update).toHaveBeenCalled();
+    });
+
+    it("keeps a superseded attempt's failure off the live checkout", async () => {
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () =>
+            attemptPersistence({
+              status: "failed_final",
+              failureCode: "CHECKOUT_SUPERSEDED",
+            }),
+          ),
+          update: jest.fn(),
+        },
+        payment: {
+          update: jest.fn(),
+          findUniqueOrThrow: jest.fn(async () =>
+            createPaymentPersistence({ status: "processing" }),
+          ),
+        },
+        bookingRequest: {
+          update: jest.fn(),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const result = await repository.recordAttemptFailure(
+        PAYMENT_1_ID,
+        "attempt-1",
+        { category: "permanent", message: "too late", retryable: false },
+      );
+
+      expect(result.status).toBe("processing");
+      expect(transaction.paymentAttempt.update).not.toHaveBeenCalled();
+      expect(transaction.payment.update).not.toHaveBeenCalled();
+      expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+    });
+
+    it("does not schedule retries for embedded checkout failures", async () => {
+      const attemptUpdates: Array<Record<string, unknown>> = [];
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () => ({
+            id: "attempt-1",
+            retryCount: 0,
+          })),
+          update: jest.fn(
+            async ({ data }: { data: Record<string, unknown> }) => {
+              attemptUpdates.push(data);
+            },
+          ),
+        },
+        payment: {
+          update: jest.fn(async () => undefined),
+          findUniqueOrThrow: jest
+            .fn()
+            .mockResolvedValueOnce({ bookingRequestId: BOOKING_1_ID })
+            .mockResolvedValueOnce(createPaymentPersistence()),
+        },
+        bookingRequest: {
+          update: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await repository.recordAttemptFailure(
+        PAYMENT_1_ID,
+        "attempt-1",
+        {
+          category: "transient",
+          message: "paypal down",
+          retryable: true,
+        },
+        { scheduleRetry: false },
+      );
+
+      expect(attemptUpdates[0]).toMatchObject({
+        status: "failed_final",
+        nextRetryAt: null,
+      });
+    });
+
+    describe("rejectCheckoutAttempt", () => {
+      function rejectionTransaction(paymentRow: Record<string, unknown>) {
+        return {
+          payment: {
+            findUniqueOrThrow: jest.fn(async () => paymentRow),
+            update: jest.fn(async () => undefined),
+          },
+          paymentAttempt: {
+            update: jest.fn(async () => undefined),
+          },
+          bookingRequest: {
+            update: jest.fn(async () => undefined),
+          },
+        };
+      }
+
+      it("fails the current order's attempt, payment, and payable booking", async () => {
+        const paymentRow = createPaymentPersistence({
+          status: "processing",
+          providerOrderId: "order-2",
+          attempts: [
+            attemptPersistence({ id: "attempt-2", providerOrderId: "order-2" }),
+            attemptPersistence({ id: "attempt-1", providerOrderId: "order-1" }),
+          ],
+          bookingRequest: {
+            ...createPaymentPersistence().bookingRequest,
+            status: "payment_processing",
+          },
+        });
+        const transaction = rejectionTransaction(paymentRow);
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        await repository.rejectCheckoutAttempt({
+          paymentId: PAYMENT_1_ID,
+          providerOrderId: "order-2",
+          failureCode: "CARD_AUTHENTICATION_FAILED",
+          failureMessage: "Verification failed.",
+        });
+
+        expect(transaction.paymentAttempt.update).toHaveBeenCalledWith({
+          where: { id: "attempt-2" },
+          data: expect.objectContaining({
+            status: "failed_final",
+            failureCode: "CARD_AUTHENTICATION_FAILED",
+          }),
+        });
+        expect(transaction.payment.update).toHaveBeenCalledWith({
+          where: { id: PAYMENT_1_ID },
+          data: expect.objectContaining({ status: "failed_final" }),
+        });
+        expect(transaction.bookingRequest.update).toHaveBeenCalledWith({
+          where: { id: BOOKING_1_ID },
+          data: expect.objectContaining({ status: "payment_failed" }),
+        });
+      });
+
+      it("leaves an expired booking expired", async () => {
+        const paymentRow = createPaymentPersistence({
+          status: "processing",
+          providerOrderId: "order-1",
+          attempts: [attemptPersistence()],
+          bookingRequest: {
+            ...createPaymentPersistence().bookingRequest,
+            status: "expired",
+          },
+        });
+        const transaction = rejectionTransaction(paymentRow);
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        await repository.rejectCheckoutAttempt({
+          paymentId: PAYMENT_1_ID,
+          providerOrderId: "order-1",
+          failureCode: "HOLD_EXPIRED",
+          failureMessage: "Hold expired.",
+        });
+
+        expect(transaction.payment.update).toHaveBeenCalled();
+        expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+      });
+
+      it("only ends the attempt when the order is no longer current", async () => {
+        const paymentRow = createPaymentPersistence({
+          status: "processing",
+          providerOrderId: "order-2",
+          attempts: [],
+        });
+        const transaction = rejectionTransaction(paymentRow);
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        await repository.rejectCheckoutAttempt({
+          paymentId: PAYMENT_1_ID,
+          providerOrderId: "order-1",
+          failureCode: "ORDER_MISMATCH",
+          failureMessage: "Mismatch.",
+        });
+
+        expect(transaction.paymentAttempt.update).not.toHaveBeenCalled();
+        expect(transaction.payment.update).not.toHaveBeenCalled();
+        expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("markPaymentSucceeded", () => {
+      it("flags reconciliation when an old order captures after the payment already succeeded", async () => {
+        const bookingUpdate = jest.fn(async () => undefined);
+        const payment = createPaymentPersistence({
+          status: "succeeded",
+          providerOrderId: "order-2",
+          providerPaymentId: "capture-2",
+        });
+        const transaction = {
+          payment: {
+            findFirst: jest.fn(async () => payment),
+            update: jest.fn(),
+          },
+          bookingRequest: {
+            update: bookingUpdate,
+          },
+          paymentLedgerEntry: {
+            create: jest.fn(),
+          },
+        };
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        const result = await repository.markPaymentSucceeded({
+          providerOrderId: "order-1",
+          providerPaymentId: "capture-1",
+          status: "COMPLETED",
+          raw: {},
+        });
+
+        expect(result.reconciliationRequired).toBe(true);
+        expect(bookingUpdate).toHaveBeenCalledWith({
+          where: { id: BOOKING_1_ID },
+          data: { paymentReconciliationRequired: true },
+        });
+        expect(transaction.payment.update).not.toHaveBeenCalled();
+        expect(transaction.paymentLedgerEntry.create).not.toHaveBeenCalled();
+        const where = (
+          transaction.payment.findFirst.mock.calls[0] as unknown as [
+            { where: { OR: unknown[] } },
+          ]
+        )[0].where;
+        expect(where.OR).toContainEqual({
+          attempts: { some: { providerOrderId: "order-1" } },
+        });
+      });
+
+      it("marks the attempt that created the captured order", async () => {
+        const attemptUpdate = jest.fn(async () => undefined);
+        const payment = createPaymentPersistence({
+          status: "processing",
+          providerOrderId: "order-1",
+          attempts: [
+            attemptPersistence({ id: "attempt-2", providerOrderId: "order-2" }),
+            attemptPersistence({ id: "attempt-1", providerOrderId: "order-1" }),
+          ],
+        });
+        const booking = createBookingPersistence({
+          convertedAt: new Date("2026-04-21T00:00:00.000Z"),
+          renting: { id: "renting-1" },
+        });
+        const transaction = {
+          payment: {
+            findFirst: jest.fn(async () => payment),
+            update: jest.fn(async () => undefined),
+            findUniqueOrThrow: jest.fn(async () => payment),
+          },
+          paymentAttempt: {
+            update: attemptUpdate,
+          },
+          bookingRequest: {
+            findUniqueOrThrow: jest.fn(async () => booking),
+          },
+          paymentLedgerEntry: {
+            create: jest.fn(async () => undefined),
+          },
+          payout: {
+            create: jest.fn(async () => undefined),
+          },
+        };
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        await repository.markPaymentSucceeded({
+          providerOrderId: "order-1",
+          status: "COMPLETED",
+          raw: {},
+        });
+
+        expect(attemptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: "attempt-1" } }),
+        );
+      });
+    });
+
+    describe("findCheckoutContext", () => {
+      it("returns null for unknown bookings", async () => {
+        const repository = new PaymentsRepository({
+          bookingRequest: {
+            findUnique: jest.fn(async () => null),
+          },
+        } as any);
+
+        await expect(
+          repository.findCheckoutContext(BOOKING_1_ID),
+        ).resolves.toBeNull();
+      });
+
+      it("maps the booking, posting summary, and payment", async () => {
+        const repository = new PaymentsRepository({
+          bookingRequest: {
+            findUnique: jest.fn(async () =>
+              createBookingPersistence({
+                organizationId: ORG_1_ID,
+                convertedAt: null,
+                renting: null,
+                posting: {
+                  id: "posting-1",
+                  name: "Lakeside cabin",
+                  cancellationPolicyNotes: "No parties.",
+                  photos: [{ blobUrl: "https://blob.example/1.jpg" }],
+                },
+                payment: createPaymentPersistence({
+                  attempts: [attemptPersistence({ paymentMethod: "bogus" })],
+                }),
+              }),
+            ),
+          },
+        } as any);
+
+        const context = await repository.findCheckoutContext(BOOKING_1_ID);
+
+        expect(context?.booking).toMatchObject({
+          id: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          durationDays: 3,
+          guestCount: 2,
+          dailyPriceAmount: 120,
+          estimatedTotal: 400,
+          converted: false,
+        });
+        expect(context?.posting).toEqual({
+          id: "posting-1",
+          name: "Lakeside cabin",
+          primaryPhotoUrl: "https://blob.example/1.jpg",
+          cancellationPolicyNotes: "No parties.",
+        });
+        expect(context?.payment?.id).toBe(PAYMENT_1_ID);
+        expect(context?.payment?.attempts[0]?.paymentMethod).toBeUndefined();
+      });
+
+      it("handles postings without photos or notes, and converted bookings", async () => {
+        const repository = new PaymentsRepository({
+          bookingRequest: {
+            findUnique: jest.fn(async () =>
+              createBookingPersistence({
+                convertedAt: new Date("2026-04-21T00:00:00.000Z"),
+                posting: {
+                  id: "posting-1",
+                  name: "Loft",
+                  cancellationPolicyNotes: null,
+                  photos: [],
+                },
+              }),
+            ),
+          },
+        } as any);
+
+        const context = await repository.findCheckoutContext(BOOKING_1_ID);
+
+        expect(context?.booking.converted).toBe(true);
+        expect(context?.posting.primaryPhotoUrl).toBeUndefined();
+        expect(context?.posting.cancellationPolicyNotes).toBeUndefined();
+        expect(context?.payment).toBeNull();
+      });
+    });
+
+    it("only retries redirect checkouts in the background", async () => {
+      const findMany = jest.fn(async () => []);
+      const repository = new PaymentsRepository({
+        paymentAttempt: {
+          findMany,
+        },
+      } as any);
+
+      await repository.listRetryCandidates(5);
+
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ paymentMethod: null }, { paymentMethod: "paypal_redirect" }],
+          }),
+        }),
+      );
+    });
   });
 });

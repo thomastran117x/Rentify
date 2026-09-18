@@ -7,6 +7,7 @@ interface PaymentReturnPageProps {
   }>;
   searchParams: Promise<{
     cancelled?: string | string[];
+    token?: string | string[];
   }>;
 }
 
@@ -22,6 +23,10 @@ export default async function PaymentReturnPage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
 
   return (
-    <PaymentReturnClient paymentId={id} cancelled={query.cancelled === "1"} />
+    <PaymentReturnClient
+      paymentId={id}
+      cancelled={query.cancelled === "1"}
+      orderId={typeof query.token === "string" ? query.token : undefined}
+    />
   );
 }

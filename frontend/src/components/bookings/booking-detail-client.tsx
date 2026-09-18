@@ -18,6 +18,8 @@ import {
   canConvertBooking,
   canDecideBooking,
   canPayBooking,
+  checkoutPath,
+  payActionLabel,
 } from "@/lib/bookings/actions";
 import { bookingsApi } from "@/lib/bookings/api";
 import type {
@@ -32,14 +34,12 @@ import {
 } from "@/lib/rentings/format";
 
 const DECISION_NOTE_MAX_LENGTH = 1000;
-const CHECKOUT_UNAVAILABLE_MESSAGE =
-  "We couldn't start checkout right now. Please try again.";
 const PRIMARY_ACTION_CLASSES =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-white px-4 text-sm font-semibold text-white dark:text-slate-900 transition hover:bg-slate-800 dark:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
 const SECONDARY_ACTION_CLASSES =
   "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 
-type ActionKey = "approve" | "decline" | "convert" | "pay";
+type ActionKey = "approve" | "decline" | "convert";
 
 interface ActionFeedback {
   tone: "error" | "success";
@@ -309,26 +309,6 @@ export function BookingDetailClient({
     );
   }
 
-  function handlePay() {
-    return runAction(
-      "pay",
-      "start checkout",
-      CHECKOUT_UNAVAILABLE_MESSAGE,
-      async () => {
-        const payment = await bookingsApi.createPaymentSession(
-          currentBooking.id,
-        );
-
-        if (payment.checkoutUrl) {
-          window.location.assign(payment.checkoutUrl);
-          return;
-        }
-
-        setFeedback({ tone: "error", text: CHECKOUT_UNAVAILABLE_MESSAGE });
-      },
-    );
-  }
-
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <Link
@@ -426,19 +406,13 @@ export function BookingDetailClient({
                 </button>
               ) : null}
               {showPayAction ? (
-                <button
-                  type="button"
-                  onClick={() => void handlePay()}
-                  disabled={pendingAction !== null}
+                <Link
+                  href={checkoutPath(currentBooking.id)}
                   className={PRIMARY_ACTION_CLASSES}
                 >
                   <CircleDollarSign aria-hidden="true" className="h-4 w-4" />
-                  {pendingAction === "pay"
-                    ? "Starting checkout..."
-                    : currentBooking.status === "payment_failed"
-                      ? "Retry payment"
-                      : "Pay now"}
-                </button>
+                  {payActionLabel(currentBooking.status)}
+                </Link>
               ) : null}
               {currentBooking.rentingId ? (
                 <Link

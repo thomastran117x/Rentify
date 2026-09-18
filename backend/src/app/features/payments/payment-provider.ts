@@ -3,19 +3,15 @@ import type {
   PaymentWebhookVerificationResult,
   ProviderErrorInfo,
   ProviderPaymentSession,
+  ProviderPaymentSessionRequest,
   ProviderPaymentStatus,
   ProviderRefundResult,
 } from "@/features/payments/payments.model";
-import type { Uuid } from "@/configuration/validation/uuid";
 
 export interface PaymentProviderAdapter {
-  createPaymentSession(input: {
-    idempotencyKey: string;
-    amount: number;
-    currency: string;
-    bookingRequestId: Uuid;
-    paymentId: Uuid;
-  }): Promise<ProviderPaymentSession>;
+  createPaymentSession(
+    input: ProviderPaymentSessionRequest,
+  ): Promise<ProviderPaymentSession>;
   capturePayment(input: {
     providerOrderId: string;
     idempotencyKey: string;

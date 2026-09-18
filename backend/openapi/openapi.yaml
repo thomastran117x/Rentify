@@ -14682,7 +14682,16 @@ paths:
     post:
       operationId: createPaymentSession
       summary: Create a payment session for a booking request
-      description: Creates a PayPal checkout order for an approved booking request. PAT bearer authentication is not allowed on payment-session routes.
+      description: |-
+        Creates a PayPal order for an approved booking request. Only the renter may call it.
+
+        `method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest` and `card` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.
+
+        If an earlier order was never approved (the renter closed the popup or switched methods), it is superseded: its attempt ends with `CHECKOUT_SUPERSEDED` and the new order replaces it. Approving a superseded order moves no money because only the current order is ever captured.
+
+        409 responses carry `error.details.reason`: `payment_in_progress` (the earlier order was already approved or paid and has been applied), `checkout_busy` (another checkout request for this booking is in flight; retry), or `reconciliation_required`. Replaying an idempotency key returns the original order; reusing it with a different method is a 409.
+
+        Provider failures are recorded on the returned payment instead of failing the request. PAT bearer authentication is not allowed on payment-session routes.
       tags:
         - payments
       security:
@@ -14701,13 +14710,14 @@ paths:
             type: string
           example: booking-1
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/IdempotentMutationRequest'
+              $ref: '#/components/schemas/CreatePaymentSessionRequest'
             example:
               idempotencyKey: payment-session-1
+              method: card
       responses:
         '201':
           description: Successful response.
@@ -14960,6 +14970,103 @@ paths:
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /booking-requests/{id}/checkout:
+    get:
+      operationId: getBookingCheckoutSummary
+      summary: Get the checkout summary for a booking request
+      description: 'Returns what the renter sees before paying: booking dates and guests, the price breakdown (stay total, deposit charged today, platform fee, total due now, and the remaining balance Rentify does not charge), the enforced cancellation policy with the host''s notes, whether checkout can start, the current payment if one exists, and the PayPal settings the JS SDK needs. When a payment exists, its stored amounts are reported because they are what gets charged; `depositBps` and `platformFeeBps` are null when those amounts predate the current pricing. Only the renter may read it; organization members get 403. PAT bearer authentication is not allowed.'
+      tags:
+        - payments
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Booking request identifier.
+          schema:
+            type: string
+          example: booking-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CheckoutSummary'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  serverTime: '2026-05-25T12:00:00.000Z'
+                  booking:
+                    id: booking-1
+                    status: awaiting_payment
+                    startAt: '2026-06-14T15:00:00.000Z'
+                    endAt: '2026-06-24T15:00:00.000Z'
+                    durationDays: 10
+                    guestCount: 2
+                    holdExpiresAt: '2026-05-28T12:00:00.000Z'
+                    dailyPriceAmount: 180
+                    currency: CAD
+                  posting:
+                    id: posting-1
+                    name: Downtown Toronto Loft
+                    primaryPhotoUrl: https://example.com/postings/loft/main.jpg
+                  pricing:
+                    currency: CAD
+                    stayTotal: 1800
+                    depositAmount: 450
+                    platformFeeAmount: 45
+                    totalDueNow: 495
+                    remainingBalance: 1350
+                    depositBps: 2500
+                    platformFeeBps: 1000
+                    source: quote
+                  cancellationPolicy:
+                    code: platform_default_v1
+                    fullRefundCutoffHours: 48
+                    partialRefundCutoffHours: 24
+                    partialRefundPercent: 50
+                    ownerCancellationFullRefund: true
+                    refundBase: total_paid
+                    hostNotes: Early check-in on request.
+                  checkout:
+                    eligible: true
+                  payment: null
+                  paypal:
+                    clientId: example-sandbox-client-id
+                    environment: sandbox
+                    enabledMethods:
+                      - paypal
+                      - paypal_guest
+                      - card
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -15244,7 +15351,7 @@ paths:
     post:
       operationId: cancelPaymentCheckout
       summary: Record an abandoned PayPal checkout
-      description: 'Called when the renter returns from PayPal without approving. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted through the retry endpoint. Only the renter or a member who can manage the organization''s payments may call it. PAT bearer authentication is not allowed.'
+      description: 'Called when the renter returns from PayPal without approving. Pass the `orderId` PayPal returned with; if a newer checkout replaced that order, nothing is cancelled and the response is 409 with `error.details.reason` `stale_order`. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted. Only the renter or a member who can manage the organization''s payments may call it. PAT bearer authentication is not allowed.'
       tags:
         - payments
       security:
@@ -15261,6 +15368,14 @@ paths:
           schema:
             type: string
           example: payment-1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelCheckoutRequest'
+            example:
+              orderId: 5O190127TN364715T
       responses:
         '200':
           description: Successful response.
@@ -15324,7 +15439,12 @@ paths:
     post:
       operationId: capturePayment
       summary: Capture an approved payment
-      description: 'Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the renter or a member who can manage the organization''s payments may capture. Safe to repeat: an already captured payment is returned unchanged. PAT bearer authentication is not allowed.'
+      description: |-
+        Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the renter or a member who can manage the organization's payments may capture. Safe to repeat: an already captured payment is returned unchanged.
+
+        Pass the approved `orderId` from the JS SDK or the return URL; if a newer checkout replaced that order, nothing is captured and the response is 409 with `error.details.reason` `stale_order`. The order is read from PayPal first and is only captured when it is approved, the booking hold is still live, the order matches this payment's amount and currency, and card orders passed 3-D Secure. An order that is not approved yet leaves the payment unchanged. A refused order ends the attempt with `HOLD_EXPIRED`, `ORDER_MISMATCH`, `CARD_AUTHENTICATION_FAILED` or `CARD_AUTHENTICATION_UNAVAILABLE` and returns the failed payment so the renter can retry.
+
+        Other 409 reasons: `reconciliation_required`, `checkout_busy`. PAT bearer authentication is not allowed.
       tags:
         - payments
       security:
@@ -15341,6 +15461,14 @@ paths:
           schema:
             type: string
           example: payment-1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapturePaymentRequest'
+            example:
+              orderId: 5O190127TN364715T
       responses:
         '200':
           description: Successful response.
@@ -20082,6 +20210,217 @@ components:
       properties:
         idempotencyKey:
           type: string
+    CreatePaymentSessionRequest:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          minLength: 1
+          maxLength: 255
+        method:
+          type: string
+          enum:
+            - paypal_redirect
+            - paypal
+            - paypal_guest
+            - card
+          default: paypal_redirect
+    CancelCheckoutRequest:
+      type: object
+      properties:
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: The PayPal order the renter abandoned. Rejected with 409 when it is no longer the payment's current order.
+    CapturePaymentRequest:
+      type: object
+      properties:
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: The PayPal order the renter approved. Rejected with 409 when it is no longer the payment's current order.
+    CheckoutSummary:
+      type: object
+      required:
+        - serverTime
+        - booking
+        - posting
+        - pricing
+        - cancellationPolicy
+        - checkout
+        - payment
+        - paypal
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        booking:
+          type: object
+          required:
+            - id
+            - status
+            - startAt
+            - endAt
+            - durationDays
+            - guestCount
+            - holdExpiresAt
+            - dailyPriceAmount
+            - currency
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+            startAt:
+              type: string
+              format: date-time
+            endAt:
+              type: string
+              format: date-time
+            durationDays:
+              type: integer
+            guestCount:
+              type: integer
+            holdExpiresAt:
+              type: string
+              format: date-time
+            dailyPriceAmount:
+              type: number
+            currency:
+              type: string
+        posting:
+          type: object
+          required:
+            - id
+            - name
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            primaryPhotoUrl:
+              type: string
+        pricing:
+          type: object
+          required:
+            - currency
+            - stayTotal
+            - depositAmount
+            - platformFeeAmount
+            - totalDueNow
+            - remainingBalance
+            - depositBps
+            - platformFeeBps
+            - source
+          properties:
+            currency:
+              type: string
+            stayTotal:
+              type: number
+            depositAmount:
+              type: number
+            platformFeeAmount:
+              type: number
+            totalDueNow:
+              type: number
+              description: The amount charged at checkout.
+            remainingBalance:
+              type: number
+              description: The part of the stay total Rentify does not charge.
+            depositBps:
+              type:
+                - integer
+                - 'null'
+            platformFeeBps:
+              type:
+                - integer
+                - 'null'
+            source:
+              type: string
+              enum:
+                - payment
+                - quote
+        cancellationPolicy:
+          type: object
+          required:
+            - code
+            - fullRefundCutoffHours
+            - partialRefundCutoffHours
+            - partialRefundPercent
+            - ownerCancellationFullRefund
+            - refundBase
+          properties:
+            code:
+              type: string
+            fullRefundCutoffHours:
+              type: integer
+            partialRefundCutoffHours:
+              type: integer
+            partialRefundPercent:
+              type: integer
+            ownerCancellationFullRefund:
+              type: boolean
+            refundBase:
+              type: string
+              enum:
+                - total_paid
+            hostNotes:
+              type: string
+        checkout:
+          type: object
+          required:
+            - eligible
+          properties:
+            eligible:
+              type: boolean
+            reason:
+              type: string
+              enum:
+                - hold_expired
+                - already_paid
+                - converted
+                - reconciliation
+                - not_payable
+        payment:
+          oneOf:
+            - type: object
+              required:
+                - id
+                - status
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                providerOrderId:
+                  type: string
+                method:
+                  type: string
+            - type: 'null'
+        paypal:
+          type: object
+          required:
+            - clientId
+            - environment
+            - enabledMethods
+          properties:
+            clientId:
+              type: string
+            environment:
+              type: string
+              enum:
+                - sandbox
+                - production
+            enabledMethods:
+              type: array
+              items:
+                type: string
+                enum:
+                  - paypal
+                  - paypal_guest
+                  - card
     CreateRefundRequest:
       type: object
       required:

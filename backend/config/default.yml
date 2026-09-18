@@ -98,6 +98,11 @@ paypal:
   environment: sandbox
   clientId: change-me-paypal-client-id
   webhookId: change-me-paypal-webhook-id
+  # Embedded checkout methods; the PayPal redirect is always available.
+  checkoutMethods:
+    - paypal
+    - paypal_guest
+    - card
 
 rateLimiter:
   enabled: true

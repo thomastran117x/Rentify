@@ -3,6 +3,10 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@/features/postings/postings.model";
+import {
+  PAYPAL_CHECKOUT_METHODS,
+  type PayPalCheckoutMethod,
+} from "@/configuration/environment/types";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 export const PAYMENT_PROVIDER = "paypal" as const;
@@ -39,8 +43,26 @@ export const paymentFailureCategorySchema = z.enum([
 export const refundStatusSchema = z.enum(["pending", "succeeded", "failed"]);
 export const payoutStatusSchema = z.enum(["scheduled", "released", "failed"]);
 
+/**
+ * How the renter pays. `paypal_redirect` sends the renter to PayPal's hosted
+ * page; the others are embedded on the checkout page through the JS SDK.
+ */
+export const paymentMethodSchema = z.enum([
+  "paypal_redirect",
+  ...PAYPAL_CHECKOUT_METHODS,
+]);
+
 export const createPaymentSessionSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(255).optional(),
+  method: paymentMethodSchema.default("paypal_redirect"),
+});
+
+export const capturePaymentSchema = z.object({
+  orderId: z.string().trim().min(1).max(128).optional(),
+});
+
+export const cancelCheckoutSchema = z.object({
+  orderId: z.string().trim().min(1).max(128).optional(),
 });
 
 export const retryPaymentSchema = z.object({
@@ -75,6 +97,30 @@ export type CreatePaymentSessionBody = z.infer<
   typeof createPaymentSessionSchema
 >;
 export type RetryPaymentBody = z.infer<typeof retryPaymentSchema>;
+export type CapturePaymentBody = z.infer<typeof capturePaymentSchema>;
+export type CancelCheckoutBody = z.infer<typeof cancelCheckoutSchema>;
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+export type { PayPalCheckoutMethod };
+
+/** `details.reason` on the checkout 409 responses, so clients can branch. */
+export const PAYMENT_CONFLICT_REASONS = {
+  paymentInProgress: "payment_in_progress",
+  checkoutBusy: "checkout_busy",
+  staleOrder: "stale_order",
+  reconciliationRequired: "reconciliation_required",
+} as const;
+export type PaymentConflictReason =
+  (typeof PAYMENT_CONFLICT_REASONS)[keyof typeof PAYMENT_CONFLICT_REASONS];
+
+/** Failure codes recorded on attempts by the checkout guards. */
+export const PAYMENT_FAILURE_CODES = {
+  checkoutSuperseded: "CHECKOUT_SUPERSEDED",
+  checkoutCancelled: "CHECKOUT_CANCELLED",
+  holdExpired: "HOLD_EXPIRED",
+  cardAuthenticationFailed: "CARD_AUTHENTICATION_FAILED",
+  cardAuthenticationUnavailable: "CARD_AUTHENTICATION_UNAVAILABLE",
+  orderMismatch: "ORDER_MISMATCH",
+} as const;
 export type CreateRefundBody = z.infer<typeof createRefundSchema>;
 export type ListPayoutsQuery = z.infer<typeof listPayoutsQuerySchema>;
 
@@ -89,6 +135,8 @@ export interface PaymentAttemptRecord {
   failureMessage?: string;
   providerRequestId?: string;
   providerPaymentId?: string;
+  providerOrderId?: string;
+  paymentMethod?: PaymentMethod;
   nextRetryAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -173,6 +221,73 @@ export interface CreatePaymentSessionInput {
   bookingRequestId: Uuid;
   renterId: Uuid;
   idempotencyKey?: string;
+  /** Defaults to `paypal_redirect`. */
+  method?: PaymentMethod;
+}
+
+export type CheckoutIneligibleReason =
+  | "hold_expired"
+  | "already_paid"
+  | "converted"
+  | "reconciliation"
+  | "not_payable";
+
+/** Everything the checkout page shows before the renter picks a method. */
+export interface CheckoutSummary {
+  serverTime: string;
+  booking: {
+    id: Uuid;
+    status: string;
+    startAt: string;
+    endAt: string;
+    durationDays: number;
+    guestCount: number;
+    holdExpiresAt: string;
+    dailyPriceAmount: number;
+    currency: string;
+  };
+  posting: {
+    id: Uuid;
+    name: string;
+    primaryPhotoUrl?: string;
+  };
+  pricing: {
+    currency: string;
+    stayTotal: number;
+    depositAmount: number;
+    platformFeeAmount: number;
+    totalDueNow: number;
+    remainingBalance: number;
+    /** Null when stored amounts were not produced by the current formula. */
+    depositBps: number | null;
+    platformFeeBps: number | null;
+    /** `payment` when a Payment row exists and its stored amounts are charged. */
+    source: "payment" | "quote";
+  };
+  cancellationPolicy: {
+    code: string;
+    fullRefundCutoffHours: number;
+    partialRefundCutoffHours: number;
+    partialRefundPercent: number;
+    ownerCancellationFullRefund: boolean;
+    refundBase: "total_paid";
+    hostNotes?: string;
+  };
+  checkout: {
+    eligible: boolean;
+    reason?: CheckoutIneligibleReason;
+  };
+  payment: {
+    id: Uuid;
+    status: PaymentStatus;
+    providerOrderId?: string;
+    method?: PaymentMethod;
+  } | null;
+  paypal: {
+    clientId: string;
+    environment: "sandbox" | "production";
+    enabledMethods: PayPalCheckoutMethod[];
+  };
 }
 
 export interface RetryPaymentInput {
@@ -222,6 +337,31 @@ export interface ProviderPaymentStatus {
   raw: Record<string, unknown>;
   failureCode?: string;
   failureMessage?: string;
+  /** Read from a fetched order; absent on webhook-derived statuses. */
+  order?: ProviderOrderDetails;
+}
+
+export type ProviderPaymentSource =
+  | "paypal"
+  | "card"
+  | "apple_pay"
+  | "google_pay"
+  | "venmo"
+  | "unknown";
+
+/** 3-D Secure outcome PayPal attaches to card-funded orders. */
+export interface CardAuthenticationResult {
+  liabilityShift?: string;
+  enrollmentStatus?: string;
+  authenticationStatus?: string;
+}
+
+export interface ProviderOrderDetails {
+  paymentSource?: ProviderPaymentSource;
+  cardAuthentication?: CardAuthenticationResult;
+  customId?: string;
+  amount?: number;
+  currency?: string;
 }
 
 export interface ProviderRefundResult {
@@ -242,6 +382,16 @@ export interface PaymentRetryCandidate {
   paymentId: Uuid;
   idempotencyKey: string;
   retryCount: number;
+}
+
+/** A provider session request built for one attempt. */
+export interface ProviderPaymentSessionRequest {
+  idempotencyKey: string;
+  amount: number;
+  currency: string;
+  bookingRequestId: Uuid;
+  paymentId: Uuid;
+  method: PaymentMethod;
 }
 
 export interface PaymentRepairCandidate {

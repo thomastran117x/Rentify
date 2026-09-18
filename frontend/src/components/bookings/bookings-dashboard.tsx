@@ -26,6 +26,8 @@ import {
   canConvertBooking,
   canDecideBooking,
   canPayBooking,
+  checkoutPath,
+  payActionLabel,
 } from "@/lib/bookings/actions";
 import { bookingsApi } from "@/lib/bookings/api";
 import {
@@ -59,8 +61,6 @@ interface DashboardBanner {
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 export const DECISION_NOTE_MAX_LENGTH = 1000;
-export const CHECKOUT_UNAVAILABLE_MESSAGE =
-  "We couldn't start checkout right now. Please try again.";
 
 const STATUS_OPTIONS: Array<{ label: string; value?: BookingRequestStatus }> = [
   { label: "All statuses" },
@@ -232,7 +232,6 @@ interface BookingItemCardProps {
   onDeclineNoteChange?: (bookingRequestId: string, value: string) => void;
   onDecline?: (bookingRequestId: string) => Promise<void>;
   onConvert?: (bookingRequestId: string) => Promise<void>;
-  onPay?: (bookingRequestId: string) => Promise<void>;
 }
 
 const PRIMARY_ACTION_CLASSES =
@@ -273,7 +272,6 @@ export function BookingItemCard({
   onDeclineNoteChange,
   onDecline,
   onConvert,
-  onPay,
 }: BookingItemCardProps) {
   const quote = item.bookingRequestId
     ? quoteByBookingId[item.bookingRequestId]
@@ -353,7 +351,6 @@ export function BookingItemCard({
   const showPayAction =
     Boolean(bookingId) &&
     view === "renter" &&
-    Boolean(onPay) &&
     canPayBooking(item.sourceStatus, {
       convertedAt: item.convertedAt,
       rentingId: item.rentingId,
@@ -554,22 +551,16 @@ export function BookingItemCard({
                     </button>
                   ) : null}
                   {showPayAction && bookingId ? (
-                    <button
-                      type="button"
-                      onClick={() => void onPay?.(bookingId)}
-                      disabled={isBookingActionPending("pay")}
+                    <Link
+                      href={checkoutPath(bookingId)}
                       className={PRIMARY_ACTION_CLASSES}
                     >
                       <CircleDollarSign
                         className="h-4 w-4"
                         aria-hidden="true"
                       />
-                      {isBookingActionPending("pay")
-                        ? "Starting checkout..."
-                        : item.sourceStatus === "payment_failed"
-                          ? "Retry payment"
-                          : "Pay now"}
-                    </button>
+                      {payActionLabel(item.sourceStatus)}
+                    </Link>
                   ) : null}
                   {canManageCurrentView &&
                   canReviewCancellation(item) &&
@@ -1466,35 +1457,6 @@ export function BookingsDashboard() {
     );
   }
 
-  async function handlePayBooking(bookingRequestId: string) {
-    setMutationPendingKey(`pay:${bookingRequestId}`);
-    setBanner(null);
-
-    try {
-      const payment = await bookingsApi.createPaymentSession(bookingRequestId);
-
-      if (payment.checkoutUrl) {
-        window.location.assign(payment.checkoutUrl);
-        return;
-      }
-
-      // The provider failure is recorded on the payment rather than thrown.
-      await refreshActiveDashboard();
-      setBanner({ tone: "error", text: CHECKOUT_UNAVAILABLE_MESSAGE });
-    } catch (error) {
-      setBanner({
-        tone: "error",
-        text: getApiErrorMessage(error, {
-          action: "start checkout",
-          fallback: CHECKOUT_UNAVAILABLE_MESSAGE,
-          preserveClientMessage: true,
-        }),
-      });
-    } finally {
-      setMutationPendingKey(null);
-    }
-  }
-
   if (status === "loading" || loading) {
     return (
       <main className="min-h-[calc(100vh-5.5rem)] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_28%),linear-gradient(180deg,_#f8fafc,_#ffffff)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#020617,_#0b1120)] px-6 py-10 text-slate-900 dark:text-white">
@@ -1926,7 +1888,6 @@ export function BookingsDashboard() {
                 }
                 onDecline={handleDeclineBooking}
                 onConvert={handleConvertBooking}
-                onPay={handlePayBooking}
                 onReviewCancellation={handleReviewCancellation}
                 onReasonChange={(bookingRequestId, value) =>
                   setReasonByBookingId((current) => ({

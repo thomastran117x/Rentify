@@ -19,6 +19,10 @@ export type PaymentAttemptStatus =
 export type PaymentFailureCategory = "transient" | "permanent" | "unknown";
 export type RefundStatus = "pending" | "succeeded" | "failed";
 export type PayoutStatus = "scheduled" | "released" | "failed";
+/** Checkout methods embedded on the checkout page through the PayPal JS SDK. */
+export type CheckoutPaymentMethod = "paypal" | "paypal_guest" | "card";
+/** `paypal_redirect` sends the renter to PayPal's hosted page. */
+export type PaymentMethod = "paypal_redirect" | CheckoutPaymentMethod;
 
 export interface PaymentAttemptRecord {
   id: string;
@@ -31,6 +35,8 @@ export interface PaymentAttemptRecord {
   failureMessage?: string;
   providerRequestId?: string;
   providerPaymentId?: string;
+  providerOrderId?: string;
+  paymentMethod?: PaymentMethod;
   nextRetryAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +112,86 @@ export interface PayoutListResult {
 
 export interface CreatePaymentSessionInput {
   idempotencyKey?: string;
+  method?: PaymentMethod;
+}
+
+export interface CapturePaymentInput {
+  /** The approved order; the API refuses to capture it if it was replaced. */
+  orderId?: string;
+}
+
+export interface CancelCheckoutInput {
+  /** The abandoned order; the API refuses to cancel it if it was replaced. */
+  orderId?: string;
+}
+
+export type CheckoutIneligibleReason =
+  | "hold_expired"
+  | "already_paid"
+  | "converted"
+  | "reconciliation"
+  | "not_payable";
+
+/** `error.details.reason` on checkout 409 responses. */
+export type PaymentConflictReason =
+  | "payment_in_progress"
+  | "checkout_busy"
+  | "stale_order"
+  | "reconciliation_required";
+
+export interface CheckoutSummary {
+  serverTime: string;
+  booking: {
+    id: string;
+    status: string;
+    startAt: string;
+    endAt: string;
+    durationDays: number;
+    guestCount: number;
+    holdExpiresAt: string;
+    dailyPriceAmount: number;
+    currency: string;
+  };
+  posting: {
+    id: string;
+    name: string;
+    primaryPhotoUrl?: string;
+  };
+  pricing: {
+    currency: string;
+    stayTotal: number;
+    depositAmount: number;
+    platformFeeAmount: number;
+    totalDueNow: number;
+    remainingBalance: number;
+    depositBps: number | null;
+    platformFeeBps: number | null;
+    source: "payment" | "quote";
+  };
+  cancellationPolicy: {
+    code: string;
+    fullRefundCutoffHours: number;
+    partialRefundCutoffHours: number;
+    partialRefundPercent: number;
+    ownerCancellationFullRefund: boolean;
+    refundBase: "total_paid";
+    hostNotes?: string;
+  };
+  checkout: {
+    eligible: boolean;
+    reason?: CheckoutIneligibleReason;
+  };
+  payment: {
+    id: string;
+    status: PaymentStatus;
+    providerOrderId?: string;
+    method?: PaymentMethod;
+  } | null;
+  paypal: {
+    clientId: string;
+    environment: "sandbox" | "production";
+    enabledMethods: CheckoutPaymentMethod[];
+  };
 }
 
 export interface RetryPaymentInput {
@@ -155,24 +241,36 @@ export const paymentsApi = {
       `/payments/${encodeURIComponent(paymentId)}`,
     );
   },
+  getCheckoutSummary(bookingRequestId: string): Promise<CheckoutSummary> {
+    return authenticatedJson<CheckoutSummary>(
+      "GET",
+      `/booking-requests/${encodeURIComponent(bookingRequestId)}/checkout`,
+    );
+  },
   getByBookingRequest(bookingRequestId: string): Promise<PaymentRecord> {
     return authenticatedJson<PaymentRecord>(
       "GET",
       `/booking-requests/${encodeURIComponent(bookingRequestId)}/payment`,
     );
   },
-  capture(paymentId: string): Promise<PaymentRecord> {
-    return authenticatedJson<PaymentRecord, Record<string, never>>(
+  capture(
+    paymentId: string,
+    input: CapturePaymentInput = {},
+  ): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, CapturePaymentInput>(
       "POST",
       `/payments/${encodeURIComponent(paymentId)}/capture`,
-      {},
+      input,
     );
   },
-  cancelCheckout(paymentId: string): Promise<PaymentRecord> {
-    return authenticatedJson<PaymentRecord, Record<string, never>>(
+  cancelCheckout(
+    paymentId: string,
+    input: CancelCheckoutInput = {},
+  ): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, CancelCheckoutInput>(
       "POST",
       `/payments/${encodeURIComponent(paymentId)}/cancel-checkout`,
-      {},
+      input,
     );
   },
   retry(
