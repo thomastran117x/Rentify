@@ -372,13 +372,26 @@ export class PaymentsRepository extends BaseRepository {
     });
   }
 
+  /**
+   * Records the provider session on an attempt. `expectedProviderOrderId`
+   * guards against a checkout whose lock lapsed: if the attempt was already
+   * superseded, or the payment moved to another order, nothing is written.
+   */
   async attachPaymentSession(
     paymentId: Uuid,
     attemptId: string,
     session: ProviderPaymentSession,
+    options?: { expectedProviderOrderId?: string | null },
   ): Promise<PaymentRecord> {
     const payment = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
+        await this.assertAttemptStillCurrent(
+          transaction,
+          paymentId,
+          attemptId,
+          options?.expectedProviderOrderId,
+        );
+
         await transaction.paymentAttempt.update({
           where: {
             id: attemptId,
@@ -445,6 +458,54 @@ export class PaymentsRepository extends BaseRepository {
   }
 
   /**
+   * Fails when the attempt is no longer the payment's live checkout, so a
+   * request whose lock lapsed cannot overwrite the checkout that replaced it.
+   */
+  private async assertAttemptStillCurrent(
+    transaction: Prisma.TransactionClient,
+    paymentId: Uuid,
+    attemptId: string,
+    expectedProviderOrderId?: string | null,
+  ): Promise<void> {
+    const attempt = await transaction.paymentAttempt.findUniqueOrThrow({
+      where: {
+        id: attemptId,
+      },
+      select: {
+        status: true,
+        failureCode: true,
+      },
+    });
+
+    if (attempt.status !== "pending" && attempt.status !== "processing") {
+      throw new ConflictError(
+        "This checkout was replaced while it was being set up. Please retry.",
+        { reason: PAYMENT_CONFLICT_REASONS.checkoutBusy },
+      );
+    }
+
+    if (expectedProviderOrderId === undefined) {
+      return;
+    }
+
+    const payment = await transaction.payment.findUniqueOrThrow({
+      where: {
+        id: paymentId,
+      },
+      select: {
+        providerOrderId: true,
+      },
+    });
+
+    if ((payment.providerOrderId ?? null) !== expectedProviderOrderId) {
+      throw new ConflictError(
+        "This checkout was replaced while it was being set up. Please retry.",
+        { reason: PAYMENT_CONFLICT_REASONS.checkoutBusy },
+      );
+    }
+  }
+
+  /**
    * Records a failed provider call. `scheduleRetry: false` keeps the retry
    * worker away from embedded checkouts, where the renter retries on the page.
    */
@@ -462,6 +523,34 @@ export class PaymentsRepository extends BaseRepository {
               id: attemptId,
             },
           });
+
+        // A superseded attempt keeps its own failure, but the payment and the
+        // booking now belong to the checkout that replaced it.
+        if (
+          existingAttempt.status === "failed_final" &&
+          existingAttempt.failureCode ===
+            PAYMENT_FAILURE_CODES.checkoutSuperseded
+        ) {
+          return transaction.payment.findUniqueOrThrow({
+            where: {
+              id: paymentId,
+            },
+            include: {
+              bookingRequest: true,
+              attempts: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              refunds: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+              payout: true,
+            },
+          });
+        }
 
         const retryable =
           errorInfo.retryable &&

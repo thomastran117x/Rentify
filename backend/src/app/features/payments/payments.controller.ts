@@ -20,6 +20,7 @@ import type {
 } from "@/features/payments/payments.model";
 import {
   PAYMENT_WEBHOOK_HEADER_NAMES,
+  cancelCheckoutSchema,
   capturePaymentSchema,
   createPaymentSessionSchema,
   createRefundSchema,
@@ -144,9 +145,11 @@ export class PaymentsController {
     response: Response,
   ): Promise<void> => {
     const auth = await this.requireAuth(request);
+    const body = await parseOptionalRequestBody(request, cancelCheckoutSchema);
     const result = await this.paymentsService.cancelCheckout(
       this.requirePaymentId(request),
       auth.sub,
+      { orderId: body.orderId },
     );
     ok(response, result, {
       message: "Checkout cancellation recorded successfully.",

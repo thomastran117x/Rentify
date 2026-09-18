@@ -142,6 +142,35 @@ describe("PaymentsController", () => {
     );
   });
 
+  it("forwards the abandoned order id to cancel-checkout", async () => {
+    const cancelCheckout = jest.fn(async () => ({ id: PAYMENT_ID }));
+    const controller = new PaymentsController({
+      cancelCheckout,
+    } as any);
+
+    await invoke(
+      controller.cancelCheckout,
+      createContext({
+        params: { id: PAYMENT_ID },
+        body: { orderId: "ORDER-1" },
+      }),
+    );
+    await invoke(
+      controller.cancelCheckout,
+      createContext({
+        params: { id: PAYMENT_ID },
+        headers: { "content-length": "0" },
+      }),
+    );
+
+    expect(cancelCheckout).toHaveBeenNthCalledWith(1, PAYMENT_ID, USER_ID, {
+      orderId: "ORDER-1",
+    });
+    expect(cancelCheckout).toHaveBeenNthCalledWith(2, PAYMENT_ID, USER_ID, {
+      orderId: undefined,
+    });
+  });
+
   it("returns the checkout summary for the booking", async () => {
     const getCheckoutSummary = jest.fn(async () => ({
       checkout: { eligible: true },
@@ -324,7 +353,9 @@ describe("PaymentsController", () => {
     expect(service.capturePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID, {
       orderId: undefined,
     });
-    expect(service.cancelCheckout).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
+    expect(service.cancelCheckout).toHaveBeenCalledWith(PAYMENT_ID, USER_ID, {
+      orderId: undefined,
+    });
     expect(service.reconcilePayment).toHaveBeenCalledWith(PAYMENT_ID, USER_ID);
   });
 

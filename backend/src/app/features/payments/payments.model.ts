@@ -61,6 +61,10 @@ export const capturePaymentSchema = z.object({
   orderId: z.string().trim().min(1).max(128).optional(),
 });
 
+export const cancelCheckoutSchema = z.object({
+  orderId: z.string().trim().min(1).max(128).optional(),
+});
+
 export const retryPaymentSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(255).optional(),
 });
@@ -94,6 +98,7 @@ export type CreatePaymentSessionBody = z.infer<
 >;
 export type RetryPaymentBody = z.infer<typeof retryPaymentSchema>;
 export type CapturePaymentBody = z.infer<typeof capturePaymentSchema>;
+export type CancelCheckoutBody = z.infer<typeof cancelCheckoutSchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type { PayPalCheckoutMethod };
 

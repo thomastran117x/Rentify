@@ -70,6 +70,7 @@ describe("paymentsApi", () => {
     paymentsApi.capture("payment / 1");
     paymentsApi.capture("payment / 1", { orderId: "ORDER-1" });
     paymentsApi.cancelCheckout("payment / 1");
+    paymentsApi.cancelCheckout("payment / 1", { orderId: "ORDER-1" });
     expect(requestMock).toHaveBeenCalledWith(
       "POST",
       "/payments/payment%20%2F%201/capture",
@@ -84,6 +85,11 @@ describe("paymentsApi", () => {
       "POST",
       "/payments/payment%20%2F%201/cancel-checkout",
       {},
+    );
+    expect(requestMock).toHaveBeenCalledWith(
+      "POST",
+      "/payments/payment%20%2F%201/cancel-checkout",
+      { orderId: "ORDER-1" },
     );
   });
 

@@ -132,7 +132,9 @@ describe("PaymentReturnClient", () => {
 
     expect(screen.getByText("Checking your checkout")).toBeInTheDocument();
     expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
-    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1");
+    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1", {
+      orderId: undefined,
+    });
     expect(captureMock).not.toHaveBeenCalled();
     expect(
       screen.getByRole("link", { name: "Back to bookings" }),
@@ -192,6 +194,31 @@ describe("PaymentReturnClient", () => {
     expect(captureMock).toHaveBeenCalledWith("payment-1", {
       orderId: "ORDER-9",
     });
+  });
+
+  it("cancels only the order PayPal sent the renter back from", async () => {
+    cancelCheckoutMock.mockResolvedValue(
+      buildPayment({ status: "failed_final" }),
+    );
+
+    renderReturn(true, "ORDER-9");
+
+    expect(await screen.findByText("Payment cancelled")).toBeInTheDocument();
+    expect(cancelCheckoutMock).toHaveBeenCalledWith("payment-1", {
+      orderId: "ORDER-9",
+    });
+  });
+
+  it("explains that a replaced checkout was not cancelled either", async () => {
+    cancelCheckoutMock.mockRejectedValue(
+      apiError(409, "CONFLICT", { reason: "stale_order" }),
+    );
+
+    renderReturn(true, "ORDER-OLD");
+
+    expect(
+      await screen.findByText("This checkout was replaced"),
+    ).toBeInTheDocument();
   });
 
   it("explains that a replaced checkout was not charged", async () => {

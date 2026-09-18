@@ -59,11 +59,20 @@ const RECONCILIATION_REQUIRED_MESSAGE =
   "Payment succeeded, but the booking now requires reconciliation before it can be finalized.";
 const CHECKOUT_BUSY_MESSAGE =
   "Another request is already updating this checkout. Please retry.";
+/** Renew the checkout lock well before its TTL while a request is running. */
+const LOCK_RENEWAL_INTERVAL_MS = Math.floor(FLOW_LOCK_TTL_MS / 3);
 
 function reconciliationRequiredError(): ConflictError {
   return new ConflictError(RECONCILIATION_REQUIRED_MESSAGE, {
     reason: PAYMENT_CONFLICT_REASONS.reconciliationRequired,
   });
+}
+
+function staleOrderError(): ConflictError {
+  return new ConflictError(
+    "This checkout was replaced by a newer one, so nothing was charged.",
+    { reason: PAYMENT_CONFLICT_REASONS.staleOrder },
+  );
 }
 
 /** Payment statuses that already hold a captured charge. */
@@ -124,6 +133,10 @@ export class PaymentsService {
           method,
           supersede,
         });
+      // What the payment's order must still be when the session attaches. If
+      // the lock lapsed during the provider call and another checkout moved
+      // on, attaching is refused rather than overwriting its order.
+      const expectedProviderOrderId = attempt.payment.providerOrderId ?? null;
 
       const existingAttempt = attempt.payment.attempts.find(
         (item) =>
@@ -149,6 +162,7 @@ export class PaymentsService {
           attempt.paymentId,
           attempt.attemptId,
           session,
+          { expectedProviderOrderId },
         );
         await this.enqueueSearchSync(payment.postingId);
         return payment;
@@ -308,10 +322,7 @@ export class PaymentsService {
       }
 
       if (options.orderId && options.orderId !== payment.providerOrderId) {
-        throw new ConflictError(
-          "This checkout was replaced by a newer one, so nothing was charged.",
-          { reason: PAYMENT_CONFLICT_REASONS.staleOrder },
-        );
+        throw staleOrderError();
       }
 
       if (!payment.providerOrderId) {
@@ -367,7 +378,11 @@ export class PaymentsService {
    * retried. If PayPal shows the order was approved or paid after all, that
    * outcome is applied instead.
    */
-  async cancelCheckout(paymentId: Uuid, userId: Uuid): Promise<PaymentRecord> {
+  async cancelCheckout(
+    paymentId: Uuid,
+    userId: Uuid,
+    options: { orderId?: string } = {},
+  ): Promise<PaymentRecord> {
     const accessible = await this.requirePaymentAccess(
       paymentId,
       userId,
@@ -375,16 +390,23 @@ export class PaymentsService {
     );
 
     return this.withCheckoutLock(accessible.bookingRequestId, () =>
-      this.cancelCheckoutLocked(paymentId, accessible),
+      this.cancelCheckoutLocked(paymentId, accessible, options),
     );
   }
 
   private async cancelCheckoutLocked(
     paymentId: Uuid,
     accessible: PaymentRecord,
+    options: { orderId?: string },
   ): Promise<PaymentRecord> {
     const payment =
       (await this.paymentsRepository.findById(paymentId)) ?? accessible;
+
+    // Coming back from an order a newer checkout replaced must not cancel the
+    // order that replaced it.
+    if (options.orderId && options.orderId !== payment.providerOrderId) {
+      throw staleOrderError();
+    }
 
     if (payment.status !== "processing" || !payment.providerOrderId) {
       return payment;
@@ -1038,9 +1060,19 @@ export class PaymentsService {
       });
     }
 
+    // A checkout can make several PayPal calls in a row, each allowed to run
+    // to the provider timeout, which is longer than the lock's TTL. Renewing
+    // it keeps the lock for as long as the work actually takes; the attach
+    // compare-and-swap still covers a renewal that fails.
+    const renewal = setInterval(() => {
+      void lock.extend(FLOW_LOCK_TTL_MS).catch(() => undefined);
+    }, LOCK_RENEWAL_INTERVAL_MS);
+    renewal.unref?.();
+
     try {
       return await callback();
     } finally {
+      clearInterval(renewal);
       await lock.release();
     }
   }

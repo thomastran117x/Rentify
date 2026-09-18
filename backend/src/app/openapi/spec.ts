@@ -8409,7 +8409,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "cancelPaymentCheckout",
       summary: "Record an abandoned PayPal checkout",
       description:
-        "Called when the renter returns from PayPal without approving. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted through the retry endpoint. Only the renter or a member who can manage the organization's payments may call it. PAT bearer authentication is not allowed.",
+        "Called when the renter returns from PayPal without approving. Pass the `orderId` PayPal returned with; if a newer checkout replaced that order, nothing is cancelled and the response is 409 with `error.details.reason` `stale_order`. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted. Only the renter or a member who can manage the organization's payments may call it. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {
@@ -8418,6 +8418,12 @@ function buildOperations(): OperationDefinition[] {
         patAllowed: false,
       },
       parameters: [routePathParam("id", "Payment identifier.", "payment-1")],
+      requestBody: {
+        ...requestBody("CancelCheckoutRequest", {
+          orderId: "5O190127TN364715T",
+        }),
+        required: false,
+      },
       responses: {
         "200": successResponse(
           200,
@@ -11981,6 +11987,18 @@ function buildComponents(): Record<string, unknown> {
               "google_pay",
             ],
             default: "paypal_redirect",
+          },
+        },
+      },
+      CancelCheckoutRequest: {
+        type: "object",
+        properties: {
+          orderId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 128,
+            description:
+              "The PayPal order the renter abandoned. Rejected with 409 when it is no longer the payment's current order.",
           },
         },
       },

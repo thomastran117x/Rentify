@@ -77,7 +77,9 @@ export function PaymentReturnClient({
 
     try {
       if (cancelled) {
-        const payment = await paymentsApi.cancelCheckout(paymentId);
+        const payment = await paymentsApi.cancelCheckout(paymentId, {
+          orderId,
+        });
         setState(
           FAILED_PAYMENT_STATUSES.has(payment.status)
             ? { kind: "cancelled", payment }
@@ -115,7 +117,7 @@ export function PaymentReturnClient({
   }, [cancelled, orderId, paymentId]);
 
   useEffect(() => {
-    const visit = `${paymentId}:${cancelled}`;
+    const visit = `${paymentId}:${cancelled}:${orderId ?? ""}`;
 
     if (status !== "authenticated" || startedFor.current === visit) {
       return;
@@ -123,7 +125,7 @@ export function PaymentReturnClient({
 
     startedFor.current = visit;
     void confirm();
-  }, [cancelled, confirm, paymentId, status]);
+  }, [cancelled, confirm, orderId, paymentId, status]);
 
   if (status === "anonymous") {
     return null;

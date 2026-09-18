@@ -125,6 +125,11 @@ export interface CapturePaymentInput {
   orderId?: string;
 }
 
+export interface CancelCheckoutInput {
+  /** The abandoned order; the API refuses to cancel it if it was replaced. */
+  orderId?: string;
+}
+
 export type CheckoutIneligibleReason =
   | "hold_expired"
   | "already_paid"
@@ -263,11 +268,14 @@ export const paymentsApi = {
       input,
     );
   },
-  cancelCheckout(paymentId: string): Promise<PaymentRecord> {
-    return authenticatedJson<PaymentRecord, Record<string, never>>(
+  cancelCheckout(
+    paymentId: string,
+    input: CancelCheckoutInput = {},
+  ): Promise<PaymentRecord> {
+    return authenticatedJson<PaymentRecord, CancelCheckoutInput>(
       "POST",
       `/payments/${encodeURIComponent(paymentId)}/cancel-checkout`,
-      {},
+      input,
     );
   },
   retry(

@@ -205,16 +205,16 @@ describe("PayPalPaymentMethods", () => {
     );
   });
 
-  it("offers PayPal, Pay Later, guest card, and card fields when eligible", async () => {
+  it("offers PayPal, Pay Later, and card fields when eligible", async () => {
     const { handlers } = renderMethods();
 
     expect(
       screen.getByRole("button", { name: "Pay Later" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Guest card" }),
-    ).toBeInTheDocument();
     expect(screen.getByTestId("card-number")).toBeInTheDocument();
+    expect(screen.getByText("Or pay with card")).toBeInTheDocument();
+    // PayPal's own card button would duplicate the card form.
+    expect(screen.queryByRole("button", { name: "Guest card" })).toBeNull();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "PayPal" }));
@@ -223,15 +223,24 @@ describe("PayPalPaymentMethods", () => {
     expect(handlers.createOrder).toHaveBeenCalledWith("paypal");
     expect(handlers.approve).toHaveBeenCalledWith("ORDER-1");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Guest card" }));
-    });
-    expect(handlers.createOrder).toHaveBeenCalledWith("paypal_guest");
-
     fireEvent.click(screen.getByRole("button", { name: "PayPal cancel" }));
     fireEvent.click(screen.getByRole("button", { name: "PayPal error" }));
     expect(handlers.cancel).toHaveBeenCalled();
     expect(handlers.fail).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("offers PayPal's guest card button when card fields are not eligible", async () => {
+    sdk.eligibility.eligible = new Set(["card"]);
+    const { handlers } = renderMethods();
+
+    expect(screen.queryByTestId("card-number")).toBeNull();
+    expect(screen.queryByText("Or pay with card")).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Guest card" }));
+    });
+
+    expect(handlers.createOrder).toHaveBeenCalledWith("paypal_guest");
   });
 
   it("only offers the PayPal button without an eligibility answer", () => {
@@ -249,9 +258,7 @@ describe("PayPalPaymentMethods", () => {
     renderMethods({ disabled: true });
 
     expect(screen.getByRole("button", { name: "PayPal" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Pay with card" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Pay \$/ })).toBeDisabled();
   });
 
   it("shows a loader while the SDK or eligibility is loading", () => {
@@ -303,7 +310,7 @@ describe("PayPalPaymentMethods", () => {
       const { handlers } = renderMethods();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Pay with card" }));
+        fireEvent.click(screen.getByRole("button", { name: /^Pay \$/ }));
       });
 
       expect(handlers.createOrder).toHaveBeenCalledWith("card");
@@ -317,13 +324,11 @@ describe("PayPalPaymentMethods", () => {
       renderMethods({ handlers });
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Pay with card" }));
+        fireEvent.click(screen.getByRole("button", { name: /^Pay \$/ }));
       });
 
       expect(sdk.cardFields.submit).not.toHaveBeenCalled();
-      expect(
-        screen.getByRole("button", { name: "Pay with card" }),
-      ).toBeEnabled();
+      expect(screen.getByRole("button", { name: /^Pay \$/ })).toBeEnabled();
     });
 
     it.each([

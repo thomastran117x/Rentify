@@ -379,6 +379,7 @@ describe("PaymentsService", () => {
       expect.objectContaining({
         providerPaymentId: CAPTURE_1_ID,
       }),
+      { expectedProviderOrderId: "order-1" },
     );
     expect(
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
@@ -1423,6 +1424,65 @@ describe("PaymentsService", () => {
       ).resolves.toBe(payment);
     });
 
+    it("refuses to cancel an order a newer checkout replaced", async () => {
+      const { service, paymentProvider, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({
+              status: "processing",
+              providerOrderId: "order-2",
+            }),
+          ),
+        },
+      });
+
+      const error = await service
+        .cancelCheckout(PAYMENT_1_ID, RENTER_1_ID, { orderId: "order-1" })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toEqual({
+        reason: "stale_order",
+      });
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("cancels the order the renter actually abandoned", async () => {
+      const { service, paymentsRepository } = createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({
+              status: "processing",
+              providerOrderId: "order-1",
+            }),
+          ),
+        },
+        provider: {
+          getPaymentStatus: jest.fn(async () => ({
+            providerOrderId: "order-1",
+            status: "PENDING",
+            raw: {},
+          })),
+        },
+      });
+
+      await service.cancelCheckout(PAYMENT_1_ID, RENTER_1_ID, {
+        orderId: "order-1",
+      });
+
+      expect(
+        paymentsRepository.markPaymentFailed as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ failureCode: "CHECKOUT_CANCELLED" }),
+        "unknown",
+      );
+    });
+
     it("leaves payments that are no longer awaiting checkout unchanged", async () => {
       const { service, paymentProvider } = createService();
 
@@ -1762,6 +1822,72 @@ describe("PaymentsService", () => {
       ).toHaveBeenCalledWith(PAYMENT_1_ID, ATTEMPT_1_ID, expect.anything(), {
         scheduleRetry: false,
       });
+    });
+
+    it("only attaches a session while the attempt is still the live checkout", async () => {
+      const { service, paymentsRepository } = createService();
+
+      await service.createPaymentSession({
+        bookingRequestId: BOOKING_1_ID,
+        renterId: RENTER_1_ID,
+        idempotencyKey: "idem-1",
+        method: "paypal",
+      });
+
+      expect(
+        paymentsRepository.attachPaymentSession as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(PAYMENT_1_ID, ATTEMPT_1_ID, expect.anything(), {
+        expectedProviderOrderId: "order-1",
+      });
+    });
+
+    it("renews the checkout lock while the provider call is in flight", async () => {
+      jest.useFakeTimers();
+      const extend = jest.fn(async () => true);
+      const release = jest.fn(async () => true);
+      let finishProvider: () => void = () => undefined;
+      const { service } = createService({
+        cache: {
+          acquireLock: jest.fn(async (key: string) => ({
+            key,
+            token: "token",
+            release,
+            extend,
+          })),
+        },
+        provider: {
+          createPaymentSession: jest.fn(
+            async () =>
+              new Promise((resolve) => {
+                finishProvider = () =>
+                  resolve({ providerOrderId: "order-1", raw: {} });
+              }),
+          ),
+        },
+      });
+
+      try {
+        const pending = service.createPaymentSession({
+          bookingRequestId: BOOKING_1_ID,
+          renterId: RENTER_1_ID,
+          idempotencyKey: "idem-slow",
+          method: "paypal",
+        });
+
+        await Promise.resolve();
+        await jest.advanceTimersByTimeAsync(12_000);
+        expect(extend.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+        finishProvider();
+        await pending;
+        expect(release).toHaveBeenCalled();
+
+        extend.mockClear();
+        await jest.advanceTimersByTimeAsync(30_000);
+        expect(extend).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("rejects methods that are not enabled for checkout", async () => {

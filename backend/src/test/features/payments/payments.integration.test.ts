@@ -843,6 +843,71 @@ describe("Payments persistence integration", () => {
       });
     });
 
+    it("refuses to cancel a checkout that a newer order replaced", async () => {
+      const renter = await createAuthenticatedRequestContext({
+        email: awaitingPaymentBooking.renterEmail,
+      });
+      const path = buildApiPath(
+        `/booking-requests/${awaitingPaymentBooking.id}/payment-session`,
+      );
+
+      await persistenceApp.app.request(`http://rent.test${path}`, {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "cancel-first",
+          method: "paypal",
+        }),
+      });
+      const first = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+
+      persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+        {
+          providerOrderId: first.providerOrderId,
+          status: "PENDING",
+          raw: { source: "test" },
+        },
+      );
+      await persistenceApp.app.request(`http://rent.test${path}`, {
+        method: "POST",
+        headers: renter.headers(),
+        body: JSON.stringify({
+          idempotencyKey: "cancel-second",
+          method: "card",
+        }),
+      });
+      const second = await getPaymentForBooking(
+        persistenceApp,
+        awaitingPaymentBooking.id,
+      );
+      expect(second.providerOrderId).not.toBe(first.providerOrderId);
+
+      // The renter now follows the first order's cancel URL.
+      const staleCancel = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${second.id}/cancel-checkout`)}`,
+        {
+          method: "POST",
+          headers: renter.headers(),
+          body: JSON.stringify({ orderId: first.providerOrderId }),
+        },
+      );
+
+      expect(staleCancel.status).toBe(409);
+      await expect(staleCancel.json()).resolves.toMatchObject({
+        error: { details: { reason: "stale_order" } },
+      });
+      expect(
+        await getPaymentForBooking(persistenceApp, awaitingPaymentBooking.id),
+      ).toMatchObject({
+        status: "processing",
+        providerOrderId: second.providerOrderId,
+        bookingRequest: { status: "payment_processing" },
+      });
+    });
+
     it("refuses to capture card orders that failed 3-D Secure", async () => {
       persistenceApp.stubs.paymentProvider.capturePayment.mockClear();
       const renter = await createAuthenticatedRequestContext({

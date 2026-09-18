@@ -33,6 +33,7 @@ import type {
   CheckoutPaymentMethod,
   CheckoutSummary,
 } from "@/lib/payments/api";
+import { formatMoney } from "@/lib/rentings/format";
 
 /** How long the SDK may take to load before checkout falls back to redirect. */
 export const PAYPAL_SDK_LOAD_TIMEOUT_MS = 15_000;
@@ -42,6 +43,22 @@ const GOOGLE_PAY_SDK_URL = "https://pay.google.com/gp/p/js/pay.js";
 const APPLE_PAY_SESSION_VERSION = 4;
 /** Rentify merchants are Canadian; PayPal's config usually says so already. */
 const DEFAULT_MERCHANT_COUNTRY = "CA";
+
+// PayPal renders each card field in its own iframe, so the input is styled
+// through the SDK while the box around it is ours.
+const CARD_FIELD_CONTAINER_CLASS =
+  "h-11 rounded-lg border border-slate-300 bg-white px-3 dark:border-slate-600 dark:bg-slate-950";
+const CARD_FIELD_STYLE = {
+  input: {
+    "font-family":
+      "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    "font-size": "15px",
+    color: "#0f172a",
+  },
+  ".invalid": {
+    color: "#be123c",
+  },
+};
 
 const COMPONENTS_BY_METHOD: Record<CheckoutPaymentMethod, Components> = {
   paypal: "paypal-payments",
@@ -177,51 +194,71 @@ function PaymentMethodList({
       ? eligiblePaymentMethods?.getDetails("googlepay").config
       : undefined;
 
+  const wallets = [
+    applePayConfig ? (
+      <ApplePayMethod
+        key="apple-pay"
+        config={applePayConfig}
+        summary={summary}
+        handlers={handlers}
+      />
+    ) : null,
+    googlePayConfig ? (
+      <GooglePayMethod
+        key="google-pay"
+        config={googlePayConfig}
+        environment={config.environment}
+        summary={summary}
+        handlers={handlers}
+        disabled={disabled}
+      />
+    ) : null,
+    enabled.has("paypal") ? (
+      <PayPalOneTimePaymentButton
+        key="paypal"
+        createOrder={createOrderFor("paypal")}
+        onApprove={approve}
+        onCancel={handlers.cancel}
+        onError={handlers.fail}
+        disabled={disabled}
+      />
+    ) : null,
+    showPayLater ? (
+      <PayLaterOneTimePaymentButton
+        key="paylater"
+        createOrder={createOrderFor("paypal")}
+        onApprove={approve}
+        onCancel={handlers.cancel}
+        onError={handlers.fail}
+        disabled={disabled}
+      />
+    ) : null,
+    showGuest && !showCardFields ? (
+      <PayPalGuestPaymentButton
+        key="guest"
+        createOrder={createOrderFor("paypal_guest")}
+        onApprove={approve}
+        onCancel={handlers.cancel}
+        onError={handlers.fail}
+        disabled={disabled}
+      />
+    ) : null,
+  ].filter(Boolean);
+
   return (
-    <div className="grid gap-3">
-      {applePayConfig ? (
-        <ApplePayMethod
-          config={applePayConfig}
-          summary={summary}
-          handlers={handlers}
-        />
+    <div className="grid gap-5">
+      {wallets.length > 0 ? <div className="grid gap-2">{wallets}</div> : null}
+
+      {wallets.length > 0 && showCardFields ? (
+        <div className="flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Or pay with card
+          </span>
+          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+        </div>
       ) : null}
-      {googlePayConfig ? (
-        <GooglePayMethod
-          config={googlePayConfig}
-          environment={config.environment}
-          summary={summary}
-          handlers={handlers}
-          disabled={disabled}
-        />
-      ) : null}
-      {enabled.has("paypal") ? (
-        <PayPalOneTimePaymentButton
-          createOrder={createOrderFor("paypal")}
-          onApprove={approve}
-          onCancel={handlers.cancel}
-          onError={handlers.fail}
-          disabled={disabled}
-        />
-      ) : null}
-      {showPayLater ? (
-        <PayLaterOneTimePaymentButton
-          createOrder={createOrderFor("paypal")}
-          onApprove={approve}
-          onCancel={handlers.cancel}
-          onError={handlers.fail}
-          disabled={disabled}
-        />
-      ) : null}
-      {showGuest ? (
-        <PayPalGuestPaymentButton
-          createOrder={createOrderFor("paypal_guest")}
-          onApprove={approve}
-          onCancel={handlers.cancel}
-          onError={handlers.fail}
-          disabled={disabled}
-        />
-      ) : null}
+
       {showCardFields ? (
         <PayPalCardFieldsProvider
           amount={{
@@ -229,7 +266,11 @@ function PaymentMethodList({
             currencyCode: pricing.currency,
           }}
         >
-          <CardFieldsForm handlers={handlers} disabled={disabled} />
+          <CardFieldsForm
+            handlers={handlers}
+            disabled={disabled}
+            total={formatMoney(pricing.totalDueNow, pricing.currency)}
+          />
         </PayPalCardFieldsProvider>
       ) : null}
     </div>
@@ -243,9 +284,11 @@ function PaymentMethodList({
 function CardFieldsForm({
   handlers,
   disabled,
+  total,
 }: {
   handlers: CheckoutPaymentHandlers;
   disabled: boolean;
+  total: string;
 }) {
   const { submit, submitResponse, error } =
     usePayPalCardFieldsOneTimePaymentSession();
@@ -301,41 +344,74 @@ function CardFieldsForm({
     }
   }
 
-  const fieldClass = "min-h-12";
-
   return (
     <form
       onSubmit={(event) => void handleSubmit(event)}
-      className="grid gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700"
+      className="grid gap-3"
       aria-label="Pay with a credit or debit card"
     >
-      <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-        <CreditCard aria-hidden="true" className="h-4 w-4" />
-        Credit or debit card
-      </p>
-      <PayPalCardNameField
-        placeholder="Name on card"
-        containerClassName={fieldClass}
-      />
-      <PayPalCardNumberField
-        placeholder="Card number"
-        containerClassName={fieldClass}
-      />
-      <div className="grid grid-cols-2 gap-3">
-        <PayPalCardExpiryField
-          placeholder="MM/YY"
-          containerClassName={fieldClass}
+      <CardFieldRow label="Name on card">
+        <PayPalCardNameField
+          placeholder="Full name"
+          style={CARD_FIELD_STYLE}
+          containerClassName={CARD_FIELD_CONTAINER_CLASS}
         />
-        <PayPalCardCvvField placeholder="CVV" containerClassName={fieldClass} />
+      </CardFieldRow>
+      <CardFieldRow label="Card number">
+        <PayPalCardNumberField
+          placeholder="1234 1234 1234 1234"
+          style={CARD_FIELD_STYLE}
+          containerClassName={CARD_FIELD_CONTAINER_CLASS}
+        />
+      </CardFieldRow>
+      <div className="grid grid-cols-2 gap-3">
+        <CardFieldRow label="Expiry">
+          <PayPalCardExpiryField
+            placeholder="MM / YY"
+            style={CARD_FIELD_STYLE}
+            containerClassName={CARD_FIELD_CONTAINER_CLASS}
+          />
+        </CardFieldRow>
+        <CardFieldRow label="Security code">
+          <PayPalCardCvvField
+            placeholder="CVC"
+            style={CARD_FIELD_STYLE}
+            containerClassName={CARD_FIELD_CONTAINER_CLASS}
+          />
+        </CardFieldRow>
       </div>
       <button
         type="submit"
         disabled={disabled || submitting}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+        className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
       >
-        {submitting ? "Processing card..." : "Pay with card"}
+        {submitting ? (
+          "Processing card..."
+        ) : (
+          <>
+            <CreditCard aria-hidden="true" className="h-4 w-4" />
+            {`Pay ${total}`}
+          </>
+        )}
       </button>
     </form>
+  );
+}
+
+function CardFieldRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 

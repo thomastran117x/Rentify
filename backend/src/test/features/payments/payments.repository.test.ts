@@ -825,6 +825,10 @@ describe("PaymentsRepository", () => {
 
     const transaction = {
       paymentAttempt: {
+        findUniqueOrThrow: jest.fn(async () => ({
+          status: "pending",
+          failureCode: null,
+        })),
         update: jest.fn(async () => undefined),
       },
       payment: {
@@ -1627,6 +1631,10 @@ describe("PaymentsRepository", () => {
       const attemptUpdate = jest.fn(async () => undefined);
       const transaction = {
         paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () => ({
+            status: "pending",
+            failureCode: null,
+          })),
           update: attemptUpdate,
         },
         payment: {
@@ -1654,6 +1662,127 @@ describe("PaymentsRepository", () => {
           data: expect.objectContaining({ providerOrderId: "order-2" }),
         }),
       );
+    });
+
+    it.each([
+      [
+        "the attempt was already superseded",
+        { status: "failed_final", failureCode: "CHECKOUT_SUPERSEDED" },
+        { providerOrderId: null },
+        { expectedProviderOrderId: null },
+      ],
+      [
+        "the payment moved to another order",
+        { status: "pending", failureCode: null },
+        { providerOrderId: "order-2" },
+        { expectedProviderOrderId: null },
+      ],
+    ])(
+      "refuses to attach a session when %s",
+      async (_label, attemptRow, paymentRow, options) => {
+        const transaction = {
+          paymentAttempt: {
+            findUniqueOrThrow: jest.fn(async () => attemptRow),
+            update: jest.fn(),
+          },
+          payment: {
+            findUniqueOrThrow: jest.fn(async () => paymentRow),
+            update: jest.fn(),
+          },
+          bookingRequest: {
+            update: jest.fn(),
+          },
+        };
+        const repository = new PaymentsRepository(
+          inTransaction(transaction) as any,
+        );
+
+        const error = await repository
+          .attachPaymentSession(
+            PAYMENT_1_ID,
+            "attempt-1",
+            { providerOrderId: "order-3", raw: {} },
+            options,
+          )
+          .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect((error as ConflictError).details).toEqual({
+          reason: "checkout_busy",
+        });
+        expect(transaction.paymentAttempt.update).not.toHaveBeenCalled();
+        expect(transaction.payment.update).not.toHaveBeenCalled();
+        expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("attaches a session without a compare-and-swap for retried checkouts", async () => {
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () => ({
+            status: "processing",
+            failureCode: null,
+          })),
+          update: jest.fn(async () => undefined),
+        },
+        payment: {
+          update: jest.fn(async () => undefined),
+          findUniqueOrThrow: jest
+            .fn()
+            .mockResolvedValueOnce({ bookingRequestId: BOOKING_1_ID })
+            .mockResolvedValueOnce(createPaymentPersistence()),
+        },
+        bookingRequest: {
+          update: jest.fn(async () => undefined),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      await repository.attachPaymentSession(PAYMENT_1_ID, "attempt-1", {
+        providerOrderId: "order-9",
+        raw: {},
+      });
+
+      expect(transaction.paymentAttempt.update).toHaveBeenCalled();
+    });
+
+    it("keeps a superseded attempt's failure off the live checkout", async () => {
+      const transaction = {
+        paymentAttempt: {
+          findUniqueOrThrow: jest.fn(async () =>
+            attemptPersistence({
+              status: "failed_final",
+              failureCode: "CHECKOUT_SUPERSEDED",
+            }),
+          ),
+          update: jest.fn(),
+        },
+        payment: {
+          update: jest.fn(),
+          findUniqueOrThrow: jest.fn(async () =>
+            createPaymentPersistence({ status: "processing" }),
+          ),
+        },
+        bookingRequest: {
+          update: jest.fn(),
+        },
+      };
+      const repository = new PaymentsRepository(
+        inTransaction(transaction) as any,
+      );
+
+      const result = await repository.recordAttemptFailure(
+        PAYMENT_1_ID,
+        "attempt-1",
+        { category: "permanent", message: "too late", retryable: false },
+      );
+
+      expect(result.status).toBe("processing");
+      expect(transaction.paymentAttempt.update).not.toHaveBeenCalled();
+      expect(transaction.payment.update).not.toHaveBeenCalled();
+      expect(transaction.bookingRequest.update).not.toHaveBeenCalled();
     });
 
     it("does not schedule retries for embedded checkout failures", async () => {

@@ -17,15 +17,13 @@ import {
   Clock,
   ExternalLink,
   Loader2,
-  Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import {
-  CheckoutBookingHeader,
   CheckoutCancellationPolicy,
   CheckoutHoldCountdown,
-  CheckoutPanel,
-  CheckoutPriceBreakdown,
+  CheckoutOrderSummary,
 } from "@/components/checkout/checkout-summary";
 import {
   PayPalPaymentMethods,
@@ -589,104 +587,120 @@ export function BookingCheckoutClient({
   const holdExpired = flow.kind === "hold_expired";
   const notice = flow.kind === "idle" ? flow.notice : undefined;
 
+  const totalDueNow = formatMoney(
+    currentSummary.pricing.totalDueNow,
+    currentSummary.pricing.currency,
+  );
+
   return (
     <CheckoutShell bookingPath={bookingPath}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-        <div className="grid content-start gap-6">
-          <CheckoutBookingHeader summary={currentSummary} />
-          <CheckoutPriceBreakdown summary={currentSummary} />
-          <CheckoutCancellationPolicy summary={currentSummary} />
-        </div>
-
-        <div className="grid content-start gap-4 lg:sticky lg:top-24">
-          <CheckoutHoldCountdown
-            holdExpiresAt={currentSummary.booking.holdExpiresAt}
-            serverOffsetMs={loaded.serverOffsetMs}
-            onExpire={handleHoldExpired}
-          />
-
-          <CheckoutPanel
-            title={`Pay ${formatMoney(currentSummary.pricing.totalDueNow, currentSummary.pricing.currency)}`}
-            icon={<Lock aria-hidden="true" className="h-5 w-5" />}
-          >
-            {notice ? (
-              <div
-                role={notice.tone === "error" ? "alert" : "status"}
-                className={`mb-4 ${notice.tone === "error" ? theme.auth.errorPanel : theme.auth.infoPanel}`}
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section
+          aria-labelledby="payment-heading"
+          className="order-last grid content-start gap-4 lg:order-first"
+        >
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
+              <h2
+                id="payment-heading"
+                className="text-sm font-semibold text-slate-950 dark:text-white"
               >
-                {notice.text}
-              </div>
-            ) : null}
+                Payment
+              </h2>
+              <CheckoutHoldCountdown
+                holdExpiresAt={currentSummary.booking.holdExpiresAt}
+                serverOffsetMs={loaded.serverOffsetMs}
+                onExpire={handleHoldExpired}
+              />
+            </div>
 
-            {holdExpired ? (
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                Checking your booking hold...
-              </p>
-            ) : (
-              <div className="relative">
-                {flow.kind === "capturing" ? (
-                  <div
-                    role="status"
-                    className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-2xl bg-white/80 text-sm font-semibold text-slate-900 backdrop-blur-sm dark:bg-slate-900/80 dark:text-white"
-                  >
-                    <Loader2
-                      aria-hidden="true"
-                      className="h-4 w-4 animate-spin"
-                    />
-                    Confirming payment...
-                  </div>
-                ) : null}
+            <div className="px-5 py-5">
+              {notice ? (
                 <div
-                  inert={flow.kind === "capturing" || redirecting}
-                  className="grid gap-4"
+                  role={notice.tone === "error" ? "alert" : "status"}
+                  className={`mb-4 ${notice.tone === "error" ? theme.auth.errorPanel : theme.auth.infoPanel}`}
                 >
-                  {sdkConfig ? (
-                    <PayPalPaymentMethods
-                      config={sdkConfig}
-                      summary={currentSummary}
-                      handlers={handlers}
-                      disabled={busy}
-                      onUnavailable={handleSdkUnavailable}
-                    />
-                  ) : null}
-
-                  {sdkConfig ? (
-                    <button
-                      type="button"
-                      onClick={() => void payWithRedirect()}
-                      disabled={busy}
-                      className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-slate-600 underline-offset-4 transition hover:text-violet-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300"
-                    >
-                      Having trouble? Pay on PayPal.com
-                      <ExternalLink
-                        aria-hidden="true"
-                        className="h-3.5 w-3.5"
-                      />
-                    </button>
-                  ) : (
-                    <>
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {sdkUnavailable
-                          ? "Payment options couldn't load on this page. You can still pay securely on PayPal."
-                          : "You'll finish paying securely on PayPal and come back here when you're done."}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void payWithRedirect()}
-                        disabled={busy}
-                        className={`${theme.marketplace.primaryButton} w-full disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0`}
-                      >
-                        {redirecting
-                          ? "Opening PayPal..."
-                          : "Continue to PayPal"}
-                      </button>
-                    </>
-                  )}
+                  {notice.text}
                 </div>
-              </div>
-            )}
-          </CheckoutPanel>
-        </div>
+              ) : null}
+
+              {holdExpired ? (
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Checking your booking hold...
+                </p>
+              ) : (
+                <div className="relative">
+                  {flow.kind === "capturing" ? (
+                    <div
+                      role="status"
+                      className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-xl bg-white/85 text-sm font-semibold text-slate-900 backdrop-blur-sm dark:bg-slate-900/85 dark:text-white"
+                    >
+                      <Loader2
+                        aria-hidden="true"
+                        className="h-4 w-4 animate-spin"
+                      />
+                      Confirming payment...
+                    </div>
+                  ) : null}
+                  <div
+                    inert={flow.kind === "capturing" || redirecting}
+                    className="grid gap-4"
+                  >
+                    {sdkConfig ? (
+                      <PayPalPaymentMethods
+                        config={sdkConfig}
+                        summary={currentSummary}
+                        handlers={handlers}
+                        disabled={busy}
+                        onUnavailable={handleSdkUnavailable}
+                      />
+                    ) : (
+                      <>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          {sdkUnavailable
+                            ? "Payment options couldn't load on this page. You can still pay securely on PayPal."
+                            : "You'll finish paying securely on PayPal and come back here when you're done."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void payWithRedirect()}
+                          disabled={busy}
+                          className="inline-flex h-12 w-full items-center justify-center rounded-lg bg-[#ffc439] px-4 text-sm font-semibold text-[#003087] transition hover:bg-[#f0b32f] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {redirecting
+                            ? "Opening PayPal..."
+                            : `Continue to PayPal · ${totalDueNow}`}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+            Payments are processed by PayPal. Rentify never sees your card
+            details.
+            {sdkConfig ? (
+              <button
+                type="button"
+                onClick={() => void payWithRedirect()}
+                disabled={busy}
+                className="inline-flex items-center gap-1 font-semibold text-slate-600 underline-offset-4 transition hover:text-violet-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300"
+              >
+                Pay on PayPal.com
+                <ExternalLink aria-hidden="true" className="h-3 w-3" />
+              </button>
+            ) : null}
+          </p>
+        </section>
+
+        <aside className="order-first grid content-start gap-4 lg:sticky lg:top-24 lg:order-last">
+          <CheckoutOrderSummary summary={currentSummary} />
+          <CheckoutCancellationPolicy summary={currentSummary} />
+        </aside>
       </div>
     </CheckoutShell>
   );

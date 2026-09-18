@@ -178,14 +178,13 @@ describe("BookingCheckoutClient", () => {
 
     expect(screen.getByText("Loading checkout")).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", {
-        name: "Junction Team Offsite Loft",
-      }),
+      await screen.findByText("Junction Team Offsite Loft"),
     ).toBeInTheDocument();
     expect(getCheckoutSummaryMock).toHaveBeenCalledWith("booking-1");
-    expect(
-      screen.getByRole("heading", { name: /Pay .*275\.00/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Due today").closest("div")).toHaveTextContent(
+      "275.00",
+    );
+    expect(screen.getByRole("timer")).toHaveTextContent("Hold expires in");
     expect(screen.getByTestId("sdk-methods")).toBeInTheDocument();
     expect(methodsPropsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -533,7 +532,7 @@ describe("BookingCheckoutClient", () => {
       ).toBeInTheDocument();
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Continue to PayPal" }),
+        screen.getByRole("button", { name: /Continue to PayPal/ }),
       );
 
       await waitFor(() =>
@@ -574,7 +573,7 @@ describe("BookingCheckoutClient", () => {
     renderCheckout();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Continue to PayPal" }),
+      await screen.findByRole("button", { name: /Continue to PayPal/ }),
     );
 
     expect(screen.queryByTestId("sdk-methods")).not.toBeInTheDocument();
@@ -602,17 +601,17 @@ describe("BookingCheckoutClient", () => {
     renderCheckout();
 
     const redirect = await screen.findByRole("button", {
-      name: "Continue to PayPal",
+      name: /Continue to PayPal/,
     });
     fireEvent.click(redirect);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "We couldn't start checkout right now.",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue to PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to PayPal/ }));
     await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue to PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to PayPal/ }));
     expect(
       await screen.findByText("Checkout restarted elsewhere"),
     ).toBeInTheDocument();
@@ -678,9 +677,7 @@ describe("BookingCheckoutClient", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(
-      await screen.findByRole("heading", {
-        name: "Junction Team Offsite Loft",
-      }),
+      await screen.findByText("Junction Team Offsite Loft"),
     ).toBeInTheDocument();
   });
 

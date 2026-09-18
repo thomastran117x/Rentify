@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CalendarDays, Clock, ShieldCheck, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, Clock, Users } from "lucide-react";
 import type { CheckoutSummary } from "@/lib/payments/api";
 import {
   formatDateRange,
@@ -14,25 +14,8 @@ const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const WARNING_THRESHOLD_MS = MS_PER_HOUR;
 const URGENT_THRESHOLD_MS = 5 * MS_PER_MINUTE;
 
-export function CheckoutPanel({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center gap-2 text-slate-950 dark:text-white">
-        {icon}
-        <h2 className="text-base font-semibold tracking-[-0.02em]">{title}</h2>
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
+const CARD_CLASS =
+  "rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -42,17 +25,57 @@ function formatPercent(bps: number): string {
   return `${bps / 100}%`;
 }
 
-export function CheckoutBookingHeader({
+function PriceRow({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-baseline justify-between gap-4 ${
+        muted
+          ? "text-slate-500 dark:text-slate-400"
+          : "text-slate-700 dark:text-slate-200"
+      }`}
+    >
+      <dt>{label}</dt>
+      <dd className="tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * The order summary: what is being booked, then the money, in the column
+ * order shoppers expect from a checkout page.
+ */
+export function CheckoutOrderSummary({
   summary,
 }: {
   summary: CheckoutSummary;
 }) {
-  const { booking, posting } = summary;
+  const { booking, posting, pricing } = summary;
+  const money = (amount: number) => formatMoney(amount, pricing.currency);
+  const depositLabel =
+    pricing.depositBps === null
+      ? "Deposit due today"
+      : `Deposit due today (${formatPercent(pricing.depositBps)})`;
+  const feeLabel =
+    pricing.platformFeeBps === null
+      ? "Platform fee"
+      : `Platform fee (${formatPercent(pricing.platformFeeBps)})`;
 
   return (
-    <section className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900">
-      <div className="grid sm:grid-cols-[160px_minmax(0,1fr)]">
-        <div className="relative min-h-36 bg-slate-100 dark:bg-slate-800">
+    <section className={`${CARD_CLASS} overflow-hidden`}>
+      <h2 className="border-b border-slate-200 px-5 py-3 text-sm font-semibold text-slate-950 dark:border-slate-800 dark:text-white">
+        Order summary
+      </h2>
+
+      <div className="flex gap-4 px-5 py-4">
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
           {posting.primaryPhotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -64,80 +87,23 @@ export function CheckoutBookingHeader({
             <div className="absolute inset-0 bg-[linear-gradient(135deg,_#e2e8f0,_#f8fafc)] dark:bg-[linear-gradient(135deg,_#1e293b,_#0f172a)]" />
           )}
         </div>
-        <div className="p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-300">
-            Checkout
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
             {posting.name}
-          </h1>
-          <dl className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <div className="flex items-center gap-2">
-              <CalendarDays aria-hidden="true" className="h-4 w-4" />
-              <dt className="sr-only">Dates</dt>
-              <dd>
-                {formatDateRange(booking.startAt, booking.endAt)} ·{" "}
-                {pluralize(booking.durationDays, "day")}
-              </dd>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users aria-hidden="true" className="h-4 w-4" />
-              <dt className="sr-only">Guests</dt>
-              <dd>{pluralize(booking.guestCount, "guest")}</dd>
-            </div>
-          </dl>
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
+            {formatDateRange(booking.startAt, booking.endAt)}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            <Users aria-hidden="true" className="h-3.5 w-3.5" />
+            {pluralize(booking.durationDays, "day")} ·{" "}
+            {pluralize(booking.guestCount, "guest")}
+          </p>
         </div>
       </div>
-    </section>
-  );
-}
 
-function PriceRow({
-  label,
-  value,
-  emphasis = false,
-  muted = false,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-  muted?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-baseline justify-between gap-4 ${
-        emphasis
-          ? "border-t border-slate-200 pt-3 text-base font-semibold text-slate-950 dark:border-slate-700 dark:text-white"
-          : muted
-            ? "text-slate-500 dark:text-slate-400"
-            : "text-slate-700 dark:text-slate-200"
-      }`}
-    >
-      <dt>{label}</dt>
-      <dd className="tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-export function CheckoutPriceBreakdown({
-  summary,
-}: {
-  summary: CheckoutSummary;
-}) {
-  const { booking, pricing } = summary;
-  const money = (amount: number) => formatMoney(amount, pricing.currency);
-  const depositLabel =
-    pricing.depositBps === null
-      ? "Deposit due today"
-      : `Deposit due today (${formatPercent(pricing.depositBps)})`;
-  const feeLabel =
-    pricing.platformFeeBps === null
-      ? "Platform fee"
-      : `Platform fee (${formatPercent(pricing.platformFeeBps)} of deposit)`;
-
-  return (
-    <CheckoutPanel title="Price details">
-      <dl className="grid gap-3 text-sm">
+      <dl className="grid gap-2.5 border-t border-slate-200 px-5 py-4 text-sm dark:border-slate-800">
         {/* Weekly, monthly and seasonal pricing mean the stay total is not
             always the daily rate times the number of days. */}
         <PriceRow
@@ -151,22 +117,22 @@ export function CheckoutPriceBreakdown({
         />
         <PriceRow label={depositLabel} value={money(pricing.depositAmount)} />
         <PriceRow label={feeLabel} value={money(pricing.platformFeeAmount)} />
-        <PriceRow
-          label="Charged today"
-          value={money(pricing.totalDueNow)}
-          emphasis
-        />
-        <PriceRow
-          label="Remaining balance"
-          value={money(pricing.remainingBalance)}
-          muted
-        />
       </dl>
-      <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-        Rentify charges only the deposit and platform fee today. The remaining
-        balance is not charged by Rentify; arrange it with the host.
+
+      <div className="flex items-baseline justify-between gap-4 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+        <span className="text-base font-semibold text-slate-950 dark:text-white">
+          Due today
+        </span>
+        <span className="text-xl font-semibold tabular-nums text-slate-950 dark:text-white">
+          {money(pricing.totalDueNow)}
+        </span>
+      </div>
+
+      <p className="border-t border-slate-200 px-5 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        The remaining {money(pricing.remainingBalance)} is not charged by
+        Rentify; arrange it with the host.
       </p>
-    </CheckoutPanel>
+    </section>
   );
 }
 
@@ -178,37 +144,36 @@ export function CheckoutCancellationPolicy({
   const policy = summary.cancellationPolicy;
 
   return (
-    <CheckoutPanel
-      title="Cancellation policy"
-      icon={<ShieldCheck aria-hidden="true" className="h-5 w-5" />}
-    >
-      <ul className="grid gap-2 text-sm text-slate-700 dark:text-slate-200">
+    <section className={`${CARD_CLASS} px-5 py-4`}>
+      <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+        Cancellation policy
+      </h2>
+      <ul className="mt-3 grid gap-1.5 text-sm text-slate-600 dark:text-slate-300">
         <li>
-          Cancel more than {policy.fullRefundCutoffHours} hours before your stay
-          starts for a full refund of what you paid today.
+          Free cancellation more than {policy.fullRefundCutoffHours} hours
+          before the start.
         </li>
         <li>
-          Cancel {policy.partialRefundCutoffHours} to{" "}
-          {policy.fullRefundCutoffHours} hours before the start for a{" "}
-          {policy.partialRefundPercent}% refund.
+          {policy.partialRefundPercent}% refund between{" "}
+          {policy.partialRefundCutoffHours} and {policy.fullRefundCutoffHours}{" "}
+          hours before.
         </li>
         <li>
-          Cancellations within {policy.partialRefundCutoffHours} hours of the
-          start are not refunded.
+          No refund within {policy.partialRefundCutoffHours} hours of the start.
         </li>
         {policy.ownerCancellationFullRefund ? (
-          <li>If the host cancels, you get a full refund.</li>
+          <li>Full refund if the host cancels.</li>
         ) : null}
       </ul>
       {policy.hostNotes ? (
-        <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:bg-slate-950/40 dark:text-slate-300">
-          <p className="font-medium text-slate-900 dark:text-white">
-            Notes from the host
-          </p>
-          <p className="mt-1 whitespace-pre-line">{policy.hostNotes}</p>
-        </div>
+        <p className="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300">
+          <span className="font-medium text-slate-900 dark:text-white">
+            Host notes:
+          </span>{" "}
+          <span className="whitespace-pre-line">{policy.hostNotes}</span>
+        </p>
       ) : null}
-    </CheckoutPanel>
+    </section>
   );
 }
 
@@ -266,34 +231,31 @@ export function CheckoutHoldCountdown({
   }, [expired, expiresAt, onExpire]);
 
   const tone =
-    remainingMs <= URGENT_THRESHOLD_MS
-      ? "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200"
+    expired || remainingMs <= URGENT_THRESHOLD_MS
+      ? "text-rose-700 dark:text-rose-300"
       : remainingMs <= WARNING_THRESHOLD_MS
-        ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
-        : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-200";
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-slate-600 dark:text-slate-300";
 
   return (
-    <div
+    <p
       role="timer"
       aria-live="off"
-      className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${tone}`}
+      className={`flex items-center gap-2 text-sm ${tone}`}
     >
-      <Clock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-      <div>
-        <p className="font-semibold">
-          {expired
-            ? "Your booking hold has expired"
-            : `Hold expires in ${formatHoldRemaining(remainingMs)}`}
-        </p>
-        <p className="mt-0.5 text-xs opacity-80">
-          {expired
-            ? "Payment is no longer available for this booking."
-            : `Pay before ${formatDateTime(holdExpiresAt)} to keep these dates.`}
-          {!expired && remainingMs <= URGENT_THRESHOLD_MS
-            ? " Finish soon."
-            : ""}
-        </p>
-      </div>
-    </div>
+      <Clock aria-hidden="true" className="h-4 w-4 shrink-0" />
+      {expired ? (
+        <span>Your booking hold has expired.</span>
+      ) : (
+        <span>
+          <span className="font-semibold">
+            Hold expires in {formatHoldRemaining(remainingMs)}
+          </span>{" "}
+          <span className="text-slate-500 dark:text-slate-400">
+            · pay before {formatDateTime(holdExpiresAt)}
+          </span>
+        </span>
+      )}
+    </p>
   );
 }
