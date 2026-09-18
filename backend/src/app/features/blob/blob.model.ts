@@ -60,6 +60,12 @@ export interface BlobUploadTarget {
   };
 }
 
+export interface BlobProperties {
+  contentType?: string;
+  contentLength?: number;
+  lastModified?: Date;
+}
+
 export interface ManagedBlobItem {
   name: string;
   contentType?: string;

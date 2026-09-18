@@ -13,6 +13,7 @@ import {
 import type {
   CompleteImageUploadInput,
   CreateImageUploadInput,
+  MediaItem,
 } from "@/features/media/media.model";
 
 /**
@@ -83,6 +84,23 @@ export class MediaService {
       input.body,
       contentType,
     );
+  }
+
+  /**
+   * Describes a stored image. Everything here currently comes from storage;
+   * once media has validation state, its record is read and joined in here.
+   */
+  async getMedia(blobName: string): Promise<MediaItem> {
+    const properties = await this.blobService.getProperties(blobName);
+
+    return {
+      blobName,
+      blobUrl: this.blobService.getBlobUrl(blobName),
+      ownerId: this.blobService.getBlobOwnerId(blobName),
+      contentType: properties.contentType ?? null,
+      sizeBytes: properties.contentLength ?? null,
+      lastModified: properties.lastModified ?? null,
+    };
   }
 
   async deleteMedia(userId: Uuid, blobName: string): Promise<void> {

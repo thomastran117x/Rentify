@@ -295,6 +295,47 @@ describe("MediaService", () => {
     });
   });
 
+  it("describes stored media from its blob properties", async () => {
+    const { mediaService, blobService } = createLocalMediaService();
+    const blobName = `postings/${USER_1_ID}/described.png`;
+    await blobService.writeLocalBlob(blobName, Buffer.from("png"), "image/png");
+
+    const media = await mediaService.getMedia(blobName);
+
+    expect(media).toEqual({
+      blobName,
+      blobUrl: blobService.getBlobUrl(blobName),
+      ownerId: USER_1_ID,
+      contentType: "image/png",
+      sizeBytes: 3,
+      lastModified: expect.anything(),
+    });
+    expect(media.lastModified?.getTime()).toBeGreaterThan(0);
+    await expect(
+      mediaService.getMedia(`postings/${USER_1_ID}/missing.png`),
+    ).rejects.toThrow(ResourceNotFoundError);
+  });
+
+  it("reports absent blob properties as null", async () => {
+    const blobService = {
+      getProperties: jest.fn(async () => ({})),
+      getBlobUrl: jest.fn(() => "https://storage.test/general/file.png"),
+      getBlobOwnerId: jest.fn(() => null),
+    };
+    const mediaService = new MediaService(
+      blobService as unknown as BlobService,
+    );
+
+    await expect(mediaService.getMedia("general/file.png")).resolves.toEqual({
+      blobName: "general/file.png",
+      blobUrl: "https://storage.test/general/file.png",
+      ownerId: null,
+      contentType: null,
+      sizeBytes: null,
+      lastModified: null,
+    });
+  });
+
   it("reports storage availability and managed URLs from BlobService", () => {
     const { mediaService, blobService } = createLocalMediaService();
     const blobName = `general/${USER_1_ID}/a.png`;

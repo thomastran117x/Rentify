@@ -10,6 +10,16 @@ export interface CreateImageUploadInput {
   requestOrigin?: string;
 }
 
+export interface MediaItem {
+  blobName: string;
+  blobUrl: string;
+  /** Read from the blob name; null when it has no owner segment. */
+  ownerId: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  lastModified: Date | null;
+}
+
 export interface CompleteImageUploadInput {
   blobName: string;
   expiresAt: string;

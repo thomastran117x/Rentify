@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   BlobSASPermissions,
@@ -14,6 +14,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type {
+  BlobProperties,
   BlobUploadTarget,
   BuildBlobNameInput,
   CreateBlobUploadUrlInput,
@@ -41,6 +42,25 @@ const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
 const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
 const LOCAL_BLOB_FILE_PATH = buildApiPath("/blob/file");
+
+function hasErrorCode(error: unknown, key: "code", value: string): boolean;
+function hasErrorCode(
+  error: unknown,
+  key: "statusCode",
+  value: number,
+): boolean;
+function hasErrorCode(
+  error: unknown,
+  key: "code" | "statusCode",
+  value: string | number,
+): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    key in error &&
+    (error as Record<string, unknown>)[key] === value
+  );
+}
 
 /**
  * Storage adapter for Azure Blob Storage, with a local-disk stand-in for
@@ -128,13 +148,7 @@ export class BlobService {
     body: Buffer,
     contentType: string,
   ): Promise<void> {
-    const localConfig = this.requireLocalConfiguration();
-    const normalizedBlobName = this.normalizeBlobName(blobName);
-    const blobPath = path.join(
-      localConfig.storageRoot,
-      normalizedBlobName.replace(/\//g, path.sep),
-    );
-    const metadataPath = `${blobPath}.meta.json`;
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
 
     await mkdir(path.dirname(blobPath), {
       recursive: true,
@@ -155,6 +169,51 @@ export class BlobService {
   }> {
     this.requireLocalConfiguration();
     return this.readLocalBlobData(blobName);
+  }
+
+  async getProperties(blobName: string): Promise<BlobProperties> {
+    const normalizedBlobName = this.normalizeBlobName(blobName);
+
+    if (this.config) {
+      try {
+        const properties =
+          await this.createBlobClient(normalizedBlobName).getProperties();
+
+        return {
+          contentType: properties.contentType,
+          contentLength: properties.contentLength,
+          lastModified: properties.lastModified,
+        };
+      } catch (error) {
+        if (hasErrorCode(error, "statusCode", 404)) {
+          throw new ResourceNotFoundError("Blob not found.");
+        }
+
+        throw error;
+      }
+    }
+
+    const { blobPath, metadataPath } =
+      this.resolveLocalBlobPaths(normalizedBlobName);
+
+    try {
+      const [stats, metadataRaw] = await Promise.all([
+        stat(blobPath),
+        readFile(metadataPath, "utf8"),
+      ]);
+
+      return {
+        contentType: this.parseLocalContentType(metadataRaw),
+        contentLength: stats.size,
+        lastModified: stats.mtime,
+      };
+    } catch (error) {
+      if (hasErrorCode(error, "code", "ENOENT")) {
+        throw new ResourceNotFoundError("Blob not found.");
+      }
+
+      throw error;
+    }
   }
 
   async deleteBlob(blobName: string): Promise<void> {
@@ -579,38 +638,20 @@ export class BlobService {
     body: Buffer;
     contentType: string;
   }> {
-    const localConfig = this.requireLocalConfiguration();
-    const normalizedBlobName = this.normalizeBlobName(blobName);
-    const blobPath = path.join(
-      localConfig.storageRoot,
-      normalizedBlobName.replace(/\//g, path.sep),
-    );
-    const metadataPath = `${blobPath}.meta.json`;
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
 
     try {
       const [body, metadataRaw] = await Promise.all([
         readFile(blobPath),
         readFile(metadataPath, "utf8"),
       ]);
-      const metadata = JSON.parse(metadataRaw) as {
-        contentType?: string;
-      };
 
       return {
         body,
-        contentType:
-          metadata.contentType &&
-          SAFE_CONTENT_TYPE_PATTERN.test(metadata.contentType)
-            ? metadata.contentType
-            : "application/octet-stream",
+        contentType: this.parseLocalContentType(metadataRaw),
       };
     } catch (error) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
+      if (hasErrorCode(error, "code", "ENOENT")) {
         throw new ResourceNotFoundError("Blob not found.");
       }
 
@@ -619,12 +660,7 @@ export class BlobService {
   }
 
   private async deleteLocalBlob(blobName: string): Promise<void> {
-    const localConfig = this.requireLocalConfiguration();
-    const blobPath = path.join(
-      localConfig.storageRoot,
-      blobName.replace(/\//g, path.sep),
-    );
-    const metadataPath = `${blobPath}.meta.json`;
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
 
     const results = await Promise.allSettled([
       unlink(blobPath),
@@ -633,14 +669,35 @@ export class BlobService {
     const unexpectedFailure = results.find(
       (result) =>
         result.status === "rejected" &&
-        (!result.reason ||
-          typeof result.reason !== "object" ||
-          !("code" in result.reason) ||
-          result.reason.code !== "ENOENT"),
+        !hasErrorCode(result.reason, "code", "ENOENT"),
     );
 
     if (unexpectedFailure?.status === "rejected") {
       throw unexpectedFailure.reason;
     }
+  }
+
+  private resolveLocalBlobPaths(blobName: string): {
+    blobPath: string;
+    metadataPath: string;
+  } {
+    const localConfig = this.requireLocalConfiguration();
+    const blobPath = path.join(
+      localConfig.storageRoot,
+      this.normalizeBlobName(blobName).replace(/\//g, path.sep),
+    );
+
+    return { blobPath, metadataPath: `${blobPath}.meta.json` };
+  }
+
+  private parseLocalContentType(metadataRaw: string): string {
+    const metadata = JSON.parse(metadataRaw) as {
+      contentType?: string;
+    };
+
+    return metadata.contentType &&
+      SAFE_CONTENT_TYPE_PATTERN.test(metadata.contentType)
+      ? metadata.contentType
+      : "application/octet-stream";
   }
 }

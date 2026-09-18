@@ -249,6 +249,63 @@ describe("BlobService", () => {
     ).toBe(false);
   });
 
+  it("reads local blob properties and reports missing blobs", async () => {
+    useLocalBlobStorage();
+
+    const service = new BlobService();
+    const blobName = `general/${USER_1_ID}/properties.png`;
+    await service.writeLocalBlob(blobName, Buffer.from("12345"), "image/png");
+
+    const properties = await service.getProperties(blobName);
+
+    expect(properties.contentType).toBe("image/png");
+    expect(properties.contentLength).toBe(5);
+    // fs.stat builds its Date in Node's realm, so toBeInstanceOf(Date) fails.
+    expect(properties.lastModified?.getTime()).toBeGreaterThan(0);
+    await expect(
+      service.getProperties(`general/${USER_1_ID}/missing.png`),
+    ).rejects.toThrow(ResourceNotFoundError);
+    await expect(service.getProperties("../escape.png")).rejects.toThrow(
+      BadRequestError,
+    );
+  });
+
+  it("reads Azure blob properties and maps a 404 to not found", async () => {
+    useAzureBlobStorage();
+
+    const service = new BlobService();
+    const lastModified = new Date("2026-09-01T00:00:00.000Z");
+    const getProperties = jest
+      .fn()
+      .mockResolvedValueOnce({
+        contentType: "image/webp",
+        contentLength: 42,
+        lastModified,
+        etag: "ignored",
+      })
+      .mockRejectedValueOnce(
+        Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
+      );
+    const helper = service as unknown as {
+      createBlobClient(blobName: string): { getProperties: jest.Mock };
+    };
+    helper.createBlobClient = () => ({ getProperties });
+    const blobName = `postings/${USER_1_ID}/photo.webp`;
+
+    await expect(service.getProperties(blobName)).resolves.toEqual({
+      contentType: "image/webp",
+      contentLength: 42,
+      lastModified,
+    });
+    await expect(service.getProperties(blobName)).rejects.toThrow(
+      ResourceNotFoundError,
+    );
+    await expect(service.getProperties(blobName)).rejects.toThrow("ServerBusy");
+  });
+
   it("requires complete Azure configuration", () => {
     process.env.NODE_ENV = "test";
     process.env.AZURE_STORAGE_CONNECTION_STRING =
