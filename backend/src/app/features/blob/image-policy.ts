@@ -119,15 +119,19 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
  * the failure this is meant to prevent. It also yields the dimensions in the
  * same pass.
  *
- * Decompression bombs are handled by the explicit pixel-budget check below
- * rather than by sharp's limitInputPixels. Reading metadata only parses the
- * header and allocates nothing proportional to the image, so there is no bomb
- * risk here; the risk is at decode time, downstream in thumbnail generation.
- * Rejecting an over-budget image at upload is what protects that decode.
+ * Validation runs in two passes. The first reads only the header: cheap, and
+ * it allocates nothing proportional to the image, so it can safely check the
+ * format and dimensions of anything. limitInputPixels is disabled on it
+ * deliberately - at the policy value, sharp throws on an oversized header,
+ * which would surface as "could not be read as an image" instead of an
+ * accurate "too large".
  *
- * limitInputPixels is disabled deliberately: leaving it at the policy value
- * makes sharp throw on an oversized header, which would surface to the user as
- * "could not be read as an image" instead of an accurate "too large".
+ * The second pass decodes every pixel. A header can be valid while the data
+ * behind it is truncated or corrupt, and metadata() alone accepts that: a PNG
+ * cut to 60% of its length still reports its full dimensions. Such a blob would
+ * be stored and then fail when rendered or thumbnailed. The full decode only
+ * runs once the pixel budget has passed, so it is bounded, and it keeps
+ * limitInputPixels as a second guard against a decompression bomb.
  */
 export async function assertImageBytes(
   body: Buffer,
@@ -185,6 +189,19 @@ export async function assertImageBytes(
         maxHeight: policy.maxHeight,
         maxPixels: policy.maxPixels,
       },
+    );
+  }
+
+  try {
+    // stats() forces every pixel through the decoder; libvips streams the work
+    // in tiles rather than materialising the whole raster.
+    await sharp(body, {
+      limitInputPixels: policy.maxPixels,
+      failOn: "error",
+    }).stats();
+  } catch {
+    throw new UnsupportedMediaTypeError(
+      "Uploaded image data is truncated or corrupt.",
     );
   }
 }

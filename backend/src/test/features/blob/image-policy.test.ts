@@ -7,11 +7,14 @@ import {
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
+import sharp from "sharp";
 import {
+  corruptImageTail,
   createGifFixture,
   createJpegFixture,
   createPngFixture,
   createWebpFixture,
+  truncateImage,
 } from "../../support/image-fixtures";
 
 const POLICY_VARIABLES = [
@@ -185,6 +188,37 @@ describe("assertImageBytes", () => {
     await expect(
       assertImageBytes(await createPngFixture(8, 64), "image/png"),
     ).rejects.toThrow(UnprocessableEntityError);
+  });
+
+  it("rejects a valid header over truncated or corrupt pixel data", async () => {
+    // Larger than the 4x4 default so the pixel data outweighs the header and
+    // truncation lands inside it.
+    const png = await createPngFixture(64, 64);
+    const webp = await createWebpFixture(64, 64);
+    const truncatedPng = truncateImage(png);
+    const corruptWebp = corruptImageTail(webp);
+
+    // The precondition this test depends on: the header alone looks fine. If
+    // sharp ever starts rejecting these at metadata(), this test stops proving
+    // anything and should be revisited rather than deleted.
+    await expect(sharp(truncatedPng).metadata()).resolves.toMatchObject({
+      format: "png",
+      width: 64,
+      height: 64,
+    });
+    await expect(sharp(corruptWebp).metadata()).resolves.toMatchObject({
+      format: "webp",
+    });
+
+    for (const [body, contentType] of [
+      [truncatedPng, "image/png"],
+      [corruptImageTail(png), "image/png"],
+      [corruptWebp, "image/webp"],
+    ] as const) {
+      await expect(assertImageBytes(body, contentType)).rejects.toThrow(
+        "Uploaded image data is truncated or corrupt.",
+      );
+    }
   });
 
   it("rejects images exceeding the total pixel budget", async () => {
