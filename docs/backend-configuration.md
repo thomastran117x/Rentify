@@ -141,6 +141,47 @@ must allow the PayPal SDK's scripts, frames, and API calls:
 `https://www.paypal.com`, `https://www.sandbox.paypal.com`,
 `https://*.paypal.com`, and `https://*.paypalobjects.com`.
 
+## Image upload policy
+
+`imageUploads` in `backend/config/default.yml` controls what the blob upload
+endpoints accept:
+
+```yaml
+imageUploads:
+  allowedContentTypes:
+    - image/jpeg
+    - image/png
+    - image/webp
+  maxSizeBytes: 5242880
+  maxWidth: 8000
+  maxHeight: 8000
+  maxPixels: 40000000
+```
+
+The matching overrides are `ALLOWED_IMAGE_TYPES` (comma-separated),
+`MAX_IMAGE_SIZE_BYTES`, `MAX_IMAGE_WIDTH`, `MAX_IMAGE_HEIGHT`, and
+`MAX_IMAGE_PIXELS`.
+
+`allowedContentTypes` can only **narrow** the built-in set. JPEG, PNG, and WebP
+are the formats the pipeline can actually validate: each has a sharp decoder, a
+canonical extension, and a magic-byte signature. Listing anything else — SVG,
+GIF, TIFF, HEIC — is a startup error rather than a way to re-enable it.
+
+Two limits interact and the smaller one wins:
+
+- `MAX_IMAGE_SIZE_BYTES` (5 MB by default) is the image policy's ceiling.
+- `http.requestBodyMaxBytes` (1 MiB by default) caps every request body,
+  including `PUT /blob/upload`.
+
+So on the local upload path the effective ceiling is 1 MiB unless
+`requestBodyMaxBytes` is raised too. An over-1-MiB upload is refused by the body
+policy with a generic 413 before the image policy ever runs. This does not
+affect production, where clients upload directly to Azure and the request never
+passes through the backend.
+
+See [architecture-overview.md](./architecture-overview.md) for where each part
+of the policy is enforced, and what is not enforced on the Azure path.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:

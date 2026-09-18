@@ -18,6 +18,13 @@ import type {
   CreateBlobUploadUrlInput,
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
+import {
+  assertImageBytes,
+  assertImageSizeWithinLimit,
+  imageExtensionForContentType,
+  normalizeImageContentType,
+} from "@/features/blob/image-policy";
+import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 interface AzureBlobConfiguration {
@@ -52,12 +59,19 @@ export class BlobService {
   }
 
   createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
-    const contentType = this.normalizeContentType(input.contentType);
-    const blobName = this.buildBlobName(
-      input.userId,
-      input.filename,
-      input.scope,
-    );
+    // Upload credentials are only ever issued for images. There is no
+    // client-controlled escape hatch: a caller cannot opt out of the allow-list
+    // by declaring a different kind of upload.
+    const contentType = normalizeImageContentType(input.contentType);
+
+    // Advisory - the client declares this and can lie. It catches an honest
+    // oversized upload before a slow transfer; the authoritative check runs
+    // against the real bytes on the upload path.
+    if (input.sizeBytes !== undefined) {
+      assertImageSizeWithinLimit(input.sizeBytes);
+    }
+
+    const blobName = this.buildBlobName(input.userId, contentType, input.scope);
 
     if (this.config) {
       return this.createAzureUploadUrl(blobName, contentType);
@@ -101,9 +115,39 @@ export class BlobService {
     body: Buffer;
   }): Promise<void> {
     this.requireLocalConfiguration();
+    // Token first, deliberately: no image decoding work on behalf of a caller
+    // who has not proved they hold a valid upload URL.
     this.assertLocalUploadToken(input.blobName, input.expiresAt, input.token);
-    const contentType = this.normalizeContentType(input.contentType);
+
+    const contentType = normalizeImageContentType(input.contentType);
+    this.assertContentTypeMatchesSignedBlob(input.blobName, contentType);
+    assertImageSizeWithinLimit(input.body.byteLength);
+    await assertImageBytes(input.body, contentType);
+
     await this.writeLocalBlob(input.blobName, input.body, contentType);
+  }
+
+  // The upload token signs the blob name but not the content type, so without
+  // this a holder of a valid URL could upload a PNG under a name issued for a
+  // JPEG. Because the stored extension is derived from the validated content
+  // type, the blob name determines the type unambiguously and inverting the
+  // extension mapping is enough to bind them.
+  //
+  // This check is local-only. Azure uploads have no equivalent: the SAS
+  // contentType is not an upload constraint (see createAzureUploadUrl), so on
+  // that path neither the declared type nor the bytes are verified. See
+  // "Image Upload Validation" in docs/architecture-overview.md.
+  private assertContentTypeMatchesSignedBlob(
+    blobName: string,
+    contentType: SupportedImageContentType,
+  ): void {
+    const extension = path.posix.extname(blobName).toLowerCase();
+
+    if (extension !== imageExtensionForContentType(contentType)) {
+      throw new BadRequestError(
+        "Content type does not match the requested upload URL.",
+      );
+    }
   }
 
   async readLocalBlob(blobName: string): Promise<{
@@ -186,6 +230,10 @@ export class BlobService {
     blobName: string;
     blobUrl: string;
   }> {
+    // Trusted server-side path: the only caller is thumbnail generation, which
+    // hands us bytes sharp just encoded. The image allow-list and byte
+    // validation would be re-checking output we produced ourselves, so this
+    // keeps the generic content-type check.
     const contentType = this.normalizeContentType(input.contentType);
 
     if (this.config) {
@@ -269,6 +317,12 @@ export class BlobService {
         protocol: SASProtocol.Https,
         startsOn,
         expiresOn,
+        // Not an upload constraint. This is the SAS `rsct` field, which only
+        // overrides the Content-Type returned when the blob is read with this
+        // token - and this token cannot read. Azure accepts a PUT with any
+        // Content-Type and any bytes, which was verified against a real
+        // account, so the allow-list above governs what a client may ask
+        // for, not what it can store.
         contentType,
       },
       credential,
@@ -416,19 +470,21 @@ export class BlobService {
     return environment.getBlobStorageConfig().uploadSasTtlSeconds;
   }
 
+  // The stored extension comes from the validated content type, never from the
+  // client's filename. A file called "photo.png" declared as image/jpeg is
+  // stored as .jpg: the extension is a consequence of the format, not evidence
+  // of it. Where the two disagree the content type wins silently - the client
+  // controls both fields, so rejecting the mismatch would buy no safety while
+  // breaking legitimate cases like .jpeg/.jpg or a renamed download.
   private buildBlobName(
     userId: Uuid,
-    filename: string,
+    contentType: SupportedImageContentType,
     scope?: string,
   ): string {
     const normalizedScope = this.normalizeScope(scope);
-    const normalizedFilename = path.posix.basename(filename.trim());
-    const extension = path.posix.extname(normalizedFilename).toLowerCase();
-    const safeExtension = /^[.][a-z0-9]{1,10}$/.test(extension)
-      ? extension
-      : "";
+    const extension = imageExtensionForContentType(contentType);
 
-    return `${normalizedScope}/${userId}/${Date.now()}-${randomUUID()}${safeExtension}`;
+    return `${normalizedScope}/${userId}/${Date.now()}-${randomUUID()}${extension}`;
   }
 
   private normalizeScope(scope?: string): string {
@@ -447,6 +503,9 @@ export class BlobService {
     return normalizedScope;
   }
 
+  // Generic shape-only check, retained for uploadBuffer - the one remaining
+  // caller. Client-facing paths use normalizeImageContentType instead, which
+  // adds the image allow-list on top of these same guards.
   private normalizeContentType(contentType: string): string {
     const normalized = contentType.trim().toLowerCase();
 

@@ -1,8 +1,14 @@
 import {
   DEFAULT_ELASTICSEARCH_POSTINGS_INDEX,
   DEFAULT_REDIS_HOST,
+  SUPPORTED_IMAGE_CONTENT_TYPES,
+  isSupportedImageContentType,
 } from "@/configuration/environment/constants";
-import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
+import {
+  normalizeDelimitedList,
+  parseBoolean,
+  parseNumber,
+} from "@/configuration/environment/shared";
 import {
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
@@ -164,6 +170,55 @@ export function buildBlobStorageConfig(
         max: 60 * 60,
       },
     ),
+  };
+}
+
+// The allow-list is intentionally a narrowing-only knob. Operators can drop a
+// format they do not want, but they cannot re-enable one the codebase has no
+// sniffer or extension mapping for (SVG, GIF, TIFF, HEIC), so the deliberate
+// exclusions cannot be undone by configuration alone.
+export function buildImageUploadsConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["imageUploads"] {
+  const configured = normalizeDelimitedList(raw.ALLOWED_IMAGE_TYPES).map(
+    (entry) => entry.toLowerCase(),
+  );
+
+  for (const entry of configured) {
+    if (!isSupportedImageContentType(entry)) {
+      errors.push(
+        `ALLOWED_IMAGE_TYPES contains unsupported value ${entry}. Supported values: ${SUPPORTED_IMAGE_CONTENT_TYPES.join(", ")}.`,
+      );
+    }
+  }
+
+  return {
+    allowedContentTypes: configured.length
+      ? configured
+      : [...SUPPORTED_IMAGE_CONTENT_TYPES],
+    maxSizeBytes: parseNumber(
+      raw,
+      "MAX_IMAGE_SIZE_BYTES",
+      5 * 1024 * 1024,
+      errors,
+      {
+        integer: true,
+        min: 1,
+      },
+    ),
+    maxWidth: parseNumber(raw, "MAX_IMAGE_WIDTH", 8_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    maxHeight: parseNumber(raw, "MAX_IMAGE_HEIGHT", 8_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    maxPixels: parseNumber(raw, "MAX_IMAGE_PIXELS", 40_000_000, errors, {
+      integer: true,
+      min: 1,
+    }),
   };
 }
 

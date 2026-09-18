@@ -201,7 +201,7 @@ describe("posting management helpers", () => {
     expect(() => buildPayload(form, [])).toThrow("Upload at least one photo");
   });
 
-  it("uploads photos with explicit and fallback content types", async () => {
+  it("uploads photos and resolves the content type from the extension when the browser gives none", async () => {
     createUploadUrlMock.mockResolvedValue({
       method: "PUT",
       uploadUrl: "https://upload",
@@ -217,10 +217,20 @@ describe("posting management helpers", () => {
     await expect(
       uploadManagedPhoto(new File(["a"], "a.jpg", { type: "image/jpeg" })),
     ).resolves.toMatchObject({ blobName: "photo", position: 0 });
-    await uploadManagedPhoto(new File(["a"], "unknown"));
+    expect(createUploadUrlMock).toHaveBeenNthCalledWith(1, {
+      filename: "a.jpg",
+      contentType: "image/jpeg",
+      sizeBytes: 1,
+      scope: "postings",
+    });
+
+    // A file the browser could not type is resolved from its extension rather
+    // than being sent as application/octet-stream, which the server rejects.
+    await uploadManagedPhoto(new File(["a"], "unknown.png"));
     expect(createUploadUrlMock).toHaveBeenNthCalledWith(2, {
-      filename: "unknown",
-      contentType: "application/octet-stream",
+      filename: "unknown.png",
+      contentType: "image/png",
+      sizeBytes: 1,
       scope: "postings",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -229,6 +239,53 @@ describe("posting management helpers", () => {
     await expect(
       uploadManagedPhoto(new File(["a"], "bad.jpg", { type: "image/jpeg" })),
     ).rejects.toThrow("Photo upload failed");
+  });
+
+  it("leaves acceptability to the server and surfaces its reason", async () => {
+    // The client holds no copy of the limits, so it asks and relays the
+    // answer. The server's message names whatever the deployment allows.
+    createUploadUrlMock.mockRejectedValueOnce(
+      new Error("Only PNG images can be uploaded."),
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      uploadManagedPhoto(
+        new File(["a"], "contract.pdf", { type: "application/pdf" }),
+      ),
+    ).rejects.toThrow("Only PNG images can be uploaded.");
+    expect(createUploadUrlMock).toHaveBeenCalledWith({
+      filename: "contract.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 1,
+      scope: "postings",
+    });
+
+    // The declared size is how an oversized file is refused before the
+    // transfer; nothing is uploaded when the server says no.
+    createUploadUrlMock.mockRejectedValueOnce(
+      new Error("Images must be 5 MB or smaller."),
+    );
+    const oversized = new File([new Uint8Array(64)], "huge.png", {
+      type: "image/png",
+    });
+    await expect(uploadManagedPhoto(oversized)).rejects.toThrow(
+      "Images must be 5 MB or smaller.",
+    );
+    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sizeBytes: 64 }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Neither a type nor a usable extension: declared as octet-stream and left
+    // for the server to reject.
+    createUploadUrlMock.mockRejectedValueOnce(new Error("rejected"));
+    await expect(
+      uploadManagedPhoto(new File(["a"], "unknown")),
+    ).rejects.toThrow("rejected");
+    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ contentType: "application/octet-stream" }),
+    );
   });
 
   it("reports completeness for both incomplete and complete drafts", () => {

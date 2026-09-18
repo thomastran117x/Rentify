@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import {
+  assertImageBytes,
+  assertImageSizeWithinLimit,
+  imageExtensionForContentType,
+  normalizeImageContentType,
+} from "@/features/blob/image-policy";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -737,6 +743,7 @@ export function requirePersistenceApp(): PersistenceTestApp {
 interface BlobUploadInput {
   filename: string;
   contentType: string;
+  sizeBytes?: number;
   scope?: string;
 }
 
@@ -811,7 +818,16 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       // still exercised end to end over HTTP; only the bytes live in memory.
       storage: blobStorage,
       createUploadUrl: jest.fn((input: BlobUploadInput) => {
-        const blobName = `${input.scope ?? "uploads"}/${input.filename}`;
+        // Only the storage is faked. The upload policy runs for real so the
+        // allow-list, the size ceiling, and the content-type-derived extension
+        // are covered end to end over HTTP rather than only in unit tests.
+        const contentType = normalizeImageContentType(input.contentType);
+
+        if (input.sizeBytes !== undefined) {
+          assertImageSizeWithinLimit(input.sizeBytes);
+        }
+
+        const blobName = `${input.scope ?? "uploads"}/${input.filename}${imageExtensionForContentType(contentType)}`;
         return {
           method: "PUT" as const,
           uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=test-upload-token`,
@@ -821,15 +837,20 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
           container: "rent-test",
           headers: {
             "x-ms-blob-type": "BlockBlob" as const,
-            "content-type": input.contentType,
+            "content-type": contentType,
           },
           scope: input.scope,
         };
       }),
       uploadLocalBlob: jest.fn(async (input: BlobUploadPayload) => {
+        const body = Buffer.from(input.body);
+        const contentType = normalizeImageContentType(input.contentType);
+        assertImageSizeWithinLimit(body.byteLength);
+        await assertImageBytes(body, contentType);
+
         blobStorage.set(input.blobName, {
-          contentType: input.contentType,
-          body: Buffer.from(input.body),
+          contentType,
+          body,
         });
       }),
       readLocalBlob: jest.fn(async (blobName: string) => {

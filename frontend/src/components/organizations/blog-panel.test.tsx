@@ -238,10 +238,36 @@ describe("BlogPanel", () => {
     fireEvent.change(screen.getByLabelText("Upload blog cover image"), {
       target: { files: [file] },
     });
+    // The specific reason is surfaced now, rather than a generic retry prompt,
+    // so a rejected file is distinguishable from a dropped connection.
     await vi.waitFor(() =>
       expect(failed.onError).toHaveBeenCalledWith(
-        expect.stringMatching(/couldn't upload/i),
+        expect.stringMatching(/status 500/i),
       ),
+    );
+
+    // The server judges acceptability and names the deployed limits; its
+    // message is shown verbatim rather than a client-side guess.
+    createUploadUrlMock.mockRejectedValueOnce(
+      new Error("Only PNG images can be uploaded."),
+    );
+    const rejected = props();
+    rerender(<BlogPanel {...rejected} />);
+    fireEvent.change(screen.getByLabelText("Upload blog cover image"), {
+      target: {
+        files: [new File(["pdf"], "contract.pdf", { type: "application/pdf" })],
+      },
+    });
+    await vi.waitFor(() =>
+      expect(rejected.onError).toHaveBeenCalledWith(
+        "Only PNG images can be uploaded.",
+      ),
+    );
+    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        contentType: "application/pdf",
+        sizeBytes: 3,
+      }),
     );
 
     fireEvent.change(screen.getByLabelText("Upload blog cover image"), {

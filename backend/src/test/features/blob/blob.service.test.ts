@@ -1,8 +1,15 @@
 import { BlobService } from "@/features/blob/blob.service";
 import BadRequestError from "@/errors/http/bad-request.error";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
+import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import { testUuid } from "../../support/uuid";
+import {
+  createGifFixture,
+  createJpegFixture,
+  createPngFixture,
+} from "../../support/image-fixtures";
 
 const USER_1_ID = testUuid(9000, 994257);
 const USER_2_ID = testUuid(9000, 994258);
@@ -14,14 +21,45 @@ const originalAzureConnectionString =
 const originalAzureContainerName = process.env.AZURE_STORAGE_CONTAINER_NAME;
 const originalAzureSasTtl = process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
 const originalPort = process.env.PORT;
+const originalAllowedImageTypes = process.env.ALLOWED_IMAGE_TYPES;
+const originalMaxImageSizeBytes = process.env.MAX_IMAGE_SIZE_BYTES;
+const originalMaxImageWidth = process.env.MAX_IMAGE_WIDTH;
+const originalMaxImageHeight = process.env.MAX_IMAGE_HEIGHT;
+const originalMaxImagePixels = process.env.MAX_IMAGE_PIXELS;
+
+// Assigning undefined to a process.env key stores the string "undefined"
+// rather than clearing it. PORT in particular then leaks a bad value into every
+// later suite in the shared --runInBand process, so unset means delete.
+function restoreEnvironmentVariable(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 afterEach(() => {
-  process.env.NODE_ENV = originalNodeEnv;
-  process.env.ACCESS_TOKEN_SECRET = originalAccessTokenSecret;
-  process.env.AZURE_STORAGE_CONNECTION_STRING = originalAzureConnectionString;
-  process.env.AZURE_STORAGE_CONTAINER_NAME = originalAzureContainerName;
-  process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS = originalAzureSasTtl;
-  process.env.PORT = originalPort;
+  restoreEnvironmentVariable("ALLOWED_IMAGE_TYPES", originalAllowedImageTypes);
+  restoreEnvironmentVariable("MAX_IMAGE_SIZE_BYTES", originalMaxImageSizeBytes);
+  restoreEnvironmentVariable("MAX_IMAGE_WIDTH", originalMaxImageWidth);
+  restoreEnvironmentVariable("MAX_IMAGE_HEIGHT", originalMaxImageHeight);
+  restoreEnvironmentVariable("MAX_IMAGE_PIXELS", originalMaxImagePixels);
+  restoreEnvironmentVariable("NODE_ENV", originalNodeEnv);
+  restoreEnvironmentVariable("ACCESS_TOKEN_SECRET", originalAccessTokenSecret);
+  restoreEnvironmentVariable(
+    "AZURE_STORAGE_CONNECTION_STRING",
+    originalAzureConnectionString,
+  );
+  restoreEnvironmentVariable(
+    "AZURE_STORAGE_CONTAINER_NAME",
+    originalAzureContainerName,
+  );
+  restoreEnvironmentVariable(
+    "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
+    originalAzureSasTtl,
+  );
+  restoreEnvironmentVariable("PORT", originalPort);
 });
 
 describe("BlobService", () => {
@@ -62,21 +100,135 @@ describe("BlobService", () => {
     expect(expiresAt).toBeTruthy();
     expect(token).toBeTruthy();
 
+    const fixture = await createPngFixture();
+
     await service.uploadLocalBlob({
       blobName: blobName!,
       expiresAt: expiresAt!,
       token: token!,
       contentType: "image/png",
-      body: Buffer.from("local-dev-image"),
+      body: fixture,
     });
 
     const blob = await service.readLocalBlob(blobName!);
 
     expect(blob.contentType).toBe("image/png");
-    expect(blob.body.toString("utf8")).toBe("local-dev-image");
+    expect(blob.body.equals(fixture)).toBe(true);
     expect(service.isManagedBlobUrl(uploadTarget.blobUrl, blobName!)).toBe(
       true,
     );
+  });
+
+  it("validates the bytes of a local upload, not just the declared type", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const issueUploadFor = (contentType: string) => {
+      const target = service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo",
+        contentType,
+      });
+      const url = new URL(target.uploadUrl);
+
+      return {
+        blobName: url.searchParams.get("blobName")!,
+        expiresAt: url.searchParams.get("expiresAt")!,
+        token: url.searchParams.get("token")!,
+      };
+    };
+
+    const pngUpload = issueUploadFor("image/png");
+
+    // Bytes that are not an image at all.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: Buffer.from("not-an-image"),
+      }),
+    ).rejects.toThrow("Uploaded file could not be read as an image.");
+
+    // A real image whose actual format contradicts the declared one.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: await createJpegFixture(),
+      }),
+    ).rejects.toThrow(
+      "Uploaded file contents do not match the declared image type.",
+    );
+
+    // A format sharp can decode but the policy excludes.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: await createGifFixture(),
+      }),
+    ).rejects.toThrow(UnsupportedMediaTypeError);
+
+    // A declared type the allow-list rejects outright.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "application/pdf",
+        body: await createPngFixture(),
+      }),
+    ).rejects.toThrow(UnsupportedMediaTypeError);
+
+    // A content type that disagrees with the URL the token was issued for.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/jpeg",
+        body: await createJpegFixture(),
+      }),
+    ).rejects.toThrow("Content type does not match the requested upload URL.");
+  });
+
+  it("enforces size and dimension limits on local uploads", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    process.env.MAX_IMAGE_WIDTH = "16";
+    process.env.MAX_IMAGE_HEIGHT = "16";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const target = service.createUploadUrl({
+      userId: USER_1_ID,
+      filename: "photo",
+      contentType: "image/png",
+    });
+    const url = new URL(target.uploadUrl);
+    const upload = {
+      blobName: url.searchParams.get("blobName")!,
+      expiresAt: url.searchParams.get("expiresAt")!,
+      token: url.searchParams.get("token")!,
+      contentType: "image/png",
+    };
+
+    await expect(
+      service.uploadLocalBlob({
+        ...upload,
+        body: await createPngFixture(64, 64),
+      }),
+    ).rejects.toThrow("Image dimensions exceed the allowed maximum.");
+
+    const oversized = await createPngFixture(8, 8);
+    process.env.MAX_IMAGE_SIZE_BYTES = String(oversized.byteLength - 1);
+
+    await expect(
+      service.uploadLocalBlob({
+        ...upload,
+        body: oversized,
+      }),
+    ).rejects.toThrow(PayloadTooLargeError);
   });
 
   it("uses the local fallback origin when the request origin is invalid", () => {
@@ -95,8 +247,112 @@ describe("BlobService", () => {
 
     expect(uploadTarget.uploadUrl).toContain("http://localhost:8040/");
     expect(uploadTarget.headers["Content-Type"]).toBe("image/jpeg");
+    expect(uploadTarget.blobName.endsWith(".jpg")).toBe(true);
   });
 
+  it("refuses upload credentials for non-image content types", () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    for (const contentType of [
+      "application/pdf",
+      "text/html",
+      "application/octet-stream",
+      "image/svg+xml",
+      "image/gif",
+    ]) {
+      expect(() =>
+        service.createUploadUrl({
+          userId: USER_1_ID,
+          filename: "document.pdf",
+          contentType,
+        }),
+      ).toThrow(UnsupportedMediaTypeError);
+    }
+  });
+
+  it("honours a narrowed allow-list and a declared size limit", () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    process.env.ALLOWED_IMAGE_TYPES = "image/png";
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    expect(() =>
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo.jpg",
+        contentType: "image/jpeg",
+      }),
+    ).toThrow(UnsupportedMediaTypeError);
+
+    expect(() =>
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo.png",
+        contentType: "image/png",
+        sizeBytes: 2048,
+      }),
+    ).toThrow(PayloadTooLargeError);
+
+    expect(
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo.png",
+        contentType: "image/png",
+        sizeBytes: 512,
+      }).blobName,
+    ).toMatch(/\.png$/);
+  });
+
+  it("derives the stored extension from the content type, not the filename", () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+
+    // A .png filename carrying a JPEG must be stored as .jpg: the filename
+    // extension is never treated as proof of format.
+    expect(
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo.png",
+        contentType: "image/jpeg",
+      }).blobName,
+    ).toMatch(/\.jpg$/);
+
+    // A filename with no extension at all still produces a correct one.
+    expect(
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "screenshot",
+        contentType: "image/webp",
+      }).blobName,
+    ).toMatch(/\.webp$/);
+
+    // A filename carrying a misleading double extension cannot smuggle one
+    // through either.
+    expect(
+      service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "payload.php.png",
+        contentType: "image/png",
+      }).blobName,
+    ).toMatch(/\.png$/);
+  });
+
+  // Load-bearing: uploadBuffer is the trusted server-side path used by
+  // thumbnail generation, so it keeps the generic content-type check and still
+  // accepts a buffer that is not really a decodable image.
   it("downloads local blobs, computes managed URLs, and derives thumbnail paths", async () => {
     process.env.NODE_ENV = "development";
     process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
@@ -148,7 +404,7 @@ describe("BlobService", () => {
         filename: "photo.png",
         contentType: "text/plain\r\nx-test: bad",
       }),
-    ).toThrow(BadRequestError);
+    ).toThrow(UnsupportedMediaTypeError);
     expect(() =>
       service.createUploadUrl({
         userId: USER_1_ID,

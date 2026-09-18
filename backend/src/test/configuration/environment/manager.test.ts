@@ -455,6 +455,46 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it("defaults the image upload policy and allows narrowing it", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getImageUploadsConfig()).toEqual({
+      allowedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+      maxSizeBytes: 5 * 1024 * 1024,
+      maxWidth: 8_000,
+      maxHeight: 8_000,
+      maxPixels: 40_000_000,
+    });
+
+    process.env = buildRequiredEnv({
+      ALLOWED_IMAGE_TYPES: "image/png, IMAGE/WEBP",
+    });
+    const narrowedManager = new EnvironmentManager();
+    narrowedManager.load();
+
+    expect(narrowedManager.getImageUploadsConfig().allowedContentTypes).toEqual(
+      ["image/png", "image/webp"],
+    );
+  });
+
+  it("rejects image policy values outside the supported set or bounds", () => {
+    process.env = buildRequiredEnv({
+      ALLOWED_IMAGE_TYPES: "image/svg+xml",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "ALLOWED_IMAGE_TYPES contains unsupported value image/svg+xml.",
+    );
+
+    process.env = buildRequiredEnv({ MAX_IMAGE_SIZE_BYTES: "0" });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MAX_IMAGE_SIZE_BYTES must be greater than or equal to 1.",
+    );
+  });
+
   it("reads required and optional raw environment variables after load", () => {
     process.env = buildRequiredEnv({
       FRONTEND_URL: "http://localhost:3041",

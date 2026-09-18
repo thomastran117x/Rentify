@@ -1320,7 +1320,9 @@ function errorResponse(
 }
 
 function commonErrors(
-  statuses: Array<400 | 401 | 403 | 404 | 409 | 415 | 422 | 429 | 500 | 503>,
+  statuses: Array<
+    400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503
+  >,
 ) {
   const result: Record<string, unknown> = {};
 
@@ -1341,8 +1343,11 @@ function commonErrors(
       case 409:
         result["409"] = responseRef("Conflict");
         break;
+      case 413:
+        result["413"] = responseRef("PayloadTooLarge");
+        break;
       case 415:
-        result["415"] = responseRef("BadRequest");
+        result["415"] = responseRef("UnsupportedMediaType");
         break;
       case 422:
         result["422"] = responseRef("UnprocessableEntity");
@@ -4328,7 +4333,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createBlobUploadUrl",
       summary: "Create an upload URL for blob storage",
       description:
-        "Creates a short-lived signed upload target for authenticated users.",
+        "Creates a short-lived signed upload target for authenticated users. Credentials are only issued for image uploads: the request is rejected with 415 unless `contentType` is one of the supported image types. The stored blob's extension is derived from `contentType`, never from `filename`.",
       tags: ["blob"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4339,6 +4344,7 @@ function buildOperations(): OperationDefinition[] {
       requestBody: requestBody("CreateBlobUploadUrlRequest", {
         filename: "loft.jpg",
         contentType: "image/jpeg",
+        sizeBytes: 248_402,
         scope: "postings/photos",
       }),
       responses: {
@@ -4348,7 +4354,7 @@ function buildOperations(): OperationDefinition[] {
           "BlobUploadTarget",
           blobUploadTargetExample,
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        ...commonErrors([400, 401, 403, 413, 415, 422, 429, 500]),
       },
     },
     {
@@ -4423,7 +4429,7 @@ function buildOperations(): OperationDefinition[] {
       requestBody: {
         required: true,
         content: {
-          "application/octet-stream": {
+          "image/jpeg": {
             schema: {
               type: "string",
               format: "binary",
@@ -4435,7 +4441,7 @@ function buildOperations(): OperationDefinition[] {
               format: "binary",
             },
           },
-          "image/jpeg": {
+          "image/webp": {
             schema: {
               type: "string",
               format: "binary",
@@ -4447,7 +4453,7 @@ function buildOperations(): OperationDefinition[] {
         "201": {
           description: "Blob uploaded successfully.",
         },
-        ...commonErrors([400, 404, 415, 429, 500]),
+        ...commonErrors([400, 404, 413, 415, 422, 429, 500]),
       },
     },
     {
@@ -8940,6 +8946,16 @@ function buildComponents(): Record<string, unknown> {
         "The request conflicts with the current resource state.",
         "CONFLICT",
       ),
+      PayloadTooLarge: errorResponse(
+        "Payload too large.",
+        "Request body exceeds the maximum allowed size.",
+        "PAYLOAD_TOO_LARGE",
+      ),
+      UnsupportedMediaType: errorResponse(
+        "Unsupported media type.",
+        "Request content type is not supported.",
+        "UNSUPPORTED_MEDIA_TYPE",
+      ),
       UnprocessableEntity: errorResponse(
         "Unprocessable entity.",
         "Request body could not be processed.",
@@ -10429,8 +10445,23 @@ function buildComponents(): Record<string, unknown> {
         type: "object",
         required: ["filename", "contentType"],
         properties: {
-          filename: { type: "string" },
-          contentType: { type: "string" },
+          filename: {
+            type: "string",
+            description:
+              "Original filename, retained for display and diagnostics only. The stored blob's extension is derived from contentType, so a filename extension that disagrees with it is ignored rather than rejected.",
+          },
+          contentType: {
+            type: "string",
+            enum: ["image/jpeg", "image/png", "image/webp"],
+            description:
+              "Image media type. Upload credentials are only issued for images; a deployment may narrow this set further via configuration.",
+          },
+          sizeBytes: {
+            type: "integer",
+            minimum: 1,
+            description:
+              "Optional client-declared byte length, checked against the server limit before a URL is issued. Advisory only - the authoritative size check runs against the uploaded bytes.",
+          },
           scope: { type: "string" },
         },
       },

@@ -14,6 +14,10 @@ import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
 import {
+  IMAGE_ACCEPT_ATTRIBUTE,
+  resolveUploadContentType,
+} from "@/lib/blob/image-policy";
+import {
   MAX_EXPIRY_HORIZON_DAYS,
   isExpiryBeyondHorizon,
   isExpiryInPast,
@@ -300,9 +304,13 @@ export function buildPayload(
 export async function uploadManagedPhoto(
   file: File,
 ): Promise<PostingPhotoInput> {
+  // The server is the only judge of what is acceptable. Declaring the size
+  // lets it refuse an oversized file before the transfer, with a message that
+  // names the deployed limit; this surfaces it through the save error modal.
   const uploadTarget = await blobApi.createUploadUrl({
     filename: file.name,
-    contentType: file.type || "application/octet-stream",
+    contentType: resolveUploadContentType(file),
+    sizeBytes: file.size,
     scope: "postings",
   });
   const response = await fetch(uploadTarget.uploadUrl, {
@@ -868,11 +876,11 @@ export function PhotoUploader({
             Upload photos
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            PNG or JPG. Add several — pick one as the primary display.
+            JPEG, PNG, or WebP. Add several — pick one as the primary display.
           </span>
           <input
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT_ATTRIBUTE}
             multiple
             onChange={onAddFiles}
             aria-label="Upload photos"
