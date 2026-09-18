@@ -6,6 +6,8 @@ import { resolveApiBaseUrl } from "@/lib/env";
 export interface CreateBlobUploadUrlInput {
   filename: string;
   contentType: string;
+  /** Declared up front so an oversized file is refused before the transfer. */
+  sizeBytes?: number;
   scope?: string;
 }
 

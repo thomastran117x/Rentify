@@ -201,7 +201,7 @@ describe("posting management helpers", () => {
     expect(() => buildPayload(form, [])).toThrow("Upload at least one photo");
   });
 
-  it("uploads photos with explicit and fallback content types", async () => {
+  it("uploads photos and resolves the content type from the extension when the browser gives none", async () => {
     createUploadUrlMock.mockResolvedValue({
       method: "PUT",
       uploadUrl: "https://upload",
@@ -217,10 +217,20 @@ describe("posting management helpers", () => {
     await expect(
       uploadManagedPhoto(new File(["a"], "a.jpg", { type: "image/jpeg" })),
     ).resolves.toMatchObject({ blobName: "photo", position: 0 });
-    await uploadManagedPhoto(new File(["a"], "unknown"));
+    expect(createUploadUrlMock).toHaveBeenNthCalledWith(1, {
+      filename: "a.jpg",
+      contentType: "image/jpeg",
+      sizeBytes: 1,
+      scope: "postings",
+    });
+
+    // A file the browser could not type is resolved from its extension rather
+    // than being sent as application/octet-stream, which the server rejects.
+    await uploadManagedPhoto(new File(["a"], "unknown.png"));
     expect(createUploadUrlMock).toHaveBeenNthCalledWith(2, {
-      filename: "unknown",
-      contentType: "application/octet-stream",
+      filename: "unknown.png",
+      contentType: "image/png",
+      sizeBytes: 1,
       scope: "postings",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -229,6 +239,41 @@ describe("posting management helpers", () => {
     await expect(
       uploadManagedPhoto(new File(["a"], "bad.jpg", { type: "image/jpeg" })),
     ).rejects.toThrow("Photo upload failed");
+  });
+
+  it("refuses unsupported files before requesting upload credentials", async () => {
+    createUploadUrlMock.mockClear();
+
+    // No type and no usable extension.
+    await expect(
+      uploadManagedPhoto(new File(["a"], "unknown")),
+    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
+
+    // An explicitly unsupported type.
+    await expect(
+      uploadManagedPhoto(
+        new File(["a"], "contract.pdf", { type: "application/pdf" }),
+      ),
+    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
+
+    // A deliberately excluded image format.
+    await expect(
+      uploadManagedPhoto(
+        new File(["a"], "logo.svg", { type: "image/svg+xml" }),
+      ),
+    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
+
+    // Oversized, caught before the transfer starts.
+    const oversized = new File(
+      [new Uint8Array(5 * 1024 * 1024 + 1)],
+      "huge.png",
+      { type: "image/png" },
+    );
+    await expect(uploadManagedPhoto(oversized)).rejects.toThrow(
+      "larger than the 5 MB limit",
+    );
+
+    expect(createUploadUrlMock).not.toHaveBeenCalled();
   });
 
   it("reports completeness for both incomplete and complete drafts", () => {

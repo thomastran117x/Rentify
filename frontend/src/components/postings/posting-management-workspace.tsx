@@ -14,6 +14,12 @@ import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
 import {
+  IMAGE_ACCEPT_ATTRIBUTE,
+  UNSUPPORTED_IMAGE_MESSAGE,
+  resolveImageContentType,
+  validateImageFile,
+} from "@/lib/blob/image-policy";
+import {
   MAX_EXPIRY_HORIZON_DAYS,
   isExpiryBeyondHorizon,
   isExpiryInPast,
@@ -300,9 +306,19 @@ export function buildPayload(
 export async function uploadManagedPhoto(
   file: File,
 ): Promise<PostingPhotoInput> {
+  // Fail before requesting credentials. The server enforces the same policy,
+  // but a file that cannot possibly be accepted should not cost a round trip.
+  const contentType = resolveImageContentType(file);
+  const rejection = validateImageFile(file);
+
+  if (!contentType || rejection) {
+    throw new Error(rejection ?? UNSUPPORTED_IMAGE_MESSAGE);
+  }
+
   const uploadTarget = await blobApi.createUploadUrl({
     filename: file.name,
-    contentType: file.type || "application/octet-stream",
+    contentType,
+    sizeBytes: file.size,
     scope: "postings",
   });
   const response = await fetch(uploadTarget.uploadUrl, {
@@ -868,11 +884,12 @@ export function PhotoUploader({
             Upload photos
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            PNG or JPG. Add several — pick one as the primary display.
+            JPEG, PNG, or WebP, up to 5 MB each. Add several — pick one as the
+            primary display.
           </span>
           <input
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT_ATTRIBUTE}
             multiple
             onChange={onAddFiles}
             aria-label="Upload photos"

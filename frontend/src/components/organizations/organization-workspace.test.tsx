@@ -936,6 +936,7 @@ describe("Organization workspace", () => {
       expect(createUploadUrlMock).toHaveBeenCalledWith({
         filename: "pending.png",
         contentType: "image/png",
+        sizeBytes: 7,
         scope: "organizations",
       });
     });

@@ -3,6 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { blobApi } from "@/lib/blob/api";
+import {
+  IMAGE_ACCEPT_ATTRIBUTE,
+  UNSUPPORTED_IMAGE_MESSAGE,
+  resolveImageContentType,
+  validateImageFile,
+} from "@/lib/blob/image-policy";
 import type {
   OrganizationBlogPostRecord,
   OrganizationBlogStatus,
@@ -67,11 +73,21 @@ function CoverImageUploader({
     if (!file) {
       return;
     }
+
+    const contentType = resolveImageContentType(file);
+    const rejection = validateImageFile(file);
+
+    if (!contentType || rejection) {
+      onError(rejection ?? UNSUPPORTED_IMAGE_MESSAGE);
+      return;
+    }
+
     setUploading(true);
     try {
       const target = await blobApi.createUploadUrl({
         filename: file.name,
-        contentType: file.type || "application/octet-stream",
+        contentType,
+        sizeBytes: file.size,
         scope: "organizations",
       });
       const response = await fetch(target.uploadUrl, {
@@ -83,8 +99,14 @@ function CoverImageUploader({
         throw new Error(`Upload failed with status ${response.status}.`);
       }
       onUploaded(target.blobUrl, target.blobName);
-    } catch {
-      onError("We couldn't upload that cover image. Please try again.");
+    } catch (error) {
+      // Surface the server's reason rather than a generic retry prompt - see
+      // the same note in profile-fieldset.tsx.
+      onError(
+        error instanceof Error && error.message
+          ? error.message
+          : "We couldn't upload that cover image. Please try again.",
+      );
     } finally {
       setUploading(false);
     }
@@ -115,7 +137,7 @@ function CoverImageUploader({
                 : "Upload cover"}
             <input
               type="file"
-              accept="image/*"
+              accept={IMAGE_ACCEPT_ATTRIBUTE}
               aria-label="Upload blog cover image"
               className="sr-only"
               disabled={disabled || uploading}
