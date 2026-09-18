@@ -41,6 +41,33 @@ describe("System routes persistence integration", () => {
     });
   });
 
+  it("makes request IDs available to trusted browser clients", async () => {
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/health")}`,
+      {
+        headers: {
+          origin: "http://localhost:3040",
+          "x-request-id": "browser-support-id",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-request-id")).toBe("browser-support-id");
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:3040",
+    );
+    expect(
+      response.headers
+        .get("access-control-expose-headers")
+        ?.split(",")
+        .map((header) => header.trim()),
+    ).toContain("x-request-id");
+    await expect(response.json()).resolves.toMatchObject({
+      meta: { requestId: "browser-support-id" },
+    });
+  });
+
   it("serves the committed OpenAPI document as YAML", async () => {
     const response = await request("/openapi.yaml");
 

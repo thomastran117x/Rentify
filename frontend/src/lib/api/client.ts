@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from "@/lib/env";
+import { normalizeRequestId } from "@/lib/api/request-id";
 import { getClientAppHeader } from "@/lib/api/client-app";
 import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import {
@@ -95,6 +96,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function readResponseRequestId(
+  response: Response,
+  payload?: unknown,
+): string | undefined {
+  const meta = isRecord(payload) ? payload.meta : undefined;
+  return (
+    normalizeRequestId(isRecord(meta) ? meta.requestId : undefined) ??
+    normalizeRequestId(response.headers.get("x-request-id"))
+  );
+}
+
 function isAbortError(error: unknown): boolean {
   return isRecord(error) && "name" in error && error.name === "AbortError";
 }
@@ -128,6 +140,7 @@ function toUnreadableResponseError(
     : "The API returned an unreadable response.";
   const options = {
     cause: error,
+    requestId: readResponseRequestId(response),
     code: isSharedFailureStatus(response.status)
       ? "INVALID_SERVER_RESPONSE"
       : "INVALID_API_RESPONSE",
@@ -265,6 +278,7 @@ export function toApiError(
       ? "The server returned an invalid error response."
       : "The API returned an invalid error response.";
     const options = {
+      requestId: readResponseRequestId(response, payload),
       code: isSharedFailureStatus(response.status)
         ? "INVALID_SERVER_RESPONSE"
         : "INVALID_API_RESPONSE",
@@ -280,6 +294,7 @@ export function toApiError(
 
   const options = {
     code: payload.error.code,
+    requestId: readResponseRequestId(response, payload),
     details: payload.error.details,
     request,
     status: response.status,

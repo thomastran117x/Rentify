@@ -48,7 +48,7 @@ export function FormErrorMessage({
         <p
           className={cx(
             title ? "mt-1" : undefined,
-            "leading-6",
+            "leading-6 [overflow-wrap:anywhere]",
             definition.mutedText,
           )}
         >

@@ -45,4 +45,28 @@ describe("corsMiddleware", () => {
 
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
+
+  it("exposes the request ID on server errors for trusted browser origins", async () => {
+    const app = createTestApp((app) => {
+      app.use(corsMiddleware);
+      app.get("/failure", (_request, response) => {
+        response.setHeader("x-request-id", "support-id");
+        response.status(503).send("Unavailable");
+      });
+    });
+    const response = await app.request("http://rent.test/failure", {
+      headers: { origin: "http://127.0.0.1:3040" },
+    });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://127.0.0.1:3040",
+    );
+    expect(
+      response.headers
+        .get("access-control-expose-headers")
+        ?.split(",")
+        .map((header) => header.trim()),
+    ).toContain("x-request-id");
+    expect(response.headers.get("x-request-id")).toBe("support-id");
+  });
 });

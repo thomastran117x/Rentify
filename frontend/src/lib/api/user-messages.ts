@@ -4,6 +4,7 @@ import {
   isApiProtocolError,
   isApiServerError,
 } from "@/lib/api/types";
+import { appendRequestId } from "@/lib/api/request-id";
 
 interface SharedApiErrorMessageOptions {
   action: string;
@@ -34,7 +35,11 @@ export function getSharedApiErrorMessage(
   }
 
   if (isApiServerError(error)) {
-    return `${productName} is having trouble right now, so we couldn't ${action}. Please try again in a moment.`;
+    return appendRequestId(
+      `${productName} is having trouble right now, so we couldn't ${action}. Please try again in a moment.`,
+      error.status,
+      error.requestId,
+    );
   }
 
   if (isApiProtocolError(error)) {

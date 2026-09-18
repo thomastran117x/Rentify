@@ -1,3 +1,5 @@
+import { appendRequestId, normalizeRequestId } from "./request-id";
+
 export interface Pagination {
   page: number;
   pageSize: number;
@@ -42,6 +44,7 @@ export interface ApiErrorResponse<TDetails = unknown> {
 }
 
 interface ApiErrorOptions {
+  requestId?: string;
   code: string;
   request: ApiRequestContext;
   status?: number;
@@ -50,6 +53,7 @@ interface ApiErrorOptions {
 }
 
 export class ApiError extends Error {
+  public readonly requestId?: string;
   public readonly code: string;
   public readonly status?: number;
   public readonly details?: unknown;
@@ -59,6 +63,7 @@ export class ApiError extends Error {
   constructor(message: string, options: ApiErrorOptions) {
     super(message);
     this.name = "ApiError";
+    this.requestId = normalizeRequestId(options.requestId);
     this.code = options.code;
     this.status = options.status;
     this.details = options.details;
@@ -98,7 +103,7 @@ export class ApiServerError extends ApiError {
     message: string,
     options: Omit<ApiErrorOptions, "status"> & { status: number },
   ) {
-    super(message, options);
+    super(appendRequestId(message, options.status, options.requestId), options);
     this.name = "ApiServerError";
   }
 }

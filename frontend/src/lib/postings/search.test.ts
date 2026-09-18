@@ -19,6 +19,28 @@ type ExpectedPostingSearchError = {
 };
 
 describe("fetchPublicPostingAutocomplete", () => {
+  it("retains a server request ID once through the public search wrapper", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              message: "Search unavailable.",
+              error: { code: "SERVER_ERROR" },
+              meta: { requestId: "search-id" },
+            }),
+            { status: 503, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+    await expect(searchPublicPostings({ q: "tor" })).rejects.toMatchObject({
+      name: "PublicPostingSearchError",
+      message: "Search unavailable. Request ID: search-id",
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

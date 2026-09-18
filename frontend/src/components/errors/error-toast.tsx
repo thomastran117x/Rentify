@@ -49,7 +49,7 @@ export function ErrorToast({
           ) : null}
           <p
             className={cx(
-              "text-sm leading-6",
+              "text-sm leading-6 [overflow-wrap:anywhere]",
               title ? "mt-1" : undefined,
               definition.mutedText,
             )}
