@@ -1901,7 +1901,7 @@ describe("PaymentsService", () => {
           service.createPaymentSession({
             bookingRequestId: BOOKING_1_ID,
             renterId: RENTER_1_ID,
-            method: "apple_pay",
+            method: "card",
           }),
         ).rejects.toBeInstanceOf(BadRequestError);
       } finally {
