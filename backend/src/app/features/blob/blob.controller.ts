@@ -42,6 +42,7 @@ export class BlobController {
       userId: asUuid(request.auth.sub),
       filename: input.filename,
       contentType: input.contentType,
+      sizeBytes: input.sizeBytes,
       scope: input.scope,
       requestOrigin: getRequestUrl(request).origin,
     };

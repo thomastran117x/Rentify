@@ -6,6 +6,10 @@ const blobScopePattern = /^[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
 export const createBlobUploadUrlRequestSchema = z.object({
   filename: z.string().trim().min(1, "Filename is required.").max(255),
   contentType: z.string().trim().min(1, "Content type is required.").max(255),
+  // Advisory: the client declares this and can lie. It buys an early, clear
+  // rejection for an honestly oversized file instead of a failure part-way
+  // through the upload. The authoritative check runs against the real bytes.
+  sizeBytes: z.number().int().positive().optional(),
   scope: z
     .string()
     .trim()

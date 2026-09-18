@@ -6,6 +6,7 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { createPngFixture } from "../../support/image-fixtures";
 
 /**
  * Exercises the blob endpoints end to end over HTTP. Blob storage itself is a
@@ -47,13 +48,15 @@ describe("Blob persistence integration", () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
     });
+    const fixture = await createPngFixture();
 
     const uploadUrlResponse = await request("/blob/upload-url", {
       method: "POST",
       headers: owner.headers(),
       body: JSON.stringify({
-        filename: "persistence-photo.txt",
-        contentType: "text/plain",
+        filename: "persistence-photo.png",
+        contentType: "image/png",
+        sizeBytes: fixture.byteLength,
         scope: "postings/photos",
       }),
     });
@@ -65,6 +68,7 @@ describe("Blob persistence integration", () => {
       method: string;
     }>(uploadUrlResponse);
     expect(uploadTarget.blobName).toContain("persistence-photo");
+    expect(uploadTarget.blobName.endsWith(".png")).toBe(true);
 
     // The issued URL points back at this same upload endpoint.
     const issuedUrl = new URL(uploadTarget.uploadUrl);
@@ -75,8 +79,8 @@ describe("Blob persistence integration", () => {
       `/blob/upload?blobName=${encodeURIComponent(uploadTarget.blobName)}&expiresAt=${encodeURIComponent(issuedUrl.searchParams.get("expiresAt") ?? "")}&token=${encodeURIComponent(issuedUrl.searchParams.get("token") ?? "")}`,
       {
         method: "PUT",
-        headers: { "content-type": "text/plain" },
-        body: "persisted blob body",
+        headers: { "content-type": "image/png" },
+        body: new Uint8Array(fixture),
       },
     );
     expect(uploadResponse.status).toBe(201);
@@ -85,7 +89,9 @@ describe("Blob persistence integration", () => {
       `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
     );
     expect(fileResponse.status).toBe(200);
-    expect(await fileResponse.text()).toBe("persisted blob body");
+    expect(Buffer.from(await fileResponse.arrayBuffer()).equals(fixture)).toBe(
+      true,
+    );
 
     const deleteResponse = await request(
       `/blob?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
@@ -99,13 +105,97 @@ describe("Blob persistence integration", () => {
     expect(afterDeleteResponse.status).toBe(404);
   });
 
+  it("refuses upload credentials for a non-image content type", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+
+    const response = await request("/blob/upload-url", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({
+        filename: "contract.pdf",
+        contentType: "application/pdf",
+        scope: "postings/photos",
+      }),
+    });
+
+    expect(response.status).toBe(415);
+
+    const body = (await response.json()) as {
+      success: boolean;
+      error: { code: string };
+    };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+  });
+
+  it("refuses an upload whose bytes are not the declared image", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+
+    const uploadUrlResponse = await request("/blob/upload-url", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({
+        filename: "persistence-photo.png",
+        contentType: "image/png",
+        scope: "postings/photos",
+      }),
+    });
+    expect(uploadUrlResponse.status).toBe(201);
+
+    const uploadTarget = await readData<{
+      uploadUrl: string;
+      blobName: string;
+    }>(uploadUrlResponse);
+    const issuedUrl = new URL(uploadTarget.uploadUrl);
+
+    const uploadResponse = await request(
+      `/blob/upload?blobName=${encodeURIComponent(uploadTarget.blobName)}&expiresAt=${encodeURIComponent(issuedUrl.searchParams.get("expiresAt") ?? "")}&token=${encodeURIComponent(issuedUrl.searchParams.get("token") ?? "")}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "image/png" },
+        body: "this is not a png",
+      },
+    );
+
+    expect(uploadResponse.status).toBe(415);
+
+    // Nothing was stored, so the blob is not readable afterwards.
+    const fileResponse = await request(
+      `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
+    );
+    expect(fileResponse.status).toBe(404);
+  });
+
+  it("rejects an oversized declared size before issuing credentials", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+
+    const response = await request("/blob/upload-url", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({
+        filename: "huge.png",
+        contentType: "image/png",
+        sizeBytes: 50 * 1024 * 1024,
+        scope: "postings/photos",
+      }),
+    });
+
+    expect(response.status).toBe(413);
+  });
+
   it("rejects an unauthenticated upload URL request", async () => {
     const response = await request("/blob/upload-url", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        filename: "photo.txt",
-        contentType: "text/plain",
+        filename: "photo.png",
+        contentType: "image/png",
       }),
     });
 
