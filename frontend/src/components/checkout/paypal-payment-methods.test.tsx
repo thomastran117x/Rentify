@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCheckoutSummary } from "@/test/mocks/checkout";
+import { formatMoney } from "@/lib/rentings/format";
 import type { PayPalSdkConfig } from "@/lib/checkout/paypal-config";
 import {
   PAYPAL_SDK_LOAD_TIMEOUT_MS,
@@ -97,6 +98,10 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
   PayPalCardCvvField: () => <div data-testid="card-cvv" />,
   usePayPalCardFieldsOneTimePaymentSession: () => sdk.cardFields,
 }));
+
+// The currency symbol depends on the runtime's locale data, so the card
+// button's label is built with the same formatter the component uses.
+const PAY_BUTTON_NAME = `Pay ${formatMoney(275, "CAD")}`;
 
 const CONFIG: PayPalSdkConfig = {
   clientId: "sandbox-client",
@@ -227,7 +232,9 @@ describe("PayPalPaymentMethods", () => {
     renderMethods({ disabled: true });
 
     expect(screen.getByRole("button", { name: "PayPal" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /^Pay \$/ })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: PAY_BUTTON_NAME }),
+    ).toBeDisabled();
   });
 
   it("shows a loader while the SDK or eligibility is loading", () => {
@@ -279,7 +286,7 @@ describe("PayPalPaymentMethods", () => {
       const { handlers } = renderMethods();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /^Pay \$/ }));
+        fireEvent.click(screen.getByRole("button", { name: PAY_BUTTON_NAME }));
       });
 
       expect(handlers.createOrder).toHaveBeenCalledWith("card");
@@ -293,11 +300,13 @@ describe("PayPalPaymentMethods", () => {
       renderMethods({ handlers });
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /^Pay \$/ }));
+        fireEvent.click(screen.getByRole("button", { name: PAY_BUTTON_NAME }));
       });
 
       expect(sdk.cardFields.submit).not.toHaveBeenCalled();
-      expect(screen.getByRole("button", { name: /^Pay \$/ })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: PAY_BUTTON_NAME }),
+      ).toBeEnabled();
     });
 
     it.each([
