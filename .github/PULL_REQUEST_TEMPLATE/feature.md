@@ -34,7 +34,7 @@ Record commands and outcomes, available CI evidence, and checks not performed. F
 - [ ] Follows project conventions
 - [ ] Documentation updated if needed
 - [ ] No known breaking changes
-- [ ] Self-reviewed behavior and code quality using the [PR review guide](../../docs/pr-review.md)
+- [ ] Self-reviewed behavior and code quality using the [PR review guide](https://github.com/thomastran117x/Rentify/blob/main/docs/pr-review.md)
 
 ## Commit Dependencies
 

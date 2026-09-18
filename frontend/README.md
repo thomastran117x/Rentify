@@ -29,12 +29,12 @@ docker compose up --build
 
 That serves the frontend at `http://localhost:3040` and points it at the backend API running on `http://localhost:8040/api/v1`.
 
-## Standalone Frontend Development
+## Explicit Non-Docker Alternative
 
-For frontend-only work:
+Use direct frontend startup only when a non-Docker workflow has been explicitly selected. Frontend-only scope does not replace the standard Compose validation runtime:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -68,6 +68,7 @@ npm run start
 npm run format
 npm run format:diff
 npm run lint
+npm run typecheck
 npm run test:unit
 npm run test:unit:coverage
 npm run test:unit:watch
@@ -80,7 +81,7 @@ npm run test:e2e:ui
 
 Unit tests live alongside `src/**` files and run with Vitest. `npm run test:unit:coverage` enforces an 80% global threshold for statements, branches, functions, and lines across executable `src/app`, `src/components`, and `src/lib` code. HTML and LCOV reports are written to `coverage/`.
 
-Browser tests live in `tests/e2e`. By default, Playwright starts the frontend dev server on `http://127.0.0.1:3040` automatically. If you want Playwright to reuse an already running app, set `PLAYWRIGHT_EXTERNAL_SERVER=1`.
+Browser tests live in `tests/e2e`. For normal validation, start Docker and set `PLAYWRIGHT_EXTERNAL_SERVER=1` before running them. Without that flag, current configuration starts a dev server on `http://127.0.0.1:3040`; use that mode only for an explicitly selected non-Docker workflow. See [testing-guide.md](../docs/testing-guide.md#playwright-tests) for Bash and PowerShell commands. Agent-owned real-flow validation additionally uses Playwright MCP.
 
 ## Auth and API Notes
 

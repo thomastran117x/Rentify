@@ -28,7 +28,7 @@ Record commands and outcomes, available CI evidence, and checks not performed. F
 - [ ] Verified the fix locally
 - [ ] Added or updated automated tests
 - [ ] Checked for regressions
-- [ ] Self-reviewed behavior and code quality using the [PR review guide](../../docs/pr-review.md)
+- [ ] Self-reviewed behavior and code quality using the [PR review guide](https://github.com/thomastran117x/Rentify/blob/main/docs/pr-review.md)
 
 ## Commit Dependencies
 

@@ -18,9 +18,10 @@ This boots:
 - Elasticsearch
 - RabbitMQ
 - backend API
-- email worker
-- SMS worker
+- configured background workers (email, SMS, analytics, expiry, payments, search, and others)
 - frontend web app
+
+Database-backed processes wait for the migration service. See the [worker index](../backend/src/app/workers/README.md) for all mappings; recommendation precompute requires an explicit one-off process and is not started by the default stack.
 
 ## Local URLs
 
@@ -115,18 +116,19 @@ Additional fixture accounts:
 - `user4@rentify.local` / `Rentify123!`
 - `admin1@rentify.local` / `Rentify123!`
 
-Useful seed commands:
+With the stack running, use the compiled seed script:
 
 ```bash
-cd backend
-npm run seed
-npm run seed -- --only-if-empty
-npm run seed -- --refresh
+docker compose exec backend node dist/scripts/seed.js
+docker compose exec backend node dist/scripts/seed.js --only-if-empty
+docker compose exec backend node dist/scripts/seed.js --refresh
 ```
 
 Set `database.autoSeedRefresh: true` in a YAML overlay (or use the legacy
 `DATABASE_AUTO_SEED_REFRESH=true` override) if startup should refresh
 fixture-owned records automatically.
+
+Refresh can overwrite fixture edits. See [database.md](./database.md) for migrations, seed modes, container/host targets, and isolated test setup.
 
 ## Seeded MFA Bypass
 
@@ -171,13 +173,15 @@ GET /auth/mfa/verify/dev/otp?scope=mfa-management
 
 Both are registered only when `NODE_ENV` is not `production`.
 
-## Working Package-by-Package
+## Explicit Non-Docker Alternatives
+
+Use direct startup only when a non-Docker workflow has been explicitly selected. Package-only scope does not bypass Docker for normal validation. Provide infrastructure and host-reachable connection values first; `backend/.env` must not retain container-only datasource addresses.
 
 Backend only:
 
 ```bash
 cd backend
-npm install
+npm ci
 npm run prisma:generate
 npm run dev
 ```
@@ -186,7 +190,7 @@ Frontend only:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -209,8 +213,8 @@ Frontend:
 ```bash
 cd frontend
 npm run lint
+npm run typecheck
 npm run test:unit
-npm run test:e2e
 ```
 
 ## Troubleshooting
@@ -218,4 +222,6 @@ npm run test:e2e
 - If Docker Compose fails on startup, confirm `.env` exists and required secrets are present.
 - If the frontend is using stale public env values, rebuild with `docker compose up --build`.
 - If auth behavior seems broken after a provider change, verify both backend provider settings and matching frontend public client IDs.
-- If you want a clean reseed of fixture-owned data, use `npm run seed -- --refresh` from `backend/`.
+- To reapply fixture-owned data, use `docker compose exec backend node dist/scripts/seed.js --refresh`; this can overwrite fixture edits.
+
+See [troubleshooting.md](./troubleshooting.md) for startup, port, migration, queue, search, and authentication diagnosis. Use [testing-guide.md](./testing-guide.md#playwright-tests) for browser tests against Docker.

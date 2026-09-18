@@ -36,7 +36,7 @@ Once the stack is up:
 - health check: `http://localhost:8040/api/v1/health`
 - OpenAPI YAML: `http://localhost:8040/api/v1/openapi.yaml`
 - OpenAPI JSON: `http://localhost:8040/api/v1/openapi.json`
-- RabbitMQ management: `http://localhost:15672`
+- RabbitMQ management: `http://localhost:15673`
 
 ## Seeded Accounts
 
@@ -69,6 +69,8 @@ Package-specific docs:
 
 - [backend/README.md](./backend/README.md)
 - [frontend/README.md](./frontend/README.md)
+- [mcp/README.md](./mcp/README.md)
+- [Worker index](./backend/src/app/workers/README.md)
 
 Project docs hub:
 
@@ -83,22 +85,23 @@ Full stack:
 docker compose up --build
 ```
 
-Backend:
+Backend checks (host-side tooling; integration tests require Docker infrastructure):
 
 ```bash
-cd backend
-npm run dev
-npm test
+npm --prefix backend run check:all
+npm --prefix backend run test:unit
+npm --prefix backend run openapi:check
 ```
 
-Frontend:
+Frontend checks:
 
 ```bash
-cd frontend
-npm run dev
-npm run test:unit
-npm run test:e2e
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run test:unit
 ```
+
+Use [the testing guide](./docs/testing-guide.md) for isolated integration setup and browser tests against Docker. Direct package startup is an explicitly selected non-Docker alternative documented in package READMEs.
 
 Dependency audit (from `backend/`, `frontend/`, or `mcp/`):
 
@@ -139,9 +142,14 @@ The committed API specs live at [backend/openapi/openapi.yaml](./backend/openapi
 ## Documentation
 
 - [docs/README.md](./docs/README.md): documentation hub
+- [CONTRIBUTING.md](./CONTRIBUTING.md): contribution workflow and logical commits
+- [docs/pr-review.md](./docs/pr-review.md): behavioral correctness and code-quality reviews
 - [docs/api.md](./docs/api.md): API entry point that redirects to the OpenAPI spec
 - [docs/local-development.md](./docs/local-development.md): setup, envs, services, local workflows
 - [docs/architecture-overview.md](./docs/architecture-overview.md): how the app is organized today
 - [docs/testing-guide.md](./docs/testing-guide.md): unit, integration, and end-to-end validation flow
 - [docs/dependency-security.md](./docs/dependency-security.md): dependency auditing, CI severity gate, and remediation runbook
+- [docs/database.md](./docs/database.md): migrations, seed modes, and isolated test databases
+- [docs/troubleshooting.md](./docs/troubleshooting.md): startup, authentication, workers, and search diagnosis
+- [docs/content-screening.md](./docs/content-screening.md): text screening and term-bank maintenance
 - [docs/rentify-plan.md](./docs/rentify-plan.md): long-form product and system plan

@@ -20,7 +20,6 @@ Run from `backend/`:
 npm test
 npm run test:unit
 npm run test:integration
-npm run test:db-seeds
 ```
 
 There is one kind of backend integration test. Every `*.integration.test.ts`
@@ -49,7 +48,7 @@ create for you. Create and migrate it once:
 ```bash
 docker compose exec mysql mysql -uroot -proot -e \
   "CREATE DATABASE IF NOT EXISTS rent_test; GRANT ALL PRIVILEGES ON rent_test.* TO 'rent'@'%'; FLUSH PRIVILEGES;"
-npm --prefix backend run prisma:migrate:deploy
+docker compose run --rm --no-deps -e DATABASE_URL=mysql://rent:rent@mysql:3306/rent_test backend-migrate npx prisma migrate deploy
 ```
 
 The suite then owns its own namespaces: a `rent-test-<uuid>` RabbitMQ vhost and
@@ -57,6 +56,18 @@ Elasticsearch index prefix per test file, Redis database 15, and the `rent_test`
 schema, which is truncated and reseeded before every test. Safety guards refuse
 to run against a non-local host, a database whose name does not look like a test
 database, Redis database 0, or a vhost/index prefix outside `rent-test-`.
+
+The explicit migration URL above targets `rent_test`; migrating the application's `rent` database does not prepare it. The integration harness selects default host MySQL/Redis targets in test support code rather than honoring arbitrary exported datasource URLs. Custom MySQL/Redis endpoints require supported explicit harness overrides; RabbitMQ/Elasticsearch environment overrides are described below.
+
+### Database seed tests
+
+Seed tests use a separate harness and can refresh fixture-owned data. It honors `DATABASE_URL` but otherwise defaults to the local `rent` application database. Select the isolated schema explicitly and do not run this suite concurrently with integration tests:
+
+```bash
+DATABASE_URL=mysql://rent:rent@127.0.0.1:3307/rent_test npm --prefix backend run test:db-seeds
+```
+
+See [database.md](./database.md#isolated-test-database) for PowerShell syntax and full connection/seed guidance.
 
 ### Port conflicts
 
@@ -179,25 +190,43 @@ Only the audit scripts run in CI for this workspace; the type check, tests, and 
 
 ## Playwright Tests
 
-Run from `frontend/`:
+Start the stack and run browser tests from the repository root. In Bash:
 
 ```bash
-npm run test:e2e
-npm run test:e2e:headed
-npm run test:e2e:ui
+docker compose up --build -d
+PLAYWRIGHT_EXTERNAL_SERVER=1 npm --prefix frontend run test:e2e
+PLAYWRIGHT_EXTERNAL_SERVER=1 npm --prefix frontend run test:e2e:headed
+PLAYWRIGHT_EXTERNAL_SERVER=1 npm --prefix frontend run test:e2e:ui
 ```
 
-By default, the Playwright config starts the frontend dev server on `http://127.0.0.1:3040`. If you want Playwright to use an already running app, set `PLAYWRIGHT_EXTERNAL_SERVER=1`.
+Run the commands above from the repository root. In PowerShell:
+
+```powershell
+docker compose up --build -d
+$previousExternalServer = $env:PLAYWRIGHT_EXTERNAL_SERVER
+try {
+    $env:PLAYWRIGHT_EXTERNAL_SERVER = '1'
+    npm --prefix frontend run test:e2e
+} finally {
+    $env:PLAYWRIGHT_EXTERNAL_SERVER = $previousExternalServer
+}
+```
+
+The external-server flag uses the Docker frontend at `http://127.0.0.1:3040` rather than starting another runtime. `PLAYWRIGHT_BASE_URL` overrides that URL. Without the flag, current configuration starts a dev server; use that mode only for an explicitly selected non-Docker workflow. Install the required browser with `npm --prefix frontend exec -- playwright install chromium` if needed.
 
 ## End-to-End Validation Workflow
 
-For real feature validation, prefer this flow:
+For user-facing work, agree who owns browser validation; agents default to Playwright MCP unless the user chooses manual testing. Automated Playwright suites and interactive Playwright MCP validation are distinct; report which actually ran.
+
+For real feature validation, use this flow:
 
 1. Start the full stack with `docker compose up --build` from the repo root.
 2. Confirm the frontend and backend are reachable.
 3. Exercise the real flow in the browser.
 4. Check console and network behavior.
 5. Re-run the relevant Playwright path after fixes.
+
+If the user owns browser validation, run applicable non-UI checks and provide manual success/failure steps with expected outcomes. Inspect authorization, validation, loading/error states, refresh, console output, and network/API behavior as relevant. Do not claim browser validation from a build or source inspection.
 
 Useful runtime URLs:
 
@@ -231,6 +260,8 @@ the body and a text locator goes stale exactly when it is needed.
 
 ## Choosing the Right Level
 
+- Documentation-only changes require Markdown formatting, relative link/anchor checks, command/configuration accuracy, and diff hygiene. Docker, application tests, and browser checks can be skipped when no runtime, contract, or dependency changes are included.
+
 - Use frontend unit tests for component logic, formatting, and client-side state transitions.
 - Use backend unit or integration tests for API behavior, validation, persistence rules, and concurrency-sensitive flows.
 - Use Playwright and Docker Compose for end-to-end user journeys, especially when a change crosses frontend, backend, auth, and data boundaries.
@@ -246,3 +277,5 @@ Most browser sign-in flows use the seeded usernames rather than the email addres
 - `renter-two` / `user2@rentify.local` / `Rentify123!` for operator and read-only role checks
 
 For the full fixture list and reseeding commands, use [local-development.md](./local-development.md).
+
+Use the [PR review guide](./pr-review.md) to assess behavior and code quality and distinguish personally run checks from author/CI evidence.

@@ -14,6 +14,11 @@ This folder is the working documentation set for the Rentify repository. Use it 
 - [architecture-overview.md](./architecture-overview.md): high-level map of the frontend, backend, workers, and infrastructure
 - [testing-guide.md](./testing-guide.md): command map for backend, frontend, and Docker-first end-to-end validation
 
+## Database and Operations
+
+- [database.md](./database.md): connection targets, migrations, seeds, and isolated test databases
+- [troubleshooting.md](./troubleshooting.md): startup, ports, configuration, authentication, logs, queues, and search
+
 ## Product and Planning
 
 - [rentify-plan.md](./rentify-plan.md): long-form product vision, system direction, phases, and domain design
@@ -21,6 +26,7 @@ This folder is the working documentation set for the Rentify repository. Use it 
 ## Security
 
 - [dependency-security.md](./dependency-security.md): dependency auditing, the CI severity gate, install-script allowlists, Socket.dev, and the remediation runbook
+- [content-screening.md](./content-screening.md): text screening rules and term-bank maintenance
 
 ## Code and API References
 
@@ -28,13 +34,14 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 - [../backend/README.md](../backend/README.md): backend scripts, workers, seeds, and API notes
 - [../frontend/README.md](../frontend/README.md): frontend envs, app areas, and test scripts
+- [../mcp/README.md](../mcp/README.md): stdio MCP server, configuration, tools, and Compose integration
 - [../backend/openapi/openapi.yaml](../backend/openapi/openapi.yaml): committed OpenAPI YAML spec
 - [../backend/openapi/openapi.json](../backend/openapi/openapi.json): committed OpenAPI JSON spec
 
 ## Suggested Reading Order
 
-1. Read [local-development.md](./local-development.md) to get the app running.
-2. Read [architecture-overview.md](./architecture-overview.md) to understand where features live.
-3. Read [testing-guide.md](./testing-guide.md) before changing behavior.
-4. Use the deep-dive docs when you need specific design context.
-5. Read [dependency-security.md](./dependency-security.md) before adding, upgrading, or removing a dependency.
+1. Read [CONTRIBUTING](../CONTRIBUTING.md) for branches, commits, and validation expectations.
+2. Read [local-development.md](./local-development.md) to get the app running.
+3. Read [architecture-overview.md](./architecture-overview.md) to understand where features live.
+4. Read [testing-guide.md](./testing-guide.md) before changing behavior and [pr-review.md](./pr-review.md) before handoff or review.
+5. Use database, worker, and other deep-dive references for the area you change; read dependency security before changing dependencies.

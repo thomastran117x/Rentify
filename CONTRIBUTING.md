@@ -60,7 +60,7 @@ npm --prefix backend run openapi:check
 npm --prefix backend run check:openapi-operation-coverage
 ```
 
-Include Prisma migrations with schema changes, validate against the intended database, and describe data compatibility and rollout requirements. Do not rewrite an already applied migration or use an unreviewed reset as a migration strategy. Keep seeds aligned with changed behavior and use existing fixtures for local validation.
+Include Prisma migrations with schema changes, validate against the intended database, and describe data compatibility and rollout requirements. Do not rewrite an already applied migration or use an unreviewed reset as a migration strategy. Keep seeds aligned with changed behavior and use existing fixtures for local validation. Follow [database.md](./docs/database.md) for connection targets, migration tooling, seed modes, and isolated test setup.
 
 ## Preparing a Pull Request
 
