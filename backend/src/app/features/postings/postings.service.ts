@@ -4,7 +4,7 @@ import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { ZodError } from "zod";
 import { RequestValidationError } from "@/configuration/validation/request";
-import type { BlobService } from "@/features/blob/blob.service";
+import type { MediaService } from "@/features/media/media.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserOrganizationMembershipRecord } from "@/features/auth/auth.model";
@@ -82,7 +82,7 @@ export class PostingsService {
     private readonly postingsPublicSearchService: PostingsPublicSearchService,
     private readonly postingsReviewsRepository: PostingsReviewsRepository,
     private readonly rentingsRepository: RentingsRepository,
-    private readonly blobService: BlobService,
+    private readonly mediaService: MediaService,
     private readonly postingThumbnailQueueService: PostingThumbnailQueueService,
     private readonly contentSanitizationService: ContentSanitizationService,
     private readonly cacheService: CacheService,
@@ -1541,13 +1541,13 @@ export class PostingsService {
   }
 
   private assertManagedBlob(blobUrl: string, blobName: string): void {
-    if (!this.blobService.isConfigured()) {
+    if (!this.mediaService.isConfigured()) {
       throw new BadRequestError(
         "Posting photos require Azure Blob Storage to be configured on the backend.",
       );
     }
 
-    if (!this.blobService.isManagedBlobUrl(blobUrl, blobName)) {
+    if (!this.mediaService.isManagedUrl(blobUrl, blobName)) {
       throw new BadRequestError(
         "Posting photo URLs must match the configured Azure Blob Storage location.",
       );

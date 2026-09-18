@@ -18,14 +18,14 @@ export const profileRegistrationModule: ContainerRegistrationModule = {
       lifetime: "scoped",
       dependencies: [
         containerTokens.profileRepository,
-        containerTokens.blobService,
+        containerTokens.mediaService,
         containerTokens.usernameService,
         containerTokens.usernameBloomService,
       ],
       resolve: ({ resolve }) =>
         new ProfileService(
           resolve(containerTokens.profileRepository),
-          resolve(containerTokens.blobService),
+          resolve(containerTokens.mediaService),
           resolve(containerTokens.usernameService),
           resolve(containerTokens.usernameBloomService),
         ),

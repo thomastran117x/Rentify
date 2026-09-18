@@ -541,10 +541,6 @@ export class BlobService {
     return segments.length < 3 ? null : (segments.at(-2) ?? null);
   }
 
-  isBlobOwnedByUser(userId: string, blobName: string): boolean {
-    return this.getBlobOwnerId(blobName) === userId;
-  }
-
   private normalizeScope(scope?: string): string {
     const normalizedScope = (scope ?? DEFAULT_SCOPE).trim().toLowerCase();
 

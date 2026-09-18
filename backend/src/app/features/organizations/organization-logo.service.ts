@@ -1,6 +1,6 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import { loggerFactory } from "@/configuration/logging";
-import type { BlobService } from "@/features/blob/blob.service";
+import type { MediaService } from "@/features/media/media.service";
 import type { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
 import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type { OrganizationProfileInput } from "@/features/organizations/organizations.model";
@@ -18,7 +18,7 @@ export class OrganizationLogoService {
   );
 
   constructor(
-    private readonly blobService: BlobService,
+    private readonly mediaService: MediaService,
     private readonly organizationAuditRepository: OrganizationAuditRepository,
   ) {}
 
@@ -54,19 +54,19 @@ export class OrganizationLogoService {
       );
     }
 
-    if (!this.blobService.isConfigured()) {
+    if (!this.mediaService.isConfigured()) {
       throw new BadRequestError(
         "Organization logos require Blob Storage to be configured on the backend.",
       );
     }
 
-    if (!this.blobService.isManagedBlobUrl(profile.logoUrl, logoBlobName)) {
+    if (!this.mediaService.isManagedUrl(profile.logoUrl, logoBlobName)) {
       throw new BadRequestError(
         "Logo URL must match the Blob Storage location for the provided blob name.",
       );
     }
 
-    if (!this.blobService.isBlobOwnedByUser(actorUserId, logoBlobName)) {
+    if (!this.mediaService.isOwnedBy(actorUserId, logoBlobName)) {
       throw new BadRequestError(
         "Organization logo blob must belong to the current user.",
       );
@@ -100,9 +100,9 @@ export class OrganizationLogoService {
       !previousBlobName ||
       previousBlobName === nextBlobName ||
       !previousBlobUrl ||
-      !this.blobService.isManagedBlobUrl(previousBlobUrl, previousBlobName) ||
+      !this.mediaService.isManagedUrl(previousBlobUrl, previousBlobName) ||
       !this.isLogoBlobName(previousBlobName) ||
-      !this.blobService.isBlobOwnedByUser(input.actorUserId, previousBlobName)
+      !this.mediaService.isOwnedBy(input.actorUserId, previousBlobName)
     ) {
       return;
     }
@@ -120,7 +120,7 @@ export class OrganizationLogoService {
     }
 
     try {
-      await this.blobService.deleteBlob(previousBlobName);
+      await this.mediaService.deleteMedia(input.actorUserId, previousBlobName);
     } catch (error) {
       this.logger.error("Failed to delete replaced organization logo blob.", {
         previousBlobName,

@@ -26,7 +26,7 @@ import type { PostingsRepository } from "@/features/postings/postings.repository
 import type { PostingThumbnailQueueService } from "@/features/postings/thumbnail/thumbnail.queue.service";
 import type { PostingsPublicSearchService } from "@/features/postings/search/public-search.service";
 import { PostingsService } from "@/features/postings/postings.service";
-import type { BlobService } from "@/features/blob/blob.service";
+import type { MediaService } from "@/features/media/media.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { RentingsRepository } from "@/features/rentings/rentings.repository";
@@ -527,10 +527,10 @@ function createServiceHarness(
   searchService = {} as PostingsPublicSearchService,
   organizationsRepository = createOrganizationsRepositoryStub(),
 ) {
-  const blobService = {
+  const mediaService = {
     isConfigured: () => true,
-    isManagedBlobUrl: () => true,
-  } as unknown as BlobService;
+    isManagedUrl: () => true,
+  } as unknown as MediaService;
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
       key,
@@ -559,7 +559,7 @@ function createServiceHarness(
       searchService,
       postingsReviewsRepository as unknown as PostingsReviewsRepository,
       rentingsRepository as unknown as RentingsRepository,
-      blobService,
+      mediaService,
       postingThumbnailQueueService as unknown as PostingThumbnailQueueService,
       new ContentSanitizationService(),
       cacheService,
@@ -1855,10 +1855,10 @@ describe("PostingsService", () => {
   it("returns a conflict when the posting availability lock is busy", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const blobService = {
+    const mediaService = {
       isConfigured: () => true,
-      isManagedBlobUrl: () => true,
-    } as unknown as BlobService;
+      isManagedUrl: () => true,
+    } as unknown as MediaService;
     const cacheService = {
       acquireLock: jest.fn(async () => null),
     } as unknown as CacheService;
@@ -1880,7 +1880,7 @@ describe("PostingsService", () => {
       searchService,
       {} as unknown as PostingsReviewsRepository,
       {} as unknown as RentingsRepository,
-      blobService,
+      mediaService,
       postingThumbnailQueueService,
       new ContentSanitizationService(),
       cacheService,
@@ -2043,10 +2043,10 @@ describe("PostingsService", () => {
   it("swallows thumbnail queue failures after create succeeds", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const blobService = {
+    const mediaService = {
       isConfigured: () => true,
-      isManagedBlobUrl: () => true,
-    } as unknown as BlobService;
+      isManagedUrl: () => true,
+    } as unknown as MediaService;
     const cacheService = {
       acquireLock: jest.fn(async (key: string) => ({
         key,
@@ -2075,7 +2075,7 @@ describe("PostingsService", () => {
       searchService,
       {} as unknown as PostingsReviewsRepository,
       {} as unknown as RentingsRepository,
-      blobService,
+      mediaService,
       postingThumbnailQueueService,
       new ContentSanitizationService(),
       cacheService,
@@ -2374,9 +2374,9 @@ describe("PostingsService", () => {
     ).toThrow("Availability blocks may not overlap.");
 
     Object.assign(service as object, {
-      blobService: {
+      mediaService: {
         isConfigured: () => false,
-        isManagedBlobUrl: () => true,
+        isManagedUrl: () => true,
       },
     });
     expect(() =>
@@ -2384,9 +2384,9 @@ describe("PostingsService", () => {
     ).toThrow("Posting photos require Azure Blob Storage");
 
     Object.assign(service as object, {
-      blobService: {
+      mediaService: {
         isConfigured: () => true,
-        isManagedBlobUrl: () => false,
+        isManagedUrl: () => false,
       },
     });
     expect(() =>

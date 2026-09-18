@@ -91,7 +91,7 @@ function createService(options?: {
   update?: jest.Mock;
   findPublicProfiles?: jest.Mock;
   isConfigured?: jest.Mock;
-  isManagedBlobUrl?: jest.Mock;
+  isManagedUrl?: jest.Mock;
   assertUsernameIsAvailable?: jest.Mock;
 }) {
   const profileRepository = {
@@ -111,9 +111,9 @@ function createService(options?: {
     findByUserId: options?.findByUserId ?? jest.fn(async () => createProfile()),
     update: options?.update ?? jest.fn(async () => createProfile()),
   };
-  const blobService = {
+  const mediaService = {
     isConfigured: options?.isConfigured ?? jest.fn(() => true),
-    isManagedBlobUrl: options?.isManagedBlobUrl ?? jest.fn(() => true),
+    isManagedUrl: options?.isManagedUrl ?? jest.fn(() => true),
   };
   const usernameService = {
     assertUsernameIsAvailable:
@@ -126,12 +126,12 @@ function createService(options?: {
 
   return {
     profileRepository,
-    blobService,
+    mediaService,
     usernameService,
     usernameBloomService,
     service: new ProfileService(
       profileRepository as any,
-      blobService as any,
+      mediaService as any,
       usernameService as any,
       usernameBloomService as any,
     ),
@@ -196,7 +196,7 @@ describe("ProfileService", () => {
       avatarBlobName: "avatars/user-1-updated.png",
     });
     const update = jest.fn(async () => updatedProfile);
-    const { service, profileRepository, blobService } = createService({
+    const { service, profileRepository, mediaService } = createService({
       update,
     });
 
@@ -216,8 +216,8 @@ describe("ProfileService", () => {
     ).resolves.toEqual(updatedProfile);
 
     expect(profileRepository.findByUserId).toHaveBeenCalledWith(USER_1_ID);
-    expect(blobService.isConfigured).toHaveBeenCalledTimes(1);
-    expect(blobService.isManagedBlobUrl).toHaveBeenCalledWith(
+    expect(mediaService.isConfigured).toHaveBeenCalledTimes(1);
+    expect(mediaService.isManagedUrl).toHaveBeenCalledWith(
       "  https://storage.example.com/avatars/user-1-updated.png  ",
       "  avatars/user-1-updated.png  ",
     );
@@ -293,7 +293,7 @@ describe("ProfileService", () => {
         avatarBlobName: undefined,
       }),
     );
-    const { service, blobService } = createService({
+    const { service, mediaService } = createService({
       update,
       isConfigured: jest.fn(() => false),
     });
@@ -305,7 +305,7 @@ describe("ProfileService", () => {
       avatarBlobName: null,
     });
 
-    expect(blobService.isConfigured).not.toHaveBeenCalled();
+    expect(mediaService.isConfigured).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       userId: USER_1_ID,
       username: "owner-one",
@@ -340,7 +340,7 @@ describe("ProfileService", () => {
 
   it("rejects avatar urls that do not match the managed blob location", async () => {
     const { service } = createService({
-      isManagedBlobUrl: jest.fn(() => false),
+      isManagedUrl: jest.fn(() => false),
     });
 
     await expect(

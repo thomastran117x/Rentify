@@ -5,15 +5,15 @@ const ORG_1_ID = testUuid(9000, 9234);
 const USER_1_ID = testUuid(9000, 994257);
 
 function createService(overrides?: {
-  blobService?: Record<string, jest.Mock>;
+  mediaService?: Record<string, jest.Mock>;
   organizationAuditRepository?: Record<string, jest.Mock>;
 }) {
-  const blobService = {
+  const mediaService = {
     isConfigured: jest.fn(() => true),
-    isManagedBlobUrl: jest.fn(() => true),
-    isBlobOwnedByUser: jest.fn(() => true),
-    deleteBlob: jest.fn(async () => undefined),
-    ...(overrides?.blobService ?? {}),
+    isManagedUrl: jest.fn(() => true),
+    isOwnedBy: jest.fn(() => true),
+    deleteMedia: jest.fn(async () => undefined),
+    ...(overrides?.mediaService ?? {}),
   };
   const organizationAuditRepository = {
     hasRestorableOrganizationLogoReference: jest.fn(async () => false),
@@ -22,10 +22,10 @@ function createService(overrides?: {
 
   return {
     service: new OrganizationLogoService(
-      blobService as any,
+      mediaService as any,
       organizationAuditRepository as any,
     ),
-    blobService,
+    mediaService,
     organizationAuditRepository,
   };
 }
@@ -47,7 +47,7 @@ describe("OrganizationLogoService", () => {
       const nextLogoBlobName = "organizations/user-9/logo-new.png";
       const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
       const { service } = createService({
-        blobService: { isBlobOwnedByUser: jest.fn(() => false) },
+        mediaService: { isOwnedBy: jest.fn(() => false) },
       });
 
       expect(() =>
@@ -77,7 +77,7 @@ describe("OrganizationLogoService", () => {
     it("preserves the previous managed logo when a restorable audit still references it", async () => {
       const nextLogoBlobName = `organizations/${USER_1_ID}/logo-new.png`;
       const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
-      const { service, blobService, organizationAuditRepository } =
+      const { service, mediaService, organizationAuditRepository } =
         createService({
           organizationAuditRepository: {
             hasRestorableOrganizationLogoReference: jest.fn(async () => true),
@@ -97,7 +97,7 @@ describe("OrganizationLogoService", () => {
         },
       });
 
-      expect(blobService.isManagedBlobUrl).toHaveBeenCalledWith(
+      expect(mediaService.isManagedUrl).toHaveBeenCalledWith(
         previousLogoUrl,
         previousLogoBlobName,
       );
@@ -107,12 +107,12 @@ describe("OrganizationLogoService", () => {
         organizationId: ORG_1_ID,
         blobName: previousLogoBlobName,
       });
-      expect(blobService.deleteBlob).not.toHaveBeenCalled();
+      expect(mediaService.deleteMedia).not.toHaveBeenCalled();
     });
 
     it("does not delete a previous managed logo the actor does not own", async () => {
-      const { service, blobService } = createService({
-        blobService: { isBlobOwnedByUser: jest.fn(() => false) },
+      const { service, mediaService } = createService({
+        mediaService: { isOwnedBy: jest.fn(() => false) },
       });
 
       await service.cleanupReplacedLogo({
@@ -125,11 +125,11 @@ describe("OrganizationLogoService", () => {
         afterSnapshot: { logoUrl: null, logoBlobName: null },
       });
 
-      expect(blobService.deleteBlob).not.toHaveBeenCalled();
+      expect(mediaService.deleteMedia).not.toHaveBeenCalled();
     });
 
     it("deletes the previous managed logo when no restorable audit references it", async () => {
-      const { service, blobService } = createService();
+      const { service, mediaService } = createService();
 
       await service.cleanupReplacedLogo({
         organizationId: ORG_1_ID,
@@ -141,7 +141,10 @@ describe("OrganizationLogoService", () => {
         afterSnapshot: { logoUrl: null, logoBlobName: null },
       });
 
-      expect(blobService.deleteBlob).toHaveBeenCalledWith(previousLogoBlobName);
+      expect(mediaService.deleteMedia).toHaveBeenCalledWith(
+        USER_1_ID,
+        previousLogoBlobName,
+      );
     });
   });
 });
