@@ -600,10 +600,12 @@ export class BlobService {
     return normalized;
   }
 
+  // Issued names are `${scope}/${ownerId}/${file}`. The scope may itself contain
+  // slashes and the file never does, so the owner is found from the end.
   private assertUserOwnsBlob(userId: Uuid, blobName: string): void {
     const segments = blobName.split("/");
 
-    if (segments.length < 3 || segments[1] !== userId) {
+    if (segments.length < 3 || segments.at(-2) !== userId) {
       throw new BadRequestError("Blob name is invalid.");
     }
   }

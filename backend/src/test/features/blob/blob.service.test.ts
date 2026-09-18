@@ -516,6 +516,25 @@ describe("BlobService", () => {
     expect(service.isBlobOwnedByUser(USER_1_ID, "../escape.txt")).toBe(false);
   });
 
+  it("finds the owner of a blob issued under a multi-segment scope", () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const { blobName } = service.createUploadUrl({
+      userId: USER_1_ID,
+      filename: "photo.png",
+      contentType: "image/png",
+      scope: "postings/photos",
+    });
+
+    expect(blobName.startsWith(`postings/photos/${USER_1_ID}/`)).toBe(true);
+    expect(service.isBlobOwnedByUser(USER_1_ID, blobName)).toBe(true);
+    expect(service.isBlobOwnedByUser(USER_2_ID, blobName)).toBe(false);
+  });
+
   it("treats missing local blob deletes as no-ops and unmanaged urls as false", async () => {
     process.env.NODE_ENV = "development";
     delete process.env.AZURE_STORAGE_CONNECTION_STRING;
