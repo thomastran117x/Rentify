@@ -37,6 +37,7 @@ import { PersonalAccessTokenService } from "@/features/auth/personal-access-toke
 import { TokenService } from "@/features/auth/token/token.service";
 import { BlobController } from "@/features/blob/blob.controller";
 import { BlobService } from "@/features/blob/blob.service";
+import { MediaService } from "@/features/media/media.service";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
 import { BookingsService } from "@/features/bookings/bookings.service";
@@ -412,6 +413,7 @@ export const containerTokens = {
       "PersonalAccessTokenController",
     ),
   blobService: createServiceToken<BlobService>("BlobService"),
+  mediaService: createServiceToken<MediaService>("MediaService"),
   blobController: createServiceToken<BlobController>("BlobController"),
   bookingsRepository:
     createServiceToken<BookingsRepository>("BookingsRepository"),

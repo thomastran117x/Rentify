@@ -34,12 +34,16 @@ export type DeleteBlobRequestQuery = z.infer<
   typeof deleteBlobRequestQuerySchema
 >;
 
-export interface CreateBlobUploadUrlInput {
-  userId: Uuid;
-  filename: string;
-  contentType: string;
-  sizeBytes?: number;
+export interface BuildBlobNameInput {
+  ownerId: Uuid;
+  /** Including the leading dot, e.g. ".png". */
+  extension: string;
   scope?: string;
+}
+
+export interface CreateBlobUploadUrlInput {
+  blobName: string;
+  contentType: string;
   requestOrigin?: string;
 }
 

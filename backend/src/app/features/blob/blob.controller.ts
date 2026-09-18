@@ -8,13 +8,17 @@ import {
   createBlobUploadUrlRequestSchema,
   deleteBlobRequestQuerySchema,
   type CreateBlobUploadUrlRequestBody,
-  type CreateBlobUploadUrlInput,
 } from "@/features/blob/blob.model";
-import { BlobService } from "@/features/blob/blob.service";
+import type { BlobService } from "@/features/blob/blob.service";
+import type { CreateImageUploadInput } from "@/features/media/media.model";
+import type { MediaService } from "@/features/media/media.service";
 import { asUuid } from "@/configuration/validation/uuid";
 
 export class BlobController {
-  constructor(private readonly blobService: BlobService) {}
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly blobService: BlobService,
+  ) {}
 
   createUploadUrl = async (
     request: Request,
@@ -25,8 +29,8 @@ export class BlobController {
       request,
       createBlobUploadUrlRequestSchema,
     );
-    const result = this.blobService.createUploadUrl(
-      this.toCreateBlobUploadUrlInput(request, input),
+    const result = this.mediaService.createImageUpload(
+      this.toCreateImageUploadInput(request, input),
     );
 
     created(response, result, {
@@ -34,10 +38,10 @@ export class BlobController {
     });
   };
 
-  private toCreateBlobUploadUrlInput(
+  private toCreateImageUploadInput(
     request: Request,
     input: CreateBlobUploadUrlRequestBody,
-  ): CreateBlobUploadUrlInput {
+  ): CreateImageUploadInput {
     return {
       userId: asUuid(request.auth.sub),
       filename: input.filename,
@@ -64,7 +68,7 @@ export class BlobController {
     // express.raw is mounted on this route, so the body is already a Buffer.
     const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
 
-    await this.blobService.uploadLocalBlob({
+    await this.mediaService.completeImageUpload({
       blobName,
       expiresAt,
       token,
@@ -82,6 +86,8 @@ export class BlobController {
       throw new BadRequestError("Blob name is required.");
     }
 
+    // The local stand-in for Azure's public blob endpoint, which serves stored
+    // bytes without involving the backend, so this is a plain storage read.
     const blob = await this.blobService.readLocalBlob(blobName);
 
     response.status(200);
@@ -94,7 +100,7 @@ export class BlobController {
     const auth = await requireJwtAuth(request);
     const query = deleteBlobRequestQuerySchema.parse(getQuery(request));
 
-    await this.blobService.deleteBlobForUser(auth.sub, query.blobName);
+    await this.mediaService.deleteMedia(auth.sub, query.blobName);
 
     ok(
       response,

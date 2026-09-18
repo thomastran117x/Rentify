@@ -1,7 +1,11 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
+import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { postingsThumbnailRegistrationModule } from "@/configuration/container/registrations/modules/postings-thumbnail";
 import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
+import { BlobController } from "@/features/blob/blob.controller";
+import { BlobService } from "@/features/blob/blob.service";
+import { MediaService } from "@/features/media/media.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
@@ -66,6 +70,38 @@ describe("targeted container registration modules", () => {
     expect(repository).toBeInstanceOf(PersonalAccessTokenRepository);
     expect(service).toBeInstanceOf(PersonalAccessTokenService);
     expect(controller).toBeInstanceOf(PersonalAccessTokenController);
+  });
+
+  it("registers the blob graph with MediaService in front of storage", () => {
+    const registrations: Array<{
+      token: unknown;
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+    const resolved = new Map<unknown, unknown>();
+
+    blobRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const resolve = (token: unknown): unknown => {
+      if (!resolved.has(token)) {
+        const registration = registrations.find(
+          (candidate) => candidate.token === token,
+        );
+        expect(registration).toBeDefined();
+        resolved.set(token, registration!.resolve({ resolve }));
+      }
+
+      return resolved.get(token);
+    };
+
+    expect(resolve(containerTokens.blobService)).toBeInstanceOf(BlobService);
+    expect(resolve(containerTokens.mediaService)).toBeInstanceOf(MediaService);
+    expect(resolve(containerTokens.blobController)).toBeInstanceOf(
+      BlobController,
+    );
   });
 
   it("registers and resolves the posting thumbnail queue and service graph", () => {

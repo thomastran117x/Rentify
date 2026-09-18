@@ -15,17 +15,10 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type {
   BlobUploadTarget,
+  BuildBlobNameInput,
   CreateBlobUploadUrlInput,
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
-import {
-  assertImageBytes,
-  assertImageSizeWithinLimit,
-  imageExtensionForContentType,
-  normalizeImageContentType,
-} from "@/features/blob/image-policy";
-import type { SupportedImageContentType } from "@/configuration/environment/constants";
-import type { Uuid } from "@/configuration/validation/uuid";
 
 interface AzureBlobConfiguration {
   accountName: string;
@@ -49,6 +42,12 @@ const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
 const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
 const LOCAL_BLOB_FILE_PATH = buildApiPath("/blob/file");
 
+/**
+ * Storage adapter for Azure Blob Storage, with a local-disk stand-in for
+ * development. It signs upload URLs, moves bytes, and owns the blob naming
+ * convention, but decides nothing about what may be stored or who may attach
+ * it - that is MediaService's job.
+ */
 export class BlobService {
   private readonly config: AzureBlobConfiguration | null;
   private readonly localConfig: LocalBlobConfiguration | null;
@@ -59,19 +58,8 @@ export class BlobService {
   }
 
   createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
-    // Upload credentials are only ever issued for images. There is no
-    // client-controlled escape hatch: a caller cannot opt out of the allow-list
-    // by declaring a different kind of upload.
-    const contentType = normalizeImageContentType(input.contentType);
-
-    // Advisory - the client declares this and can lie. It catches an honest
-    // oversized upload before a slow transfer; the authoritative check runs
-    // against the real bytes on the upload path.
-    if (input.sizeBytes !== undefined) {
-      assertImageSizeWithinLimit(input.sizeBytes);
-    }
-
-    const blobName = this.buildBlobName(input.userId, contentType, input.scope);
+    const blobName = this.normalizeBlobName(input.blobName);
+    const contentType = this.normalizeContentType(input.contentType);
 
     if (this.config) {
       return this.createAzureUploadUrl(blobName, contentType);
@@ -107,47 +95,58 @@ export class BlobService {
     return this.config !== null || this.localConfig !== null;
   }
 
-  async uploadLocalBlob(input: {
-    blobName: string;
-    expiresAt: string;
-    token: string;
-    contentType: string;
-    body: Buffer;
-  }): Promise<void> {
+  /**
+   * Verifies a signed local upload URL. Throws 501 when local storage is not
+   * available, before looking at the token.
+   */
+  assertLocalUploadToken(
+    blobName: string,
+    expiresAt: string,
+    token: string,
+  ): void {
     this.requireLocalConfiguration();
-    // Token first, deliberately: no image decoding work on behalf of a caller
-    // who has not proved they hold a valid upload URL.
-    this.assertLocalUploadToken(input.blobName, input.expiresAt, input.token);
+    const expectedToken = this.signLocalUploadToken(blobName, expiresAt);
+    const expectedBuffer = Buffer.from(expectedToken, "utf8");
+    const providedBuffer = Buffer.from(token, "utf8");
 
-    const contentType = normalizeImageContentType(input.contentType);
-    this.assertContentTypeMatchesSignedBlob(input.blobName, contentType);
-    assertImageSizeWithinLimit(input.body.byteLength);
-    await assertImageBytes(input.body, contentType);
+    if (
+      expectedBuffer.length !== providedBuffer.length ||
+      !timingSafeEqual(expectedBuffer, providedBuffer)
+    ) {
+      throw new BadRequestError("Blob upload token is invalid.");
+    }
 
-    await this.writeLocalBlob(input.blobName, input.body, contentType);
+    const expiry = Date.parse(expiresAt);
+
+    if (!Number.isFinite(expiry) || expiry < Date.now()) {
+      throw new BadRequestError("Blob upload URL has expired.");
+    }
   }
 
-  // The upload token signs the blob name but not the content type, so without
-  // this a holder of a valid URL could upload a PNG under a name issued for a
-  // JPEG. Because the stored extension is derived from the validated content
-  // type, the blob name determines the type unambiguously and inverting the
-  // extension mapping is enough to bind them.
-  //
-  // This check is local-only. Azure uploads have no equivalent: the SAS
-  // contentType is not an upload constraint (see createAzureUploadUrl), so on
-  // that path neither the declared type nor the bytes are verified. See
-  // "Image Upload Validation" in docs/architecture-overview.md.
-  private assertContentTypeMatchesSignedBlob(
+  async writeLocalBlob(
     blobName: string,
-    contentType: SupportedImageContentType,
-  ): void {
-    const extension = path.posix.extname(blobName).toLowerCase();
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    const localConfig = this.requireLocalConfiguration();
+    const normalizedBlobName = this.normalizeBlobName(blobName);
+    const blobPath = path.join(
+      localConfig.storageRoot,
+      normalizedBlobName.replace(/\//g, path.sep),
+    );
+    const metadataPath = `${blobPath}.meta.json`;
 
-    if (extension !== imageExtensionForContentType(contentType)) {
-      throw new BadRequestError(
-        "Content type does not match the requested upload URL.",
-      );
-    }
+    await mkdir(path.dirname(blobPath), {
+      recursive: true,
+    });
+    await writeFile(blobPath, body);
+    await writeFile(
+      metadataPath,
+      JSON.stringify({
+        contentType,
+      }),
+      "utf8",
+    );
   }
 
   async readLocalBlob(blobName: string): Promise<{
@@ -156,22 +155,6 @@ export class BlobService {
   }> {
     this.requireLocalConfiguration();
     return this.readLocalBlobData(blobName);
-  }
-
-  async deleteBlobForUser(userId: Uuid, blobName: string): Promise<void> {
-    const normalizedBlobName = this.normalizeBlobName(blobName);
-    this.assertUserOwnsBlob(userId, normalizedBlobName);
-    await this.deleteBlob(normalizedBlobName);
-  }
-
-  isBlobOwnedByUser(userId: Uuid, blobName: string): boolean {
-    try {
-      const normalizedBlobName = this.normalizeBlobName(blobName);
-      this.assertUserOwnsBlob(userId, normalizedBlobName);
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   async deleteBlob(blobName: string): Promise<void> {
@@ -321,7 +304,7 @@ export class BlobService {
         // overrides the Content-Type returned when the blob is read with this
         // token - and this token cannot read. Azure accepts a PUT with any
         // Content-Type and any bytes, which was verified against a real
-        // account, so the allow-list above governs what a client may ask
+        // account, so MediaService's allow-list governs what a client may ask
         // for, not what it can store.
         contentType,
       },
@@ -470,21 +453,37 @@ export class BlobService {
     return environment.getBlobStorageConfig().uploadSasTtlSeconds;
   }
 
-  // The stored extension comes from the validated content type, never from the
-  // client's filename. A file called "photo.png" declared as image/jpeg is
-  // stored as .jpg: the extension is a consequence of the format, not evidence
-  // of it. Where the two disagree the content type wins silently - the client
-  // controls both fields, so rejecting the mismatch would buy no safety while
-  // breaking legitimate cases like .jpeg/.jpg or a renamed download.
-  private buildBlobName(
-    userId: Uuid,
-    contentType: SupportedImageContentType,
-    scope?: string,
-  ): string {
-    const normalizedScope = this.normalizeScope(scope);
-    const extension = imageExtensionForContentType(contentType);
+  /**
+   * Issues a fresh name of the form `${scope}/${ownerId}/${file}`. The caller
+   * supplies the extension; the client's filename never contributes to it.
+   */
+  buildBlobName(input: BuildBlobNameInput): string {
+    const normalizedScope = this.normalizeScope(input.scope);
 
-    return `${normalizedScope}/${userId}/${Date.now()}-${randomUUID()}${extension}`;
+    return `${normalizedScope}/${input.ownerId}/${Date.now()}-${randomUUID()}${input.extension}`;
+  }
+
+  /**
+   * Reads the owner segment back out of a name issued by buildBlobName, or
+   * returns null when the name is invalid or not in that shape. The scope may
+   * itself contain slashes and the file never does, so the owner is found from
+   * the end.
+   */
+  getBlobOwnerId(blobName: string): string | null {
+    let normalizedBlobName: string;
+
+    try {
+      normalizedBlobName = this.normalizeBlobName(blobName);
+    } catch {
+      return null;
+    }
+
+    const segments = normalizedBlobName.split("/");
+    return segments.length < 3 ? null : (segments.at(-2) ?? null);
+  }
+
+  isBlobOwnedByUser(userId: string, blobName: string): boolean {
+    return this.getBlobOwnerId(blobName) === userId;
   }
 
   private normalizeScope(scope?: string): string {
@@ -503,9 +502,8 @@ export class BlobService {
     return normalizedScope;
   }
 
-  // Generic shape-only check, retained for uploadBuffer - the one remaining
-  // caller. Client-facing paths use normalizeImageContentType instead, which
-  // adds the image allow-list on top of these same guards.
+  // Generic shape-only check. Which types may be uploaded at all is decided
+  // before a name or URL is requested, by MediaService's image allow-list.
   private normalizeContentType(contentType: string): string {
     const normalized = contentType.trim().toLowerCase();
 
@@ -561,29 +559,6 @@ export class BlobService {
       .digest("hex");
   }
 
-  private assertLocalUploadToken(
-    blobName: string,
-    expiresAt: string,
-    token: string,
-  ): void {
-    const expectedToken = this.signLocalUploadToken(blobName, expiresAt);
-    const expectedBuffer = Buffer.from(expectedToken, "utf8");
-    const providedBuffer = Buffer.from(token, "utf8");
-
-    if (
-      expectedBuffer.length !== providedBuffer.length ||
-      !timingSafeEqual(expectedBuffer, providedBuffer)
-    ) {
-      throw new BadRequestError("Blob upload token is invalid.");
-    }
-
-    const expiry = Date.parse(expiresAt);
-
-    if (!Number.isFinite(expiry) || expiry < Date.now()) {
-      throw new BadRequestError("Blob upload URL has expired.");
-    }
-  }
-
   private normalizeBlobName(blobName: string): string {
     const normalized = path.posix
       .normalize(blobName.trim())
@@ -598,42 +573,6 @@ export class BlobService {
     }
 
     return normalized;
-  }
-
-  // Issued names are `${scope}/${ownerId}/${file}`. The scope may itself contain
-  // slashes and the file never does, so the owner is found from the end.
-  private assertUserOwnsBlob(userId: Uuid, blobName: string): void {
-    const segments = blobName.split("/");
-
-    if (segments.length < 3 || segments.at(-2) !== userId) {
-      throw new BadRequestError("Blob name is invalid.");
-    }
-  }
-
-  private async writeLocalBlob(
-    blobName: string,
-    body: Buffer,
-    contentType: string,
-  ): Promise<void> {
-    const localConfig = this.requireLocalConfiguration();
-    const normalizedBlobName = this.normalizeBlobName(blobName);
-    const blobPath = path.join(
-      localConfig.storageRoot,
-      normalizedBlobName.replace(/\//g, path.sep),
-    );
-    const metadataPath = `${blobPath}.meta.json`;
-
-    await mkdir(path.dirname(blobPath), {
-      recursive: true,
-    });
-    await writeFile(blobPath, body);
-    await writeFile(
-      metadataPath,
-      JSON.stringify({
-        contentType,
-      }),
-      "utf8",
-    );
   }
 
   private async readLocalBlobData(blobName: string): Promise<{
