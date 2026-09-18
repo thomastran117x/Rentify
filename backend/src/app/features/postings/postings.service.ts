@@ -74,6 +74,12 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
+interface PhotoOwnershipContext {
+  actorUserId: Uuid;
+  /** Blob names already on the posting being written, if any. */
+  attachedBlobNames: ReadonlySet<string>;
+}
+
 export class PostingsService {
   private readonly logger: Logger;
 
@@ -103,6 +109,7 @@ export class PostingsService {
     this.assertCanManagePostingRole(membership.role);
     const normalizedInput = this.normalizeUpsertInput(
       await this.resolveWriteInputForActiveOrganization(input, membership),
+      { actorUserId, attachedBlobNames: new Set() },
     );
     this.assertSafeTextContent(normalizedInput);
     this.assertPublishableDraftShape(normalizedInput);
@@ -129,6 +136,7 @@ export class PostingsService {
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
     const duplicateInput = this.normalizeUpsertInput(
       this.toDuplicateInput(posting, availabilityBlocks),
+      { actorUserId, attachedBlobNames: this.attachedPhotoBlobNames(posting) },
     );
     this.assertSafeTextContent(duplicateInput);
     this.assertPublishableDraftShape(duplicateInput);
@@ -156,10 +164,13 @@ export class PostingsService {
     input: UpsertPostingInput,
   ): Promise<PostingRecord> {
     const existing = await this.requireManagedPosting(id, actorUserId, "write");
-    const normalizedInput = this.normalizeUpsertInput({
-      ...input,
-      organizationId: existing.organizationId,
-    });
+    const normalizedInput = this.normalizeUpsertInput(
+      {
+        ...input,
+        organizationId: existing.organizationId,
+      },
+      { actorUserId, attachedBlobNames: this.attachedPhotoBlobNames(existing) },
+    );
     this.assertSafeTextContent(normalizedInput);
     this.assertPublishableDraftShape(normalizedInput);
 
@@ -922,8 +933,9 @@ export class PostingsService {
 
   private normalizeUpsertInput(
     input: UpsertPostingPersistenceInput,
+    photoOwnership: PhotoOwnershipContext,
   ): UpsertPostingPersistenceInput {
-    const normalizedPhotos = this.normalizePhotos(input.photos);
+    const normalizedPhotos = this.normalizePhotos(input.photos, photoOwnership);
     const normalizedBlocks = this.normalizeAvailabilityBlocks(
       input.availabilityBlocks,
     );
@@ -973,6 +985,7 @@ export class PostingsService {
 
   private normalizePhotos(
     photos: ManagedPostingPhotoInput[],
+    photoOwnership: PhotoOwnershipContext,
   ): ManagedPostingPhotoInput[] {
     if (photos.length === 0) {
       throw new BadRequestError("At least one photo is required.");
@@ -993,6 +1006,7 @@ export class PostingsService {
 
       uniquePositions.add(photo.position);
       this.assertManagedBlob(photo.blobUrl, photo.blobName);
+      this.assertPhotoOwnership(photo.blobName, photoOwnership);
 
       const hasThumbnailBlobName = typeof photo.thumbnailBlobName === "string";
       const hasThumbnailBlobUrl = typeof photo.thumbnailBlobUrl === "string";
@@ -1538,6 +1552,29 @@ export class PostingsService {
         `Expiry date cannot be more than ${MAX_POSTING_EXPIRY_HORIZON_DAYS} days away. Leave it blank for a listing that should stay live indefinitely.`,
       );
     }
+  }
+
+  // A photo already on the posting stays attachable by anyone who may manage
+  // it, including one another member uploaded or a seeded photo. Only a newly
+  // attached photo has to have been uploaded by the acting user.
+  private assertPhotoOwnership(
+    blobName: string,
+    { actorUserId, attachedBlobNames }: PhotoOwnershipContext,
+  ): void {
+    if (
+      attachedBlobNames.has(blobName) ||
+      this.mediaService.isOwnedBy(actorUserId, blobName)
+    ) {
+      return;
+    }
+
+    throw new BadRequestError(
+      "Posting photos must be uploaded by the current user.",
+    );
+  }
+
+  private attachedPhotoBlobNames(posting: PostingRecord): ReadonlySet<string> {
+    return new Set(posting.photos.map((photo) => photo.blobName));
   }
 
   private assertManagedBlob(blobUrl: string, blobName: string): void {

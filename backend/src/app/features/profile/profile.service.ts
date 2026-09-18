@@ -57,6 +57,8 @@ export class ProfileService {
       throw new ResourceNotFoundError("Profile could not be found.");
     }
 
+    this.assertAvatarOwnership(input, existingProfile);
+
     const username = input.username.trim().toLowerCase();
     // `username` is required on every profile PUT, so a phone or avatar save
     // resends the current value. Only a genuine change may spend the cooldown.
@@ -222,5 +224,27 @@ export class ProfileService {
         "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
       );
     }
+  }
+
+  // Re-sending the stored avatar is always allowed, which is what every profile
+  // save that leaves the avatar alone does. A new avatar must have been
+  // uploaded by this user.
+  private assertAvatarOwnership(
+    input: UpdateProfileInput,
+    existingProfile: ProfileRecord,
+  ): void {
+    const avatarBlobName = input.avatarBlobName?.trim();
+
+    if (
+      !avatarBlobName ||
+      avatarBlobName === existingProfile.avatarBlobName ||
+      this.mediaService.isOwnedBy(input.userId, avatarBlobName)
+    ) {
+      return;
+    }
+
+    throw new BadRequestError(
+      "Avatar image blob must belong to the current user.",
+    );
   }
 }

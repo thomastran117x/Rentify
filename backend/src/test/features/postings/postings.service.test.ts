@@ -530,6 +530,7 @@ function createServiceHarness(
   const mediaService = {
     isConfigured: () => true,
     isManagedUrl: () => true,
+    isOwnedBy: () => true,
   } as unknown as MediaService;
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
@@ -827,6 +828,103 @@ describe("PostingsService", () => {
     expect(summary).toEqual({
       total: 1,
       byStatus: { draft: 1, published: 0, paused: 0, archived: 0 },
+    });
+  });
+
+  describe("photo ownership", () => {
+    function useOwnership(service: PostingsService, ownedBlobName: string) {
+      const isOwnedBy = jest.fn(
+        (_userId: string, blobName: string) => blobName === ownedBlobName,
+      );
+      Object.assign(service as object, {
+        mediaService: {
+          isConfigured: () => true,
+          isManagedUrl: () => true,
+          isOwnedBy,
+        },
+      });
+      return isOwnedBy;
+    }
+
+    function withPhoto(
+      input: UpsertPostingPersistenceInput,
+      blobName: string,
+    ): UpsertPostingPersistenceInput {
+      return {
+        ...input,
+        photos: [
+          ...input.photos,
+          {
+            blobUrl: `https://example.blob.core.windows.net/${blobName}`,
+            blobName,
+            position: input.photos.length,
+          },
+        ],
+      };
+    }
+
+    it("rejects a new draft whose photo the actor did not upload", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const isOwnedBy = useOwnership(service, "postings/someone-else.jpg");
+
+      await expect(
+        service.createDraft(OWNER_1_ID, createValidInput()),
+      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
+      expect(isOwnedBy).toHaveBeenCalledWith(
+        OWNER_1_ID,
+        "postings/photo-1.jpg",
+      );
+      expect(repository.createCalls).toBe(0);
+    });
+
+    it("accepts a new draft whose photo the actor uploaded", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      useOwnership(service, "postings/photo-1.jpg");
+
+      await expect(
+        service.createDraft(OWNER_1_ID, createValidInput()),
+      ).resolves.toBeDefined();
+    });
+
+    it("keeps photos already on the posting but rejects a new foreign one", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const isOwnedBy = useOwnership(service, "postings/mine.jpg");
+
+      // photo-1 is already attached, so the actor need not own it.
+      await expect(
+        service.update(POSTING_123_ID, OWNER_1_ID, createValidInput()),
+      ).resolves.toBeDefined();
+      expect(isOwnedBy).not.toHaveBeenCalled();
+
+      await expect(
+        service.update(
+          POSTING_123_ID,
+          OWNER_1_ID,
+          withPhoto(createValidInput(), "postings/mine.jpg"),
+        ),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.update(
+          POSTING_123_ID,
+          OWNER_1_ID,
+          withPhoto(createValidInput(), "postings/theirs.jpg"),
+        ),
+      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
+    });
+
+    it("duplicates a posting whose photos another user uploaded", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const isOwnedBy = useOwnership(service, "postings/unrelated.jpg");
+
+      await expect(
+        service.duplicate(POSTING_1_ID, OWNER_1_ID),
+      ).resolves.toBeDefined();
+      expect(isOwnedBy).not.toHaveBeenCalled();
     });
   });
 
@@ -1858,6 +1956,7 @@ describe("PostingsService", () => {
     const mediaService = {
       isConfigured: () => true,
       isManagedUrl: () => true,
+      isOwnedBy: () => true,
     } as unknown as MediaService;
     const cacheService = {
       acquireLock: jest.fn(async () => null),
@@ -2046,6 +2145,7 @@ describe("PostingsService", () => {
     const mediaService = {
       isConfigured: () => true,
       isManagedUrl: () => true,
+      isOwnedBy: () => true,
     } as unknown as MediaService;
     const cacheService = {
       acquireLock: jest.fn(async (key: string) => ({
@@ -2303,7 +2403,13 @@ describe("PostingsService", () => {
 
   it("covers posting draft and asset validation helper branches", async () => {
     const service = createService(new FakePostingsRepository()) as unknown as {
-      normalizePhotos: (photos: Array<Record<string, unknown>>) => unknown[];
+      normalizePhotos: (
+        photos: Array<Record<string, unknown>>,
+        photoOwnership: {
+          actorUserId: Uuid;
+          attachedBlobNames: ReadonlySet<string>;
+        },
+      ) => unknown[];
       normalizeAvailabilityBlocks: (
         blocks: PostingAvailabilityBlockInput[],
       ) => PostingAvailabilityBlockInput[];
@@ -2312,12 +2418,17 @@ describe("PostingsService", () => {
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
       normalizeBatchIds: (ids: Uuid[]) => string[];
     };
+    const normalizePhotos = (photos: Array<Record<string, unknown>>) =>
+      service.normalizePhotos(photos, {
+        actorUserId: OWNER_1_ID,
+        attachedBlobNames: new Set(),
+      });
 
-    expect(() => service.normalizePhotos([])).toThrow(
+    expect(() => normalizePhotos([])).toThrow(
       "At least one photo is required.",
     );
     expect(() =>
-      service.normalizePhotos(
+      normalizePhotos(
         Array.from({ length: 11 }, (_, index) => ({
           blobUrl: `https://example.blob.core.windows.net/postings/photo-${index}.jpg`,
           blobName: `postings/photo-${index}.jpg`,
@@ -2326,7 +2437,7 @@ describe("PostingsService", () => {
       ),
     ).toThrow("A posting can include at most");
     expect(() =>
-      service.normalizePhotos([
+      normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
           blobName: "postings/photo-1.jpg",
@@ -2340,7 +2451,7 @@ describe("PostingsService", () => {
       ]),
     ).toThrow("Photo positions must be unique.");
     expect(() =>
-      service.normalizePhotos([
+      normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
           blobName: "postings/photo-1.jpg",

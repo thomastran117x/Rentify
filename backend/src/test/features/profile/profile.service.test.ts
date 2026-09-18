@@ -92,6 +92,7 @@ function createService(options?: {
   findPublicProfiles?: jest.Mock;
   isConfigured?: jest.Mock;
   isManagedUrl?: jest.Mock;
+  isOwnedBy?: jest.Mock;
   assertUsernameIsAvailable?: jest.Mock;
 }) {
   const profileRepository = {
@@ -114,6 +115,7 @@ function createService(options?: {
   const mediaService = {
     isConfigured: options?.isConfigured ?? jest.fn(() => true),
     isManagedUrl: options?.isManagedUrl ?? jest.fn(() => true),
+    isOwnedBy: options?.isOwnedBy ?? jest.fn(() => true),
   };
   const usernameService = {
     assertUsernameIsAvailable:
@@ -221,6 +223,10 @@ describe("ProfileService", () => {
       "  https://storage.example.com/avatars/user-1-updated.png  ",
       "  avatars/user-1-updated.png  ",
     );
+    expect(mediaService.isOwnedBy).toHaveBeenCalledWith(
+      USER_1_ID,
+      "avatars/user-1-updated.png",
+    );
     expect(update).toHaveBeenCalledWith({
       userId: USER_1_ID,
       username: "owner-one",
@@ -284,6 +290,42 @@ describe("ProfileService", () => {
       message:
         "Avatar URL and avatar blob name must both be set or both be null.",
     });
+  });
+
+  it("rejects a new avatar the user did not upload", async () => {
+    const update = createUpdateMock();
+    const { service } = createService({
+      update,
+      isOwnedBy: jest.fn(() => false),
+    });
+
+    await expect(
+      service.update({
+        userId: USER_1_ID,
+        username: "casey-doe",
+        avatarUrl: "https://storage.example.com/avatars/someone-else.png",
+        avatarBlobName: "avatars/someone-else.png",
+      }),
+    ).rejects.toThrow("Avatar image blob must belong to the current user.");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("accepts the stored avatar again without an ownership check", async () => {
+    const update = createUpdateMock();
+    const { service, mediaService } = createService({
+      update,
+      isOwnedBy: jest.fn(() => false),
+    });
+
+    await expect(
+      service.update({
+        userId: USER_1_ID,
+        username: "casey-doe",
+        avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+        avatarBlobName: `  avatars/${USER_1_ID}.png  `,
+      }),
+    ).resolves.toBeDefined();
+    expect(mediaService.isOwnedBy).not.toHaveBeenCalled();
   });
 
   it("allows clearing avatar fields together without blob storage checks", async () => {
