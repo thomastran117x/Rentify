@@ -5,6 +5,11 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import { testUuid } from "../../support/uuid";
+import {
+  createGifFixture,
+  createJpegFixture,
+  createPngFixture,
+} from "../../support/image-fixtures";
 
 const USER_1_ID = testUuid(9000, 994257);
 const USER_2_ID = testUuid(9000, 994258);
@@ -95,21 +100,135 @@ describe("BlobService", () => {
     expect(expiresAt).toBeTruthy();
     expect(token).toBeTruthy();
 
+    const fixture = await createPngFixture();
+
     await service.uploadLocalBlob({
       blobName: blobName!,
       expiresAt: expiresAt!,
       token: token!,
       contentType: "image/png",
-      body: Buffer.from("local-dev-image"),
+      body: fixture,
     });
 
     const blob = await service.readLocalBlob(blobName!);
 
     expect(blob.contentType).toBe("image/png");
-    expect(blob.body.toString("utf8")).toBe("local-dev-image");
+    expect(blob.body.equals(fixture)).toBe(true);
     expect(service.isManagedBlobUrl(uploadTarget.blobUrl, blobName!)).toBe(
       true,
     );
+  });
+
+  it("validates the bytes of a local upload, not just the declared type", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const issueUploadFor = (contentType: string) => {
+      const target = service.createUploadUrl({
+        userId: USER_1_ID,
+        filename: "photo",
+        contentType,
+      });
+      const url = new URL(target.uploadUrl);
+
+      return {
+        blobName: url.searchParams.get("blobName")!,
+        expiresAt: url.searchParams.get("expiresAt")!,
+        token: url.searchParams.get("token")!,
+      };
+    };
+
+    const pngUpload = issueUploadFor("image/png");
+
+    // Bytes that are not an image at all.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: Buffer.from("not-an-image"),
+      }),
+    ).rejects.toThrow("Uploaded file could not be read as an image.");
+
+    // A real image whose actual format contradicts the declared one.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: await createJpegFixture(),
+      }),
+    ).rejects.toThrow(
+      "Uploaded file contents do not match the declared image type.",
+    );
+
+    // A format sharp can decode but the policy excludes.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/png",
+        body: await createGifFixture(),
+      }),
+    ).rejects.toThrow(UnsupportedMediaTypeError);
+
+    // A declared type the allow-list rejects outright.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "application/pdf",
+        body: await createPngFixture(),
+      }),
+    ).rejects.toThrow(UnsupportedMediaTypeError);
+
+    // A content type that disagrees with the URL the token was issued for.
+    await expect(
+      service.uploadLocalBlob({
+        ...pngUpload,
+        contentType: "image/jpeg",
+        body: await createJpegFixture(),
+      }),
+    ).rejects.toThrow("Content type does not match the requested upload URL.");
+  });
+
+  it("enforces size and dimension limits on local uploads", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
+    process.env.MAX_IMAGE_WIDTH = "16";
+    process.env.MAX_IMAGE_HEIGHT = "16";
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+
+    const service = new BlobService();
+    const target = service.createUploadUrl({
+      userId: USER_1_ID,
+      filename: "photo",
+      contentType: "image/png",
+    });
+    const url = new URL(target.uploadUrl);
+    const upload = {
+      blobName: url.searchParams.get("blobName")!,
+      expiresAt: url.searchParams.get("expiresAt")!,
+      token: url.searchParams.get("token")!,
+      contentType: "image/png",
+    };
+
+    await expect(
+      service.uploadLocalBlob({
+        ...upload,
+        body: await createPngFixture(64, 64),
+      }),
+    ).rejects.toThrow("Image dimensions exceed the allowed maximum.");
+
+    const oversized = await createPngFixture(8, 8);
+    process.env.MAX_IMAGE_SIZE_BYTES = String(oversized.byteLength - 1);
+
+    await expect(
+      service.uploadLocalBlob({
+        ...upload,
+        body: oversized,
+      }),
+    ).rejects.toThrow(PayloadTooLargeError);
   });
 
   it("uses the local fallback origin when the request origin is invalid", () => {

@@ -19,6 +19,7 @@ import type {
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
 import {
+  assertImageBytes,
   assertImageSizeWithinLimit,
   imageExtensionForContentType,
   normalizeImageContentType,
@@ -114,9 +115,35 @@ export class BlobService {
     body: Buffer;
   }): Promise<void> {
     this.requireLocalConfiguration();
+    // Token first, deliberately: no image decoding work on behalf of a caller
+    // who has not proved they hold a valid upload URL.
     this.assertLocalUploadToken(input.blobName, input.expiresAt, input.token);
-    const contentType = this.normalizeContentType(input.contentType);
+
+    const contentType = normalizeImageContentType(input.contentType);
+    this.assertContentTypeMatchesSignedBlob(input.blobName, contentType);
+    assertImageSizeWithinLimit(input.body.byteLength);
+    await assertImageBytes(input.body, contentType);
+
     await this.writeLocalBlob(input.blobName, input.body, contentType);
+  }
+
+  // The upload token signs the blob name but not the content type, so without
+  // this a holder of a valid URL could upload a PNG under a name issued for a
+  // JPEG. Because the stored extension is derived from the validated content
+  // type, the blob name determines the type unambiguously and inverting the
+  // extension mapping is enough to bind them. The Azure path gets the same
+  // binding for free: the SAS pins Content-Type, and Azure enforces it.
+  private assertContentTypeMatchesSignedBlob(
+    blobName: string,
+    contentType: SupportedImageContentType,
+  ): void {
+    const extension = path.posix.extname(blobName).toLowerCase();
+
+    if (extension !== imageExtensionForContentType(contentType)) {
+      throw new BadRequestError(
+        "Content type does not match the requested upload URL.",
+      );
+    }
   }
 
   async readLocalBlob(blobName: string): Promise<{
