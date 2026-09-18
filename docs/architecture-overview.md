@@ -102,6 +102,52 @@ The route registry currently groups the API into these main areas:
 - rentings
 - public posting discovery and detail routes
 
+## Image Upload Validation
+
+Uploads are two-step: the client asks `POST /blob/upload-url` for credentials,
+then PUTs the bytes to the returned URL. Where that second PUT goes decides how
+much the backend can enforce.
+
+**At credential issuance (always enforced).** `POST /blob/upload-url` only issues
+credentials for images. A `contentType` outside the configured allow-list is
+rejected with 415 before any URL exists, and a `sizeBytes` over the limit with 413. The stored blob's extension is derived from the validated content type, not
+from `filename` — a file named `photo.png` declared as `image/jpeg` is stored as
+`.jpg`. The filename extension is never treated as evidence of format.
+
+**At upload (local development only).** `PUT /blob/upload` holds the bytes, so it
+decodes them with sharp, confirms the real format matches the declared type, and
+applies the size and dimension limits. It also checks the declared type against
+the blob name the token was issued for.
+
+**The gap.** When `AZURE_STORAGE_CONNECTION_STRING` and
+`AZURE_STORAGE_CONTAINER_NAME` are set, the client PUTs directly to Azure and the
+backend never sees the bytes. None of the byte-level checks apply there.
+
+Do not assume the SAS closes this. `generateBlobSASQueryParameters` takes a
+`contentType`, but in Azure's SAS that field is `rsct` — it overrides the
+`Content-Type` returned on **download**. It does not constrain what may be
+uploaded. This was measured against a real storage account: a SAS issued for
+`image/png` accepted a PUT sending `Content-Type: image/jpeg`, and accepted a
+29-byte text file, both with 201.
+
+So on the Azure path the allow-list constrains what a client can _ask_ for, not
+what it can _store_. A caller who requests credentials for `image/png` can PUT
+arbitrary bytes to the returned URL. The practical blast radius is limited —
+credentials are per-user, scoped to one generated blob name, short-lived, and
+the blob is served with `x-content-type-options: nosniff` — but the stored object
+is not guaranteed to be the image it claims to be.
+
+Closing it needs one of:
+
+- a post-upload validator (Event Grid or a queue worker) that decodes each new
+  blob and deletes or quarantines whatever fails, or
+- proxying uploads through the backend so the bytes pass through
+  `assertImageBytes`, at the cost of the direct-to-storage path.
+
+Until then, treat a stored blob's content type as client-asserted. Anything that
+re-decodes a blob should defend itself; posting thumbnail generation does, by
+capping `limitInputPixels` on its sharp decode.
+
 ## Realtime Transport
 
 There are two realtime surfaces, both on **Socket.IO** with the **Redis

@@ -59,6 +59,28 @@ database, Redis database 0, or a vhost/index prefix outside `rent-test-`.
 
 The explicit migration URL above targets `rent_test`; migrating the application's `rent` database does not prepare it. The integration harness selects default host MySQL/Redis targets in test support code rather than honoring arbitrary exported datasource URLs. Custom MySQL/Redis endpoints require supported explicit harness overrides; RabbitMQ/Elasticsearch environment overrides are described below.
 
+### Image fixtures
+
+The blob upload path decodes bytes with sharp, so a `Buffer.from("...")`
+labelled `image/png` is rejected as unreadable rather than stored. Tests that
+exercise an upload need real encoded bytes:
+
+```ts
+import { createPngFixture } from "../../support/image-fixtures";
+
+const body = await createPngFixture(); // also Jpeg, Webp, and Gif variants
+```
+
+`src/test/support/image-fixtures.ts` generates them with sharp at test time, so
+nothing binary is committed. `createGifFixture` exists for the opposite case:
+proving a format sharp can decode is still refused by the allow-list. Pass
+explicit dimensions, as in `createPngFixture(9000, 9000)`, to exercise the
+width, height, and pixel limits.
+
+Note that `uploadBuffer` — the server-side path used by thumbnail generation —
+deliberately keeps the generic content-type check and does not sniff bytes, so
+tests covering it can still use arbitrary buffers.
+
 ### Database seed tests
 
 Seed tests use a separate harness and can refresh fixture-owned data. It honors `DATABASE_URL` but otherwise defaults to the local `rent` application database. Select the isolated schema explicitly and do not run this suite concurrently with integration tests:
