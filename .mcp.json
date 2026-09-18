@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "rentify": {
+      "command": "docker",
+      "args": ["compose", "--profile", "mcp", "run", "--rm", "-T", "mcp"],
+      "env": {
+        "RENTIFY_PAT": "${RENTIFY_PAT}"
+      }
+    }
+  }
+}
