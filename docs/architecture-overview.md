@@ -238,6 +238,8 @@ it are what publish the final offline presence to the other instances.
 
 ## Background Workers
 
+See the [worker index and directory READMEs](../backend/src/app/workers/README.md) for all 21 entrypoints, service mappings, dependencies, configuration, failure policies, and validation outcomes. Twenty have Compose services; recommendation precompute requires an explicit one-off process.
+
 Workers currently cover:
 
 - postings analytics
@@ -245,14 +247,14 @@ Workers currently cover:
 - posting expiry and expiry reminders
 - saved search alerts
 - email delivery
-- SMS delivery and webhook processing
+- SMS delivery (provider webhooks are handled by API routes)
 - log consumption
 - payment retry, repair, and payout release
 - posting thumbnail generation
 - recommendation activity and precompute
 - report search indexing
 - search maintenance and indexing
-- username availability filter rebuilds
+- username and email availability filter rebuilds
 
 This keeps the API focused on request-response work while heavier or asynchronous processing can be handled off the main server path.
 

@@ -77,12 +77,12 @@ Use a PAT with:
 - `mcp:read` for owner reads, booking quotes, analytics, and renting lookups
 - `mcp:write` for posting mutations, availability-block writes, posting review writes, and booking-request mutations
 
-## Local Development
+## Explicit Non-Docker Alternative
 
-From this directory:
+Use direct package startup only when a non-Docker workflow is explicitly selected. The backend must still be reachable. From this directory:
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -95,6 +95,8 @@ npm run start
 
 ## Docker
 
+The standard local path is to start the application with `docker compose up --build` from the repository root, then run this stdio server on demand through Compose.
+
 Build the MCP image directly:
 
 ```bash
@@ -104,7 +106,7 @@ docker build -t rentify-mcp ./mcp
 The repo also includes a compose-integrated `mcp` service. Because this server uses `stdio`, it is intended to be run on demand rather than exposed on a port:
 
 ```bash
-docker compose --profile mcp run --rm -T mcp
+docker compose --profile mcp run --rm --build -T mcp
 ```
 
 ## Example MCP Client Config
@@ -116,9 +118,7 @@ Example desktop-style MCP config on Windows:
   "mcpServers": {
     "rentify": {
       "command": "node",
-      "args": [
-        "C:\\Users\\thoma\\Documents\\Rent\\mcp\\dist\\index.js"
-      ],
+      "args": ["C:\\path\\to\\Rentify\\mcp\\dist\\index.js"],
       "env": {
         "RENTIFY_API_BASE_URL": "http://127.0.0.1:8040/api/v1",
         "RENTIFY_API_TIMEOUT_MS": "5000",
@@ -136,15 +136,7 @@ Example using the compose-managed container:
   "mcpServers": {
     "rentify-docker": {
       "command": "docker",
-      "args": [
-        "compose",
-        "--profile",
-        "mcp",
-        "run",
-        "--rm",
-        "-T",
-        "mcp"
-      ],
+      "args": ["compose", "--profile", "mcp", "run", "--rm", "-T", "mcp"],
       "env": {
         "RENTIFY_PAT": "rpat_your_public_id_your_secret"
       }
@@ -160,11 +152,7 @@ For development you can also point a client at:
   "mcpServers": {
     "rentify-dev": {
       "command": "node",
-      "args": [
-        "--import",
-        "tsx",
-        "C:\\Users\\thoma\\Documents\\Rent\\mcp\\src\\index.ts"
-      ],
+      "args": ["--import", "tsx", "C:\\path\\to\\Rentify\\mcp\\src\\index.ts"],
       "env": {
         "RENTIFY_API_BASE_URL": "http://127.0.0.1:8040/api/v1"
       }

@@ -2,11 +2,11 @@
 
 ## Summary
 
-State the bug fixed and the resulting behavior in one or two sentences.
+State the problem and resulting behavior in one or two sentences.
 
 ## Context
 
-Describe the trigger, previous behavior, impact, and confirmed root cause. Link related issues.
+Explain what was missing, broken, or difficult, who was affected, and why this change is needed. Link related issues.
 
 ## Changes
 

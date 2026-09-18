@@ -1,4 +1,4 @@
-# Coding Agent End-to-End Implementation Guide
+# Coding Agent Implementation Guide
 
 ## Goal
 
@@ -15,6 +15,40 @@ docker compose up --build
 ```
 
 The Docker Compose stack is the source of truth for local frontend and backend execution because it provides the required infrastructure, service wiring, and environment variables.
+
+## Task Ownership, Branches, and Logical Commits
+
+Carry the authorized task through implementation, applicable validation, documentation, and commits until it is complete. Do not stop at a plan, a partial implementation, or a passing build. Resolve issues found during validation and repeat the affected checks. If a genuine blocker prevents progress, explain the blocker, completed work, and the exact input or external change needed; do not claim completion.
+
+Before editing, read applicable agent instructions and inspect `git status --short` and `git branch --show-current`. Never implement or commit directly on `main` or `master`. Create a descriptive task branch first, for example `git switch -c docs/update-contributor-guidance`. On a suitable existing task branch, continue there. For a detached HEAD, create a task branch before editing. Preserve unrelated user changes; do not reset, discard, or commit them.
+
+Define logical phases before substantial implementation. Commit each coherent phase automatically after its applicable checks pass, then continue working through the remaining phases. A phase should deliver a reviewable behavior or subsystem change, including its associated tests, API artifacts, and documentation. Do not split solely by file type, leave intentionally broken intermediate commits, or collect the whole task into one final commit when it has distinct phases. A small single-purpose task may need only one commit.
+
+Use Conventional Commits, for example `feat(bookings): validate owner approval` or `docs(workers): explain delivery retries`. Stage explicit paths or hunks belonging to the phase, inspect `git diff --cached` and `git diff --cached --check`, and commit only task changes. Prefer independently cherry-pickable commits; when dependencies are necessary, record their order and explain them in the final handoff. Include follow-up fixes in separate focused commits rather than rewriting existing history.
+
+Do not push, merge, squash, amend existing commits, or otherwise rewrite history unless the user requests it. Local commits are part of the normal implementation workflow. Report commit hashes, purposes, dependencies, validation results, and any task changes left uncommitted.
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor workflow and validation expectations.
+
+## Pull Request Descriptions
+
+Follow [docs/pull-requests.md](./docs/pull-requests.md) and the default or specialized PR templates. Include Summary, Context, Changes, API, How to Test, and Reviewer Notes. Explain the problem and resulting behavior, affected backend methods/paths and contracts (or explicitly none), reproducible steps and actual check outcomes, risks, and commit dependencies. Keep descriptions aligned with the final change and do not claim unperformed checks.
+
+For visual changes to core frontend pages or flows, include actual screenshots with page/state/viewport captions when browser capture is available. Capture useful success and relevant validation states during browser verification; provide local artifact paths or attach images during authorized publication. If tools cannot capture them, explain why and provide capture steps. Screenshots are supporting evidence, not a replacement for the applicable browser-validation requirements. Non-visual changes can mark screenshots not applicable.
+
+Prepare a complete PR description for handoff; publishing a PR still requires user authorization.
+
+## Pull Request Reviews
+
+Follow [docs/pr-review.md](./docs/pr-review.md) for author self-review and requested PR reviews. Review both behavior (bugs, edge cases, regressions, security, and tests) and code quality (readability, responsibilities, complexity, duplication, abstractions, typing, error handling, dependencies, conventions, and test maintainability). Correct behavior does not exempt code from quality review.
+
+A review request authorizes inspection and reporting, not edits or commits. Fix findings only when remediation is explicitly requested. Report actionable behavioral defects and code-quality issues with evidence, file/line references, impact-based P0-P3 priorities, and proportionate remedies. Keep optional suggestions separate. State the result for both review categories, checks performed, and remaining gaps. Do not publish comments, submit remote approval/change requests, or merge without explicit authorization.
+
+## Documentation-Only Tasks
+
+For changes limited to Markdown and documentation templates, check formatting, relative links and anchors, documented commands and configuration against source, and diff hygiene. Docker startup, application tests, OpenAPI generation, dependency audits, and browser validation are not required unless the task also changes the runtime, contracts, or dependencies to which those checks apply. State which documentation checks ran and which runtime checks were skipped.
+
+The end-to-end requirements below apply to runtime and user-facing changes. This documentation-only exception also applies to the Docker and completion rules below.
 
 ---
 
@@ -36,14 +70,14 @@ For every end-to-end feature, follow this process:
 
 1. Understand the requested change and identify whether it affects the frontend, backend, database, API contract, authentication, background jobs, tests, or documentation.
 2. Confirm who will perform end-to-end browser validation for user-facing work.
-3. Implement the feature in small, focused changes across all affected layers.
+3. Plan logical commit phases, then implement the feature in small, focused changes across all affected layers on a task branch.
 4. Update contracts, tests, and documentation alongside the code.
    - If the change touches a `package.json` or `package-lock.json`, run `npm run audit:all` in that workspace and review install-script changes with `npm approve-scripts --allow-scripts-pending`, deleting any obsolete `allowScripts` entries by hand. See [docs/dependency-security.md](./docs/dependency-security.md).
 5. Start the full stack with Docker Compose.
 6. Run the appropriate validation path:
    - Agent-run path: use Playwright MCP, fix issues found, and re-run until the flow works.
    - User-run path: run applicable non-UI checks, document manual validation steps, and clearly note what remains unverified in the browser.
-7. Summarize what changed, what was validated, what was not validated, and any known risks or assumptions.
+7. Commit validated logical phases as they become complete. Summarize what changed, commit hashes and dependencies, what was validated, what was not validated, and any known risks or assumptions.
 
 ---
 
@@ -62,8 +96,8 @@ After startup, verify that the required services are healthy and reachable.
 Common local URLs may include:
 
 ```txt
-Frontend: http://localhost:3000
-Backend:  http://localhost:8080
+Frontend: http://localhost:3040
+Backend:  http://localhost:8040
 ```
 
 Use the actual ports from `docker-compose.yml` if they differ.
@@ -258,16 +292,19 @@ npm --prefix backend run openapi:generate
 npm --prefix backend run openapi:check
 ```
 
-Recommended response shapes remain:
+JSON responses use the shared envelope in `backend/src/app/configuration/http/responses.ts`; a `204` response has no body. Representative response shapes are:
 
 Success:
 
 ```json
 {
+  "success": true,
   "message": "Operation completed successfully.",
   "data": {},
   "error": null,
-  "details": null
+  "meta": {
+    "requestId": "..."
+  }
 }
 ```
 
@@ -275,11 +312,15 @@ Error:
 
 ```json
 {
+  "success": false,
   "message": "Validation failed.",
   "data": null,
   "error": {
     "code": "VALIDATION_ERROR",
     "details": {}
+  },
+  "meta": {
+    "requestId": "..."
   }
 }
 ```

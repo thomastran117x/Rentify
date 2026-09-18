@@ -13,7 +13,7 @@ The backend is the Rentify API and background processing layer. It exposes the m
 
 ## Main Areas
 
-- auth, devices, refresh sessions, personal access tokens, Google OAuth, Microsoft OAuth
+- auth, devices, refresh sessions, personal access tokens, Google, Microsoft, and Apple OAuth
 - organizations and invitation flows
 - postings, reviews, availability, analytics, thumbnails, and public search
 - renter activity: saved postings, saved searches, and recently viewed history
@@ -22,6 +22,8 @@ The backend is the Rentify API and background processing layer. It exposes the m
 - background workers for analytics, booking expiry, email, SMS, logging, payments, recommendations, reports, search, thumbnails, and username availability filter rebuilds
 
 ## Architecture Notes
+
+See the [worker index and directory READMEs](./src/app/workers/README.md) for service mappings, processing, retries, configuration, and operational checks.
 
 - route modules are composed under `/api/v1`
 - controllers delegate to feature services and repositories
@@ -40,12 +42,12 @@ docker compose up --build
 
 That brings up MySQL, Redis, Elasticsearch, RabbitMQ, the API, and the frontend together.
 
-## Standalone Backend Development
+## Explicit Non-Docker Alternative
 
-If you are working only on the backend package, you can run it directly after installing dependencies and providing the required infrastructure.
+Use direct backend startup only when a non-Docker workflow has been explicitly selected. Provide the required infrastructure and host-reachable configuration first; backend-only scope does not remove the Docker requirement for normal validation.
 
 ```bash
-npm install
+npm ci
 npm run prisma:generate
 npm run dev
 ```
@@ -56,6 +58,7 @@ Environment notes:
   `config/{NODE_ENV}.yml` profile
 - Docker Compose reads secrets and bootstrap values from the repo-root `.env`
 - local non-Docker backend runs can use `backend/.env`
+- use published host datasource URLs for host tooling rather than container addresses such as `mysql:3306`; see [database.md](../docs/database.md)
 - `BACKEND_CONFIG_FILE` adds an optional YAML overlay; explicit environment
   variables still take precedence
 - see [../docs/backend-configuration.md](../docs/backend-configuration.md) for
@@ -85,7 +88,7 @@ npm run openapi:generate
 npm run openapi:check
 ```
 
-Worker watch scripts are also available for individual services, for example:
+Worker watch scripts are available for an explicitly selected non-Docker workflow, for example:
 
 ```bash
 npm run dev:email-worker
@@ -107,15 +110,15 @@ npm run dev:identity-bloom-worker
 
 The backend auto-seeds in `development` and `test` when the database is empty. That makes the Docker stack usable without a separate manual bootstrap step.
 
-Useful commands:
+With the Compose stack running, use the compiled seed script:
 
 ```bash
-npm run seed
-npm run seed -- --only-if-empty
-npm run seed -- --refresh
+docker compose exec backend node dist/scripts/seed.js
+docker compose exec backend node dist/scripts/seed.js --only-if-empty
+docker compose exec backend node dist/scripts/seed.js --refresh
 ```
 
-Set `DATABASE_AUTO_SEED_REFRESH=true` if you want startup to refresh fixture-owned records automatically.
+Set `database.autoSeedRefresh: true` in YAML (or legacy `DATABASE_AUTO_SEED_REFRESH=true`) to refresh fixtures at startup. Refresh can overwrite fixture edits. See [database.md](../docs/database.md) for seed modes, migrations, and isolated test targets.
 
 ## Tests
 
@@ -125,4 +128,4 @@ npm run test:integration
 npm run test:db-seeds
 ```
 
-The test suite covers configuration, middleware, route registration, auth, postings, organizations, bookings, payments, rentings, reports, search, recommendations, seeds, and OpenAPI validation.
+The test suite covers configuration, middleware, route registration, auth, postings, organizations, bookings, payments, rentings, reports, search, recommendations, seeds, and OpenAPI validation. Follow [testing-guide.md](../docs/testing-guide.md) before persistence or seed tests; seed tests otherwise default to the application database. Use [troubleshooting.md](../docs/troubleshooting.md) for local failures.
