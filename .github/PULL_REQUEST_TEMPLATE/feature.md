@@ -1,45 +1,37 @@
+<!-- Follow docs/pull-requests.md. Keep all six required sections; use "Not applicable" where appropriate. Replace prompts with facts and remove these instructions before submission. -->
+
 ## Summary
 
-Briefly describe the feature or enhancement in this pull request.
+State the capability added or improved and its benefit in one or two sentences.
 
-## Problem
+## Context
 
-What user, product, or technical problem does this change address?
+Explain what was missing, broken, or difficult, who was affected, and why this change is needed. Link related issues.
 
-## Solution
+## Changes
 
-Describe the approach you took and any notable implementation details.
+Describe what changed and how it fixes or improves the situation. Include before/after behavior and relevant implementation decisions.
 
-## Scope
+## API
 
-- Area: `frontend` / `backend` / `docs` / `infra`
-- Related issue(s):
-- Users impacted:
+List added, updated, or removed backend routes by method and path, and describe request/response, authentication/authorization, error, and compatibility changes. Identify updated OpenAPI artifacts when applicable.
 
-## Screenshots Or Demo
+If none: No backend route or API contract changes.
 
-Include screenshots, recordings, or example requests/responses if helpful.
+## How to Test
 
-## Testing
+Provide prerequisites, exact commands and outcomes, and reproducible success and failure/edge-case steps with expected results. Distinguish completed checks from instructions still to run.
 
-Record commands and outcomes, available CI evidence, and checks not performed. For user-facing changes, name the browser-validation owner and report Docker and Playwright MCP results or manual steps. Documentation-only changes require documentation checks instead.
+For user-facing changes, record Docker startup and browser-validation ownership, Playwright MCP or suite results, or the manual handoff. For documentation-only changes, record documentation checks and explicitly skipped runtime checks.
 
-- [ ] Tested locally
-- [ ] Added or updated automated tests
-- [ ] Verified happy path
-- [ ] Verified edge cases
+## Reviewer Notes
 
-## Checklist
+Call out risks, migrations/configuration, compatibility or rollout needs, unverified areas, and particular decisions that need attention. List commit ordering/cherry-pick dependencies, or state that commits are independent.
 
-- [ ] Follows project conventions
-- [ ] Documentation updated if needed
-- [ ] No known breaking changes
-- [ ] Self-reviewed behavior and code quality using the [PR review guide](https://github.com/thomastran117x/Rentify/blob/main/docs/pr-review.md)
+Confirm author self-review covered behavior and code quality using the [review guide](https://github.com/thomastran117x/Rentify/blob/main/docs/pr-review.md).
 
-## Commit Dependencies
+## Screenshots
 
-List logical commits that require earlier commits, or state that the commits can be cherry-picked independently.
+For changes to core frontend pages or flows, include actual screenshots when capture is available. Name the page/state, viewport, and before/after where useful.
 
-## Additional Context
-
-Anything reviewers should know before merging.
+If unavailable, explain why and give capture steps or a local artifact path. For non-visual changes: Not applicable.

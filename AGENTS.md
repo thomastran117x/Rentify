@@ -30,6 +30,14 @@ Do not push, merge, squash, amend existing commits, or otherwise rewrite history
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor workflow and validation expectations.
 
+## Pull Request Descriptions
+
+Follow [docs/pull-requests.md](./docs/pull-requests.md) and the default or specialized PR templates. Include Summary, Context, Changes, API, How to Test, and Reviewer Notes. Explain the problem and resulting behavior, affected backend methods/paths and contracts (or explicitly none), reproducible steps and actual check outcomes, risks, and commit dependencies. Keep descriptions aligned with the final change and do not claim unperformed checks.
+
+For visual changes to core frontend pages or flows, include actual screenshots with page/state/viewport captions when browser capture is available. Capture useful success and relevant validation states during browser verification; provide local artifact paths or attach images during authorized publication. If tools cannot capture them, explain why and provide capture steps. Screenshots are supporting evidence, not a replacement for the applicable browser-validation requirements. Non-visual changes can mark screenshots not applicable.
+
+Prepare a complete PR description for handoff; publishing a PR still requires user authorization.
+
 ## Pull Request Reviews
 
 Follow [docs/pr-review.md](./docs/pr-review.md) for author self-review and requested PR reviews. Review both behavior (bugs, edge cases, regressions, security, and tests) and code quality (readability, responsibilities, complexity, duplication, abstractions, typing, error handling, dependencies, conventions, and test maintainability). Correct behavior does not exempt code from quality review.

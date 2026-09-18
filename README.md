@@ -144,6 +144,7 @@ The committed API specs live at [backend/openapi/openapi.yaml](./backend/openapi
 - [docs/README.md](./docs/README.md): documentation hub
 - [CONTRIBUTING.md](./CONTRIBUTING.md): contribution workflow and logical commits
 - [docs/pr-review.md](./docs/pr-review.md): behavioral correctness and code-quality reviews
+- [docs/pull-requests.md](./docs/pull-requests.md): PR format, API/test evidence, reviewer notes, and screenshots
 - [docs/api.md](./docs/api.md): API entry point that redirects to the OpenAPI spec
 - [docs/local-development.md](./docs/local-development.md): setup, envs, services, local workflows
 - [docs/architecture-overview.md](./docs/architecture-overview.md): how the app is organized today

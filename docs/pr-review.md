@@ -6,6 +6,8 @@ Reviews assess both behavioral correctness and code quality. A change can behave
 
 Authors should self-review before handing off: inspect the full diff, check requirements and code quality, run applicable validation, and prepare a clear PR description. During an implementation task, fix issues found in self-review and commit focused corrections according to [AGENTS.md](../AGENTS.md).
 
+Use [pull-requests.md](./pull-requests.md) for the description format. Confirm the context, changes, API impact, reproducible test evidence, and reviewer notes are accurate. For core frontend visual changes, inspect available screenshots and their state/viewport captions, or the stated capture limitation. Screenshots support review but do not establish behavioral correctness by themselves.
+
 A request to review a PR defaults to inspection and findings only. Do not edit files or commit fixes unless the request explicitly includes remediation. Reading the base branch for comparison does not authorize implementing changes on `main` or `master`; use a task branch for authorized fixes.
 
 Return review results to the requesting user. Publishing GitHub comments, submitting an approval or request for changes, and merging require explicit authorization. A local assessment is not a remote review submission.
