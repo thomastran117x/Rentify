@@ -9,8 +9,6 @@ export const PAYPAL_CHECKOUT_METHODS = [
   "paypal",
   "paypal_guest",
   "card",
-  "apple_pay",
-  "google_pay",
 ] as const;
 export type PayPalCheckoutMethod = (typeof PAYPAL_CHECKOUT_METHODS)[number];
 export type ConfigurationFeatureSource = "config" | "env";

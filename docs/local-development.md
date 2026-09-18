@@ -119,19 +119,9 @@ Card fields need **advanced card processing** enabled on the sandbox business
 account. Use the test cards and 3-D Secure scenarios from PayPal's sandbox card
 testing tools.
 
-Wallets are opt-in with `PAYPAL_CHECKOUT_METHODS`:
-
-- **Google Pay** works in Chrome against Google's TEST environment once Google
-  Pay is enabled on the sandbox app.
-- **Apple Pay** needs Safari with an Apple sandbox tester account, a public
-  HTTPS host (for example a tunnel to the frontend, with `FRONTEND_URL` and CORS
-  updated to match), the sandbox domain association file in
-  `APPLE_PAY_DOMAIN_ASSOCIATION`, and that domain registered in the PayPal
-  sandbox app. It cannot be tested on `localhost`.
-
 The Pay Later button only appears when PayPal offers Pay Later for the buyer's
 country and the booking currency, so expect it to be missing for many sandbox
-buyers.
+buyers. Apple Pay and Google Pay are not available yet.
 
 ## Seed Data
 

@@ -121,16 +121,14 @@ paypal:
     - paypal # PayPal and, where eligible, Pay Later
     - paypal_guest # PayPal's guest debit and credit card form
     - card # Card fields with 3-D Secure; needs advanced card processing
-    - apple_pay # Needs Apple Pay enabled and each domain registered
-    - google_pay # Needs Google Pay enabled on the PayPal account
 ```
 
 `PAYPAL_CHECKOUT_METHODS=paypal,card` overrides the list, and an empty value
-turns every embedded method off. Unknown names stop startup. The default is
-`paypal`, `paypal_guest`, and `card`; add the wallets per environment once the
-account is set up for them. The PayPal redirect (`paypal_redirect`) is always
-available and is not listed. The API rejects order requests for methods that
-are not enabled, and the checkout summary tells the frontend which to show.
+turns every embedded method off. Unknown names stop startup, and all three are
+enabled by default. The PayPal redirect (`paypal_redirect`) is always available
+and is not listed. The API rejects order requests for methods that are not
+enabled, and the checkout summary tells the frontend which to show. Apple Pay
+and Google Pay are not supported yet.
 
 The frontend needs the same client ID at build time as
 `NEXT_PUBLIC_PAYPAL_CLIENT_ID`. The PayPal JS SDK can only approve orders that
@@ -138,18 +136,10 @@ the same PayPal app created, so when the frontend value is empty, a
 `change-me-` placeholder, or different from the backend's client ID, the
 checkout page offers only the PayPal redirect.
 
-Apple Pay also needs the domain association file PayPal issues for each
-environment. Set its contents as `APPLE_PAY_DOMAIN_ASSOCIATION` on the frontend
-container; it is served at
-`/.well-known/apple-developer-merchantid-domain-association` and read at request
-time, so no rebuild is needed.
-
 The frontend does not send a Content Security Policy today. If one is added, it
-must allow the PayPal SDK and wallet scripts, frames, and API calls:
+must allow the PayPal SDK's scripts, frames, and API calls:
 `https://www.paypal.com`, `https://www.sandbox.paypal.com`,
-`https://*.paypal.com`, `https://*.paypalobjects.com`,
-`https://applepay.cdn-apple.com`, `https://pay.google.com`, and
-`https://*.google.com`.
+`https://*.paypal.com`, and `https://*.paypalobjects.com`.
 
 ## Feature flags
 

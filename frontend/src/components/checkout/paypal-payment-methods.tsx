@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import {
   Component,
   useEffect,
@@ -11,8 +10,6 @@ import {
 } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
 import {
-  ApplePayOneTimePaymentButton,
-  GooglePayOneTimePaymentButton,
   INSTANCE_LOADING_STATE,
   PayLaterOneTimePaymentButton,
   PayPalCardCvvField,
@@ -37,12 +34,8 @@ import { formatMoney } from "@/lib/rentings/format";
 
 /** How long the SDK may take to load before checkout falls back to redirect. */
 export const PAYPAL_SDK_LOAD_TIMEOUT_MS = 15_000;
-const APPLE_PAY_SDK_URL =
-  "https://applepay.cdn-apple.com/jsapi/1.latest/apple-pay-sdk.js";
-const GOOGLE_PAY_SDK_URL = "https://pay.google.com/gp/p/js/pay.js";
-const APPLE_PAY_SESSION_VERSION = 4;
-/** Rentify merchants are Canadian; PayPal's config usually says so already. */
-const DEFAULT_MERCHANT_COUNTRY = "CA";
+const FULL_WIDTH_BUTTON_CLASS =
+  "[&>paypal-button]:!w-full [&>paypal-pay-later-button]:!w-full [&>paypal-basic-card-container]:!w-full [&_paypal-basic-card-button]:!w-full";
 
 // PayPal renders each card field in its own iframe, so the input is styled
 // through the SDK while the box around it is ours.
@@ -64,8 +57,6 @@ const COMPONENTS_BY_METHOD: Record<CheckoutPaymentMethod, Components> = {
   paypal: "paypal-payments",
   paypal_guest: "paypal-guest-payments",
   card: "card-fields",
-  apple_pay: "applepay-payments",
-  google_pay: "googlepay-payments",
 };
 
 /**
@@ -185,34 +176,8 @@ function PaymentMethodList({
   const showPayLater = enabled.has("paypal") && isEligible("paylater");
   const showGuest = enabled.has("paypal_guest") && isEligible("card");
   const showCardFields = enabled.has("card") && isEligible("advanced_cards");
-  const applePayConfig =
-    enabled.has("apple_pay") && isEligible("applepay")
-      ? eligiblePaymentMethods?.getDetails("applepay").config
-      : undefined;
-  const googlePayConfig =
-    enabled.has("google_pay") && isEligible("googlepay")
-      ? eligiblePaymentMethods?.getDetails("googlepay").config
-      : undefined;
 
   const wallets = [
-    applePayConfig ? (
-      <ApplePayMethod
-        key="apple-pay"
-        config={applePayConfig}
-        summary={summary}
-        handlers={handlers}
-      />
-    ) : null,
-    googlePayConfig ? (
-      <GooglePayMethod
-        key="google-pay"
-        config={googlePayConfig}
-        environment={config.environment}
-        summary={summary}
-        handlers={handlers}
-        disabled={disabled}
-      />
-    ) : null,
     enabled.has("paypal") ? (
       <PayPalOneTimePaymentButton
         key="paypal"
@@ -247,7 +212,11 @@ function PaymentMethodList({
 
   return (
     <div className="grid gap-5">
-      {wallets.length > 0 ? <div className="grid gap-2">{wallets}</div> : null}
+      {wallets.length > 0 ? (
+        // PayPal's web components size themselves (225px), which leaves a gap
+        // beside them in a wider column, so the hosts are stretched to fill it.
+        <div className={`grid gap-2 ${FULL_WIDTH_BUTTON_CLASS}`}>{wallets}</div>
+      ) : null}
 
       {wallets.length > 0 && showCardFields ? (
         <div className="flex items-center gap-3" aria-hidden="true">
@@ -412,91 +381,6 @@ function CardFieldRow({
       </span>
       {children}
     </div>
-  );
-}
-
-function ApplePayMethod({
-  config,
-  summary,
-  handlers,
-}: {
-  config: Parameters<typeof ApplePayOneTimePaymentButton>[0]["applePayConfig"];
-  summary: CheckoutSummary;
-  handlers: CheckoutPaymentHandlers;
-}) {
-  const [scriptReady, setScriptReady] = useState(false);
-  const { pricing } = summary;
-
-  return (
-    <>
-      <Script src={APPLE_PAY_SDK_URL} onReady={() => setScriptReady(true)} />
-      {scriptReady ? (
-        <ApplePayOneTimePaymentButton
-          applePayConfig={config}
-          applePaySessionVersion={APPLE_PAY_SESSION_VERSION}
-          paymentRequest={{
-            countryCode: config.merchantCountry ?? DEFAULT_MERCHANT_COUNTRY,
-            currencyCode: pricing.currency,
-            total: {
-              label: "Rentify",
-              amount: pricing.totalDueNow.toFixed(2),
-              type: "final",
-            },
-          }}
-          createOrder={() => handlers.createOrder("apple_pay")}
-          onApprove={(data) => handlers.approve(data.approveApplePayPayment.id)}
-          onCancel={handlers.cancel}
-          onError={handlers.fail}
-          buttonstyle="black"
-          type="pay"
-        />
-      ) : null}
-    </>
-  );
-}
-
-function GooglePayMethod({
-  config,
-  environment,
-  summary,
-  handlers,
-  disabled,
-}: {
-  config: Parameters<
-    typeof GooglePayOneTimePaymentButton
-  >[0]["googlePayConfig"];
-  environment: PayPalSdkConfig["environment"];
-  summary: CheckoutSummary;
-  handlers: CheckoutPaymentHandlers;
-  disabled: boolean;
-}) {
-  const [scriptReady, setScriptReady] = useState(false);
-  const { pricing } = summary;
-
-  return (
-    <>
-      <Script src={GOOGLE_PAY_SDK_URL} onReady={() => setScriptReady(true)} />
-      {scriptReady ? (
-        <GooglePayOneTimePaymentButton
-          googlePayConfig={config}
-          environment={environment === "production" ? "PRODUCTION" : "TEST"}
-          transactionInfo={{
-            countryCode: config.merchantCountry || DEFAULT_MERCHANT_COUNTRY,
-            currencyCode: pricing.currency,
-            totalPriceStatus: "FINAL",
-            totalPrice: pricing.totalDueNow.toFixed(2),
-          }}
-          createOrder={() => handlers.createOrder("google_pay")}
-          onApprove={(data) => handlers.approve(data.id)}
-          onCancel={handlers.cancel}
-          onError={handlers.fail}
-          buttonType="pay"
-          buttonColor="black"
-          buttonSizeMode="fill"
-          disabled={disabled}
-        />
-      ) : null}
-    </>
   );
 }
 

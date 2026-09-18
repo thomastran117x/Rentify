@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCheckoutSummary } from "@/test/mocks/checkout";
 import type { PayPalSdkConfig } from "@/lib/checkout/paypal-config";
@@ -34,15 +33,6 @@ const sdk = vi.hoisted(() => ({
   throwInProvider: false,
 }));
 
-function MockScript({ onReady }: { onReady?: () => void }) {
-  useEffect(() => {
-    onReady?.();
-  }, [onReady]);
-  return null;
-}
-
-vi.mock("next/script", () => ({ default: MockScript }));
-
 function MockButton({ label, ...props }: ButtonProps & { label: string }) {
   return (
     <div>
@@ -51,11 +41,7 @@ function MockButton({ label, ...props }: ButtonProps & { label: string }) {
         disabled={props.disabled}
         onClick={async () => {
           const { orderId } = await props.createOrder();
-          await props.onApprove({
-            orderId,
-            id: orderId,
-            approveApplePayPayment: { id: orderId },
-          });
+          await props.onApprove({ orderId });
         }}
       >
         {label}
@@ -102,12 +88,6 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
   PayPalGuestPaymentButton: (props: ButtonProps) => (
     <MockButton label="Guest card" {...props} />
   ),
-  ApplePayOneTimePaymentButton: (
-    props: ButtonProps & { paymentRequest: unknown },
-  ) => <MockButton label="Apple Pay" {...props} />,
-  GooglePayOneTimePaymentButton: (
-    props: ButtonProps & { environment: string; transactionInfo: unknown },
-  ) => <MockButton label={`Google Pay ${props.environment}`} {...props} />,
   PayPalCardFieldsProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
@@ -182,25 +162,14 @@ describe("PayPalPaymentMethods", () => {
   });
 
   it("loads only the SDK components for the enabled methods", () => {
-    renderMethods({
-      config: {
-        ...CONFIG,
-        methods: ["paypal", "paypal_guest", "card", "apple_pay", "google_pay"],
-      },
-    });
+    renderMethods();
 
     expect(sdk.providerProps).toHaveBeenCalledWith(
       expect.objectContaining({
         clientId: "sandbox-client",
         environment: "sandbox",
         pageType: "checkout",
-        components: [
-          "paypal-payments",
-          "paypal-guest-payments",
-          "card-fields",
-          "applepay-payments",
-          "googlepay-payments",
-        ],
+        components: ["paypal-payments", "paypal-guest-payments", "card-fields"],
       }),
     );
   });
@@ -388,65 +357,6 @@ describe("PayPalPaymentMethods", () => {
 
       expect(handlers.fail).toHaveBeenCalledTimes(1);
       expect(handlers.fail).toHaveBeenCalledWith(sdk.cardFields.error);
-    });
-  });
-
-  describe("wallets", () => {
-    const walletConfig: PayPalSdkConfig = {
-      ...CONFIG,
-      methods: ["apple_pay", "google_pay"],
-    };
-
-    beforeEach(() => {
-      sdk.eligibility.eligible = new Set(["applepay", "googlepay"]);
-      sdk.eligibility.details = {
-        applepay: { config: { merchantCountry: "CA" } },
-        googlepay: { config: { merchantCountry: "" } },
-      };
-    });
-
-    it("offers Apple Pay and Google Pay once their scripts are ready", async () => {
-      const { handlers } = renderMethods({ config: walletConfig });
-
-      expect(
-        await screen.findByRole("button", { name: "Apple Pay" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Google Pay TEST" }),
-      ).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "PayPal" })).toBeNull();
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Apple Pay" }));
-      });
-      expect(handlers.createOrder).toHaveBeenCalledWith("apple_pay");
-      expect(handlers.approve).toHaveBeenCalledWith("ORDER-1");
-
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole("button", { name: "Google Pay TEST" }),
-        );
-      });
-      expect(handlers.createOrder).toHaveBeenCalledWith("google_pay");
-    });
-
-    it("uses the production Google Pay environment in production", async () => {
-      renderMethods({
-        config: { ...walletConfig, environment: "production" },
-      });
-
-      expect(
-        await screen.findByRole("button", { name: "Google Pay PRODUCTION" }),
-      ).toBeInTheDocument();
-    });
-
-    it("hides wallets the buyer is not eligible for", () => {
-      sdk.eligibility.eligible = new Set();
-
-      renderMethods({ config: walletConfig });
-
-      expect(screen.queryByRole("button", { name: "Apple Pay" })).toBeNull();
-      expect(screen.queryByRole("button", { name: /Google Pay/ })).toBeNull();
     });
   });
 });

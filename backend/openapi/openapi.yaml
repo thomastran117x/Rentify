@@ -14685,7 +14685,7 @@ paths:
       description: |-
         Creates a PayPal order for an approved booking request. Only the renter may call it.
 
-        `method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest`, `card`, `apple_pay` and `google_pay` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.
+        `method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest` and `card` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.
 
         If an earlier order was never approved (the renter closed the popup or switched methods), it is superseded: its attempt ends with `CHECKOUT_SUPERSEDED` and the new order replaces it. Approving a superseded order moves no money because only the current order is ever captured.
 
@@ -20224,8 +20224,6 @@ components:
             - paypal
             - paypal_guest
             - card
-            - apple_pay
-            - google_pay
           default: paypal_redirect
     CancelCheckoutRequest:
       type: object
@@ -20423,8 +20421,6 @@ components:
                   - paypal
                   - paypal_guest
                   - card
-                  - apple_pay
-                  - google_pay
     CreateRefundRequest:
       type: object
       required:

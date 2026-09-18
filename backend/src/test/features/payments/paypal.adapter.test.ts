@@ -236,16 +236,7 @@ describe("PayPalPaymentAdapter", () => {
           },
         },
       ],
-      [
-        "google_pay",
-        {
-          google_pay: {
-            attributes: { verification: { method: "SCA_WHEN_REQUIRED" } },
-          },
-        },
-      ],
       ["paypal_guest", undefined],
-      ["apple_pay", undefined],
     ] as Array<[PaymentMethod, unknown]>)(
       "builds the %s order payment source",
       async (method, expectedSource) => {
@@ -561,15 +552,6 @@ describe("PayPalPaymentAdapter", () => {
     });
 
     it.each([
-      [
-        {
-          google_pay: {
-            card: { authentication_result: { liability_shift: "POSSIBLE" } },
-          },
-        },
-        "google_pay",
-        { liabilityShift: "POSSIBLE" },
-      ],
       [{ apple_pay: { name: "Buyer" } }, "apple_pay", undefined],
       [{ paypal: { email_address: "buyer@example.com" } }, "paypal", undefined],
       [{ venmo: {} }, "venmo", undefined],

@@ -31,18 +31,13 @@ describe("buildPayPalConfig", () => {
   it("parses, normalizes, and de-duplicates the checkout methods list", () => {
     const { config, errors } = build({
       PAYPAL_ENVIRONMENT: "production",
-      PAYPAL_CHECKOUT_METHODS: " PayPal, card,apple_pay,,card, google_pay ",
+      PAYPAL_CHECKOUT_METHODS: " PayPal, card,,card, paypal_guest ",
     });
 
     expect(errors).toEqual([]);
     expect(config.environment).toBe("production");
     expect(config.apiBaseUrl).toBe("https://api-m.paypal.com");
-    expect(config.checkoutMethods).toEqual([
-      "paypal",
-      "card",
-      "apple_pay",
-      "google_pay",
-    ]);
+    expect(config.checkoutMethods).toEqual(["paypal", "card", "paypal_guest"]);
   });
 
   it("allows turning every embedded method off", () => {
@@ -55,12 +50,12 @@ describe("buildPayPalConfig", () => {
   it("reports unknown checkout methods and environments", () => {
     const { config, errors } = build({
       PAYPAL_ENVIRONMENT: "staging",
-      PAYPAL_CHECKOUT_METHODS: "paypal,bitcoin,paypal_redirect",
+      PAYPAL_CHECKOUT_METHODS: "paypal,bitcoin,apple_pay",
     });
 
     expect(errors).toEqual([
       "PAYPAL_ENVIRONMENT must be either sandbox or production.",
-      "PAYPAL_CHECKOUT_METHODS contains unknown methods: bitcoin, paypal_redirect.",
+      "PAYPAL_CHECKOUT_METHODS contains unknown methods: bitcoin, apple_pay.",
     ]);
     expect(config.checkoutMethods).toEqual(["paypal"]);
   });

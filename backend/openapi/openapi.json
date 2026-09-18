@@ -21728,7 +21728,7 @@
       "post": {
         "operationId": "createPaymentSession",
         "summary": "Create a payment session for a booking request",
-        "description": "Creates a PayPal order for an approved booking request. Only the renter may call it.\n\n`method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest`, `card`, `apple_pay` and `google_pay` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.\n\nIf an earlier order was never approved (the renter closed the popup or switched methods), it is superseded: its attempt ends with `CHECKOUT_SUPERSEDED` and the new order replaces it. Approving a superseded order moves no money because only the current order is ever captured.\n\n409 responses carry `error.details.reason`: `payment_in_progress` (the earlier order was already approved or paid and has been applied), `checkout_busy` (another checkout request for this booking is in flight; retry), or `reconciliation_required`. Replaying an idempotency key returns the original order; reusing it with a different method is a 409.\n\nProvider failures are recorded on the returned payment instead of failing the request. PAT bearer authentication is not allowed on payment-session routes.",
+        "description": "Creates a PayPal order for an approved booking request. Only the renter may call it.\n\n`method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest` and `card` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.\n\nIf an earlier order was never approved (the renter closed the popup or switched methods), it is superseded: its attempt ends with `CHECKOUT_SUPERSEDED` and the new order replaces it. Approving a superseded order moves no money because only the current order is ever captured.\n\n409 responses carry `error.details.reason`: `payment_in_progress` (the earlier order was already approved or paid and has been applied), `checkout_busy` (another checkout request for this booking is in flight; retry), or `reconciliation_required`. Replaying an idempotency key returns the original order; reusing it with a different method is a 409.\n\nProvider failures are recorded on the returned payment instead of failing the request. PAT bearer authentication is not allowed on payment-session routes.",
         "tags": [
           "payments"
         ],
@@ -29627,9 +29627,7 @@
               "paypal_redirect",
               "paypal",
               "paypal_guest",
-              "card",
-              "apple_pay",
-              "google_pay"
+              "card"
             ],
             "default": "paypal_redirect"
           }
@@ -29904,9 +29902,7 @@
                   "enum": [
                     "paypal",
                     "paypal_guest",
-                    "card",
-                    "apple_pay",
-                    "google_pay"
+                    "card"
                   ]
                 }
               }

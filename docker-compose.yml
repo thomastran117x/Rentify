@@ -564,8 +564,6 @@ services:
       NODE_ENV: production
       PORT: 3040
       INTERNAL_API_BASE_URL: http://backend:8040/api/v1
-      # Apple Pay domain verification file from PayPal; read at request time.
-      APPLE_PAY_DOMAIN_ASSOCIATION: ${APPLE_PAY_DOMAIN_ASSOCIATION:-}
     ports:
       - "3040:3040"
 

@@ -8103,7 +8103,7 @@ function buildOperations(): OperationDefinition[] {
       description: [
         "Creates a PayPal order for an approved booking request. Only the renter may call it.",
         "",
-        "`method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest`, `card`, `apple_pay` and `google_pay` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.",
+        "`method` picks the checkout: `paypal_redirect` (the default) returns a `checkoutUrl` for PayPal's hosted page; `paypal`, `paypal_guest` and `card` return a `providerOrderId` for the PayPal JS SDK. Embedded methods must be enabled through `PAYPAL_CHECKOUT_METHODS`, otherwise the request is rejected with 400.",
         "",
         "If an earlier order was never approved (the renter closed the popup or switched methods), it is superseded: its attempt ends with `CHECKOUT_SUPERSEDED` and the new order replaces it. Approving a superseded order moves no money because only the current order is ever captured.",
         "",
@@ -11978,14 +11978,7 @@ function buildComponents(): Record<string, unknown> {
           idempotencyKey: { type: "string", minLength: 1, maxLength: 255 },
           method: {
             type: "string",
-            enum: [
-              "paypal_redirect",
-              "paypal",
-              "paypal_guest",
-              "card",
-              "apple_pay",
-              "google_pay",
-            ],
+            enum: ["paypal_redirect", "paypal", "paypal_guest", "card"],
             default: "paypal_redirect",
           },
         },
@@ -12156,13 +12149,7 @@ function buildComponents(): Record<string, unknown> {
                 type: "array",
                 items: {
                   type: "string",
-                  enum: [
-                    "paypal",
-                    "paypal_guest",
-                    "card",
-                    "apple_pay",
-                    "google_pay",
-                  ],
+                  enum: ["paypal", "paypal_guest", "card"],
                 },
               },
             },

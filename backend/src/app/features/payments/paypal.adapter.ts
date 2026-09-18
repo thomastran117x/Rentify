@@ -394,8 +394,8 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
   }
 
   /**
-   * The `payment_source` for a new order. Guest checkout and Apple Pay attach
-   * their source when the SDK confirms the order, so they send none.
+   * The `payment_source` for a new order. Guest checkout attaches its source
+   * when the SDK confirms the order, so it sends none.
    */
   private buildPaymentSource(
     method: PaymentMethod,
@@ -432,14 +432,7 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
             experience_context: experienceContext,
           },
         };
-      case "google_pay":
-        return {
-          google_pay: {
-            attributes: scaWhenRequired,
-          },
-        };
       case "paypal_guest":
-      case "apple_pay":
         return undefined;
     }
   }
@@ -475,13 +468,7 @@ export class PayPalPaymentAdapter implements PaymentProviderAdapter {
   private readCardAuthentication(
     paymentSource: Record<string, unknown> | undefined,
   ): CardAuthenticationResult | undefined {
-    const result =
-      readRecord(paymentSource, ["card", "authentication_result"]) ??
-      readRecord(paymentSource, [
-        "google_pay",
-        "card",
-        "authentication_result",
-      ]);
+    const result = readRecord(paymentSource, ["card", "authentication_result"]);
 
     if (!result) {
       return undefined;

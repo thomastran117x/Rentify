@@ -20,12 +20,7 @@ export type PaymentFailureCategory = "transient" | "permanent" | "unknown";
 export type RefundStatus = "pending" | "succeeded" | "failed";
 export type PayoutStatus = "scheduled" | "released" | "failed";
 /** Checkout methods embedded on the checkout page through the PayPal JS SDK. */
-export type CheckoutPaymentMethod =
-  | "paypal"
-  | "paypal_guest"
-  | "card"
-  | "apple_pay"
-  | "google_pay";
+export type CheckoutPaymentMethod = "paypal" | "paypal_guest" | "card";
 /** `paypal_redirect` sends the renter to PayPal's hosted page. */
 export type PaymentMethod = "paypal_redirect" | CheckoutPaymentMethod;
 
