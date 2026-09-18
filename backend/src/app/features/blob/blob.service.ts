@@ -131,8 +131,12 @@ export class BlobService {
   // this a holder of a valid URL could upload a PNG under a name issued for a
   // JPEG. Because the stored extension is derived from the validated content
   // type, the blob name determines the type unambiguously and inverting the
-  // extension mapping is enough to bind them. The Azure path gets the same
-  // binding for free: the SAS pins Content-Type, and Azure enforces it.
+  // extension mapping is enough to bind them.
+  //
+  // This check is local-only. Azure uploads have no equivalent: the SAS
+  // contentType is not an upload constraint (see createAzureUploadUrl), so on
+  // that path neither the declared type nor the bytes are verified. See
+  // "Image Upload Validation" in docs/architecture-overview.md.
   private assertContentTypeMatchesSignedBlob(
     blobName: string,
     contentType: SupportedImageContentType,
@@ -313,6 +317,12 @@ export class BlobService {
         protocol: SASProtocol.Https,
         startsOn,
         expiresOn,
+        // Not an upload constraint. This is the SAS `rsct` field, which only
+        // overrides the Content-Type returned when the blob is read with this
+        // token - and this token cannot read. Azure accepts a PUT with any
+        // Content-Type and any bytes, which was verified against a real
+        // account, so the allow-list above governs what a client may ask
+        // for, not what it can store.
         contentType,
       },
       credential,
