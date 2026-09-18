@@ -4,9 +4,7 @@ import { useState } from "react";
 import { blobApi } from "@/lib/blob/api";
 import {
   IMAGE_ACCEPT_ATTRIBUTE,
-  UNSUPPORTED_IMAGE_MESSAGE,
-  resolveImageContentType,
-  validateImageFile,
+  resolveUploadContentType,
 } from "@/lib/blob/image-policy";
 import {
   dangerButtonClass,
@@ -36,19 +34,13 @@ export function OrganizationLogoField({
       return;
     }
 
-    const contentType = resolveImageContentType(file);
-    const rejection = validateImageFile(file);
-
-    if (!contentType || rejection) {
-      onError(rejection ?? UNSUPPORTED_IMAGE_MESSAGE);
-      return;
-    }
-
     setUploading(true);
     try {
+      // The server decides whether this file is acceptable; an unsupported
+      // type or size comes back as an error naming the deployed limits.
       const target = await blobApi.createUploadUrl({
         filename: file.name,
-        contentType,
+        contentType: resolveUploadContentType(file),
         sizeBytes: file.size,
         scope: "organizations",
       });

@@ -15,9 +15,7 @@ import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { blobApi } from "@/lib/blob/api";
 import {
   IMAGE_ACCEPT_ATTRIBUTE,
-  UNSUPPORTED_IMAGE_MESSAGE,
-  resolveImageContentType,
-  validateImageFile,
+  resolveUploadContentType,
 } from "@/lib/blob/image-policy";
 import {
   MAX_EXPIRY_HORIZON_DAYS,
@@ -306,18 +304,12 @@ export function buildPayload(
 export async function uploadManagedPhoto(
   file: File,
 ): Promise<PostingPhotoInput> {
-  // Fail before requesting credentials. The server enforces the same policy,
-  // but a file that cannot possibly be accepted should not cost a round trip.
-  const contentType = resolveImageContentType(file);
-  const rejection = validateImageFile(file);
-
-  if (!contentType || rejection) {
-    throw new Error(rejection ?? UNSUPPORTED_IMAGE_MESSAGE);
-  }
-
+  // The server is the only judge of what is acceptable. Declaring the size
+  // lets it refuse an oversized file before the transfer, with a message that
+  // names the deployed limit; this surfaces it through the save error modal.
   const uploadTarget = await blobApi.createUploadUrl({
     filename: file.name,
-    contentType,
+    contentType: resolveUploadContentType(file),
     sizeBytes: file.size,
     scope: "postings",
   });
@@ -884,8 +876,7 @@ export function PhotoUploader({
             Upload photos
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            JPEG, PNG, or WebP, up to 5 MB each. Add several — pick one as the
-            primary display.
+            JPEG, PNG, or WebP. Add several — pick one as the primary display.
           </span>
           <input
             type="file"

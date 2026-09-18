@@ -241,39 +241,51 @@ describe("posting management helpers", () => {
     ).rejects.toThrow("Photo upload failed");
   });
 
-  it("refuses unsupported files before requesting upload credentials", async () => {
-    createUploadUrlMock.mockClear();
+  it("leaves acceptability to the server and surfaces its reason", async () => {
+    // The client holds no copy of the limits, so it asks and relays the
+    // answer. The server's message names whatever the deployment allows.
+    createUploadUrlMock.mockRejectedValueOnce(
+      new Error("Only PNG images can be uploaded."),
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch");
 
-    // No type and no usable extension.
-    await expect(
-      uploadManagedPhoto(new File(["a"], "unknown")),
-    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
-
-    // An explicitly unsupported type.
     await expect(
       uploadManagedPhoto(
         new File(["a"], "contract.pdf", { type: "application/pdf" }),
       ),
-    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
+    ).rejects.toThrow("Only PNG images can be uploaded.");
+    expect(createUploadUrlMock).toHaveBeenCalledWith({
+      filename: "contract.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 1,
+      scope: "postings",
+    });
 
-    // A deliberately excluded image format.
-    await expect(
-      uploadManagedPhoto(
-        new File(["a"], "logo.svg", { type: "image/svg+xml" }),
-      ),
-    ).rejects.toThrow("Only JPEG, PNG, and WebP images can be uploaded.");
-
-    // Oversized, caught before the transfer starts.
-    const oversized = new File(
-      [new Uint8Array(5 * 1024 * 1024 + 1)],
-      "huge.png",
-      { type: "image/png" },
+    // The declared size is how an oversized file is refused before the
+    // transfer; nothing is uploaded when the server says no.
+    createUploadUrlMock.mockRejectedValueOnce(
+      new Error("Images must be 5 MB or smaller."),
     );
+    const oversized = new File([new Uint8Array(64)], "huge.png", {
+      type: "image/png",
+    });
     await expect(uploadManagedPhoto(oversized)).rejects.toThrow(
-      "larger than the 5 MB limit",
+      "Images must be 5 MB or smaller.",
     );
+    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sizeBytes: 64 }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
 
-    expect(createUploadUrlMock).not.toHaveBeenCalled();
+    // Neither a type nor a usable extension: declared as octet-stream and left
+    // for the server to reject.
+    createUploadUrlMock.mockRejectedValueOnce(new Error("rejected"));
+    await expect(
+      uploadManagedPhoto(new File(["a"], "unknown")),
+    ).rejects.toThrow("rejected");
+    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ contentType: "application/octet-stream" }),
+    );
   });
 
   it("reports completeness for both incomplete and complete drafts", () => {
