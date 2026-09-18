@@ -9258,7 +9258,7 @@
       "post": {
         "operationId": "createBlobUploadUrl",
         "summary": "Create an upload URL for blob storage",
-        "description": "Creates a short-lived signed upload target for authenticated users.",
+        "description": "Creates a short-lived signed upload target for authenticated users. Credentials are only issued for image uploads: the request is rejected with 415 unless `contentType` is one of the supported image types. The stored blob's extension is derived from `contentType`, never from `filename`.",
         "tags": [
           "blob"
         ],
@@ -9282,6 +9282,7 @@
               "example": {
                 "filename": "loft.jpg",
                 "contentType": "image/jpeg",
+                "sizeBytes": 248402,
                 "scope": "postings/photos"
               }
             }
@@ -9341,6 +9342,15 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -9486,7 +9496,7 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/octet-stream": {
+            "image/jpeg": {
               "schema": {
                 "type": "string",
                 "format": "binary"
@@ -9498,7 +9508,7 @@
                 "format": "binary"
               }
             },
-            "image/jpeg": {
+            "image/webp": {
               "schema": {
                 "type": "string",
                 "format": "binary"
@@ -9516,8 +9526,14 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "415": {
-            "$ref": "#/components/responses/BadRequest"
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -24457,6 +24473,48 @@
           }
         }
       },
+      "PayloadTooLarge": {
+        "description": "Payload too large.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiErrorEnvelope"
+            },
+            "example": {
+              "success": false,
+              "message": "Request body exceeds the maximum allowed size.",
+              "data": null,
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE"
+              },
+              "meta": {
+                "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiErrorEnvelope"
+            },
+            "example": {
+              "success": false,
+              "message": "Request content type is not supported.",
+              "data": null,
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE"
+              },
+              "meta": {
+                "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+              }
+            }
+          }
+        }
+      },
       "UnprocessableEntity": {
         "description": "Unprocessable entity.",
         "content": {
@@ -27152,10 +27210,22 @@
         ],
         "properties": {
           "filename": {
-            "type": "string"
+            "type": "string",
+            "description": "Original filename, retained for display and diagnostics only. The stored blob's extension is derived from contentType, so a filename extension that disagrees with it is ignored rather than rejected."
           },
           "contentType": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "description": "Image media type. Upload credentials are only issued for images; a deployment may narrow this set further via configuration."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional client-declared byte length, checked against the server limit before a URL is issued. Advisory only - the authoritative size check runs against the uploaded bytes."
           },
           "scope": {
             "type": "string"

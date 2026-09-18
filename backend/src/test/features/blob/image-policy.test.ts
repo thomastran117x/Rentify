@@ -1,0 +1,198 @@
+import {
+  assertImageBytes,
+  assertImageSizeWithinLimit,
+  imageExtensionForContentType,
+  normalizeImageContentType,
+} from "@/features/blob/image-policy";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
+import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
+import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
+import {
+  createGifFixture,
+  createJpegFixture,
+  createPngFixture,
+  createWebpFixture,
+} from "../../support/image-fixtures";
+
+const POLICY_VARIABLES = [
+  "ALLOWED_IMAGE_TYPES",
+  "MAX_IMAGE_SIZE_BYTES",
+  "MAX_IMAGE_WIDTH",
+  "MAX_IMAGE_HEIGHT",
+  "MAX_IMAGE_PIXELS",
+] as const;
+
+const originalValues = new Map(
+  POLICY_VARIABLES.map((name) => [name, process.env[name]]),
+);
+
+afterEach(() => {
+  for (const name of POLICY_VARIABLES) {
+    const value = originalValues.get(name);
+
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+});
+
+describe("normalizeImageContentType", () => {
+  it("accepts the supported image types and normalizes casing and padding", () => {
+    expect(normalizeImageContentType("image/jpeg")).toBe("image/jpeg");
+    expect(normalizeImageContentType("  IMAGE/PNG  ")).toBe("image/png");
+    expect(normalizeImageContentType("Image/WebP")).toBe("image/webp");
+  });
+
+  it("rejects non-image and excluded image types", () => {
+    for (const contentType of [
+      "application/pdf",
+      "text/html",
+      "application/octet-stream",
+      "image/svg+xml",
+      "image/gif",
+      "image/tiff",
+      "image/heic",
+    ]) {
+      expect(() => normalizeImageContentType(contentType)).toThrow(
+        UnsupportedMediaTypeError,
+      );
+    }
+  });
+
+  it("rejects malformed content types", () => {
+    for (const contentType of [
+      "",
+      "   ",
+      "image",
+      "image/",
+      "image/png; charset=utf-8",
+      "image/png\r\nx-injected: yes",
+    ]) {
+      expect(() => normalizeImageContentType(contentType)).toThrow(
+        UnsupportedMediaTypeError,
+      );
+    }
+  });
+
+  it("rejects a supported type that the deployment has excluded", () => {
+    process.env.ALLOWED_IMAGE_TYPES = "image/png";
+
+    expect(normalizeImageContentType("image/png")).toBe("image/png");
+    expect(() => normalizeImageContentType("image/jpeg")).toThrow(
+      UnsupportedMediaTypeError,
+    );
+  });
+
+  it("reports the configured allow-list in the error details", () => {
+    process.env.ALLOWED_IMAGE_TYPES = "image/png,image/webp";
+
+    const error = (() => {
+      try {
+        normalizeImageContentType("application/pdf");
+        return null;
+      } catch (thrown) {
+        return thrown as UnsupportedMediaTypeError;
+      }
+    })();
+
+    expect(error).toBeInstanceOf(UnsupportedMediaTypeError);
+    expect(error?.status).toBe(415);
+    expect(error?.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+    expect(error?.details).toEqual({
+      allowedContentTypes: ["image/png", "image/webp"],
+      received: "application/pdf",
+    });
+  });
+});
+
+describe("imageExtensionForContentType", () => {
+  it("maps each supported type to its canonical extension", () => {
+    expect(imageExtensionForContentType("image/jpeg")).toBe(".jpg");
+    expect(imageExtensionForContentType("image/png")).toBe(".png");
+    expect(imageExtensionForContentType("image/webp")).toBe(".webp");
+  });
+});
+
+describe("assertImageSizeWithinLimit", () => {
+  it("accepts sizes at or below the limit", () => {
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+
+    expect(() => assertImageSizeWithinLimit(0)).not.toThrow();
+    expect(() => assertImageSizeWithinLimit(1024)).not.toThrow();
+  });
+
+  it("rejects sizes above the limit", () => {
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+
+    expect(() => assertImageSizeWithinLimit(1025)).toThrow(
+      PayloadTooLargeError,
+    );
+  });
+
+  it("rejects nonsensical sizes", () => {
+    expect(() => assertImageSizeWithinLimit(-1)).toThrow(
+      UnprocessableEntityError,
+    );
+    expect(() => assertImageSizeWithinLimit(Number.NaN)).toThrow(
+      UnprocessableEntityError,
+    );
+  });
+});
+
+describe("assertImageBytes", () => {
+  it("accepts bytes whose real format matches the declared type", async () => {
+    await expect(
+      assertImageBytes(await createPngFixture(), "image/png"),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertImageBytes(await createJpegFixture(), "image/jpeg"),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertImageBytes(await createWebpFixture(), "image/webp"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects bytes that are not an image at all", async () => {
+    await expect(
+      assertImageBytes(Buffer.from("definitely-not-an-image"), "image/png"),
+    ).rejects.toThrow("Uploaded file could not be read as an image.");
+  });
+
+  it("rejects a real image whose format contradicts the declared type", async () => {
+    await expect(
+      assertImageBytes(await createJpegFixture(), "image/png"),
+    ).rejects.toThrow(
+      "Uploaded file contents do not match the declared image type.",
+    );
+  });
+
+  it("rejects a decodable format that the policy excludes", async () => {
+    // sharp reads GIFs happily; the allow-list is what keeps them out.
+    await expect(
+      assertImageBytes(await createGifFixture(), "image/png"),
+    ).rejects.toThrow(UnsupportedMediaTypeError);
+  });
+
+  it("rejects images wider or taller than the configured maximum", async () => {
+    process.env.MAX_IMAGE_WIDTH = "16";
+    process.env.MAX_IMAGE_HEIGHT = "16";
+
+    await expect(
+      assertImageBytes(await createPngFixture(64, 8), "image/png"),
+    ).rejects.toThrow("Image dimensions exceed the allowed maximum.");
+    await expect(
+      assertImageBytes(await createPngFixture(8, 64), "image/png"),
+    ).rejects.toThrow(UnprocessableEntityError);
+  });
+
+  it("rejects images exceeding the total pixel budget", async () => {
+    const oversized = await createPngFixture(64, 64);
+    process.env.MAX_IMAGE_PIXELS = "256";
+
+    await expect(assertImageBytes(oversized, "image/png")).rejects.toThrow(
+      UnprocessableEntityError,
+    );
+  });
+});

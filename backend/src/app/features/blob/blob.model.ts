@@ -34,6 +34,7 @@ export interface CreateBlobUploadUrlInput {
   userId: Uuid;
   filename: string;
   contentType: string;
+  sizeBytes?: number;
   scope?: string;
   requestOrigin?: string;
 }

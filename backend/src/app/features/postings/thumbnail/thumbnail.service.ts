@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { environment } from "@/configuration/environment/index";
 import type { BlobService } from "@/features/blob/blob.service";
 import { invalidatePublicPostingProjection } from "@/features/postings/postings.public-cache-invalidation";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -29,7 +30,12 @@ export class PostingThumbnailService {
     }
 
     const original = await this.blobService.downloadBlob(primaryPhoto.blobName);
-    const thumbnailBuffer = await sharp(original.body)
+    // Uploads are pixel-budgeted before they are stored, but blobs written
+    // before that policy existed were not, so cap the decode here too rather
+    // than relying on sharp's much larger default.
+    const thumbnailBuffer = await sharp(original.body, {
+      limitInputPixels: environment.getImageUploadsConfig().maxPixels,
+    })
       .resize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, {
         fit: "cover",
         position: "centre",
