@@ -23,6 +23,8 @@ The backend is the Rentify API and background processing layer. It exposes the m
 
 ## Architecture Notes
 
+See the [worker index and directory READMEs](./src/app/workers/README.md) for service mappings, processing, retries, configuration, and operational checks.
+
 - route modules are composed under `/api/v1`
 - controllers delegate to feature services and repositories
 - Prisma migrations live in `prisma/migrations`
