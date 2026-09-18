@@ -1,6 +1,7 @@
 import {
   assertImageBytes,
   assertImageSizeWithinLimit,
+  formatByteLimit,
   imageExtensionForContentType,
   normalizeImageContentType,
 } from "@/features/blob/image-policy";
@@ -107,6 +108,48 @@ describe("normalizeImageContentType", () => {
       allowedContentTypes: ["image/png", "image/webp"],
       received: "application/pdf",
     });
+  });
+});
+
+describe("rejection messages", () => {
+  it("names exactly the formats the deployment accepts", () => {
+    const messageFor = () => {
+      try {
+        normalizeImageContentType("application/pdf");
+        return null;
+      } catch (thrown) {
+        return (thrown as Error).message;
+      }
+    };
+
+    expect(messageFor()).toBe(
+      "Only JPEG, PNG, and WebP images can be uploaded.",
+    );
+
+    process.env.ALLOWED_IMAGE_TYPES = "image/png,image/webp";
+    expect(messageFor()).toBe("Only PNG and WebP images can be uploaded.");
+
+    process.env.ALLOWED_IMAGE_TYPES = "image/png";
+    expect(messageFor()).toBe("Only PNG images can be uploaded.");
+  });
+
+  it("states the configured size ceiling", () => {
+    process.env.MAX_IMAGE_SIZE_BYTES = String(8 * 1024 * 1024);
+    expect(() => assertImageSizeWithinLimit(9 * 1024 * 1024)).toThrow(
+      "Images must be 8 MB or smaller.",
+    );
+
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+    expect(() => assertImageSizeWithinLimit(2048)).toThrow(
+      "Images must be 1 KB or smaller.",
+    );
+  });
+
+  it("formats byte limits for people", () => {
+    expect(formatByteLimit(5 * 1024 * 1024)).toBe("5 MB");
+    expect(formatByteLimit(1.5 * 1024 * 1024)).toBe("1.5 MB");
+    expect(formatByteLimit(512 * 1024)).toBe("512 KB");
+    expect(formatByteLimit(900)).toBe("900 bytes");
   });
 });
 

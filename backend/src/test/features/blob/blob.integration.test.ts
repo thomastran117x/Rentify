@@ -124,10 +124,14 @@ describe("Blob persistence integration", () => {
 
     const body = (await response.json()) as {
       success: boolean;
+      message: string;
       error: { code: string };
     };
     expect(body.success).toBe(false);
     expect(body.error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+    expect(body.message).toBe(
+      "Only JPEG, PNG, and WebP images can be uploaded.",
+    );
   });
 
   it("refuses an upload whose bytes are not the declared image", async () => {
@@ -187,6 +191,15 @@ describe("Blob persistence integration", () => {
     });
 
     expect(response.status).toBe(413);
+
+    // The frontend shows this verbatim and holds no copy of the limit, so the
+    // message itself is part of the contract.
+    const body = (await response.json()) as {
+      message: string;
+      error: { code: string };
+    };
+    expect(body.error.code).toBe("PAYLOAD_TOO_LARGE");
+    expect(body.message).toBe("Images must be 5 MB or smaller.");
   });
 
   it("rejects an unauthenticated upload URL request", async () => {

@@ -32,12 +32,52 @@ const SHARP_FORMAT_CONTENT_TYPES: Record<string, SupportedImageContentType> = {
   webp: "image/webp",
 };
 
+const IMAGE_FORMAT_LABELS: Record<SupportedImageContentType, string> = {
+  "image/jpeg": "JPEG",
+  "image/png": "PNG",
+  "image/webp": "WebP",
+};
+
+// Rejection messages are built from the deployed policy, not written out. The
+// frontend shows them verbatim and holds no copy of the limits, so a narrowed
+// allow-list or a changed size ceiling is described accurately without a
+// client release.
+function describeAllowedFormats(allowedContentTypes: string[]): string {
+  const labels = allowedContentTypes.map((contentType) =>
+    isSupportedImageContentType(contentType)
+      ? IMAGE_FORMAT_LABELS[contentType]
+      : contentType,
+  );
+
+  if (labels.length <= 2) {
+    return labels.join(" and ");
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+}
+
+export function formatByteLimit(bytes: number): string {
+  const mebibyte = 1024 * 1024;
+
+  if (bytes >= mebibyte) {
+    const value = bytes / mebibyte;
+    return `${Number.isInteger(value) ? value : value.toFixed(1)} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.floor(bytes / 1024)} KB`;
+  }
+
+  return `${bytes} bytes`;
+}
+
 function unsupportedMediaType(received: string): UnsupportedMediaTypeError {
+  const { allowedContentTypes } = environment.getImageUploadsConfig();
+
   return new UnsupportedMediaTypeError(
-    "Only JPEG, PNG, and WebP images can be uploaded.",
+    `Only ${describeAllowedFormats(allowedContentTypes)} images can be uploaded.`,
     {
-      allowedContentTypes:
-        environment.getImageUploadsConfig().allowedContentTypes,
+      allowedContentTypes,
       received,
     },
   );
@@ -100,10 +140,13 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   }
 
   if (sizeBytes > maxSizeBytes) {
-    throw new PayloadTooLargeError("Image exceeds the maximum allowed size.", {
-      sizeBytes,
-      maxSizeBytes,
-    });
+    throw new PayloadTooLargeError(
+      `Images must be ${formatByteLimit(maxSizeBytes)} or smaller.`,
+      {
+        sizeBytes,
+        maxSizeBytes,
+      },
+    );
   }
 }
 
