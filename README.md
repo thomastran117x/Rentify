@@ -65,6 +65,8 @@ The fixture set includes postings, bookings, payments, rentings, reviews, search
 
 Package-specific docs:
 
+- [CONTRIBUTING.md](./CONTRIBUTING.md): branches, logical commits, validation, and pull requests
+
 - [backend/README.md](./backend/README.md)
 - [frontend/README.md](./frontend/README.md)
 

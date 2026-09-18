@@ -4,6 +4,8 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 ## Start Here
 
+- [../CONTRIBUTING.md](../CONTRIBUTING.md): contributor workflow, branches, logical commits, and validation
+
 - [api.md](./api.md): where to find the canonical API spec and how to keep it current
 - [local-development.md](./local-development.md): quickest path to running the full stack, understanding env files, and using seeded accounts
 - [backend-configuration.md](./backend-configuration.md): layered backend YAML profiles, secrets, and overrides
