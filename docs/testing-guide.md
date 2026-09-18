@@ -81,6 +81,23 @@ Note that `uploadBuffer` â€” the server-side path used by thumbnail generation â
 deliberately keeps the generic content-type check and does not sniff bytes, so
 tests covering it can still use arbitrary buffers.
 
+### Blob storage in integration tests
+
+The harness replaces only `BlobService`, with an in-memory store. Naming is
+delegated to the real `BlobService`, and the real `MediaService` runs on top of
+the fake. The upload policy, the byte checks, and ownership are therefore
+enforced over HTTP exactly as in production.
+
+One consequence: any blob name a test attaches to a posting must carry the
+acting user's ID as its owner segment, the second-to-last path segment, or the
+write is rejected with 400:
+
+```ts
+buildPostingPhoto(`postings/${owner.userId}/workspace.jpg`);
+```
+
+The same applies to organization logos, blog covers, and new avatars.
+
 ### Database seed tests
 
 Seed tests use a separate harness and can refresh fixture-owned data. It honors `DATABASE_URL` but otherwise defaults to the local `rent` application database. Select the isolated schema explicitly and do not run this suite concurrently with integration tests:
