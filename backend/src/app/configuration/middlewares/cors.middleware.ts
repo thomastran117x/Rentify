@@ -35,6 +35,7 @@ export function createCorsMiddleware(): RequestHandler {
       CLIENT_APP_HEADER_NAME,
     ],
     exposedHeaders: [
+      "x-request-id",
       "content-type",
       "retry-after",
       "x-ratelimit-backend",

@@ -17,6 +17,50 @@ const request = {
 } as const;
 
 describe("api user messages", () => {
+  it.each([500, 502, 503, 504])(
+    "includes the ID once in direct and friendly %i messages",
+    (status) => {
+      const error = new ApiServerError("Unavailable.", {
+        code: "SERVER_ERROR",
+        request,
+        status,
+        requestId: "support-id",
+      });
+      const wrapped = new ApiServerError(error.message, {
+        code: error.code,
+        request,
+        status,
+        requestId: error.requestId,
+      });
+      expect(wrapped.message).toBe("Unavailable. Request ID: support-id");
+      expect(
+        getApiErrorMessage(error, { action: "sign in", fallback: "Failed." }),
+      ).toBe(
+        "Rentify is having trouble right now, so we couldn't sign in. Please try again in a moment. Request ID: support-id",
+      );
+    },
+  );
+
+  it("does not display references for network or malformed 429 errors", () => {
+    const network = new ApiNetworkError("Offline.", {
+      code: "NETWORK_ERROR",
+      request,
+      requestId: "network-id",
+    });
+    const rateLimit = new ApiServerError("Unreadable.", {
+      code: "INVALID_SERVER_RESPONSE",
+      request,
+      status: 429,
+      requestId: "rate-id",
+    });
+    for (const error of [network, rateLimit]) {
+      expect(error.message).not.toContain("Request ID:");
+      expect(
+        getApiErrorMessage(error, { action: "sign in", fallback: "Failed." }),
+      ).not.toContain("Request ID:");
+    }
+  });
+
   it("maps network failures to a connection-focused message", () => {
     const error = new ApiNetworkError("Unable to reach the server.", {
       code: "NETWORK_ERROR",

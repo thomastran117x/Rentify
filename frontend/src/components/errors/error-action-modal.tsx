@@ -185,7 +185,10 @@ export function ErrorActionModal({
                 </h2>
                 <p
                   id={descriptionId}
-                  className={cx("mt-3 text-sm leading-7", definition.mutedText)}
+                  className={cx(
+                    "mt-3 text-sm leading-7 [overflow-wrap:anywhere]",
+                    definition.mutedText,
+                  )}
                 >
                   {issue.message}
                 </p>

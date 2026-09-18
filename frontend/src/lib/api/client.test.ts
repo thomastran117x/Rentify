@@ -18,6 +18,35 @@ vi.mock("@/lib/auth/storage", () => ({
 }));
 
 describe("api client", () => {
+  it.each([
+    ["application/json", "{broken", "unreadable"],
+    ["text/html", "<html>Unavailable</html>", "invalid error"],
+  ])(
+    "preserves header IDs on %s server failures",
+    async (contentType, body, reason) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(body, {
+              status: 503,
+              headers: {
+                "content-type": contentType,
+                "x-request-id": "fallback-id",
+              },
+            }),
+        ),
+      );
+      const { publicJson } = await import("./client");
+      await expect(publicJson("GET", "/postings")).rejects.toMatchObject({
+        name: "ApiServerError",
+        status: 503,
+        requestId: "fallback-id",
+        message: `The server returned an ${reason} response. Request ID: fallback-id`,
+      });
+    },
+  );
+
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
@@ -330,7 +359,8 @@ describe("api client", () => {
 
     await expect(publicJson("GET", "/health")).rejects.toMatchObject({
       name: "ApiServerError",
-      message: "Server exploded.",
+      message: "Server exploded. Request ID: request-6b",
+      requestId: "request-6b",
       code: "INTERNAL_SERVER_ERROR",
       status: 500,
     });

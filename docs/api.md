@@ -38,16 +38,28 @@ Most JSON responses use the shared envelope below:
 }
 ```
 
+## Reporting Server Errors
+
+For HTTP 500–599 failures, client error messages include `Request ID: <id>` when
+the server supplies a valid request ID. Include this reference when reporting an
+issue so support can find the corresponding backend logs.
+
+The frontend prefers `meta.requestId` and falls back to the `x-request-id` response
+header, including for unreadable or non-JSON error bodies. CORS exposes this header
+to allowed browser origins. If neither source provides a valid ID, the existing
+error message is shown without a reference. Client errors (including 429) and
+network failures do not display request IDs. There is no separate trace ID.
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them
 directly. Each one is reached by first calling its ticket endpoint, which _is_ in
 the spec and documents the frames the socket carries:
 
-| Socket path | Ticket operation | Auth |
-| --- | --- | --- |
-| `/ws/booking-messages` | `createBookingMessageSocketTicket` | Signed-in participant only |
-| `/ws/blog-comments` | `createOrganizationBlogCommentSocketTicket` | Optional — an unauthenticated caller receives a read-only ticket |
+| Socket path            | Ticket operation                            | Auth                                                             |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `/ws/booking-messages` | `createBookingMessageSocketTicket`          | Signed-in participant only                                       |
+| `/ws/blog-comments`    | `createOrganizationBlogCommentSocketTicket` | Optional — an unauthenticated caller receives a read-only ticket |
 
 Both return the ticket as an HttpOnly cookie scoped to the socket path rather
 than in the response body, and both reject personal access tokens. See

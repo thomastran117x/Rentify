@@ -161,7 +161,7 @@ describe("fetchPublicPostingDetail", () => {
     );
 
     await expect(fetchPublicPostingDetail("posting-2")).rejects.toMatchObject({
-      message: "Server exploded.",
+      message: "Server exploded. Request ID: request-3",
       debug: {
         status: 500,
       },
