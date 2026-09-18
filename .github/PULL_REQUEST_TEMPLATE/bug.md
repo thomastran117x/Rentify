@@ -22,10 +22,17 @@ Describe what changed to resolve the issue.
 
 ## Testing
 
+Record commands and outcomes, available CI evidence, and checks not performed. For user-facing changes, name the browser-validation owner and report Docker and Playwright MCP results or manual steps. Documentation-only changes require documentation checks instead.
+
 - [ ] Reproduced the bug before the fix
 - [ ] Verified the fix locally
 - [ ] Added or updated automated tests
 - [ ] Checked for regressions
+- [ ] Self-reviewed behavior and code quality using the [PR review guide](../../docs/pr-review.md)
+
+## Commit Dependencies
+
+List logical commits that require earlier commits, or state that the commits can be cherry-picked independently.
 
 ## Risk And Rollout Notes
 

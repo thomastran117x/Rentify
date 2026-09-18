@@ -64,6 +64,8 @@ Include Prisma migrations with schema changes, validate against the intended dat
 
 ## Preparing a Pull Request
 
+Follow the [PR review guide](./docs/pr-review.md) for author self-review and reviewing another contributor's changes. Both behavioral correctness and code quality are required review dimensions.
+
 Use the existing [feature](./.github/PULL_REQUEST_TEMPLATE/feature.md) or [bug](./.github/PULL_REQUEST_TEMPLATE/bug.md) template. Explain the problem, resulting behavior, scope, and risks. Include migrations, required configuration, or manual steps where applicable.
 
 Review the full diff and commit sequence before handoff. Record commands and outcomes, Docker/browser validation ownership, unavailable checks, and any ordering dependencies between commits. Treat blockers honestly and distinguish completed checks from checks still needed.

@@ -22,6 +22,8 @@ Include screenshots, recordings, or example requests/responses if helpful.
 
 ## Testing
 
+Record commands and outcomes, available CI evidence, and checks not performed. For user-facing changes, name the browser-validation owner and report Docker and Playwright MCP results or manual steps. Documentation-only changes require documentation checks instead.
+
 - [ ] Tested locally
 - [ ] Added or updated automated tests
 - [ ] Verified happy path
@@ -32,6 +34,11 @@ Include screenshots, recordings, or example requests/responses if helpful.
 - [ ] Follows project conventions
 - [ ] Documentation updated if needed
 - [ ] No known breaking changes
+- [ ] Self-reviewed behavior and code quality using the [PR review guide](../../docs/pr-review.md)
+
+## Commit Dependencies
+
+List logical commits that require earlier commits, or state that the commits can be cherry-picked independently.
 
 ## Additional Context
 

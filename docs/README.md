@@ -4,6 +4,8 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 ## Start Here
 
+- [pr-review.md](./pr-review.md): author self-review, behavioral correctness, code quality, and actionable findings
+
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): contributor workflow, branches, logical commits, and validation
 
 - [api.md](./api.md): where to find the canonical API spec and how to keep it current

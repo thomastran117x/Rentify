@@ -30,6 +30,12 @@ Do not push, merge, squash, amend existing commits, or otherwise rewrite history
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor workflow and validation expectations.
 
+## Pull Request Reviews
+
+Follow [docs/pr-review.md](./docs/pr-review.md) for author self-review and requested PR reviews. Review both behavior (bugs, edge cases, regressions, security, and tests) and code quality (readability, responsibilities, complexity, duplication, abstractions, typing, error handling, dependencies, conventions, and test maintainability). Correct behavior does not exempt code from quality review.
+
+A review request authorizes inspection and reporting, not edits or commits. Fix findings only when remediation is explicitly requested. Report actionable behavioral defects and code-quality issues with evidence, file/line references, impact-based P0-P3 priorities, and proportionate remedies. Keep optional suggestions separate. State the result for both review categories, checks performed, and remaining gaps. Do not publish comments, submit remote approval/change requests, or merge without explicit authorization.
+
 ## Documentation-Only Tasks
 
 For changes limited to Markdown and documentation templates, check formatting, relative links and anchors, documented commands and configuration against source, and diff hygiene. Docker startup, application tests, OpenAPI generation, dependency audits, and browser validation are not required unless the task also changes the runtime, contracts, or dependencies to which those checks apply. State which documentation checks ran and which runtime checks were skipped.
