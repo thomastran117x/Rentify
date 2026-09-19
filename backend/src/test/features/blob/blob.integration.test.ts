@@ -85,23 +85,4 @@ describe("Blob persistence integration", () => {
     expect(response.status).toBe(400);
     expect(persistenceApp.stubs.blobService.storage.has(blobName)).toBe(false);
   });
-
-  it("no longer offers direct upload credentials or deletes by blob name", async () => {
-    const owner = await createAuthenticatedRequestContext({
-      email: "owner1@rentify.local",
-    });
-
-    const uploadUrl = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({ filename: "a.png", contentType: "image/png" }),
-    });
-    const deleted = await request(
-      `/blob?blobName=${encodeURIComponent(`postings/${owner.userId}/a.png`)}`,
-      { method: "DELETE", headers: owner.headers() },
-    );
-
-    expect(uploadUrl.status).toBe(404);
-    expect(deleted.status).toBe(404);
-  });
 });

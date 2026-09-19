@@ -87,8 +87,8 @@ describe("Media persistence integration", () => {
   }
 
   async function putBytes(uploadUrl: string, body: Buffer): Promise<Response> {
-    const issued = new URL(uploadUrl);
-    return request(`/blob/upload${issued.search}`, {
+    const query = new URL(uploadUrl).searchParams.toString();
+    return request(`/blob/upload?${query}`, {
       method: "PUT",
       headers: { "content-type": "image/png" },
       body: new Uint8Array(body),
@@ -313,17 +313,20 @@ describe("Media persistence integration", () => {
     const { media, upload } = await startUpload(owner.headers());
     await putBytes(upload.uploadUrl, await createPngFixture());
 
-    for (const [path, method] of [
-      [`/media/${media.id}`, "GET"],
-      [`/media/${media.id}/complete`, "POST"],
-      [`/media/${media.id}`, "DELETE"],
-    ] as const) {
-      const response = await request(path, {
-        method,
-        headers: otherUser.headers(),
-      });
-      expect(response.status).toBe(404);
-    }
+    const foreignRead = await request(`/media/${media.id}`, {
+      headers: otherUser.headers(),
+    });
+    const foreignComplete = await request(`/media/${media.id}/complete`, {
+      method: "POST",
+      headers: otherUser.headers(),
+    });
+    const foreignDelete = await request(`/media/${media.id}`, {
+      method: "DELETE",
+      headers: otherUser.headers(),
+    });
+    expect(foreignRead.status).toBe(404);
+    expect(foreignComplete.status).toBe(404);
+    expect(foreignDelete.status).toBe(404);
 
     const deleted = await request(`/media/${media.id}`, {
       method: "DELETE",
