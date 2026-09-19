@@ -9,7 +9,7 @@ const {
   listMineMock,
   getPostingMock,
   createPostingMock,
-  createUploadUrlMock,
+  uploadImageMock,
   listSeasonalMock,
   createSeasonalMock,
   updateSeasonalMock,
@@ -21,7 +21,7 @@ const {
   listMineMock: vi.fn(),
   getPostingMock: vi.fn(),
   createPostingMock: vi.fn(),
-  createUploadUrlMock: vi.fn(),
+  uploadImageMock: vi.fn(),
   listSeasonalMock: vi.fn(),
   createSeasonalMock: vi.fn(),
   updateSeasonalMock: vi.fn(),
@@ -70,10 +70,8 @@ vi.mock("@/lib/postings/api", () => ({
   },
 }));
 
-vi.mock("@/lib/blob/api", () => ({
-  blobApi: {
-    createUploadUrl: createUploadUrlMock,
-  },
+vi.mock("@/lib/media/api", () => ({
+  uploadImage: uploadImageMock,
 }));
 
 function managerSession() {
@@ -188,14 +186,9 @@ describe("PostingManagementWorkspace", () => {
       endDate: "2026-08-01",
       dailyAmount: 175,
     });
-    createUploadUrlMock.mockResolvedValue({
-      method: "PUT",
-      uploadUrl: "https://blob.example/upload",
-      expiresAt: "2026-06-01T00:00:00.000Z",
-      blobName: "postings/photo.png",
-      blobUrl: "https://blob.example/postings/photo.png",
-      container: "postings",
-      headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": "image/png" },
+    uploadImageMock.mockResolvedValue({
+      mediaId: "media-1",
+      url: "https://blob.example/media/images/user-1/media-1.webp",
     });
   });
 
@@ -479,6 +472,16 @@ describe("PostingManagementWorkspace", () => {
     await waitFor(() => {
       expect(showErrorModalMock).toHaveBeenCalled();
     });
+
+    // The new photo was uploaded as media and is attached by its media id.
+    expect(uploadImageMock).toHaveBeenCalledWith(expect.any(File), {
+      scope: "postings",
+    });
+    expect(createPostingMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        photos: [{ mediaId: "media-1", position: 0 }],
+      }),
+    );
 
     const call = showErrorModalMock.mock.calls.at(-1)?.[0];
     expect(call.title).toBe("Couldn't save posting");

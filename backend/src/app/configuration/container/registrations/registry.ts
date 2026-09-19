@@ -12,6 +12,7 @@ import { authOauthRegistrationModule } from "@/configuration/container/registrat
 import { authOtpRegistrationModule } from "@/configuration/container/registrations/modules/auth-otp";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
+import { mediaRegistrationModule } from "@/configuration/container/registrations/modules/media";
 import { bookingsRegistrationModule } from "@/configuration/container/registrations/modules/bookings";
 import { feedbacksRegistrationModule } from "@/configuration/container/registrations/modules/feedbacks";
 import { featureFlagsRegistrationModule } from "@/configuration/container/registrations/modules/feature-flags";
@@ -58,6 +59,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   smsRegistrationModule,
   securityRegistrationModule,
   blobRegistrationModule,
+  mediaRegistrationModule,
   identityBloomRegistrationModule,
   profileRegistrationModule,
   feedbacksRegistrationModule,

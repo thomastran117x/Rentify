@@ -2,6 +2,10 @@ import type { ManagedBlobItem } from "@/features/blob/blob.model";
 import type { BlobCleanupRepository } from "@/features/blob/blob-cleanup.repository";
 
 export const ORPHANED_IMAGE_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+// Client uploads, never referenced by anything and never served. Their stored
+// content type is whatever the client sent, so it cannot be trusted to say
+// whether they are images.
+const QUARANTINE_PREFIX = "quarantine/";
 
 export interface BlobCleanupStorage {
   listAzureBlobs(): AsyncIterable<ManagedBlobItem>;
@@ -29,6 +33,8 @@ export interface BlobCleanupResult {
   candidateBytes: number;
   deleted: number;
   deletedBytes: number;
+  /** Media rows removed: those of deleted blobs, and abandoned unfinished ones. */
+  mediaRecordsDeleted: number;
   failed: number;
   failedBytes: number;
   failures: BlobCleanupFailure[];
@@ -42,7 +48,10 @@ export function blobCleanupExitCode(
 
 export class BlobCleanupService {
   constructor(
-    private readonly repository: Pick<BlobCleanupRepository, "loadReferences">,
+    private readonly repository: Pick<
+      BlobCleanupRepository,
+      "loadReferences" | "deleteAbandonedMedia"
+    >,
     private readonly storage: BlobCleanupStorage,
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -72,13 +81,14 @@ export class BlobCleanupService {
 
       const isImage =
         blob.contentType?.trim().toLowerCase().startsWith("image/") === true;
+      const isQuarantined = blob.name.startsWith(QUARANTINE_PREFIX);
       const lastModifiedMs = blob.lastModified?.getTime();
       const isOldEnough =
         lastModifiedMs !== undefined &&
         Number.isFinite(lastModifiedMs) &&
         lastModifiedMs <= cutoff;
 
-      if (!isImage || !isOldEnough || !blob.lastModified) {
+      if ((!isImage && !isQuarantined) || !isOldEnough || !blob.lastModified) {
         protectedCount += 1;
         continue;
       }
@@ -103,6 +113,7 @@ export class BlobCleanupService {
       ),
       deleted: 0,
       deletedBytes: 0,
+      mediaRecordsDeleted: 0,
       failed: 0,
       failedBytes: 0,
       failures: [],
@@ -112,9 +123,12 @@ export class BlobCleanupService {
       return result;
     }
 
+    const deletedBlobNames: string[] = [];
+
     for (const candidate of candidates) {
       try {
         await this.storage.deleteBlob(candidate.blobName);
+        deletedBlobNames.push(candidate.blobName);
         result.deleted += 1;
         result.deletedBytes += candidate.contentLength;
       } catch (error) {
@@ -126,6 +140,11 @@ export class BlobCleanupService {
         });
       }
     }
+
+    result.mediaRecordsDeleted = await this.repository.deleteAbandonedMedia({
+      deletedBlobNames,
+      olderThan: new Date(cutoff),
+    });
 
     return result;
   }

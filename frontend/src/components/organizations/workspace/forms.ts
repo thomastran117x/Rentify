@@ -19,6 +19,8 @@ export interface ProfileFormValue {
   postalCode: string;
   logoUrl: string;
   logoBlobName: string;
+  /** Set when a new logo was uploaded and has not been saved yet. */
+  logoMediaId: string;
   customFields: { key: string; value: string }[];
 }
 
@@ -36,6 +38,7 @@ export function emptyProfileForm(): ProfileFormValue {
     postalCode: "",
     logoUrl: "",
     logoBlobName: "",
+    logoMediaId: "",
     customFields: [],
   };
 }
@@ -70,6 +73,7 @@ export function profileFormFromDetail(
     postalCode: organization.postalCode ?? "",
     logoUrl: organization.logoUrl ?? "",
     logoBlobName: organization.logoBlobName ?? "",
+    logoMediaId: "",
     customFields: Object.entries(organization.customFields ?? {}).map(
       ([key, value]) => ({ key, value }),
     ),
@@ -103,8 +107,14 @@ export function profileFormToInput(
     region: toNull(value.region),
     country: toNull(value.country),
     postalCode: toNull(value.postalCode),
-    logoUrl: toNull(value.logoUrl),
-    logoBlobName: toNull(value.logoBlobName),
+    // A new logo is sent by media id; otherwise the stored one is resent (or
+    // cleared) as the blob it was saved with.
+    ...(value.logoMediaId.trim()
+      ? { logoMediaId: value.logoMediaId.trim() }
+      : {
+          logoUrl: toNull(value.logoUrl),
+          logoBlobName: toNull(value.logoBlobName),
+        }),
     customFields: Object.keys(customFields).length > 0 ? customFields : null,
   };
 }

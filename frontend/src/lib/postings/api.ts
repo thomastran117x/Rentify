@@ -109,11 +109,20 @@ export interface PostingPricing {
   };
 }
 
-export interface PostingPhotoInput {
-  blobUrl: string;
-  blobName: string;
-  position: number;
-}
+/**
+ * A newly uploaded photo is sent by its media id once processing has finished;
+ * a photo already on the posting is sent back as the blob it was saved with.
+ */
+export type PostingPhotoInput =
+  | {
+      mediaId: string;
+      position: number;
+    }
+  | {
+      blobUrl: string;
+      blobName: string;
+      position: number;
+    };
 
 export interface PostingLocationInput {
   city: string;

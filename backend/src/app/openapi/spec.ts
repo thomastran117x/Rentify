@@ -475,18 +475,29 @@ const personalAccessTokenCreateExample = {
   ...personalAccessTokenSummaryExample,
   token: "rpat_live_secret_token",
 };
-const blobUploadTargetExample = {
-  method: "PUT",
-  uploadUrl:
-    "https://storage.example.net/rentify/uploads/photo-1.jpg?sig=abc123",
-  expiresAt: "2026-05-25T18:30:00.000Z",
-  blobName: "uploads/photo-1.jpg",
-  blobUrl: "https://cdn.rentify.local/uploads/photo-1.jpg",
-  container: "rentify",
-  headers: {
-    "x-ms-blob-type": "BlockBlob",
-    "Content-Type": "image/jpeg",
-  },
+const mediaIdExample = "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10";
+const mediaViewPendingExample = {
+  id: mediaIdExample,
+  status: "pending_upload",
+  scope: "postings",
+  url: null,
+  contentType: "image/jpeg",
+  sizeBytes: null,
+  width: null,
+  height: null,
+  rejectionReason: null,
+  createdAt: "2026-05-25T18:15:00.000Z",
+  updatedAt: "2026-05-25T18:15:00.000Z",
+};
+const mediaViewReadyExample = {
+  ...mediaViewPendingExample,
+  status: "ready",
+  url: `https://cdn.rentify.local/media/images/user-1/${mediaIdExample}.webp`,
+  contentType: "image/jpeg",
+  sizeBytes: 184_220,
+  width: 1600,
+  height: 1200,
+  updatedAt: "2026-05-25T18:15:04.000Z",
 };
 const publicProfileExample = {
   id: "profile-1",
@@ -4329,65 +4340,118 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
-      path: "/blob/upload-url",
-      operationId: "createBlobUploadUrl",
-      summary: "Create an upload URL for blob storage",
+      path: "/media/uploads",
+      operationId: "createMediaUpload",
+      summary: "Start an image upload",
       description:
-        "Creates a short-lived signed upload target for authenticated users. Credentials are only issued for image uploads: the request is rejected with 415 unless `contentType` is one of the supported image types. The stored blob's extension is derived from `contentType`, never from `filename`.",
-      tags: ["blob"],
+        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The client PUTs the image bytes to `upload.uploadUrl` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no blob name or readable URL. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
+      tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
         authMode: "jwt-or-pat",
         minimumRole: "user",
         patAllowed: false,
       },
-      requestBody: requestBody("CreateBlobUploadUrlRequest", {
+      requestBody: requestBody("CreateMediaUploadRequest", {
         filename: "loft.jpg",
         contentType: "image/jpeg",
         sizeBytes: 248_402,
-        scope: "postings/photos",
+        scope: "postings",
       }),
       responses: {
         "201": successResponse(
           201,
-          "Blob upload URL created successfully.",
-          "BlobUploadTarget",
-          blobUploadTargetExample,
+          "Media upload created successfully.",
+          "CreatedMediaUpload",
+          {
+            media: mediaViewPendingExample,
+            upload: {
+              method: "PUT",
+              uploadUrl: `https://storage.example.net/rentify/quarantine/images/user-1/${mediaIdExample}?sig=abc123`,
+              expiresAt: "2026-05-25T18:30:00.000Z",
+              headers: {
+                "x-ms-blob-type": "BlockBlob",
+                "Content-Type": "image/jpeg",
+              },
+            },
+          },
         ),
         ...commonErrors([400, 401, 403, 413, 415, 422, 429, 500]),
       },
     },
     {
-      method: "delete",
-      path: "/blob",
-      operationId: "deleteBlob",
-      summary: "Delete a managed blob",
+      method: "post",
+      path: "/media/:id/complete",
+      operationId: "completeMediaUpload",
+      summary: "Report an image upload as finished",
       description:
-        "Deletes a blob owned by the authenticated user. The target blob is identified by the `blobName` query parameter.",
-      tags: ["blob"],
+        "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. Returns 409 when no bytes have been uploaded yet and 413 when the upload is over the limit (the media is then rejected). Calling it again after the first success returns the current state.",
+      tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
         authMode: "jwt-or-pat",
         minimumRole: "user",
         patAllowed: false,
       },
-      parameters: [
-        queryParam(
-          "blobName",
-          { type: "string", maxLength: 1000 },
-          "Managed blob name to delete.",
-          "postings/user-1/photo-1.jpg",
-          true,
+      parameters: [routePathParam("id", "Media identifier.", mediaIdExample)],
+      responses: {
+        "202": successResponse(
+          202,
+          "Media upload received and queued for processing.",
+          "MediaResult",
+          { media: { ...mediaViewPendingExample, status: "uploaded" } },
         ),
-      ],
+        ...commonErrors([400, 401, 403, 404, 409, 413, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/media/:id",
+      operationId: "getMedia",
+      summary: "Get an uploaded image's processing state",
+      description:
+        "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`. Media belonging to anyone else is reported as 404.",
+      tags: ["media"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Media identifier.", mediaIdExample)],
       responses: {
         "200": successResponse(
           200,
-          "Blob deleted successfully.",
-          "BlobDeleteResult",
+          "Request completed successfully.",
+          "MediaResult",
+          { media: mediaViewReadyExample },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/media/:id",
+      operationId: "deleteMedia",
+      summary: "Delete an uploaded image",
+      description:
+        "Deletes one of the caller's media items together with its quarantined upload and processed image. Media belonging to anyone else is reported as 404.",
+      tags: ["media"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "jwt-or-pat",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [routePathParam("id", "Media identifier.", mediaIdExample)],
+      responses: {
+        "200": successResponse(
+          200,
+          "Media deleted successfully.",
+          "MediaDeleteResult",
           { deleted: true },
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },
     {
@@ -4396,7 +4460,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "uploadLocalBlob",
       summary: "Upload a blob payload to the local development fallback",
       description:
-        "Accepts a signed local-development upload URL generated by the blob upload target route. This route is only used when Azure Blob Storage is not configured in development.",
+        "Accepts the bytes for a signed local-development upload URL issued by `POST /media/uploads`. Only a quarantine name whose media item is still `pending_upload` is accepted, and the bytes are held to the size limit; format and dimensions are checked by the media processing worker. This route is only used when Azure Blob Storage is not configured in development.",
       tags: ["blob"],
       permissions: {
         authMode: "public",
@@ -4407,8 +4471,8 @@ function buildOperations(): OperationDefinition[] {
         queryParam(
           "blobName",
           { type: "string" },
-          "Managed blob name to store.",
-          "postings/user-1/local-photo.png",
+          "Quarantine blob name the upload URL was issued for.",
+          `quarantine/images/user-1/${mediaIdExample}`,
           true,
         ),
         queryParam(
@@ -4421,7 +4485,7 @@ function buildOperations(): OperationDefinition[] {
         queryParam(
           "token",
           { type: "string" },
-          "Upload token generated by the blob upload target route.",
+          "Upload token issued with the upload URL by `POST /media/uploads`.",
           "signed-local-upload-token",
           true,
         ),
@@ -4462,7 +4526,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getLocalBlob",
       summary: "Read a locally stored development blob",
       description:
-        "Returns a blob payload from the local development fallback store. This route is only used when Azure Blob Storage is not configured in development.",
+        "Returns a blob payload from the local development fallback store, standing in for Azure's public blob endpoint. Quarantined uploads are never served: any `quarantine/` name answers 404. This route is only used when Azure Blob Storage is not configured in development.",
       tags: ["blob"],
       permissions: {
         authMode: "public",
@@ -4474,7 +4538,7 @@ function buildOperations(): OperationDefinition[] {
           "blobName",
           { type: "string" },
           "Managed blob name to fetch.",
-          "postings/user-1/local-photo.png",
+          `media/images/user-1/${mediaIdExample}.webp`,
           true,
         ),
       ],
@@ -4578,7 +4642,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOwnProfile",
       summary: "Update the current user's profile",
       description:
-        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown. A new avatar must have been uploaded by the caller through `POST /blob/upload-url`; resending the current avatar is always accepted.",
+        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown. A new avatar is sent as `avatarMediaId`: a media item the caller uploaded through `POST /media/uploads` that has finished processing (`ready`). It is stored as the processed image. Resending the current `avatarUrl`/`avatarBlobName` is always accepted.",
       tags: ["profiles"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -5156,7 +5220,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPosting",
       summary: "Create a draft posting",
       description:
-        "Creates a draft posting owned by the authenticated owner. Every photo must have been uploaded by the caller through `POST /blob/upload-url`; a photo uploaded by anyone else is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
+        "Creates a draft posting owned by the authenticated owner. Each photo is `{ mediaId, position }`, naming a media item the caller uploaded through `POST /media/uploads` that is `ready`; it is stored as the processed image. A media item that is still processing, rejected, or someone else's is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -5169,13 +5233,7 @@ function buildOperations(): OperationDefinition[] {
         name: "Sunny loft workspace",
         description: "Bright downtown loft with desks and meeting space.",
         pricing: postingExample.pricing,
-        photos: [
-          {
-            blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-            blobName: "postings/posting-1/photo-1.jpg",
-            position: 0,
-          },
-        ],
+        photos: [{ mediaId: mediaIdExample, position: 0 }],
         tags: ["workspace", "wifi"],
         availabilityStatus: "available",
         availabilityNotes: "Best for weekday bookings.",
@@ -5330,7 +5388,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updatePosting",
       summary: "Update an owner posting",
       description:
-        "Updates an existing owner posting. Photos already on the posting may be kept whoever uploaded them; a newly added photo must have been uploaded by the caller through `POST /blob/upload-url`, or the update is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
+        "Updates an existing owner posting. A photo already on the posting is kept by resending its `blobUrl`, `blobName`, and `position`, whoever uploaded it. A newly added photo is `{ mediaId, position }`, naming a `ready` media item the caller uploaded through `POST /media/uploads`; anything else is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -5350,6 +5408,7 @@ function buildOperations(): OperationDefinition[] {
             blobName: "postings/posting-1/photo-1.jpg",
             position: 0,
           },
+          { mediaId: mediaIdExample, position: 1 },
         ],
         tags: ["workspace", "wifi"],
         availabilityStatus: "available",
@@ -9243,6 +9302,12 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
           },
           logoBlobName: { type: "string", maxLength: 1024, nullable: true },
+          logoMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new logo: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `logoUrl`/`logoBlobName` with it. Resending the current `logoUrl`/`logoBlobName` keeps the logo, and sending both as `null` clears it.",
+          },
           customFields: {
             type: "object",
             additionalProperties: { type: "string", maxLength: 1000 },
@@ -9840,6 +9905,12 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 220 },
           coverImageUrl: { type: "string", format: "uri", nullable: true },
           coverImageBlobName: { type: "string", nullable: true },
+          coverImageMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new cover image: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `coverImageUrl`/`coverImageBlobName` with it.",
+          },
           tags: {
             type: "array",
             items: { type: "string", maxLength: 40 },
@@ -9858,6 +9929,12 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 220 },
           coverImageUrl: { type: "string", format: "uri", nullable: true },
           coverImageBlobName: { type: "string", nullable: true },
+          coverImageMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new cover image: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `coverImageUrl`/`coverImageBlobName` with it.",
+          },
           tags: {
             type: "array",
             items: { type: "string", maxLength: 40 },
@@ -10441,14 +10518,14 @@ function buildComponents(): Record<string, unknown> {
           tokenId: { type: "string" },
         },
       },
-      CreateBlobUploadUrlRequest: {
+      CreateMediaUploadRequest: {
         type: "object",
         required: ["filename", "contentType"],
         properties: {
           filename: {
             type: "string",
             description:
-              "Original filename, retained for display and diagnostics only. The stored blob's extension is derived from contentType, so a filename extension that disagrees with it is ignored rather than rejected.",
+              "Original filename, retained for display and diagnostics only. It never contributes to the stored blob's name, and a filename extension that disagrees with contentType is ignored rather than rejected.",
           },
           contentType: {
             type: "string",
@@ -10462,34 +10539,92 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Optional client-declared byte length, checked against the server limit before a URL is issued. Advisory only - the authoritative size check runs against the uploaded bytes.",
           },
-          scope: { type: "string" },
+          scope: {
+            type: "string",
+            description:
+              "What the image is for. Logos and blog covers must be uploaded with scope `organizations`. Defaults to `general`.",
+          },
         },
       },
-      BlobUploadTarget: {
+      MediaStatus: {
+        type: "string",
+        enum: ["pending_upload", "uploaded", "processing", "ready", "rejected"],
+        description:
+          "pending_upload: awaiting the client's PUT. uploaded: queued for processing. processing: being validated and re-encoded. ready: `url` addresses the processed image. rejected: see `rejectionReason`.",
+      },
+      MediaView: {
         type: "object",
         required: [
-          "method",
-          "uploadUrl",
-          "expiresAt",
-          "blobName",
-          "blobUrl",
-          "container",
-          "headers",
+          "id",
+          "status",
+          "scope",
+          "url",
+          "contentType",
+          "sizeBytes",
+          "width",
+          "height",
+          "rejectionReason",
+          "createdAt",
+          "updatedAt",
         ],
         properties: {
+          id: { type: "string", format: "uuid" },
+          status: schemaRef("MediaStatus"),
+          scope: { type: "string" },
+          url: {
+            type: "string",
+            nullable: true,
+            format: "uri",
+            description:
+              "The processed image. Null until the status is `ready`; a quarantined upload is never addressable.",
+          },
+          contentType: {
+            type: "string",
+            nullable: true,
+            description:
+              "The detected type once processed, otherwise the declared type.",
+          },
+          sizeBytes: { type: "integer", nullable: true },
+          width: { type: "integer", nullable: true },
+          height: { type: "integer", nullable: true },
+          rejectionReason: { type: "string", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      MediaUploadInstructions: {
+        type: "object",
+        required: ["method", "uploadUrl", "expiresAt", "headers"],
+        properties: {
           method: { type: "string", const: "PUT" },
-          uploadUrl: { type: "string", format: "uri" },
+          uploadUrl: {
+            type: "string",
+            format: "uri",
+            description: "Write-only upload target. It cannot be used to read.",
+          },
           expiresAt: { type: "string", format: "date-time" },
-          blobName: { type: "string" },
-          blobUrl: { type: "string", format: "uri" },
-          container: { type: "string" },
           headers: {
             type: "object",
             additionalProperties: { type: "string" },
           },
         },
       },
-      BlobDeleteResult: {
+      CreatedMediaUpload: {
+        type: "object",
+        required: ["media", "upload"],
+        properties: {
+          media: schemaRef("MediaView"),
+          upload: schemaRef("MediaUploadInstructions"),
+        },
+      },
+      MediaResult: {
+        type: "object",
+        required: ["media"],
+        properties: {
+          media: schemaRef("MediaView"),
+        },
+      },
+      MediaDeleteResult: {
         type: "object",
         required: ["deleted"],
         properties: {
@@ -10814,6 +10949,12 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Omit to leave the stored avatar unchanged. Must be sent together with `avatarUrl`.",
           },
+          avatarMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.",
+          },
           trustworthinessScore: { type: "integer", minimum: 1, maximum: 5 },
           rentPostingsCount: { type: "integer", minimum: 0 },
           availableRentPostingsCount: { type: "integer", minimum: 0 },
@@ -11048,9 +11189,45 @@ function buildComponents(): Record<string, unknown> {
         },
         required: ["items", "pagination", "mode", "fallback"],
       },
+      PostingPhotoInput: {
+        description:
+          "A newly uploaded photo by media id, or a photo already on the posting by the blobUrl and blobName it was saved with.",
+        oneOf: [
+          {
+            type: "object",
+            required: ["mediaId", "position"],
+            properties: {
+              mediaId: {
+                type: "string",
+                format: "uuid",
+                description:
+                  "A `ready` media item uploaded by the caller through `POST /media/uploads`.",
+              },
+              position: { type: "integer", minimum: 0, maximum: 9 },
+            },
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            required: ["blobUrl", "blobName", "position"],
+            properties: {
+              blobUrl: { type: "string", format: "uri" },
+              blobName: { type: "string", maxLength: 1024 },
+              position: { type: "integer", minimum: 0, maximum: 9 },
+            },
+            additionalProperties: false,
+          },
+        ],
+      },
       UpsertPostingRequest: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: schemaRef("PostingPhotoInput"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11064,6 +11241,12 @@ function buildComponents(): Record<string, unknown> {
       UpdatePostingRequest: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: schemaRef("PostingPhotoInput"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11887,24 +12070,28 @@ function buildComponents(): Record<string, unknown> {
           },
           createdAt: { type: "string", format: "date-time" },
           readAt: {
-            type: ["string", "null"],
+            type: "string",
+            nullable: true,
             format: "date-time",
             description:
               "When the recipient side read this message, or null while unread.",
           },
           deliveredAt: {
-            type: ["string", "null"],
+            type: "string",
+            nullable: true,
             format: "date-time",
             description:
               "When the recipient's client acknowledged receipt over the socket. Weaker than readAt: the bytes arrived, which can happen while the thread sits unopened.",
           },
           editedAt: {
-            type: ["string", "null"],
+            type: "string",
+            nullable: true,
             format: "date-time",
             description: "When the author last edited the message.",
           },
           deletedAt: {
-            type: ["string", "null"],
+            type: "string",
+            nullable: true,
             format: "date-time",
             description:
               "When the author deleted the message. The row is kept as a tombstone so the booking retains a record that a message existed.",
@@ -12113,8 +12300,8 @@ function buildComponents(): Record<string, unknown> {
                 description:
                   "The part of the stay total Rentify does not charge.",
               },
-              depositBps: { type: ["integer", "null"] },
-              platformFeeBps: { type: ["integer", "null"] },
+              depositBps: { type: "integer", nullable: true },
+              platformFeeBps: { type: "integer", nullable: true },
               source: { type: "string", enum: ["payment", "quote"] },
             },
           },
@@ -12339,7 +12526,16 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         description:
           "Public app feedback submission with optional authenticated context.",
       },
-      { name: "blob", description: "Blob upload target creation." },
+      {
+        name: "blob",
+        description:
+          "Development-only local stand-ins for Azure's upload and public read endpoints.",
+      },
+      {
+        name: "media",
+        description:
+          "Image uploads tracked as media: upload into quarantine, asynchronous validation and re-encoding, and processing state.",
+      },
       {
         name: "postings",
         description:

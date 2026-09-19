@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { useErrorToast } from "@/components/errors";
-import { blobApi } from "@/lib/blob/api";
+import { mediaApi } from "@/lib/media/api";
 import { authApi } from "@/lib/auth/api";
 import {
   canEditOrganizationSettings,
@@ -49,8 +49,8 @@ import {
   type ProfileFormValue,
 } from "@/components/organizations/workspace/forms";
 import {
-  readStagedOrganizationLogoBlobNames,
-  writeStagedOrganizationLogoBlobNames,
+  readStagedOrganizationLogoMediaIds,
+  writeStagedOrganizationLogoMediaIds,
 } from "@/components/organizations/workspace/logo-storage";
 
 export type PostingLifecycleAction =
@@ -248,7 +248,7 @@ export function OrganizationWorkspaceProvider({
     null,
   );
   const [blogSavingId, setBlogSavingId] = useState<string | null>(null);
-  const stagedLogoBlobNamesRef = useRef<Set<string>>(new Set());
+  const stagedLogoMediaIdsRef = useRef<Set<string>>(new Set());
 
   function showWorkspaceToast(title: string, body: string) {
     showError({
@@ -270,114 +270,112 @@ export function OrganizationWorkspaceProvider({
     });
   }
 
-  function syncStagedLogoBlobStorage() {
+  function syncStagedLogoMediaStorage() {
     if (!session?.user.id) {
       return;
     }
 
-    writeStagedOrganizationLogoBlobNames(
+    writeStagedOrganizationLogoMediaIds(
       session.user.id,
-      stagedLogoBlobNamesRef.current,
+      stagedLogoMediaIdsRef.current,
     );
   }
 
-  function rememberStagedLogoBlob(blobName: string) {
-    const normalizedBlobName = blobName.trim();
+  function rememberStagedLogoMedia(mediaId: string) {
+    const normalizedMediaId = mediaId.trim();
 
-    if (!normalizedBlobName) {
+    if (!normalizedMediaId) {
       return;
     }
 
-    stagedLogoBlobNamesRef.current.add(normalizedBlobName);
-    syncStagedLogoBlobStorage();
+    stagedLogoMediaIdsRef.current.add(normalizedMediaId);
+    syncStagedLogoMediaStorage();
   }
 
-  function forgetStagedLogoBlob(blobName: string) {
-    const normalizedBlobName = blobName.trim();
+  function forgetStagedLogoMedia(mediaId: string) {
+    const normalizedMediaId = mediaId.trim();
 
-    if (!normalizedBlobName) {
+    if (!normalizedMediaId) {
       return;
     }
 
-    stagedLogoBlobNamesRef.current.delete(normalizedBlobName);
-    syncStagedLogoBlobStorage();
+    stagedLogoMediaIdsRef.current.delete(normalizedMediaId);
+    syncStagedLogoMediaStorage();
   }
 
-  function isStagedLogoBlob(blobName: string) {
-    const normalizedBlobName = blobName.trim();
+  function isStagedLogoMedia(mediaId: string) {
+    const normalizedMediaId = mediaId.trim();
     return (
-      normalizedBlobName.length > 0 &&
-      stagedLogoBlobNamesRef.current.has(normalizedBlobName)
+      normalizedMediaId.length > 0 &&
+      stagedLogoMediaIdsRef.current.has(normalizedMediaId)
     );
   }
 
-  async function deleteStagedLogoBlob(blobName: string) {
-    const normalizedBlobName = blobName.trim();
+  async function deleteStagedLogoMedia(mediaId: string) {
+    const normalizedMediaId = mediaId.trim();
 
-    if (!normalizedBlobName) {
+    if (!normalizedMediaId) {
       return;
     }
 
     try {
-      await blobApi.deleteBlob(normalizedBlobName);
-      forgetStagedLogoBlob(normalizedBlobName);
+      await mediaApi.delete(normalizedMediaId);
+      forgetStagedLogoMedia(normalizedMediaId);
     } catch {
-      syncStagedLogoBlobStorage();
+      syncStagedLogoMediaStorage();
     }
   }
 
-  function reconcileStagedLogoBlobChange(
+  function reconcileStagedLogoMediaChange(
     previousValue: ProfileFormValue,
     nextValue: ProfileFormValue,
   ) {
-    const previousBlobName = previousValue.logoBlobName.trim();
-    const nextBlobName = nextValue.logoBlobName.trim();
+    const previousMediaId = previousValue.logoMediaId.trim();
+    const nextMediaId = nextValue.logoMediaId.trim();
 
-    if (nextBlobName && nextBlobName !== previousBlobName) {
-      rememberStagedLogoBlob(nextBlobName);
+    if (nextMediaId && nextMediaId !== previousMediaId) {
+      rememberStagedLogoMedia(nextMediaId);
     }
 
     if (
-      previousBlobName &&
-      previousBlobName !== nextBlobName &&
-      isStagedLogoBlob(previousBlobName)
+      previousMediaId &&
+      previousMediaId !== nextMediaId &&
+      isStagedLogoMedia(previousMediaId)
     ) {
-      void deleteStagedLogoBlob(previousBlobName);
+      void deleteStagedLogoMedia(previousMediaId);
     }
   }
 
   function handleCreateProfileChange(nextValue: ProfileFormValue) {
-    reconcileStagedLogoBlobChange(createProfile, nextValue);
+    reconcileStagedLogoMediaChange(createProfile, nextValue);
     setCreateProfile(nextValue);
   }
 
   function handleProfileFormChange(nextValue: ProfileFormValue) {
-    reconcileStagedLogoBlobChange(profileForm, nextValue);
+    reconcileStagedLogoMediaChange(profileForm, nextValue);
     setProfileForm(nextValue);
   }
 
   useEffect(() => {
     if (status !== "authenticated" || !session?.user.id) {
-      stagedLogoBlobNamesRef.current.clear();
+      stagedLogoMediaIdsRef.current.clear();
       return;
     }
 
-    const stagedBlobNames = readStagedOrganizationLogoBlobNames(
-      session.user.id,
-    );
-    stagedLogoBlobNamesRef.current = new Set(stagedBlobNames);
+    const stagedMediaIds = readStagedOrganizationLogoMediaIds(session.user.id);
+    stagedLogoMediaIdsRef.current = new Set(stagedMediaIds);
 
-    if (stagedBlobNames.length === 0) {
+    if (stagedMediaIds.length === 0) {
       return;
     }
 
     void Promise.allSettled(
-      stagedBlobNames.map(async (blobName) => {
+      stagedMediaIds.map(async (mediaId) => {
         try {
-          await blobApi.deleteBlob(blobName);
-          forgetStagedLogoBlob(blobName);
+          await mediaApi.delete(mediaId);
+          forgetStagedLogoMedia(mediaId);
         } catch {
-          syncStagedLogoBlobStorage();
+          syncStagedLogoMediaStorage();
         }
       }),
     );
@@ -389,17 +387,17 @@ export function OrganizationWorkspaceProvider({
       return;
     }
 
-    function flushStagedLogoBlobs() {
-      for (const blobName of stagedLogoBlobNamesRef.current) {
-        blobApi.deleteBlobKeepalive(blobName);
+    function flushStagedLogoMedia() {
+      for (const mediaId of stagedLogoMediaIdsRef.current) {
+        mediaApi.deleteKeepalive(mediaId);
       }
     }
 
-    window.addEventListener("pagehide", flushStagedLogoBlobs);
+    window.addEventListener("pagehide", flushStagedLogoMedia);
 
     return () => {
-      window.removeEventListener("pagehide", flushStagedLogoBlobs);
-      flushStagedLogoBlobs();
+      window.removeEventListener("pagehide", flushStagedLogoMedia);
+      flushStagedLogoMedia();
     };
   }, [session, status]);
 
@@ -731,7 +729,7 @@ export function OrganizationWorkspaceProvider({
       return;
     }
 
-    const submittedLogoBlobName = createProfile.logoBlobName.trim();
+    const submittedLogoMediaId = createProfile.logoMediaId.trim();
 
     setSaving(true);
     setErrorTitle(null);
@@ -744,7 +742,7 @@ export function OrganizationWorkspaceProvider({
         ...profileFormToInput(createProfile),
       });
 
-      forgetStagedLogoBlob(submittedLogoBlobName);
+      forgetStagedLogoMedia(submittedLogoMediaId);
 
       const refreshedSession = await authApi.refresh();
 
@@ -850,7 +848,7 @@ export function OrganizationWorkspaceProvider({
       return;
     }
 
-    const submittedLogoBlobName = profileForm.logoBlobName.trim();
+    const submittedLogoMediaId = profileForm.logoMediaId.trim();
 
     setSaving(true);
     setErrorTitle(null);
@@ -862,7 +860,7 @@ export function OrganizationWorkspaceProvider({
         name: organizationName,
         ...profileFormToInput(profileForm),
       });
-      forgetStagedLogoBlob(submittedLogoBlobName);
+      forgetStagedLogoMedia(submittedLogoMediaId);
       await refresh(detail.organization.id);
       setMessage("Organization profile updated.");
     } catch (nextError) {
@@ -1280,6 +1278,7 @@ export function OrganizationWorkspaceProvider({
       tags: post.tags,
       coverImageUrl: post.coverImageUrl ?? "",
       coverImageBlobName: post.coverImageBlobName ?? "",
+      coverImageMediaId: "",
       status: post.status,
       commentsEnabled: post.commentsEnabled,
     });
@@ -1298,10 +1297,16 @@ export function OrganizationWorkspaceProvider({
       body: blogForm.body,
       excerpt: excerpt ? excerpt : null,
       tags: blogForm.tags,
-      coverImageUrl: blogForm.coverImageBlobName
-        ? blogForm.coverImageUrl
-        : null,
-      coverImageBlobName: blogForm.coverImageBlobName || null,
+      // A new cover is sent by media id; otherwise the stored one is resent
+      // (or cleared) as the blob it was saved with.
+      ...(blogForm.coverImageMediaId
+        ? { coverImageMediaId: blogForm.coverImageMediaId }
+        : {
+            coverImageUrl: blogForm.coverImageBlobName
+              ? blogForm.coverImageUrl
+              : null,
+            coverImageBlobName: blogForm.coverImageBlobName || null,
+          }),
       status: blogForm.status,
       commentsEnabled: blogForm.commentsEnabled,
     };

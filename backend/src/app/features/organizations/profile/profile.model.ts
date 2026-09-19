@@ -127,6 +127,8 @@ export interface OrganizationWorkspaceDetailResult {
 }
 
 export interface CreateOrganizationInput extends OrganizationProfileInput {
+  /** A newly uploaded logo; resolved to logoUrl and logoBlobName. */
+  logoMediaId?: Uuid;
   actorUserId: Uuid;
   name: string;
 }
@@ -137,6 +139,8 @@ export interface CreateOrganizationResult {
 }
 
 export interface UpdateOrganizationInput extends OrganizationProfileInput {
+  /** A newly uploaded logo; resolved to logoUrl and logoBlobName. */
+  logoMediaId?: Uuid;
   organizationId: Uuid;
   actorUserId: Uuid;
   name: string;

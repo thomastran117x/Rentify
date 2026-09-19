@@ -257,6 +257,8 @@ export interface CreateOrganizationBlogInput {
   slug?: string;
   coverImageUrl?: string | null;
   coverImageBlobName?: string | null;
+  /** A newly uploaded cover; sent instead of coverImageUrl/coverImageBlobName. */
+  coverImageMediaId?: string;
   tags?: string[];
   status?: OrganizationBlogStatus;
   commentsEnabled?: boolean;
@@ -269,6 +271,8 @@ export interface UpdateOrganizationBlogInput {
   slug?: string;
   coverImageUrl?: string | null;
   coverImageBlobName?: string | null;
+  /** A newly uploaded cover; sent instead of coverImageUrl/coverImageBlobName. */
+  coverImageMediaId?: string;
   tags?: string[];
   status?: OrganizationBlogStatus;
   commentsEnabled?: boolean;
@@ -361,7 +365,13 @@ export interface OrganizationProfileFields {
   customFields: Record<string, string> | null;
 }
 
-export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
+export type OrganizationProfileInput = Partial<OrganizationProfileFields> & {
+  /**
+   * A newly uploaded logo that has finished processing. Sent instead of
+   * logoUrl/logoBlobName, which are only used to keep or clear the stored logo.
+   */
+  logoMediaId?: string;
+};
 
 export interface PublicOrganizationProfileFields {
   description: string | null;

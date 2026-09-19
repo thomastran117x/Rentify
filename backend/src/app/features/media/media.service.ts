@@ -1,111 +1,248 @@
-import path from "node:path";
-import type { SupportedImageContentType } from "@/configuration/environment/constants";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 import BadRequestError from "@/errors/http/bad-request.error";
-import type { BlobUploadTarget } from "@/features/blob/blob.model";
+import ConflictError from "@/errors/http/conflict.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
 import {
-  assertImageBytes,
   assertImageSizeWithinLimit,
-  imageExtensionForContentType,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
+import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
+import type { MediaRepository } from "@/features/media/media.repository";
 import type {
+  AttachableImage,
   CompleteImageUploadInput,
   CreateImageUploadInput,
-  MediaItem,
+  CreatedMediaUpload,
+  MediaRecord,
+  MediaView,
 } from "@/features/media/media.model";
 
+const DEFAULT_MEDIA_SCOPE = "general";
+// A row left in `uploaded` this long has lost its processing job (the enqueue
+// failed after the status changed), so completing it again re-queues it.
+const STALE_UPLOADED_MS = 60 * 1000;
+
+export interface ResolveAttachableImageOptions {
+  /** When set, the media must have been uploaded under this scope. */
+  scope?: string;
+}
+
 /**
- * Owns the rules for user-uploaded images: what may be uploaded, whether the
- * uploaded bytes are acceptable, and who a stored image belongs to. Storage
- * itself is delegated to BlobService, which knows nothing about images.
+ * Owns the rules for user-uploaded images: what may be uploaded, the lifecycle
+ * of a media record from upload credential to processed image, and who an image
+ * belongs to. Storage itself is delegated to BlobService, which knows nothing
+ * about images.
  *
  * Feature services that attach an uploaded image go through here rather than
- * BlobService, so that "may this image be attached" is decided in one place.
+ * BlobService, so that "may this image be attached" is decided in one place:
+ * resolveAttachableImage, which only ever yields a processed image.
  */
 export class MediaService {
-  constructor(private readonly blobService: BlobService) {}
+  constructor(
+    private readonly blobService: BlobService,
+    private readonly mediaRepository: MediaRepository,
+    private readonly mediaProcessingQueue: Pick<
+      MediaProcessingQueueService,
+      "enqueueMediaProcessingJob"
+    >,
+  ) {}
 
-  createImageUpload(input: CreateImageUploadInput): BlobUploadTarget {
-    // Upload credentials are only ever issued for images. There is no
-    // client-controlled escape hatch: a caller cannot opt out of the allow-list
-    // by declaring a different kind of upload.
+  /**
+   * Records the upload, then signs a credential for its quarantine name. The
+   * row comes first so that no upload credential ever exists for bytes the
+   * application is not tracking.
+   */
+  async createMediaUpload(
+    input: CreateImageUploadInput,
+  ): Promise<CreatedMediaUpload> {
     const contentType = normalizeImageContentType(input.contentType);
 
     // Advisory - the client declares this and can lie. It catches an honest
-    // oversized upload before a slow transfer; the authoritative check runs
-    // against the real bytes on the upload path.
+    // oversized upload before a slow transfer; the authoritative checks run
+    // against the stored length on completion and the real bytes in the worker.
     if (input.sizeBytes !== undefined) {
       assertImageSizeWithinLimit(input.sizeBytes);
     }
 
-    // The stored extension comes from the validated content type, never from
-    // the client's filename. A file called "photo.png" declared as image/jpeg
-    // is stored as .jpg: the extension is a consequence of the format, not
-    // evidence of it. Where the two disagree the content type wins silently -
-    // the client controls both fields, so rejecting the mismatch would buy no
-    // safety while breaking legitimate cases like .jpeg/.jpg or a renamed
-    // download.
-    const blobName = this.blobService.buildBlobName({
-      ownerId: input.userId,
-      extension: imageExtensionForContentType(contentType),
-      scope: input.scope,
-    });
+    if (!this.blobService.isConfigured()) {
+      throw new ServiceNotImplementedError(
+        "Image uploads require Blob Storage to be configured on the backend.",
+      );
+    }
 
-    return this.blobService.createUploadUrl({
-      blobName,
+    const mediaId = newUuid();
+    const record = await this.mediaRepository.create({
+      id: mediaId,
+      userId: input.userId,
+      scope: input.scope?.trim().toLowerCase() || DEFAULT_MEDIA_SCOPE,
+      originalBlobName: this.blobService.buildQuarantineImageBlobName(
+        input.userId,
+        mediaId,
+      ),
+      declaredContentType: contentType,
+      originalFilename: input.filename.trim().slice(0, 255) || null,
+    });
+    const target = this.blobService.createUploadUrl({
+      blobName: record.originalBlobName,
       contentType,
       requestOrigin: input.requestOrigin,
     });
+
+    // Deliberately not the whole target: its blobName and blobUrl point into
+    // quarantine, and nothing a client receives may address quarantined bytes.
+    return {
+      media: this.toView(record),
+      upload: {
+        method: target.method,
+        uploadUrl: target.uploadUrl,
+        expiresAt: target.expiresAt,
+        headers: target.headers,
+      },
+    };
+  }
+
+  /**
+   * Called by the client once its PUT has finished. Confirms the bytes exist,
+   * applies the size limit to their real length, and queues processing.
+   * Repeating it is harmless: past pending_upload it reports the current state.
+   */
+  async completeMediaUpload(userId: Uuid, mediaId: Uuid): Promise<MediaView> {
+    const record = await this.requireOwnedRecord(userId, mediaId);
+
+    if (record.status === "uploaded" && this.isStale(record)) {
+      await this.mediaProcessingQueue.enqueueMediaProcessingJob(record.id);
+      return this.toView(record);
+    }
+
+    if (record.status !== "pending_upload") {
+      return this.toView(record);
+    }
+
+    const sizeBytes = await this.readUploadedSize(record);
+
+    try {
+      assertImageSizeWithinLimit(sizeBytes);
+    } catch (error) {
+      await this.reject(record, (error as Error).message);
+      throw error;
+    }
+
+    if (await this.mediaRepository.markUploaded(record.id, sizeBytes)) {
+      await this.mediaProcessingQueue.enqueueMediaProcessingJob(record.id);
+    }
+
+    return this.toView(await this.requireOwnedRecord(userId, mediaId));
+  }
+
+  async getMediaView(userId: Uuid, mediaId: Uuid): Promise<MediaView> {
+    return this.toView(await this.requireOwnedRecord(userId, mediaId));
+  }
+
+  async deleteMediaById(userId: Uuid, mediaId: Uuid): Promise<void> {
+    const record = await this.requireOwnedRecord(userId, mediaId);
+
+    await this.deleteRecordBlobs(record);
+    await this.mediaRepository.deleteById(record.id);
+  }
+
+  /**
+   * The single gate for attaching an uploaded image to anything. Only a ready
+   * record owned by the user resolves, and what it resolves to is always the
+   * processed image - never the quarantined upload.
+   */
+  async resolveAttachableImage(
+    userId: Uuid,
+    mediaId: Uuid,
+    options: ResolveAttachableImageOptions = {},
+  ): Promise<AttachableImage> {
+    const record = await this.mediaRepository.findById(mediaId);
+
+    if (!record || record.userId !== userId) {
+      throw new BadRequestError("Image is not available.");
+    }
+
+    if (record.status === "rejected") {
+      throw new BadRequestError(
+        record.rejectionReason
+          ? `Image was rejected: ${record.rejectionReason}`
+          : "Image was rejected.",
+      );
+    }
+
+    if (record.status !== "ready" || !record.processedBlobName) {
+      throw new BadRequestError(
+        "Image is still processing. Try again once it is ready.",
+      );
+    }
+
+    if (options.scope && record.scope !== options.scope) {
+      throw new BadRequestError(`Image was not uploaded for ${options.scope}.`);
+    }
+
+    return {
+      blobName: record.processedBlobName,
+      blobUrl: this.blobService.getBlobUrl(record.processedBlobName),
+    };
   }
 
   /**
    * Accepts the bytes of a local-development upload. Azure uploads go straight
    * to storage and never reach this; see "Image Upload Validation" in
    * docs/architecture-overview.md.
+   *
+   * Only a quarantine name issued for a media item awaiting its bytes is
+   * accepted. Byte validation is not done here: it runs in the media
+   * processing worker for both storage paths, so the local stand-in behaves
+   * like Azure. The size limit is kept because it costs nothing and bounds
+   * what is written to disk.
    */
   async completeImageUpload(input: CompleteImageUploadInput): Promise<void> {
-    // Token first, deliberately: no image decoding work on behalf of a caller
-    // who has not proved they hold a valid upload URL.
+    // Token first, deliberately: no work on behalf of a caller who has not
+    // proved they hold a valid upload URL.
     this.blobService.assertLocalUploadToken(
       input.blobName,
       input.expiresAt,
       input.token,
     );
 
-    const contentType = normalizeImageContentType(input.contentType);
-    this.assertContentTypeMatchesSignedBlob(input.blobName, contentType);
+    const record = this.blobService.isQuarantineBlobName(input.blobName)
+      ? await this.mediaRepository.findByOriginalBlobName(input.blobName.trim())
+      : null;
+
+    if (!record || record.status !== "pending_upload") {
+      throw new BadRequestError("Blob upload URL is no longer valid.");
+    }
+
     assertImageSizeWithinLimit(input.body.byteLength);
-    await assertImageBytes(input.body, contentType);
 
     await this.blobService.writeLocalBlob(
-      input.blobName,
+      record.originalBlobName,
       input.body,
-      contentType,
+      record.declaredContentType,
     );
   }
 
   /**
-   * Describes a stored image. Everything here currently comes from storage;
-   * once media has validation state, its record is read and joined in here.
+   * Deletes a stored image by blob name, and its media record when it is a
+   * processed image. Used by features cleaning up an image they replaced.
    */
-  async getMedia(blobName: string): Promise<MediaItem> {
-    const properties = await this.blobService.getProperties(blobName);
-
-    return {
-      blobName,
-      blobUrl: this.blobService.getBlobUrl(blobName),
-      ownerId: this.blobService.getBlobOwnerId(blobName),
-      contentType: properties.contentType ?? null,
-      sizeBytes: properties.contentLength ?? null,
-      lastModified: properties.lastModified ?? null,
-    };
-  }
-
   async deleteMedia(userId: Uuid, blobName: string): Promise<void> {
     this.assertOwnedBy(userId, blobName);
     await this.blobService.deleteBlob(blobName);
+
+    if (!this.blobService.isProcessedImageBlobName(blobName)) {
+      return;
+    }
+
+    const record = await this.mediaRepository.findByProcessedBlobName(
+      blobName.trim(),
+    );
+
+    if (record) {
+      await this.mediaRepository.deleteById(record.id);
+    }
   }
 
   isOwnedBy(userId: Uuid, blobName: string): boolean {
@@ -122,29 +259,91 @@ export class MediaService {
     return this.blobService.isConfigured();
   }
 
+  /**
+   * Whether a stored reference points at a blob this deployment manages. A
+   * quarantined blob never qualifies, whatever its URL: its owner could
+   * otherwise attach their own unvalidated upload by name.
+   */
   isManagedUrl(url: string, blobName: string): boolean {
+    if (this.blobService.isQuarantineBlobName(blobName)) {
+      return false;
+    }
+
     return this.blobService.isManagedBlobUrl(url, blobName);
   }
 
-  // The upload token signs the blob name but not the content type, so without
-  // this a holder of a valid URL could upload a PNG under a name issued for a
-  // JPEG. Because the stored extension is derived from the validated content
-  // type, the blob name determines the type unambiguously and inverting the
-  // extension mapping is enough to bind them.
-  //
-  // This check is local-only. Azure uploads have no equivalent: the SAS
-  // contentType is not an upload constraint (see BlobService), so on that path
-  // neither the declared type nor the bytes are verified.
-  private assertContentTypeMatchesSignedBlob(
-    blobName: string,
-    contentType: SupportedImageContentType,
-  ): void {
-    const extension = path.posix.extname(blobName).toLowerCase();
+  isProcessedImageBlobName(blobName: string): boolean {
+    return this.blobService.isProcessedImageBlobName(blobName);
+  }
 
-    if (extension !== imageExtensionForContentType(contentType)) {
-      throw new BadRequestError(
-        "Content type does not match the requested upload URL.",
-      );
+  toView(record: MediaRecord): MediaView {
+    const url =
+      record.status === "ready" && record.processedBlobName
+        ? this.blobService.getBlobUrl(record.processedBlobName)
+        : null;
+
+    return {
+      id: record.id,
+      status: record.status,
+      scope: record.scope,
+      url,
+      contentType: record.detectedContentType ?? record.declaredContentType,
+      sizeBytes: record.sizeBytes,
+      width: record.width,
+      height: record.height,
+      rejectionReason: record.rejectionReason,
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString(),
+    };
+  }
+
+  private async requireOwnedRecord(
+    userId: Uuid,
+    mediaId: Uuid,
+  ): Promise<MediaRecord> {
+    const record = await this.mediaRepository.findById(mediaId);
+
+    // Someone else's media is reported as missing rather than forbidden, so
+    // ids cannot be probed for existence.
+    if (!record || record.userId !== userId) {
+      throw new ResourceNotFoundError("Media not found.");
     }
+
+    return record;
+  }
+
+  private async readUploadedSize(record: MediaRecord): Promise<number> {
+    try {
+      const properties = await this.blobService.getProperties(
+        record.originalBlobName,
+      );
+
+      return properties.contentLength ?? 0;
+    } catch (error) {
+      if (error instanceof ResourceNotFoundError) {
+        throw new ConflictError("The upload has not been received yet.");
+      }
+
+      throw error;
+    }
+  }
+
+  private async reject(record: MediaRecord, reason: string): Promise<void> {
+    await this.mediaRepository.markRejected(record.id, reason);
+    await this.blobService.deleteBlob(record.originalBlobName);
+  }
+
+  private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
+    const blobNames = [record.originalBlobName, record.processedBlobName];
+
+    for (const blobName of blobNames) {
+      if (blobName) {
+        await this.blobService.deleteBlob(blobName);
+      }
+    }
+  }
+
+  private isStale(record: MediaRecord): boolean {
+    return Date.now() - record.updatedAt.getTime() >= STALE_UPLOADED_MS;
   }
 }

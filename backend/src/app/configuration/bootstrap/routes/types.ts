@@ -18,6 +18,7 @@ export const ROUTE_MODULE_IDS = [
   "organizations-blog-comments",
   "organizations-reviews",
   "blob",
+  "media",
   "profiles",
   "feedbacks",
   "reports",

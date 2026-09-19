@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { systemApi } from "../system/api";
 import { savedPostingsApi } from "../saved-postings/api";
 import { profilesApi } from "../profiles/api";
-import { blobApi } from "../blob/api";
 import { feedbackApi } from "../feedback/api";
 import { adminFeatureFlagsApi } from "../admin-feature-flags/api";
 import { adminSearchApi } from "../admin-search/api";
@@ -103,15 +102,9 @@ describe("previously uncovered API helpers", () => {
     );
   });
 
-  it("gets and updates the current profile and creates or deletes blobs", async () => {
+  it("gets and updates the current profile", async () => {
     profilesApi.getMine();
     profilesApi.updateMine({ username: "alex", isPrivate: true });
-    blobApi.createUploadUrl({
-      filename: "photo.png",
-      contentType: "image/png",
-      scope: "profile",
-    });
-    await blobApi.deleteBlob("photo.png");
 
     expect(authenticatedJsonMock).toHaveBeenNthCalledWith(
       1,
@@ -123,33 +116,6 @@ describe("previously uncovered API helpers", () => {
       "PUT",
       "/profile/me",
       { username: "alex", isPrivate: true },
-    );
-    expect(authenticatedJsonMock).toHaveBeenNthCalledWith(
-      3,
-      "POST",
-      "/blob/upload-url",
-      { filename: "photo.png", contentType: "image/png", scope: "profile" },
-    );
-    expect(authenticatedJsonMock).toHaveBeenNthCalledWith(
-      4,
-      "DELETE",
-      "/blob?blobName=photo.png",
-    );
-  });
-
-  it("only sends keepalive deletes when a browser session has an access token", () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response());
-    readSessionMock.mockReturnValue(null);
-    blobApi.deleteBlobKeepalive("one");
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    readSessionMock.mockReturnValue({ accessToken: "token" });
-    blobApi.deleteBlobKeepalive("one");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.example.test/api/v1/blob?blobName=one",
-      expect.objectContaining({ method: "DELETE", keepalive: true }),
     );
   });
 

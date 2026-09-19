@@ -3,12 +3,12 @@ import { ApiClientError } from "@/lib/api/types";
 import type { PostingRecord } from "@/lib/postings/api";
 import { toExpiryIsoValue } from "@/lib/postings/expiry";
 
-const { createUploadUrlMock } = vi.hoisted(() => ({
-  createUploadUrlMock: vi.fn(),
+const { uploadImageMock } = vi.hoisted(() => ({
+  uploadImageMock: vi.fn(),
 }));
 
-vi.mock("@/lib/blob/api", () => ({
-  blobApi: { createUploadUrl: createUploadUrlMock },
+vi.mock("@/lib/media/api", () => ({
+  uploadImage: uploadImageMock,
 }));
 
 import {
@@ -201,91 +201,27 @@ describe("posting management helpers", () => {
     expect(() => buildPayload(form, [])).toThrow("Upload at least one photo");
   });
 
-  it("uploads photos and resolves the content type from the extension when the browser gives none", async () => {
-    createUploadUrlMock.mockResolvedValue({
-      method: "PUT",
-      uploadUrl: "https://upload",
-      headers: {},
-      blobUrl: "https://blob/photo",
-      blobName: "photo",
+  it("uploads a photo as postings media and returns its media id", async () => {
+    uploadImageMock.mockResolvedValueOnce({
+      mediaId: "media-1",
+      url: "https://cdn/media/images/u/media-1.webp",
     });
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce({ ok: true } as Response)
-      .mockResolvedValueOnce({ ok: true } as Response);
+    const file = new File(["a"], "a.jpg", { type: "image/jpeg" });
 
-    await expect(
-      uploadManagedPhoto(new File(["a"], "a.jpg", { type: "image/jpeg" })),
-    ).resolves.toMatchObject({ blobName: "photo", position: 0 });
-    expect(createUploadUrlMock).toHaveBeenNthCalledWith(1, {
-      filename: "a.jpg",
-      contentType: "image/jpeg",
-      sizeBytes: 1,
-      scope: "postings",
-    });
-
-    // A file the browser could not type is resolved from its extension rather
-    // than being sent as application/octet-stream, which the server rejects.
-    await uploadManagedPhoto(new File(["a"], "unknown.png"));
-    expect(createUploadUrlMock).toHaveBeenNthCalledWith(2, {
-      filename: "unknown.png",
-      contentType: "image/png",
-      sizeBytes: 1,
-      scope: "postings",
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    fetchMock.mockResolvedValueOnce({ ok: false } as Response);
-    await expect(
-      uploadManagedPhoto(new File(["a"], "bad.jpg", { type: "image/jpeg" })),
-    ).rejects.toThrow("Photo upload failed");
+    await expect(uploadManagedPhoto(file)).resolves.toBe("media-1");
+    expect(uploadImageMock).toHaveBeenCalledWith(file, { scope: "postings" });
   });
 
   it("leaves acceptability to the server and surfaces its reason", async () => {
-    // The client holds no copy of the limits, so it asks and relays the
-    // answer. The server's message names whatever the deployment allows.
-    createUploadUrlMock.mockRejectedValueOnce(
-      new Error("Only PNG images can be uploaded."),
+    // The client holds no copy of the limits: whatever the server refuses the
+    // file for, at upload or after processing, is what the user sees.
+    uploadImageMock.mockRejectedValueOnce(
+      new Error("Uploaded file could not be read as an image."),
     );
-    const fetchMock = vi.spyOn(globalThis, "fetch");
 
     await expect(
-      uploadManagedPhoto(
-        new File(["a"], "contract.pdf", { type: "application/pdf" }),
-      ),
-    ).rejects.toThrow("Only PNG images can be uploaded.");
-    expect(createUploadUrlMock).toHaveBeenCalledWith({
-      filename: "contract.pdf",
-      contentType: "application/pdf",
-      sizeBytes: 1,
-      scope: "postings",
-    });
-
-    // The declared size is how an oversized file is refused before the
-    // transfer; nothing is uploaded when the server says no.
-    createUploadUrlMock.mockRejectedValueOnce(
-      new Error("Images must be 5 MB or smaller."),
-    );
-    const oversized = new File([new Uint8Array(64)], "huge.png", {
-      type: "image/png",
-    });
-    await expect(uploadManagedPhoto(oversized)).rejects.toThrow(
-      "Images must be 5 MB or smaller.",
-    );
-    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ sizeBytes: 64 }),
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    // Neither a type nor a usable extension: declared as octet-stream and left
-    // for the server to reject.
-    createUploadUrlMock.mockRejectedValueOnce(new Error("rejected"));
-    await expect(
-      uploadManagedPhoto(new File(["a"], "unknown")),
-    ).rejects.toThrow("rejected");
-    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ contentType: "application/octet-stream" }),
-    );
+      uploadManagedPhoto(new File(["a"], "fake.png", { type: "image/png" })),
+    ).rejects.toThrow("Uploaded file could not be read as an image.");
   });
 
   it("reports completeness for both incomplete and complete drafts", () => {

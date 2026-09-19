@@ -15,14 +15,6 @@ import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.erro
 // repeat than a new shared module is to justify.
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 
-// The canonical stored extension per content type. This is the only source of
-// the extension for a managed blob - the client's filename never contributes.
-const IMAGE_EXTENSIONS: Record<SupportedImageContentType, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-};
-
 // sharp reports a format name, not a media type. Anything sharp can decode but
 // that is absent here (gif, tiff, avif, svg, ...) is deliberately unmapped and
 // therefore rejected.
@@ -90,8 +82,8 @@ function unsupportedMediaType(received: string): UnsupportedMediaTypeError {
  * `text/html` are rejected here, before any upload credential is issued.
  *
  * The configured allow-list is always a subset of SUPPORTED_IMAGE_CONTENT_TYPES
- * (enforced at startup), so a value that passes this check always has an
- * extension mapping and a sharp decoder.
+ * (enforced at startup), so a value that passes this check always has a sharp
+ * decoder.
  */
 export function normalizeImageContentType(
   contentType: string,
@@ -118,16 +110,6 @@ export function normalizeImageContentType(
 }
 
 /**
- * Resolves the stored file extension for a validated content type. Callers must
- * pass a type that has already been through normalizeImageContentType.
- */
-export function imageExtensionForContentType(
-  contentType: SupportedImageContentType,
-): string {
-  return IMAGE_EXTENSIONS[contentType];
-}
-
-/**
  * Checks a byte length against MAX_IMAGE_SIZE_BYTES. Used both for the size a
  * client declares when asking for an upload URL and for the real length of an
  * uploaded body.
@@ -150,10 +132,17 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   }
 }
 
+/** What the decoder found in bytes that passed validation. */
+export interface ImageInspection {
+  contentType: SupportedImageContentType;
+  width: number;
+  height: number;
+}
+
 /**
  * Validates the actual bytes of an upload: that they decode as an image, that
  * the real format matches what the client declared, and that the dimensions are
- * within policy.
+ * within policy. Returns the detected format and dimensions.
  *
  * Decoding through sharp rather than a hand-written signature table is
  * deliberate. Stored blobs are later re-decoded by sharp for thumbnailing, so
@@ -179,7 +168,7 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
 export async function assertImageBytes(
   body: Buffer,
   declaredContentType: SupportedImageContentType,
-): Promise<void> {
+): Promise<ImageInspection> {
   const policy = environment.getImageUploadsConfig();
   let metadata: Metadata;
 
@@ -247,4 +236,6 @@ export async function assertImageBytes(
       "Uploaded image data is truncated or corrupt.",
     );
   }
+
+  return { contentType: detected, width, height };
 }

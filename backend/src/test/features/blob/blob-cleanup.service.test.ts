@@ -37,6 +37,7 @@ function createStorage(
 describe("BlobCleanupService", () => {
   it("previews only old, unreferenced image blobs", async () => {
     const repository = {
+      deleteAbandonedMedia: jest.fn(async () => 0),
       loadReferences: jest.fn(async () => ({
         blobNames: new Set(["referenced.png"]),
         sourceCounts: {
@@ -93,6 +94,9 @@ describe("BlobCleanupService", () => {
 
   it("refreshes references, continues after failures, and reports byte totals", async () => {
     const repository = {
+      deleteAbandonedMedia: jest.fn(
+        async (_input: { deletedBlobNames: string[]; olderThan: Date }) => 2,
+      ),
       loadReferences: jest
         .fn()
         .mockResolvedValueOnce({
@@ -139,6 +143,11 @@ describe("BlobCleanupService", () => {
 
     expect(repository.loadReferences).toHaveBeenCalledTimes(2);
     expect(storage.deleteBlob).toHaveBeenCalledTimes(3);
+    // Only blobs that were actually deleted take their media rows with them.
+    expect(repository.deleteAbandonedMedia).toHaveBeenCalledWith({
+      deletedBlobNames: ["deleted.png", "zero-size.png"],
+      olderThan: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+    });
     expect(storage.deleteBlob).not.toHaveBeenCalledWith("newly-referenced.png");
     expect(result).toMatchObject({
       mode: "delete",
@@ -149,6 +158,7 @@ describe("BlobCleanupService", () => {
       candidateBytes: 24,
       deleted: 2,
       deletedBytes: 11,
+      mediaRecordsDeleted: 2,
       failed: 1,
       failedBytes: 13,
       failures: [
@@ -162,6 +172,7 @@ describe("BlobCleanupService", () => {
 
   it("uses a safe message for non-error deletion failures", async () => {
     const repository = {
+      deleteAbandonedMedia: jest.fn(async () => 0),
       loadReferences: jest.fn(async () => ({
         blobNames: new Set<string>(),
         sourceCounts: EMPTY_SOURCE_COUNTS,
@@ -182,6 +193,39 @@ describe("BlobCleanupService", () => {
 
     expect(result.failures[0]?.message).toBe("Unknown deletion error.");
     expect(blobCleanupExitCode(result)).toBe(1);
+  });
+
+  it("treats old quarantined uploads as candidates whatever their declared type", async () => {
+    const repository = {
+      loadReferences: jest.fn(async () => ({
+        blobNames: new Set<string>(),
+        sourceCounts: EMPTY_SOURCE_COUNTS,
+      })),
+      deleteAbandonedMedia: jest.fn(async () => 1),
+    };
+    const storage = createStorage([
+      {
+        name: "quarantine/images/user-1/abandoned",
+        contentType: "text/plain",
+        lastModified: OLD,
+        contentLength: 4,
+      },
+      {
+        name: "quarantine/images/user-1/fresh",
+        contentType: "image/png",
+        lastModified: YOUNG,
+      },
+    ]);
+    const service = new BlobCleanupService(repository, storage, () => NOW);
+
+    const preview = await service.run(false);
+    expect(preview.candidates.map((candidate) => candidate.blobName)).toEqual([
+      "quarantine/images/user-1/abandoned",
+    ]);
+    expect(repository.deleteAbandonedMedia).not.toHaveBeenCalled();
+
+    const result = await service.run(true);
+    expect(result).toMatchObject({ deleted: 1, mediaRecordsDeleted: 1 });
   });
 
   it("returns a successful exit code when every candidate succeeds", () => {
