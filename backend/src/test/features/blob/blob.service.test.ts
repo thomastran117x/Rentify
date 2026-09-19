@@ -143,7 +143,18 @@ describe("BlobService", () => {
     expect(nested.startsWith(`postings/photos/${USER_1_ID}/`)).toBe(true);
     expect(service.getBlobOwnerId(defaultScoped)).toBe(USER_1_ID);
     expect(service.getBlobOwnerId(nested)).toBe(USER_1_ID);
+    expect(
+      service.getBlobOwnerId(
+        service.buildPostingPhotoThumbnailBlobName(defaultScoped),
+      ),
+    ).toBe(USER_1_ID);
+    expect(
+      service.getBlobOwnerId(
+        service.buildPostingPhotoThumbnailBlobName(nested),
+      ),
+    ).toBe(USER_1_ID);
     expect(service.getBlobOwnerId("general/file.png")).toBeNull();
+    expect(service.getBlobOwnerId("thumbnails/file.webp")).toBeNull();
     expect(service.getBlobOwnerId("../escape/owner/file.png")).toBeNull();
     expect(() =>
       service.buildBlobName({

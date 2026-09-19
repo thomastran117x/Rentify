@@ -42,6 +42,8 @@ const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
 const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
 const LOCAL_BLOB_FILE_PATH = buildApiPath("/blob/file");
+// Derived images sit one level below the original's owner directory.
+const THUMBNAIL_DIRECTORY = "thumbnails";
 
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(
@@ -332,7 +334,7 @@ export class BlobService {
       throw new BadRequestError("Blob name is invalid.");
     }
 
-    return `${directory === "." ? "" : `${directory}/`}thumbnails/${baseName}.webp`;
+    return `${directory === "." ? "" : `${directory}/`}${THUMBNAIL_DIRECTORY}/${baseName}.webp`;
   }
 
   private createAzureUploadUrl(
@@ -523,8 +525,9 @@ export class BlobService {
   }
 
   /**
-   * Reads the owner segment back out of a name issued by buildBlobName, or
-   * returns null when the name is invalid or not in that shape. The scope may
+   * Reads the owner segment back out of a name issued by buildBlobName, or of a
+   * thumbnail derived from one, or returns null when the name is invalid or not
+   * in that shape. The scope may
    * itself contain slashes and the file never does, so the owner is found from
    * the end.
    */
@@ -537,8 +540,14 @@ export class BlobService {
       return null;
     }
 
+    // A thumbnail keeps its original's owner: skip the directory it adds.
     const segments = normalizedBlobName.split("/");
-    return segments.length < 3 ? null : (segments.at(-2) ?? null);
+    const ownerSegments =
+      segments.at(-2) === THUMBNAIL_DIRECTORY
+        ? segments.slice(0, -1)
+        : segments;
+
+    return ownerSegments.length < 3 ? null : (ownerSegments.at(-2) ?? null);
   }
 
   private normalizeScope(scope?: string): string {

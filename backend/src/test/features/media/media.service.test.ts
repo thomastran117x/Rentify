@@ -288,6 +288,13 @@ describe("MediaService", () => {
       expect(
         mediaService.isOwnedBy(USER_1_ID, `organizations/${USER_2_ID}/a.png`),
       ).toBe(false);
+      // A generated thumbnail belongs to whoever owns the original photo.
+      expect(
+        mediaService.isOwnedBy(
+          USER_1_ID,
+          `postings/${USER_1_ID}/thumbnails/a.webp`,
+        ),
+      ).toBe(true);
       expect(mediaService.isOwnedBy(USER_1_ID, "../escape.txt")).toBe(false);
       expect(() =>
         mediaService.assertOwnedBy(USER_1_ID, `general/${USER_2_ID}/a.png`),
