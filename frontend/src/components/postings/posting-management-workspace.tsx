@@ -12,11 +12,8 @@ import {
 } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
-import { blobApi } from "@/lib/blob/api";
-import {
-  IMAGE_ACCEPT_ATTRIBUTE,
-  resolveUploadContentType,
-} from "@/lib/blob/image-policy";
+import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
+import { uploadImage } from "@/lib/media/api";
 import {
   MAX_EXPIRY_HORIZON_DAYS,
   isExpiryBeyondHorizon,
@@ -88,6 +85,12 @@ interface PhotoItem {
   blobUrl?: string;
   blobName?: string;
 }
+
+/** A photo ready to save: freshly processed media, or one already stored. */
+type SavedPhoto = { key: string } & (
+  | { mediaId: string }
+  | { blobUrl: string; blobName: string }
+);
 
 const subtypeOptionsByFamily: Record<PostingFamily, PostingSubtypeOption[]> = {
   place: [
@@ -301,33 +304,16 @@ export function buildPayload(
   };
 }
 
-export async function uploadManagedPhoto(
-  file: File,
-): Promise<PostingPhotoInput> {
-  // The server is the only judge of what is acceptable. Declaring the size
-  // lets it refuse an oversized file before the transfer, with a message that
-  // names the deployed limit; this surfaces it through the save error modal.
-  const uploadTarget = await blobApi.createUploadUrl({
-    filename: file.name,
-    contentType: resolveUploadContentType(file),
-    sizeBytes: file.size,
-    scope: "postings",
-  });
-  const response = await fetch(uploadTarget.uploadUrl, {
-    method: uploadTarget.method,
-    headers: uploadTarget.headers,
-    body: file,
-  });
-
-  if (!response.ok) {
-    throw new Error("Photo upload failed before the posting could be saved.");
-  }
-
-  return {
-    blobUrl: uploadTarget.blobUrl,
-    blobName: uploadTarget.blobName,
-    position: 0,
-  };
+/**
+ * Uploads a new photo and waits for the server to validate and process it,
+ * returning the media id the posting save refers to. The server is the only
+ * judge of what is acceptable; its reason for refusing a file (an unsupported
+ * type, the size limit, or bytes that are not really an image) is thrown and
+ * surfaces through the save error modal.
+ */
+export async function uploadManagedPhoto(file: File): Promise<string> {
+  const image = await uploadImage(file, { scope: "postings" });
+  return image.mediaId;
 }
 
 export function getCompletenessItems(
@@ -1294,13 +1280,11 @@ export function PostingManagementWorkspace() {
 
   async function savePostingRequest() {
     const uploaded = await Promise.all(
-      photoItems.map(async (item) => {
+      photoItems.map(async (item): Promise<SavedPhoto> => {
         if (item.file) {
-          const photo = await uploadManagedPhoto(item.file);
           return {
             key: item.key,
-            blobUrl: photo.blobUrl,
-            blobName: photo.blobName,
+            mediaId: await uploadManagedPhoto(item.file),
           };
         }
         return {
@@ -1316,11 +1300,11 @@ export function PostingManagementWorkspace() {
       ...uploaded.filter((photo) => photo.key === primaryPhotoKey),
       ...uploaded.filter((photo) => photo.key !== primaryPhotoKey),
     ];
-    const nextPhotos: PostingPhotoInput[] = ordered.map((photo, index) => ({
-      blobUrl: photo.blobUrl,
-      blobName: photo.blobName,
-      position: index,
-    }));
+    const nextPhotos: PostingPhotoInput[] = ordered.map((photo, index) =>
+      "mediaId" in photo
+        ? { mediaId: photo.mediaId, position: index }
+        : { blobUrl: photo.blobUrl, blobName: photo.blobName, position: index },
+    );
 
     const payload = buildPayload(form, nextPhotos);
     const saved = form.postingId

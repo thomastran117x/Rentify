@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { blobApi } from "@/lib/blob/api";
-import {
-  IMAGE_ACCEPT_ATTRIBUTE,
-  resolveUploadContentType,
-} from "@/lib/blob/image-policy";
+import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
+import { uploadImage, type UploadImageStage } from "@/lib/media/api";
 import {
   dangerButtonClass,
   fieldLabelClass,
@@ -22,37 +19,30 @@ export function OrganizationLogoField({
   disabled,
 }: {
   logoUrl: string;
-  onUploaded: (blobUrl: string, blobName: string) => void;
+  /** Called with the processed image once the server has accepted it. */
+  onUploaded: (url: string, mediaId: string) => void;
   onRemove: () => void;
   onError: (message: string) => void;
   disabled?: boolean;
 }) {
-  const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState<UploadImageStage | null>(null);
+  const uploading = stage !== null;
 
   async function handleFile(file: File | undefined) {
     if (!file) {
       return;
     }
 
-    setUploading(true);
+    setStage("uploading");
     try {
       // The server decides whether this file is acceptable; an unsupported
-      // type or size comes back as an error naming the deployed limits.
-      const target = await blobApi.createUploadUrl({
-        filename: file.name,
-        contentType: resolveUploadContentType(file),
-        sizeBytes: file.size,
+      // type or size, or bytes that are not really an image, come back as an
+      // error naming the reason. Only the processed image is ever shown.
+      const image = await uploadImage(file, {
         scope: "organizations",
+        onStageChange: setStage,
       });
-      const response = await fetch(target.uploadUrl, {
-        method: target.method,
-        headers: target.headers,
-        body: file,
-      });
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}.`);
-      }
-      onUploaded(target.blobUrl, target.blobName);
+      onUploaded(image.url, image.mediaId);
     } catch (error) {
       // Surface the server's reason. Collapsing everything to "try again" made
       // a rejected file indistinguishable from a dropped connection, so the
@@ -63,7 +53,7 @@ export function OrganizationLogoField({
           : "We couldn't upload that logo. Please try again.",
       );
     } finally {
-      setUploading(false);
+      setStage(null);
     }
   }
 
@@ -85,11 +75,13 @@ export function OrganizationLogoField({
         )}
         <div className="flex flex-wrap items-center gap-2">
           <label className={`${secondaryButtonClass} cursor-pointer`}>
-            {uploading
-              ? "Uploading..."
-              : logoUrl
-                ? "Replace logo"
-                : "Upload logo"}
+            {stage === "processing"
+              ? "Processing..."
+              : uploading
+                ? "Uploading..."
+                : logoUrl
+                  ? "Replace logo"
+                  : "Upload logo"}
             <input
               type="file"
               accept={IMAGE_ACCEPT_ATTRIBUTE}
@@ -255,10 +247,17 @@ export function OrganizationProfileFieldset({
 
       <OrganizationLogoField
         logoUrl={value.logoUrl}
-        onUploaded={(blobUrl, blobName) =>
-          onChange({ ...value, logoUrl: blobUrl, logoBlobName: blobName })
+        onUploaded={(url, mediaId) =>
+          onChange({
+            ...value,
+            logoUrl: url,
+            logoBlobName: "",
+            logoMediaId: mediaId,
+          })
         }
-        onRemove={() => onChange({ ...value, logoUrl: "", logoBlobName: "" })}
+        onRemove={() =>
+          onChange({ ...value, logoUrl: "", logoBlobName: "", logoMediaId: "" })
+        }
         onError={onError}
         disabled={disabled}
       />
