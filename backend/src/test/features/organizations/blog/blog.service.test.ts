@@ -141,6 +141,15 @@ function createService(options?: {
     isConfigured: jest.fn(() => options?.blob?.configured ?? true),
     isManagedUrl: jest.fn(() => options?.blob?.managed ?? true),
     isOwnedBy: jest.fn(() => options?.blob?.owned ?? true),
+    isProcessedImageBlobName: jest.fn((blobName: string) =>
+      blobName.startsWith("media/images/"),
+    ),
+    resolveAttachableImage: jest.fn(
+      async (userId: string, mediaId: string) => ({
+        blobName: `media/images/${userId}/${mediaId}.webp`,
+        blobUrl: `https://cdn/media/images/${userId}/${mediaId}.webp`,
+      }),
+    ),
     deleteMedia: jest.fn(async () => undefined),
   };
   const publicSearchService = {
@@ -474,6 +483,49 @@ describe("OrganizationBlogService", () => {
       ).rejects.toBeInstanceOf(BadRequestError);
     });
 
+    it("resolves a new cover from a ready media item", async () => {
+      const { service, repository, mediaService } = createService();
+      const mediaId = testUuid(9000, 994330);
+
+      await service.create({
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        title: "Media cover",
+        body: "<p>x</p>",
+        status: "draft",
+        coverImageMediaId: mediaId,
+      });
+
+      expect(mediaService.resolveAttachableImage).toHaveBeenCalledWith(
+        USER_1_ID,
+        mediaId,
+        { scope: "organizations" },
+      );
+      expect(repository.create.mock.calls[0][0]).toMatchObject({
+        coverImageBlobName: `media/images/${USER_1_ID}/${mediaId}.webp`,
+        coverImageUrl: `https://cdn/media/images/${USER_1_ID}/${mediaId}.webp`,
+      });
+    });
+
+    it("refuses a cover media id sent alongside a blob reference", async () => {
+      const { service } = createService();
+
+      await expect(
+        service.create({
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          title: "Both",
+          body: "<p>x</p>",
+          status: "draft",
+          coverImageMediaId: testUuid(9000, 994331),
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
+        }),
+      ).rejects.toThrow(
+        "Send either coverImageMediaId or coverImageUrl and coverImageBlobName, not both.",
+      );
+    });
+
     it("rejects a cover image with only one of url/blob provided", async () => {
       const { service } = createService();
 
@@ -649,6 +701,27 @@ describe("OrganizationBlogService", () => {
   });
 
   describe("update", () => {
+    it("accepts the stored cover resent unchanged, whoever uploaded it", async () => {
+      const storedBlobName = `media/images/${OTHER_ID}/cover.webp`;
+      const { service, repository } = createService({
+        existing: createPost({
+          coverImageBlobName: storedBlobName,
+          coverImageUrl: `https://cdn/${storedBlobName}`,
+        }),
+        blob: { owned: false },
+      });
+
+      await service.update({
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        blogPostId: BLOG_1_ID,
+        coverImageUrl: `https://cdn/${storedBlobName}`,
+        coverImageBlobName: storedBlobName,
+      });
+
+      expect(repository.update).toHaveBeenCalled();
+    });
+
     it("records a publish action when a draft transitions to published", async () => {
       const { service, organizationAuditService } = createService({
         existing: createPost({ status: "draft" }),

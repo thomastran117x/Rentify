@@ -7,6 +7,7 @@ import {
   sanitizeRichText,
 } from "@/configuration/security/html-sanitizer";
 import type { MediaService } from "@/features/media/media.service";
+import { ORGANIZATION_MEDIA_SCOPE } from "@/features/organizations/organization-logo.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
 import type { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
@@ -37,7 +38,6 @@ import {
 } from "@/features/organizations/audit/audit.model";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
-const ORGANIZATION_BLOB_PREFIX = "organizations/";
 const MAX_SLUG_ATTEMPTS = 50;
 // Matches OrganizationBlogPost.slug in the Prisma schema.
 const BLOG_SLUG_MAX_LENGTH = 200;
@@ -112,11 +112,7 @@ export class OrganizationBlogService {
     input: CreateOrganizationBlogPostInput,
   ): Promise<OrganizationBlogPostRecord> {
     await this.requireManager(input.actorUserId, input.organizationId);
-    this.assertBlogCoverImageInput(
-      input.actorUserId,
-      input.coverImageUrl,
-      input.coverImageBlobName,
-    );
+    const cover = await this.resolveBlogCoverImage(input, null);
 
     const body = sanitizeRichText(input.body);
     this.assertBodyNotEmpty(body);
@@ -132,8 +128,8 @@ export class OrganizationBlogService {
       slug,
       excerpt: this.resolveExcerpt(input.excerpt, body),
       body,
-      coverImageUrl: input.coverImageUrl ?? null,
-      coverImageBlobName: input.coverImageBlobName ?? null,
+      coverImageUrl: cover.coverImageUrl ?? null,
+      coverImageBlobName: cover.coverImageBlobName ?? null,
       tags: input.tags ?? [],
       status: input.status,
       commentsEnabled: input.commentsEnabled ?? true,
@@ -164,10 +160,9 @@ export class OrganizationBlogService {
       input.organizationId,
       input.blogPostId,
     );
-    this.assertBlogCoverImageInput(
-      input.actorUserId,
-      input.coverImageUrl,
-      input.coverImageBlobName,
+    const cover = await this.resolveBlogCoverImage(
+      input,
+      existing.coverImageBlobName ?? null,
     );
 
     const body =
@@ -210,8 +205,8 @@ export class OrganizationBlogService {
         slug,
         excerpt,
         body,
-        coverImageUrl: input.coverImageUrl,
-        coverImageBlobName: input.coverImageBlobName,
+        coverImageUrl: cover.coverImageUrl,
+        coverImageBlobName: cover.coverImageBlobName,
         tags: input.tags,
         status: input.status,
         commentsEnabled: input.commentsEnabled,
@@ -437,10 +432,60 @@ export class OrganizationBlogService {
     }
   }
 
-  private assertBlogCoverImageInput(
+  /**
+   * Validates the cover image fields of a blog write and returns the values to
+   * store. A new cover arrives as `coverImageMediaId` and resolves to its
+   * processed image; the stored cover may be resent unchanged; null clears it.
+   */
+  private async resolveBlogCoverImage(
+    input: {
+      actorUserId: Uuid;
+      coverImageMediaId?: Uuid;
+      coverImageUrl?: string | null;
+      coverImageBlobName?: string | null;
+    },
+    currentBlobName: string | null,
+  ): Promise<{
+    coverImageUrl?: string | null;
+    coverImageBlobName?: string | null;
+  }> {
+    if (input.coverImageMediaId) {
+      if (input.coverImageUrl || input.coverImageBlobName) {
+        throw new BadRequestError(
+          "Send either coverImageMediaId or coverImageUrl and coverImageBlobName, not both.",
+        );
+      }
+
+      const image = await this.mediaService.resolveAttachableImage(
+        input.actorUserId,
+        input.coverImageMediaId,
+        { scope: ORGANIZATION_MEDIA_SCOPE },
+      );
+
+      return {
+        coverImageUrl: image.blobUrl,
+        coverImageBlobName: image.blobName,
+      };
+    }
+
+    this.assertBlogCoverImageReference(
+      input.actorUserId,
+      input.coverImageUrl,
+      input.coverImageBlobName,
+      currentBlobName,
+    );
+
+    return {
+      coverImageUrl: input.coverImageUrl,
+      coverImageBlobName: input.coverImageBlobName,
+    };
+  }
+
+  private assertBlogCoverImageReference(
     actorUserId: Uuid,
     coverImageUrl: string | null | undefined,
     coverImageBlobName: string | null | undefined,
+    currentBlobName: string | null,
   ): void {
     const hasUrl = coverImageUrl !== undefined;
     const hasBlobName = coverImageBlobName !== undefined;
@@ -483,6 +528,12 @@ export class OrganizationBlogService {
       throw new BadRequestError(
         "Cover image URL must match the Blob Storage location for the provided blob name.",
       );
+    }
+
+    // Resending the stored cover is what every save that leaves it alone does,
+    // whoever uploaded it.
+    if (blobName === currentBlobName) {
+      return;
     }
 
     if (!this.mediaService.isOwnedBy(actorUserId, blobName)) {
@@ -535,7 +586,12 @@ export class OrganizationBlogService {
   }
 
   private isOrganizationBlobName(blobName: string): boolean {
-    return blobName.trim().toLowerCase().startsWith(ORGANIZATION_BLOB_PREFIX);
+    const normalized = blobName.trim();
+
+    return (
+      normalized.toLowerCase().startsWith(`${ORGANIZATION_MEDIA_SCOPE}/`) ||
+      this.mediaService.isProcessedImageBlobName(normalized)
+    );
   }
 
   private async recordAuditSafely(

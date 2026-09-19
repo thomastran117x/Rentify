@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
-import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  uuidSchemaWithMessage,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export const organizationBlogStatusSchema = z.enum(["draft", "published"]);
 export type OrganizationBlogStatus = z.infer<
@@ -32,6 +35,11 @@ const slugSchema = z
 
 const coverImageUrlSchema = z.string().trim().url().max(1024);
 const coverImageBlobNameSchema = z.string().trim().min(1).max(1024);
+// A newly uploaded cover, by media id. It must be ready, uploaded by the caller
+// under the organizations scope, and replaces coverImageUrl/coverImageBlobName.
+const coverImageMediaIdSchema = uuidSchemaWithMessage(
+  "Cover image media id must be a valid identifier.",
+);
 
 const tagsSchema = z
   .array(z.string().trim().min(1, "Tags cannot be empty.").max(40))
@@ -48,6 +56,7 @@ export const createOrganizationBlogSchema = z
     slug: slugSchema.optional(),
     coverImageUrl: coverImageUrlSchema.nullable().optional(),
     coverImageBlobName: coverImageBlobNameSchema.nullable().optional(),
+    coverImageMediaId: coverImageMediaIdSchema.optional(),
     tags: tagsSchema.optional(),
     status: organizationBlogStatusSchema.default("draft"),
     commentsEnabled: z.boolean().default(true),
@@ -62,6 +71,7 @@ export const updateOrganizationBlogSchema = z
     slug: slugSchema.optional(),
     coverImageUrl: coverImageUrlSchema.nullable().optional(),
     coverImageBlobName: coverImageBlobNameSchema.nullable().optional(),
+    coverImageMediaId: coverImageMediaIdSchema.optional(),
     tags: tagsSchema.optional(),
     status: organizationBlogStatusSchema.optional(),
     commentsEnabled: z.boolean().optional(),

@@ -4718,7 +4718,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOwnProfile",
       summary: "Update the current user's profile",
       description:
-        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown. A new avatar must have been uploaded by the caller through `POST /blob/upload-url`; resending the current avatar is always accepted.",
+        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown. A new avatar is sent as `avatarMediaId`: a media item the caller uploaded through `POST /media/uploads` that has finished processing (`ready`). It is stored as the processed image. Resending the current `avatarUrl`/`avatarBlobName` is always accepted.",
       tags: ["profiles"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -5296,7 +5296,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPosting",
       summary: "Create a draft posting",
       description:
-        "Creates a draft posting owned by the authenticated owner. Every photo must have been uploaded by the caller through `POST /blob/upload-url`; a photo uploaded by anyone else is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
+        "Creates a draft posting owned by the authenticated owner. Each photo is `{ mediaId, position }`, naming a media item the caller uploaded through `POST /media/uploads` that is `ready`; it is stored as the processed image. A media item that is still processing, rejected, or someone else's is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -5309,13 +5309,7 @@ function buildOperations(): OperationDefinition[] {
         name: "Sunny loft workspace",
         description: "Bright downtown loft with desks and meeting space.",
         pricing: postingExample.pricing,
-        photos: [
-          {
-            blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-            blobName: "postings/posting-1/photo-1.jpg",
-            position: 0,
-          },
-        ],
+        photos: [{ mediaId: mediaIdExample, position: 0 }],
         tags: ["workspace", "wifi"],
         availabilityStatus: "available",
         availabilityNotes: "Best for weekday bookings.",
@@ -5470,7 +5464,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updatePosting",
       summary: "Update an owner posting",
       description:
-        "Updates an existing owner posting. Photos already on the posting may be kept whoever uploaded them; a newly added photo must have been uploaded by the caller through `POST /blob/upload-url`, or the update is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
+        "Updates an existing owner posting. A photo already on the posting is kept by resending its `blobUrl`, `blobName`, and `position`, whoever uploaded it. A newly added photo is `{ mediaId, position }`, naming a `ready` media item the caller uploaded through `POST /media/uploads`; anything else is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -5490,6 +5484,7 @@ function buildOperations(): OperationDefinition[] {
             blobName: "postings/posting-1/photo-1.jpg",
             position: 0,
           },
+          { mediaId: mediaIdExample, position: 1 },
         ],
         tags: ["workspace", "wifi"],
         availabilityStatus: "available",
@@ -9383,6 +9378,12 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
           },
           logoBlobName: { type: "string", maxLength: 1024, nullable: true },
+          logoMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new logo: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `logoUrl`/`logoBlobName` with it. Resending the current `logoUrl`/`logoBlobName` keeps the logo, and sending both as `null` clears it.",
+          },
           customFields: {
             type: "object",
             additionalProperties: { type: "string", maxLength: 1000 },
@@ -9980,6 +9981,12 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 220 },
           coverImageUrl: { type: "string", format: "uri", nullable: true },
           coverImageBlobName: { type: "string", nullable: true },
+          coverImageMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new cover image: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `coverImageUrl`/`coverImageBlobName` with it.",
+          },
           tags: {
             type: "array",
             items: { type: "string", maxLength: 40 },
@@ -9998,6 +10005,12 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 220 },
           coverImageUrl: { type: "string", format: "uri", nullable: true },
           coverImageBlobName: { type: "string", nullable: true },
+          coverImageMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new cover image: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `organizations`. Stored as the processed image; do not send `coverImageUrl`/`coverImageBlobName` with it.",
+          },
           tags: {
             type: "array",
             items: { type: "string", maxLength: 40 },
@@ -11032,6 +11045,12 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Omit to leave the stored avatar unchanged. Must be sent together with `avatarUrl`.",
           },
+          avatarMediaId: {
+            type: "string",
+            format: "uuid",
+            description:
+              "A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.",
+          },
           trustworthinessScore: { type: "integer", minimum: 1, maximum: 5 },
           rentPostingsCount: { type: "integer", minimum: 0 },
           availableRentPostingsCount: { type: "integer", minimum: 0 },
@@ -11266,9 +11285,45 @@ function buildComponents(): Record<string, unknown> {
         },
         required: ["items", "pagination", "mode", "fallback"],
       },
+      PostingPhotoInput: {
+        description:
+          "A newly uploaded photo by media id, or a photo already on the posting by the blobUrl and blobName it was saved with.",
+        oneOf: [
+          {
+            type: "object",
+            required: ["mediaId", "position"],
+            properties: {
+              mediaId: {
+                type: "string",
+                format: "uuid",
+                description:
+                  "A `ready` media item uploaded by the caller through `POST /media/uploads`.",
+              },
+              position: { type: "integer", minimum: 0, maximum: 9 },
+            },
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            required: ["blobUrl", "blobName", "position"],
+            properties: {
+              blobUrl: { type: "string", format: "uri" },
+              blobName: { type: "string", maxLength: 1024 },
+              position: { type: "integer", minimum: 0, maximum: 9 },
+            },
+            additionalProperties: false,
+          },
+        ],
+      },
       UpsertPostingRequest: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: schemaRef("PostingPhotoInput"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11282,6 +11337,12 @@ function buildComponents(): Record<string, unknown> {
       UpdatePostingRequest: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: schemaRef("PostingPhotoInput"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",

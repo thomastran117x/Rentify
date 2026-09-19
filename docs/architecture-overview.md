@@ -179,17 +179,25 @@ Until then, treat a stored blob's content type as client-asserted. Anything that
 re-decodes a blob should defend itself; posting thumbnail generation does, by
 capping `limitInputPixels` on its sharp decode.
 
-**When an image is attached.** A reference is accepted only if its URL matches
-the managed location for its blob name and, for anything newly attached, the
-blob was issued to the acting user. Ownership is read from the owner segment of
-the name.
+**When an image is attached.** A newly uploaded image is attached by media id:
+posting photos as `{ mediaId, position }`, and `logoMediaId`,
+`coverImageMediaId`, and `avatarMediaId` on the organization, blog, and profile
+writes. `MediaService.resolveAttachableImage` is the single gate. It accepts
+only a `ready` media item uploaded by the acting user, requires scope
+`organizations` for logos and blog covers, and yields the processed image's
+blob name and URL, which is what the feature stores.
 
-- Organization logos and blog covers must belong to the actor.
+An image that is already stored is referenced by its blob URL and name. That
+reference is accepted only if the URL matches the managed location for the
+name, and a `quarantine/` name never qualifies.
+
 - Posting photos already on the posting may be kept by anyone who can manage
   it. That covers photos another member uploaded, seeded photos, and duplicated
-  postings. A newly added photo must belong to the actor.
-- A new avatar must belong to the user. Resending the stored one is always
-  accepted.
+  postings.
+- The stored organization logo, blog cover, and avatar may be resent unchanged,
+  whoever uploaded it.
+- Until every client attaches by media id, a blob name the actor owns (read
+  from the owner segment of the name) is also accepted as a new attachment.
 
 ## Realtime Transport
 

@@ -50,6 +50,8 @@ import {
   toPostingAttributes,
   type UpsertPostingInput,
   type UpsertPostingPersistenceInput,
+  type UpsertPostingWriteInput,
+  type PostingPhotoWriteInput,
   isPostingPubliclyVisible,
 } from "@/features/postings/postings.model";
 import {
@@ -107,7 +109,7 @@ export class PostingsService {
   ): Promise<PostingRecord> {
     const membership = await this.requireActiveMembership(actorUserId);
     this.assertCanManagePostingRole(membership.role);
-    const normalizedInput = this.normalizeUpsertInput(
+    const normalizedInput = await this.normalizeUpsertInput(
       await this.resolveWriteInputForActiveOrganization(input, membership),
       { actorUserId, attachedBlobNames: new Set() },
     );
@@ -134,7 +136,7 @@ export class PostingsService {
     const posting = await this.requireManagedPosting(id, actorUserId, "write");
     const availabilityBlocks =
       await this.postingsRepository.listOwnerAvailabilityBlocks(posting.id);
-    const duplicateInput = this.normalizeUpsertInput(
+    const duplicateInput = await this.normalizeUpsertInput(
       this.toDuplicateInput(posting, availabilityBlocks),
       { actorUserId, attachedBlobNames: this.attachedPhotoBlobNames(posting) },
     );
@@ -164,7 +166,7 @@ export class PostingsService {
     input: UpsertPostingInput,
   ): Promise<PostingRecord> {
     const existing = await this.requireManagedPosting(id, actorUserId, "write");
-    const normalizedInput = this.normalizeUpsertInput(
+    const normalizedInput = await this.normalizeUpsertInput(
       {
         ...input,
         organizationId: existing.organizationId,
@@ -931,11 +933,14 @@ export class PostingsService {
     };
   }
 
-  private normalizeUpsertInput(
-    input: UpsertPostingPersistenceInput,
+  private async normalizeUpsertInput(
+    input: UpsertPostingWriteInput,
     photoOwnership: PhotoOwnershipContext,
-  ): UpsertPostingPersistenceInput {
-    const normalizedPhotos = this.normalizePhotos(input.photos, photoOwnership);
+  ): Promise<UpsertPostingPersistenceInput> {
+    const normalizedPhotos = await this.normalizePhotos(
+      input.photos,
+      photoOwnership,
+    );
     const normalizedBlocks = this.normalizeAvailabilityBlocks(
       input.availabilityBlocks,
     );
@@ -983,10 +988,10 @@ export class PostingsService {
     };
   }
 
-  private normalizePhotos(
-    photos: ManagedPostingPhotoInput[],
+  private async normalizePhotos(
+    photos: PostingPhotoWriteInput[],
     photoOwnership: PhotoOwnershipContext,
-  ): ManagedPostingPhotoInput[] {
+  ): Promise<ManagedPostingPhotoInput[]> {
     if (photos.length === 0) {
       throw new BadRequestError("At least one photo is required.");
     }
@@ -998,6 +1003,7 @@ export class PostingsService {
     }
 
     const uniquePositions = new Set<number>();
+    const resolved: ManagedPostingPhotoInput[] = [];
 
     for (const photo of photos) {
       if (uniquePositions.has(photo.position)) {
@@ -1005,20 +1011,10 @@ export class PostingsService {
       }
 
       uniquePositions.add(photo.position);
-      this.assertManagedBlob(photo.blobUrl, photo.blobName);
-      this.assertPhotoOwnership(photo.blobName, photoOwnership);
-
-      const hasThumbnailBlobName = typeof photo.thumbnailBlobName === "string";
-      const hasThumbnailBlobUrl = typeof photo.thumbnailBlobUrl === "string";
-
-      if (hasThumbnailBlobName !== hasThumbnailBlobUrl) {
-        throw new BadRequestError(
-          "Thumbnail blob URL and thumbnail blob name must be provided together.",
-        );
-      }
+      resolved.push(await this.resolvePhoto(photo, photoOwnership));
     }
 
-    return photos
+    return resolved
       .slice()
       .sort((left, right) => left.position - right.position)
       .map((photo, index) => ({
@@ -1100,7 +1096,7 @@ export class PostingsService {
     }
   }
 
-  private normalizePostingDetails(input: UpsertPostingPersistenceInput) {
+  private normalizePostingDetails(input: UpsertPostingWriteInput) {
     try {
       return parsePostingDetailsForVariant(input.variant, input.details);
     } catch (error) {
@@ -1554,6 +1550,57 @@ export class PostingsService {
     }
   }
 
+  /**
+   * Turns one incoming photo into a stored blob reference. A newly uploaded
+   * photo arrives as a media id and resolves to its processed image, which
+   * MediaService only yields once validation has finished. A photo referenced
+   * by blob name must be a managed blob the actor may attach.
+   */
+  private async resolvePhoto(
+    photo: PostingPhotoWriteInput,
+    photoOwnership: PhotoOwnershipContext,
+  ): Promise<ManagedPostingPhotoInput> {
+    if ("mediaId" in photo && photo.mediaId) {
+      const image = await this.mediaService.resolveAttachableImage(
+        photoOwnership.actorUserId,
+        photo.mediaId,
+      );
+
+      return { ...image, position: photo.position };
+    }
+
+    if (!photo.blobUrl || !photo.blobName) {
+      throw new BadRequestError(
+        "A photo requires mediaId, or blobUrl and blobName together.",
+      );
+    }
+
+    this.assertManagedBlob(photo.blobUrl, photo.blobName);
+    this.assertPhotoOwnership(photo.blobName, photoOwnership);
+
+    const managed: ManagedPostingPhotoInput = {
+      blobUrl: photo.blobUrl,
+      blobName: photo.blobName,
+      position: photo.position,
+    };
+
+    if ("thumbnailBlobUrl" in photo || "thumbnailBlobName" in photo) {
+      const hasThumbnailBlobName = typeof photo.thumbnailBlobName === "string";
+      const hasThumbnailBlobUrl = typeof photo.thumbnailBlobUrl === "string";
+
+      if (hasThumbnailBlobName !== hasThumbnailBlobUrl) {
+        throw new BadRequestError(
+          "Thumbnail blob URL and thumbnail blob name must be provided together.",
+        );
+      }
+
+      managed.thumbnailBlobUrl = photo.thumbnailBlobUrl;
+      managed.thumbnailBlobName = photo.thumbnailBlobName;
+    }
+
+    return managed;
+  }
+
   // A photo already on the posting stays attachable by anyone who may manage
   // it, including one another member uploaded or a seeded photo. Only a newly
   // attached photo has to have been uploaded by the acting user.
@@ -1987,7 +2034,7 @@ export class PostingsService {
   private async resolveWriteInputForActiveOrganization(
     input: UpsertPostingInput,
     membership: AuthUserOrganizationMembershipRecord,
-  ): Promise<UpsertPostingPersistenceInput> {
+  ): Promise<UpsertPostingWriteInput> {
     return {
       ...input,
       organizationId: membership.organizationId,

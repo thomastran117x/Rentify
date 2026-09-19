@@ -128,8 +128,12 @@ export class OrganizationProfileService {
   ): Promise<CreateOrganizationResult> {
     await requireExistingUser(this.usersRepository, input.actorUserId);
 
-    const profile = pickOrganizationProfileInput(input);
-    this.organizationLogoService.assertLogoInput(input.actorUserId, profile);
+    const profile = await this.organizationLogoService.resolveLogoInput(
+      input.actorUserId,
+      pickOrganizationProfileInput(input),
+      input.logoMediaId,
+      null,
+    );
     const name = input.name.trim();
     const membership = await this.createOrganizationWithUniqueSlug({
       name,
@@ -256,8 +260,12 @@ export class OrganizationProfileService {
     requirePrimaryManager(membership.role);
 
     const beforeSnapshot = membership.organization;
-    const profile = pickOrganizationProfileInput(input);
-    this.organizationLogoService.assertLogoInput(input.actorUserId, profile);
+    const profile = await this.organizationLogoService.resolveLogoInput(
+      input.actorUserId,
+      pickOrganizationProfileInput(input),
+      input.logoMediaId,
+      beforeSnapshot.logoBlobName,
+    );
     const updated =
       await this.organizationsProfileRepository.updateOrganization(
         input.organizationId,

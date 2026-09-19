@@ -280,15 +280,44 @@ export const postingBatchIdsQuerySchema = z
   .max(MAX_BATCH_IDS)
   .transform((ids) => Array.from(new Set(ids)));
 
-export const postingPhotoSchema = z.object({
-  blobUrl: z.url("Photo URL must be a valid URL."),
-  blobName: trimmedStringSchema.max(1024),
-  position: z
-    .number()
-    .int()
-    .min(0)
-    .max(MAX_POSTING_PHOTOS - 1),
-});
+/**
+ * A photo is either a newly uploaded image, referenced by its media id, or one
+ * already on the posting, referenced by the blobUrl and blobName it was saved
+ * with.
+ */
+export const postingPhotoSchema = z
+  .object({
+    mediaId: uuidSchemaWithMessage(
+      "Photo media id must be a valid identifier.",
+    ).optional(),
+    blobUrl: z.url("Photo URL must be a valid URL.").optional(),
+    blobName: trimmedStringSchema.max(1024).optional(),
+    position: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_POSTING_PHOTOS - 1),
+  })
+  .superRefine((photo, context) => {
+    const hasMedia = photo.mediaId !== undefined;
+    const hasBlobUrl = photo.blobUrl !== undefined;
+    const hasBlobName = photo.blobName !== undefined;
+
+    if (hasMedia && (hasBlobUrl || hasBlobName)) {
+      context.addIssue({
+        code: "custom",
+        path: ["mediaId"],
+        message:
+          "A photo takes either mediaId or blobUrl and blobName, not both.",
+      });
+    } else if (!hasMedia && !(hasBlobUrl && hasBlobName)) {
+      context.addIssue({
+        code: "custom",
+        path: ["mediaId"],
+        message: "A photo requires mediaId, or blobUrl and blobName together.",
+      });
+    }
+  });
 
 export const postingAvailabilityBlockSchema = z.object({
   startAt: z
@@ -598,10 +627,18 @@ export type PostingDetails =
   | EquipmentPostingDetails
   | VehiclePostingDetails;
 export type PostingPhotoInput = z.infer<typeof postingPhotoSchema>;
-export interface ManagedPostingPhotoInput extends PostingPhotoInput {
+/** A photo as stored: always a concrete blob reference. */
+export interface ManagedPostingPhotoInput {
+  blobUrl: string;
+  blobName: string;
+  position: number;
   thumbnailBlobUrl?: string;
   thumbnailBlobName?: string;
 }
+/** A photo on its way in, before any media id has been resolved. */
+export type PostingPhotoWriteInput =
+  | PostingPhotoInput
+  | ManagedPostingPhotoInput;
 export type PostingAvailabilityBlockInput = z.infer<
   typeof postingAvailabilityBlockSchema
 >;
@@ -861,7 +898,7 @@ export interface UpsertPostingInput {
   name: string;
   description: string;
   pricing: PostingPricing;
-  photos: ManagedPostingPhotoInput[];
+  photos: PostingPhotoWriteInput[];
   tags: string[];
   details: PostingDetails;
   availabilityStatus: PostingAvailabilityStatus;
@@ -877,8 +914,18 @@ export interface UpsertPostingInput {
   location: PostingLocationRecord;
 }
 
-/** UpsertPostingInput once the service has resolved the owning organization. */
-export interface UpsertPostingPersistenceInput extends UpsertPostingInput {
+/**
+ * UpsertPostingInput once the service has resolved the owning organization and
+ * every photo to a stored blob.
+ */
+export interface UpsertPostingPersistenceInput
+  extends Omit<UpsertPostingInput, "photos"> {
+  organizationId: Uuid;
+  photos: ManagedPostingPhotoInput[];
+}
+
+/** UpsertPostingInput once the owning organization is known. */
+export interface UpsertPostingWriteInput extends UpsertPostingInput {
   organizationId: Uuid;
 }
 

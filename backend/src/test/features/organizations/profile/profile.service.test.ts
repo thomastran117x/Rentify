@@ -113,7 +113,9 @@ function createService(overrides?: {
     ...(overrides?.invitationsService ?? {}),
   };
   const logoService = {
-    assertLogoInput: jest.fn(),
+    resolveLogoInput: jest.fn(
+      async (_actorUserId: string, profile: Record<string, unknown>) => profile,
+    ),
     cleanupReplacedLogo: jest.fn(async () => undefined),
     ...(overrides?.logoService ?? {}),
   };
@@ -222,15 +224,21 @@ describe("OrganizationProfileService", () => {
   it("validates the logo input before writing, and cleans up a replaced logo after", async () => {
     const { service, logoService } = createService();
 
+    const logoMediaId = testUuid(9000, 994320);
+
     await service.update({
       organizationId: ORG_1_ID,
       actorUserId: USER_1_ID,
       name: "Northwind",
+      logoMediaId,
     });
 
-    expect(logoService.assertLogoInput).toHaveBeenCalledWith(
+    // The stored logo is passed so it can be resent unchanged.
+    expect(logoService.resolveLogoInput).toHaveBeenCalledWith(
       USER_1_ID,
       expect.any(Object),
+      logoMediaId,
+      null,
     );
     expect(logoService.cleanupReplacedLogo).toHaveBeenCalledWith(
       expect.objectContaining({

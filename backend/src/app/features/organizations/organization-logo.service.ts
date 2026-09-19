@@ -6,6 +6,9 @@ import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.mode
 import type { OrganizationProfileInput } from "@/features/organizations/organizations.model";
 import { type Uuid } from "@/configuration/validation/uuid";
 
+// The upload scope the organization workspace uses for logos and blog covers.
+export const ORGANIZATION_MEDIA_SCOPE = "organizations";
+
 /**
  * Validates and cleans up the organization logo blob reference, shared by
  * profile updates/creation and audit-driven restores (both can leave a
@@ -22,7 +25,55 @@ export class OrganizationLogoService {
     private readonly organizationAuditRepository: OrganizationAuditRepository,
   ) {}
 
-  assertLogoInput(actorUserId: Uuid, profile: OrganizationProfileInput): void {
+  /**
+   * Validates the logo fields of a profile write and returns the profile to
+   * store. A new logo arrives as `logoMediaId` and resolves to its processed
+   * image; the stored logo may be resent unchanged; null clears it.
+   */
+  async resolveLogoInput(
+    actorUserId: Uuid,
+    profile: OrganizationProfileInput,
+    logoMediaId: Uuid | undefined,
+    currentLogoBlobName: string | null,
+  ): Promise<OrganizationProfileInput> {
+    if (logoMediaId) {
+      if (profile.logoUrl || profile.logoBlobName) {
+        throw new BadRequestError(
+          "Send either logoMediaId or logoUrl and logoBlobName, not both.",
+        );
+      }
+
+      const image = await this.mediaService.resolveAttachableImage(
+        actorUserId,
+        logoMediaId,
+        { scope: ORGANIZATION_MEDIA_SCOPE },
+      );
+
+      return {
+        ...profile,
+        logoUrl: image.blobUrl,
+        logoBlobName: image.blobName,
+      };
+    }
+
+    this.assertLogoReference(actorUserId, profile, currentLogoBlobName);
+    return profile;
+  }
+
+  isLogoBlobName(blobName: string): boolean {
+    const normalized = blobName.trim();
+
+    return (
+      normalized.toLowerCase().startsWith(`${ORGANIZATION_MEDIA_SCOPE}/`) ||
+      this.mediaService.isProcessedImageBlobName(normalized)
+    );
+  }
+
+  private assertLogoReference(
+    actorUserId: Uuid,
+    profile: OrganizationProfileInput,
+    currentLogoBlobName: string | null,
+  ): void {
     const hasLogoUrl = profile.logoUrl !== undefined;
     const hasLogoBlobName = profile.logoBlobName !== undefined;
 
@@ -66,15 +117,17 @@ export class OrganizationLogoService {
       );
     }
 
+    // Resending the stored logo is what every save that leaves it alone does,
+    // whoever uploaded it.
+    if (logoBlobName === currentLogoBlobName) {
+      return;
+    }
+
     if (!this.mediaService.isOwnedBy(actorUserId, logoBlobName)) {
       throw new BadRequestError(
         "Organization logo blob must belong to the current user.",
       );
     }
-  }
-
-  isLogoBlobName(blobName: string): boolean {
-    return blobName.trim().toLowerCase().startsWith("organizations/");
   }
 
   async cleanupReplacedLogo(input: {

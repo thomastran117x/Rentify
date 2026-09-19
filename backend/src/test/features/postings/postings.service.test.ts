@@ -916,6 +916,75 @@ describe("PostingsService", () => {
       ).rejects.toThrow("Posting photos must be uploaded by the current user.");
     });
 
+    it("attaches a newly uploaded photo by media id as its processed image", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const mediaId = testUuid(9000, 994340);
+      const processedBlobName = `media/images/${OWNER_1_ID}/${mediaId}.webp`;
+      const resolveAttachableImage = jest.fn(async () => ({
+        blobName: processedBlobName,
+        blobUrl: `https://example.blob.core.windows.net/${processedBlobName}`,
+      }));
+      Object.assign(service as object, {
+        mediaService: {
+          isConfigured: () => true,
+          isManagedUrl: () => true,
+          isOwnedBy: () => false,
+          resolveAttachableImage,
+        },
+      });
+      const input = createValidInput();
+
+      const created = await service.createDraft(OWNER_1_ID, {
+        ...input,
+        photos: [{ mediaId, position: 0 }],
+      });
+
+      expect(resolveAttachableImage).toHaveBeenCalledWith(OWNER_1_ID, mediaId);
+      expect(created.photos).toEqual([
+        expect.objectContaining({
+          blobName: processedBlobName,
+          blobUrl: `https://example.blob.core.windows.net/${processedBlobName}`,
+          position: 0,
+        }),
+      ]);
+    });
+
+    it("refuses a media id that is not ready to attach", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      Object.assign(service as object, {
+        mediaService: {
+          resolveAttachableImage: jest.fn(async () => {
+            throw new BadRequestError(
+              "Image is still processing. Try again once it is ready.",
+            );
+          }),
+        },
+      });
+
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ mediaId: testUuid(9000, 994341), position: 0 }],
+        }),
+      ).rejects.toThrow("Image is still processing.");
+      expect(repository.createCalls).toBe(0);
+    });
+
+    it("refuses a photo that references neither media nor a blob", async () => {
+      const service = createService(new FakePostingsRepository());
+
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ position: 0 }],
+        }),
+      ).rejects.toThrow(
+        "A photo requires mediaId, or blobUrl and blobName together.",
+      );
+    });
+
     it("duplicates a posting whose photos another user uploaded", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
@@ -2409,7 +2478,7 @@ describe("PostingsService", () => {
           actorUserId: Uuid;
           attachedBlobNames: ReadonlySet<string>;
         },
-      ) => unknown[];
+      ) => Promise<unknown[]>;
       normalizeAvailabilityBlocks: (
         blocks: PostingAvailabilityBlockInput[],
       ) => PostingAvailabilityBlockInput[];
@@ -2424,10 +2493,10 @@ describe("PostingsService", () => {
         attachedBlobNames: new Set(),
       });
 
-    expect(() => normalizePhotos([])).toThrow(
+    await expect(normalizePhotos([])).rejects.toThrow(
       "At least one photo is required.",
     );
-    expect(() =>
+    await expect(
       normalizePhotos(
         Array.from({ length: 11 }, (_, index) => ({
           blobUrl: `https://example.blob.core.windows.net/postings/photo-${index}.jpg`,
@@ -2435,8 +2504,8 @@ describe("PostingsService", () => {
           position: index,
         })),
       ),
-    ).toThrow("A posting can include at most");
-    expect(() =>
+    ).rejects.toThrow("A posting can include at most");
+    await expect(
       normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
@@ -2449,8 +2518,8 @@ describe("PostingsService", () => {
           position: 0,
         },
       ]),
-    ).toThrow("Photo positions must be unique.");
-    expect(() =>
+    ).rejects.toThrow("Photo positions must be unique.");
+    await expect(
       normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
@@ -2460,7 +2529,7 @@ describe("PostingsService", () => {
           position: 0,
         },
       ]),
-    ).toThrow(
+    ).rejects.toThrow(
       "Thumbnail blob URL and thumbnail blob name must be provided together.",
     );
     expect(() =>

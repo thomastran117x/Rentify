@@ -17,6 +17,35 @@ import { createPngFixture } from "../../support/image-fixtures";
 
 const MEDIA_PROCESSING_QUEUE_NAME = "media.processing.main";
 
+function buildPostingBody(photos: Array<Record<string, unknown>>) {
+  return {
+    variant: { family: "place", subtype: "workspace" },
+    name: "Media Attachment Workspace",
+    description: "Loft used to check that postings attach processed media.",
+    pricing: { currency: "cad", daily: { amount: 120 } },
+    photos,
+    tags: ["loft", "workspace"],
+    details: {
+      guest_capacity: 4,
+      bedrooms: 0,
+      bathrooms: 1,
+      property_type: "loft",
+      amenities: ["wifi"],
+      pet_friendly: false,
+      parking: false,
+    },
+    availabilityStatus: "available",
+    availabilityBlocks: [],
+    location: {
+      latitude: 43.6511,
+      longitude: -79.347,
+      city: "Toronto",
+      region: "Ontario",
+      country: "Canada",
+    },
+  };
+}
+
 /**
  * Drives the media upload lifecycle over HTTP against the real MediaService,
  * database, and RabbitMQ, with blob storage held in memory by the harness.
@@ -213,6 +242,48 @@ describe("Media persistence integration", () => {
         rejectionReason: "Uploaded file could not be read as an image.",
       },
     });
+  });
+
+  it("attaches a processed image to a posting and refuses an unprocessed one", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const pending = await startUpload(owner.headers());
+    const ready = await startUpload(owner.headers());
+    await putBytes(ready.upload.uploadUrl, await createPngFixture(8, 8));
+    await request(`/media/${ready.media.id}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+    await persistenceApp.container
+      .resolve(containerTokens.mediaProcessingService)
+      .process(ready.media.id);
+
+    const refused = await request("/postings", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify(
+        buildPostingBody([{ mediaId: pending.media.id, position: 0 }]),
+      ),
+    });
+    expect(refused.status).toBe(400);
+
+    const created = await request("/postings", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify(
+        buildPostingBody([{ mediaId: ready.media.id, position: 0 }]),
+      ),
+    });
+    expect(created.status).toBe(201);
+    const posting = await readData<{
+      photos: Array<{ blobName: string; blobUrl: string }>;
+    }>(created);
+    expect(posting.photos).toEqual([
+      expect.objectContaining({
+        blobName: `media/images/${owner.userId}/${ready.media.id}.webp`,
+      }),
+    ]);
   });
 
   it("hides one user's media from another and deletes it for its owner", async () => {

@@ -45,8 +45,9 @@ export class ProfileService {
     return profile;
   }
 
-  async update(input: UpdateProfileInput): Promise<ProfileRecord> {
-    this.assertPostingCounts(input);
+  async update(requested: UpdateProfileInput): Promise<ProfileRecord> {
+    this.assertPostingCounts(requested);
+    const input = await this.resolveAvatarMedia(requested);
     this.assertAvatarFields(input);
 
     const existingProfile = await this.profileRepository.findByUserId(
@@ -224,6 +225,35 @@ export class ProfileService {
         "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
       );
     }
+  }
+
+  // A new avatar arrives as a media id and resolves to its processed image,
+  // which then passes the same reference checks as any stored avatar.
+  private async resolveAvatarMedia(
+    input: UpdateProfileInput,
+  ): Promise<UpdateProfileInput> {
+    const { avatarMediaId, ...rest } = input;
+
+    if (!avatarMediaId) {
+      return rest;
+    }
+
+    if (input.avatarUrl || input.avatarBlobName) {
+      throw new BadRequestError(
+        "Send either avatarMediaId or avatarUrl and avatarBlobName, not both.",
+      );
+    }
+
+    const image = await this.mediaService.resolveAttachableImage(
+      input.userId,
+      avatarMediaId,
+    );
+
+    return {
+      ...rest,
+      avatarUrl: image.blobUrl,
+      avatarBlobName: image.blobName,
+    };
   }
 
   // Re-sending the stored avatar is always allowed, which is what every profile

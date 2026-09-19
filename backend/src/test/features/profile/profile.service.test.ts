@@ -93,6 +93,7 @@ function createService(options?: {
   isConfigured?: jest.Mock;
   isManagedUrl?: jest.Mock;
   isOwnedBy?: jest.Mock;
+  resolveAttachableImage?: jest.Mock;
   assertUsernameIsAvailable?: jest.Mock;
 }) {
   const profileRepository = {
@@ -116,6 +117,12 @@ function createService(options?: {
     isConfigured: options?.isConfigured ?? jest.fn(() => true),
     isManagedUrl: options?.isManagedUrl ?? jest.fn(() => true),
     isOwnedBy: options?.isOwnedBy ?? jest.fn(() => true),
+    resolveAttachableImage:
+      options?.resolveAttachableImage ??
+      jest.fn(async (userId: string, mediaId: string) => ({
+        blobName: `media/images/${userId}/${mediaId}.webp`,
+        blobUrl: `https://storage.example.com/media/images/${userId}/${mediaId}.webp`,
+      })),
   };
   const usernameService = {
     assertUsernameIsAvailable:
@@ -188,6 +195,46 @@ describe("ProfileService", () => {
     await expect(service.getByUserId(USER_42_ID)).resolves.toBe(
       expectedProfile,
     );
+  });
+
+  it("resolves a new avatar from a ready media item", async () => {
+    const update = createUpdateMock();
+    const { service, mediaService } = createService({ update });
+    const mediaId = testUuid(9000, 994350);
+
+    await service.update({
+      userId: USER_1_ID,
+      username: "owner-one",
+      avatarMediaId: mediaId,
+    });
+
+    expect(mediaService.resolveAttachableImage).toHaveBeenCalledWith(
+      USER_1_ID,
+      mediaId,
+    );
+    const input = firstUpdateInput(update);
+    expect(input).toMatchObject({
+      avatarBlobName: `media/images/${USER_1_ID}/${mediaId}.webp`,
+      avatarUrl: `https://storage.example.com/media/images/${USER_1_ID}/${mediaId}.webp`,
+    });
+    expect(input).not.toHaveProperty("avatarMediaId");
+  });
+
+  it("refuses an avatar media id sent alongside a blob reference", async () => {
+    const { service, profileRepository } = createService();
+
+    await expect(
+      service.update({
+        userId: USER_1_ID,
+        username: "owner-one",
+        avatarMediaId: testUuid(9000, 994351),
+        avatarUrl: "https://storage.example.com/avatars/a.png",
+        avatarBlobName: "avatars/a.png",
+      }),
+    ).rejects.toThrow(
+      "Send either avatarMediaId or avatarUrl and avatarBlobName, not both.",
+    );
+    expect(profileRepository.update).not.toHaveBeenCalled();
   });
 
   it("normalizes profile updates before saving", async () => {
