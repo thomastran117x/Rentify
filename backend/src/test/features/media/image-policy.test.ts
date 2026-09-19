@@ -4,7 +4,7 @@ import {
   formatByteLimit,
   imageExtensionForContentType,
   normalizeImageContentType,
-} from "@/features/blob/image-policy";
+} from "@/features/media/image-policy";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";

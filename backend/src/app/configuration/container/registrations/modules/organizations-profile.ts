@@ -33,12 +33,12 @@ export const organizationsProfileRegistrationModule: ContainerRegistrationModule
         token: containerTokens.organizationLogoService,
         lifetime: "scoped",
         dependencies: [
-          containerTokens.blobService,
+          containerTokens.mediaService,
           containerTokens.organizationAuditRepository,
         ],
         resolve: ({ resolve }) =>
           new OrganizationLogoService(
-            resolve(containerTokens.blobService),
+            resolve(containerTokens.mediaService),
             resolve(containerTokens.organizationAuditRepository),
           ),
       });

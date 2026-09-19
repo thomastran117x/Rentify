@@ -137,11 +137,11 @@ function createService(options?: {
   const organizationAuditService = {
     record: jest.fn(async () => undefined),
   };
-  const blobService = {
+  const mediaService = {
     isConfigured: jest.fn(() => options?.blob?.configured ?? true),
-    isManagedBlobUrl: jest.fn(() => options?.blob?.managed ?? true),
-    isBlobOwnedByUser: jest.fn(() => options?.blob?.owned ?? true),
-    deleteBlob: jest.fn(async () => undefined),
+    isManagedUrl: jest.fn(() => options?.blob?.managed ?? true),
+    isOwnedBy: jest.fn(() => options?.blob?.owned ?? true),
+    deleteMedia: jest.fn(async () => undefined),
   };
   const publicSearchService = {
     searchByOrganization: jest.fn(async () => createListResult()),
@@ -156,14 +156,14 @@ function createService(options?: {
     repository,
     organizationAccessService,
     organizationAuditService,
-    blobService,
+    mediaService,
     publicSearchService,
     blogCommentGateway,
     service: new OrganizationBlogService(
       repository as never,
       organizationAccessService as never,
       organizationAuditService as never,
-      blobService as never,
+      mediaService as never,
       publicSearchService as never,
       blogCommentGateway as never,
     ),
@@ -720,7 +720,7 @@ describe("OrganizationBlogService", () => {
     });
 
     it("deletes a replaced cover image blob", async () => {
-      const { service, blobService } = createService({
+      const { service, mediaService } = createService({
         existing: createPost({
           coverImageBlobName: `organizations/${ORG_1_ID}/blog/old.png`,
           coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/old.png`,
@@ -735,7 +735,8 @@ describe("OrganizationBlogService", () => {
         coverImageBlobName: `organizations/${ORG_1_ID}/blog/new.png`,
       });
 
-      expect(blobService.deleteBlob).toHaveBeenCalledWith(
+      expect(mediaService.deleteMedia).toHaveBeenCalledWith(
+        USER_1_ID,
         `organizations/${ORG_1_ID}/blog/old.png`,
       );
     });
@@ -814,7 +815,7 @@ describe("OrganizationBlogService", () => {
 
   describe("delete", () => {
     it("deletes a post, cleans up its cover, and records an audit entry", async () => {
-      const { service, repository, blobService, organizationAuditService } =
+      const { service, repository, mediaService, organizationAuditService } =
         createService({
           existing: createPost({
             coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
@@ -828,7 +829,8 @@ describe("OrganizationBlogService", () => {
       });
 
       expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, BLOG_1_ID);
-      expect(blobService.deleteBlob).toHaveBeenCalledWith(
+      expect(mediaService.deleteMedia).toHaveBeenCalledWith(
+        USER_1_ID,
         `organizations/${ORG_1_ID}/blog/c.png`,
       );
       expect(result).toEqual({ deleted: true, blogPostId: BLOG_1_ID });

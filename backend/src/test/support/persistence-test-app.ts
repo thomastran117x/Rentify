@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
+import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import {
-  assertImageBytes,
-  assertImageSizeWithinLimit,
-  imageExtensionForContentType,
-  normalizeImageContentType,
-} from "@/features/blob/image-policy";
+import type {
+  BuildBlobNameInput,
+  CreateBlobUploadUrlInput,
+} from "@/features/blob/blob.model";
+import { BlobService } from "@/features/blob/blob.service";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -109,13 +109,20 @@ export interface PersistenceTestStubs {
   blobService: {
     isConfigured: jest.Mock<boolean, []>;
     isManagedBlobUrl: jest.Mock<boolean, [string, string]>;
-    createUploadUrl: jest.Mock<Record<string, unknown>, [BlobUploadInput]>;
-    uploadLocalBlob: jest.Mock<Promise<void>, [BlobUploadPayload]>;
+    getBlobUrl: jest.Mock<string, [string]>;
+    buildBlobName: jest.Mock<string, [BuildBlobNameInput]>;
+    getBlobOwnerId: jest.Mock<string | null, [string]>;
+    createUploadUrl: jest.Mock<
+      Record<string, unknown>,
+      [CreateBlobUploadUrlInput]
+    >;
+    assertLocalUploadToken: jest.Mock<void, [string, string, string]>;
+    writeLocalBlob: jest.Mock<Promise<void>, [string, Buffer, string]>;
     readLocalBlob: jest.Mock<
       Promise<{ contentType: string; body: Buffer }>,
       [string]
     >;
-    deleteBlobForUser: jest.Mock<Promise<void>, [string, string]>;
+    deleteBlob: jest.Mock<Promise<void>, [string]>;
     /** In-memory contents, so a stored upload can be read back over HTTP. */
     storage: Map<string, { contentType: string; body: Buffer }>;
   };
@@ -740,21 +747,19 @@ export function requirePersistenceApp(): PersistenceTestApp {
   return activePersistenceApp;
 }
 
-interface BlobUploadInput {
-  filename: string;
-  contentType: string;
-  sizeBytes?: number;
-  scope?: string;
-}
+const TEST_UPLOAD_TOKEN = "test-upload-token";
 
-interface BlobUploadPayload {
-  blobName: string;
-  contentType: string;
-  body: Buffer | Uint8Array;
+function buildTestBlobFileUrl(blobName: string): string {
+  return `http://rent.test/api/v1/blob/file?blobName=${encodeURIComponent(blobName)}`;
 }
 
 function createPersistenceTestStubs(): PersistenceTestStubs {
   const blobStorage = new Map<string, { contentType: string; body: Buffer }>();
+  // Naming is pure, so the real implementation is used rather than a copy of
+  // the convention that could drift. Created lazily, after the environment
+  // has loaded.
+  let blobNaming: BlobService | undefined;
+  const realBlobNaming = () => (blobNaming ??= new BlobService());
 
   return {
     captchaService: {
@@ -813,46 +818,41 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       })),
     },
     blobService: {
-      // Blob storage is a third-party SDK, and the production service's
-      // local-disk fallback is deliberately development-only. The endpoints are
-      // still exercised end to end over HTTP; only the bytes live in memory.
+      // Only storage is faked: Azure is a third-party SDK and the production
+      // service's local-disk fallback is deliberately development-only, so the
+      // bytes live in memory. The real MediaService runs on top of this, so the
+      // upload policy and ownership rules are exercised end to end over HTTP.
       storage: blobStorage,
-      createUploadUrl: jest.fn((input: BlobUploadInput) => {
-        // Only the storage is faked. The upload policy runs for real so the
-        // allow-list, the size ceiling, and the content-type-derived extension
-        // are covered end to end over HTTP rather than only in unit tests.
-        const contentType = normalizeImageContentType(input.contentType);
-
-        if (input.sizeBytes !== undefined) {
-          assertImageSizeWithinLimit(input.sizeBytes);
-        }
-
-        const blobName = `${input.scope ?? "uploads"}/${input.filename}${imageExtensionForContentType(contentType)}`;
-        return {
-          method: "PUT" as const,
-          uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=test-upload-token`,
-          expiresAt: "2099-01-01T00:00:00.000Z",
-          blobName,
-          blobUrl: `http://rent.test/api/v1/blob/file?blobName=${encodeURIComponent(blobName)}`,
-          container: "rent-test",
-          headers: {
-            "x-ms-blob-type": "BlockBlob" as const,
-            "content-type": contentType,
-          },
-          scope: input.scope,
-        };
-      }),
-      uploadLocalBlob: jest.fn(async (input: BlobUploadPayload) => {
-        const body = Buffer.from(input.body);
-        const contentType = normalizeImageContentType(input.contentType);
-        assertImageSizeWithinLimit(body.byteLength);
-        await assertImageBytes(body, contentType);
-
-        blobStorage.set(input.blobName, {
-          contentType,
-          body,
-        });
-      }),
+      buildBlobName: jest.fn((input: BuildBlobNameInput) =>
+        realBlobNaming().buildBlobName(input),
+      ),
+      getBlobOwnerId: jest.fn((blobName: string) =>
+        realBlobNaming().getBlobOwnerId(blobName),
+      ),
+      createUploadUrl: jest.fn((input: CreateBlobUploadUrlInput) => ({
+        method: "PUT" as const,
+        uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(input.blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=${TEST_UPLOAD_TOKEN}`,
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        blobName: input.blobName,
+        blobUrl: buildTestBlobFileUrl(input.blobName),
+        container: "rent-test",
+        headers: {
+          "x-ms-blob-type": "BlockBlob" as const,
+          "Content-Type": input.contentType,
+        },
+      })),
+      assertLocalUploadToken: jest.fn(
+        (_blobName: string, _expiresAt: string, token: string) => {
+          if (token !== TEST_UPLOAD_TOKEN) {
+            throw new BadRequestError("Blob upload token is invalid.");
+          }
+        },
+      ),
+      writeLocalBlob: jest.fn(
+        async (blobName: string, body: Buffer, contentType: string) => {
+          blobStorage.set(blobName, { contentType, body: Buffer.from(body) });
+        },
+      ),
       readLocalBlob: jest.fn(async (blobName: string) => {
         const stored = blobStorage.get(blobName);
         if (!stored) {
@@ -860,9 +860,10 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         }
         return stored;
       }),
-      deleteBlobForUser: jest.fn(async (_userId: string, blobName: string) => {
+      deleteBlob: jest.fn(async (blobName: string) => {
         blobStorage.delete(blobName);
       }),
+      getBlobUrl: jest.fn((blobName: string) => buildTestBlobFileUrl(blobName)),
       isConfigured: jest.fn(() => true),
       isManagedBlobUrl: jest.fn((blobUrl, blobName) => {
         try {

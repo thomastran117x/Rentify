@@ -34,12 +34,16 @@ export type DeleteBlobRequestQuery = z.infer<
   typeof deleteBlobRequestQuerySchema
 >;
 
-export interface CreateBlobUploadUrlInput {
-  userId: Uuid;
-  filename: string;
-  contentType: string;
-  sizeBytes?: number;
+export interface BuildBlobNameInput {
+  ownerId: Uuid;
+  /** Including the leading dot, e.g. ".png". */
+  extension: string;
   scope?: string;
+}
+
+export interface CreateBlobUploadUrlInput {
+  blobName: string;
+  contentType: string;
   requestOrigin?: string;
 }
 
@@ -54,6 +58,12 @@ export interface BlobUploadTarget {
     "x-ms-blob-type": "BlockBlob";
     "Content-Type": string;
   };
+}
+
+export interface BlobProperties {
+  contentType?: string;
+  contentLength?: number;
+  lastModified?: Date;
 }
 
 export interface ManagedBlobItem {

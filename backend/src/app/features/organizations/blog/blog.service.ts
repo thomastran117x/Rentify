@@ -6,7 +6,7 @@ import {
   htmlToPlainText,
   sanitizeRichText,
 } from "@/configuration/security/html-sanitizer";
-import type { BlobService } from "@/features/blob/blob.service";
+import type { MediaService } from "@/features/media/media.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
 import type { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
@@ -52,7 +52,7 @@ export class OrganizationBlogService {
     private readonly repository: OrganizationBlogRepository,
     private readonly organizationAccessService: OrganizationAccessService,
     private readonly organizationAuditService: OrganizationAuditService,
-    private readonly blobService: BlobService,
+    private readonly mediaService: MediaService,
     private readonly publicSearchService: OrganizationBlogPublicSearchService,
     private readonly blogCommentRealtimeGateway: OrganizationBlogCommentRealtimeGateway,
   ) {}
@@ -473,19 +473,19 @@ export class OrganizationBlogService {
       );
     }
 
-    if (!this.blobService.isConfigured()) {
+    if (!this.mediaService.isConfigured()) {
       throw new BadRequestError(
         "Cover images require Blob Storage to be configured on the backend.",
       );
     }
 
-    if (!this.blobService.isManagedBlobUrl(coverImageUrl, blobName)) {
+    if (!this.mediaService.isManagedUrl(coverImageUrl, blobName)) {
       throw new BadRequestError(
         "Cover image URL must match the Blob Storage location for the provided blob name.",
       );
     }
 
-    if (!this.blobService.isBlobOwnedByUser(actorUserId, blobName)) {
+    if (!this.mediaService.isOwnedBy(actorUserId, blobName)) {
       throw new BadRequestError(
         "Cover image blob must belong to the current user.",
       );
@@ -518,14 +518,14 @@ export class OrganizationBlogService {
     if (
       !blobName ||
       !this.isOrganizationBlobName(blobName) ||
-      !this.blobService.isBlobOwnedByUser(actorUserId, blobName) ||
-      (blobUrl && !this.blobService.isManagedBlobUrl(blobUrl, blobName))
+      !this.mediaService.isOwnedBy(actorUserId, blobName) ||
+      (blobUrl && !this.mediaService.isManagedUrl(blobUrl, blobName))
     ) {
       return;
     }
 
     try {
-      await this.blobService.deleteBlob(blobName);
+      await this.mediaService.deleteMedia(actorUserId, blobName);
     } catch (error) {
       this.logger.error("Failed to delete replaced blog cover image blob.", {
         blobName,

@@ -37,7 +37,8 @@ function buildPostingPhoto(blobName: string) {
   };
 }
 
-function buildCreatePostingBody() {
+// Photos must be uploaded by the acting user, which the blob name records.
+function buildCreatePostingBody(ownerId: string) {
   return {
     variant: {
       family: "place",
@@ -55,7 +56,9 @@ function buildCreatePostingBody() {
         amount: 32,
       },
     },
-    photos: [buildPostingPhoto("postings/persistence-workspace.jpg")],
+    photos: [
+      buildPostingPhoto(`postings/${ownerId}/persistence-workspace.jpg`),
+    ],
     tags: ["Loft", "Workspace", "Test"],
     details: {
       guest_capacity: 6,
@@ -92,7 +95,7 @@ function buildCreatePostingBody() {
   };
 }
 
-function buildUpdatePostingBody() {
+function buildUpdatePostingBody(ownerId: string) {
   return {
     variant: {
       family: "place",
@@ -109,7 +112,11 @@ function buildUpdatePostingBody() {
         amount: 960,
       },
     },
-    photos: [buildPostingPhoto("postings/persistence-workspace-updated.jpg")],
+    photos: [
+      buildPostingPhoto(
+        `postings/${ownerId}/persistence-workspace-updated.jpg`,
+      ),
+    ],
     tags: ["updated", "workspace"],
     details: {
       guest_capacity: 8,
@@ -309,7 +316,7 @@ describe("Postings persistence integration", () => {
       {
         method: "POST",
         headers: owner.headers(),
-        body: JSON.stringify(buildCreatePostingBody()),
+        body: JSON.stringify(buildCreatePostingBody(owner.userId)),
       },
     );
 
@@ -343,7 +350,7 @@ describe("Postings persistence integration", () => {
     });
     expect(createdPosting.photos).toHaveLength(1);
     expect(createdPosting.photos[0]).toMatchObject({
-      blobName: "postings/persistence-workspace.jpg",
+      blobName: `postings/${owner.userId}/persistence-workspace.jpg`,
     });
     expect(createdPosting.availabilityBlocks).toHaveLength(1);
     expect(createdPosting.availabilityBlocks[0]).toMatchObject({
@@ -356,7 +363,7 @@ describe("Postings persistence integration", () => {
       {
         method: "PUT",
         headers: owner.headers(),
-        body: JSON.stringify(buildUpdatePostingBody()),
+        body: JSON.stringify(buildUpdatePostingBody(owner.userId)),
       },
     );
 
@@ -380,7 +387,7 @@ describe("Postings persistence integration", () => {
       postalCode: "M4B1B3",
     });
     expect(updatedPosting.photos[0]).toMatchObject({
-      blobName: "postings/persistence-workspace-updated.jpg",
+      blobName: `postings/${owner.userId}/persistence-workspace-updated.jpg`,
     });
 
     const duplicateSourceId = SEED_POSTINGS[0]!.id;
@@ -843,7 +850,7 @@ describe("Postings persistence integration", () => {
         method: "POST",
         headers: owner.headers(),
         body: JSON.stringify({
-          ...buildCreatePostingBody(),
+          ...buildCreatePostingBody(owner.userId),
           photos: [],
         }),
       },
@@ -852,12 +859,28 @@ describe("Postings persistence integration", () => {
     expect(invalidCreateResponse.status).toBe(400);
     expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
 
+    // A photo uploaded by someone else cannot be attached to a new posting.
+    const foreignPhotoResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/postings")}`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify(buildCreatePostingBody(operator.userId)),
+      },
+    );
+
+    expect(foreignPhotoResponse.status).toBe(400);
+    expect(
+      ((await foreignPhotoResponse.json()) as { message: string }).message,
+    ).toBe("Posting photos must be uploaded by the current user.");
+    expect(await persistenceApp.prisma.posting.count()).toBe(beforeCount);
+
     const forbiddenCreateResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/postings")}`,
       {
         method: "POST",
         headers: operator.headers(),
-        body: JSON.stringify(buildCreatePostingBody()),
+        body: JSON.stringify(buildCreatePostingBody(operator.userId)),
       },
     );
 

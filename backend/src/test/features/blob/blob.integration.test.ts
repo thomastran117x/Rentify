@@ -11,8 +11,9 @@ import { createPngFixture } from "../../support/image-fixtures";
 /**
  * Exercises the blob endpoints end to end over HTTP. Blob storage itself is a
  * third-party SDK, and the production service's local-disk fallback is
- * development-only, so the harness backs it with in-memory storage. The
- * upload is still issued, stored, read back, and deleted through the API.
+ * development-only, so the harness backs it with in-memory storage. The real
+ * MediaService runs on top: the upload is still issued, validated, stored, read
+ * back, and deleted through the API.
  */
 describe("Blob persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -67,7 +68,9 @@ describe("Blob persistence integration", () => {
       blobName: string;
       method: string;
     }>(uploadUrlResponse);
-    expect(uploadTarget.blobName).toContain("persistence-photo");
+    expect(
+      uploadTarget.blobName.startsWith(`postings/photos/${owner.userId}/`),
+    ).toBe(true);
     expect(uploadTarget.blobName.endsWith(".png")).toBe(true);
 
     // The issued URL points back at this same upload endpoint.
@@ -103,6 +106,35 @@ describe("Blob persistence integration", () => {
       `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
     );
     expect(afterDeleteResponse.status).toBe(404);
+  });
+
+  it("refuses to delete another user's upload", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const otherUser = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+
+    const uploadUrlResponse = await request("/blob/upload-url", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({
+        filename: "logo.png",
+        contentType: "image/png",
+        scope: "organizations",
+      }),
+    });
+    const { blobName } = await readData<{ blobName: string }>(
+      uploadUrlResponse,
+    );
+
+    const deleteResponse = await request(
+      `/blob?blobName=${encodeURIComponent(blobName)}`,
+      { method: "DELETE", headers: otherUser.headers() },
+    );
+
+    expect(deleteResponse.status).toBe(400);
   });
 
   it("refuses upload credentials for a non-image content type", async () => {

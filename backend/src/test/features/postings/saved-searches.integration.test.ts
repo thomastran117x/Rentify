@@ -27,7 +27,11 @@ function buildPostingPhoto(blobName: string) {
   };
 }
 
-function buildCreatePostingBody(overrides: Record<string, unknown> = {}) {
+// Photos must be uploaded by the acting user, which the blob name records.
+function buildCreatePostingBody(
+  ownerId: string,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     variant: {
       family: "place",
@@ -41,7 +45,9 @@ function buildCreatePostingBody(overrides: Record<string, unknown> = {}) {
         amount: 155,
       },
     },
-    photos: [buildPostingPhoto("postings/saved-search-workspace.jpg")],
+    photos: [
+      buildPostingPhoto(`postings/${ownerId}/saved-search-workspace.jpg`),
+    ],
     tags: ["Loft", "Test"],
     details: {
       guest_capacity: 4,
@@ -98,7 +104,7 @@ describe("saved searches persistence", () => {
     const createResponse = await request("/postings", {
       method: "POST",
       headers: owner.headers(),
-      body: JSON.stringify(buildCreatePostingBody(overrides)),
+      body: JSON.stringify(buildCreatePostingBody(owner.userId, overrides)),
     });
     expect(createResponse.status).toBe(201);
 

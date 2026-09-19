@@ -108,6 +108,22 @@ Uploads are two-step: the client asks `POST /blob/upload-url` for credentials,
 then PUTs the bytes to the returned URL. Where that second PUT goes decides how
 much the backend can enforce.
 
+**Where the rules live.** Two services split the work:
+
+- `BlobService` (`features/blob`) is the storage adapter. It signs Azure SAS and
+  local upload URLs, reads, writes, and deletes bytes, reports blob properties,
+  and owns the naming convention `<scope>/<ownerId>/<file>`, in both
+  directions. It makes no decision about what may be stored or who may use it.
+- `MediaService` (`features/media`) owns those decisions: the image allow-list
+  and byte checks (`image-policy.ts`), issuing and completing uploads, and
+  ownership. Feature services that attach an uploaded image, such as profile
+  avatars, posting photos, organization logos, and blog covers, depend on
+  `MediaService`, never on `BlobService` directly, so a future media record with
+  validation state has a single place to be enforced.
+
+Posting thumbnail generation and the orphaned-blob cleanup script still use
+`BlobService` directly. Both are trusted server-side storage work.
+
 **At credential issuance (always enforced).** `POST /blob/upload-url` only issues
 credentials for images. A `contentType` outside the configured allow-list is
 rejected with 415 before any URL exists, and a `sizeBytes` over the limit with 413. The stored blob's extension is derived from the validated content type, not
@@ -147,6 +163,18 @@ Closing it needs one of:
 Until then, treat a stored blob's content type as client-asserted. Anything that
 re-decodes a blob should defend itself; posting thumbnail generation does, by
 capping `limitInputPixels` on its sharp decode.
+
+**When an image is attached.** A reference is accepted only if its URL matches
+the managed location for its blob name and, for anything newly attached, the
+blob was issued to the acting user. Ownership is read from the owner segment of
+the name.
+
+- Organization logos and blog covers must belong to the actor.
+- Posting photos already on the posting may be kept by anyone who can manage
+  it. That covers photos another member uploaded, seeded photos, and duplicated
+  postings. A newly added photo must belong to the actor.
+- A new avatar must belong to the user. Resending the stored one is always
+  accepted.
 
 ## Realtime Transport
 

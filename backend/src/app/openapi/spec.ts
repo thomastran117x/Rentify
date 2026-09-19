@@ -4578,7 +4578,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOwnProfile",
       summary: "Update the current user's profile",
       description:
-        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown.",
+        "Partially updates the authenticated user's editable profile fields: an omitted field is left unchanged, and only an explicit `null` clears one. `username` is required on every call; resending the current value is a no-op, including for a legacy username that the current content policy would reject. New usernames containing disallowed terms are rejected. Changing the username is limited to once every 30 days and responds `429 USERNAME_CHANGE_COOLDOWN` while the cooldown is in effect. Replacing an OAuth-generated username is exempt and does not start the cooldown. A new avatar must have been uploaded by the caller through `POST /blob/upload-url`; resending the current avatar is always accepted.",
       tags: ["profiles"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -5156,7 +5156,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPosting",
       summary: "Create a draft posting",
       description:
-        "Creates a draft posting owned by the authenticated owner. PAT bearer authentication with `mcp:write` is allowed.",
+        "Creates a draft posting owned by the authenticated owner. Every photo must have been uploaded by the caller through `POST /blob/upload-url`; a photo uploaded by anyone else is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {
@@ -5330,7 +5330,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updatePosting",
       summary: "Update an owner posting",
       description:
-        "Updates an existing owner posting. PAT bearer authentication with `mcp:write` is allowed.",
+        "Updates an existing owner posting. Photos already on the posting may be kept whoever uploaded them; a newly added photo must have been uploaded by the caller through `POST /blob/upload-url`, or the update is rejected with `400`. PAT bearer authentication with `mcp:write` is allowed.",
       tags: ["postings"],
       security: ownerSecurity,
       permissions: {

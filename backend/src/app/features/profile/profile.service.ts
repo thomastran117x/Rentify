@@ -3,7 +3,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import UsernameChangeCooldownError from "@/errors/http/username-change-cooldown.error";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { UsernameService } from "@/features/auth/username/username.service";
-import type { BlobService } from "@/features/blob/blob.service";
+import type { MediaService } from "@/features/media/media.service";
 import type {
   ListProfilesInput,
   ListProfilesResult,
@@ -22,7 +22,7 @@ import type { Uuid } from "@/configuration/validation/uuid";
 export class ProfileService {
   constructor(
     private readonly profileRepository: ProfileRepository,
-    private readonly blobService: BlobService,
+    private readonly mediaService: MediaService,
     private readonly usernameService: UsernameService,
     private readonly usernameBloomService: IdentityBloomService,
   ) {}
@@ -56,6 +56,8 @@ export class ProfileService {
     if (!existingProfile) {
       throw new ResourceNotFoundError("Profile could not be found.");
     }
+
+    this.assertAvatarOwnership(input, existingProfile);
 
     const username = input.username.trim().toLowerCase();
     // `username` is required on every profile PUT, so a phone or avatar save
@@ -209,18 +211,40 @@ export class ProfileService {
       );
     }
 
-    if (!this.blobService.isConfigured()) {
+    if (!this.mediaService.isConfigured()) {
       throw new BadRequestError(
         "Avatar images require Azure Blob Storage to be configured on the backend.",
       );
     }
 
     if (
-      !this.blobService.isManagedBlobUrl(input.avatarUrl, input.avatarBlobName)
+      !this.mediaService.isManagedUrl(input.avatarUrl, input.avatarBlobName)
     ) {
       throw new BadRequestError(
         "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
       );
     }
+  }
+
+  // Re-sending the stored avatar is always allowed, which is what every profile
+  // save that leaves the avatar alone does. A new avatar must have been
+  // uploaded by this user.
+  private assertAvatarOwnership(
+    input: UpdateProfileInput,
+    existingProfile: ProfileRecord,
+  ): void {
+    const avatarBlobName = input.avatarBlobName?.trim();
+
+    if (
+      !avatarBlobName ||
+      avatarBlobName === existingProfile.avatarBlobName ||
+      this.mediaService.isOwnedBy(input.userId, avatarBlobName)
+    ) {
+      return;
+    }
+
+    throw new BadRequestError(
+      "Avatar image blob must belong to the current user.",
+    );
   }
 }
