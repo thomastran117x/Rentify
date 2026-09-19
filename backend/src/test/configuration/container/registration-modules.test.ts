@@ -9,6 +9,7 @@ import { BlobService } from "@/features/blob/blob.service";
 import { MediaService } from "@/features/media/media.service";
 import { MediaController } from "@/features/media/media.controller";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
+import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
@@ -110,6 +111,9 @@ describe("targeted container registration modules", () => {
     );
     expect(resolve(containerTokens.mediaProcessingQueueService)).toBeInstanceOf(
       MediaProcessingQueueService,
+    );
+    expect(resolve(containerTokens.mediaProcessingService)).toBeInstanceOf(
+      MediaProcessingService,
     );
     expect(resolve(containerTokens.mediaController)).toBeInstanceOf(
       MediaController,

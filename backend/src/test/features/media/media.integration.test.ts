@@ -1,3 +1,4 @@
+import { containerTokens } from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
 import type {
   CreatedMediaUpload,
@@ -141,6 +142,76 @@ describe("Media persistence integration", () => {
     expect(read.status).toBe(200);
     await expect(readData<{ media: MediaView }>(read)).resolves.toMatchObject({
       media: { status: "uploaded" },
+    });
+  });
+
+  it("processes a completed upload into a displayable image", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { media, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.uploadUrl).searchParams.get(
+      "blobName",
+    )!;
+    await putBytes(upload.uploadUrl, await createPngFixture(10, 6));
+    await request(`/media/${media.id}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+
+    // What the worker does with the queued job.
+    await persistenceApp.container
+      .resolve(containerTokens.mediaProcessingService)
+      .process(media.id);
+
+    const read = await request(`/media/${media.id}`, {
+      headers: owner.headers(),
+    });
+    const { media: ready } = await readData<{ media: MediaView }>(read);
+    const processedName = `media/images/${owner.userId}/${media.id}.webp`;
+
+    expect(ready).toMatchObject({
+      status: "ready",
+      contentType: "image/png",
+      width: 10,
+      height: 6,
+      rejectionReason: null,
+    });
+    expect(new URL(ready.url!).searchParams.get("blobName")).toBe(
+      processedName,
+    );
+    expect(persistenceApp.stubs.blobService.storage.has(quarantinedName)).toBe(
+      false,
+    );
+    expect(
+      persistenceApp.stubs.blobService.storage.get(processedName)?.contentType,
+    ).toBe("image/webp");
+  });
+
+  it("rejects an upload whose bytes are not an image", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { media, upload } = await startUpload(owner.headers());
+    await putBytes(upload.uploadUrl, Buffer.from("definitely not a png"));
+    await request(`/media/${media.id}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+
+    await persistenceApp.container
+      .resolve(containerTokens.mediaProcessingService)
+      .process(media.id);
+
+    const read = await request(`/media/${media.id}`, {
+      headers: owner.headers(),
+    });
+    await expect(readData<{ media: MediaView }>(read)).resolves.toMatchObject({
+      media: {
+        status: "rejected",
+        url: null,
+        rejectionReason: "Uploaded file could not be read as an image.",
+      },
     });
   });
 

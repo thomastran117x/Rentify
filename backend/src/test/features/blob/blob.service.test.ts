@@ -349,6 +349,36 @@ describe("BlobService", () => {
     await expect(service.getProperties(blobName)).rejects.toThrow("ServerBusy");
   });
 
+  it("downloads Azure blobs and maps a 404 to not found", async () => {
+    useAzureBlobStorage();
+
+    const service = new BlobService();
+    const downloadToBuffer = jest
+      .fn()
+      .mockResolvedValueOnce(Buffer.from("bytes"))
+      .mockRejectedValueOnce(
+        Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
+      );
+    const getProperties = jest.fn(async () => ({ contentType: "image/png" }));
+    const helper = service as unknown as {
+      createBlobClient(blobName: string): unknown;
+    };
+    helper.createBlobClient = () => ({ downloadToBuffer, getProperties });
+    const blobName = `quarantine/images/${USER_1_ID}/upload`;
+
+    await expect(service.downloadBlob(blobName)).resolves.toEqual({
+      body: Buffer.from("bytes"),
+      contentType: "image/png",
+    });
+    await expect(service.downloadBlob(blobName)).rejects.toThrow(
+      ResourceNotFoundError,
+    );
+    await expect(service.downloadBlob(blobName)).rejects.toThrow("ServerBusy");
+  });
+
   it("requires complete Azure configuration", () => {
     process.env.NODE_ENV = "test";
     process.env.AZURE_STORAGE_CONNECTION_STRING =

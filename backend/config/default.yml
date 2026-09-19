@@ -162,6 +162,9 @@ workers:
   postingsThumbnail:
     prefetch: 10
     maxAttempts: 5
+  mediaProcessing:
+    prefetch: 10
+    maxAttempts: 5
   bookingExpiry:
     pollIntervalMs: 5000
     batchSize: 50

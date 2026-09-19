@@ -190,14 +190,14 @@ describe("assertImageSizeWithinLimit", () => {
 describe("assertImageBytes", () => {
   it("accepts bytes whose real format matches the declared type", async () => {
     await expect(
-      assertImageBytes(await createPngFixture(), "image/png"),
-    ).resolves.toBeUndefined();
+      assertImageBytes(await createPngFixture(6, 3), "image/png"),
+    ).resolves.toEqual({ contentType: "image/png", width: 6, height: 3 });
     await expect(
       assertImageBytes(await createJpegFixture(), "image/jpeg"),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ contentType: "image/jpeg", width: 4, height: 4 });
     await expect(
       assertImageBytes(await createWebpFixture(), "image/webp"),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ contentType: "image/webp", width: 4, height: 4 });
   });
 
   it("rejects bytes that are not an image at all", async () => {

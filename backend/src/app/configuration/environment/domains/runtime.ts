@@ -324,6 +324,22 @@ export function buildWorkerConfig(
         },
       ),
     },
+    mediaProcessing: {
+      prefetch: parseNumber(raw, "MEDIA_PROCESSING_PREFETCH", 10, errors, {
+        integer: true,
+        min: 1,
+      }),
+      maxAttempts: parseNumber(
+        raw,
+        "MEDIA_PROCESSING_MAX_ATTEMPTS",
+        5,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
     bookingExpiry: {
       pollIntervalMs: parseNumber(
         raw,

@@ -263,6 +263,10 @@ export class EnvironmentManager {
     return this.get().workers.postingsThumbnail;
   }
 
+  getMediaProcessingWorkerConfig(): AppEnvironment["workers"]["mediaProcessing"] {
+    return this.get().workers.mediaProcessing;
+  }
+
   getBookingExpiryWorkerConfig(): AppEnvironment["workers"]["bookingExpiry"] {
     return this.get().workers.bookingExpiry;
   }

@@ -150,10 +150,17 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   }
 }
 
+/** What the decoder found in bytes that passed validation. */
+export interface ImageInspection {
+  contentType: SupportedImageContentType;
+  width: number;
+  height: number;
+}
+
 /**
  * Validates the actual bytes of an upload: that they decode as an image, that
  * the real format matches what the client declared, and that the dimensions are
- * within policy.
+ * within policy. Returns the detected format and dimensions.
  *
  * Decoding through sharp rather than a hand-written signature table is
  * deliberate. Stored blobs are later re-decoded by sharp for thumbnailing, so
@@ -179,7 +186,7 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
 export async function assertImageBytes(
   body: Buffer,
   declaredContentType: SupportedImageContentType,
-): Promise<void> {
+): Promise<ImageInspection> {
   const policy = environment.getImageUploadsConfig();
   let metadata: Metadata;
 
@@ -247,4 +254,6 @@ export async function assertImageBytes(
       "Uploaded image data is truncated or corrupt.",
     );
   }
+
+  return { contentType: detected, width, height };
 }

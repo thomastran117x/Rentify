@@ -255,15 +255,24 @@ export class BlobService {
   }> {
     if (this.config) {
       const blobClient = this.createBlobClient(blobName);
-      const [body, properties] = await Promise.all([
-        blobClient.downloadToBuffer(),
-        blobClient.getProperties(),
-      ]);
 
-      return {
-        body,
-        contentType: properties.contentType ?? undefined,
-      };
+      try {
+        const [body, properties] = await Promise.all([
+          blobClient.downloadToBuffer(),
+          blobClient.getProperties(),
+        ]);
+
+        return {
+          body,
+          contentType: properties.contentType ?? undefined,
+        };
+      } catch (error) {
+        if (hasErrorCode(error, "statusCode", 404)) {
+          throw new ResourceNotFoundError("Blob not found.");
+        }
+
+        throw error;
+      }
     }
 
     const localBlob = await this.readLocalBlob(blobName);
