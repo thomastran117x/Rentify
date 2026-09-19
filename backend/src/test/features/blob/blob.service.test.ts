@@ -165,6 +165,39 @@ describe("BlobService", () => {
     ).toThrow(BadRequestError);
   });
 
+  it("names quarantined uploads and processed images by media id", () => {
+    useLocalBlobStorage();
+
+    const service = new BlobService();
+    const mediaId = testUuid(9000, 994263);
+    const quarantined = service.buildQuarantineImageBlobName(
+      USER_1_ID,
+      mediaId,
+    );
+    const processed = service.buildProcessedImageBlobName(USER_1_ID, mediaId);
+
+    expect(quarantined).toBe(`quarantine/images/${USER_1_ID}/${mediaId}`);
+    expect(processed).toBe(`media/images/${USER_1_ID}/${mediaId}.webp`);
+    expect(service.getBlobOwnerId(quarantined)).toBe(USER_1_ID);
+    expect(service.getBlobOwnerId(processed)).toBe(USER_1_ID);
+    expect(
+      service.getBlobOwnerId(
+        service.buildPostingPhotoThumbnailBlobName(processed),
+      ),
+    ).toBe(USER_1_ID);
+
+    expect(service.isQuarantineBlobName(quarantined)).toBe(true);
+    expect(service.isQuarantineBlobName(" /Quarantine/x ")).toBe(true);
+    expect(service.isQuarantineBlobName("quarantine")).toBe(true);
+    expect(service.isQuarantineBlobName("media/../quarantine/x")).toBe(true);
+    expect(service.isQuarantineBlobName(processed)).toBe(false);
+    expect(service.isQuarantineBlobName("postings/quarantine/x.png")).toBe(
+      false,
+    );
+    expect(service.isProcessedImageBlobName(processed)).toBe(true);
+    expect(service.isProcessedImageBlobName(quarantined)).toBe(false);
+  });
+
   it("rejects invalid and expired local upload tokens", () => {
     useLocalBlobStorage();
 

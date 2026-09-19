@@ -13,6 +13,7 @@ import { environment } from "@/configuration/environment/index";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
+import type { Uuid } from "@/configuration/validation/uuid";
 import type {
   BlobProperties,
   BlobUploadTarget,
@@ -44,6 +45,12 @@ const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
 const LOCAL_BLOB_FILE_PATH = buildApiPath("/blob/file");
 // Derived images sit one level below the original's owner directory.
 const THUMBNAIL_DIRECTORY = "thumbnails";
+// Client uploads land here and are never served; see MediaService.
+const QUARANTINE_ROOT = "quarantine";
+const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
+// Validated, re-encoded images written by the media processing worker.
+const PROCESSED_IMAGE_DIRECTORY = "media/images";
+const PROCESSED_IMAGE_EXTENSION = ".webp";
 
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(
@@ -522,6 +529,37 @@ export class BlobService {
     const normalizedScope = this.normalizeScope(input.scope);
 
     return `${normalizedScope}/${input.ownerId}/${Date.now()}-${randomUUID()}${input.extension}`;
+  }
+
+  /**
+   * Where a client uploads the bytes for a media record. The name carries no
+   * extension: the declared type is on the record, and nothing is inferred from
+   * the name until the bytes have been decoded.
+   */
+  buildQuarantineImageBlobName(ownerId: Uuid, mediaId: Uuid): string {
+    return `${QUARANTINE_IMAGE_DIRECTORY}/${ownerId}/${mediaId}`;
+  }
+
+  buildProcessedImageBlobName(ownerId: Uuid, mediaId: Uuid): string {
+    return `${PROCESSED_IMAGE_DIRECTORY}/${ownerId}/${mediaId}${PROCESSED_IMAGE_EXTENSION}`;
+  }
+
+  /** True for anything under quarantine/, which must never be served. */
+  isQuarantineBlobName(blobName: string): boolean {
+    const normalized = path.posix
+      .normalize(blobName.trim())
+      .replace(/^\/+/, "")
+      .toLowerCase();
+
+    return (
+      normalized === QUARANTINE_ROOT ||
+      normalized.startsWith(`${QUARANTINE_ROOT}/`)
+    );
+  }
+
+  /** True for an image written by the media processing worker. */
+  isProcessedImageBlobName(blobName: string): boolean {
+    return blobName.trim().startsWith(`${PROCESSED_IMAGE_DIRECTORY}/`);
   }
 
   /**

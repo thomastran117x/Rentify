@@ -1,11 +1,15 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
+import { mediaRegistrationModule } from "@/configuration/container/registrations/modules/media";
 import { postingsThumbnailRegistrationModule } from "@/configuration/container/registrations/modules/postings-thumbnail";
 import { smsRegistrationModule } from "@/configuration/container/registrations/modules/sms";
 import { BlobController } from "@/features/blob/blob.controller";
 import { BlobService } from "@/features/blob/blob.service";
 import { MediaService } from "@/features/media/media.service";
+import { MediaController } from "@/features/media/media.controller";
+import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
+import { MediaRepository } from "@/features/media/media.repository";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
@@ -79,11 +83,13 @@ describe("targeted container registration modules", () => {
     }> = [];
     const resolved = new Map<unknown, unknown>();
 
-    blobRegistrationModule.register({
-      register: (registration: (typeof registrations)[number]) => {
-        registrations.push(registration);
-      },
-    } as any);
+    for (const module of [blobRegistrationModule, mediaRegistrationModule]) {
+      module.register({
+        register: (registration: (typeof registrations)[number]) => {
+          registrations.push(registration);
+        },
+      } as any);
+    }
 
     const resolve = (token: unknown): unknown => {
       if (!resolved.has(token)) {
@@ -99,6 +105,15 @@ describe("targeted container registration modules", () => {
 
     expect(resolve(containerTokens.blobService)).toBeInstanceOf(BlobService);
     expect(resolve(containerTokens.mediaService)).toBeInstanceOf(MediaService);
+    expect(resolve(containerTokens.mediaRepository)).toBeInstanceOf(
+      MediaRepository,
+    );
+    expect(resolve(containerTokens.mediaProcessingQueueService)).toBeInstanceOf(
+      MediaProcessingQueueService,
+    );
+    expect(resolve(containerTokens.mediaController)).toBeInstanceOf(
+      MediaController,
+    );
     expect(resolve(containerTokens.blobController)).toBeInstanceOf(
       BlobController,
     );

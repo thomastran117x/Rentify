@@ -41,6 +41,10 @@
       "description": "Blob upload target creation."
     },
     {
+      "name": "media",
+      "description": "Image uploads tracked as media: upload into quarantine, asynchronous validation and re-encoding, and processing state."
+    },
+    {
       "name": "postings",
       "description": "Posting creation, search, analytics, reviews, and availability management."
     },
@@ -9351,6 +9355,417 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/media/uploads": {
+      "post": {
+        "operationId": "createMediaUpload",
+        "summary": "Start an image upload",
+        "description": "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The client PUTs the image bytes to `upload.uploadUrl` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no blob name or readable URL. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBlobUploadUrlRequest"
+              },
+              "example": {
+                "filename": "loft.jpg",
+                "contentType": "image/jpeg",
+                "sizeBytes": 248402,
+                "scope": "postings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CreatedMediaUpload"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Media upload created successfully.",
+                  "data": {
+                    "media": {
+                      "id": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10",
+                      "status": "pending_upload",
+                      "scope": "postings",
+                      "url": null,
+                      "contentType": "image/jpeg",
+                      "sizeBytes": null,
+                      "width": null,
+                      "height": null,
+                      "rejectionReason": null,
+                      "createdAt": "2026-05-25T18:15:00.000Z",
+                      "updatedAt": "2026-05-25T18:15:00.000Z"
+                    },
+                    "upload": {
+                      "method": "PUT",
+                      "uploadUrl": "https://storage.example.net/rentify/quarantine/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10?sig=abc123",
+                      "expiresAt": "2026-05-25T18:30:00.000Z",
+                      "headers": {
+                        "x-ms-blob-type": "BlockBlob",
+                        "Content-Type": "image/jpeg"
+                      }
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/media/{id}/complete": {
+      "post": {
+        "operationId": "completeMediaUpload",
+        "summary": "Report an image upload as finished",
+        "description": "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. Returns 409 when no bytes have been uploaded yet and 413 when the upload is over the limit (the media is then rejected). Calling it again after the first success returns the current state.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Media identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MediaResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Media upload received and queued for processing.",
+                  "data": {
+                    "media": {
+                      "id": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10",
+                      "status": "uploaded",
+                      "scope": "postings",
+                      "url": null,
+                      "contentType": "image/jpeg",
+                      "sizeBytes": null,
+                      "width": null,
+                      "height": null,
+                      "rejectionReason": null,
+                      "createdAt": "2026-05-25T18:15:00.000Z",
+                      "updatedAt": "2026-05-25T18:15:00.000Z"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "operationId": "getMedia",
+        "summary": "Get an uploaded image's processing state",
+        "description": "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`. Media belonging to anyone else is reported as 404.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Media identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MediaResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "media": {
+                      "id": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10",
+                      "status": "ready",
+                      "scope": "postings",
+                      "url": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp",
+                      "contentType": "image/jpeg",
+                      "sizeBytes": 184220,
+                      "width": 1600,
+                      "height": 1200,
+                      "rejectionReason": null,
+                      "createdAt": "2026-05-25T18:15:00.000Z",
+                      "updatedAt": "2026-05-25T18:15:04.000Z"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMedia",
+        "summary": "Delete an uploaded image",
+        "description": "Deletes one of the caller's media items together with its quarantined upload and processed image. Media belonging to anyone else is reported as 404.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "jwt-or-pat",
+          "minimumRole": "user",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Media identifier.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BlobDeleteResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Media deleted successfully.",
+                  "data": {
+                    "deleted": true
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -27274,6 +27689,136 @@
           }
         }
       },
+      "MediaStatus": {
+        "type": "string",
+        "enum": [
+          "pending_upload",
+          "uploaded",
+          "processing",
+          "ready",
+          "rejected"
+        ],
+        "description": "pending_upload: awaiting the client's PUT. uploaded: queued for processing. processing: being validated and re-encoded. ready: `url` addresses the processed image. rejected: see `rejectionReason`."
+      },
+      "MediaView": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "scope",
+          "url",
+          "contentType",
+          "sizeBytes",
+          "width",
+          "height",
+          "rejectionReason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MediaStatus"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "The processed image. Null until the status is `ready`; a quarantined upload is never addressable."
+          },
+          "contentType": {
+            "type": "string",
+            "nullable": true,
+            "description": "The detected type once processed, otherwise the declared type."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MediaUploadInstructions": {
+        "type": "object",
+        "required": [
+          "method",
+          "uploadUrl",
+          "expiresAt",
+          "headers"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "PUT"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Write-only upload target. It cannot be used to read."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreatedMediaUpload": {
+        "type": "object",
+        "required": [
+          "media",
+          "upload"
+        ],
+        "properties": {
+          "media": {
+            "$ref": "#/components/schemas/MediaView"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/MediaUploadInstructions"
+          }
+        }
+      },
+      "MediaResult": {
+        "type": "object",
+        "required": [
+          "media"
+        ],
+        "properties": {
+          "media": {
+            "$ref": "#/components/schemas/MediaView"
+          }
+        }
+      },
       "BlobDeleteResult": {
         "type": "object",
         "required": [
@@ -29528,34 +30073,26 @@
             "format": "date-time"
           },
           "readAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
+            "nullable": true,
             "format": "date-time",
             "description": "When the recipient side read this message, or null while unread."
           },
           "deliveredAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
+            "nullable": true,
             "format": "date-time",
             "description": "When the recipient's client acknowledged receipt over the socket. Weaker than readAt: the bytes arrived, which can happen while the thread sits unopened."
           },
           "editedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
+            "nullable": true,
             "format": "date-time",
             "description": "When the author last edited the message."
           },
           "deletedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
+            "nullable": true,
             "format": "date-time",
             "description": "When the author deleted the message. The row is kept as a tombstone so the booking retains a record that a message existed."
           }
@@ -29841,16 +30378,12 @@
                 "description": "The part of the stay total Rentify does not charge."
               },
               "depositBps": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
+                "type": "integer",
+                "nullable": true
               },
               "platformFeeBps": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
+                "type": "integer",
+                "nullable": true
               },
               "source": {
                 "type": "string",

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import BadRequestError from "@/errors/http/bad-request.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { created, ok } from "@/configuration/http/responses";
 import { getQuery, getRequestUrl } from "@/configuration/http/request";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
@@ -84,6 +85,12 @@ export class BlobController {
 
     if (!blobName) {
       throw new BadRequestError("Blob name is required.");
+    }
+
+    // Quarantined uploads are unvalidated bytes and are never served, so to a
+    // reader they do not exist.
+    if (this.blobService.isQuarantineBlobName(blobName)) {
+      throw new ResourceNotFoundError("Blob not found.");
     }
 
     // The local stand-in for Azure's public blob endpoint, which serves stored

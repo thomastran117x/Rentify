@@ -123,6 +123,22 @@ export interface PersistenceTestStubs {
       [string]
     >;
     deleteBlob: jest.Mock<Promise<void>, [string]>;
+    buildQuarantineImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
+    buildProcessedImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
+    isQuarantineBlobName: jest.Mock<boolean, [string]>;
+    isProcessedImageBlobName: jest.Mock<boolean, [string]>;
+    getProperties: jest.Mock<
+      Promise<{ contentType?: string; contentLength?: number }>,
+      [string]
+    >;
+    downloadBlob: jest.Mock<
+      Promise<{ body: Buffer; contentType?: string }>,
+      [string]
+    >;
+    uploadBuffer: jest.Mock<
+      Promise<{ blobName: string; blobUrl: string }>,
+      [{ blobName: string; body: Buffer; contentType: string }]
+    >;
     /** In-memory contents, so a stored upload can be read back over HTTP. */
     storage: Map<string, { contentType: string; body: Buffer }>;
   };
@@ -863,6 +879,54 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       deleteBlob: jest.fn(async (blobName: string) => {
         blobStorage.delete(blobName);
       }),
+      buildQuarantineImageBlobName: jest.fn((ownerId: Uuid, mediaId: Uuid) =>
+        realBlobNaming().buildQuarantineImageBlobName(ownerId, mediaId),
+      ),
+      buildProcessedImageBlobName: jest.fn((ownerId: Uuid, mediaId: Uuid) =>
+        realBlobNaming().buildProcessedImageBlobName(ownerId, mediaId),
+      ),
+      isQuarantineBlobName: jest.fn((blobName: string) =>
+        realBlobNaming().isQuarantineBlobName(blobName),
+      ),
+      isProcessedImageBlobName: jest.fn((blobName: string) =>
+        realBlobNaming().isProcessedImageBlobName(blobName),
+      ),
+      getProperties: jest.fn(async (blobName: string) => {
+        const stored = blobStorage.get(blobName);
+        if (!stored) {
+          throw new ResourceNotFoundError("Blob not found.");
+        }
+        return {
+          contentType: stored.contentType,
+          contentLength: stored.body.byteLength,
+        };
+      }),
+      downloadBlob: jest.fn(async (blobName: string) => {
+        const stored = blobStorage.get(blobName);
+        if (!stored) {
+          throw new ResourceNotFoundError("Blob not found.");
+        }
+        return {
+          body: Buffer.from(stored.body),
+          contentType: stored.contentType,
+        };
+      }),
+      uploadBuffer: jest.fn(
+        async (input: {
+          blobName: string;
+          body: Buffer;
+          contentType: string;
+        }) => {
+          blobStorage.set(input.blobName, {
+            contentType: input.contentType,
+            body: Buffer.from(input.body),
+          });
+          return {
+            blobName: input.blobName,
+            blobUrl: buildTestBlobFileUrl(input.blobName),
+          };
+        },
+      ),
       getBlobUrl: jest.fn((blobName: string) => buildTestBlobFileUrl(blobName)),
       isConfigured: jest.fn(() => true),
       isManagedBlobUrl: jest.fn((blobUrl, blobName) => {

@@ -124,6 +124,21 @@ much the backend can enforce.
 Posting thumbnail generation and the orphaned-blob cleanup script still use
 `BlobService` directly. Both are trusted server-side storage work.
 
+**Media records.** `POST /media/uploads` writes a `media` row in
+`pending_upload` _before_ it signs the upload credential, so no credential
+exists for bytes the application is not tracking. The client uploads to
+`quarantine/images/<userId>/<mediaId>` and then calls
+`POST /media/{id}/complete`, which checks that the bytes arrived and are within
+the size limit, moves the row to `uploaded`, and queues a
+`media.processing` job. The media id and blob names are the source of truth;
+URLs are derived from blob names.
+
+Nothing under `quarantine/` is ever displayed. The upload response carries no
+blob name or readable URL, `GET /media/{id}` sets `url` only once the row is
+`ready` (and then to the processed image), the local `GET /blob/file` stand-in
+answers 404 for quarantine names, and `MediaService.isManagedUrl` rejects them
+as attachment references.
+
 **At credential issuance (always enforced).** `POST /blob/upload-url` only issues
 credentials for images. A `contentType` outside the configured allow-list is
 rejected with 415 before any URL exists, and a `sizeBytes` over the limit with 413. The stored blob's extension is derived from the validated content type, not

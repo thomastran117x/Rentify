@@ -15,6 +15,7 @@ import {
 import { bookingsRouteModule } from "@/configuration/bootstrap/routes/modules/bookings.routes";
 import {
   blobRouteModule,
+  mediaRouteModule,
   organizationsBlogSearchAdminRouteModule,
   organizationsSearchAdminRouteModule,
   profilesRouteModule,
@@ -80,6 +81,7 @@ export const routeModuleRegistry: RouteModule[] = [
   organizationsMembersRouteModule,
   organizationsProfileRouteModule,
   blobRouteModule,
+  mediaRouteModule,
   profilesRouteModule,
   feedbacksRouteModule,
   reportsRouteModule,
