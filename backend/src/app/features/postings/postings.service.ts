@@ -1554,7 +1554,7 @@ export class PostingsService {
    * Turns one incoming photo into a stored blob reference. A newly uploaded
    * photo arrives as a media id and resolves to its processed image, which
    * MediaService only yields once validation has finished. A photo referenced
-   * by blob name must be a managed blob the actor may attach.
+   * by blob name must already be on the posting.
    */
   private async resolvePhoto(
     photo: PostingPhotoWriteInput,
@@ -1576,7 +1576,7 @@ export class PostingsService {
     }
 
     this.assertManagedBlob(photo.blobUrl, photo.blobName);
-    this.assertPhotoOwnership(photo.blobName, photoOwnership);
+    this.assertPhotoAttached(photo.blobName, photoOwnership);
 
     const managed: ManagedPostingPhotoInput = {
       blobUrl: photo.blobUrl,
@@ -1602,21 +1602,18 @@ export class PostingsService {
   }
 
   // A photo already on the posting stays attachable by anyone who may manage
-  // it, including one another member uploaded or a seeded photo. Only a newly
-  // attached photo has to have been uploaded by the acting user.
-  private assertPhotoOwnership(
+  // it, including one another member uploaded or a seeded photo. A new photo
+  // only arrives as a media id, which resolvePhoto has already handled.
+  private assertPhotoAttached(
     blobName: string,
-    { actorUserId, attachedBlobNames }: PhotoOwnershipContext,
+    { attachedBlobNames }: PhotoOwnershipContext,
   ): void {
-    if (
-      attachedBlobNames.has(blobName) ||
-      this.mediaService.isOwnedBy(actorUserId, blobName)
-    ) {
+    if (attachedBlobNames.has(blobName)) {
       return;
     }
 
     throw new BadRequestError(
-      "Posting photos must be uploaded by the current user.",
+      "New posting photos must be uploaded and sent as mediaId.",
     );
   }
 

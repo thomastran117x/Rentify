@@ -241,8 +241,8 @@ describe("ProfileService", () => {
     const updatedProfile = createProfile({
       username: "owner-one",
       phoneNumber: "+1 555 0111",
-      avatarUrl: "https://storage.example.com/avatars/user-1-updated.png",
-      avatarBlobName: "avatars/user-1-updated.png",
+      avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+      avatarBlobName: `avatars/${USER_1_ID}.png`,
     });
     const update = jest.fn(async () => updatedProfile);
     const { service, profileRepository, mediaService } = createService({
@@ -255,8 +255,9 @@ describe("ProfileService", () => {
         username: "  Owner-One  ",
         phoneNumber: "  +1 555 0111  ",
         isPrivate: true,
-        avatarUrl: "  https://storage.example.com/avatars/user-1-updated.png  ",
-        avatarBlobName: "  avatars/user-1-updated.png  ",
+        // The stored avatar, resent with stray whitespace.
+        avatarUrl: `  https://storage.example.com/avatars/${USER_1_ID}.png  `,
+        avatarBlobName: `  avatars/${USER_1_ID}.png  `,
         recommendationPersonalizationEnabled: false,
         trustworthinessScore: 5,
         rentPostingsCount: 6,
@@ -267,13 +268,10 @@ describe("ProfileService", () => {
     expect(profileRepository.findByUserId).toHaveBeenCalledWith(USER_1_ID);
     expect(mediaService.isConfigured).toHaveBeenCalledTimes(1);
     expect(mediaService.isManagedUrl).toHaveBeenCalledWith(
-      "  https://storage.example.com/avatars/user-1-updated.png  ",
-      "  avatars/user-1-updated.png  ",
+      `  https://storage.example.com/avatars/${USER_1_ID}.png  `,
+      `  avatars/${USER_1_ID}.png  `,
     );
-    expect(mediaService.isOwnedBy).toHaveBeenCalledWith(
-      USER_1_ID,
-      "avatars/user-1-updated.png",
-    );
+    expect(mediaService.isOwnedBy).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       userId: USER_1_ID,
       username: "owner-one",
@@ -283,8 +281,8 @@ describe("ProfileService", () => {
       usernameChangeGuardAt: expect.any(Date),
       phoneNumber: "+1 555 0111",
       isPrivate: true,
-      avatarUrl: "https://storage.example.com/avatars/user-1-updated.png",
-      avatarBlobName: "avatars/user-1-updated.png",
+      avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+      avatarBlobName: `avatars/${USER_1_ID}.png`,
       recommendationPersonalizationEnabled: false,
       trustworthinessScore: 5,
       rentPostingsCount: 6,
@@ -339,21 +337,20 @@ describe("ProfileService", () => {
     });
   });
 
-  it("rejects a new avatar the user did not upload", async () => {
+  it("refuses a new avatar sent by blob name, even one the user uploaded", async () => {
     const update = createUpdateMock();
-    const { service } = createService({
-      update,
-      isOwnedBy: jest.fn(() => false),
-    });
+    const { service } = createService({ update });
 
     await expect(
       service.update({
         userId: USER_1_ID,
         username: "casey-doe",
-        avatarUrl: "https://storage.example.com/avatars/someone-else.png",
-        avatarBlobName: "avatars/someone-else.png",
+        avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}-new.png`,
+        avatarBlobName: `avatars/${USER_1_ID}-new.png`,
       }),
-    ).rejects.toThrow("Avatar image blob must belong to the current user.");
+    ).rejects.toThrow(
+      "A new avatar must be uploaded and sent as avatarMediaId.",
+    );
     expect(update).not.toHaveBeenCalled();
   });
 

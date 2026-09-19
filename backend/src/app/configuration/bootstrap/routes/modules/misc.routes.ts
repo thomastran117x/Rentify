@@ -10,13 +10,6 @@ import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 export const blobRouteModule: RouteModule = {
   id: "blob",
   register(app, { resolveHandler }) {
-    app.post(
-      "/blob/upload-url",
-      resolveHandler<BlobController>(
-        containerTokens.blobController,
-        "createUploadUrl",
-      ),
-    );
     app.put(
       "/blob/upload",
       resolveHandler<BlobController>(
@@ -30,10 +23,6 @@ export const blobRouteModule: RouteModule = {
         containerTokens.blobController,
         "getLocal",
       ),
-    );
-    app.delete(
-      "/blob",
-      resolveHandler<BlobController>(containerTokens.blobController, "delete"),
     );
   },
 };

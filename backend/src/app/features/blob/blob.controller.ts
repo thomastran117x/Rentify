@@ -1,57 +1,20 @@
 import type { Request, Response } from "express";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import { created, ok } from "@/configuration/http/responses";
-import { getQuery, getRequestUrl } from "@/configuration/http/request";
-import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
-import { parseRequestBody } from "@/configuration/validation/request";
-import {
-  createBlobUploadUrlRequestSchema,
-  deleteBlobRequestQuerySchema,
-  type CreateBlobUploadUrlRequestBody,
-} from "@/features/blob/blob.model";
+import { getQuery } from "@/configuration/http/request";
 import type { BlobService } from "@/features/blob/blob.service";
-import type { CreateImageUploadInput } from "@/features/media/media.model";
 import type { MediaService } from "@/features/media/media.service";
-import { asUuid } from "@/configuration/validation/uuid";
 
+/**
+ * The development-only local stand-ins for Azure's upload and public read
+ * endpoints. Uploads themselves are started, completed, and deleted through
+ * MediaController.
+ */
 export class BlobController {
   constructor(
     private readonly mediaService: MediaService,
     private readonly blobService: BlobService,
   ) {}
-
-  createUploadUrl = async (
-    request: Request,
-    response: Response,
-  ): Promise<void> => {
-    await requireJwtAuth(request);
-    const input = await parseRequestBody(
-      request,
-      createBlobUploadUrlRequestSchema,
-    );
-    const result = this.mediaService.createImageUpload(
-      this.toCreateImageUploadInput(request, input),
-    );
-
-    created(response, result, {
-      message: "Blob upload URL created successfully.",
-    });
-  };
-
-  private toCreateImageUploadInput(
-    request: Request,
-    input: CreateBlobUploadUrlRequestBody,
-  ): CreateImageUploadInput {
-    return {
-      userId: asUuid(request.auth.sub),
-      filename: input.filename,
-      contentType: input.contentType,
-      sizeBytes: input.sizeBytes,
-      scope: input.scope,
-      requestOrigin: getRequestUrl(request).origin,
-    };
-  }
 
   uploadLocal = async (request: Request, response: Response): Promise<void> => {
     const query = getQuery(request);
@@ -101,22 +64,5 @@ export class BlobController {
     response.setHeader("content-type", blob.contentType);
     response.setHeader("cache-control", "public, max-age=31536000, immutable");
     response.end(Buffer.from(blob.body));
-  };
-
-  delete = async (request: Request, response: Response): Promise<void> => {
-    const auth = await requireJwtAuth(request);
-    const query = deleteBlobRequestQuerySchema.parse(getQuery(request));
-
-    await this.mediaService.deleteMedia(auth.sub, query.blobName);
-
-    ok(
-      response,
-      {
-        deleted: true,
-      },
-      {
-        message: "Blob deleted successfully.",
-      },
-    );
   };
 }

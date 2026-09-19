@@ -56,7 +56,7 @@ export class OrganizationLogoService {
       };
     }
 
-    this.assertLogoReference(actorUserId, profile, currentLogoBlobName);
+    this.assertLogoReference(profile, currentLogoBlobName);
     return profile;
   }
 
@@ -70,7 +70,6 @@ export class OrganizationLogoService {
   }
 
   private assertLogoReference(
-    actorUserId: Uuid,
     profile: OrganizationProfileInput,
     currentLogoBlobName: string | null,
   ): void {
@@ -118,14 +117,10 @@ export class OrganizationLogoService {
     }
 
     // Resending the stored logo is what every save that leaves it alone does,
-    // whoever uploaded it.
-    if (logoBlobName === currentLogoBlobName) {
-      return;
-    }
-
-    if (!this.mediaService.isOwnedBy(actorUserId, logoBlobName)) {
+    // whoever uploaded it. A new logo only arrives as logoMediaId.
+    if (logoBlobName !== currentLogoBlobName) {
       throw new BadRequestError(
-        "Organization logo blob must belong to the current user.",
+        "A new organization logo must be uploaded and sent as logoMediaId.",
       );
     }
   }

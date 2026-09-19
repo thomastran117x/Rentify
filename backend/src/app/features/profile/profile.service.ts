@@ -47,18 +47,18 @@ export class ProfileService {
 
   async update(requested: UpdateProfileInput): Promise<ProfileRecord> {
     this.assertPostingCounts(requested);
-    const input = await this.resolveAvatarMedia(requested);
-    this.assertAvatarFields(input);
+    this.assertAvatarFields(requested);
 
     const existingProfile = await this.profileRepository.findByUserId(
-      input.userId,
+      requested.userId,
     );
 
     if (!existingProfile) {
       throw new ResourceNotFoundError("Profile could not be found.");
     }
 
-    this.assertAvatarOwnership(input, existingProfile);
+    this.assertAvatarIsStored(requested, existingProfile);
+    const input = await this.resolveAvatarMedia(requested);
 
     const username = input.username.trim().toLowerCase();
     // `username` is required on every profile PUT, so a phone or avatar save
@@ -189,6 +189,12 @@ export class ProfileService {
   }
 
   private assertAvatarFields(input: UpdateProfileInput): void {
+    if (input.avatarMediaId && (input.avatarUrl || input.avatarBlobName)) {
+      throw new BadRequestError(
+        "Send either avatarMediaId or avatarUrl and avatarBlobName, not both.",
+      );
+    }
+
     const hasAvatarUrl = input.avatarUrl !== undefined;
     const hasAvatarBlobName = input.avatarBlobName !== undefined;
 
@@ -227,8 +233,7 @@ export class ProfileService {
     }
   }
 
-  // A new avatar arrives as a media id and resolves to its processed image,
-  // which then passes the same reference checks as any stored avatar.
+  // A new avatar arrives as a media id and resolves to its processed image.
   private async resolveAvatarMedia(
     input: UpdateProfileInput,
   ): Promise<UpdateProfileInput> {
@@ -236,12 +241,6 @@ export class ProfileService {
 
     if (!avatarMediaId) {
       return rest;
-    }
-
-    if (input.avatarUrl || input.avatarBlobName) {
-      throw new BadRequestError(
-        "Send either avatarMediaId or avatarUrl and avatarBlobName, not both.",
-      );
     }
 
     const image = await this.mediaService.resolveAttachableImage(
@@ -257,24 +256,20 @@ export class ProfileService {
   }
 
   // Re-sending the stored avatar is always allowed, which is what every profile
-  // save that leaves the avatar alone does. A new avatar must have been
-  // uploaded by this user.
-  private assertAvatarOwnership(
+  // save that leaves the avatar alone does. A new avatar only arrives as
+  // avatarMediaId.
+  private assertAvatarIsStored(
     input: UpdateProfileInput,
     existingProfile: ProfileRecord,
   ): void {
     const avatarBlobName = input.avatarBlobName?.trim();
 
-    if (
-      !avatarBlobName ||
-      avatarBlobName === existingProfile.avatarBlobName ||
-      this.mediaService.isOwnedBy(input.userId, avatarBlobName)
-    ) {
+    if (!avatarBlobName || avatarBlobName === existingProfile.avatarBlobName) {
       return;
     }
 
     throw new BadRequestError(
-      "Avatar image blob must belong to the current user.",
+      "A new avatar must be uploaded and sent as avatarMediaId.",
     );
   }
 }

@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -17,7 +17,6 @@ import type { Uuid } from "@/configuration/validation/uuid";
 import type {
   BlobProperties,
   BlobUploadTarget,
-  BuildBlobNameInput,
   CreateBlobUploadUrlInput,
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
@@ -37,7 +36,6 @@ interface LocalBlobConfiguration {
   defaultPublicOrigin: string;
 }
 
-const DEFAULT_SCOPE = "general";
 const DEFAULT_SAS_TTL_SECONDS = 15 * 60;
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
@@ -531,16 +529,6 @@ export class BlobService {
   }
 
   /**
-   * Issues a fresh name of the form `${scope}/${ownerId}/${file}`. The caller
-   * supplies the extension; the client's filename never contributes to it.
-   */
-  buildBlobName(input: BuildBlobNameInput): string {
-    const normalizedScope = this.normalizeScope(input.scope);
-
-    return `${normalizedScope}/${input.ownerId}/${Date.now()}-${randomUUID()}${input.extension}`;
-  }
-
-  /**
    * Where a client uploads the bytes for a media record. The name carries no
    * extension: the declared type is on the record, and nothing is inferred from
    * the name until the bytes have been decoded.
@@ -572,11 +560,11 @@ export class BlobService {
   }
 
   /**
-   * Reads the owner segment back out of a name issued by buildBlobName, or of a
-   * thumbnail derived from one, or returns null when the name is invalid or not
-   * in that shape. The scope may
-   * itself contain slashes and the file never does, so the owner is found from
-   * the end.
+   * Reads the owner segment back out of a name of the form
+   * `<prefix>/<ownerId>/<file>` - quarantined and processed media, and blobs
+   * stored before media existed - or of a thumbnail derived from one. Returns
+   * null when the name is invalid or not in that shape. The prefix may contain
+   * slashes and the file never does, so the owner is found from the end.
    */
   getBlobOwnerId(blobName: string): string | null {
     let normalizedBlobName: string;
@@ -597,24 +585,8 @@ export class BlobService {
     return ownerSegments.length < 3 ? null : (ownerSegments.at(-2) ?? null);
   }
 
-  private normalizeScope(scope?: string): string {
-    const normalizedScope = (scope ?? DEFAULT_SCOPE).trim().toLowerCase();
-
-    if (!normalizedScope) {
-      return DEFAULT_SCOPE;
-    }
-
-    if (!/^[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(normalizedScope)) {
-      throw new BadRequestError(
-        "Scope may only include lowercase letters, numbers, hyphens, and forward slashes.",
-      );
-    }
-
-    return normalizedScope;
-  }
-
   // Generic shape-only check. Which types may be uploaded at all is decided
-  // before a name or URL is requested, by MediaService's image allow-list.
+  // before a name or URL is issued, by MediaService's image allow-list.
   private normalizeContentType(contentType: string): string {
     const normalized = contentType.trim().toLowerCase();
 

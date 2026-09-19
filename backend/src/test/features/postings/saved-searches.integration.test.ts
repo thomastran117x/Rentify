@@ -5,6 +5,7 @@ import type { SavedSearchAlertService } from "@/features/postings/saved-searches
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -19,17 +20,13 @@ const sweepConfig = {
   dailyIntervalMs: 86_400_000,
 };
 
-function buildPostingPhoto(blobName: string) {
-  return {
-    blobUrl: `http://blob.test/uploads/${blobName}?blobName=${blobName}`,
-    blobName,
-    position: 0,
-  };
+// A new photo is a ready media item uploaded by the acting user.
+async function readyPhotoId(userId: string): Promise<string> {
+  return (await createReadyMedia(userId)).mediaId;
 }
 
-// Photos must be uploaded by the acting user, which the blob name records.
 function buildCreatePostingBody(
-  ownerId: string,
+  photoMediaId: string,
   overrides: Record<string, unknown> = {},
 ) {
   return {
@@ -45,9 +42,7 @@ function buildCreatePostingBody(
         amount: 155,
       },
     },
-    photos: [
-      buildPostingPhoto(`postings/${ownerId}/saved-search-workspace.jpg`),
-    ],
+    photos: [{ mediaId: photoMediaId, position: 0 }],
     tags: ["Loft", "Test"],
     details: {
       guest_capacity: 4,
@@ -104,7 +99,9 @@ describe("saved searches persistence", () => {
     const createResponse = await request("/postings", {
       method: "POST",
       headers: owner.headers(),
-      body: JSON.stringify(buildCreatePostingBody(owner.userId, overrides)),
+      body: JSON.stringify(
+        buildCreatePostingBody(await readyPhotoId(owner.userId), overrides),
+      ),
     });
     expect(createResponse.status).toBe(201);
 

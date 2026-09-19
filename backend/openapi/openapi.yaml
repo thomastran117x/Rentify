@@ -34,7 +34,7 @@ tags:
   - name: feedback
     description: Public app feedback submission with optional authenticated context.
   - name: blob
-    description: Blob upload target creation.
+    description: Development-only local stand-ins for Azure's upload and public read endpoints.
   - name: media
     description: 'Image uploads tracked as media: upload into quarantine, asynchronous validation and re-encoding, and processing state.'
   - name: postings
@@ -6122,76 +6122,6 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /blob/upload-url:
-    post:
-      operationId: createBlobUploadUrl
-      summary: Create an upload URL for blob storage
-      description: 'Creates a short-lived signed upload target for authenticated users. Credentials are only issued for image uploads: the request is rejected with 415 unless `contentType` is one of the supported image types. The stored blob''s extension is derived from `contentType`, never from `filename`.'
-      tags:
-        - blob
-      security:
-        - bearerAuth: []
-      x-rentify-permissions:
-        authMode: jwt-or-pat
-        minimumRole: user
-        patAllowed: false
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateBlobUploadUrlRequest'
-            example:
-              filename: loft.jpg
-              contentType: image/jpeg
-              sizeBytes: 248402
-              scope: postings/photos
-      responses:
-        '201':
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/BlobUploadTarget'
-                      meta:
-                        $ref: '#/components/schemas/RequestMeta'
-              example:
-                success: true
-                message: Blob upload URL created successfully.
-                data:
-                  method: PUT
-                  uploadUrl: https://storage.example.net/rentify/uploads/photo-1.jpg?sig=abc123
-                  expiresAt: '2026-05-25T18:30:00.000Z'
-                  blobName: uploads/photo-1.jpg
-                  blobUrl: https://cdn.rentify.local/uploads/photo-1.jpg
-                  container: rentify
-                  headers:
-                    x-ms-blob-type: BlockBlob
-                    Content-Type: image/jpeg
-                error: null
-                meta:
-                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /media/uploads:
     post:
       operationId: createMediaUpload
@@ -6210,7 +6140,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateBlobUploadUrlRequest'
+              $ref: '#/components/schemas/CreateMediaUploadRequest'
             example:
               filename: loft.jpg
               contentType: image/jpeg
@@ -6439,7 +6369,7 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/BlobDeleteResult'
+                        $ref: '#/components/schemas/MediaDeleteResult'
                       meta:
                         $ref: '#/components/schemas/RequestMeta'
               example:
@@ -6462,65 +6392,11 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /blob:
-    delete:
-      operationId: deleteBlob
-      summary: Delete a managed blob
-      description: Deletes a blob owned by the authenticated user. The target blob is identified by the `blobName` query parameter.
-      tags:
-        - blob
-      security:
-        - bearerAuth: []
-      x-rentify-permissions:
-        authMode: jwt-or-pat
-        minimumRole: user
-        patAllowed: false
-      parameters:
-        - name: blobName
-          in: query
-          required: true
-          description: Managed blob name to delete.
-          schema:
-            type: string
-            maxLength: 1000
-          example: postings/user-1/photo-1.jpg
-      responses:
-        '200':
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/BlobDeleteResult'
-                      meta:
-                        $ref: '#/components/schemas/RequestMeta'
-              example:
-                success: true
-                message: Blob deleted successfully.
-                data:
-                  deleted: true
-                error: null
-                meta:
-                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /blob/upload:
     put:
       operationId: uploadLocalBlob
       summary: Upload a blob payload to the local development fallback
-      description: Accepts a signed local-development upload URL generated by the blob upload target route. This route is only used when Azure Blob Storage is not configured in development.
+      description: Accepts the bytes for a signed local-development upload URL issued by `POST /media/uploads`. Only a quarantine name whose media item is still `pending_upload` is accepted, and the bytes are held to the size limit; format and dimensions are checked by the media processing worker. This route is only used when Azure Blob Storage is not configured in development.
       tags:
         - blob
       x-rentify-permissions:
@@ -6531,10 +6407,10 @@ paths:
         - name: blobName
           in: query
           required: true
-          description: Managed blob name to store.
+          description: Quarantine blob name the upload URL was issued for.
           schema:
             type: string
-          example: postings/user-1/local-photo.png
+          example: quarantine/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10
         - name: expiresAt
           in: query
           required: true
@@ -6546,7 +6422,7 @@ paths:
         - name: token
           in: query
           required: true
-          description: Upload token generated by the blob upload target route.
+          description: Upload token issued with the upload URL by `POST /media/uploads`.
           schema:
             type: string
           example: signed-local-upload-token
@@ -6586,7 +6462,7 @@ paths:
     get:
       operationId: getLocalBlob
       summary: Read a locally stored development blob
-      description: Returns a blob payload from the local development fallback store. This route is only used when Azure Blob Storage is not configured in development.
+      description: 'Returns a blob payload from the local development fallback store, standing in for Azure''s public blob endpoint. Quarantined uploads are never served: any `quarantine/` name answers 404. This route is only used when Azure Blob Storage is not configured in development.'
       tags:
         - blob
       x-rentify-permissions:
@@ -6600,7 +6476,7 @@ paths:
           description: Managed blob name to fetch.
           schema:
             type: string
-          example: postings/user-1/local-photo.png
+          example: media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp
       responses:
         '200':
           description: Blob payload returned successfully.
@@ -18782,7 +18658,7 @@ components:
           type: boolean
         tokenId:
           type: string
-    CreateBlobUploadUrlRequest:
+    CreateMediaUploadRequest:
       type: object
       required:
         - filename
@@ -18790,7 +18666,7 @@ components:
       properties:
         filename:
           type: string
-          description: Original filename, retained for display and diagnostics only. The stored blob's extension is derived from contentType, so a filename extension that disagrees with it is ignored rather than rejected.
+          description: Original filename, retained for display and diagnostics only. It never contributes to the stored blob's name, and a filename extension that disagrees with contentType is ignored rather than rejected.
         contentType:
           type: string
           enum:
@@ -18804,37 +18680,7 @@ components:
           description: Optional client-declared byte length, checked against the server limit before a URL is issued. Advisory only - the authoritative size check runs against the uploaded bytes.
         scope:
           type: string
-    BlobUploadTarget:
-      type: object
-      required:
-        - method
-        - uploadUrl
-        - expiresAt
-        - blobName
-        - blobUrl
-        - container
-        - headers
-      properties:
-        method:
-          type: string
-          const: PUT
-        uploadUrl:
-          type: string
-          format: uri
-        expiresAt:
-          type: string
-          format: date-time
-        blobName:
-          type: string
-        blobUrl:
-          type: string
-          format: uri
-        container:
-          type: string
-        headers:
-          type: object
-          additionalProperties:
-            type: string
+          description: What the image is for. Logos and blog covers must be uploaded with scope `organizations`. Defaults to `general`.
     MediaStatus:
       type: string
       enum:
@@ -18932,7 +18778,7 @@ components:
       properties:
         media:
           $ref: '#/components/schemas/MediaView'
-    BlobDeleteResult:
+    MediaDeleteResult:
       type: object
       required:
         - deleted

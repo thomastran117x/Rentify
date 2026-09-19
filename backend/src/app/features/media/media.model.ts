@@ -1,4 +1,30 @@
+import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
+
+const mediaScopePattern = /^[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
+
+export const createMediaUploadRequestSchema = z.object({
+  filename: z.string().trim().min(1, "Filename is required.").max(255),
+  contentType: z.string().trim().min(1, "Content type is required.").max(255),
+  // Advisory: the client declares this and can lie. It buys an early, clear
+  // rejection for an honestly oversized file instead of a failure part-way
+  // through the upload. The authoritative check runs against the real bytes.
+  sizeBytes: z.number().int().positive().optional(),
+  scope: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(
+      mediaScopePattern,
+      "Scope may only include lowercase letters, numbers, hyphens, and forward slashes.",
+    )
+    .optional(),
+});
+
+export type CreateMediaUploadRequestBody = z.infer<
+  typeof createMediaUploadRequestSchema
+>;
 
 export const MEDIA_STATUSES = [
   "pending_upload",
@@ -101,16 +127,6 @@ export interface CreateImageUploadInput {
   sizeBytes?: number;
   scope?: string;
   requestOrigin?: string;
-}
-
-export interface MediaItem {
-  blobName: string;
-  blobUrl: string;
-  /** Read from the blob name; null when it has no owner segment. */
-  ownerId: string | null;
-  contentType: string | null;
-  sizeBytes: number | null;
-  lastModified: Date | null;
 }
 
 export interface CompleteImageUploadInput {

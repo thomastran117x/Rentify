@@ -2,6 +2,7 @@ import { buildApiPath } from "@/configuration/http/api-path";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -9,11 +10,10 @@ import {
 import { createPngFixture } from "../../support/image-fixtures";
 
 /**
- * Exercises the blob endpoints end to end over HTTP. Blob storage itself is a
- * third-party SDK, and the production service's local-disk fallback is
- * development-only, so the harness backs it with in-memory storage. The real
- * MediaService runs on top: the upload is still issued, validated, stored, read
- * back, and deleted through the API.
+ * Exercises the blob endpoints that remain: the development-only stand-ins for
+ * Azure's upload and public read endpoints. Uploads are started, completed, and
+ * deleted through /media; see media.integration.test.ts. Blob storage itself is
+ * held in memory by the harness.
  */
 describe("Blob persistence integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -28,11 +28,6 @@ describe("Blob persistence integration", () => {
     );
   }
 
-  async function readData<TData>(response: Response): Promise<TData> {
-    const body = (await response.json()) as { data: TData };
-    return body.data;
-  }
-
   beforeAll(async () => {
     persistenceApp = await createPersistenceTestApp();
   }, 180_000);
@@ -45,205 +40,68 @@ describe("Blob persistence integration", () => {
     await teardownPersistenceTestApp();
   }, 180_000);
 
-  it("issues an upload URL, stores the upload, and serves it back", async () => {
+  it("serves a processed image but never a quarantined upload", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
     });
-    const fixture = await createPngFixture();
-
-    const uploadUrlResponse = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({
-        filename: "persistence-photo.png",
-        contentType: "image/png",
-        sizeBytes: fixture.byteLength,
-        scope: "postings/photos",
-      }),
+    const media = await createReadyMedia(owner.userId);
+    const quarantined = `quarantine/images/${owner.userId}/${media.mediaId}`;
+    persistenceApp.stubs.blobService.storage.set(quarantined, {
+      contentType: "image/png",
+      body: await createPngFixture(),
     });
-    expect(uploadUrlResponse.status).toBe(201);
 
-    const uploadTarget = await readData<{
-      uploadUrl: string;
-      blobName: string;
-      method: string;
-    }>(uploadUrlResponse);
-    expect(
-      uploadTarget.blobName.startsWith(`postings/photos/${owner.userId}/`),
-    ).toBe(true);
-    expect(uploadTarget.blobName.endsWith(".png")).toBe(true);
+    const processed = await request(
+      `/blob/file?blobName=${encodeURIComponent(media.blobName)}`,
+    );
+    expect(processed.status).toBe(200);
+    expect(processed.headers.get("content-type")).toBe("image/webp");
 
-    // The issued URL points back at this same upload endpoint.
-    const issuedUrl = new URL(uploadTarget.uploadUrl);
-    expect(issuedUrl.pathname).toBe(buildApiPath("/blob/upload"));
-    expect(issuedUrl.searchParams.get("blobName")).toBe(uploadTarget.blobName);
+    for (const blobName of [quarantined, ` /Quarantine/images/x`]) {
+      const response = await request(
+        `/blob/file?blobName=${encodeURIComponent(blobName)}`,
+      );
+      expect(response.status).toBe(404);
+    }
+  });
 
-    const uploadResponse = await request(
-      `/blob/upload?blobName=${encodeURIComponent(uploadTarget.blobName)}&expiresAt=${encodeURIComponent(issuedUrl.searchParams.get("expiresAt") ?? "")}&token=${encodeURIComponent(issuedUrl.searchParams.get("token") ?? "")}`,
+  it("refuses a local upload for a name no pending media was issued for", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const blobName = `postings/${owner.userId}/direct.png`;
+
+    // The harness token is valid for any name, so this reaches the media
+    // check rather than failing on the signature.
+    const response = await request(
+      `/blob/upload?blobName=${encodeURIComponent(blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=test-upload-token`,
       {
         method: "PUT",
         headers: { "content-type": "image/png" },
-        body: new Uint8Array(fixture),
+        body: new Uint8Array(await createPngFixture()),
       },
     );
-    expect(uploadResponse.status).toBe(201);
 
-    const fileResponse = await request(
-      `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
-    );
-    expect(fileResponse.status).toBe(200);
-    expect(Buffer.from(await fileResponse.arrayBuffer()).equals(fixture)).toBe(
-      true,
-    );
+    expect(response.status).toBe(400);
+    expect(persistenceApp.stubs.blobService.storage.has(blobName)).toBe(false);
+  });
 
-    const deleteResponse = await request(
-      `/blob?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
+  it("no longer offers direct upload credentials or deletes by blob name", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+
+    const uploadUrl = await request("/blob/upload-url", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({ filename: "a.png", contentType: "image/png" }),
+    });
+    const deleted = await request(
+      `/blob?blobName=${encodeURIComponent(`postings/${owner.userId}/a.png`)}`,
       { method: "DELETE", headers: owner.headers() },
     );
-    expect(deleteResponse.status).toBe(200);
 
-    const afterDeleteResponse = await request(
-      `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
-    );
-    expect(afterDeleteResponse.status).toBe(404);
-  });
-
-  it("refuses to delete another user's upload", async () => {
-    const owner = await createAuthenticatedRequestContext({
-      email: "owner1@rentify.local",
-    });
-    const otherUser = await createAuthenticatedRequestContext({
-      email: "user1@rentify.local",
-    });
-
-    const uploadUrlResponse = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({
-        filename: "logo.png",
-        contentType: "image/png",
-        scope: "organizations",
-      }),
-    });
-    const { blobName } = await readData<{ blobName: string }>(
-      uploadUrlResponse,
-    );
-
-    const deleteResponse = await request(
-      `/blob?blobName=${encodeURIComponent(blobName)}`,
-      { method: "DELETE", headers: otherUser.headers() },
-    );
-
-    expect(deleteResponse.status).toBe(400);
-  });
-
-  it("refuses upload credentials for a non-image content type", async () => {
-    const owner = await createAuthenticatedRequestContext({
-      email: "owner1@rentify.local",
-    });
-
-    const response = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({
-        filename: "contract.pdf",
-        contentType: "application/pdf",
-        scope: "postings/photos",
-      }),
-    });
-
-    expect(response.status).toBe(415);
-
-    const body = (await response.json()) as {
-      success: boolean;
-      message: string;
-      error: { code: string };
-    };
-    expect(body.success).toBe(false);
-    expect(body.error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
-    expect(body.message).toBe(
-      "Only JPEG, PNG, and WebP images can be uploaded.",
-    );
-  });
-
-  it("refuses an upload whose bytes are not the declared image", async () => {
-    const owner = await createAuthenticatedRequestContext({
-      email: "owner1@rentify.local",
-    });
-
-    const uploadUrlResponse = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({
-        filename: "persistence-photo.png",
-        contentType: "image/png",
-        scope: "postings/photos",
-      }),
-    });
-    expect(uploadUrlResponse.status).toBe(201);
-
-    const uploadTarget = await readData<{
-      uploadUrl: string;
-      blobName: string;
-    }>(uploadUrlResponse);
-    const issuedUrl = new URL(uploadTarget.uploadUrl);
-
-    const uploadResponse = await request(
-      `/blob/upload?blobName=${encodeURIComponent(uploadTarget.blobName)}&expiresAt=${encodeURIComponent(issuedUrl.searchParams.get("expiresAt") ?? "")}&token=${encodeURIComponent(issuedUrl.searchParams.get("token") ?? "")}`,
-      {
-        method: "PUT",
-        headers: { "content-type": "image/png" },
-        body: "this is not a png",
-      },
-    );
-
-    expect(uploadResponse.status).toBe(415);
-
-    // Nothing was stored, so the blob is not readable afterwards.
-    const fileResponse = await request(
-      `/blob/file?blobName=${encodeURIComponent(uploadTarget.blobName)}`,
-    );
-    expect(fileResponse.status).toBe(404);
-  });
-
-  it("rejects an oversized declared size before issuing credentials", async () => {
-    const owner = await createAuthenticatedRequestContext({
-      email: "owner1@rentify.local",
-    });
-
-    const response = await request("/blob/upload-url", {
-      method: "POST",
-      headers: owner.headers(),
-      body: JSON.stringify({
-        filename: "huge.png",
-        contentType: "image/png",
-        sizeBytes: 50 * 1024 * 1024,
-        scope: "postings/photos",
-      }),
-    });
-
-    expect(response.status).toBe(413);
-
-    // The frontend shows this verbatim and holds no copy of the limit, so the
-    // message itself is part of the contract.
-    const body = (await response.json()) as {
-      message: string;
-      error: { code: string };
-    };
-    expect(body.error.code).toBe("PAYLOAD_TOO_LARGE");
-    expect(body.message).toBe("Images must be 5 MB or smaller.");
-  });
-
-  it("rejects an unauthenticated upload URL request", async () => {
-    const response = await request("/blob/upload-url", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        filename: "photo.png",
-        contentType: "image/png",
-      }),
-    });
-
-    expect(response.status).toBe(401);
+    expect(uploadUrl.status).toBe(404);
+    expect(deleted.status).toBe(404);
   });
 });

@@ -55,22 +55,22 @@ describe("OrganizationLogoService", () => {
       );
     });
 
-    it("rejects organization logo blobs not owned by the current user", async () => {
-      const nextLogoBlobName = "organizations/user-9/logo-new.png";
-      const nextLogoUrl = `https://cdn.test/${nextLogoBlobName}`;
-      const { service } = createService({
-        mediaService: { isOwnedBy: jest.fn(() => false) },
-      });
+    it("refuses a new logo sent by blob name, even one the actor uploaded", async () => {
+      const nextLogoBlobName = `organizations/${USER_1_ID}/logo-new.png`;
+      const { service } = createService();
 
       await expect(
         service.resolveLogoInput(
           USER_1_ID,
-          { logoUrl: nextLogoUrl, logoBlobName: nextLogoBlobName },
+          {
+            logoUrl: `https://cdn.test/${nextLogoBlobName}`,
+            logoBlobName: nextLogoBlobName,
+          },
           undefined,
-          null,
+          `organizations/${USER_1_ID}/logo-old.png`,
         ),
       ).rejects.toThrow(
-        "Organization logo blob must belong to the current user.",
+        "A new organization logo must be uploaded and sent as logoMediaId.",
       );
     });
 

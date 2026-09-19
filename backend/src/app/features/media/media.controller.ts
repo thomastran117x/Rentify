@@ -4,7 +4,7 @@ import { getRequestUrl } from "@/configuration/http/request";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import { parseRequestBody } from "@/configuration/validation/request";
-import { createBlobUploadUrlRequestSchema } from "@/features/blob/blob.model";
+import { createMediaUploadRequestSchema } from "@/features/media/media.model";
 import type { MediaService } from "@/features/media/media.service";
 
 export class MediaController {
@@ -17,7 +17,7 @@ export class MediaController {
     const auth = await requireJwtAuth(request);
     const input = await parseRequestBody(
       request,
-      createBlobUploadUrlRequestSchema,
+      createMediaUploadRequestSchema,
     );
     const result = await this.mediaService.createMediaUpload({
       userId: auth.sub,

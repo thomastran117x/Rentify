@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import type {
-  BuildBlobNameInput,
-  CreateBlobUploadUrlInput,
-} from "@/features/blob/blob.model";
+import type { CreateBlobUploadUrlInput } from "@/features/blob/blob.model";
 import { BlobService } from "@/features/blob/blob.service";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
@@ -110,7 +107,6 @@ export interface PersistenceTestStubs {
     isConfigured: jest.Mock<boolean, []>;
     isManagedBlobUrl: jest.Mock<boolean, [string, string]>;
     getBlobUrl: jest.Mock<string, [string]>;
-    buildBlobName: jest.Mock<string, [BuildBlobNameInput]>;
     getBlobOwnerId: jest.Mock<string | null, [string]>;
     createUploadUrl: jest.Mock<
       Record<string, unknown>,
@@ -510,6 +506,48 @@ async function dropSeedSnapshot(
   }
 }
 
+/**
+ * Creates a media item that has already been processed, as though it had been
+ * uploaded through the API and picked up by the media processing worker, and
+ * stores its processed image in the in-memory blob storage. For suites that
+ * attach images and are not about the upload itself.
+ */
+export async function createReadyMedia(
+  userId: string,
+  options: { scope?: string } = {},
+): Promise<{ mediaId: Uuid; blobName: string; blobUrl: string }> {
+  const persistenceApp = requirePersistenceApp();
+  const mediaId = asUuid(randomUUID());
+  const ownerId = asUuid(userId);
+  const blobService = persistenceApp.stubs.blobService;
+  const blobName = blobService.buildProcessedImageBlobName(ownerId, mediaId);
+
+  blobService.storage.set(blobName, {
+    contentType: "image/webp",
+    body: Buffer.from("processed-image"),
+  });
+  await persistenceApp.prisma.media.create({
+    data: {
+      id: mediaId,
+      userId: ownerId,
+      status: "ready",
+      scope: options.scope ?? "postings",
+      originalBlobName: blobService.buildQuarantineImageBlobName(
+        ownerId,
+        mediaId,
+      ),
+      processedBlobName: blobName,
+      declaredContentType: "image/png",
+      detectedContentType: "image/png",
+      sizeBytes: 15,
+      width: 8,
+      height: 8,
+    },
+  });
+
+  return { mediaId, blobName, blobUrl: blobService.getBlobUrl(blobName) };
+}
+
 export async function createAuthenticatedRequestContext(input: {
   email: string;
   deviceId?: string;
@@ -839,9 +877,6 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       // bytes live in memory. The real MediaService runs on top of this, so the
       // upload policy and ownership rules are exercised end to end over HTTP.
       storage: blobStorage,
-      buildBlobName: jest.fn((input: BuildBlobNameInput) =>
-        realBlobNaming().buildBlobName(input),
-      ),
       getBlobOwnerId: jest.fn((blobName: string) =>
         realBlobNaming().getBlobOwnerId(blobName),
       ),

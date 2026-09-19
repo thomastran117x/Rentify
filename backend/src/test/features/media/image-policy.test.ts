@@ -2,7 +2,6 @@ import {
   assertImageBytes,
   assertImageSizeWithinLimit,
   formatByteLimit,
-  imageExtensionForContentType,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -150,14 +149,6 @@ describe("rejection messages", () => {
     expect(formatByteLimit(1.5 * 1024 * 1024)).toBe("1.5 MB");
     expect(formatByteLimit(512 * 1024)).toBe("512 KB");
     expect(formatByteLimit(900)).toBe("900 bytes");
-  });
-});
-
-describe("imageExtensionForContentType", () => {
-  it("maps each supported type to its canonical extension", () => {
-    expect(imageExtensionForContentType("image/jpeg")).toBe(".jpg");
-    expect(imageExtensionForContentType("image/png")).toBe(".png");
-    expect(imageExtensionForContentType("image/webp")).toBe(".webp");
   });
 });
 

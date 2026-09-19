@@ -15,14 +15,6 @@ import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.erro
 // repeat than a new shared module is to justify.
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 
-// The canonical stored extension per content type. This is the only source of
-// the extension for a managed blob - the client's filename never contributes.
-const IMAGE_EXTENSIONS: Record<SupportedImageContentType, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-};
-
 // sharp reports a format name, not a media type. Anything sharp can decode but
 // that is absent here (gif, tiff, avif, svg, ...) is deliberately unmapped and
 // therefore rejected.
@@ -90,8 +82,8 @@ function unsupportedMediaType(received: string): UnsupportedMediaTypeError {
  * `text/html` are rejected here, before any upload credential is issued.
  *
  * The configured allow-list is always a subset of SUPPORTED_IMAGE_CONTENT_TYPES
- * (enforced at startup), so a value that passes this check always has an
- * extension mapping and a sharp decoder.
+ * (enforced at startup), so a value that passes this check always has a sharp
+ * decoder.
  */
 export function normalizeImageContentType(
   contentType: string,
@@ -115,16 +107,6 @@ export function normalizeImageContentType(
   }
 
   return normalized;
-}
-
-/**
- * Resolves the stored file extension for a validated content type. Callers must
- * pass a type that has already been through normalizeImageContentType.
- */
-export function imageExtensionForContentType(
-  contentType: SupportedImageContentType,
-): string {
-  return IMAGE_EXTENSIONS[contentType];
 }
 
 /**

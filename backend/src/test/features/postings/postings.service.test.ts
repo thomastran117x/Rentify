@@ -19,6 +19,7 @@ import type {
   PublicPostingRecord,
   UpsertPostingInput,
   UpsertPostingPersistenceInput,
+  UpsertPostingWriteInput,
 } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -56,6 +57,19 @@ const MEMBERLESS_1_ID = testUuid(9000, 772440);
 const OPERATOR_1_ID = testUuid(9000, 402986);
 const ORG_2_ID = testUuid(9000, 9235);
 const ORG_9_ID = testUuid(9000, 9242);
+const TEST_PHOTO_MEDIA_ID = testUuid(9000, 994370);
+
+function createTestMediaService(): MediaService {
+  return {
+    isConfigured: () => true,
+    isManagedUrl: () => true,
+    isOwnedBy: () => true,
+    resolveAttachableImage: async () => ({
+      blobName: "postings/photo-1.jpg",
+      blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
+    }),
+  } as unknown as MediaService;
+}
 
 class FakePostingsRepository {
   createCalls = 0;
@@ -78,7 +92,7 @@ class FakePostingsRepository {
   ownerOverlap = false;
   bookingConflict = false;
   rentingConflict = false;
-  posting = buildPostingRecord(createValidInput());
+  posting = buildPostingRecord(createStoredInput());
   ownerBlocks: PostingAvailabilityBlockRecord[] = [
     buildAvailabilityBlockRecord(BLOCK_1_ID, {
       startAt: "2026-05-01T00:00:00.000Z",
@@ -527,11 +541,7 @@ function createServiceHarness(
   searchService = {} as PostingsPublicSearchService,
   organizationsRepository = createOrganizationsRepositoryStub(),
 ) {
-  const mediaService = {
-    isConfigured: () => true,
-    isManagedUrl: () => true,
-    isOwnedBy: () => true,
-  } as unknown as MediaService;
+  const mediaService = createTestMediaService();
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
       key,
@@ -580,7 +590,7 @@ function createServiceHarness(
   };
 }
 
-function createValidInput(): UpsertPostingPersistenceInput {
+function createStoredInput(): UpsertPostingPersistenceInput {
   return {
     organizationId: ORG_1_ID,
     variant: {
@@ -629,6 +639,18 @@ function createValidInput(): UpsertPostingPersistenceInput {
       country: "Canada",
       postalCode: "M5H 2N2",
     },
+  };
+}
+
+/**
+ * A posting as a client sends it: its photo is a newly uploaded media item.
+ * The test MediaService resolves it to the photo-1 blob createStoredInput
+ * holds, so a posting written from this matches one built from that.
+ */
+function createValidInput(): UpsertPostingWriteInput {
+  return {
+    ...createStoredInput(),
+    photos: [{ mediaId: TEST_PHOTO_MEDIA_ID, position: 0 }],
   };
 }
 
@@ -832,24 +854,10 @@ describe("PostingsService", () => {
   });
 
   describe("photo ownership", () => {
-    function useOwnership(service: PostingsService, ownedBlobName: string) {
-      const isOwnedBy = jest.fn(
-        (_userId: string, blobName: string) => blobName === ownedBlobName,
-      );
-      Object.assign(service as object, {
-        mediaService: {
-          isConfigured: () => true,
-          isManagedUrl: () => true,
-          isOwnedBy,
-        },
-      });
-      return isOwnedBy;
-    }
-
     function withPhoto(
-      input: UpsertPostingPersistenceInput,
+      input: UpsertPostingWriteInput,
       blobName: string,
-    ): UpsertPostingPersistenceInput {
+    ): UpsertPostingWriteInput {
       return {
         ...input,
         photos: [
@@ -863,57 +871,50 @@ describe("PostingsService", () => {
       };
     }
 
-    it("rejects a new draft whose photo the actor did not upload", async () => {
+    it("refuses a new photo sent by blob name, even one the actor uploaded", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/someone-else.jpg");
 
+      // The default test MediaService reports every blob as the actor's own:
+      // ownership of a name is no longer a way to attach it.
       await expect(
-        service.createDraft(OWNER_1_ID, createValidInput()),
-      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
-      expect(isOwnedBy).toHaveBeenCalledWith(
-        OWNER_1_ID,
-        "postings/photo-1.jpg",
+        service.createDraft(
+          OWNER_1_ID,
+          withPhoto({ ...createValidInput(), photos: [] }, "postings/mine.jpg"),
+        ),
+      ).rejects.toThrow(
+        "New posting photos must be uploaded and sent as mediaId.",
       );
       expect(repository.createCalls).toBe(0);
     });
 
-    it("accepts a new draft whose photo the actor uploaded", async () => {
+    it("keeps photos already on the posting but refuses a new one by blob name", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      useOwnership(service, "postings/photo-1.jpg");
+
+      // photo-1 is already attached, so it may be resent whoever uploaded it.
+      await expect(
+        service.update(POSTING_123_ID, OWNER_1_ID, createStoredInput()),
+      ).resolves.toBeDefined();
 
       await expect(
-        service.createDraft(OWNER_1_ID, createValidInput()),
-      ).resolves.toBeDefined();
+        service.update(
+          POSTING_123_ID,
+          OWNER_1_ID,
+          withPhoto(createStoredInput(), "postings/theirs.jpg"),
+        ),
+      ).rejects.toThrow(
+        "New posting photos must be uploaded and sent as mediaId.",
+      );
     });
 
-    it("keeps photos already on the posting but rejects a new foreign one", async () => {
+    it("duplicates a posting whose photos another user uploaded", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/mine.jpg");
 
-      // photo-1 is already attached, so the actor need not own it.
       await expect(
-        service.update(POSTING_123_ID, OWNER_1_ID, createValidInput()),
+        service.duplicate(POSTING_1_ID, OWNER_1_ID),
       ).resolves.toBeDefined();
-      expect(isOwnedBy).not.toHaveBeenCalled();
-
-      await expect(
-        service.update(
-          POSTING_123_ID,
-          OWNER_1_ID,
-          withPhoto(createValidInput(), "postings/mine.jpg"),
-        ),
-      ).resolves.toBeDefined();
-
-      await expect(
-        service.update(
-          POSTING_123_ID,
-          OWNER_1_ID,
-          withPhoto(createValidInput(), "postings/theirs.jpg"),
-        ),
-      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
     });
 
     it("attaches a newly uploaded photo by media id as its processed image", async () => {
@@ -983,17 +984,6 @@ describe("PostingsService", () => {
       ).rejects.toThrow(
         "A photo requires mediaId, or blobUrl and blobName together.",
       );
-    });
-
-    it("duplicates a posting whose photos another user uploaded", async () => {
-      const repository = new FakePostingsRepository();
-      const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/unrelated.jpg");
-
-      await expect(
-        service.duplicate(POSTING_1_ID, OWNER_1_ID),
-      ).resolves.toBeDefined();
-      expect(isOwnedBy).not.toHaveBeenCalled();
     });
   });
 
@@ -2022,11 +2012,7 @@ describe("PostingsService", () => {
   it("returns a conflict when the posting availability lock is busy", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const mediaService = {
-      isConfigured: () => true,
-      isManagedUrl: () => true,
-      isOwnedBy: () => true,
-    } as unknown as MediaService;
+    const mediaService = createTestMediaService();
     const cacheService = {
       acquireLock: jest.fn(async () => null),
     } as unknown as CacheService;
@@ -2211,11 +2197,7 @@ describe("PostingsService", () => {
   it("swallows thumbnail queue failures after create succeeds", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const mediaService = {
-      isConfigured: () => true,
-      isManagedUrl: () => true,
-      isOwnedBy: () => true,
-    } as unknown as MediaService;
+    const mediaService = createTestMediaService();
     const cacheService = {
       acquireLock: jest.fn(async (key: string) => ({
         key,
@@ -2487,10 +2469,14 @@ describe("PostingsService", () => {
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
       normalizeBatchIds: (ids: Uuid[]) => string[];
     };
+    // Already on the posting, so these reach the position and thumbnail checks.
     const normalizePhotos = (photos: Array<Record<string, unknown>>) =>
       service.normalizePhotos(photos, {
         actorUserId: OWNER_1_ID,
-        attachedBlobNames: new Set(),
+        attachedBlobNames: new Set([
+          "postings/photo-1.jpg",
+          "postings/photo-2.jpg",
+        ]),
       });
 
     await expect(normalizePhotos([])).rejects.toThrow(
@@ -2573,7 +2559,7 @@ describe("PostingsService", () => {
       service.assertManagedBlob("https://example.test/blob", "blob"),
     ).toThrow("Posting photo URLs must match");
 
-    const validPosting = buildPostingRecord(createValidInput());
+    const validPosting = buildPostingRecord(createStoredInput());
     expect(() =>
       service.assertCanPublish({
         ...validPosting,

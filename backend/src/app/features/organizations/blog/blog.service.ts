@@ -469,7 +469,6 @@ export class OrganizationBlogService {
     }
 
     this.assertBlogCoverImageReference(
-      input.actorUserId,
       input.coverImageUrl,
       input.coverImageBlobName,
       currentBlobName,
@@ -482,7 +481,6 @@ export class OrganizationBlogService {
   }
 
   private assertBlogCoverImageReference(
-    actorUserId: Uuid,
     coverImageUrl: string | null | undefined,
     coverImageBlobName: string | null | undefined,
     currentBlobName: string | null,
@@ -531,14 +529,10 @@ export class OrganizationBlogService {
     }
 
     // Resending the stored cover is what every save that leaves it alone does,
-    // whoever uploaded it.
-    if (blobName === currentBlobName) {
-      return;
-    }
-
-    if (!this.mediaService.isOwnedBy(actorUserId, blobName)) {
+    // whoever uploaded it. A new cover only arrives as coverImageMediaId.
+    if (blobName !== currentBlobName) {
       throw new BadRequestError(
-        "Cover image blob must belong to the current user.",
+        "A new cover image must be uploaded and sent as coverImageMediaId.",
       );
     }
   }

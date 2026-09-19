@@ -1,16 +1,11 @@
-import path from "node:path";
-import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
-import type { BlobUploadTarget } from "@/features/blob/blob.model";
 import type { BlobService } from "@/features/blob/blob.service";
 import {
-  assertImageBytes,
   assertImageSizeWithinLimit,
-  imageExtensionForContentType,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
@@ -20,7 +15,6 @@ import type {
   CompleteImageUploadInput,
   CreateImageUploadInput,
   CreatedMediaUpload,
-  MediaItem,
   MediaRecord,
   MediaView,
 } from "@/features/media/media.model";
@@ -194,44 +188,15 @@ export class MediaService {
   }
 
   /**
-   * Issues a credential for a directly named, immediately displayable blob.
-   * Superseded by createMediaUpload and kept only until every client has moved
-   * to the media pipeline.
-   */
-  createImageUpload(input: CreateImageUploadInput): BlobUploadTarget {
-    // Upload credentials are only ever issued for images. There is no
-    // client-controlled escape hatch: a caller cannot opt out of the allow-list
-    // by declaring a different kind of upload.
-    const contentType = normalizeImageContentType(input.contentType);
-
-    if (input.sizeBytes !== undefined) {
-      assertImageSizeWithinLimit(input.sizeBytes);
-    }
-
-    // The stored extension comes from the validated content type, never from
-    // the client's filename. A file called "photo.png" declared as image/jpeg
-    // is stored as .jpg: the extension is a consequence of the format, not
-    // evidence of it. Where the two disagree the content type wins silently -
-    // the client controls both fields, so rejecting the mismatch would buy no
-    // safety while breaking legitimate cases like .jpeg/.jpg or a renamed
-    // download.
-    const blobName = this.blobService.buildBlobName({
-      ownerId: input.userId,
-      extension: imageExtensionForContentType(contentType),
-      scope: input.scope,
-    });
-
-    return this.blobService.createUploadUrl({
-      blobName,
-      contentType,
-      requestOrigin: input.requestOrigin,
-    });
-  }
-
-  /**
    * Accepts the bytes of a local-development upload. Azure uploads go straight
    * to storage and never reach this; see "Image Upload Validation" in
    * docs/architecture-overview.md.
+   *
+   * Only a quarantine name issued for a media item awaiting its bytes is
+   * accepted. Byte validation is not done here: it runs in the media
+   * processing worker for both storage paths, so the local stand-in behaves
+   * like Azure. The size limit is kept because it costs nothing and bounds
+   * what is written to disk.
    */
   async completeImageUpload(input: CompleteImageUploadInput): Promise<void> {
     // Token first, deliberately: no work on behalf of a caller who has not
@@ -242,38 +207,21 @@ export class MediaService {
       input.token,
     );
 
-    if (this.blobService.isQuarantineBlobName(input.blobName)) {
-      await this.acceptQuarantineUpload(input);
-      return;
+    const record = this.blobService.isQuarantineBlobName(input.blobName)
+      ? await this.mediaRepository.findByOriginalBlobName(input.blobName.trim())
+      : null;
+
+    if (!record || record.status !== "pending_upload") {
+      throw new BadRequestError("Blob upload URL is no longer valid.");
     }
 
-    const contentType = normalizeImageContentType(input.contentType);
-    this.assertContentTypeMatchesSignedBlob(input.blobName, contentType);
     assertImageSizeWithinLimit(input.body.byteLength);
-    await assertImageBytes(input.body, contentType);
 
     await this.blobService.writeLocalBlob(
-      input.blobName,
+      record.originalBlobName,
       input.body,
-      contentType,
+      record.declaredContentType,
     );
-  }
-
-  /**
-   * Describes a stored image. Everything here currently comes from storage;
-   * once media has validation state, its record is read and joined in here.
-   */
-  async getMedia(blobName: string): Promise<MediaItem> {
-    const properties = await this.blobService.getProperties(blobName);
-
-    return {
-      blobName,
-      blobUrl: this.blobService.getBlobUrl(blobName),
-      ownerId: this.blobService.getBlobOwnerId(blobName),
-      contentType: properties.contentType ?? null,
-      sizeBytes: properties.contentLength ?? null,
-      lastModified: properties.lastModified ?? null,
-    };
   }
 
   /**
@@ -349,29 +297,6 @@ export class MediaService {
     };
   }
 
-  // Byte validation is not done here: it runs in the media processing worker
-  // for both storage paths, so the local stand-in behaves like Azure. The size
-  // limit is kept because it costs nothing and bounds what is written to disk.
-  private async acceptQuarantineUpload(
-    input: CompleteImageUploadInput,
-  ): Promise<void> {
-    const record = await this.mediaRepository.findByOriginalBlobName(
-      input.blobName.trim(),
-    );
-
-    if (!record || record.status !== "pending_upload") {
-      throw new BadRequestError("Blob upload URL is no longer valid.");
-    }
-
-    assertImageSizeWithinLimit(input.body.byteLength);
-
-    await this.blobService.writeLocalBlob(
-      record.originalBlobName,
-      input.body,
-      record.declaredContentType,
-    );
-  }
-
   private async requireOwnedRecord(
     userId: Uuid,
     mediaId: Uuid,
@@ -420,23 +345,5 @@ export class MediaService {
 
   private isStale(record: MediaRecord): boolean {
     return Date.now() - record.updatedAt.getTime() >= STALE_UPLOADED_MS;
-  }
-
-  // The upload token signs the blob name but not the content type, so without
-  // this a holder of a valid URL could upload a PNG under a name issued for a
-  // JPEG. Because the stored extension is derived from the validated content
-  // type, the blob name determines the type unambiguously and inverting the
-  // extension mapping is enough to bind them.
-  private assertContentTypeMatchesSignedBlob(
-    blobName: string,
-    contentType: SupportedImageContentType,
-  ): void {
-    const extension = path.posix.extname(blobName).toLowerCase();
-
-    if (extension !== imageExtensionForContentType(contentType)) {
-      throw new BadRequestError(
-        "Content type does not match the requested upload URL.",
-      );
-    }
   }
 }

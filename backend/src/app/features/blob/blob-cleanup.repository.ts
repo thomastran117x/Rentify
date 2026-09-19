@@ -105,4 +105,34 @@ export class BlobCleanupRepository extends BaseRepository {
       { operationName: "loadReferences" },
     );
   }
+
+  /**
+   * Removes the media rows of blobs the cleanup deleted, and rows that never
+   * reached `ready` and have not moved since `olderThan` - an upload the client
+   * abandoned, or one rejected long ago. A ready row whose blob is still in use
+   * is referenced by a feature table and never deleted by the sweep.
+   */
+  async deleteAbandonedMedia(input: {
+    deletedBlobNames: string[];
+    olderThan: Date;
+  }): Promise<number> {
+    const result = await this.executeAsync(
+      () =>
+        this.prisma.media.deleteMany({
+          where: {
+            OR: [
+              { originalBlobName: { in: input.deletedBlobNames } },
+              { processedBlobName: { in: input.deletedBlobNames } },
+              {
+                status: { not: "ready" },
+                updatedAt: { lte: input.olderThan },
+              },
+            ],
+          },
+        }),
+      { operationName: "deleteAbandonedMedia" },
+    );
+
+    return result.count;
+  }
 }

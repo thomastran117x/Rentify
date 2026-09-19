@@ -429,26 +429,23 @@ describe("OrganizationBlogService", () => {
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it("accepts a valid managed cover image", async () => {
+    it("refuses a new cover sent by blob name, even one the actor uploaded", async () => {
       const { service, repository } = createService();
 
-      await service.create({
-        organizationId: ORG_1_ID,
-        actorUserId: USER_1_ID,
-        title: "With cover",
-        body: "<p>x</p>",
-        status: "draft",
-        coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
-        coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
-      });
-
-      const createArgs = repository.create.mock.calls[0][0] as Record<
-        string,
-        unknown
-      >;
-      expect(createArgs.coverImageBlobName).toBe(
-        `organizations/${ORG_1_ID}/blog/c.png`,
+      await expect(
+        service.create({
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          title: "With cover",
+          body: "<p>x</p>",
+          status: "draft",
+          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
+        }),
+      ).rejects.toThrow(
+        "A new cover image must be uploaded and sent as coverImageMediaId.",
       );
+      expect(repository.create).not.toHaveBeenCalled();
     });
 
     it("rejects a cover image outside the organizations blob scope", async () => {
@@ -463,22 +460,6 @@ describe("OrganizationBlogService", () => {
           status: "draft",
           coverImageUrl: `https://cdn/${OTHER_ID}/c.png`,
           coverImageBlobName: `${OTHER_ID}/c.png`,
-        }),
-      ).rejects.toBeInstanceOf(BadRequestError);
-    });
-
-    it("rejects a cover image blob not owned by the actor", async () => {
-      const { service } = createService({ blob: { owned: false } });
-
-      await expect(
-        service.create({
-          organizationId: ORG_1_ID,
-          actorUserId: USER_1_ID,
-          title: "Bad cover",
-          body: "<p>x</p>",
-          status: "draft",
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
-          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toBeInstanceOf(BadRequestError);
     });
@@ -804,8 +785,7 @@ describe("OrganizationBlogService", () => {
         organizationId: ORG_1_ID,
         actorUserId: USER_1_ID,
         blogPostId: BLOG_1_ID,
-        coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/new.png`,
-        coverImageBlobName: `organizations/${ORG_1_ID}/blog/new.png`,
+        coverImageMediaId: testUuid(9000, 994332),
       });
 
       expect(mediaService.deleteMedia).toHaveBeenCalledWith(

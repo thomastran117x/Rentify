@@ -14,11 +14,7 @@ import {
   restoreBlobEnvironmentAfterEach,
   useLocalBlobStorage,
 } from "../../support/blob-environment";
-import {
-  createGifFixture,
-  createJpegFixture,
-  createPngFixture,
-} from "../../support/image-fixtures";
+import { createPngFixture } from "../../support/image-fixtures";
 
 const USER_1_ID = testUuid(9000, 994259);
 const USER_2_ID = testUuid(9000, 994260);
@@ -51,25 +47,9 @@ function createLocalMediaService(): {
 }
 
 describe("MediaService", () => {
-  describe("createImageUpload", () => {
-    it("issues owner-scoped upload credentials for an allowed image", () => {
-      const { mediaService, blobService } = createLocalMediaService();
-
-      const target = mediaService.createImageUpload({
-        userId: USER_1_ID,
-        filename: "photo.png",
-        contentType: " image/png ",
-        scope: "postings",
-        requestOrigin: "http://localhost:8040",
-      });
-
-      expect(target.blobName.startsWith(`postings/${USER_1_ID}/`)).toBe(true);
-      expect(target.headers["Content-Type"]).toBe("image/png");
-      expect(blobService.getBlobOwnerId(target.blobName)).toBe(USER_1_ID);
-    });
-
-    it("refuses upload credentials for non-image content types", () => {
-      const { mediaService } = createLocalMediaService();
+  describe("createMediaUpload allow-list", () => {
+    it("refuses upload credentials for non-image content types", async () => {
+      const { mediaService, mediaRepository } = createLocalMediaService();
 
       for (const contentType of [
         "application/pdf",
@@ -79,195 +59,97 @@ describe("MediaService", () => {
         "image/gif",
         "text/plain\r\nx-test: bad",
       ]) {
-        expect(() =>
-          mediaService.createImageUpload({
+        await expect(
+          mediaService.createMediaUpload({
             userId: USER_1_ID,
             filename: "document.pdf",
             contentType,
           }),
-        ).toThrow(UnsupportedMediaTypeError);
+        ).rejects.toThrow(UnsupportedMediaTypeError);
       }
+      expect(mediaRepository.rows.size).toBe(0);
     });
 
-    it("honours a narrowed allow-list and a declared size limit", () => {
+    it("honours a narrowed allow-list", async () => {
       const { mediaService } = createLocalMediaService();
       process.env.ALLOWED_IMAGE_TYPES = "image/png";
-      process.env.MAX_IMAGE_SIZE_BYTES = "1024";
 
-      expect(() =>
-        mediaService.createImageUpload({
+      await expect(
+        mediaService.createMediaUpload({
           userId: USER_1_ID,
           filename: "photo.jpg",
           contentType: "image/jpeg",
         }),
-      ).toThrow(UnsupportedMediaTypeError);
-      expect(() =>
-        mediaService.createImageUpload({
+      ).rejects.toThrow(UnsupportedMediaTypeError);
+      await expect(
+        mediaService.createMediaUpload({
           userId: USER_1_ID,
           filename: "photo.png",
           contentType: "image/png",
-          sizeBytes: 2048,
         }),
-      ).toThrow(PayloadTooLargeError);
-      expect(
-        mediaService.createImageUpload({
-          userId: USER_1_ID,
-          filename: "photo.png",
-          contentType: "image/png",
-          sizeBytes: 512,
-        }).blobName,
-      ).toMatch(/\.png$/);
+      ).resolves.toMatchObject({ media: { status: "pending_upload" } });
     });
 
-    it("derives the stored extension from the content type, not the filename", () => {
-      const { mediaService } = createLocalMediaService();
-      const issue = (filename: string, contentType: string) =>
-        mediaService.createImageUpload({
-          userId: USER_1_ID,
-          filename,
-          contentType,
-        }).blobName;
+    it("never derives anything from the client's filename", async () => {
+      const { mediaService, mediaRepository } = createLocalMediaService();
 
-      // A .png filename carrying a JPEG must be stored as .jpg: the filename
-      // extension is never treated as proof of format.
-      expect(issue("photo.png", "image/jpeg")).toMatch(/\.jpg$/);
-      // A filename with no extension at all still produces a correct one.
-      expect(issue("screenshot", "image/webp")).toMatch(/\.webp$/);
-      // A misleading double extension cannot smuggle one through either.
-      expect(issue("payload.php.png", "image/png")).toMatch(/\.png$/);
-    });
+      const { media } = await mediaService.createMediaUpload({
+        userId: USER_1_ID,
+        filename: "../../photo.png.exe",
+        contentType: "image/jpeg",
+      });
 
-    it("rejects an invalid scope", () => {
-      const { mediaService } = createLocalMediaService();
-
-      expect(() =>
-        mediaService.createImageUpload({
-          userId: USER_1_ID,
-          filename: "photo.png",
-          contentType: "image/png",
-          scope: "Invalid Scope",
-        }),
-      ).toThrow(BadRequestError);
+      expect(await mediaRepository.findById(media.id)).toMatchObject({
+        originalBlobName: `quarantine/images/${USER_1_ID}/${media.id}`,
+        declaredContentType: "image/jpeg",
+        originalFilename: "../../photo.png.exe",
+      });
     });
   });
 
   describe("completeImageUpload", () => {
-    function issueUpload(mediaService: MediaService, contentType: string) {
-      return readLocalUploadUrl(
-        mediaService.createImageUpload({
-          userId: USER_1_ID,
-          filename: "photo",
-          contentType,
-        }).uploadUrl,
-      );
-    }
-
-    it("stores a valid image under the issued name", async () => {
-      const { mediaService, blobService } = createLocalMediaService();
-      const upload = issueUpload(mediaService, "image/png");
-      const fixture = await createPngFixture();
-
-      await mediaService.completeImageUpload({
-        ...upload,
+    it("checks the upload token before anything else", async () => {
+      const { mediaService } = createLocalMediaService();
+      const { upload } = await mediaService.createMediaUpload({
+        userId: USER_1_ID,
+        filename: "photo.png",
         contentType: "image/png",
-        body: fixture,
       });
 
-      const stored = await blobService.readLocalBlob(upload.blobName);
-      expect(stored.contentType).toBe("image/png");
-      expect(stored.body.equals(fixture)).toBe(true);
-    });
-
-    it("validates the bytes of an upload, not just the declared type", async () => {
-      const { mediaService } = createLocalMediaService();
-      const pngUpload = issueUpload(mediaService, "image/png");
-
-      // Bytes that are not an image at all.
       await expect(
         mediaService.completeImageUpload({
-          ...pngUpload,
-          contentType: "image/png",
-          body: Buffer.from("not-an-image"),
-        }),
-      ).rejects.toThrow("Uploaded file could not be read as an image.");
-
-      // A real image whose actual format contradicts the declared one.
-      await expect(
-        mediaService.completeImageUpload({
-          ...pngUpload,
-          contentType: "image/png",
-          body: await createJpegFixture(),
-        }),
-      ).rejects.toThrow(
-        "Uploaded file contents do not match the declared image type.",
-      );
-
-      // A format sharp can decode but the policy excludes.
-      await expect(
-        mediaService.completeImageUpload({
-          ...pngUpload,
-          contentType: "image/png",
-          body: await createGifFixture(),
-        }),
-      ).rejects.toThrow(UnsupportedMediaTypeError);
-
-      // A declared type the allow-list rejects outright.
-      await expect(
-        mediaService.completeImageUpload({
-          ...pngUpload,
-          contentType: "application/pdf",
-          body: await createPngFixture(),
-        }),
-      ).rejects.toThrow(UnsupportedMediaTypeError);
-
-      // A content type that disagrees with the URL the token was issued for.
-      await expect(
-        mediaService.completeImageUpload({
-          ...pngUpload,
-          contentType: "image/jpeg",
-          body: await createJpegFixture(),
-        }),
-      ).rejects.toThrow(
-        "Content type does not match the requested upload URL.",
-      );
-    });
-
-    it("enforces size and dimension limits", async () => {
-      const { mediaService } = createLocalMediaService();
-      process.env.MAX_IMAGE_WIDTH = "16";
-      process.env.MAX_IMAGE_HEIGHT = "16";
-      const upload = {
-        ...issueUpload(mediaService, "image/png"),
-        contentType: "image/png",
-      };
-
-      await expect(
-        mediaService.completeImageUpload({
-          ...upload,
-          body: await createPngFixture(64, 64),
-        }),
-      ).rejects.toThrow("Image dimensions exceed the allowed maximum.");
-
-      const oversized = await createPngFixture(8, 8);
-      process.env.MAX_IMAGE_SIZE_BYTES = String(oversized.byteLength - 1);
-
-      await expect(
-        mediaService.completeImageUpload({ ...upload, body: oversized }),
-      ).rejects.toThrow(PayloadTooLargeError);
-    });
-
-    it("checks the upload token before inspecting the body", async () => {
-      const { mediaService } = createLocalMediaService();
-      const upload = issueUpload(mediaService, "image/png");
-
-      await expect(
-        mediaService.completeImageUpload({
-          ...upload,
+          ...readLocalUploadUrl(upload.uploadUrl),
           token: "bad-token",
           contentType: "application/pdf",
           body: Buffer.from("not-an-image"),
         }),
       ).rejects.toThrow("Blob upload token is invalid.");
+    });
+
+    it("only accepts uploads for a quarantine name with a media record", async () => {
+      const { mediaService, blobService } = createLocalMediaService();
+      const helper = blobService as unknown as {
+        signLocalUploadToken(blobName: string, expiresAt: string): string;
+      };
+      const expiresAt = new Date(Date.now() + 60_000).toISOString();
+
+      for (const blobName of [
+        `postings/${USER_1_ID}/direct.png`,
+        blobService.buildQuarantineImageBlobName(
+          USER_1_ID,
+          testUuid(9000, 994265),
+        ),
+      ]) {
+        await expect(
+          mediaService.completeImageUpload({
+            blobName,
+            expiresAt,
+            token: helper.signLocalUploadToken(blobName, expiresAt),
+            contentType: "image/png",
+            body: await createPngFixture(),
+          }),
+        ).rejects.toThrow("Blob upload URL is no longer valid.");
+      }
     });
   });
 
@@ -318,49 +200,6 @@ describe("MediaService", () => {
       expect(() =>
         mediaService.assertOwnedBy(USER_1_ID, `general/${USER_2_ID}/a.png`),
       ).toThrow(BadRequestError);
-    });
-  });
-
-  it("describes stored media from its blob properties", async () => {
-    const { mediaService, blobService } = createLocalMediaService();
-    const blobName = `postings/${USER_1_ID}/described.png`;
-    await blobService.writeLocalBlob(blobName, Buffer.from("png"), "image/png");
-
-    const media = await mediaService.getMedia(blobName);
-
-    expect(media).toEqual({
-      blobName,
-      blobUrl: blobService.getBlobUrl(blobName),
-      ownerId: USER_1_ID,
-      contentType: "image/png",
-      sizeBytes: 3,
-      lastModified: expect.anything(),
-    });
-    expect(media.lastModified?.getTime()).toBeGreaterThan(0);
-    await expect(
-      mediaService.getMedia(`postings/${USER_1_ID}/missing.png`),
-    ).rejects.toThrow(ResourceNotFoundError);
-  });
-
-  it("reports absent blob properties as null", async () => {
-    const blobService = {
-      getProperties: jest.fn(async () => ({})),
-      getBlobUrl: jest.fn(() => "https://storage.test/general/file.png"),
-      getBlobOwnerId: jest.fn(() => null),
-    };
-    const mediaService = new MediaService(
-      blobService as unknown as BlobService,
-      new InMemoryMediaRepository().asRepository(),
-      { enqueueMediaProcessingJob: jest.fn() },
-    );
-
-    await expect(mediaService.getMedia("general/file.png")).resolves.toEqual({
-      blobName: "general/file.png",
-      blobUrl: "https://storage.test/general/file.png",
-      ownerId: null,
-      contentType: null,
-      sizeBytes: null,
-      lastModified: null,
     });
   });
 

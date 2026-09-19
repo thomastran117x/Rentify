@@ -268,6 +268,23 @@ describe("Media persistence integration", () => {
     });
     expect(refused.status).toBe(400);
 
+    // A blob named for the owner is not a way around the pipeline.
+    const ownedName = `postings/${owner.userId}/direct.jpg`;
+    const bypass = await request("/postings", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify(
+        buildPostingBody([
+          {
+            blobUrl: `http://rent.test/api/v1/blob/file?blobName=${encodeURIComponent(ownedName)}`,
+            blobName: ownedName,
+            position: 0,
+          },
+        ]),
+      ),
+    });
+    expect(bypass.status).toBe(400);
+
     const created = await request("/postings", {
       method: "POST",
       headers: owner.headers(),
@@ -334,6 +351,28 @@ describe("Media persistence integration", () => {
       }),
     });
     expect(pdf.status).toBe(415);
+    // The frontend shows these verbatim and holds no copy of the limits, so
+    // the messages themselves are part of the contract.
+    await expect(pdf.json()).resolves.toMatchObject({
+      success: false,
+      message: "Only JPEG, PNG, and WebP images can be uploaded.",
+      error: { code: "UNSUPPORTED_MEDIA_TYPE" },
+    });
+
+    const huge = await request("/media/uploads", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({
+        filename: "huge.png",
+        contentType: "image/png",
+        sizeBytes: 50 * 1024 * 1024,
+      }),
+    });
+    expect(huge.status).toBe(413);
+    await expect(huge.json()).resolves.toMatchObject({
+      message: "Images must be 5 MB or smaller.",
+      error: { code: "PAYLOAD_TOO_LARGE" },
+    });
 
     const badId = await request("/media/not-a-uuid", {
       headers: owner.headers(),
