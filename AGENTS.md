@@ -32,7 +32,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor workflow and validation
 
 ## Pull Request Descriptions
 
-Follow [docs/pull-requests.md](./docs/pull-requests.md) and the default or specialized PR templates. Include Summary, Context, Changes, API, How to Test, and Reviewer Notes. Explain the problem and resulting behavior, affected backend methods/paths and contracts (or explicitly none), reproducible steps and actual check outcomes, risks, and commit dependencies. Keep descriptions aligned with the final change and do not claim unperformed checks.
+Follow [docs/pull-requests.md](./docs/pull-requests.md) and the default or specialized PR templates. Include Summary, Context, Changes, API, How to Test, and Reviewer Notes. Explain the problem and resulting behavior, affected backend methods/paths and contracts (or explicitly none), reproducible user- or consumer-level steps with expected results, risks, and commit dependencies. Omit routine CI commands, passing test counts, coverage, and lint output from PR descriptions; reserve Reviewer Notes for exceptional skipped, unavailable, failing, or non-CI validation. Keep descriptions aligned with the final change and do not claim unperformed checks.
 
 For visual changes to core frontend pages or flows, include actual screenshots with page/state/viewport captions when browser capture is available. Capture useful success and relevant validation states during browser verification; provide local artifact paths or attach images during authorized publication. If tools cannot capture them, explain why and provide capture steps. Screenshots are supporting evidence, not a replacement for the applicable browser-validation requirements. Non-visual changes can mark screenshots not applicable.
 
