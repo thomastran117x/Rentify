@@ -2,6 +2,7 @@ import {
   assertImageBytes,
   assertImageSizeWithinLimit,
   formatByteLimit,
+  isImagePolicyRejection,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -182,13 +183,13 @@ describe("assertImageBytes", () => {
   it("accepts bytes whose real format matches the declared type", async () => {
     await expect(
       assertImageBytes(await createPngFixture(6, 3), "image/png"),
-    ).resolves.toEqual({ contentType: "image/png", width: 6, height: 3 });
+    ).resolves.toBe("image/png");
     await expect(
       assertImageBytes(await createJpegFixture(), "image/jpeg"),
-    ).resolves.toEqual({ contentType: "image/jpeg", width: 4, height: 4 });
+    ).resolves.toBe("image/jpeg");
     await expect(
       assertImageBytes(await createWebpFixture(), "image/webp"),
-    ).resolves.toEqual({ contentType: "image/webp", width: 4, height: 4 });
+    ).resolves.toBe("image/webp");
   });
 
   it("rejects bytes that are not an image at all", async () => {
@@ -262,5 +263,40 @@ describe("assertImageBytes", () => {
     await expect(assertImageBytes(oversized, "image/png")).rejects.toThrow(
       UnprocessableEntityError,
     );
+  });
+});
+
+describe("isImagePolicyRejection", () => {
+  it("recognises exactly the errors the policy refuses an image with", async () => {
+    const refusals = await Promise.all([
+      assertImageBytes(Buffer.from("not-an-image"), "image/png").catch(
+        (error: unknown) => error,
+      ),
+      Promise.resolve().then(() => {
+        try {
+          assertImageSizeWithinLimit(-1);
+        } catch (error) {
+          return error;
+        }
+      }),
+      Promise.resolve().then(() => {
+        try {
+          normalizeImageContentType("application/pdf");
+        } catch (error) {
+          return error;
+        }
+      }),
+    ]);
+
+    for (const refusal of refusals) {
+      expect(isImagePolicyRejection(refusal)).toBe(true);
+    }
+    expect(isImagePolicyRejection(new PayloadTooLargeError("too big"))).toBe(
+      true,
+    );
+    expect(isImagePolicyRejection(new Error("storage unavailable"))).toBe(
+      false,
+    );
+    expect(isImagePolicyRejection("nope")).toBe(false);
   });
 });

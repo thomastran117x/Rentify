@@ -144,7 +144,7 @@ function createService(options?: {
     isProcessedImageBlobName: rule.isProcessedImageBlobName,
     isManagedUrl: jest.fn(() => options?.blob?.managed ?? true),
     isOwnedBy: jest.fn(() => options?.blob?.owned ?? true),
-    deleteMedia: jest.fn(async () => undefined),
+    deleteReplacedImageByBlobName: jest.fn(async () => undefined),
   };
   const publicSearchService = {
     searchByOrganization: jest.fn(async () => createListResult()),
@@ -781,7 +781,7 @@ describe("OrganizationBlogService", () => {
         coverImageMediaId: cover.mediaId,
       });
 
-      expect(mediaService.deleteMedia).toHaveBeenCalledWith(
+      expect(mediaService.deleteReplacedImageByBlobName).toHaveBeenCalledWith(
         USER_1_ID,
         `organizations/${ORG_1_ID}/blog/old.png`,
       );
@@ -875,7 +875,7 @@ describe("OrganizationBlogService", () => {
       });
 
       expect(repository.delete).toHaveBeenCalledWith(ORG_1_ID, BLOG_1_ID);
-      expect(mediaService.deleteMedia).toHaveBeenCalledWith(
+      expect(mediaService.deleteReplacedImageByBlobName).toHaveBeenCalledWith(
         USER_1_ID,
         `organizations/${ORG_1_ID}/blog/c.png`,
       );

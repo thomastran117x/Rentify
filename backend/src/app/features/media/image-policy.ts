@@ -132,17 +132,10 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   }
 }
 
-/** What the decoder found in bytes that passed validation. */
-export interface ImageInspection {
-  contentType: SupportedImageContentType;
-  width: number;
-  height: number;
-}
-
 /**
  * Validates the actual bytes of an upload: that they decode as an image, that
  * the real format matches what the client declared, and that the dimensions are
- * within policy. Returns the detected format and dimensions.
+ * within policy. Returns the detected content type.
  *
  * Decoding through sharp rather than a hand-written signature table is
  * deliberate. Stored blobs are later re-decoded by sharp for thumbnailing, so
@@ -168,7 +161,7 @@ export interface ImageInspection {
 export async function assertImageBytes(
   body: Buffer,
   declaredContentType: SupportedImageContentType,
-): Promise<ImageInspection> {
+): Promise<SupportedImageContentType> {
   const policy = environment.getImageUploadsConfig();
   let metadata: Metadata;
 
@@ -237,5 +230,24 @@ export async function assertImageBytes(
     );
   }
 
-  return { contentType: detected, width, height };
+  return detected;
+}
+
+/**
+ * Whether an error is the image policy refusing an image, as opposed to a
+ * failure to check it. A refusal is final: the same bytes, size, or type will
+ * be refused again, so it must not be retried. These are the only errors the
+ * functions in this module throw.
+ */
+export function isImagePolicyRejection(
+  error: unknown,
+): error is
+  | UnsupportedMediaTypeError
+  | UnprocessableEntityError
+  | PayloadTooLargeError {
+  return (
+    error instanceof UnsupportedMediaTypeError ||
+    error instanceof UnprocessableEntityError ||
+    error instanceof PayloadTooLargeError
+  );
 }

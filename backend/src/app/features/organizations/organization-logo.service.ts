@@ -119,7 +119,10 @@ export class OrganizationLogoService {
     }
 
     try {
-      await this.mediaService.deleteMedia(input.actorUserId, previousBlobName);
+      await this.mediaService.deleteReplacedImageByBlobName(
+        input.actorUserId,
+        previousBlobName,
+      );
     } catch (error) {
       this.logger.error("Failed to delete replaced organization logo blob.", {
         previousBlobName,

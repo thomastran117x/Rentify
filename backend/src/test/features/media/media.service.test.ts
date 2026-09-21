@@ -111,7 +111,7 @@ describe("MediaService", () => {
     });
   });
 
-  describe("completeImageUpload", () => {
+  describe("receiveLocalUploadBytes", () => {
     it("checks the upload token before anything else", async () => {
       const { mediaService } = createLocalMediaService();
       const { upload } = await mediaService.createMediaUpload({
@@ -122,7 +122,7 @@ describe("MediaService", () => {
       });
 
       await expect(
-        mediaService.completeImageUpload({
+        mediaService.receiveLocalUploadBytes({
           ...readLocalUploadUrl(upload.uploadUrl),
           token: "bad-token",
           contentType: "application/pdf",
@@ -146,7 +146,7 @@ describe("MediaService", () => {
         ),
       ]) {
         await expect(
-          mediaService.completeImageUpload({
+          mediaService.receiveLocalUploadBytes({
             blobName,
             expiresAt,
             token: helper.signLocalUploadToken(blobName, expiresAt),
@@ -169,13 +169,13 @@ describe("MediaService", () => {
       });
 
       await expect(
-        mediaService.deleteMedia(USER_2_ID, blobName),
+        mediaService.deleteReplacedImageByBlobName(USER_2_ID, blobName),
       ).rejects.toThrow("Blob name is invalid.");
       await expect(
-        mediaService.deleteMedia(USER_1_ID, "../escape.txt"),
+        mediaService.deleteReplacedImageByBlobName(USER_1_ID, "../escape.txt"),
       ).rejects.toThrow(BadRequestError);
 
-      await mediaService.deleteMedia(USER_1_ID, blobName);
+      await mediaService.deleteReplacedImageByBlobName(USER_1_ID, blobName);
 
       await expect(blobService.readLocalBlob(blobName)).rejects.toThrow(
         ResourceNotFoundError,
@@ -240,7 +240,7 @@ describe("MediaService", () => {
       uploadUrl: string,
       body: Buffer,
     ) {
-      await mediaService.completeImageUpload({
+      await mediaService.receiveLocalUploadBytes({
         ...readLocalUploadUrl(uploadUrl),
         contentType: "image/png",
         body,
@@ -408,6 +408,29 @@ describe("MediaService", () => {
       expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
     });
 
+    it("still reports the size limit when deleting the oversized upload fails", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { media } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(media.id))!;
+      await blobService.writeLocalBlob(
+        record.originalBlobName,
+        Buffer.alloc(64),
+        "image/png",
+      );
+      process.env.MAX_IMAGE_SIZE_BYTES = "32";
+      jest
+        .spyOn(blobService, "deleteBlob")
+        .mockRejectedValueOnce(new Error("storage unavailable"));
+
+      await expect(
+        mediaService.completeMediaUpload(USER_1_ID, media.id),
+      ).rejects.toThrow(PayloadTooLargeError);
+      expect((await mediaRepository.findById(media.id))?.status).toBe(
+        "rejected",
+      );
+    });
+
     it("accepts a local upload only while the media awaits its bytes", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
@@ -556,7 +579,10 @@ describe("MediaService", () => {
       );
       mediaRepository.put({ ...record, status: "ready", processedBlobName });
 
-      await mediaService.deleteMedia(USER_1_ID, processedBlobName);
+      await mediaService.deleteReplacedImageByBlobName(
+        USER_1_ID,
+        processedBlobName,
+      );
 
       expect(await mediaRepository.findById(media.id)).toBeNull();
     });

@@ -10,6 +10,8 @@ import {
 } from "@/features/media/image-policy";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
+import { rejectMedia } from "@/features/media/media-rejection";
+import { loggerFactory } from "@/configuration/logging";
 import type {
   AttachableImage,
   CompleteImageUploadInput,
@@ -37,6 +39,8 @@ const STALE_UPLOADED_MS = 60 * 1000;
  * resolveAttachableImage, which only ever yields a processed image.
  */
 export class MediaService {
+  private readonly logger = loggerFactory.forClass(MediaService, "service");
+
   constructor(
     private readonly blobService: BlobService,
     private readonly mediaRepository: MediaRepository,
@@ -270,7 +274,9 @@ export class MediaService {
    * like Azure. The size limit is kept because it costs nothing and bounds
    * what is written to disk.
    */
-  async completeImageUpload(input: CompleteImageUploadInput): Promise<void> {
+  async receiveLocalUploadBytes(
+    input: CompleteImageUploadInput,
+  ): Promise<void> {
     // Token first, deliberately: no work on behalf of a caller who has not
     // proved they hold a valid upload URL.
     this.blobService.assertLocalUploadToken(
@@ -297,10 +303,16 @@ export class MediaService {
   }
 
   /**
-   * Deletes a stored image by blob name, and its media record when it is a
-   * processed image. Used by features cleaning up an image they replaced.
+   * Deletes an image a feature has just replaced, by the blob name it stored,
+   * together with its media record when it is a processed image. Unlike
+   * deleteMediaById it does not check whether the image is attached: the
+   * caller has already detached it, and checks for itself whether anything
+   * else, such as a restorable audit entry, still needs it.
    */
-  async deleteMedia(userId: Uuid, blobName: string): Promise<void> {
+  async deleteReplacedImageByBlobName(
+    userId: Uuid,
+    blobName: string,
+  ): Promise<void> {
     this.assertOwnedBy(userId, blobName);
     await this.blobService.deleteBlob(blobName);
 
@@ -401,8 +413,15 @@ export class MediaService {
   }
 
   private async reject(record: MediaRecord, reason: string): Promise<void> {
-    await this.mediaRepository.markRejected(record.id, reason);
-    await this.blobService.deleteBlob(record.originalBlobName);
+    await rejectMedia(
+      {
+        mediaRepository: this.mediaRepository,
+        blobService: this.blobService,
+        logger: this.logger,
+      },
+      record,
+      reason,
+    );
   }
 
   private async deleteRecordBlobs(record: MediaRecord): Promise<void> {

@@ -32,7 +32,7 @@ export class BlobController {
     // express.raw is mounted on this route, so the body is already a Buffer.
     const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
 
-    await this.mediaService.completeImageUpload({
+    await this.mediaService.receiveLocalUploadBytes({
       blobName,
       expiresAt,
       token,

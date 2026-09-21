@@ -514,7 +514,10 @@ export class OrganizationBlogService {
     }
 
     try {
-      await this.mediaService.deleteMedia(actorUserId, blobName);
+      await this.mediaService.deleteReplacedImageByBlobName(
+        actorUserId,
+        blobName,
+      );
     } catch (error) {
       this.logger.error("Failed to delete replaced blog cover image blob.", {
         blobName,

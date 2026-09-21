@@ -2,23 +2,24 @@ import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import type { Uuid } from "@/configuration/validation/uuid";
-import AppError from "@/errors/http/app.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
   assertImageBytes,
   assertImageSizeWithinLimit,
+  isImagePolicyRejection,
   normalizeImageContentType,
-  type ImageInspection,
 } from "@/features/media/image-policy";
+import {
+  deleteQuarantinedUpload,
+  rejectMedia,
+} from "@/features/media/media-rejection";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 
 const PROCESSED_IMAGE_QUALITY = 85;
 const PROCESSED_IMAGE_CONTENT_TYPE = "image/webp";
-// Statuses the image policy uses for "these bytes are not an acceptable
-// image". They are final: retrying the same bytes cannot change the answer.
-const POLICY_REJECTION_STATUSES = new Set([413, 415, 422]);
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
 const PROCESSING_FAILED_REASON = "The image could not be processed.";
 
@@ -43,6 +44,15 @@ export class MediaProcessingService {
     private readonly mediaRepository: MediaRepository,
     private readonly blobService: BlobService,
   ) {}
+
+  // What the shared rejection routine needs from this service.
+  private get rejection() {
+    return {
+      mediaRepository: this.mediaRepository,
+      blobService: this.blobService,
+      logger: this.logger,
+    };
+  }
 
   /**
    * Processes one media item. Returns normally when the item is finished,
@@ -69,12 +79,12 @@ export class MediaProcessingService {
       return;
     }
 
-    let inspection: ImageInspection;
+    let detectedContentType: SupportedImageContentType;
 
     try {
-      inspection = await this.inspect(record, original);
+      detectedContentType = await this.inspect(record, original);
     } catch (error) {
-      if (this.isPolicyRejection(error)) {
+      if (isImagePolicyRejection(error)) {
         await this.reject(record, error.message);
         return;
       }
@@ -104,7 +114,7 @@ export class MediaProcessingService {
     // uploaded; detectedContentType records what the upload really was.
     const marked = await this.mediaRepository.markReady(record.id, {
       processedBlobName,
-      detectedContentType: inspection.contentType,
+      detectedContentType,
       sizeBytes: processed.data.byteLength,
       width: processed.info.width,
       height: processed.info.height,
@@ -117,7 +127,7 @@ export class MediaProcessingService {
       return;
     }
 
-    await this.deleteQuarantined(record);
+    await deleteQuarantinedUpload(this.rejection, record);
   }
 
   /**
@@ -131,20 +141,13 @@ export class MediaProcessingService {
       return;
     }
 
-    if (
-      await this.mediaRepository.markRejected(
-        record.id,
-        PROCESSING_FAILED_REASON,
-      )
-    ) {
-      await this.deleteQuarantined(record);
-    }
+    await rejectMedia(this.rejection, record, PROCESSING_FAILED_REASON);
   }
 
   private async inspect(
     record: MediaRecord,
     original: Buffer,
-  ): Promise<ImageInspection> {
+  ): Promise<SupportedImageContentType> {
     assertImageSizeWithinLimit(original.byteLength);
 
     // Re-checked against today's allow-list: a type narrowed out since the
@@ -169,9 +172,7 @@ export class MediaProcessingService {
   }
 
   private async reject(record: MediaRecord, reason: string): Promise<void> {
-    if (await this.mediaRepository.markRejected(record.id, reason)) {
-      await this.deleteQuarantined(record);
-    }
+    await rejectMedia(this.rejection, record, reason);
   }
 
   private async isReadyAs(
@@ -183,26 +184,6 @@ export class MediaProcessingService {
     return (
       current?.status === "ready" &&
       current.processedBlobName === processedBlobName
-    );
-  }
-
-  // Best effort. The item's outcome is already recorded, and failing the job
-  // here would only retry work that is done; a leftover quarantine blob is
-  // collected by the orphaned-blob cleanup.
-  private async deleteQuarantined(record: MediaRecord): Promise<void> {
-    try {
-      await this.blobService.deleteBlob(record.originalBlobName);
-    } catch (error) {
-      this.logger.warn("Failed to delete a quarantined upload.", {
-        mediaId: record.id,
-        error,
-      });
-    }
-  }
-
-  private isPolicyRejection(error: unknown): error is AppError {
-    return (
-      error instanceof AppError && POLICY_REJECTION_STATUSES.has(error.status)
     );
   }
 }
