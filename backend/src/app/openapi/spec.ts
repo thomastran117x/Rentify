@@ -4435,7 +4435,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "deleteMedia",
       summary: "Delete an uploaded image",
       description:
-        "Deletes one of the caller's media items together with its quarantined upload and processed image. Media belonging to anyone else is reported as 404.",
+        "Deletes one of the caller's media items together with its quarantined upload and processed image. Returns 409 when the processed image is still attached to a posting photo, avatar, organization logo, or blog cover; it is removed when it is replaced there instead. Media belonging to anyone else is reported as 404.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4451,7 +4451,7 @@ function buildOperations(): OperationDefinition[] {
           "MediaDeleteResult",
           { deleted: true },
         ),
-        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {

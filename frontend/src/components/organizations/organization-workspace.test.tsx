@@ -1,3 +1,4 @@
+import { ApiClientError } from "@/lib/api/types";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -899,6 +900,39 @@ describe("Organization workspace", () => {
           "organization-workspace:staged-logo-media:user-1",
         ),
       ).toBeNull();
+    });
+  });
+
+  it("stops retrying staged cleanup for media that is gone or in use", async () => {
+    const storageKey = "organization-workspace:staged-logo-media:user-1";
+    const failure = (status: number) =>
+      new ApiClientError("refused", {
+        status,
+        code: status === 409 ? "CONFLICT" : "NOT_FOUND",
+        request: {
+          method: "DELETE",
+          path: "/media/x",
+          requestUrl: "https://api.test/api/v1/media/x",
+        },
+      });
+    deleteMediaMock.mockImplementation(async (mediaId: string) => {
+      if (mediaId === "media-in-use") throw failure(409);
+      if (mediaId === "media-gone") throw failure(404);
+      throw new Error("network down");
+    });
+    window.sessionStorage.setItem(
+      storageKey,
+      JSON.stringify(["media-in-use", "media-gone", "media-transient"]),
+    );
+
+    renderInWorkspace(<div />);
+
+    // A save whose response was lost leaves an attached logo "staged"; the
+    // server refuses to delete it and the client lets it go.
+    await waitFor(() => {
+      expect(
+        JSON.parse(window.sessionStorage.getItem(storageKey) ?? "[]"),
+      ).toEqual(["media-transient"]);
     });
   });
 

@@ -107,6 +107,30 @@ export class MediaRepository extends BaseRepository {
     });
   }
 
+  /**
+   * Whether a stored reference still points at this blob: a posting photo, an
+   * avatar, an organization logo, or a blog cover.
+   */
+  async isBlobAttached(blobName: string): Promise<boolean> {
+    const [photos, profiles, organizations, blogPosts] =
+      await this.executeAsync(
+        () =>
+          Promise.all([
+            this.prisma.postingPhoto.count({ where: { blobName } }),
+            this.prisma.profile.count({ where: { avatarBlobName: blobName } }),
+            this.prisma.organization.count({
+              where: { logoBlobName: blobName },
+            }),
+            this.prisma.organizationBlogPost.count({
+              where: { coverImageBlobName: blobName },
+            }),
+          ]),
+        { operationName: "isBlobAttached" },
+      );
+
+    return photos + profiles + organizations + blogPosts > 0;
+  }
+
   async deleteById(id: Uuid): Promise<void> {
     await this.executeAsync(
       () => this.prisma.media.deleteMany({ where: { id } }),

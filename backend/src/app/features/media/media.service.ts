@@ -140,8 +140,21 @@ export class MediaService {
     return this.toView(await this.requireOwnedRecord(userId, mediaId));
   }
 
+  /**
+   * Deletes a media item the user no longer needs, such as an upload that was
+   * never saved. An image something still displays is refused rather than
+   * deleted: the client cannot always know its save went through, and a
+   * deleted blob cannot be brought back.
+   */
   async deleteMediaById(userId: Uuid, mediaId: Uuid): Promise<void> {
     const record = await this.requireOwnedRecord(userId, mediaId);
+
+    if (
+      record.processedBlobName &&
+      (await this.mediaRepository.isBlobAttached(record.processedBlobName))
+    ) {
+      throw new ConflictError("This image is in use and cannot be deleted.");
+    }
 
     await this.deleteRecordBlobs(record);
     await this.mediaRepository.deleteById(record.id);

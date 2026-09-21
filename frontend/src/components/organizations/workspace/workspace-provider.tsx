@@ -21,6 +21,7 @@ import {
   canManageOrganizationPostings,
   canSeeOrganizationActivity,
 } from "@/lib/auth/roles";
+import { ApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   organizationsApi,
@@ -321,9 +322,25 @@ export function OrganizationWorkspaceProvider({
     try {
       await mediaApi.delete(normalizedMediaId);
       forgetStagedLogoMedia(normalizedMediaId);
-    } catch {
-      syncStagedLogoMediaStorage();
+    } catch (error) {
+      settleFailedStagedLogoDelete(normalizedMediaId, error);
     }
+  }
+
+  // A 404 means the upload is already gone, and a 409 means it is in use - a
+  // save that went through even though its response never arrived. Either
+  // way there is nothing left to clean up. Anything else is retried on the
+  // next load.
+  function settleFailedStagedLogoDelete(mediaId: string, error: unknown) {
+    if (
+      error instanceof ApiClientError &&
+      (error.status === 404 || error.status === 409)
+    ) {
+      forgetStagedLogoMedia(mediaId);
+      return;
+    }
+
+    syncStagedLogoMediaStorage();
   }
 
   function reconcileStagedLogoMediaChange(
@@ -374,8 +391,8 @@ export function OrganizationWorkspaceProvider({
         try {
           await mediaApi.delete(mediaId);
           forgetStagedLogoMedia(mediaId);
-        } catch {
-          syncStagedLogoMediaStorage();
+        } catch (error) {
+          settleFailedStagedLogoDelete(mediaId, error);
         }
       }),
     );

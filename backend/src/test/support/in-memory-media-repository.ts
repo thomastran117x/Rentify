@@ -14,6 +14,8 @@ import type { MediaRepository } from "@/features/media/media.repository";
  */
 export class InMemoryMediaRepository {
   readonly rows = new Map<string, MediaRecord>();
+  /** Blob names a feature table references, for isBlobAttached. */
+  readonly attachedBlobNames = new Set<string>();
 
   asRepository(): MediaRepository {
     return this as unknown as MediaRepository;
@@ -87,6 +89,10 @@ export class InMemoryMediaRepository {
       rejectionReason: rejectionReason.slice(0, 500),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
+  }
+
+  async isBlobAttached(blobName: string): Promise<boolean> {
+    return this.attachedBlobNames.has(blobName);
   }
 
   async deleteById(id: Uuid): Promise<void> {

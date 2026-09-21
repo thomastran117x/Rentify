@@ -155,4 +155,32 @@ describe("MediaRepository", () => {
 
     expect(deleteMany).toHaveBeenCalledWith({ where: { id: MEDIA_1_ID } });
   });
+  it("reports whether any feature table still references a blob", async () => {
+    const zero = jest.fn(async (_args: unknown) => 0);
+    const repository = new MediaRepository({
+      postingPhoto: { count: zero },
+      profile: { count: zero },
+      organization: { count: jest.fn(async (_args: unknown) => 1) },
+      organizationBlogPost: { count: zero },
+    } as any);
+
+    await expect(
+      repository.isBlobAttached("media/images/u/m.webp"),
+    ).resolves.toBe(true);
+    expect(zero.mock.calls.map(([args]) => args)).toEqual([
+      { where: { blobName: "media/images/u/m.webp" } },
+      { where: { avatarBlobName: "media/images/u/m.webp" } },
+      { where: { coverImageBlobName: "media/images/u/m.webp" } },
+    ]);
+
+    const unattached = new MediaRepository({
+      postingPhoto: { count: zero },
+      profile: { count: zero },
+      organization: { count: zero },
+      organizationBlogPost: { count: zero },
+    } as any);
+    await expect(
+      unattached.isBlobAttached("media/images/u/m.webp"),
+    ).resolves.toBe(false);
+  });
 });

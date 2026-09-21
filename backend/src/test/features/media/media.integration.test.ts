@@ -296,11 +296,20 @@ describe("Media persistence integration", () => {
     const posting = await readData<{
       photos: Array<{ blobName: string; blobUrl: string }>;
     }>(created);
+    const processedName = `media/images/${owner.userId}/${ready.media.id}.webp`;
     expect(posting.photos).toEqual([
-      expect.objectContaining({
-        blobName: `media/images/${owner.userId}/${ready.media.id}.webp`,
-      }),
+      expect.objectContaining({ blobName: processedName }),
     ]);
+
+    // The posting now displays it, so it can no longer be deleted as media.
+    const deleteAttached = await request(`/media/${ready.media.id}`, {
+      method: "DELETE",
+      headers: owner.headers(),
+    });
+    expect(deleteAttached.status).toBe(409);
+    expect(persistenceApp.stubs.blobService.storage.has(processedName)).toBe(
+      true,
+    );
   });
 
   it("hides one user's media from another and deletes it for its owner", async () => {

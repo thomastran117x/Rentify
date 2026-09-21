@@ -504,6 +504,38 @@ describe("MediaService", () => {
       }
     });
 
+    it("refuses to delete an image that is still attached", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { media } = await mediaService.createMediaUpload({
+        userId: USER_1_ID,
+        filename: "logo.png",
+        contentType: "image/png",
+        scope: "organizations",
+      });
+      const record = (await mediaRepository.findById(media.id))!;
+      const processedBlobName = blobService.buildProcessedImageBlobName(
+        USER_1_ID,
+        media.id,
+      );
+      await blobService.writeLocalBlob(
+        processedBlobName,
+        Buffer.from("webp"),
+        "image/webp",
+      );
+      mediaRepository.put({ ...record, status: "ready", processedBlobName });
+      mediaRepository.attachedBlobNames.add(processedBlobName);
+
+      await expect(
+        mediaService.deleteMediaById(USER_1_ID, media.id),
+      ).rejects.toThrow(ConflictError);
+
+      expect(await mediaRepository.findById(media.id)).not.toBeNull();
+      await expect(
+        blobService.readLocalBlob(processedBlobName),
+      ).resolves.toBeDefined();
+    });
+
     it("drops the media record when its processed image is deleted by name", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
