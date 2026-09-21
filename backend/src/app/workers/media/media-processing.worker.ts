@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
+import { createMediaProcessingJobHandler } from "@/features/media/media-processing.job-handler";
 import {
   databaseWorkerResource,
   disconnectResources,
@@ -33,50 +34,12 @@ export async function bootstrapMediaProcessingWorker(): Promise<void> {
 
       const stopConsuming = await queueService.consumeMediaProcessingJobs(
         prefetch,
-        async (payload, message, channel) => {
-          try {
-            await processingService.process(payload.mediaId);
-            channel.ack(message);
-          } catch (error) {
-            const attempt = payload.attempt + 1;
-            const errorMessage =
-              error instanceof Error
-                ? error.message
-                : "Unknown media processing error.";
-
-            workerLogger.error(
-              "Failed to process media processing job.",
-              {
-                jobId: payload.jobId,
-                mediaId: payload.mediaId,
-                attempt,
-              },
-              error,
-            );
-
-            if (attempt >= maxAttempts) {
-              await queueService.publishDeadLetterJob({
-                ...payload,
-                attempt,
-              });
-              // The client is polling for this item; without a final state
-              // it would wait until it gave up.
-              await processingService.markProcessingFailed(payload.mediaId);
-              workerLogger.error(
-                "Media processing job moved to dead-letter queue.",
-                {
-                  jobId: payload.jobId,
-                  mediaId: payload.mediaId,
-                  error: errorMessage,
-                },
-              );
-            } else {
-              await queueService.publishRetryJob(payload, attempt);
-            }
-
-            channel.ack(message);
-          }
-        },
+        createMediaProcessingJobHandler({
+          queue: queueService,
+          processing: processingService,
+          maxAttempts,
+          logger: workerLogger,
+        }),
       );
 
       lifecycle.addShutdownTask(async () => {
