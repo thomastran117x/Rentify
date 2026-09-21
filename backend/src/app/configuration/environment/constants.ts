@@ -1,6 +1,9 @@
 import type { EnvironmentVariableName } from "@/configuration/environment/types";
 
 export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
+  "ACCESS_TOKEN_ALGORITHM",
+  "ACCESS_TOKEN_PRIVATE_KEY",
+  "ACCESS_TOKEN_PUBLIC_KEY",
   "ACCESS_TOKEN_SECRET",
   "ACCESS_TOKEN_TTL_SECONDS",
   "ALLOWED_IMAGE_TYPES",

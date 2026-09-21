@@ -5,6 +5,7 @@ import {
   buildCsrfConfig,
   buildEmailConfig,
   buildOauthConfig,
+  parseAccessTokenCredentials,
   parseRefreshTokenMode,
 } from "@/configuration/environment/domains/auth";
 import {
@@ -75,15 +76,11 @@ export function parseEnvironmentState(
   }
   const errors: string[] = [];
   const nodeEnv = parseNodeEnvironment(raw, errors);
+  const accessTokenCredentials = parseAccessTokenCredentials(raw, errors);
   const refreshTokenMode = parseRefreshTokenMode(raw, errors);
   const rateLimiterStrategy = parseRateLimiterStrategy(raw, errors);
 
   const databaseUrl = readRequiredString(raw, "DATABASE_URL", errors);
-  const accessTokenSecret = readRequiredSecret(
-    raw,
-    "ACCESS_TOKEN_SECRET",
-    errors,
-  );
   const refreshTokenSecret = readRequiredSecret(
     raw,
     "REFRESH_TOKEN_SECRET",
@@ -128,7 +125,7 @@ export function parseEnvironmentState(
       raw,
       errors,
       refreshTokenMode,
-      accessTokenSecret,
+      accessTokenCredentials,
       refreshTokenSecret,
       personalAccessTokenSecret,
       mfaTotpEncryptionKey,

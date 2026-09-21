@@ -2,6 +2,7 @@ import type { RouteModuleId } from "@/configuration/bootstrap/routes/types";
 
 export type NodeEnvironment = "development" | "test" | "production";
 export type RefreshTokenMode = "stateless" | "stateful";
+export type AccessTokenAlgorithm = "HS256" | "RS256";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
@@ -14,6 +15,9 @@ export type PayPalCheckoutMethod = (typeof PAYPAL_CHECKOUT_METHODS)[number];
 export type ConfigurationFeatureSource = "config" | "env";
 
 export type RawEnvironmentValues = {
+  ACCESS_TOKEN_ALGORITHM?: string;
+  ACCESS_TOKEN_PRIVATE_KEY?: string;
+  ACCESS_TOKEN_PUBLIC_KEY?: string;
   ACCESS_TOKEN_SECRET?: string;
   ACCESS_TOKEN_TTL_SECONDS?: string;
   ALLOWED_IMAGE_TYPES?: string;
@@ -217,7 +221,10 @@ export interface AppEnvironment {
     slowQueryThresholdMs: number;
   };
   auth: {
-    accessTokenSecret: string;
+    accessTokenAlgorithm: AccessTokenAlgorithm;
+    accessTokenSecret?: string;
+    accessTokenPrivateKey?: string;
+    accessTokenPublicKey?: string;
     refreshTokenSecret: string;
     accessTokenTtlSeconds: number;
     refreshTokenTtlSeconds: number;

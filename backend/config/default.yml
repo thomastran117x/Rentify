@@ -53,6 +53,7 @@ logging:
   silent: false
 
 auth:
+  accessTokenAlgorithm: HS256
   accessTokenTtlSeconds: 900
   refreshTokenTtlSeconds: 2592000
   rememberMeRefreshTokenTtlSeconds: 7776000

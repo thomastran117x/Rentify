@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EnvironmentManager } from "@/configuration/environment/manager";
@@ -433,7 +434,57 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv({ ACCESS_TOKEN_SECRET: undefined });
     const manager = new EnvironmentManager();
 
-    expect(() => manager.load()).toThrow("ACCESS_TOKEN_SECRET is required.");
+    expect(() => manager.load()).toThrow(
+      "ACCESS_TOKEN_SECRET is required when using HS256.",
+    );
+  });
+
+  it("loads RS256 access-token credentials without an HMAC secret", () => {
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2_048,
+      privateKeyEncoding: { format: "pem", type: "pkcs8" },
+      publicKeyEncoding: { format: "pem", type: "spki" },
+    });
+    process.env = buildRequiredEnv({
+      ACCESS_TOKEN_ALGORITHM: "RS256",
+      ACCESS_TOKEN_SECRET: undefined,
+      ACCESS_TOKEN_PRIVATE_KEY: privateKey.replace(/\n/g, "\\n"),
+      ACCESS_TOKEN_PUBLIC_KEY: publicKey.replace(/\n/g, "\\n"),
+    });
+    const manager = new EnvironmentManager();
+
+    const tokenConfig = manager.load().auth;
+
+    expect(tokenConfig).toMatchObject({
+      accessTokenAlgorithm: "RS256",
+      accessTokenSecret: undefined,
+      accessTokenPrivateKey: privateKey,
+      accessTokenPublicKey: publicKey,
+    });
+  });
+
+  it("rejects RS256 access-token credentials that do not form a key pair", () => {
+    const firstPair = generateKeyPairSync("rsa", {
+      modulusLength: 2_048,
+      privateKeyEncoding: { format: "pem", type: "pkcs8" },
+      publicKeyEncoding: { format: "pem", type: "spki" },
+    });
+    const secondPair = generateKeyPairSync("rsa", {
+      modulusLength: 2_048,
+      privateKeyEncoding: { format: "pem", type: "pkcs8" },
+      publicKeyEncoding: { format: "pem", type: "spki" },
+    });
+    process.env = buildRequiredEnv({
+      ACCESS_TOKEN_ALGORITHM: "RS256",
+      ACCESS_TOKEN_SECRET: undefined,
+      ACCESS_TOKEN_PRIVATE_KEY: firstPair.privateKey,
+      ACCESS_TOKEN_PUBLIC_KEY: secondPair.publicKey,
+    });
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow(
+      "ACCESS_TOKEN_PRIVATE_KEY and ACCESS_TOKEN_PUBLIC_KEY must form a matching RSA key pair.",
+    );
   });
 
   it("validates cross-field and bounded values after layering", () => {

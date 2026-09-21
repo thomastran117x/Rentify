@@ -53,8 +53,11 @@ connection strings:
 
 - `DATABASE_URL`, `REDIS_URL`, `REDIS_PASSWORD`, `RABBITMQ_URL`,
   `ELASTICSEARCH_PASSWORD`, and `AZURE_STORAGE_CONNECTION_STRING`
-- `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`,
-  `PERSONAL_ACCESS_TOKEN_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+- access-token signing credentials: `ACCESS_TOKEN_SECRET` for the default
+  `HS256` algorithm, or `ACCESS_TOKEN_PRIVATE_KEY` and
+  `ACCESS_TOKEN_PUBLIC_KEY` for `RS256`
+- `REFRESH_TOKEN_SECRET`, `PERSONAL_ACCESS_TOKEN_SECRET`, and
+  `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
   secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
@@ -103,6 +106,32 @@ Docker copies the config directory into the backend image. Compose uses the
 committed development profile by default. YAML records the API pool default as
 `10/2`, while Compose deliberately pins the API to `10/2` and each worker to
 `5/1` as process-specific deployment overrides.
+
+## Access-token signing
+
+Access JWTs use `HS256` by default, preserving the existing shared-secret
+configuration. Set the non-secret `auth.accessTokenAlgorithm` YAML setting or
+the `ACCESS_TOKEN_ALGORITHM` override to `RS256` to use asymmetric signing.
+
+For `HS256`, `ACCESS_TOKEN_SECRET` is required and must contain at least 32
+characters. For `RS256`, `ACCESS_TOKEN_PRIVATE_KEY` and
+`ACCESS_TOKEN_PUBLIC_KEY` are required instead. Both must be PEM-encoded RSA
+keys of at least 2048 bits from the same pair. PEM values may contain literal
+newlines or `\n` escape sequences, which is useful in environment variables.
+Startup fails when the selected algorithm is unsupported, its credentials are
+absent or malformed, the keys are too small, or the RSA keys do not match.
+
+For example, an RS256 deployment can use:
+
+```dotenv
+ACCESS_TOKEN_ALGORITHM=RS256
+ACCESS_TOKEN_SECRET=
+ACCESS_TOKEN_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+ACCESS_TOKEN_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----
+```
+
+This setting affects access JWTs only. Refresh tokens continue to use their
+separate `REFRESH_TOKEN_SECRET` and configured stateful lifecycle.
 
 ## PayPal checkout
 

@@ -453,7 +453,15 @@ export class BlobService {
     }
 
     const port = String(environment.getServerPort());
-    const signingSecret = environment.getTokenConfig().accessTokenSecret;
+    const tokenConfig = environment.getTokenConfig();
+    const signingSecret =
+      tokenConfig.accessTokenSecret ?? tokenConfig.accessTokenPrivateKey;
+
+    if (!signingSecret) {
+      throw new ServiceNotImplementedError(
+        "Local blob storage requires access-token signing credentials.",
+      );
+    }
 
     return {
       storageRoot: path.resolve(process.cwd(), "tmp", "blob-storage"),

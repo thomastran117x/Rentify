@@ -1,5 +1,16 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  constants,
+  createHmac,
+  createPrivateKey,
+  createPublicKey,
+  randomBytes,
+  sign as signSignature,
+  timingSafeEqual,
+  verify as verifySignature,
+} from "node:crypto";
+import type { KeyObject } from "node:crypto";
 import { environment } from "@/configuration/environment";
+import type { AccessTokenAlgorithm } from "@/configuration/environment/types";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AppRole } from "@/features/auth/auth.model";
 import type { TokenRepository } from "@/features/auth/token/token.repository";
@@ -51,7 +62,10 @@ interface StatefulRefreshSession extends RefreshTokenClaims {
 interface TokenServiceOptions {
   cache: CacheService;
   tokenRepository: TokenRepository;
+  accessTokenAlgorithm?: AccessTokenAlgorithm;
   accessTokenSecret?: string;
+  accessTokenPrivateKey?: string;
+  accessTokenPublicKey?: string;
   refreshTokenSecret?: string;
   accessTokenTtlSeconds?: number;
   refreshTokenTtlSeconds?: number;
@@ -65,7 +79,6 @@ interface CreateRefreshTokenOptions {
   expiresInSeconds?: number;
 }
 
-const ACCESS_TOKEN_ALGORITHM = "HS256";
 const REFRESH_TOKEN_VERSION = "v1";
 const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
 const REFRESH_ROTATION_GRACE_PERIOD_SECONDS = 5;
@@ -108,7 +121,12 @@ function safeEquals(left: string, right: string): boolean {
 export class TokenService {
   private readonly cache: CacheService;
   private readonly tokenRepository: TokenRepository;
+  private readonly accessTokenAlgorithm?: AccessTokenAlgorithm;
   private readonly accessTokenSecret?: string;
+  private readonly accessTokenPrivateKey?: string;
+  private readonly accessTokenPublicKey?: string;
+  private accessTokenPrivateKeyObject?: KeyObject;
+  private accessTokenPublicKeyObject?: KeyObject;
   private readonly refreshTokenSecret?: string;
   private readonly accessTokenTtlSeconds?: number;
   private readonly refreshTokenTtlSeconds?: number;
@@ -120,7 +138,10 @@ export class TokenService {
   constructor(options: TokenServiceOptions) {
     this.cache = options.cache;
     this.tokenRepository = options.tokenRepository;
+    this.accessTokenAlgorithm = options.accessTokenAlgorithm;
     this.accessTokenSecret = options.accessTokenSecret;
+    this.accessTokenPrivateKey = options.accessTokenPrivateKey;
+    this.accessTokenPublicKey = options.accessTokenPublicKey;
     this.refreshTokenSecret = options.refreshTokenSecret;
     this.accessTokenTtlSeconds = options.accessTokenTtlSeconds;
     this.refreshTokenTtlSeconds = options.refreshTokenTtlSeconds;
@@ -459,45 +480,68 @@ export class TokenService {
   }
 
   private signJwt(payload: JwtClaims): string {
+    const algorithm = this.getAccessTokenAlgorithm();
     const header = {
-      alg: ACCESS_TOKEN_ALGORITHM,
+      alg: algorithm,
       typ: "JWT",
     };
 
     const encodedHeader = toBase64Url(JSON.stringify(header));
     const encodedPayload = toBase64Url(JSON.stringify(payload));
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-    const signature = signValue(unsignedToken, this.getAccessTokenSecret());
+    const signature = this.signAccessTokenValue(unsignedToken, algorithm);
 
     return `${unsignedToken}.${signature}`;
   }
 
   private verifyJwt(token: string): JwtClaims {
-    const [encodedHeader, encodedPayload, signature] = token.split(".");
+    const parts = token.split(".");
+
+    if (parts.length !== 3) {
+      throw new UnauthorizedError("Invalid access token format.");
+    }
+
+    const [encodedHeader, encodedPayload, signature] = parts;
 
     if (!encodedHeader || !encodedPayload || !signature) {
       throw new UnauthorizedError("Invalid access token format.");
     }
 
-    const expectedSignature = signValue(
-      `${encodedHeader}.${encodedPayload}`,
-      this.getAccessTokenSecret(),
-    );
+    let header: { alg?: string; typ?: string };
 
-    if (!safeEquals(signature, expectedSignature)) {
-      throw new UnauthorizedError("Invalid access token signature.");
+    try {
+      header = JSON.parse(fromBase64Url(encodedHeader)) as {
+        alg?: string;
+        typ?: string;
+      };
+    } catch {
+      throw new UnauthorizedError("Invalid access token format.");
     }
 
-    const header = JSON.parse(fromBase64Url(encodedHeader)) as {
-      alg?: string;
-      typ?: string;
-    };
+    const algorithm = this.getAccessTokenAlgorithm();
 
-    if (header.alg !== ACCESS_TOKEN_ALGORITHM || header.typ !== "JWT") {
+    if (header.alg !== algorithm || header.typ !== "JWT") {
       throw new UnauthorizedError("Invalid access token header.");
     }
 
-    const claims = JSON.parse(fromBase64Url(encodedPayload)) as JwtClaims;
+    if (
+      !this.verifyAccessTokenSignature(
+        `${encodedHeader}.${encodedPayload}`,
+        signature,
+        algorithm,
+      )
+    ) {
+      throw new UnauthorizedError("Invalid access token signature.");
+    }
+
+    let claims: JwtClaims;
+
+    try {
+      claims = JSON.parse(fromBase64Url(encodedPayload)) as JwtClaims;
+    } catch {
+      throw new UnauthorizedError("Invalid access token format.");
+    }
+
     const now = Math.floor(Date.now() / 1000);
 
     if (claims.exp <= now) {
@@ -513,6 +557,47 @@ export class TokenService {
     }
 
     return claims;
+  }
+
+  private signAccessTokenValue(
+    value: string,
+    algorithm: AccessTokenAlgorithm,
+  ): string {
+    if (algorithm === "HS256") {
+      return signValue(value, this.getAccessTokenSecret());
+    }
+
+    return signSignature("RSA-SHA256", Buffer.from(value, "utf8"), {
+      key: this.getAccessTokenPrivateKey(),
+      padding: constants.RSA_PKCS1_PADDING,
+    }).toString("base64url");
+  }
+
+  private verifyAccessTokenSignature(
+    value: string,
+    signature: string,
+    algorithm: AccessTokenAlgorithm,
+  ): boolean {
+    if (algorithm === "HS256") {
+      return safeEquals(
+        signature,
+        signValue(value, this.getAccessTokenSecret()),
+      );
+    }
+
+    try {
+      return verifySignature(
+        "RSA-SHA256",
+        Buffer.from(value, "utf8"),
+        {
+          key: this.getAccessTokenPublicKey(),
+          padding: constants.RSA_PKCS1_PADDING,
+        },
+        Buffer.from(signature, "base64url"),
+      );
+    } catch {
+      return false;
+    }
   }
 
   private buildRefreshClaims(
@@ -693,9 +778,54 @@ export class TokenService {
   }
 
   private getAccessTokenSecret(): string {
+    const secret =
+      this.accessTokenSecret ?? environment.getTokenConfig().accessTokenSecret;
+    if (!secret) {
+      throw new Error("Access token secret is not configured for HS256.");
+    }
+
+    return secret;
+  }
+
+  private getAccessTokenAlgorithm(): AccessTokenAlgorithm {
     return (
-      this.accessTokenSecret ?? environment.getTokenConfig().accessTokenSecret
+      this.accessTokenAlgorithm ??
+      environment.getTokenConfig().accessTokenAlgorithm
     );
+  }
+
+  private getAccessTokenPrivateKey(): KeyObject {
+    if (this.accessTokenPrivateKeyObject) {
+      return this.accessTokenPrivateKeyObject;
+    }
+
+    const privateKey =
+      this.accessTokenPrivateKey ??
+      environment.getTokenConfig().accessTokenPrivateKey;
+
+    if (!privateKey) {
+      throw new Error("Access token private key is not configured for RS256.");
+    }
+
+    this.accessTokenPrivateKeyObject = createPrivateKey(privateKey);
+    return this.accessTokenPrivateKeyObject;
+  }
+
+  private getAccessTokenPublicKey(): KeyObject {
+    if (this.accessTokenPublicKeyObject) {
+      return this.accessTokenPublicKeyObject;
+    }
+
+    const publicKey =
+      this.accessTokenPublicKey ??
+      environment.getTokenConfig().accessTokenPublicKey;
+
+    if (!publicKey) {
+      throw new Error("Access token public key is not configured for RS256.");
+    }
+
+    this.accessTokenPublicKeyObject = createPublicKey(publicKey);
+    return this.accessTokenPublicKeyObject;
   }
 
   private getRefreshTokenSecret(): string {

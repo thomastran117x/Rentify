@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, generateKeyPairSync } from "node:crypto";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import {
   TokenService,
@@ -86,7 +86,10 @@ function createService(options?: {
   issuer?: string;
   audience?: string;
   cachePrefix?: string;
+  accessTokenAlgorithm?: "HS256" | "RS256";
   accessTokenSecret?: string;
+  accessTokenPrivateKey?: string;
+  accessTokenPublicKey?: string;
   refreshTokenSecret?: string;
 }) {
   const authRepository = createAuthRepository({
@@ -97,7 +100,10 @@ function createService(options?: {
   const service = new TokenService({
     cache: cache.service as any,
     tokenRepository: authRepository as any,
+    accessTokenAlgorithm: options?.accessTokenAlgorithm,
     accessTokenSecret: options?.accessTokenSecret,
+    accessTokenPrivateKey: options?.accessTokenPrivateKey,
+    accessTokenPublicKey: options?.accessTokenPublicKey,
     refreshTokenSecret: options?.refreshTokenSecret,
     refreshTokenMode: options?.refreshTokenMode,
     issuer: options?.issuer,
@@ -120,6 +126,22 @@ function signValue(unsignedToken: string, secret: string): string {
   return createHmac("sha256", secret).update(unsignedToken).digest("base64url");
 }
 
+function createRsaKeyPair(): { privateKey: string; publicKey: string } {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2_048,
+    privateKeyEncoding: {
+      format: "pem",
+      type: "pkcs8",
+    },
+    publicKeyEncoding: {
+      format: "pem",
+      type: "spki",
+    },
+  });
+
+  return { privateKey, publicKey };
+}
+
 describe("TokenService", () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -138,9 +160,13 @@ describe("TokenService", () => {
       deviceId: "device-9",
       tokenVersion: 2,
     });
+    const [encodedHeader] = token.split(".");
 
     const claims = await service.verifyAccessToken(token);
 
+    expect(
+      JSON.parse(Buffer.from(encodedHeader ?? "", "base64url").toString()),
+    ).toEqual({ alg: "HS256", typ: "JWT" });
     expect(claims).toMatchObject({
       sub: USER_1_ID,
       email: "user@example.com",
@@ -152,6 +178,56 @@ describe("TokenService", () => {
     });
     expect(authRepository.findSessionValidationByUserId).toHaveBeenCalledWith(
       USER_1_ID,
+    );
+  });
+
+  it("creates RS256 access tokens and verifies them with the public key", async () => {
+    const { privateKey, publicKey } = createRsaKeyPair();
+    const issuer = createService({
+      accessTokenAlgorithm: "RS256",
+      accessTokenPrivateKey: privateKey,
+      accessTokenPublicKey: publicKey,
+    }).service;
+    const verifier = createService({
+      accessTokenAlgorithm: "RS256",
+      accessTokenPublicKey: publicKey,
+    }).service;
+    const token = issuer.createAccessToken({
+      sub: USER_1_ID,
+      email: "user@example.com",
+      tokenVersion: 2,
+    });
+    const [encodedHeader] = token.split(".");
+
+    expect(
+      JSON.parse(Buffer.from(encodedHeader ?? "", "base64url").toString()),
+    ).toEqual({ alg: "RS256", typ: "JWT" });
+    await expect(verifier.verifyAccessToken(token)).resolves.toMatchObject({
+      sub: USER_1_ID,
+      email: "user@example.com",
+      tokenVersion: 2,
+    });
+  });
+
+  it("rejects RS256 access tokens signed by a different key", async () => {
+    const trustedKeys = createRsaKeyPair();
+    const untrustedKeys = createRsaKeyPair();
+    const issuer = createService({
+      accessTokenAlgorithm: "RS256",
+      accessTokenPrivateKey: untrustedKeys.privateKey,
+      accessTokenPublicKey: untrustedKeys.publicKey,
+    }).service;
+    const verifier = createService({
+      accessTokenAlgorithm: "RS256",
+      accessTokenPublicKey: trustedKeys.publicKey,
+    }).service;
+    const token = issuer.createAccessToken({
+      sub: USER_1_ID,
+      tokenVersion: 2,
+    });
+
+    await expect(verifier.verifyAccessToken(token)).rejects.toThrow(
+      "Invalid access token signature.",
     );
   });
 
