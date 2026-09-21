@@ -18,22 +18,30 @@ Scale detail to the change. Keep all six sections below, using an explicit "Not 
 | Context        | What was missing or broken, the trigger and impact, related issues, and confirmed root cause for a bug                   |
 | Changes        | What changed, how it improves/fixes the problem, before/after behavior, and implementation decisions useful to reviewers |
 | API            | Added, updated, or removed backend routes/contracts and compatibility implications; explicitly state when none changed   |
-| How to Test    | Prerequisites, reproducible commands/steps, expected results, actual validation outcomes, and remaining checks           |
+| How to Test    | Minimal prerequisites, reproducible consumer steps, and observable expected results                                      |
 | Reviewer Notes | Risks, migrations/configuration/rollout needs, unverified areas, decisions needing attention, and commit dependencies    |
 
 ### API Details
 
 For each affected route, name its HTTP method and path, whether it is new/updated/removed, and relevant request/response/status/error changes. Include authentication, authorization, and compatibility changes even if the path stayed the same. Request examples or a compact before/after table can help when the contract changes materially.
 
-Identify updates to `backend/openapi/openapi.yaml` and `backend/openapi/openapi.json`, and report applicable OpenAPI checks. Do not generate or alter contracts merely to fill out this section. Internal backend changes without route/contract changes can say: "No backend route or API contract changes."
+Identify updates to `backend/openapi/openapi.yaml` and `backend/openapi/openapi.json`. Do not generate or alter contracts merely to fill out this section. Internal backend changes without route/contract changes can say: "No backend route or API contract changes."
 
-### Test Evidence
+### How to Test
 
-Separate what passed from instructions still to run. Record exact commands, outcomes, and unavailable/skipped checks. Include fixture/account prerequisites and at least one success path and one relevant failure/validation/edge path for behavioral changes. Avoid ambiguous statements such as "tested locally."
+Write this section for the reviewer who needs to exercise the changed behavior. Start with only the prerequisites they need, such as the stack startup command, seeded account and role, fixture data, feature flag, or API client. Then give numbered steps for the primary success path and each relevant failure, validation, or edge path. State the observable result after each meaningful action so the reviewer can tell whether the behavior is correct.
 
-Use [testing-guide.md](./testing-guide.md) for the actual commands and isolated test setup. User-facing validation uses `docker compose up --build` unless a non-Docker workflow was explicitly selected. Name the browser-validation owner and distinguish Playwright MCP, automated Playwright suites, and manual steps. A build or screenshot alone does not establish that a flow works.
+Describe the workflow at the interface the change affects:
 
-Documentation-only PRs should report formatting, links/anchors, reference accuracy, and diff checks, and state that Docker, application tests, and browser checks were skipped because no runtime behavior changed. Mark genuinely irrelevant scenarios as not applicable.
+- For frontend changes, explain where to navigate and what to do in the UI.
+- For backend changes, provide requests a consumer can send and the responses or persisted effects to verify.
+- For CLI changes, show the invocation and its visible output or side effects.
+- For documentation changes, explain how to follow the changed instructions and confirm that links, examples, or navigation work.
+- For internal changes with no new interface, name the existing workflow to exercise and the behavior that must remain unchanged.
+
+Do not duplicate routine CI evidence in the PR description. Omit command inventories, passing test counts, coverage percentages, lint output, and checks already enforced by CI. Keep the implementation handoff aligned with [testing-guide.md](./testing-guide.md), which still requires reporting the checks that actually ran.
+
+Use Reviewer Notes for exceptional validation information that affects review: skipped or unavailable checks, known failures, meaningful verification not covered by CI, environmental limitations, and unverified risks. Mention browser-validation ownership only when a flow remains for the reviewer or author to verify. Avoid ambiguous statements such as "tested locally."
 
 ## Screenshots for Core Frontend Changes
 
@@ -74,12 +82,13 @@ List affected methods/paths and contract changes, or state there are none.
 
 ## How to Test
 
-List prerequisites, commands/outcomes, and success/failure steps with expected results.
-State validation ownership and anything not run.
+List only the prerequisites a reviewer needs, then give numbered consumer steps and
+observable expected results for the success and relevant failure/edge paths.
 
 ## Reviewer Notes
 
-Record risks, migrations/configuration, review focus, and commit dependencies.
+Record risks, migrations/configuration, review focus, commit dependencies, and any
+exceptional skipped, unavailable, failing, or non-CI validation.
 
 ## Screenshots
 

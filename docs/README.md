@@ -4,7 +4,7 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 ## Start Here
 
-- [pull-requests.md](./pull-requests.md): PR description format, API/test evidence, reviewer notes, and frontend screenshots
+- [pull-requests.md](./pull-requests.md): PR description format, consumer test workflows, reviewer notes, and frontend screenshots
 
 - [pr-review.md](./pr-review.md): author self-review, behavioral correctness, code quality, and actionable findings
 

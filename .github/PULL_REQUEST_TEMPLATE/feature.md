@@ -20,13 +20,13 @@ If none: No backend route or API contract changes.
 
 ## How to Test
 
-Provide prerequisites, exact commands and outcomes, and reproducible success and failure/edge-case steps with expected results. Distinguish completed checks from instructions still to run.
+List only the prerequisites a reviewer needs, such as stack startup, an account/role, fixture data, or an API client. Then provide numbered steps that exercise the changed behavior as a user or consumer, covering the primary success path and relevant failure or edge paths with observable expected results.
 
-For user-facing changes, record Docker startup and browser-validation ownership, Playwright MCP or suite results, or the manual handoff. For documentation-only changes, record documentation checks and explicitly skipped runtime checks.
+For backend, CLI, or documentation changes, use the corresponding consumer workflow. For internal changes with no new interface, identify the existing workflow to exercise and the behavior that should remain unchanged. Omit routine CI commands, passing test counts, coverage, and lint output.
 
 ## Reviewer Notes
 
-Call out risks, migrations/configuration, compatibility or rollout needs, unverified areas, and particular decisions that need attention. List commit ordering/cherry-pick dependencies, or state that commits are independent.
+Call out risks, migrations/configuration, compatibility or rollout needs, unverified areas, and particular decisions that need attention. Include skipped or unavailable checks, known failures, meaningful verification not covered by CI, and browser-validation ownership only when they affect review. List commit ordering/cherry-pick dependencies, or state that commits are independent.
 
 Confirm author self-review covered behavior and code quality using the [review guide](https://github.com/thomastran117x/Rentify/blob/main/docs/pr-review.md).
 
