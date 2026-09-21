@@ -51,6 +51,8 @@ Authenticated rentings tools:
 - `list_my_rentings`
 - `get_renting`
 
+Posting photos: `create_posting` and `update_posting` take each photo either as `{ mediaId, position }`, for an image uploaded and processed through the backend's `/media` routes, or as `{ blobUrl, blobName, position }`, for a photo already on the posting. The `/media` routes do not accept personal access tokens yet, and this package has no upload tool, so an MCP client cannot add new photos. That also means it cannot create a posting, which requires at least one photo. Tracked in [#339](https://github.com/thomastran117x/Rentify/issues/339).
+
 The backend API must already be running before this MCP server starts.
 
 Protected MCP integrations can use a Rentify personal access token through `RENTIFY_PAT`. No `auth_*` MCP tools are exposed by this package, and this MCP intentionally does not expose payment-session or direct payment-creation tools.
