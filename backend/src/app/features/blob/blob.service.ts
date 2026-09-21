@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -13,10 +13,10 @@ import { environment } from "@/configuration/environment/index";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
+import type { Uuid } from "@/configuration/validation/uuid";
 import type {
   BlobProperties,
   BlobUploadTarget,
-  BuildBlobNameInput,
   CreateBlobUploadUrlInput,
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
@@ -36,7 +36,6 @@ interface LocalBlobConfiguration {
   defaultPublicOrigin: string;
 }
 
-const DEFAULT_SCOPE = "general";
 const DEFAULT_SAS_TTL_SECONDS = 15 * 60;
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
@@ -44,6 +43,12 @@ const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
 const LOCAL_BLOB_FILE_PATH = buildApiPath("/blob/file");
 // Derived images sit one level below the original's owner directory.
 const THUMBNAIL_DIRECTORY = "thumbnails";
+// Client uploads land here and are never served; see MediaService.
+const QUARANTINE_ROOT = "quarantine";
+const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
+// Validated, re-encoded images written by the media processing worker.
+const PROCESSED_IMAGE_DIRECTORY = "media/images";
+const PROCESSED_IMAGE_EXTENSION = ".webp";
 
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(
@@ -248,15 +253,24 @@ export class BlobService {
   }> {
     if (this.config) {
       const blobClient = this.createBlobClient(blobName);
-      const [body, properties] = await Promise.all([
-        blobClient.downloadToBuffer(),
-        blobClient.getProperties(),
-      ]);
 
-      return {
-        body,
-        contentType: properties.contentType ?? undefined,
-      };
+      try {
+        const [body, properties] = await Promise.all([
+          blobClient.downloadToBuffer(),
+          blobClient.getProperties(),
+        ]);
+
+        return {
+          body,
+          contentType: properties.contentType ?? undefined,
+        };
+      } catch (error) {
+        if (hasErrorCode(error, "statusCode", 404)) {
+          throw new ResourceNotFoundError("Blob not found.");
+        }
+
+        throw error;
+      }
     }
 
     const localBlob = await this.readLocalBlob(blobName);
@@ -523,21 +537,42 @@ export class BlobService {
   }
 
   /**
-   * Issues a fresh name of the form `${scope}/${ownerId}/${file}`. The caller
-   * supplies the extension; the client's filename never contributes to it.
+   * Where a client uploads the bytes for a media record. The name carries no
+   * extension: the declared type is on the record, and nothing is inferred from
+   * the name until the bytes have been decoded.
    */
-  buildBlobName(input: BuildBlobNameInput): string {
-    const normalizedScope = this.normalizeScope(input.scope);
+  buildQuarantineImageBlobName(ownerId: Uuid, mediaId: Uuid): string {
+    return `${QUARANTINE_IMAGE_DIRECTORY}/${ownerId}/${mediaId}`;
+  }
 
-    return `${normalizedScope}/${input.ownerId}/${Date.now()}-${randomUUID()}${input.extension}`;
+  buildProcessedImageBlobName(ownerId: Uuid, mediaId: Uuid): string {
+    return `${PROCESSED_IMAGE_DIRECTORY}/${ownerId}/${mediaId}${PROCESSED_IMAGE_EXTENSION}`;
+  }
+
+  /** True for anything under quarantine/, which must never be served. */
+  isQuarantineBlobName(blobName: string): boolean {
+    const normalized = path.posix
+      .normalize(blobName.trim())
+      .replace(/^\/+/, "")
+      .toLowerCase();
+
+    return (
+      normalized === QUARANTINE_ROOT ||
+      normalized.startsWith(`${QUARANTINE_ROOT}/`)
+    );
+  }
+
+  /** True for an image written by the media processing worker. */
+  isProcessedImageBlobName(blobName: string): boolean {
+    return blobName.trim().startsWith(`${PROCESSED_IMAGE_DIRECTORY}/`);
   }
 
   /**
-   * Reads the owner segment back out of a name issued by buildBlobName, or of a
-   * thumbnail derived from one, or returns null when the name is invalid or not
-   * in that shape. The scope may
-   * itself contain slashes and the file never does, so the owner is found from
-   * the end.
+   * Reads the owner segment back out of a name of the form
+   * `<prefix>/<ownerId>/<file>` - quarantined and processed media, and blobs
+   * stored before media existed - or of a thumbnail derived from one. Returns
+   * null when the name is invalid or not in that shape. The prefix may contain
+   * slashes and the file never does, so the owner is found from the end.
    */
   getBlobOwnerId(blobName: string): string | null {
     let normalizedBlobName: string;
@@ -558,24 +593,8 @@ export class BlobService {
     return ownerSegments.length < 3 ? null : (ownerSegments.at(-2) ?? null);
   }
 
-  private normalizeScope(scope?: string): string {
-    const normalizedScope = (scope ?? DEFAULT_SCOPE).trim().toLowerCase();
-
-    if (!normalizedScope) {
-      return DEFAULT_SCOPE;
-    }
-
-    if (!/^[a-z0-9]+(?:[/-][a-z0-9]+)*$/.test(normalizedScope)) {
-      throw new BadRequestError(
-        "Scope may only include lowercase letters, numbers, hyphens, and forward slashes.",
-      );
-    }
-
-    return normalizedScope;
-  }
-
   // Generic shape-only check. Which types may be uploaded at all is decided
-  // before a name or URL is requested, by MediaService's image allow-list.
+  // before a name or URL is issued, by MediaService's image allow-list.
   private normalizeContentType(contentType: string): string {
     const normalized = contentType.trim().toLowerCase();
 

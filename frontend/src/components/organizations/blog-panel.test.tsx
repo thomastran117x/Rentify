@@ -13,11 +13,11 @@ vi.mock("@/components/organizations/shared/format", () => ({
 vi.mock("@/lib/organizations/urls", () => ({
   organizationHref: (...parts: string[]) => `/organizations/${parts.join("/")}`,
 }));
-const { createUploadUrlMock } = vi.hoisted(() => ({
-  createUploadUrlMock: vi.fn(),
+const { uploadImageMock } = vi.hoisted(() => ({
+  uploadImageMock: vi.fn(),
 }));
-vi.mock("@/lib/blob/api", () => ({
-  blobApi: { createUploadUrl: createUploadUrlMock },
+vi.mock("@/lib/media/api", () => ({
+  uploadImage: uploadImageMock,
 }));
 const post = {
   id: "post-1",
@@ -139,7 +139,11 @@ describe("BlogPanel", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(p.onFormChange).toHaveBeenCalledWith(
-      expect.objectContaining({ coverImageUrl: "", coverImageBlobName: "" }),
+      expect.objectContaining({
+        coverImageUrl: "",
+        coverImageBlobName: "",
+        coverImageMediaId: "",
+      }),
     );
     fireEvent.change(screen.getByLabelText("Excerpt (optional)"), {
       target: { value: "New summary" },
@@ -205,69 +209,68 @@ describe("BlogPanel", () => {
 
   it("uploads, rejects, and reports cover-image uploads", async () => {
     const p = props();
-    createUploadUrlMock.mockResolvedValue({
-      uploadUrl: "https://uploads.example.com/cover",
-      method: "PUT",
-      headers: { "x-upload": "yes" },
-      blobUrl: "https://cdn.example.com/cover.jpg",
-      blobName: "cover.jpg",
-    });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 200 })),
+    let finishUpload: (image: { mediaId: string; url: string }) => void = () =>
+      undefined;
+    uploadImageMock.mockImplementationOnce(
+      (_file: File, options: { onStageChange?: (stage: string) => void }) =>
+        new Promise((resolve) => {
+          options.onStageChange?.("processing");
+          finishUpload = resolve;
+        }),
     );
     const { rerender } = render(<BlogPanel {...p} />);
     const input = screen.getByLabelText("Upload blog cover image");
     const file = new File(["image"], "cover.jpg", { type: "image/jpeg" });
     fireEvent.change(input, { target: { files: [file] } });
+
+    // While the server validates the image the uploader says so, and nothing
+    // is shown until the processed image comes back.
+    expect(await screen.findByText("Processing...")).toBeInTheDocument();
+    expect(uploadImageMock).toHaveBeenCalledWith(file, {
+      scope: "organizations",
+      onStageChange: expect.any(Function),
+    });
+    finishUpload({
+      mediaId: "media-1",
+      url: "https://cdn.example.com/media/images/u/media-1.webp",
+    });
     await vi.waitFor(() =>
       expect(p.onFormChange).toHaveBeenCalledWith(
         expect.objectContaining({
-          coverImageUrl: "https://cdn.example.com/cover.jpg",
-          coverImageBlobName: "cover.jpg",
+          coverImageUrl: "https://cdn.example.com/media/images/u/media-1.webp",
+          coverImageBlobName: "",
+          coverImageMediaId: "media-1",
         }),
       ),
     );
 
-    const failed = props();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 500 })),
-    );
-    rerender(<BlogPanel {...failed} />);
-    fireEvent.change(screen.getByLabelText("Upload blog cover image"), {
-      target: { files: [file] },
-    });
-    // The specific reason is surfaced now, rather than a generic retry prompt,
-    // so a rejected file is distinguishable from a dropped connection.
-    await vi.waitFor(() =>
-      expect(failed.onError).toHaveBeenCalledWith(
-        expect.stringMatching(/status 500/i),
-      ),
-    );
-
-    // The server judges acceptability and names the deployed limits; its
+    // The server judges acceptability, at upload or after processing, and its
     // message is shown verbatim rather than a client-side guess.
-    createUploadUrlMock.mockRejectedValueOnce(
-      new Error("Only PNG images can be uploaded."),
+    uploadImageMock.mockRejectedValueOnce(
+      new Error("Uploaded file could not be read as an image."),
     );
     const rejected = props();
     rerender(<BlogPanel {...rejected} />);
     fireEvent.change(screen.getByLabelText("Upload blog cover image"), {
-      target: {
-        files: [new File(["pdf"], "contract.pdf", { type: "application/pdf" })],
-      },
+      target: { files: [file] },
     });
     await vi.waitFor(() =>
       expect(rejected.onError).toHaveBeenCalledWith(
-        "Only PNG images can be uploaded.",
+        "Uploaded file could not be read as an image.",
       ),
     );
-    expect(createUploadUrlMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        contentType: "application/pdf",
-        sizeBytes: 3,
-      }),
+
+    // Something that is not an Error still gets a readable message.
+    uploadImageMock.mockRejectedValueOnce("boom");
+    const unknown = props();
+    rerender(<BlogPanel {...unknown} />);
+    fireEvent.change(screen.getByLabelText("Upload blog cover image"), {
+      target: { files: [file] },
+    });
+    await vi.waitFor(() =>
+      expect(unknown.onError).toHaveBeenCalledWith(
+        "We couldn't upload that cover image. Please try again.",
+      ),
     );
 
     fireEvent.change(screen.getByLabelText("Upload blog cover image"), {

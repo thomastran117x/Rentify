@@ -89,7 +89,7 @@ The route registry currently groups the API into these main areas:
 - auth OAuth routes
 - auth device and personal access token routes
 - organizations
-- profiles and blob upload support
+- profiles, media uploads, and local blob storage stand-ins
 - reports and moderation
 - search admin
 - owner posting management
@@ -104,77 +104,104 @@ The route registry currently groups the API into these main areas:
 
 ## Image Upload Validation
 
-Uploads are two-step: the client asks `POST /blob/upload-url` for credentials,
-then PUTs the bytes to the returned URL. Where that second PUT goes decides how
-much the backend can enforce.
+Every uploaded image is a **media item**: a `media` row that tracks it from the
+moment an upload is requested until its processed image is ready or it is
+rejected. The media id and blob names are the source of truth; URLs are derived
+from blob names and are never trusted as input.
 
-**Where the rules live.** Two services split the work:
+```text
+POST /media/uploads          row: pending_upload   (credential signed after the row exists)
+PUT  <upload.uploadUrl>      bytes -> quarantine/images/<userId>/<mediaId>
+POST /media/{id}/complete    row: uploaded, media.processing job queued
+media-processing-worker      row: processing -> ready | rejected
+                             ready: media/images/<userId>/<mediaId>.webp
+GET  /media/{id}             poll until ready (url set) or rejected (reason set)
+attach by mediaId            postings, logos, blog covers, avatars
+```
+
+**Where the rules live.**
 
 - `BlobService` (`features/blob`) is the storage adapter. It signs Azure SAS and
   local upload URLs, reads, writes, and deletes bytes, reports blob properties,
-  and owns the naming convention `<scope>/<ownerId>/<file>`, in both
-  directions. It makes no decision about what may be stored or who may use it.
+  and owns the naming convention in both directions. It makes no decision about
+  what may be stored or who may use it.
 - `MediaService` (`features/media`) owns those decisions: the image allow-list
-  and byte checks (`image-policy.ts`), issuing and completing uploads, and
-  ownership. Feature services that attach an uploaded image, such as profile
-  avatars, posting photos, organization logos, and blog covers, depend on
-  `MediaService`, never on `BlobService` directly, so a future media record with
-  validation state has a single place to be enforced.
+  (`image-policy.ts`), the media lifecycle, ownership, and
+  `resolveAttachableImage`, the one gate every feature uses to attach an image.
+- `MediaProcessingService`, run by `media-processing-worker`, validates and
+  re-encodes. See the [media worker guide](../backend/src/app/workers/media/README.md).
 
-Posting thumbnail generation and the orphaned-blob cleanup script still use
+Posting thumbnail generation and the orphaned-blob cleanup script use
 `BlobService` directly. Both are trusted server-side storage work.
 
-**At credential issuance (always enforced).** `POST /blob/upload-url` only issues
-credentials for images. A `contentType` outside the configured allow-list is
-rejected with 415 before any URL exists, and a `sizeBytes` over the limit with 413. The stored blob's extension is derived from the validated content type, not
-from `filename` — a file named `photo.png` declared as `image/jpeg` is stored as
-`.jpg`. The filename extension is never treated as evidence of format.
+**At upload request.** `POST /media/uploads` only issues credentials for images.
+A `contentType` outside the configured allow-list is rejected with 415 and a
+declared `sizeBytes` over the limit with 413, before any row or URL exists. The
+client's filename is kept for display only and never contributes to a blob
+name.
 
-**At upload (local development only).** `PUT /blob/upload` holds the bytes, so it
-decodes them with sharp, confirms the real format matches the declared type, and
-applies the size and dimension limits. It also checks the declared type against
-the blob name the token was issued for.
+**Quarantine.** The client uploads to `quarantine/images/<userId>/<mediaId>`.
+Nothing under `quarantine/` is ever displayed:
 
-**The gap.** When `AZURE_STORAGE_CONNECTION_STRING` and
-`AZURE_STORAGE_CONTAINER_NAME` are set, the client PUTs directly to Azure and the
-backend never sees the bytes. None of the byte-level checks apply there.
+- the upload response carries only a write-only upload URL, with no blob name
+  or readable URL;
+- `GET /media/{id}` sets `url` only once the item is `ready`, and then to the
+  processed image;
+- the local `GET /blob/file` stand-in answers 404 for any quarantine name; and
+- `MediaService.isManagedUrl` refuses a quarantine name as an attachment
+  reference.
 
-Do not assume the SAS closes this. `generateBlobSASQueryParameters` takes a
-`contentType`, but in Azure's SAS that field is `rsct` — it overrides the
-`Content-Type` returned on **download**. It does not constrain what may be
-uploaded. This was measured against a real storage account: a SAS issued for
-`image/png` accepted a PUT sending `Content-Type: image/jpeg`, and accepted a
-29-byte text file, both with 201.
+**At completion.** `POST /media/{id}/complete` checks that the bytes arrived
+(409 if not) and holds their stored length to the size limit (413, and the item
+is rejected). The local `PUT /blob/upload` only accepts bytes for a quarantine
+name whose item is still `pending_upload`, and applies the same size limit.
 
-So on the Azure path the allow-list constrains what a client can _ask_ for, not
-what it can _store_. A caller who requests credentials for `image/png` can PUT
-arbitrary bytes to the returned URL. The practical blast radius is limited —
-credentials are per-user, scoped to one generated blob name, short-lived, and
-the blob is served with `x-content-type-options: nosniff` — but the stored object
-is not guaranteed to be the image it claims to be.
+**Processing closes the Azure gap.** On the Azure path the client PUTs straight
+to storage and the API never sees the bytes. The SAS does not constrain them:
+its `contentType` is Azure's `rsct`, which only overrides the `Content-Type`
+returned on download. This was measured against a real account: a SAS issued
+for `image/png` accepted a JPEG and a 29-byte text file. So every upload,
+whichever storage path it took, is validated by the worker instead. The worker
+decodes the bytes with sharp and matches the real format against the declared
+type and today's allow-list. It holds the length and dimensions to the policy
+and decodes every pixel, which catches truncated data. An accepted image is
+re-encoded to WebP. That applies its EXIF orientation, drops metadata such as
+EXIF and GPS, and means what is served was produced by the worker, not supplied
+by the client. A policy failure rejects the item with its reason. Both outcomes
+delete the quarantined upload.
 
-Closing it needs one of:
+**When an image is attached.** Every field that holds an image goes through one
+rule, `MediaService.resolveImageReference`: posting photos
+(`{ mediaId, position }`), `logoMediaId`, `coverImageMediaId`, and
+`avatarMediaId`. Features only map their own field names onto it.
 
-- a post-upload validator (Event Grid or a queue worker) that decodes each new
-  blob and deletes or quarantines whatever fails, or
-- proxying uploads through the backend so the bytes pass through
-  `assertImageBytes`, at the cost of the direct-to-storage path.
+- A new image is sent as a media id. It resolves only to a `ready` item that
+  the acting user uploaded for that target's scope, and the feature stores the
+  processed image's blob name and URL.
+- Scopes form a closed set: `postings` for posting photos, `organizations` for
+  logos and blog covers, and `avatars` for avatars. `POST /media/uploads`
+  requires one, so an image uploaded as a posting photo cannot become an
+  avatar.
+- An image that is already stored may be resent by its blob URL and name,
+  whoever uploaded it: a photo already on the posting (including one another
+  member uploaded, a seeded photo, or one copied by duplication), or the stored
+  logo, cover, or avatar. The URL must match the managed location for the name.
+  Sending both as `null` clears a logo, cover, or avatar.
+- Any other blob reference is rejected, even one whose name records the acting
+  user as its owner.
 
-Until then, treat a stored blob's content type as client-asserted. Anything that
-re-decodes a blob should defend itself; posting thumbnail generation does, by
-capping `limitInputPixels` on its sharp decode.
+`DELETE /media/{id}` refuses, with 409, an item whose processed image is still
+attached. A replaced image is removed by the feature that replaced it.
 
-**When an image is attached.** A reference is accepted only if its URL matches
-the managed location for its blob name and, for anything newly attached, the
-blob was issued to the acting user. Ownership is read from the owner segment of
-the name.
+**Cleanup.** `blob-cleanup` treats quarantined uploads as candidates whatever
+their declared content type. With `--delete`, it also removes the media rows of
+blobs it deleted, and unfinished rows that have not moved in 24 hours.
 
-- Organization logos and blog covers must belong to the actor.
-- Posting photos already on the posting may be kept by anyone who can manage
-  it. That covers photos another member uploaded, seeded photos, and duplicated
-  postings. A newly added photo must belong to the actor.
-- A new avatar must belong to the user. Resending the stored one is always
-  accepted.
+**Storage layout.** Quarantined and processed images currently share one Azure
+container. If that container allows anonymous blob reads, a quarantined upload
+is reachable by anyone who knows its full name. The name holds two random
+UUIDs, and the API never discloses it, but that obscurity is not access control.
+Moving `quarantine/` to a private container is the intended next step.
 
 ## Realtime Transport
 

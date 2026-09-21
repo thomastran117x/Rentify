@@ -37,10 +37,18 @@ import {
 } from "@/features/organizations/audit/audit.model";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
-const ORGANIZATION_BLOB_PREFIX = "organizations/";
 const MAX_SLUG_ATTEMPTS = 50;
 // Matches OrganizationBlogPost.slug in the Prisma schema.
 const BLOG_SLUG_MAX_LENGTH = 200;
+
+// Covers stored before media records existed were named under this prefix.
+const LEGACY_COVER_BLOB_PREFIX = "organizations/";
+
+const COVER_IMAGE_FIELDS = {
+  mediaId: "coverImageMediaId",
+  url: "coverImageUrl",
+  blobName: "coverImageBlobName",
+} as const;
 
 export class OrganizationBlogService {
   private readonly logger = loggerFactory.forClass(
@@ -112,11 +120,7 @@ export class OrganizationBlogService {
     input: CreateOrganizationBlogPostInput,
   ): Promise<OrganizationBlogPostRecord> {
     await this.requireManager(input.actorUserId, input.organizationId);
-    this.assertBlogCoverImageInput(
-      input.actorUserId,
-      input.coverImageUrl,
-      input.coverImageBlobName,
-    );
+    const cover = await this.resolveBlogCoverImage(input, null);
 
     const body = sanitizeRichText(input.body);
     this.assertBodyNotEmpty(body);
@@ -132,8 +136,8 @@ export class OrganizationBlogService {
       slug,
       excerpt: this.resolveExcerpt(input.excerpt, body),
       body,
-      coverImageUrl: input.coverImageUrl ?? null,
-      coverImageBlobName: input.coverImageBlobName ?? null,
+      coverImageUrl: cover.coverImageUrl ?? null,
+      coverImageBlobName: cover.coverImageBlobName ?? null,
       tags: input.tags ?? [],
       status: input.status,
       commentsEnabled: input.commentsEnabled ?? true,
@@ -164,10 +168,9 @@ export class OrganizationBlogService {
       input.organizationId,
       input.blogPostId,
     );
-    this.assertBlogCoverImageInput(
-      input.actorUserId,
-      input.coverImageUrl,
-      input.coverImageBlobName,
+    const cover = await this.resolveBlogCoverImage(
+      input,
+      existing.coverImageBlobName ?? null,
     );
 
     const body =
@@ -210,8 +213,8 @@ export class OrganizationBlogService {
         slug,
         excerpt,
         body,
-        coverImageUrl: input.coverImageUrl,
-        coverImageBlobName: input.coverImageBlobName,
+        coverImageUrl: cover.coverImageUrl,
+        coverImageBlobName: cover.coverImageBlobName,
         tags: input.tags,
         status: input.status,
         commentsEnabled: input.commentsEnabled,
@@ -437,59 +440,45 @@ export class OrganizationBlogService {
     }
   }
 
-  private assertBlogCoverImageInput(
-    actorUserId: Uuid,
-    coverImageUrl: string | null | undefined,
-    coverImageBlobName: string | null | undefined,
-  ): void {
-    const hasUrl = coverImageUrl !== undefined;
-    const hasBlobName = coverImageBlobName !== undefined;
+  /**
+   * Applies MediaService's image rule to the cover image fields of a blog write
+   * and returns the values to store; both are undefined when the write left
+   * the cover alone.
+   */
+  private async resolveBlogCoverImage(
+    input: {
+      actorUserId: Uuid;
+      coverImageMediaId?: Uuid;
+      coverImageUrl?: string | null;
+      coverImageBlobName?: string | null;
+    },
+    currentBlobName: string | null,
+  ): Promise<{
+    coverImageUrl?: string | null;
+    coverImageBlobName?: string | null;
+  }> {
+    const cover = await this.mediaService.resolveImageReference(
+      input.actorUserId,
+      {
+        mediaId: input.coverImageMediaId,
+        url: input.coverImageUrl,
+        blobName: input.coverImageBlobName,
+      },
+      {
+        scope: "organizations",
+        storedBlobNames: new Set(currentBlobName ? [currentBlobName] : []),
+        fields: COVER_IMAGE_FIELDS,
+      },
+    );
 
-    if (hasUrl !== hasBlobName) {
-      throw new BadRequestError(
-        "Cover image URL and blob name must be provided together.",
-      );
+    if (cover === undefined) {
+      return {};
     }
 
-    if (!hasUrl && !hasBlobName) {
-      return;
-    }
-
-    if (!coverImageUrl && !coverImageBlobName) {
-      return;
-    }
-
-    if (!coverImageUrl || !coverImageBlobName) {
-      throw new BadRequestError(
-        "Cover image URL and blob name must both be set or both be null.",
-      );
-    }
-
-    const blobName = coverImageBlobName.trim();
-
-    if (!this.isOrganizationBlobName(blobName)) {
-      throw new BadRequestError(
-        "Cover images must use an organizations-scoped blob.",
-      );
-    }
-
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Cover images require Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (!this.mediaService.isManagedUrl(coverImageUrl, blobName)) {
-      throw new BadRequestError(
-        "Cover image URL must match the Blob Storage location for the provided blob name.",
-      );
-    }
-
-    if (!this.mediaService.isOwnedBy(actorUserId, blobName)) {
-      throw new BadRequestError(
-        "Cover image blob must belong to the current user.",
-      );
-    }
+    return {
+      coverImageUrl: cover?.blobUrl ?? null,
+      coverImageBlobName: cover?.blobName ?? null,
+    };
   }
 
   private async cleanupReplacedCoverImage(
@@ -525,7 +514,10 @@ export class OrganizationBlogService {
     }
 
     try {
-      await this.mediaService.deleteMedia(actorUserId, blobName);
+      await this.mediaService.deleteReplacedImageByBlobName(
+        actorUserId,
+        blobName,
+      );
     } catch (error) {
       this.logger.error("Failed to delete replaced blog cover image blob.", {
         blobName,
@@ -535,7 +527,12 @@ export class OrganizationBlogService {
   }
 
   private isOrganizationBlobName(blobName: string): boolean {
-    return blobName.trim().toLowerCase().startsWith(ORGANIZATION_BLOB_PREFIX);
+    const normalized = blobName.trim();
+
+    return (
+      normalized.toLowerCase().startsWith(LEGACY_COVER_BLOB_PREFIX) ||
+      this.mediaService.isProcessedImageBlobName(normalized)
+    );
   }
 
   private async recordAuditSafely(

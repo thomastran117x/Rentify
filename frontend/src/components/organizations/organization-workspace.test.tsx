@@ -1,3 +1,4 @@
+import { ApiClientError } from "@/lib/api/types";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,9 +51,9 @@ const {
   revokeInviteMock,
   updateMemberRoleMock,
   removeMemberMock,
-  createUploadUrlMock,
-  deleteBlobMock,
-  deleteBlobKeepaliveMock,
+  uploadImageMock,
+  deleteMediaMock,
+  deleteMediaKeepaliveMock,
   useSelectedLayoutSegmentMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
@@ -84,9 +85,9 @@ const {
   revokeInviteMock: vi.fn(),
   updateMemberRoleMock: vi.fn(),
   removeMemberMock: vi.fn(),
-  createUploadUrlMock: vi.fn(),
-  deleteBlobMock: vi.fn(),
-  deleteBlobKeepaliveMock: vi.fn(),
+  uploadImageMock: vi.fn(),
+  deleteMediaMock: vi.fn(),
+  deleteMediaKeepaliveMock: vi.fn(),
   useSelectedLayoutSegmentMock: vi.fn(),
 }));
 
@@ -127,11 +128,11 @@ vi.mock("@/lib/auth/api", () => ({
   },
 }));
 
-vi.mock("@/lib/blob/api", () => ({
-  blobApi: {
-    createUploadUrl: createUploadUrlMock,
-    deleteBlob: deleteBlobMock,
-    deleteBlobKeepalive: deleteBlobKeepaliveMock,
+vi.mock("@/lib/media/api", () => ({
+  uploadImage: uploadImageMock,
+  mediaApi: {
+    delete: deleteMediaMock,
+    deleteKeepalive: deleteMediaKeepaliveMock,
   },
 }));
 
@@ -193,6 +194,7 @@ function BlogActionsHarness() {
             tags: ["news"],
             coverImageUrl: "",
             coverImageBlobName: "",
+            coverImageMediaId: "",
             status: "draft",
             commentsEnabled: true,
           })
@@ -270,18 +272,10 @@ function buildSession(
   };
 }
 
-function buildBlobTarget(blobName: string) {
+function buildUploadedImage(mediaId: string) {
   return {
-    method: "PUT" as const,
-    uploadUrl: `https://upload.test/${blobName}`,
-    expiresAt: "2026-06-30T00:00:00.000Z",
-    blobName,
-    blobUrl: `https://cdn.test/${blobName}`,
-    container: "rentify",
-    headers: {
-      "x-ms-blob-type": "BlockBlob" as const,
-      "Content-Type": "image/png",
-    },
+    mediaId,
+    url: `https://cdn.test/media/images/user-1/${mediaId}.webp`,
   };
 }
 
@@ -426,11 +420,9 @@ describe("Organization workspace", () => {
       deleted: true,
       blogPostId: "blog-1",
     });
-    createUploadUrlMock.mockResolvedValue(
-      buildBlobTarget("organizations/user-1/logo-default.png"),
-    );
-    deleteBlobMock.mockResolvedValue(undefined);
-    deleteBlobKeepaliveMock.mockImplementation(() => undefined);
+    uploadImageMock.mockResolvedValue(buildUploadedImage("media-default"));
+    deleteMediaMock.mockResolvedValue(undefined);
+    deleteMediaKeepaliveMock.mockImplementation(() => undefined);
     window.sessionStorage.clear();
     vi.stubGlobal(
       "fetch",
@@ -870,13 +862,9 @@ describe("Organization workspace", () => {
 
   it("cleans up an earlier staged logo when it is replaced before saving", async () => {
     const user = userEvent.setup();
-    createUploadUrlMock
-      .mockResolvedValueOnce(
-        buildBlobTarget("organizations/user-1/logo-first.png"),
-      )
-      .mockResolvedValueOnce(
-        buildBlobTarget("organizations/user-1/logo-second.png"),
-      );
+    uploadImageMock
+      .mockResolvedValueOnce(buildUploadedImage("media-first"))
+      .mockResolvedValueOnce(buildUploadedImage("media-second"));
 
     renderInWorkspace(<SettingsPanel />);
 
@@ -891,39 +879,66 @@ describe("Organization workspace", () => {
     );
 
     await waitFor(() => {
-      expect(deleteBlobMock).toHaveBeenCalledWith(
-        "organizations/user-1/logo-first.png",
-      );
+      expect(deleteMediaMock).toHaveBeenCalledWith("media-first");
     });
   });
 
   it("retries staged logo cleanup on the next page load", async () => {
     window.sessionStorage.setItem(
-      "organization-workspace:staged-logo-blobs:user-1",
-      JSON.stringify(["organizations/user-1/logo-stale.png"]),
+      "organization-workspace:staged-logo-media:user-1",
+      JSON.stringify(["media-stale"]),
     );
 
     renderInWorkspace(<div />);
 
     await waitFor(() => {
-      expect(deleteBlobMock).toHaveBeenCalledWith(
-        "organizations/user-1/logo-stale.png",
-      );
+      expect(deleteMediaMock).toHaveBeenCalledWith("media-stale");
     });
     await waitFor(() => {
       expect(
         window.sessionStorage.getItem(
-          "organization-workspace:staged-logo-blobs:user-1",
+          "organization-workspace:staged-logo-media:user-1",
         ),
       ).toBeNull();
     });
   });
 
+  it("stops retrying staged cleanup for media that is gone or in use", async () => {
+    const storageKey = "organization-workspace:staged-logo-media:user-1";
+    const failure = (status: number) =>
+      new ApiClientError("refused", {
+        status,
+        code: status === 409 ? "CONFLICT" : "NOT_FOUND",
+        request: {
+          method: "DELETE",
+          path: "/media/x",
+          requestUrl: "https://api.test/api/v1/media/x",
+        },
+      });
+    deleteMediaMock.mockImplementation(async (mediaId: string) => {
+      if (mediaId === "media-in-use") throw failure(409);
+      if (mediaId === "media-gone") throw failure(404);
+      throw new Error("network down");
+    });
+    window.sessionStorage.setItem(
+      storageKey,
+      JSON.stringify(["media-in-use", "media-gone", "media-transient"]),
+    );
+
+    renderInWorkspace(<div />);
+
+    // A save whose response was lost leaves an attached logo "staged"; the
+    // server refuses to delete it and the client lets it go.
+    await waitFor(() => {
+      expect(
+        JSON.parse(window.sessionStorage.getItem(storageKey) ?? "[]"),
+      ).toEqual(["media-transient"]);
+    });
+  });
+
   it("attempts keepalive cleanup when a staged logo is abandoned", async () => {
     const user = userEvent.setup();
-    createUploadUrlMock.mockResolvedValueOnce(
-      buildBlobTarget("organizations/user-1/logo-pending.png"),
-    );
+    uploadImageMock.mockResolvedValueOnce(buildUploadedImage("media-pending"));
 
     const { unmount } = renderInWorkspace(<SettingsPanel />);
 
@@ -933,19 +948,15 @@ describe("Organization workspace", () => {
     );
 
     await waitFor(() => {
-      expect(createUploadUrlMock).toHaveBeenCalledWith({
-        filename: "pending.png",
-        contentType: "image/png",
-        sizeBytes: 7,
+      expect(uploadImageMock).toHaveBeenCalledWith(expect.any(File), {
         scope: "organizations",
+        onStageChange: expect.any(Function),
       });
     });
 
     unmount();
 
-    expect(deleteBlobKeepaliveMock).toHaveBeenCalledWith(
-      "organizations/user-1/logo-pending.png",
-    );
+    expect(deleteMediaKeepaliveMock).toHaveBeenCalledWith("media-pending");
   });
 
   it("saves organization profile fields from the Settings panel", async () => {

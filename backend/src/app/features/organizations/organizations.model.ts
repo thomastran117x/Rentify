@@ -131,6 +131,11 @@ export const sharedOrganizationProfileShape = {
     z.url("Logo URL must be a valid URL.").max(1024).nullable().optional(),
   ),
   logoBlobName: optionalText(1024),
+  // A newly uploaded logo, by media id. It must be ready, uploaded by the
+  // caller under the organizations scope, and replaces logoUrl/logoBlobName.
+  logoMediaId: uuidSchemaWithMessage(
+    "Logo media id must be a valid identifier.",
+  ).optional(),
   customFields: organizationCustomFieldsSchema,
 } as const;
 

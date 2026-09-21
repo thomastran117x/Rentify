@@ -15,6 +15,7 @@ docker compose up --build
 | [bookings](./bookings/README.md)               | `booking-expiry.worker.ts`                      | `booking-expiry-worker`                      | Expired booking candidates                   |
 | [email](./email/README.md)                     | `email-delivery.worker.ts`                      | `email-worker`                               | RabbitMQ email jobs                          |
 | [logging](./logging/README.md)                 | `log-consumer.worker.ts`                        | `log-consumer-worker`                        | RabbitMQ application logs                    |
+| [media](./media/README.md)                     | `media-processing.worker.ts`                    | `media-processing-worker`                    | RabbitMQ media processing jobs               |
 | [organizations](./organizations/README.md)     | `organization-search-maintainer.worker.ts`      | `organization-search-maintainer-worker`      | Organization outbox, reindex, reconciliation |
 | [organizations](./organizations/README.md)     | `organization-search-indexer.worker.ts`         | `organization-search-indexer-worker`         | RabbitMQ organization index jobs             |
 | [organizations](./organizations/README.md)     | `organization-blog-search-maintainer.worker.ts` | `organization-blog-search-maintainer-worker` | Blog outbox, reindex, reconciliation         |

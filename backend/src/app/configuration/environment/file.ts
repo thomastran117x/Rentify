@@ -178,6 +178,8 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "workers.postingExpiry.reminderLeadDays": "POSTING_EXPIRY_REMINDER_LEAD_DAYS",
   "workers.postingsThumbnail.maxAttempts": "POSTINGS_THUMBNAIL_MAX_ATTEMPTS",
   "workers.postingsThumbnail.prefetch": "POSTINGS_THUMBNAIL_PREFETCH",
+  "workers.mediaProcessing.maxAttempts": "MEDIA_PROCESSING_MAX_ATTEMPTS",
+  "workers.mediaProcessing.prefetch": "MEDIA_PROCESSING_PREFETCH",
   "workers.payoutRelease.batchSize": "PAYOUT_RELEASE_BATCH_SIZE",
   "workers.payoutRelease.pollIntervalMs": "PAYOUT_RELEASE_POLL_INTERVAL_MS",
   "workers.recommendationsPrecompute.batchSize":

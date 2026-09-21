@@ -1,10 +1,18 @@
-import BadRequestError from "@/errors/http/bad-request.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { MediaService } from "@/features/media/media.service";
 import type { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
 import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type { OrganizationProfileInput } from "@/features/organizations/organizations.model";
 import { type Uuid } from "@/configuration/validation/uuid";
+
+// Logos stored before media records existed were named under this prefix.
+const LEGACY_LOGO_BLOB_PREFIX = "organizations/";
+
+const LOGO_FIELDS = {
+  mediaId: "logoMediaId",
+  url: "logoUrl",
+  blobName: "logoBlobName",
+} as const;
 
 /**
  * Validates and cleans up the organization logo blob reference, shared by
@@ -22,59 +30,50 @@ export class OrganizationLogoService {
     private readonly organizationAuditRepository: OrganizationAuditRepository,
   ) {}
 
-  assertLogoInput(actorUserId: Uuid, profile: OrganizationProfileInput): void {
-    const hasLogoUrl = profile.logoUrl !== undefined;
-    const hasLogoBlobName = profile.logoBlobName !== undefined;
+  /**
+   * Applies MediaService's image rule to the logo fields of a profile write and
+   * returns the profile to store.
+   */
+  async resolveLogoInput(
+    actorUserId: Uuid,
+    profile: OrganizationProfileInput,
+    logoMediaId: Uuid | undefined,
+    currentLogoBlobName: string | null,
+  ): Promise<OrganizationProfileInput> {
+    const logo = await this.mediaService.resolveImageReference(
+      actorUserId,
+      {
+        mediaId: logoMediaId,
+        url: profile.logoUrl,
+        blobName: profile.logoBlobName,
+      },
+      {
+        scope: "organizations",
+        storedBlobNames: new Set(
+          currentLogoBlobName ? [currentLogoBlobName] : [],
+        ),
+        fields: LOGO_FIELDS,
+      },
+    );
 
-    if (hasLogoUrl !== hasLogoBlobName) {
-      throw new BadRequestError(
-        "Logo URL and logo blob name must be provided together when updating the organization logo.",
-      );
+    if (logo === undefined) {
+      return profile;
     }
 
-    if (!hasLogoUrl && !hasLogoBlobName) {
-      return;
-    }
-
-    if (!profile.logoUrl && !profile.logoBlobName) {
-      return;
-    }
-
-    if (!profile.logoUrl || !profile.logoBlobName) {
-      throw new BadRequestError(
-        "Logo URL and logo blob name must both be set or both be null.",
-      );
-    }
-
-    const logoBlobName = profile.logoBlobName.trim();
-
-    if (!this.isLogoBlobName(logoBlobName)) {
-      throw new BadRequestError(
-        "Organization logos must use an organizations-scoped blob.",
-      );
-    }
-
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Organization logos require Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (!this.mediaService.isManagedUrl(profile.logoUrl, logoBlobName)) {
-      throw new BadRequestError(
-        "Logo URL must match the Blob Storage location for the provided blob name.",
-      );
-    }
-
-    if (!this.mediaService.isOwnedBy(actorUserId, logoBlobName)) {
-      throw new BadRequestError(
-        "Organization logo blob must belong to the current user.",
-      );
-    }
+    return {
+      ...profile,
+      logoUrl: logo?.blobUrl ?? null,
+      logoBlobName: logo?.blobName ?? null,
+    };
   }
 
   isLogoBlobName(blobName: string): boolean {
-    return blobName.trim().toLowerCase().startsWith("organizations/");
+    const normalized = blobName.trim();
+
+    return (
+      normalized.toLowerCase().startsWith(LEGACY_LOGO_BLOB_PREFIX) ||
+      this.mediaService.isProcessedImageBlobName(normalized)
+    );
   }
 
   async cleanupReplacedLogo(input: {
@@ -120,7 +119,10 @@ export class OrganizationLogoService {
     }
 
     try {
-      await this.mediaService.deleteMedia(input.actorUserId, previousBlobName);
+      await this.mediaService.deleteReplacedImageByBlobName(
+        input.actorUserId,
+        previousBlobName,
+      );
     } catch (error) {
       this.logger.error("Failed to delete replaced organization logo blob.", {
         previousBlobName,

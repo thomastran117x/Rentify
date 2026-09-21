@@ -32,11 +32,10 @@ describe("BlobService", () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
-    const blobName = service.buildBlobName({
-      ownerId: USER_1_ID,
-      extension: ".png",
-      scope: "postings",
-    });
+    const blobName = service.buildQuarantineImageBlobName(
+      USER_1_ID,
+      testUuid(9000, 994264),
+    );
     const uploadTarget = service.createUploadUrl({
       blobName,
       contentType: "image/png",
@@ -123,46 +122,56 @@ describe("BlobService", () => {
     expect(new URL(uploadTarget.uploadUrl).searchParams.get("sp")).toBe("cw");
   });
 
-  it("builds owner-scoped blob names and reads the owner back out", () => {
+  it("reads the owner back out of stored blob names", () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
-    const defaultScoped = service.buildBlobName({
-      ownerId: USER_1_ID,
-      extension: ".png",
-    });
-    const nested = service.buildBlobName({
-      ownerId: USER_1_ID,
-      extension: ".webp",
-      scope: " Postings/Photos ",
-    });
 
-    expect(defaultScoped).toMatch(
-      new RegExp(`^general/${USER_1_ID}/\\d+-[0-9a-f-]+\\.png$`),
-    );
-    expect(nested.startsWith(`postings/photos/${USER_1_ID}/`)).toBe(true);
-    expect(service.getBlobOwnerId(defaultScoped)).toBe(USER_1_ID);
-    expect(service.getBlobOwnerId(nested)).toBe(USER_1_ID);
-    expect(
-      service.getBlobOwnerId(
-        service.buildPostingPhotoThumbnailBlobName(defaultScoped),
-      ),
-    ).toBe(USER_1_ID);
-    expect(
-      service.getBlobOwnerId(
-        service.buildPostingPhotoThumbnailBlobName(nested),
-      ),
-    ).toBe(USER_1_ID);
+    // Names stored before media existed keep resolving their owner, including
+    // under a nested scope and for their derived thumbnails.
+    for (const blobName of [
+      `general/${USER_1_ID}/1-a.png`,
+      `postings/photos/${USER_1_ID}/1-a.webp`,
+      service.buildPostingPhotoThumbnailBlobName(`postings/${USER_1_ID}/a.png`),
+    ]) {
+      expect(service.getBlobOwnerId(blobName)).toBe(USER_1_ID);
+    }
     expect(service.getBlobOwnerId("general/file.png")).toBeNull();
     expect(service.getBlobOwnerId("thumbnails/file.webp")).toBeNull();
     expect(service.getBlobOwnerId("../escape/owner/file.png")).toBeNull();
-    expect(() =>
-      service.buildBlobName({
-        ownerId: USER_1_ID,
-        extension: ".png",
-        scope: "Invalid Scope",
-      }),
-    ).toThrow(BadRequestError);
+  });
+
+  it("names quarantined uploads and processed images by media id", () => {
+    useLocalBlobStorage();
+
+    const service = new BlobService();
+    const mediaId = testUuid(9000, 994263);
+    const quarantined = service.buildQuarantineImageBlobName(
+      USER_1_ID,
+      mediaId,
+    );
+    const processed = service.buildProcessedImageBlobName(USER_1_ID, mediaId);
+
+    expect(quarantined).toBe(`quarantine/images/${USER_1_ID}/${mediaId}`);
+    expect(processed).toBe(`media/images/${USER_1_ID}/${mediaId}.webp`);
+    expect(service.getBlobOwnerId(quarantined)).toBe(USER_1_ID);
+    expect(service.getBlobOwnerId(processed)).toBe(USER_1_ID);
+    expect(
+      service.getBlobOwnerId(
+        service.buildPostingPhotoThumbnailBlobName(processed),
+      ),
+    ).toBe(USER_1_ID);
+
+    expect(service.isQuarantineBlobName(quarantined)).toBe(true);
+    expect(service.isQuarantineBlobName(" /Quarantine/x ")).toBe(true);
+    expect(service.isQuarantineBlobName("quarantine")).toBe(true);
+    expect(service.isQuarantineBlobName("media/../quarantine/x")).toBe(true);
+    expect(service.isQuarantineBlobName(processed)).toBe(false);
+    expect(service.isQuarantineBlobName("postings/quarantine/x.png")).toBe(
+      false,
+    );
+    expect(service.isProcessedImageBlobName(processed)).toBe(true);
+    expect(service.isProcessedImageBlobName(quarantined)).toBe(false);
   });
 
   it("rejects invalid and expired local upload tokens", () => {
@@ -314,6 +323,36 @@ describe("BlobService", () => {
       ResourceNotFoundError,
     );
     await expect(service.getProperties(blobName)).rejects.toThrow("ServerBusy");
+  });
+
+  it("downloads Azure blobs and maps a 404 to not found", async () => {
+    useAzureBlobStorage();
+
+    const service = new BlobService();
+    const downloadToBuffer = jest
+      .fn()
+      .mockResolvedValueOnce(Buffer.from("bytes"))
+      .mockRejectedValueOnce(
+        Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
+      );
+    const getProperties = jest.fn(async () => ({ contentType: "image/png" }));
+    const helper = service as unknown as {
+      createBlobClient(blobName: string): unknown;
+    };
+    helper.createBlobClient = () => ({ downloadToBuffer, getProperties });
+    const blobName = `quarantine/images/${USER_1_ID}/upload`;
+
+    await expect(service.downloadBlob(blobName)).resolves.toEqual({
+      body: Buffer.from("bytes"),
+      contentType: "image/png",
+    });
+    await expect(service.downloadBlob(blobName)).rejects.toThrow(
+      ResourceNotFoundError,
+    );
+    await expect(service.downloadBlob(blobName)).rejects.toThrow("ServerBusy");
   });
 
   it("requires complete Azure configuration", () => {

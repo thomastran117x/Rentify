@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  uuidSchemaWithMessage,
+  type Uuid,
+} from "@/configuration/validation/uuid";
 
 export const listProfilesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -32,6 +35,11 @@ export const updateProfileRequestSchema = z.object({
   recentlyViewedTrackingEnabled: z.boolean().optional(),
   avatarUrl: z.url("Avatar URL must be a valid URL.").nullable().optional(),
   avatarBlobName: z.string().trim().min(1).max(1024).nullable().optional(),
+  // A newly uploaded avatar, by media id. It must be ready and uploaded by the
+  // caller, and replaces avatarUrl/avatarBlobName.
+  avatarMediaId: uuidSchemaWithMessage(
+    "Avatar media id must be a valid identifier.",
+  ).optional(),
   trustworthinessScore: z
     .number()
     .int("Trustworthiness score must be an integer.")
@@ -120,6 +128,8 @@ export interface UpdateProfileInput {
   recentlyViewedTrackingEnabled?: boolean;
   avatarUrl?: string | null;
   avatarBlobName?: string | null;
+  /** A newly uploaded avatar; resolved to avatarUrl and avatarBlobName. */
+  avatarMediaId?: Uuid;
   trustworthinessScore?: number;
   rentPostingsCount?: number;
   availableRentPostingsCount?: number;

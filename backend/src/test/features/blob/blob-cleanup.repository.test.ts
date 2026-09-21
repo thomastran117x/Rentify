@@ -102,4 +102,30 @@ describe("BlobCleanupRepository", () => {
       },
     });
   });
+  it("deletes media rows left without an image, never a ready row whose leftover upload was cleaned", async () => {
+    const deleteMany = jest.fn(async (_args: unknown) => ({ count: 3 }));
+    const repository = new BlobCleanupRepository({
+      media: { deleteMany },
+    } as any);
+    const olderThan = new Date("2026-09-18T12:00:00.000Z");
+
+    await expect(
+      repository.deleteAbandonedMedia({
+        deletedBlobNames: ["quarantine/images/u/m"],
+        olderThan,
+      }),
+    ).resolves.toBe(3);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          {
+            originalBlobName: { in: ["quarantine/images/u/m"] },
+            status: { not: "ready" },
+          },
+          { processedBlobName: { in: ["quarantine/images/u/m"] } },
+          { status: { not: "ready" }, updatedAt: { lte: olderThan } },
+        ],
+      },
+    });
+  });
 });

@@ -37,6 +37,10 @@ import { PersonalAccessTokenService } from "@/features/auth/personal-access-toke
 import { TokenService } from "@/features/auth/token/token.service";
 import { BlobController } from "@/features/blob/blob.controller";
 import { BlobService } from "@/features/blob/blob.service";
+import { MediaController } from "@/features/media/media.controller";
+import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
+import { MediaProcessingService } from "@/features/media/media-processing.service";
+import { MediaRepository } from "@/features/media/media.repository";
 import { MediaService } from "@/features/media/media.service";
 import { BookingsController } from "@/features/bookings/bookings.controller";
 import { BookingsRepository } from "@/features/bookings/bookings.repository";
@@ -414,6 +418,14 @@ export const containerTokens = {
     ),
   blobService: createServiceToken<BlobService>("BlobService"),
   mediaService: createServiceToken<MediaService>("MediaService"),
+  mediaRepository: createServiceToken<MediaRepository>("MediaRepository"),
+  mediaProcessingQueueService: createServiceToken<MediaProcessingQueueService>(
+    "MediaProcessingQueueService",
+  ),
+  mediaProcessingService: createServiceToken<MediaProcessingService>(
+    "MediaProcessingService",
+  ),
+  mediaController: createServiceToken<MediaController>("MediaController"),
   blobController: createServiceToken<BlobController>("BlobController"),
   bookingsRepository:
     createServiceToken<BookingsRepository>("BookingsRepository"),

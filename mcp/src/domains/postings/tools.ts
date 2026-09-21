@@ -39,11 +39,21 @@ const pricingSchema = {
     .optional(),
 };
 
-const photoSchema = z.object({
-  blobUrl: z.string().url(),
-  blobName: z.string().trim().min(1).max(1024),
-  position: z.number().int().min(0).max(9),
-});
+const photoPositionSchema = z.number().int().min(0).max(9);
+
+// A newly uploaded image by media id, or a photo already on the posting by the
+// blobUrl and blobName it was saved with.
+const photoSchema = z.union([
+  z.object({
+    mediaId: z.string().uuid(),
+    position: photoPositionSchema,
+  }),
+  z.object({
+    blobUrl: z.string().url(),
+    blobName: z.string().trim().min(1).max(1024),
+    position: photoPositionSchema,
+  }),
+]);
 
 const detailValueSchema = z.union([
   z.string().trim().min(1).max(100),
@@ -83,7 +93,13 @@ const postingWriteSchemaShape = {
   details: z.record(z.string().trim().min(1).max(50), detailValueSchema),
   availabilityStatus: z.enum(["available", "limited", "unavailable"]),
   availabilityNotes: z.string().trim().min(1).max(500).nullable().optional(),
-  maxBookingDurationDays: z.number().int().min(1).max(365).nullable().optional(),
+  maxBookingDurationDays: z
+    .number()
+    .int()
+    .min(1)
+    .max(365)
+    .nullable()
+    .optional(),
   location: z.object(locationSchema),
 };
 
@@ -107,11 +123,13 @@ export interface ListPostingAvailabilityBlocksToolArgs {
   id: string;
 }
 
-export interface CreatePostingAvailabilityBlockToolArgs extends PostingAvailabilityBlockBody {
+export interface CreatePostingAvailabilityBlockToolArgs
+  extends PostingAvailabilityBlockBody {
   id: string;
 }
 
-export interface UpdatePostingAvailabilityBlockToolArgs extends PostingAvailabilityBlockBody {
+export interface UpdatePostingAvailabilityBlockToolArgs
+  extends PostingAvailabilityBlockBody {
   id: string;
   blockId: string;
 }
@@ -125,9 +143,11 @@ export interface GetPostingsAnalyticsSummaryToolArgs {
   window?: "7d" | "30d" | "all";
 }
 
-export interface ListPostingsAnalyticsToolArgs extends PostingAnalyticsListQuery {}
+export interface ListPostingsAnalyticsToolArgs
+  extends PostingAnalyticsListQuery {}
 
-export interface GetPostingAnalyticsToolArgs extends PostingAnalyticsDetailQuery {
+export interface GetPostingAnalyticsToolArgs
+  extends PostingAnalyticsDetailQuery {
   id: string;
 }
 
@@ -222,13 +242,17 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
         () => apiClient.archivePosting(args.id),
         (result) => `Archived posting ${result.id}.`,
       ),
-    listPostingAvailabilityBlocks: (args: ListPostingAvailabilityBlocksToolArgs) =>
+    listPostingAvailabilityBlocks: (
+      args: ListPostingAvailabilityBlocksToolArgs,
+    ) =>
       executeTool(
         () => apiClient.listPostingAvailabilityBlocks(args.id),
         (result) =>
           `Fetched ${result.availabilityBlocks.length} availability block(s) for posting ${args.id}.`,
       ),
-    createPostingAvailabilityBlock: (args: CreatePostingAvailabilityBlockToolArgs) =>
+    createPostingAvailabilityBlock: (
+      args: CreatePostingAvailabilityBlockToolArgs,
+    ) =>
       executeTool(
         () =>
           apiClient.createPostingAvailabilityBlock(args.id, {
@@ -236,9 +260,12 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             endAt: args.endAt,
             note: args.note,
           }),
-        (result) => `Created availability block ${result.id} for posting ${args.id}.`,
+        (result) =>
+          `Created availability block ${result.id} for posting ${args.id}.`,
       ),
-    updatePostingAvailabilityBlock: (args: UpdatePostingAvailabilityBlockToolArgs) =>
+    updatePostingAvailabilityBlock: (
+      args: UpdatePostingAvailabilityBlockToolArgs,
+    ) =>
       executeTool(
         () =>
           apiClient.updatePostingAvailabilityBlock(args.id, args.blockId, {
@@ -246,9 +273,12 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             endAt: args.endAt,
             note: args.note,
           }),
-        (result) => `Updated availability block ${result.id} for posting ${args.id}.`,
+        (result) =>
+          `Updated availability block ${result.id} for posting ${args.id}.`,
       ),
-    deletePostingAvailabilityBlock: (args: DeletePostingAvailabilityBlockToolArgs) =>
+    deletePostingAvailabilityBlock: (
+      args: DeletePostingAvailabilityBlockToolArgs,
+    ) =>
       executeTool(
         async () => {
           await apiClient.deletePostingAvailabilityBlock(args.id, args.blockId);
@@ -258,7 +288,8 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             blockId: args.blockId,
           };
         },
-        () => `Deleted availability block ${args.blockId} for posting ${args.id}.`,
+        () =>
+          `Deleted availability block ${args.blockId} for posting ${args.id}.`,
       ),
     getPostingsAnalyticsSummary: (args: GetPostingsAnalyticsSummaryToolArgs) =>
       executeTool(
@@ -290,7 +321,8 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             title: args.title,
             comment: args.comment,
           }),
-        (result) => `Created review ${typeof result.id === "string" ? result.id : ""} for posting ${args.id}.`.trim(),
+        (result) =>
+          `Created review ${typeof result.id === "string" ? result.id : ""} for posting ${args.id}.`.trim(),
       ),
     updateMyPostingReview: (args: UpdateMyPostingReviewToolArgs) =>
       executeTool(
@@ -300,7 +332,8 @@ export function createPostingsToolHandlers(apiClient: RentifyApiClient) {
             title: args.title,
             comment: args.comment,
           }),
-        (result) => `Updated your review ${typeof result.id === "string" ? result.id : ""} for posting ${args.id}.`.trim(),
+        (result) =>
+          `Updated your review ${typeof result.id === "string" ? result.id : ""} for posting ${args.id}.`.trim(),
       ),
   };
 }
@@ -313,7 +346,8 @@ export function registerPostingsTools(
     "get_my_posting",
     {
       title: "Get My Posting",
-      description: "Fetch one of your postings, including drafts and unpublished states.",
+      description:
+        "Fetch one of your postings, including drafts and unpublished states.",
       inputSchema: {
         id: z.string().trim().min(1),
       },
@@ -364,7 +398,8 @@ export function registerPostingsTools(
     "update_posting",
     {
       title: "Update Posting",
-      description: "Update an existing posting. Availability blocks are managed separately.",
+      description:
+        "Update an existing posting. Availability blocks are managed separately.",
       inputSchema: {
         id: z.string().trim().min(1),
         ...postingWriteSchemaShape,
@@ -437,7 +472,8 @@ export function registerPostingsTools(
     "list_posting_availability_blocks",
     {
       title: "List Posting Availability Blocks",
-      description: "List owner-managed availability blocks for one of your postings.",
+      description:
+        "List owner-managed availability blocks for one of your postings.",
       inputSchema: {
         id: z.string().trim().min(1),
       },

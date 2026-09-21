@@ -59,6 +59,7 @@ export class ProfileController {
       recentlyViewedTrackingEnabled: input.recentlyViewedTrackingEnabled,
       avatarUrl: input.avatarUrl,
       avatarBlobName: input.avatarBlobName,
+      avatarMediaId: input.avatarMediaId,
       trustworthinessScore: input.trustworthinessScore,
       rentPostingsCount: input.rentPostingsCount,
       availableRentPostingsCount: input.availableRentPostingsCount,

@@ -19,6 +19,12 @@ import {
 } from "@/features/profile/username-change-policy";
 import type { Uuid } from "@/configuration/validation/uuid";
 
+const AVATAR_FIELDS = {
+  mediaId: "avatarMediaId",
+  url: "avatarUrl",
+  blobName: "avatarBlobName",
+} as const;
+
 export class ProfileService {
   constructor(
     private readonly profileRepository: ProfileRepository,
@@ -45,19 +51,18 @@ export class ProfileService {
     return profile;
   }
 
-  async update(input: UpdateProfileInput): Promise<ProfileRecord> {
-    this.assertPostingCounts(input);
-    this.assertAvatarFields(input);
+  async update(requested: UpdateProfileInput): Promise<ProfileRecord> {
+    this.assertPostingCounts(requested);
 
     const existingProfile = await this.profileRepository.findByUserId(
-      input.userId,
+      requested.userId,
     );
 
     if (!existingProfile) {
       throw new ResourceNotFoundError("Profile could not be found.");
     }
 
-    this.assertAvatarOwnership(input, existingProfile);
+    const input = await this.resolveAvatarInput(requested, existingProfile);
 
     const username = input.username.trim().toLowerCase();
     // `username` is required on every profile PUT, so a phone or avatar save
@@ -187,64 +192,39 @@ export class ProfileService {
     }
   }
 
-  private assertAvatarFields(input: UpdateProfileInput): void {
-    const hasAvatarUrl = input.avatarUrl !== undefined;
-    const hasAvatarBlobName = input.avatarBlobName !== undefined;
-
-    if (hasAvatarUrl !== hasAvatarBlobName) {
-      throw new BadRequestError(
-        "Avatar URL and avatar blob name must be provided together when updating the avatar.",
-      );
-    }
-
-    if (!hasAvatarUrl && !hasAvatarBlobName) {
-      return;
-    }
-
-    if (!input.avatarUrl && !input.avatarBlobName) {
-      return;
-    }
-
-    if (!input.avatarUrl || !input.avatarBlobName) {
-      throw new BadRequestError(
-        "Avatar URL and avatar blob name must both be set or both be null.",
-      );
-    }
-
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Avatar images require Azure Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (
-      !this.mediaService.isManagedUrl(input.avatarUrl, input.avatarBlobName)
-    ) {
-      throw new BadRequestError(
-        "Avatar URL must match the Azure Blob Storage location for the provided blob name.",
-      );
-    }
-  }
-
-  // Re-sending the stored avatar is always allowed, which is what every profile
-  // save that leaves the avatar alone does. A new avatar must have been
-  // uploaded by this user.
-  private assertAvatarOwnership(
+  // Applies MediaService's image rule to the avatar fields. The result keeps
+  // the avatar fields out entirely when the request left them out.
+  private async resolveAvatarInput(
     input: UpdateProfileInput,
     existingProfile: ProfileRecord,
-  ): void {
-    const avatarBlobName = input.avatarBlobName?.trim();
+  ): Promise<UpdateProfileInput> {
+    const { avatarMediaId, ...rest } = input;
+    const avatar = await this.mediaService.resolveImageReference(
+      input.userId,
+      {
+        mediaId: avatarMediaId,
+        url: input.avatarUrl,
+        blobName: input.avatarBlobName,
+      },
+      {
+        scope: "avatars",
+        storedBlobNames: new Set(
+          existingProfile.avatarBlobName
+            ? [existingProfile.avatarBlobName]
+            : [],
+        ),
+        fields: AVATAR_FIELDS,
+      },
+    );
 
-    if (
-      !avatarBlobName ||
-      avatarBlobName === existingProfile.avatarBlobName ||
-      this.mediaService.isOwnedBy(input.userId, avatarBlobName)
-    ) {
-      return;
+    if (avatar === undefined) {
+      return rest;
     }
 
-    throw new BadRequestError(
-      "Avatar image blob must belong to the current user.",
-    );
+    return {
+      ...rest,
+      avatarUrl: avatar?.blobUrl ?? null,
+      avatarBlobName: avatar?.blobName ?? null,
+    };
   }
 }

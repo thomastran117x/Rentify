@@ -1,14 +1,14 @@
-// Session-storage bookkeeping for organization logo blobs staged before save.
-// Staged blobs are cleaned up on the next load / page hide if never committed.
+// Session-storage bookkeeping for organization logo media uploaded before save.
+// Staged media is deleted on the next load / page hide if never committed.
 
 const ORGANIZATION_LOGO_STORAGE_PREFIX =
-  "organization-workspace:staged-logo-blobs";
+  "organization-workspace:staged-logo-media";
 
 export function getOrganizationLogoStorageKey(userId: string): string {
   return `${ORGANIZATION_LOGO_STORAGE_PREFIX}:${userId}`;
 }
 
-export function readStagedOrganizationLogoBlobNames(userId: string): string[] {
+export function readStagedOrganizationLogoMediaIds(userId: string): string[] {
   if (typeof window === "undefined") {
     return [];
   }
@@ -41,30 +41,27 @@ export function readStagedOrganizationLogoBlobNames(userId: string): string[] {
   }
 }
 
-export function writeStagedOrganizationLogoBlobNames(
+export function writeStagedOrganizationLogoMediaIds(
   userId: string,
-  blobNames: Iterable<string>,
+  mediaIds: Iterable<string>,
 ): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  const normalizedBlobNames = [
+  const normalizedMediaIds = [
     ...new Set(
-      Array.from(blobNames)
-        .map((blobName) => blobName.trim())
+      Array.from(mediaIds)
+        .map((mediaId) => mediaId.trim())
         .filter(Boolean),
     ),
   ];
   const storageKey = getOrganizationLogoStorageKey(userId);
 
-  if (normalizedBlobNames.length === 0) {
+  if (normalizedMediaIds.length === 0) {
     window.sessionStorage.removeItem(storageKey);
     return;
   }
 
-  window.sessionStorage.setItem(
-    storageKey,
-    JSON.stringify(normalizedBlobNames),
-  );
+  window.sessionStorage.setItem(storageKey, JSON.stringify(normalizedMediaIds));
 }

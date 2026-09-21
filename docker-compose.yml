@@ -117,6 +117,13 @@ x-mcp-environment: &mcp-environment
 x-backend-log-volume: &backend-log-volume
   - backend_logs:/app/logs
 
+# For containers that read or write blobs. Only matters when Azure is not
+# configured: the development fallback keeps blobs on local disk, and the API,
+# the media processing worker, and the thumbnail worker must see the same disk.
+x-backend-blob-volumes: &backend-blob-volumes
+  - backend_logs:/app/logs
+  - backend_blob_storage:/app/tmp/blob-storage
+
 x-api-depends-on: &api-depends-on
   backend-migrate:
     condition: service_completed_successfully
@@ -298,7 +305,7 @@ services:
       PORT: 8040
       DATABASE_POOL_CONNECTION_LIMIT: 10
       DATABASE_POOL_MINIMUM_IDLE: 2
-    volumes: *backend-log-volume
+    volumes: *backend-blob-volumes
     command: ["node", "dist/server.js"]
     ports:
       - "8040:8040"
@@ -390,8 +397,21 @@ services:
     restart: unless-stopped
     depends_on: *recommendation-worker-depends-on
     environment: *worker-environment
-    volumes: *backend-log-volume
+    volumes: *backend-blob-volumes
     command: ["node", "dist/workers/postings/posting-thumbnail.worker.js"]
+
+  # Validates and re-encodes quarantined image uploads. Reads the media row
+  # from MySQL, consumes media.processing jobs from RabbitMQ, and reads and
+  # writes blob storage.
+  media-processing-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-media-processing-worker
+    restart: unless-stopped
+    depends_on: *recommendation-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-blob-volumes
+    command: ["node", "dist/workers/media/media-processing.worker.js"]
 
   email-worker:
     build: *backend-build
@@ -584,6 +604,7 @@ services:
 
 volumes:
   backend_logs:
+  backend_blob_storage:
   mysql_data:
   redis_data:
   elasticsearch_data:

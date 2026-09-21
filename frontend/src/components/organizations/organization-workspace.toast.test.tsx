@@ -19,9 +19,9 @@ const {
   getWorkspaceByIdMock,
   setActiveMock,
   createInviteMock,
-  createUploadUrlMock,
-  deleteBlobMock,
-  deleteBlobKeepaliveMock,
+  uploadImageMock,
+  deleteMediaMock,
+  deleteMediaKeepaliveMock,
   useSelectedLayoutSegmentMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
@@ -29,9 +29,9 @@ const {
   getWorkspaceByIdMock: vi.fn(),
   setActiveMock: vi.fn(),
   createInviteMock: vi.fn(),
-  createUploadUrlMock: vi.fn(),
-  deleteBlobMock: vi.fn(),
-  deleteBlobKeepaliveMock: vi.fn(),
+  uploadImageMock: vi.fn(),
+  deleteMediaMock: vi.fn(),
+  deleteMediaKeepaliveMock: vi.fn(),
   useSelectedLayoutSegmentMock: vi.fn(),
 }));
 
@@ -48,11 +48,11 @@ vi.mock("@/components/auth/auth-context", () => ({
   useAuth: useAuthMock,
 }));
 
-vi.mock("@/lib/blob/api", () => ({
-  blobApi: {
-    createUploadUrl: createUploadUrlMock,
-    deleteBlob: deleteBlobMock,
-    deleteBlobKeepalive: deleteBlobKeepaliveMock,
+vi.mock("@/lib/media/api", () => ({
+  uploadImage: uploadImageMock,
+  mediaApi: {
+    delete: deleteMediaMock,
+    deleteKeepalive: deleteMediaKeepaliveMock,
   },
 }));
 
@@ -201,20 +201,12 @@ describe("Organization workspace toast integration", () => {
         role: "primary_manager",
       },
     });
-    createUploadUrlMock.mockResolvedValue({
-      method: "PUT",
-      uploadUrl: "https://upload.test/logo.png",
-      expiresAt: "2026-06-30T00:00:00.000Z",
-      blobName: "organizations/user-1/logo.png",
-      blobUrl: "https://cdn.test/organizations/user-1/logo.png",
-      container: "rentify",
-      headers: {
-        "x-ms-blob-type": "BlockBlob",
-        "Content-Type": "image/png",
-      },
+    uploadImageMock.mockResolvedValue({
+      mediaId: "media-logo",
+      url: "https://cdn.test/media/images/user-1/media-logo.webp",
     });
-    deleteBlobMock.mockResolvedValue(undefined);
-    deleteBlobKeepaliveMock.mockImplementation(() => undefined);
+    deleteMediaMock.mockResolvedValue(undefined);
+    deleteMediaKeepaliveMock.mockImplementation(() => undefined);
     window.sessionStorage.clear();
   });
 

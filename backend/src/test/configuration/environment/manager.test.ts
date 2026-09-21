@@ -196,6 +196,9 @@ describe("EnvironmentManager", () => {
     expect(manager.getPostingsThumbnailWorkerConfig()).toBe(
       environment.workers.postingsThumbnail,
     );
+    expect(manager.getMediaProcessingWorkerConfig()).toBe(
+      environment.workers.mediaProcessing,
+    );
     expect(manager.getBookingExpiryWorkerConfig()).toBe(
       environment.workers.bookingExpiry,
     );

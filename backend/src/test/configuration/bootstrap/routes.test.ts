@@ -67,24 +67,21 @@ describe("mountRoutes", () => {
   it("mounts enabled route modules by default", async () => {
     delete process.env.DISABLED_ROUTE_MODULES;
     const blobController = {
-      createUploadUrl: respond({ ok: true }),
+      getLocal: respond({ ok: true }),
     };
     const app = createApp(
       new Map([[containerTokens.blobController, blobController]]),
     );
 
     const response = await app.request(
-      `http://rent.test${buildApiPath("/blob/upload-url")}`,
+      `http://rent.test${buildApiPath("/blob/file")}`,
       {
-        method: "POST",
+        method: "GET",
       },
     );
-    const legacyResponse = await app.request(
-      "http://rent.test/blob/upload-url",
-      {
-        method: "POST",
-      },
-    );
+    const legacyResponse = await app.request("http://rent.test/blob/file", {
+      method: "GET",
+    });
 
     expect(response.status).toBe(200);
     expect(legacyResponse.status).toBe(404);
@@ -100,16 +97,16 @@ describe("mountRoutes", () => {
         [
           containerTokens.blobController,
           {
-            createUploadUrl: respond({ ok: true }),
+            getLocal: respond({ ok: true }),
           },
         ],
       ]),
     );
 
     const response = await app.request(
-      `http://rent.test${buildApiPath("/blob/upload-url")}`,
+      `http://rent.test${buildApiPath("/blob/file")}`,
       {
-        method: "POST",
+        method: "GET",
       },
     );
 

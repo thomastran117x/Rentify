@@ -2,7 +2,7 @@ import {
   assertImageBytes,
   assertImageSizeWithinLimit,
   formatByteLimit,
-  imageExtensionForContentType,
+  isImagePolicyRejection,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -153,14 +153,6 @@ describe("rejection messages", () => {
   });
 });
 
-describe("imageExtensionForContentType", () => {
-  it("maps each supported type to its canonical extension", () => {
-    expect(imageExtensionForContentType("image/jpeg")).toBe(".jpg");
-    expect(imageExtensionForContentType("image/png")).toBe(".png");
-    expect(imageExtensionForContentType("image/webp")).toBe(".webp");
-  });
-});
-
 describe("assertImageSizeWithinLimit", () => {
   it("accepts sizes at or below the limit", () => {
     process.env.MAX_IMAGE_SIZE_BYTES = "1024";
@@ -190,14 +182,14 @@ describe("assertImageSizeWithinLimit", () => {
 describe("assertImageBytes", () => {
   it("accepts bytes whose real format matches the declared type", async () => {
     await expect(
-      assertImageBytes(await createPngFixture(), "image/png"),
-    ).resolves.toBeUndefined();
+      assertImageBytes(await createPngFixture(6, 3), "image/png"),
+    ).resolves.toBe("image/png");
     await expect(
       assertImageBytes(await createJpegFixture(), "image/jpeg"),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("image/jpeg");
     await expect(
       assertImageBytes(await createWebpFixture(), "image/webp"),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("image/webp");
   });
 
   it("rejects bytes that are not an image at all", async () => {
@@ -271,5 +263,40 @@ describe("assertImageBytes", () => {
     await expect(assertImageBytes(oversized, "image/png")).rejects.toThrow(
       UnprocessableEntityError,
     );
+  });
+});
+
+describe("isImagePolicyRejection", () => {
+  it("recognises exactly the errors the policy refuses an image with", async () => {
+    const refusals = await Promise.all([
+      assertImageBytes(Buffer.from("not-an-image"), "image/png").catch(
+        (error: unknown) => error,
+      ),
+      Promise.resolve().then(() => {
+        try {
+          assertImageSizeWithinLimit(-1);
+        } catch (error) {
+          return error;
+        }
+      }),
+      Promise.resolve().then(() => {
+        try {
+          normalizeImageContentType("application/pdf");
+        } catch (error) {
+          return error;
+        }
+      }),
+    ]);
+
+    for (const refusal of refusals) {
+      expect(isImagePolicyRejection(refusal)).toBe(true);
+    }
+    expect(isImagePolicyRejection(new PayloadTooLargeError("too big"))).toBe(
+      true,
+    );
+    expect(isImagePolicyRejection(new Error("storage unavailable"))).toBe(
+      false,
+    );
+    expect(isImagePolicyRejection("nope")).toBe(false);
   });
 });

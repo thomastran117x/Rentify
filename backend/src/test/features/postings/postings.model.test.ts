@@ -2,6 +2,7 @@ import {
   placePostingDetailsSchema,
   placeUpsertPostingRequestSchema,
   postingBatchIdsQuerySchema,
+  postingPhotoSchema,
   publicSearchPostingsQuerySchema,
   searchAttributeFilterSchema,
   toPublicPostingRecord,
@@ -122,6 +123,36 @@ describe("postings.model", () => {
       amenities: ["wifi", "desk"],
       owner_note: "Bring ID",
     });
+  });
+
+  it("accepts a photo by media id or by an attached blob, but not both or neither", () => {
+    const mediaId = testUuid(9000, 994360);
+
+    expect(postingPhotoSchema.parse({ mediaId, position: 0 })).toEqual({
+      mediaId,
+      position: 0,
+    });
+    expect(
+      postingPhotoSchema.safeParse({
+        blobUrl: "https://example.test/postings/a.jpg",
+        blobName: "postings/a.jpg",
+        position: 1,
+      }).success,
+    ).toBe(true);
+
+    for (const photo of [
+      { position: 0 },
+      { blobName: "postings/a.jpg", position: 0 },
+      {
+        mediaId,
+        blobUrl: "https://example.test/postings/a.jpg",
+        blobName: "postings/a.jpg",
+        position: 0,
+      },
+      { mediaId: "not-a-uuid", position: 0 },
+    ]) {
+      expect(postingPhotoSchema.safeParse(photo).success).toBe(false);
+    }
   });
 
   it("rejects reserved detail keys", () => {

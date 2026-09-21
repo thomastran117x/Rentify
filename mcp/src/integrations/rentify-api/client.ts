@@ -55,7 +55,14 @@ export interface SearchPostingsQuery extends QueryParams {
   radiusKm?: number;
   startAt?: string;
   endAt?: string;
-  sort?: "relevance" | "newest" | "oldest" | "dailyPrice" | "nearest" | "nameAsc" | "nameDesc";
+  sort?:
+    | "relevance"
+    | "newest"
+    | "oldest"
+    | "dailyPrice"
+    | "nearest"
+    | "nameAsc"
+    | "nameDesc";
 }
 
 export interface ListMyPostingsQuery extends QueryParams {
@@ -97,11 +104,17 @@ export interface PostingWriteBody extends JsonObject {
       amount: number;
     };
   };
-  photos: Array<{
-    blobUrl: string;
-    blobName: string;
-    position: number;
-  }>;
+  photos: Array<
+    | {
+        mediaId: string;
+        position: number;
+      }
+    | {
+        blobUrl: string;
+        blobName: string;
+        position: number;
+      }
+  >;
   tags: string[];
   details: Record<string, string | number | boolean | string[]>;
   availabilityStatus: "available" | "limited" | "unavailable";
@@ -225,7 +238,11 @@ export class AuthNotConfiguredError extends Error {
   }
 }
 
-function appendQueryValue(searchParams: URLSearchParams, key: string, value: QueryValue): void {
+function appendQueryValue(
+  searchParams: URLSearchParams,
+  key: string,
+  value: QueryValue,
+): void {
   if (value === undefined || value === null) {
     return;
   }
@@ -240,7 +257,11 @@ function appendQueryValue(searchParams: URLSearchParams, key: string, value: Que
   searchParams.set(key, String(value));
 }
 
-export function buildApiUrl(baseUrl: string, path: string, query: QueryParams = {}): URL {
+export function buildApiUrl(
+  baseUrl: string,
+  path: string,
+  query: QueryParams = {},
+): URL {
   const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
   const normalizedPath = path.replace(/^\/+/, "");
   const url = new URL(normalizedPath, normalizedBaseUrl);
@@ -276,7 +297,9 @@ export class RentifyApiClient {
     this.personalAccessToken = options.personalAccessToken;
   }
 
-  async searchPostings(query: SearchPostingsQuery): Promise<SearchPostingsResponse> {
+  async searchPostings(
+    query: SearchPostingsQuery,
+  ): Promise<SearchPostingsResponse> {
     return this.get<SearchPostingsResponse>("/postings", query);
   }
 
@@ -301,10 +324,14 @@ export class RentifyApiClient {
   }
 
   async getMyPosting(id: string): Promise<GetPostingResponse> {
-    return this.getProtected<GetPostingResponse>(`/postings/${encodeURIComponent(id)}`);
+    return this.getProtected<GetPostingResponse>(
+      `/postings/${encodeURIComponent(id)}`,
+    );
   }
 
-  async listMyPostings(query: ListMyPostingsQuery = {}): Promise<ListOwnerPostingsResponse> {
+  async listMyPostings(
+    query: ListMyPostingsQuery = {},
+  ): Promise<ListOwnerPostingsResponse> {
     return this.getProtected<ListOwnerPostingsResponse>("/postings/me", query);
   }
 
@@ -318,8 +345,14 @@ export class RentifyApiClient {
     return this.postProtected<RentifyPostingRecord>("/postings", body);
   }
 
-  async updatePosting(id: string, body: UpdatePostingBody): Promise<RentifyPostingRecord> {
-    return this.putProtected<RentifyPostingRecord>(`/postings/${encodeURIComponent(id)}`, body);
+  async updatePosting(
+    id: string,
+    body: UpdatePostingBody,
+  ): Promise<RentifyPostingRecord> {
+    return this.putProtected<RentifyPostingRecord>(
+      `/postings/${encodeURIComponent(id)}`,
+      body,
+    );
   }
 
   async duplicatePosting(id: string): Promise<RentifyPostingRecord> {
@@ -386,7 +419,10 @@ export class RentifyApiClient {
     );
   }
 
-  async deletePostingAvailabilityBlock(postingId: string, blockId: string): Promise<void> {
+  async deletePostingAvailabilityBlock(
+    postingId: string,
+    blockId: string,
+  ): Promise<void> {
     await this.deleteProtected<void>(
       `/postings/${encodeURIComponent(postingId)}/availability-blocks/${encodeURIComponent(blockId)}`,
     );
@@ -395,15 +431,21 @@ export class RentifyApiClient {
   async getPostingsAnalyticsSummary(
     window?: "7d" | "30d" | "all",
   ): Promise<PostingAnalyticsSummaryResponse> {
-    return this.getProtected<PostingAnalyticsSummaryResponse>("/postings/analytics/summary", {
-      window,
-    });
+    return this.getProtected<PostingAnalyticsSummaryResponse>(
+      "/postings/analytics/summary",
+      {
+        window,
+      },
+    );
   }
 
   async listPostingsAnalytics(
     query: PostingAnalyticsListQuery = {},
   ): Promise<PostingAnalyticsListResponse> {
-    return this.getProtected<PostingAnalyticsListResponse>("/postings/analytics/postings", query);
+    return this.getProtected<PostingAnalyticsListResponse>(
+      "/postings/analytics/postings",
+      query,
+    );
   }
 
   async getPostingAnalytics(
@@ -459,13 +501,19 @@ export class RentifyApiClient {
   async listMyBookingRequests(
     query: ListBookingRequestsQuery = {},
   ): Promise<BookingRequestsListResponse> {
-    return this.getProtected<BookingRequestsListResponse>("/booking-requests/me", query);
+    return this.getProtected<BookingRequestsListResponse>(
+      "/booking-requests/me",
+      query,
+    );
   }
 
   async listOwnedBookingRequests(
     query: ListBookingRequestsQuery = {},
   ): Promise<BookingRequestsListResponse> {
-    return this.getProtected<BookingRequestsListResponse>("/booking-requests/owner", query);
+    return this.getProtected<BookingRequestsListResponse>(
+      "/booking-requests/owner",
+      query,
+    );
   }
 
   async listPostingBookingRequests(
@@ -479,7 +527,9 @@ export class RentifyApiClient {
   }
 
   async getBookingRequest(id: string): Promise<BookingRequestRecord> {
-    return this.getProtected<BookingRequestRecord>(`/booking-requests/${encodeURIComponent(id)}`);
+    return this.getProtected<BookingRequestRecord>(
+      `/booking-requests/${encodeURIComponent(id)}`,
+    );
   }
 
   async getBookingCancellationQuote(
@@ -490,7 +540,10 @@ export class RentifyApiClient {
     );
   }
 
-  async updateBookingRequest(id: string, body: BookingRequestBody): Promise<BookingRequestRecord> {
+  async updateBookingRequest(
+    id: string,
+    body: BookingRequestBody,
+  ): Promise<BookingRequestRecord> {
     return this.putProtected<BookingRequestRecord>(
       `/booking-requests/${encodeURIComponent(id)}`,
       body,
@@ -527,15 +580,22 @@ export class RentifyApiClient {
     );
   }
 
-  async listMyRentings(query: ListMyRentingsQuery = {}): Promise<RentingsListResponse> {
+  async listMyRentings(
+    query: ListMyRentingsQuery = {},
+  ): Promise<RentingsListResponse> {
     return this.getProtected<RentingsListResponse>("/rentings/me", query);
   }
 
   async getRenting(id: string): Promise<RentingRecord> {
-    return this.getProtected<RentingRecord>(`/rentings/${encodeURIComponent(id)}`);
+    return this.getProtected<RentingRecord>(
+      `/rentings/${encodeURIComponent(id)}`,
+    );
   }
 
-  async getProtected<TResponse>(path: string, query?: QueryParams): Promise<TResponse> {
+  async getProtected<TResponse>(
+    path: string,
+    query?: QueryParams,
+  ): Promise<TResponse> {
     return this.get<TResponse>(path, query, {
       requiresAuth: true,
     });
@@ -554,7 +614,10 @@ export class RentifyApiClient {
     });
   }
 
-  private async postProtected<TResponse>(path: string, body: JsonObject): Promise<TResponse> {
+  private async postProtected<TResponse>(
+    path: string,
+    body: JsonObject,
+  ): Promise<TResponse> {
     return this.request<TResponse>({
       method: "POST",
       path,
@@ -565,7 +628,10 @@ export class RentifyApiClient {
     });
   }
 
-  private async putProtected<TResponse>(path: string, body: JsonObject): Promise<TResponse> {
+  private async putProtected<TResponse>(
+    path: string,
+    body: JsonObject,
+  ): Promise<TResponse> {
     return this.request<TResponse>({
       method: "PUT",
       path,
@@ -628,7 +694,10 @@ export class RentifyApiClient {
     }, this.options.timeoutMs);
 
     try {
-      const headers = this.createHeaders(requestOptions.requiresAuth ?? false, body);
+      const headers = this.createHeaders(
+        requestOptions.requiresAuth ?? false,
+        body,
+      );
       const response = await this.fetchImplementation(url, {
         method,
         headers,

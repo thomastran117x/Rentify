@@ -108,6 +108,8 @@ export type RawEnvironmentValues = {
   RECOMMENDATIONS_PRECOMPUTE_POLL_INTERVAL_MS?: string;
   POSTINGS_THUMBNAIL_PREFETCH?: string;
   POSTINGS_THUMBNAIL_MAX_ATTEMPTS?: string;
+  MEDIA_PROCESSING_PREFETCH?: string;
+  MEDIA_PROCESSING_MAX_ATTEMPTS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS?: string;
@@ -342,6 +344,10 @@ export interface AppEnvironment {
       batchSize: number;
     };
     postingsThumbnail: {
+      prefetch: number;
+      maxAttempts: number;
+    };
+    mediaProcessing: {
       prefetch: number;
       maxAttempts: number;
     };

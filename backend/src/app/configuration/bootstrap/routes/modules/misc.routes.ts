@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import type { BlobController } from "@/features/blob/blob.controller";
+import type { MediaController } from "@/features/media/media.controller";
 import type { ProfileController } from "@/features/profile/profile.controller";
 import type { SearchController } from "@/features/search/search.controller";
 import type { OrganizationsSearchController } from "@/features/organizations/search/search.controller";
@@ -9,13 +10,6 @@ import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 export const blobRouteModule: RouteModule = {
   id: "blob",
   register(app, { resolveHandler }) {
-    app.post(
-      "/blob/upload-url",
-      resolveHandler<BlobController>(
-        containerTokens.blobController,
-        "createUploadUrl",
-      ),
-    );
     app.put(
       "/blob/upload",
       resolveHandler<BlobController>(
@@ -30,9 +24,36 @@ export const blobRouteModule: RouteModule = {
         "getLocal",
       ),
     );
+  },
+};
+
+export const mediaRouteModule: RouteModule = {
+  id: "media",
+  register(app, { resolveHandler }) {
+    app.post(
+      "/media/uploads",
+      resolveHandler<MediaController>(
+        containerTokens.mediaController,
+        "createUpload",
+      ),
+    );
+    app.post(
+      "/media/:id/complete",
+      resolveHandler<MediaController>(
+        containerTokens.mediaController,
+        "complete",
+      ),
+    );
+    app.get(
+      "/media/:id",
+      resolveHandler<MediaController>(containerTokens.mediaController, "get"),
+    );
     app.delete(
-      "/blob",
-      resolveHandler<BlobController>(containerTokens.blobController, "delete"),
+      "/media/:id",
+      resolveHandler<MediaController>(
+        containerTokens.mediaController,
+        "delete",
+      ),
     );
   },
 };

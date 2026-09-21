@@ -2,11 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { blobApi } from "@/lib/blob/api";
-import {
-  IMAGE_ACCEPT_ATTRIBUTE,
-  resolveUploadContentType,
-} from "@/lib/blob/image-policy";
+import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
+import { uploadImage, type UploadImageStage } from "@/lib/media/api";
 import type {
   OrganizationBlogPostRecord,
   OrganizationBlogStatus,
@@ -33,6 +30,8 @@ export interface BlogFormValue {
   tags: string[];
   coverImageUrl: string;
   coverImageBlobName: string;
+  /** Set when a new cover was uploaded and has not been saved yet. */
+  coverImageMediaId: string;
   status: OrganizationBlogStatus;
   commentsEnabled: boolean;
 }
@@ -46,6 +45,7 @@ export function emptyBlogForm(): BlogFormValue {
     tags: [],
     coverImageUrl: "",
     coverImageBlobName: "",
+    coverImageMediaId: "",
     status: "draft",
     // New posts accept comments unless a manager says otherwise.
     commentsEnabled: true,
@@ -60,36 +60,28 @@ function CoverImageUploader({
   disabled,
 }: {
   coverImageUrl: string;
-  onUploaded: (blobUrl: string, blobName: string) => void;
+  /** Called with the processed image once the server has accepted it. */
+  onUploaded: (url: string, mediaId: string) => void;
   onRemove: () => void;
   onError: (message: string) => void;
   disabled?: boolean;
 }) {
-  const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState<UploadImageStage | null>(null);
+  const uploading = stage !== null;
 
   async function handleFile(file: File | undefined) {
     if (!file) {
       return;
     }
 
-    setUploading(true);
+    setStage("uploading");
     try {
       // The server decides acceptability - see profile-fieldset.tsx.
-      const target = await blobApi.createUploadUrl({
-        filename: file.name,
-        contentType: resolveUploadContentType(file),
-        sizeBytes: file.size,
+      const image = await uploadImage(file, {
         scope: "organizations",
+        onStageChange: setStage,
       });
-      const response = await fetch(target.uploadUrl, {
-        method: target.method,
-        headers: target.headers,
-        body: file,
-      });
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}.`);
-      }
-      onUploaded(target.blobUrl, target.blobName);
+      onUploaded(image.url, image.mediaId);
     } catch (error) {
       // Surface the server's reason rather than a generic retry prompt - see
       // the same note in profile-fieldset.tsx.
@@ -99,7 +91,7 @@ function CoverImageUploader({
           : "We couldn't upload that cover image. Please try again.",
       );
     } finally {
-      setUploading(false);
+      setStage(null);
     }
   }
 
@@ -121,11 +113,13 @@ function CoverImageUploader({
         )}
         <div className="flex flex-wrap items-center gap-2">
           <label className={`${secondaryButtonClass} cursor-pointer`}>
-            {uploading
-              ? "Uploading..."
-              : coverImageUrl
-                ? "Replace cover"
-                : "Upload cover"}
+            {stage === "processing"
+              ? "Processing..."
+              : uploading
+                ? "Uploading..."
+                : coverImageUrl
+                  ? "Replace cover"
+                  : "Upload cover"}
             <input
               type="file"
               accept={IMAGE_ACCEPT_ATTRIBUTE}
@@ -310,11 +304,12 @@ export function BlogPanel({
 
             <CoverImageUploader
               coverImageUrl={form.coverImageUrl}
-              onUploaded={(blobUrl, blobName) =>
+              onUploaded={(url, mediaId) =>
                 onFormChange({
                   ...form,
-                  coverImageUrl: blobUrl,
-                  coverImageBlobName: blobName,
+                  coverImageUrl: url,
+                  coverImageBlobName: "",
+                  coverImageMediaId: mediaId,
                 })
               }
               onRemove={() =>
@@ -322,6 +317,7 @@ export function BlogPanel({
                   ...form,
                   coverImageUrl: "",
                   coverImageBlobName: "",
+                  coverImageMediaId: "",
                 })
               }
               onError={onError}

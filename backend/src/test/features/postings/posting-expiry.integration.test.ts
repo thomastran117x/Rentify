@@ -4,6 +4,7 @@ import type { PostingExpiryService } from "@/features/postings/posting-expiry.se
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -13,17 +14,13 @@ import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
 const EMAIL_QUEUE_NAME = "email.delivery.main";
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
-function buildPostingPhoto(blobName: string) {
-  return {
-    blobUrl: `http://blob.test/uploads/${blobName}?blobName=${blobName}`,
-    blobName,
-    position: 0,
-  };
+// A new photo is a ready media item uploaded by the acting user.
+async function readyPhotoId(userId: string): Promise<string> {
+  return (await createReadyMedia(userId)).mediaId;
 }
 
-// Photos must be uploaded by the acting user, which the blob name records.
 function buildCreatePostingBody(
-  ownerId: string,
+  photoMediaId: string,
   overrides: Record<string, unknown> = {},
 ) {
   return {
@@ -39,7 +36,7 @@ function buildCreatePostingBody(
         amount: 155,
       },
     },
-    photos: [buildPostingPhoto(`postings/${ownerId}/expiry-workspace.jpg`)],
+    photos: [{ mediaId: photoMediaId, position: 0 }],
     tags: ["Loft", "Test"],
     details: {
       guest_capacity: 4,
@@ -85,7 +82,9 @@ describe("posting expiry persistence", () => {
     const createResponse = await request("/postings", {
       method: "POST",
       headers: owner.headers(),
-      body: JSON.stringify(buildCreatePostingBody(owner.userId, { expiresAt })),
+      body: JSON.stringify(
+        buildCreatePostingBody(await readyPhotoId(owner.userId), { expiresAt }),
+      ),
     });
 
     expect(createResponse.status).toBe(201);
@@ -128,7 +127,7 @@ describe("posting expiry persistence", () => {
       method: "POST",
       headers: owner.headers(),
       body: JSON.stringify(
-        buildCreatePostingBody(owner.userId, {
+        buildCreatePostingBody(await readyPhotoId(owner.userId), {
           expiresAt: new Date(Date.now() - DAY_IN_MS).toISOString(),
         }),
       ),
@@ -252,7 +251,9 @@ describe("posting expiry persistence", () => {
 
     const nextExpiry = new Date(Date.now() + 60 * DAY_IN_MS).toISOString();
     const { availabilityBlocks: _blocks, ...updateBody } =
-      buildCreatePostingBody(owner.userId, { expiresAt: nextExpiry });
+      buildCreatePostingBody(await readyPhotoId(owner.userId), {
+        expiresAt: nextExpiry,
+      });
     const updateResponse = await request(`/postings/${postingId}`, {
       method: "PUT",
       headers: owner.headers(),

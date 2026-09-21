@@ -19,6 +19,7 @@ import type {
   PublicPostingRecord,
   UpsertPostingInput,
   UpsertPostingPersistenceInput,
+  UpsertPostingWriteInput,
 } from "@/features/postings/postings.model";
 import type { PostingsReviewsRepository } from "@/features/postings/reviews/reviews.repository";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
@@ -34,6 +35,7 @@ import { OrganizationAccessService } from "@/features/organizations/organization
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { createMediaRule } from "../../support/media-rule";
 import { testUuid } from "../../support/uuid";
 import type { Uuid } from "@/configuration/validation/uuid";
 const OWNER_BLOCK_1_ID = testUuid(9000, 630648);
@@ -56,6 +58,42 @@ const MEMBERLESS_1_ID = testUuid(9000, 772440);
 const OPERATOR_1_ID = testUuid(9000, 402986);
 const ORG_2_ID = testUuid(9000, 9235);
 const ORG_9_ID = testUuid(9000, 9242);
+const TEST_PHOTO_MEDIA_ID = testUuid(9000, 994370);
+
+const TEST_BLOB_ORIGIN = "https://example.blob.core.windows.net/";
+
+/**
+ * The real image rule, except that TEST_PHOTO_MEDIA_ID stands for a ready
+ * photo resolving to the photo-1 blob the fixtures are built around, for any
+ * actor. Tests about the rule itself add real media through `rule`.
+ */
+function createTestMediaService(): MediaService {
+  const rule = createMediaRule({ origin: TEST_BLOB_ORIGIN });
+  const resolveImageReference: MediaService["resolveImageReference"] = async (
+    userId,
+    input,
+    options,
+  ) =>
+    input.mediaId === TEST_PHOTO_MEDIA_ID
+      ? {
+          blobName: "postings/photo-1.jpg",
+          blobUrl: `${TEST_BLOB_ORIGIN}postings/photo-1.jpg`,
+        }
+      : rule.resolveImageReference(userId, input, options);
+
+  return {
+    rule,
+    resolveImageReference: jest.fn(resolveImageReference),
+  } as unknown as MediaService;
+}
+
+function mediaRuleOf(service: PostingsService) {
+  return (
+    service as unknown as {
+      mediaService: { rule: ReturnType<typeof createMediaRule> };
+    }
+  ).mediaService.rule;
+}
 
 class FakePostingsRepository {
   createCalls = 0;
@@ -78,7 +116,7 @@ class FakePostingsRepository {
   ownerOverlap = false;
   bookingConflict = false;
   rentingConflict = false;
-  posting = buildPostingRecord(createValidInput());
+  posting = buildPostingRecord(createStoredInput());
   ownerBlocks: PostingAvailabilityBlockRecord[] = [
     buildAvailabilityBlockRecord(BLOCK_1_ID, {
       startAt: "2026-05-01T00:00:00.000Z",
@@ -527,11 +565,7 @@ function createServiceHarness(
   searchService = {} as PostingsPublicSearchService,
   organizationsRepository = createOrganizationsRepositoryStub(),
 ) {
-  const mediaService = {
-    isConfigured: () => true,
-    isManagedUrl: () => true,
-    isOwnedBy: () => true,
-  } as unknown as MediaService;
+  const mediaService = createTestMediaService();
   const cacheService = {
     acquireLock: jest.fn(async (key: string) => ({
       key,
@@ -580,7 +614,7 @@ function createServiceHarness(
   };
 }
 
-function createValidInput(): UpsertPostingPersistenceInput {
+function createStoredInput(): UpsertPostingPersistenceInput {
   return {
     organizationId: ORG_1_ID,
     variant: {
@@ -629,6 +663,18 @@ function createValidInput(): UpsertPostingPersistenceInput {
       country: "Canada",
       postalCode: "M5H 2N2",
     },
+  };
+}
+
+/**
+ * A posting as a client sends it: its photo is a newly uploaded media item.
+ * The test MediaService resolves it to the photo-1 blob createStoredInput
+ * holds, so a posting written from this matches one built from that.
+ */
+function createValidInput(): UpsertPostingWriteInput {
+  return {
+    ...createStoredInput(),
+    photos: [{ mediaId: TEST_PHOTO_MEDIA_ID, position: 0 }],
   };
 }
 
@@ -832,24 +878,10 @@ describe("PostingsService", () => {
   });
 
   describe("photo ownership", () => {
-    function useOwnership(service: PostingsService, ownedBlobName: string) {
-      const isOwnedBy = jest.fn(
-        (_userId: string, blobName: string) => blobName === ownedBlobName,
-      );
-      Object.assign(service as object, {
-        mediaService: {
-          isConfigured: () => true,
-          isManagedUrl: () => true,
-          isOwnedBy,
-        },
-      });
-      return isOwnedBy;
-    }
-
     function withPhoto(
-      input: UpsertPostingPersistenceInput,
+      input: UpsertPostingWriteInput,
       blobName: string,
-    ): UpsertPostingPersistenceInput {
+    ): UpsertPostingWriteInput {
       return {
         ...input,
         photos: [
@@ -863,68 +895,107 @@ describe("PostingsService", () => {
       };
     }
 
-    it("rejects a new draft whose photo the actor did not upload", async () => {
+    it("refuses a new photo sent by blob name, even one the actor uploaded", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/someone-else.jpg");
 
       await expect(
-        service.createDraft(OWNER_1_ID, createValidInput()),
-      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
-      expect(isOwnedBy).toHaveBeenCalledWith(
-        OWNER_1_ID,
-        "postings/photo-1.jpg",
-      );
+        service.createDraft(
+          OWNER_1_ID,
+          withPhoto(
+            { ...createValidInput(), photos: [] },
+            `postings/${OWNER_1_ID}/mine.jpg`,
+          ),
+        ),
+      ).rejects.toThrow("A new image must be uploaded and sent as mediaId.");
       expect(repository.createCalls).toBe(0);
     });
 
-    it("accepts a new draft whose photo the actor uploaded", async () => {
+    it("keeps photos already on the posting but refuses a new one by blob name", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      useOwnership(service, "postings/photo-1.jpg");
 
+      // photo-1 is already attached, so it may be resent whoever uploaded it.
       await expect(
-        service.createDraft(OWNER_1_ID, createValidInput()),
-      ).resolves.toBeDefined();
-    });
-
-    it("keeps photos already on the posting but rejects a new foreign one", async () => {
-      const repository = new FakePostingsRepository();
-      const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/mine.jpg");
-
-      // photo-1 is already attached, so the actor need not own it.
-      await expect(
-        service.update(POSTING_123_ID, OWNER_1_ID, createValidInput()),
-      ).resolves.toBeDefined();
-      expect(isOwnedBy).not.toHaveBeenCalled();
-
-      await expect(
-        service.update(
-          POSTING_123_ID,
-          OWNER_1_ID,
-          withPhoto(createValidInput(), "postings/mine.jpg"),
-        ),
+        service.update(POSTING_123_ID, OWNER_1_ID, createStoredInput()),
       ).resolves.toBeDefined();
 
       await expect(
         service.update(
           POSTING_123_ID,
           OWNER_1_ID,
-          withPhoto(createValidInput(), "postings/theirs.jpg"),
+          withPhoto(createStoredInput(), "postings/theirs.jpg"),
         ),
-      ).rejects.toThrow("Posting photos must be uploaded by the current user.");
+      ).rejects.toThrow("A new image must be uploaded and sent as mediaId.");
     });
 
     it("duplicates a posting whose photos another user uploaded", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      const isOwnedBy = useOwnership(service, "postings/unrelated.jpg");
 
       await expect(
         service.duplicate(POSTING_1_ID, OWNER_1_ID),
       ).resolves.toBeDefined();
-      expect(isOwnedBy).not.toHaveBeenCalled();
+    });
+
+    it("attaches a newly uploaded photo by media id as its processed image", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const photo = mediaRuleOf(service).addReadyMedia(
+        OWNER_1_ID,
+        testUuid(9000, 994340),
+        "postings",
+      );
+
+      const created = await service.createDraft(OWNER_1_ID, {
+        ...createValidInput(),
+        photos: [{ mediaId: photo.mediaId, position: 0 }],
+      });
+
+      expect(created.photos).toEqual([
+        expect.objectContaining({
+          blobName: photo.blobName,
+          blobUrl: photo.blobUrl,
+          position: 0,
+        }),
+      ]);
+    });
+
+    it("refuses media that is not ready or was uploaded for another purpose", async () => {
+      const repository = new FakePostingsRepository();
+      const service = createService(repository);
+      const logo = mediaRuleOf(service).addReadyMedia(
+        OWNER_1_ID,
+        testUuid(9000, 994341),
+        "organizations",
+      );
+
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ mediaId: logo.mediaId, position: 0 }],
+        }),
+      ).rejects.toThrow("Image was not uploaded for postings.");
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ mediaId: testUuid(9000, 994342), position: 0 }],
+        }),
+      ).rejects.toThrow("Image is not available.");
+      expect(repository.createCalls).toBe(0);
+    });
+
+    it("refuses a photo that references neither media nor a blob", async () => {
+      const service = createService(new FakePostingsRepository());
+
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ position: 0 }],
+        }),
+      ).rejects.toThrow(
+        "A photo requires mediaId, or blobUrl and blobName together.",
+      );
     });
   });
 
@@ -1953,11 +2024,7 @@ describe("PostingsService", () => {
   it("returns a conflict when the posting availability lock is busy", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const mediaService = {
-      isConfigured: () => true,
-      isManagedUrl: () => true,
-      isOwnedBy: () => true,
-    } as unknown as MediaService;
+    const mediaService = createTestMediaService();
     const cacheService = {
       acquireLock: jest.fn(async () => null),
     } as unknown as CacheService;
@@ -2142,11 +2209,7 @@ describe("PostingsService", () => {
   it("swallows thumbnail queue failures after create succeeds", async () => {
     const repository = new FakePostingsRepository();
     const searchService = {} as PostingsPublicSearchService;
-    const mediaService = {
-      isConfigured: () => true,
-      isManagedUrl: () => true,
-      isOwnedBy: () => true,
-    } as unknown as MediaService;
+    const mediaService = createTestMediaService();
     const cacheService = {
       acquireLock: jest.fn(async (key: string) => ({
         key,
@@ -2409,25 +2472,28 @@ describe("PostingsService", () => {
           actorUserId: Uuid;
           attachedBlobNames: ReadonlySet<string>;
         },
-      ) => unknown[];
+      ) => Promise<unknown[]>;
       normalizeAvailabilityBlocks: (
         blocks: PostingAvailabilityBlockInput[],
       ) => PostingAvailabilityBlockInput[];
-      assertManagedBlob: (blobUrl: string, blobName: string) => void;
       assertCanPublish: (posting: PostingRecord) => void;
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
       normalizeBatchIds: (ids: Uuid[]) => string[];
     };
+    // Already on the posting, so these reach the position and thumbnail checks.
     const normalizePhotos = (photos: Array<Record<string, unknown>>) =>
       service.normalizePhotos(photos, {
         actorUserId: OWNER_1_ID,
-        attachedBlobNames: new Set(),
+        attachedBlobNames: new Set([
+          "postings/photo-1.jpg",
+          "postings/photo-2.jpg",
+        ]),
       });
 
-    expect(() => normalizePhotos([])).toThrow(
+    await expect(normalizePhotos([])).rejects.toThrow(
       "At least one photo is required.",
     );
-    expect(() =>
+    await expect(
       normalizePhotos(
         Array.from({ length: 11 }, (_, index) => ({
           blobUrl: `https://example.blob.core.windows.net/postings/photo-${index}.jpg`,
@@ -2435,8 +2501,8 @@ describe("PostingsService", () => {
           position: index,
         })),
       ),
-    ).toThrow("A posting can include at most");
-    expect(() =>
+    ).rejects.toThrow("A posting can include at most");
+    await expect(
       normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
@@ -2449,8 +2515,8 @@ describe("PostingsService", () => {
           position: 0,
         },
       ]),
-    ).toThrow("Photo positions must be unique.");
-    expect(() =>
+    ).rejects.toThrow("Photo positions must be unique.");
+    await expect(
       normalizePhotos([
         {
           blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
@@ -2460,7 +2526,7 @@ describe("PostingsService", () => {
           position: 0,
         },
       ]),
-    ).toThrow(
+    ).rejects.toThrow(
       "Thumbnail blob URL and thumbnail blob name must be provided together.",
     );
     expect(() =>
@@ -2484,27 +2550,7 @@ describe("PostingsService", () => {
       ]),
     ).toThrow("Availability blocks may not overlap.");
 
-    Object.assign(service as object, {
-      mediaService: {
-        isConfigured: () => false,
-        isManagedUrl: () => true,
-      },
-    });
-    expect(() =>
-      service.assertManagedBlob("https://example.test/blob", "blob"),
-    ).toThrow("Posting photos require Azure Blob Storage");
-
-    Object.assign(service as object, {
-      mediaService: {
-        isConfigured: () => true,
-        isManagedUrl: () => false,
-      },
-    });
-    expect(() =>
-      service.assertManagedBlob("https://example.test/blob", "blob"),
-    ).toThrow("Posting photo URLs must match");
-
-    const validPosting = buildPostingRecord(createValidInput());
+    const validPosting = buildPostingRecord(createStoredInput());
     expect(() =>
       service.assertCanPublish({
         ...validPosting,
