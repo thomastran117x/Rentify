@@ -1,4 +1,5 @@
 import { buildApiPath } from "@/configuration/http/api-path";
+import { BlobCleanupRepository } from "@/features/blob/blob-cleanup.repository";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
@@ -84,5 +85,42 @@ describe("Blob persistence integration", () => {
 
     expect(response.status).toBe(400);
     expect(persistenceApp.stubs.blobService.storage.has(blobName)).toBe(false);
+  });
+
+  it("keeps a ready media row when cleanup removes its leftover quarantined upload", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const ready = await createReadyMedia(owner.userId);
+    const abandonedId = "8d6f1c2a-3b4e-4f5a-9b6c-7d8e9f0a1b2c";
+    const abandonedName = `quarantine/images/${owner.userId}/${abandonedId}`;
+    await persistenceApp.prisma.media.create({
+      data: {
+        id: abandonedId,
+        userId: owner.userId,
+        status: "pending_upload",
+        scope: "postings",
+        originalBlobName: abandonedName,
+        declaredContentType: "image/png",
+      },
+    });
+    const readyRow = await persistenceApp.prisma.media.findUniqueOrThrow({
+      where: { id: ready.mediaId },
+    });
+
+    // As blob-cleanup --delete reports after removing both quarantined
+    // uploads: the ready item's leftover and the abandoned item's.
+    const removed = await new BlobCleanupRepository().deleteAbandonedMedia({
+      deletedBlobNames: [readyRow.originalBlobName, abandonedName],
+      olderThan: new Date(Date.now() + 60_000),
+    });
+
+    expect(removed).toBe(1);
+    await expect(
+      persistenceApp.prisma.media.findUnique({ where: { id: ready.mediaId } }),
+    ).resolves.toMatchObject({ status: "ready" });
+    await expect(
+      persistenceApp.prisma.media.findUnique({ where: { id: abandonedId } }),
+    ).resolves.toBeNull();
   });
 });

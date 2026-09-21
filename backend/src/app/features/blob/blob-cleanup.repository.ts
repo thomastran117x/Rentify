@@ -107,10 +107,17 @@ export class BlobCleanupRepository extends BaseRepository {
   }
 
   /**
-   * Removes the media rows of blobs the cleanup deleted, and rows that never
-   * reached `ready` and have not moved since `olderThan` - an upload the client
-   * abandoned, or one rejected long ago. A ready row whose blob is still in use
-   * is referenced by a feature table and never deleted by the sweep.
+   * Removes media rows the cleanup has left without an image:
+   *
+   * - a row whose processed image it deleted, which it only does when nothing
+   *   references that image;
+   * - a row that never reached `ready` and has not moved since `olderThan` - an
+   *   upload the client abandoned, or one rejected long ago - including one
+   *   whose quarantined upload it just deleted.
+   *
+   * A ready row is never removed because its *quarantined* upload was deleted.
+   * That upload is only a leftover the worker failed to clean up; the row's
+   * processed image may still be attached.
    */
   async deleteAbandonedMedia(input: {
     deletedBlobNames: string[];
@@ -121,7 +128,10 @@ export class BlobCleanupRepository extends BaseRepository {
         this.prisma.media.deleteMany({
           where: {
             OR: [
-              { originalBlobName: { in: input.deletedBlobNames } },
+              {
+                originalBlobName: { in: input.deletedBlobNames },
+                status: { not: "ready" },
+              },
               { processedBlobName: { in: input.deletedBlobNames } },
               {
                 status: { not: "ready" },
