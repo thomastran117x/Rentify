@@ -5,7 +5,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import { BlobService } from "@/features/blob/blob.service";
-import type { MediaStatus } from "@/features/media/media.model";
+import type { MediaScope, MediaStatus } from "@/features/media/media.model";
 import { MediaService } from "@/features/media/media.service";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import { testUuid } from "../../support/uuid";
@@ -64,6 +64,7 @@ describe("MediaService", () => {
             userId: USER_1_ID,
             filename: "document.pdf",
             contentType,
+            scope: "postings",
           }),
         ).rejects.toThrow(UnsupportedMediaTypeError);
       }
@@ -79,6 +80,7 @@ describe("MediaService", () => {
           userId: USER_1_ID,
           filename: "photo.jpg",
           contentType: "image/jpeg",
+          scope: "postings",
         }),
       ).rejects.toThrow(UnsupportedMediaTypeError);
       await expect(
@@ -86,6 +88,7 @@ describe("MediaService", () => {
           userId: USER_1_ID,
           filename: "photo.png",
           contentType: "image/png",
+          scope: "postings",
         }),
       ).resolves.toMatchObject({ media: { status: "pending_upload" } });
     });
@@ -97,6 +100,7 @@ describe("MediaService", () => {
         userId: USER_1_ID,
         filename: "../../photo.png.exe",
         contentType: "image/jpeg",
+        scope: "postings",
       });
 
       expect(await mediaRepository.findById(media.id)).toMatchObject({
@@ -114,6 +118,7 @@ describe("MediaService", () => {
         userId: USER_1_ID,
         filename: "photo.png",
         contentType: "image/png",
+        scope: "postings",
       });
 
       await expect(
@@ -219,7 +224,7 @@ describe("MediaService", () => {
   describe("media uploads", () => {
     async function startUpload(
       mediaService: MediaService,
-      overrides: Partial<{ contentType: string; scope: string }> = {},
+      overrides: Partial<{ contentType: string; scope: MediaScope }> = {},
     ) {
       return mediaService.createMediaUpload({
         userId: USER_1_ID,
@@ -245,13 +250,15 @@ describe("MediaService", () => {
     it("records the upload in quarantine before signing a credential", async () => {
       const { mediaService, mediaRepository } = createLocalMediaService();
 
-      const result = await startUpload(mediaService, { scope: " Postings " });
+      const result = await startUpload(mediaService, {
+        scope: "organizations",
+      });
       const record = await mediaRepository.findById(result.media.id);
 
       expect(record).toMatchObject({
         userId: USER_1_ID,
         status: "pending_upload",
-        scope: "postings",
+        scope: "organizations",
         declaredContentType: "image/png",
         originalFilename: "photo.png",
         originalBlobName: `quarantine/images/${USER_1_ID}/${result.media.id}`,
@@ -273,16 +280,17 @@ describe("MediaService", () => {
       expect(JSON.stringify(result.media)).not.toContain("quarantine");
     });
 
-    it("defaults the scope and records nothing for a refused upload", async () => {
+    it("records nothing for a refused upload", async () => {
       const { mediaService, mediaRepository } = createLocalMediaService();
 
       const result = await mediaService.createMediaUpload({
         userId: USER_1_ID,
         filename: "  ",
         contentType: "image/jpeg",
+        scope: "postings",
       });
 
-      expect(result.media.scope).toBe("general");
+      expect(result.media.scope).toBe("postings");
       expect(
         (await mediaRepository.findById(result.media.id))?.originalFilename,
       ).toBeNull();
@@ -296,6 +304,7 @@ describe("MediaService", () => {
           userId: USER_1_ID,
           filename: "big.png",
           contentType: "image/png",
+          scope: "postings",
           sizeBytes: 11,
         }),
       ).rejects.toThrow(PayloadTooLargeError);
@@ -553,10 +562,16 @@ describe("MediaService", () => {
     });
   });
 
-  describe("resolveAttachableImage", () => {
+  describe("resolveImageReference", () => {
+    const FIELDS = {
+      mediaId: "logoMediaId",
+      url: "logoUrl",
+      blobName: "logoBlobName",
+    };
+
     async function mediaIn(
       status: MediaStatus,
-      overrides: Partial<{ scope: string; rejectionReason: string }> = {},
+      overrides: Partial<{ scope: MediaScope; rejectionReason: string }> = {},
     ) {
       const context = createLocalMediaService();
       const { media } = await context.mediaService.createMediaUpload({
@@ -580,37 +595,44 @@ describe("MediaService", () => {
       return { ...context, mediaId: media.id, processedBlobName };
     }
 
-    it("resolves a ready image owned by the user to its processed blob", async () => {
-      const { mediaService, blobService, mediaId, processedBlobName } =
-        await mediaIn("ready");
-
-      await expect(
-        mediaService.resolveAttachableImage(USER_1_ID, mediaId, {
-          scope: "organizations",
-        }),
-      ).resolves.toEqual({
-        blobName: processedBlobName,
-        blobUrl: blobService.getBlobUrl(processedBlobName),
+    function resolve(
+      context: { mediaService: MediaService },
+      input: Parameters<MediaService["resolveImageReference"]>[1],
+      storedBlobNames: string[] = [],
+      userId = USER_1_ID,
+    ) {
+      return context.mediaService.resolveImageReference(userId, input, {
+        scope: "organizations",
+        storedBlobNames: new Set(storedBlobNames),
+        fields: FIELDS,
       });
+    }
+
+    it("resolves a new image to the processed blob of a ready media item", async () => {
+      const ready = await mediaIn("ready");
+
+      await expect(resolve(ready, { mediaId: ready.mediaId })).resolves.toEqual(
+        {
+          blobName: ready.processedBlobName,
+          blobUrl: ready.blobService.getBlobUrl(ready.processedBlobName),
+        },
+      );
     });
 
-    it("refuses media that is missing, foreign, unfinished, rejected, or out of scope", async () => {
+    it("refuses media that is missing, foreign, unfinished, rejected, or for another scope", async () => {
       const ready = await mediaIn("ready");
 
       await expect(
-        ready.mediaService.resolveAttachableImage(
-          USER_1_ID,
-          testUuid(9000, 994261),
-        ),
+        resolve(ready, { mediaId: testUuid(9000, 994261) }),
       ).rejects.toThrow("Image is not available.");
       await expect(
-        ready.mediaService.resolveAttachableImage(USER_2_ID, ready.mediaId),
+        resolve(ready, { mediaId: ready.mediaId }, [], USER_2_ID),
       ).rejects.toThrow("Image is not available.");
+
+      const posting = await mediaIn("ready", { scope: "postings" });
       await expect(
-        ready.mediaService.resolveAttachableImage(USER_1_ID, ready.mediaId, {
-          scope: "postings",
-        }),
-      ).rejects.toThrow("Image was not uploaded for postings.");
+        resolve(posting, { mediaId: posting.mediaId }),
+      ).rejects.toThrow("Image was not uploaded for organizations.");
 
       for (const status of [
         "pending_upload",
@@ -619,10 +641,7 @@ describe("MediaService", () => {
       ] as const) {
         const pending = await mediaIn(status);
         await expect(
-          pending.mediaService.resolveAttachableImage(
-            USER_1_ID,
-            pending.mediaId,
-          ),
+          resolve(pending, { mediaId: pending.mediaId }),
         ).rejects.toThrow("Image is still processing.");
       }
 
@@ -630,21 +649,75 @@ describe("MediaService", () => {
         rejectionReason: "Uploaded file could not be read as an image.",
       });
       await expect(
-        rejected.mediaService.resolveAttachableImage(
-          USER_1_ID,
-          rejected.mediaId,
-        ),
+        resolve(rejected, { mediaId: rejected.mediaId }),
       ).rejects.toThrow(
         "Image was rejected: Uploaded file could not be read as an image.",
       );
-
       const rejectedWithoutReason = await mediaIn("rejected");
       await expect(
-        rejectedWithoutReason.mediaService.resolveAttachableImage(
-          USER_1_ID,
-          rejectedWithoutReason.mediaId,
+        resolve(rejectedWithoutReason, {
+          mediaId: rejectedWithoutReason.mediaId,
+        }),
+      ).rejects.toThrow("Image was rejected.");
+    });
+
+    it("keeps, clears, or leaves out the stored image", async () => {
+      const context = createLocalMediaService();
+      const stored = `media/images/${USER_1_ID}/stored.webp`;
+      const storedUrl = context.blobService.getBlobUrl(stored);
+
+      await expect(
+        resolve(context, { url: ` ${storedUrl} `, blobName: ` ${stored} ` }, [
+          stored,
+        ]),
+      ).resolves.toEqual({ blobUrl: storedUrl, blobName: stored });
+      await expect(
+        resolve(context, { url: null, blobName: null }, [stored]),
+      ).resolves.toBeNull();
+      await expect(resolve(context, {}, [stored])).resolves.toBeUndefined();
+    });
+
+    it("refuses a new image by blob name, even one the user owns", async () => {
+      const context = createLocalMediaService();
+      const owned = `organizations/${USER_1_ID}/logo.png`;
+
+      await expect(
+        resolve(context, {
+          url: context.blobService.getBlobUrl(owned),
+          blobName: owned,
+        }),
+      ).rejects.toThrow(
+        "A new image must be uploaded and sent as logoMediaId.",
+      );
+    });
+
+    it("refuses malformed references with the request's own field names", async () => {
+      const context = createLocalMediaService();
+      const stored = `media/images/${USER_1_ID}/stored.webp`;
+
+      await expect(
+        resolve(context, {
+          mediaId: testUuid(9000, 994262),
+          url: "https://example.test/a.png",
+          blobName: "a.png",
+        }),
+      ).rejects.toThrow(
+        "Send either logoMediaId or logoUrl and logoBlobName, not both.",
+      );
+      await expect(
+        resolve(context, { url: "https://example.test/a.png" }, [stored]),
+      ).rejects.toThrow(
+        "logoUrl and logoBlobName must be sent together, or both be null.",
+      );
+      await expect(
+        resolve(
+          context,
+          { url: "https://example.test/a.png", blobName: stored },
+          [stored],
         ),
-      ).rejects.toThrow(BadRequestError);
+      ).rejects.toThrow(
+        "logoUrl does not match the stored image for logoBlobName.",
+      );
     });
   });
 

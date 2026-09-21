@@ -35,6 +35,7 @@ import { OrganizationAccessService } from "@/features/organizations/organization
 import type { OrganizationAuditService } from "@/features/organizations/audit/audit.service";
 import type { OrganizationsProfileRepository } from "@/features/organizations/profile/profile.repository";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
+import { createMediaRule } from "../../support/media-rule";
 import { testUuid } from "../../support/uuid";
 import type { Uuid } from "@/configuration/validation/uuid";
 const OWNER_BLOCK_1_ID = testUuid(9000, 630648);
@@ -59,16 +60,39 @@ const ORG_2_ID = testUuid(9000, 9235);
 const ORG_9_ID = testUuid(9000, 9242);
 const TEST_PHOTO_MEDIA_ID = testUuid(9000, 994370);
 
+const TEST_BLOB_ORIGIN = "https://example.blob.core.windows.net/";
+
+/**
+ * The real image rule, except that TEST_PHOTO_MEDIA_ID stands for a ready
+ * photo resolving to the photo-1 blob the fixtures are built around, for any
+ * actor. Tests about the rule itself add real media through `rule`.
+ */
 function createTestMediaService(): MediaService {
+  const rule = createMediaRule({ origin: TEST_BLOB_ORIGIN });
+  const resolveImageReference: MediaService["resolveImageReference"] = async (
+    userId,
+    input,
+    options,
+  ) =>
+    input.mediaId === TEST_PHOTO_MEDIA_ID
+      ? {
+          blobName: "postings/photo-1.jpg",
+          blobUrl: `${TEST_BLOB_ORIGIN}postings/photo-1.jpg`,
+        }
+      : rule.resolveImageReference(userId, input, options);
+
   return {
-    isConfigured: () => true,
-    isManagedUrl: () => true,
-    isOwnedBy: () => true,
-    resolveAttachableImage: async () => ({
-      blobName: "postings/photo-1.jpg",
-      blobUrl: "https://example.blob.core.windows.net/postings/photo-1.jpg",
-    }),
+    rule,
+    resolveImageReference: jest.fn(resolveImageReference),
   } as unknown as MediaService;
+}
+
+function mediaRuleOf(service: PostingsService) {
+  return (
+    service as unknown as {
+      mediaService: { rule: ReturnType<typeof createMediaRule> };
+    }
+  ).mediaService.rule;
 }
 
 class FakePostingsRepository {
@@ -875,16 +899,15 @@ describe("PostingsService", () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
 
-      // The default test MediaService reports every blob as the actor's own:
-      // ownership of a name is no longer a way to attach it.
       await expect(
         service.createDraft(
           OWNER_1_ID,
-          withPhoto({ ...createValidInput(), photos: [] }, "postings/mine.jpg"),
+          withPhoto(
+            { ...createValidInput(), photos: [] },
+            `postings/${OWNER_1_ID}/mine.jpg`,
+          ),
         ),
-      ).rejects.toThrow(
-        "New posting photos must be uploaded and sent as mediaId.",
-      );
+      ).rejects.toThrow("A new image must be uploaded and sent as mediaId.");
       expect(repository.createCalls).toBe(0);
     });
 
@@ -903,9 +926,7 @@ describe("PostingsService", () => {
           OWNER_1_ID,
           withPhoto(createStoredInput(), "postings/theirs.jpg"),
         ),
-      ).rejects.toThrow(
-        "New posting photos must be uploaded and sent as mediaId.",
-      );
+      ).rejects.toThrow("A new image must be uploaded and sent as mediaId.");
     });
 
     it("duplicates a posting whose photos another user uploaded", async () => {
@@ -920,56 +941,47 @@ describe("PostingsService", () => {
     it("attaches a newly uploaded photo by media id as its processed image", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      const mediaId = testUuid(9000, 994340);
-      const processedBlobName = `media/images/${OWNER_1_ID}/${mediaId}.webp`;
-      const resolveAttachableImage = jest.fn(async () => ({
-        blobName: processedBlobName,
-        blobUrl: `https://example.blob.core.windows.net/${processedBlobName}`,
-      }));
-      Object.assign(service as object, {
-        mediaService: {
-          isConfigured: () => true,
-          isManagedUrl: () => true,
-          isOwnedBy: () => false,
-          resolveAttachableImage,
-        },
-      });
-      const input = createValidInput();
+      const photo = mediaRuleOf(service).addReadyMedia(
+        OWNER_1_ID,
+        testUuid(9000, 994340),
+        "postings",
+      );
 
       const created = await service.createDraft(OWNER_1_ID, {
-        ...input,
-        photos: [{ mediaId, position: 0 }],
+        ...createValidInput(),
+        photos: [{ mediaId: photo.mediaId, position: 0 }],
       });
 
-      expect(resolveAttachableImage).toHaveBeenCalledWith(OWNER_1_ID, mediaId);
       expect(created.photos).toEqual([
         expect.objectContaining({
-          blobName: processedBlobName,
-          blobUrl: `https://example.blob.core.windows.net/${processedBlobName}`,
+          blobName: photo.blobName,
+          blobUrl: photo.blobUrl,
           position: 0,
         }),
       ]);
     });
 
-    it("refuses a media id that is not ready to attach", async () => {
+    it("refuses media that is not ready or was uploaded for another purpose", async () => {
       const repository = new FakePostingsRepository();
       const service = createService(repository);
-      Object.assign(service as object, {
-        mediaService: {
-          resolveAttachableImage: jest.fn(async () => {
-            throw new BadRequestError(
-              "Image is still processing. Try again once it is ready.",
-            );
-          }),
-        },
-      });
+      const logo = mediaRuleOf(service).addReadyMedia(
+        OWNER_1_ID,
+        testUuid(9000, 994341),
+        "organizations",
+      );
 
       await expect(
         service.createDraft(OWNER_1_ID, {
           ...createValidInput(),
-          photos: [{ mediaId: testUuid(9000, 994341), position: 0 }],
+          photos: [{ mediaId: logo.mediaId, position: 0 }],
         }),
-      ).rejects.toThrow("Image is still processing.");
+      ).rejects.toThrow("Image was not uploaded for postings.");
+      await expect(
+        service.createDraft(OWNER_1_ID, {
+          ...createValidInput(),
+          photos: [{ mediaId: testUuid(9000, 994342), position: 0 }],
+        }),
+      ).rejects.toThrow("Image is not available.");
       expect(repository.createCalls).toBe(0);
     });
 
@@ -2464,7 +2476,6 @@ describe("PostingsService", () => {
       normalizeAvailabilityBlocks: (
         blocks: PostingAvailabilityBlockInput[],
       ) => PostingAvailabilityBlockInput[];
-      assertManagedBlob: (blobUrl: string, blobName: string) => void;
       assertCanPublish: (posting: PostingRecord) => void;
       assertPublishableDraftShape: (input: UpsertPostingInput) => void;
       normalizeBatchIds: (ids: Uuid[]) => string[];
@@ -2538,26 +2549,6 @@ describe("PostingsService", () => {
         },
       ]),
     ).toThrow("Availability blocks may not overlap.");
-
-    Object.assign(service as object, {
-      mediaService: {
-        isConfigured: () => false,
-        isManagedUrl: () => true,
-      },
-    });
-    expect(() =>
-      service.assertManagedBlob("https://example.test/blob", "blob"),
-    ).toThrow("Posting photos require Azure Blob Storage");
-
-    Object.assign(service as object, {
-      mediaService: {
-        isConfigured: () => true,
-        isManagedUrl: () => false,
-      },
-    });
-    expect(() =>
-      service.assertManagedBlob("https://example.test/blob", "blob"),
-    ).toThrow("Posting photo URLs must match");
 
     const validPosting = buildPostingRecord(createStoredInput());
     expect(() =>

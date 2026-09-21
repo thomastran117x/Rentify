@@ -76,6 +76,12 @@ import { ContentSanitizationService } from "@/features/security/content-sanitiza
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
+const PHOTO_FIELDS = {
+  mediaId: "mediaId",
+  url: "blobUrl",
+  blobName: "blobName",
+} as const;
+
 interface PhotoOwnershipContext {
   actorUserId: Uuid;
   /** Blob names already on the posting being written, if any. */
@@ -1551,36 +1557,38 @@ export class PostingsService {
   }
 
   /**
-   * Turns one incoming photo into a stored blob reference. A newly uploaded
-   * photo arrives as a media id and resolves to its processed image, which
-   * MediaService only yields once validation has finished. A photo referenced
-   * by blob name must already be on the posting.
+   * Turns one incoming photo into a stored blob reference with MediaService's
+   * image rule: a new photo is a media id resolving to its processed image, and
+   * a photo referenced by blob name must already be on the posting, whoever
+   * uploaded it (another member, the seed data, or the posting this one was
+   * duplicated from).
    */
   private async resolvePhoto(
     photo: PostingPhotoWriteInput,
-    photoOwnership: PhotoOwnershipContext,
+    { actorUserId, attachedBlobNames }: PhotoOwnershipContext,
   ): Promise<ManagedPostingPhotoInput> {
-    if ("mediaId" in photo && photo.mediaId) {
-      const image = await this.mediaService.resolveAttachableImage(
-        photoOwnership.actorUserId,
-        photo.mediaId,
-      );
+    const image = await this.mediaService.resolveImageReference(
+      actorUserId,
+      {
+        mediaId: "mediaId" in photo ? photo.mediaId : undefined,
+        url: photo.blobUrl,
+        blobName: photo.blobName,
+      },
+      {
+        scope: "postings",
+        storedBlobNames: attachedBlobNames,
+        fields: PHOTO_FIELDS,
+      },
+    );
 
-      return { ...image, position: photo.position };
-    }
-
-    if (!photo.blobUrl || !photo.blobName) {
+    if (!image) {
       throw new BadRequestError(
         "A photo requires mediaId, or blobUrl and blobName together.",
       );
     }
 
-    this.assertManagedBlob(photo.blobUrl, photo.blobName);
-    this.assertPhotoAttached(photo.blobName, photoOwnership);
-
     const managed: ManagedPostingPhotoInput = {
-      blobUrl: photo.blobUrl,
-      blobName: photo.blobName,
+      ...image,
       position: photo.position,
     };
 
@@ -1601,38 +1609,8 @@ export class PostingsService {
     return managed;
   }
 
-  // A photo already on the posting stays attachable by anyone who may manage
-  // it, including one another member uploaded or a seeded photo. A new photo
-  // only arrives as a media id, which resolvePhoto has already handled.
-  private assertPhotoAttached(
-    blobName: string,
-    { attachedBlobNames }: PhotoOwnershipContext,
-  ): void {
-    if (attachedBlobNames.has(blobName)) {
-      return;
-    }
-
-    throw new BadRequestError(
-      "New posting photos must be uploaded and sent as mediaId.",
-    );
-  }
-
   private attachedPhotoBlobNames(posting: PostingRecord): ReadonlySet<string> {
     return new Set(posting.photos.map((photo) => photo.blobName));
-  }
-
-  private assertManagedBlob(blobUrl: string, blobName: string): void {
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Posting photos require Azure Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (!this.mediaService.isManagedUrl(blobUrl, blobName)) {
-      throw new BadRequestError(
-        "Posting photo URLs must match the configured Azure Blob Storage location.",
-      );
-    }
   }
 
   private assertValidSearchInput(input: SearchPostingsInput): void {

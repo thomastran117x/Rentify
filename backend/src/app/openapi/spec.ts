@@ -10520,7 +10520,7 @@ function buildComponents(): Record<string, unknown> {
       },
       CreateMediaUploadRequest: {
         type: "object",
-        required: ["filename", "contentType"],
+        required: ["filename", "contentType", "scope"],
         properties: {
           filename: {
             type: "string",
@@ -10541,8 +10541,9 @@ function buildComponents(): Record<string, unknown> {
           },
           scope: {
             type: "string",
+            enum: ["postings", "organizations", "avatars"],
             description:
-              "What the image is for. Logos and blog covers must be uploaded with scope `organizations`. Defaults to `general`.",
+              "What the image is for. Each attach target accepts only images uploaded for it: `postings` for posting photos, `organizations` for organization logos and blog covers, `avatars` for profile avatars.",
           },
         },
       },
@@ -10953,7 +10954,7 @@ function buildComponents(): Record<string, unknown> {
             type: "string",
             format: "uuid",
             description:
-              "A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.",
+              "A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `avatars`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.",
           },
           trustworthinessScore: { type: "integer", minimum: 1, maximum: 5 },
           rentPostingsCount: { type: "integer", minimum: 0 },
@@ -11201,7 +11202,7 @@ function buildComponents(): Record<string, unknown> {
                 type: "string",
                 format: "uuid",
                 description:
-                  "A `ready` media item uploaded by the caller through `POST /media/uploads`.",
+                  "A `ready` media item uploaded by the caller through `POST /media/uploads` with scope `postings`.",
               },
               position: { type: "integer", minimum: 0, maximum: 9 },
             },

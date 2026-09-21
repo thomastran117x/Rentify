@@ -1,4 +1,5 @@
 import { OrganizationLogoService } from "@/features/organizations/organization-logo.service";
+import { createMediaRule } from "../../support/media-rule";
 import { testUuid } from "../../support/uuid";
 
 const ORG_1_ID = testUuid(9000, 9234);
@@ -8,13 +9,12 @@ function createService(overrides?: {
   mediaService?: Record<string, jest.Mock>;
   organizationAuditRepository?: Record<string, jest.Mock>;
 }) {
+  const rule = createMediaRule();
   const mediaService = {
-    isConfigured: jest.fn(() => true),
+    resolveImageReference: rule.resolveImageReference,
+    isProcessedImageBlobName: rule.isProcessedImageBlobName,
     isManagedUrl: jest.fn(() => true),
     isOwnedBy: jest.fn(() => true),
-    isProcessedImageBlobName: jest.fn((blobName: string) =>
-      blobName.startsWith("media/images/"),
-    ),
     deleteMedia: jest.fn(async () => undefined),
     ...(overrides?.mediaService ?? {}),
   };
@@ -30,6 +30,7 @@ function createService(overrides?: {
     ),
     mediaService,
     organizationAuditRepository,
+    rule,
   };
 }
 
@@ -37,79 +38,9 @@ describe("OrganizationLogoService", () => {
   describe("resolveLogoInput", () => {
     const mediaId = testUuid(9000, 994310);
 
-    it("rejects organization logo blobs outside the organizations scope", async () => {
-      const { service } = createService();
-
-      await expect(
-        service.resolveLogoInput(
-          USER_1_ID,
-          {
-            logoUrl: `https://cdn.test/postings/${USER_1_ID}/photo.png`,
-            logoBlobName: `postings/${USER_1_ID}/photo.png`,
-          },
-          undefined,
-          null,
-        ),
-      ).rejects.toThrow(
-        "Organization logos must use an organizations-scoped blob.",
-      );
-    });
-
-    it("refuses a new logo sent by blob name, even one the actor uploaded", async () => {
-      const nextLogoBlobName = `organizations/${USER_1_ID}/logo-new.png`;
-      const { service } = createService();
-
-      await expect(
-        service.resolveLogoInput(
-          USER_1_ID,
-          {
-            logoUrl: `https://cdn.test/${nextLogoBlobName}`,
-            logoBlobName: nextLogoBlobName,
-          },
-          undefined,
-          `organizations/${USER_1_ID}/logo-old.png`,
-        ),
-      ).rejects.toThrow(
-        "A new organization logo must be uploaded and sent as logoMediaId.",
-      );
-    });
-
-    it("accepts the stored logo resent unchanged, whoever uploaded it", async () => {
-      const storedBlobName = `media/images/${testUuid(9000, 994311)}/${mediaId}.webp`;
-      const { service } = createService({
-        mediaService: { isOwnedBy: jest.fn(() => false) },
-      });
-      const profile = {
-        logoUrl: `https://cdn.test/${storedBlobName}`,
-        logoBlobName: storedBlobName,
-      };
-
-      await expect(
-        service.resolveLogoInput(USER_1_ID, profile, undefined, storedBlobName),
-      ).resolves.toEqual(profile);
-    });
-
-    it("allows clearing the logo", async () => {
-      const { service } = createService();
-
-      await expect(
-        service.resolveLogoInput(
-          USER_1_ID,
-          { logoUrl: null, logoBlobName: null },
-          undefined,
-          null,
-        ),
-      ).resolves.toEqual({ logoUrl: null, logoBlobName: null });
-    });
-
-    it("resolves a new logo from a ready media item in the organizations scope", async () => {
-      const resolveAttachableImage = jest.fn(async () => ({
-        blobName: `media/images/${USER_1_ID}/${mediaId}.webp`,
-        blobUrl: `https://cdn.test/media/images/${USER_1_ID}/${mediaId}.webp`,
-      }));
-      const { service } = createService({
-        mediaService: { resolveAttachableImage },
-      });
+    it("resolves a new logo from media uploaded for organizations", async () => {
+      const { service, rule } = createService();
+      const logo = rule.addReadyMedia(USER_1_ID, mediaId, "organizations");
 
       await expect(
         service.resolveLogoInput(
@@ -120,30 +51,63 @@ describe("OrganizationLogoService", () => {
         ),
       ).resolves.toEqual({
         description: "About us",
-        logoUrl: `https://cdn.test/media/images/${USER_1_ID}/${mediaId}.webp`,
-        logoBlobName: `media/images/${USER_1_ID}/${mediaId}.webp`,
-      });
-      expect(resolveAttachableImage).toHaveBeenCalledWith(USER_1_ID, mediaId, {
-        scope: "organizations",
+        logoUrl: logo.blobUrl,
+        logoBlobName: logo.blobName,
       });
     });
 
-    it("refuses a media id sent alongside a blob reference", async () => {
-      const { service } = createService();
+    it("refuses media uploaded for another purpose", async () => {
+      const { service, rule } = createService();
+      rule.addReadyMedia(USER_1_ID, mediaId, "postings");
+
+      await expect(
+        service.resolveLogoInput(USER_1_ID, {}, mediaId, null),
+      ).rejects.toThrow("Image was not uploaded for organizations.");
+    });
+
+    it("keeps the stored logo, whoever uploaded it, and clears it with nulls", async () => {
+      const { service, rule } = createService();
+      const stored = `media/images/${testUuid(9000, 994311)}/${mediaId}.webp`;
+      const profile = { logoUrl: rule.urlFor(stored), logoBlobName: stored };
+
+      await expect(
+        service.resolveLogoInput(USER_1_ID, profile, undefined, stored),
+      ).resolves.toEqual(profile);
+      await expect(
+        service.resolveLogoInput(
+          USER_1_ID,
+          { logoUrl: null, logoBlobName: null },
+          undefined,
+          stored,
+        ),
+      ).resolves.toEqual({ logoUrl: null, logoBlobName: null });
+      await expect(
+        service.resolveLogoInput(
+          USER_1_ID,
+          { city: "Toronto" },
+          undefined,
+          stored,
+        ),
+      ).resolves.toEqual({ city: "Toronto" });
+    });
+
+    it("refuses a new logo sent by blob name, with the logo field names", async () => {
+      const { service, rule } = createService();
+      const owned = `organizations/${USER_1_ID}/logo-new.png`;
 
       await expect(
         service.resolveLogoInput(
           USER_1_ID,
-          { logoUrl: "https://cdn.test/a.png", logoBlobName: "a.png" },
-          mediaId,
-          null,
+          { logoUrl: rule.urlFor(owned), logoBlobName: owned },
+          undefined,
+          `organizations/${USER_1_ID}/logo-old.png`,
         ),
       ).rejects.toThrow(
-        "Send either logoMediaId or logoUrl and logoBlobName, not both.",
+        "A new image must be uploaded and sent as logoMediaId.",
       );
     });
 
-    it("treats processed media names as logo blobs", () => {
+    it("treats processed media names and legacy organization names as logos", () => {
       const { service } = createService();
 
       expect(

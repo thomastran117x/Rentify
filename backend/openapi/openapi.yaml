@@ -18665,6 +18665,7 @@ components:
       required:
         - filename
         - contentType
+        - scope
       properties:
         filename:
           type: string
@@ -18682,7 +18683,11 @@ components:
           description: Optional client-declared byte length, checked against the server limit before a URL is issued. Advisory only - the authoritative size check runs against the uploaded bytes.
         scope:
           type: string
-          description: What the image is for. Logos and blog covers must be uploaded with scope `organizations`. Defaults to `general`.
+          enum:
+            - postings
+            - organizations
+            - avatars
+          description: 'What the image is for. Each attach target accepts only images uploaded for it: `postings` for posting photos, `organizations` for organization logos and blog covers, `avatars` for profile avatars.'
     MediaStatus:
       type: string
       enum:
@@ -19160,7 +19165,7 @@ components:
         avatarMediaId:
           type: string
           format: uuid
-          description: 'A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.'
+          description: 'A new avatar: a `ready` media item the caller uploaded through `POST /media/uploads` with scope `avatars`. Stored as the processed image; do not send `avatarUrl`/`avatarBlobName` with it.'
         trustworthinessScore:
           type: integer
           minimum: 1
@@ -19455,7 +19460,7 @@ components:
             mediaId:
               type: string
               format: uuid
-              description: A `ready` media item uploaded by the caller through `POST /media/uploads`.
+              description: A `ready` media item uploaded by the caller through `POST /media/uploads` with scope `postings`.
             position:
               type: integer
               minimum: 0

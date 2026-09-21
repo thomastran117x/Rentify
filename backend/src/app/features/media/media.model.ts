@@ -1,7 +1,13 @@
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
 
-const mediaScopePattern = /^[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
+/**
+ * What an upload is for. Each attach target accepts only images uploaded for
+ * it, so an image uploaded as a posting photo cannot become an avatar.
+ */
+export const MEDIA_SCOPES = ["postings", "organizations", "avatars"] as const;
+
+export type MediaScope = (typeof MEDIA_SCOPES)[number];
 
 export const createMediaUploadRequestSchema = z.object({
   filename: z.string().trim().min(1, "Filename is required.").max(255),
@@ -10,16 +16,9 @@ export const createMediaUploadRequestSchema = z.object({
   // rejection for an honestly oversized file instead of a failure part-way
   // through the upload. The authoritative check runs against the real bytes.
   sizeBytes: z.number().int().positive().optional(),
-  scope: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .regex(
-      mediaScopePattern,
-      "Scope may only include lowercase letters, numbers, hyphens, and forward slashes.",
-    )
-    .optional(),
+  scope: z.enum(MEDIA_SCOPES, {
+    error: `Scope must be one of: ${MEDIA_SCOPES.join(", ")}.`,
+  }),
 });
 
 export type CreateMediaUploadRequestBody = z.infer<
@@ -119,13 +118,31 @@ export interface AttachableImage {
   blobUrl: string;
 }
 
+/** The fields a request uses for one image. */
+export interface ImageReferenceInput {
+  /** A newly uploaded image. */
+  mediaId?: Uuid;
+  /** The stored image, resent unchanged, or null with blobName to clear it. */
+  url?: string | null;
+  blobName?: string | null;
+}
+
+export interface ImageReferenceOptions {
+  /** The scope a new image must have been uploaded under. */
+  scope: MediaScope;
+  /** Blob names already stored for this field, which may be resent. */
+  storedBlobNames: ReadonlySet<string>;
+  /** The request's own field names, used in error messages. */
+  fields: { mediaId: string; url: string; blobName: string };
+}
+
 export interface CreateImageUploadInput {
   userId: Uuid;
   /** Display and diagnostics only; it never contributes to the blob name. */
   filename: string;
   contentType: string;
   sizeBytes?: number;
-  scope?: string;
+  scope: MediaScope;
   requestOrigin?: string;
 }
 

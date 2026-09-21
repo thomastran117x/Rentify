@@ -6,6 +6,7 @@ import type {
   ListOrganizationBlogPostsResult,
   OrganizationBlogPostRecord,
 } from "@/features/organizations/blog/blog.model";
+import { createMediaRule } from "../../../support/media-rule";
 import { testUuid } from "../../../support/uuid";
 const MISSING_ID = testUuid(9000, 394917);
 
@@ -137,19 +138,12 @@ function createService(options?: {
   const organizationAuditService = {
     record: jest.fn(async () => undefined),
   };
+  const rule = createMediaRule({ managedUrls: options?.blob?.managed });
   const mediaService = {
-    isConfigured: jest.fn(() => options?.blob?.configured ?? true),
+    resolveImageReference: rule.resolveImageReference,
+    isProcessedImageBlobName: rule.isProcessedImageBlobName,
     isManagedUrl: jest.fn(() => options?.blob?.managed ?? true),
     isOwnedBy: jest.fn(() => options?.blob?.owned ?? true),
-    isProcessedImageBlobName: jest.fn((blobName: string) =>
-      blobName.startsWith("media/images/"),
-    ),
-    resolveAttachableImage: jest.fn(
-      async (userId: string, mediaId: string) => ({
-        blobName: `media/images/${userId}/${mediaId}.webp`,
-        blobUrl: `https://cdn/media/images/${userId}/${mediaId}.webp`,
-      }),
-    ),
     deleteMedia: jest.fn(async () => undefined),
   };
   const publicSearchService = {
@@ -166,6 +160,7 @@ function createService(options?: {
     organizationAccessService,
     organizationAuditService,
     mediaService,
+    rule,
     publicSearchService,
     blogCommentGateway,
     service: new OrganizationBlogService(
@@ -430,7 +425,8 @@ describe("OrganizationBlogService", () => {
     });
 
     it("refuses a new cover sent by blob name, even one the actor uploaded", async () => {
-      const { service, repository } = createService();
+      const { service, repository, rule } = createService();
+      const owned = `organizations/${USER_1_ID}/blog/c.png`;
 
       await expect(
         service.create({
@@ -439,34 +435,22 @@ describe("OrganizationBlogService", () => {
           title: "With cover",
           body: "<p>x</p>",
           status: "draft",
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
-          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageUrl: rule.urlFor(owned),
+          coverImageBlobName: owned,
         }),
       ).rejects.toThrow(
-        "A new cover image must be uploaded and sent as coverImageMediaId.",
+        "A new image must be uploaded and sent as coverImageMediaId.",
       );
       expect(repository.create).not.toHaveBeenCalled();
     });
 
-    it("rejects a cover image outside the organizations blob scope", async () => {
-      const { service } = createService();
-
-      await expect(
-        service.create({
-          organizationId: ORG_1_ID,
-          actorUserId: USER_1_ID,
-          title: "Bad cover",
-          body: "<p>x</p>",
-          status: "draft",
-          coverImageUrl: `https://cdn/${OTHER_ID}/c.png`,
-          coverImageBlobName: `${OTHER_ID}/c.png`,
-        }),
-      ).rejects.toBeInstanceOf(BadRequestError);
-    });
-
-    it("resolves a new cover from a ready media item", async () => {
-      const { service, repository, mediaService } = createService();
-      const mediaId = testUuid(9000, 994330);
+    it("resolves a new cover from media uploaded for organizations", async () => {
+      const { service, repository, rule } = createService();
+      const cover = rule.addReadyMedia(
+        USER_1_ID,
+        testUuid(9000, 994330),
+        "organizations",
+      );
 
       await service.create({
         organizationId: ORG_1_ID,
@@ -474,84 +458,63 @@ describe("OrganizationBlogService", () => {
         title: "Media cover",
         body: "<p>x</p>",
         status: "draft",
-        coverImageMediaId: mediaId,
+        coverImageMediaId: cover.mediaId,
       });
 
-      expect(mediaService.resolveAttachableImage).toHaveBeenCalledWith(
-        USER_1_ID,
-        mediaId,
-        { scope: "organizations" },
-      );
       expect(repository.create.mock.calls[0][0]).toMatchObject({
-        coverImageBlobName: `media/images/${USER_1_ID}/${mediaId}.webp`,
-        coverImageUrl: `https://cdn/media/images/${USER_1_ID}/${mediaId}.webp`,
+        coverImageBlobName: cover.blobName,
+        coverImageUrl: cover.blobUrl,
       });
     });
 
-    it("refuses a cover media id sent alongside a blob reference", async () => {
-      const { service } = createService();
+    it("refuses a cover uploaded for another purpose", async () => {
+      const { service, rule } = createService();
+      const photo = rule.addReadyMedia(
+        USER_1_ID,
+        testUuid(9000, 994333),
+        "postings",
+      );
 
       await expect(
         service.create({
           organizationId: ORG_1_ID,
           actorUserId: USER_1_ID,
-          title: "Both",
+          title: "Wrong scope",
           body: "<p>x</p>",
           status: "draft",
+          coverImageMediaId: photo.mediaId,
+        }),
+      ).rejects.toThrow("Image was not uploaded for organizations.");
+    });
+
+    it("refuses malformed cover references with the cover field names", async () => {
+      const { service } = createService();
+      const base = {
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        title: "Bad cover",
+        body: "<p>x</p>",
+        status: "draft" as const,
+      };
+
+      await expect(
+        service.create({
+          ...base,
           coverImageMediaId: testUuid(9000, 994331),
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          coverImageUrl: `https://cdn.test/organizations/${ORG_1_ID}/blog/c.png`,
           coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
         }),
       ).rejects.toThrow(
         "Send either coverImageMediaId or coverImageUrl and coverImageBlobName, not both.",
       );
-    });
-
-    it("rejects a cover image with only one of url/blob provided", async () => {
-      const { service } = createService();
-
       await expect(
         service.create({
-          organizationId: ORG_1_ID,
-          actorUserId: USER_1_ID,
-          title: "Bad cover",
-          body: "<p>x</p>",
-          status: "draft",
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
+          ...base,
+          coverImageUrl: `https://cdn.test/organizations/${ORG_1_ID}/blog/c.png`,
         }),
-      ).rejects.toBeInstanceOf(BadRequestError);
-    });
-
-    it("rejects a cover image when blob storage is not configured", async () => {
-      const { service } = createService({ blob: { configured: false } });
-
-      await expect(
-        service.create({
-          organizationId: ORG_1_ID,
-          actorUserId: USER_1_ID,
-          title: "Cover",
-          body: "<p>x</p>",
-          status: "draft",
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
-          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
-        }),
-      ).rejects.toBeInstanceOf(BadRequestError);
-    });
-
-    it("rejects a cover image whose url does not match the blob", async () => {
-      const { service } = createService({ blob: { managed: false } });
-
-      await expect(
-        service.create({
-          organizationId: ORG_1_ID,
-          actorUserId: USER_1_ID,
-          title: "Cover",
-          body: "<p>x</p>",
-          status: "draft",
-          coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
-          coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
-        }),
-      ).rejects.toBeInstanceOf(BadRequestError);
+      ).rejects.toThrow(
+        "coverImageUrl and coverImageBlobName must be sent together, or both be null.",
+      );
     });
 
     it("allows explicitly clearing the cover image with nulls", async () => {
@@ -684,10 +647,11 @@ describe("OrganizationBlogService", () => {
   describe("update", () => {
     it("accepts the stored cover resent unchanged, whoever uploaded it", async () => {
       const storedBlobName = `media/images/${OTHER_ID}/cover.webp`;
+      const storedUrl = `https://cdn.test/${storedBlobName}`;
       const { service, repository } = createService({
         existing: createPost({
           coverImageBlobName: storedBlobName,
-          coverImageUrl: `https://cdn/${storedBlobName}`,
+          coverImageUrl: storedUrl,
         }),
         blob: { owned: false },
       });
@@ -696,11 +660,35 @@ describe("OrganizationBlogService", () => {
         organizationId: ORG_1_ID,
         actorUserId: USER_1_ID,
         blogPostId: BLOG_1_ID,
-        coverImageUrl: `https://cdn/${storedBlobName}`,
+        coverImageUrl: storedUrl,
         coverImageBlobName: storedBlobName,
       });
 
-      expect(repository.update).toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledWith(
+        ORG_1_ID,
+        BLOG_1_ID,
+        expect.objectContaining({
+          coverImageUrl: storedUrl,
+          coverImageBlobName: storedBlobName,
+        }),
+      );
+    });
+
+    it("rejects a stored cover resent with a URL that does not match it", async () => {
+      const storedBlobName = `media/images/${OTHER_ID}/cover.webp`;
+      const { service } = createService({
+        existing: createPost({ coverImageBlobName: storedBlobName }),
+      });
+
+      await expect(
+        service.update({
+          organizationId: ORG_1_ID,
+          actorUserId: USER_1_ID,
+          blogPostId: BLOG_1_ID,
+          coverImageUrl: "https://elsewhere.test/cover.webp",
+          coverImageBlobName: storedBlobName,
+        }),
+      ).rejects.toThrow(BadRequestError);
     });
 
     it("records a publish action when a draft transitions to published", async () => {
@@ -774,18 +762,23 @@ describe("OrganizationBlogService", () => {
     });
 
     it("deletes a replaced cover image blob", async () => {
-      const { service, mediaService } = createService({
+      const { service, mediaService, rule } = createService({
         existing: createPost({
           coverImageBlobName: `organizations/${ORG_1_ID}/blog/old.png`,
           coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/old.png`,
         }),
       });
+      const cover = rule.addReadyMedia(
+        USER_1_ID,
+        testUuid(9000, 994332),
+        "organizations",
+      );
 
       await service.update({
         organizationId: ORG_1_ID,
         actorUserId: USER_1_ID,
         blogPostId: BLOG_1_ID,
-        coverImageMediaId: testUuid(9000, 994332),
+        coverImageMediaId: cover.mediaId,
       });
 
       expect(mediaService.deleteMedia).toHaveBeenCalledWith(

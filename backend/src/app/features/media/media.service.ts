@@ -15,19 +15,16 @@ import type {
   CompleteImageUploadInput,
   CreateImageUploadInput,
   CreatedMediaUpload,
+  ImageReferenceInput,
+  ImageReferenceOptions,
   MediaRecord,
+  MediaScope,
   MediaView,
 } from "@/features/media/media.model";
 
-const DEFAULT_MEDIA_SCOPE = "general";
 // A row left in `uploaded` this long has lost its processing job (the enqueue
 // failed after the status changed), so completing it again re-queues it.
 const STALE_UPLOADED_MS = 60 * 1000;
-
-export interface ResolveAttachableImageOptions {
-  /** When set, the media must have been uploaded under this scope. */
-  scope?: string;
-}
 
 /**
  * Owns the rules for user-uploaded images: what may be uploaded, the lifecycle
@@ -76,7 +73,7 @@ export class MediaService {
     const record = await this.mediaRepository.create({
       id: mediaId,
       userId: input.userId,
-      scope: input.scope?.trim().toLowerCase() || DEFAULT_MEDIA_SCOPE,
+      scope: input.scope,
       originalBlobName: this.blobService.buildQuarantineImageBlobName(
         input.userId,
         mediaId,
@@ -161,14 +158,76 @@ export class MediaService {
   }
 
   /**
-   * The single gate for attaching an uploaded image to anything. Only a ready
-   * record owned by the user resolves, and what it resolves to is always the
-   * processed image - never the quarantined upload.
+   * The single rule for a request field that holds an image: a posting photo,
+   * an avatar, an organization logo, or a blog cover.
+   *
+   * A new image arrives only as a media id, and resolves to its processed image
+   * once it is ready, owned by the user, and uploaded for this scope. The image
+   * already stored may be resent unchanged as its URL and blob name, whoever
+   * uploaded it, or cleared by sending both as null. Any other blob reference
+   * is refused, even one whose name records the user as its owner.
+   *
+   * Returns the image to store, `null` to clear the field, or `undefined` when
+   * the request left the field out.
    */
-  async resolveAttachableImage(
+  async resolveImageReference(
+    userId: Uuid,
+    input: ImageReferenceInput,
+    options: ImageReferenceOptions,
+  ): Promise<AttachableImage | null | undefined> {
+    const { fields } = options;
+
+    if (input.mediaId) {
+      if (input.url || input.blobName) {
+        throw new BadRequestError(
+          `Send either ${fields.mediaId} or ${fields.url} and ${fields.blobName}, not both.`,
+        );
+      }
+
+      return this.resolveAttachableImage(userId, input.mediaId, options.scope);
+    }
+
+    if (input.url === undefined && input.blobName === undefined) {
+      return undefined;
+    }
+
+    if (!input.url && !input.blobName) {
+      return null;
+    }
+
+    if (!input.url || !input.blobName) {
+      throw new BadRequestError(
+        `${fields.url} and ${fields.blobName} must be sent together, or both be null.`,
+      );
+    }
+
+    const url = input.url.trim();
+    const blobName = input.blobName.trim();
+
+    if (!options.storedBlobNames.has(blobName)) {
+      throw new BadRequestError(
+        `A new image must be uploaded and sent as ${fields.mediaId}.`,
+      );
+    }
+
+    if (!this.isManagedUrl(url, blobName)) {
+      throw new BadRequestError(
+        `${fields.url} does not match the stored image for ${fields.blobName}.`,
+      );
+    }
+
+    return { blobUrl: url, blobName };
+  }
+
+  /**
+   * Resolves a media id to its processed image. Only a ready item owned by the
+   * user and uploaded for `scope` resolves; what it resolves to is always the
+   * processed image, never the quarantined upload.
+   */
+  private async resolveAttachableImage(
     userId: Uuid,
     mediaId: Uuid,
-    options: ResolveAttachableImageOptions = {},
+    scope: MediaScope,
   ): Promise<AttachableImage> {
     const record = await this.mediaRepository.findById(mediaId);
 
@@ -190,8 +249,8 @@ export class MediaService {
       );
     }
 
-    if (options.scope && record.scope !== options.scope) {
-      throw new BadRequestError(`Image was not uploaded for ${options.scope}.`);
+    if (record.scope !== scope) {
+      throw new BadRequestError(`Image was not uploaded for ${scope}.`);
     }
 
     return {

@@ -360,6 +360,7 @@ describe("Media persistence integration", () => {
       body: JSON.stringify({
         filename: "doc.pdf",
         contentType: "application/pdf",
+        scope: "postings",
       }),
     });
     expect(pdf.status).toBe(415);
@@ -378,6 +379,7 @@ describe("Media persistence integration", () => {
         filename: "huge.png",
         contentType: "image/png",
         sizeBytes: 50 * 1024 * 1024,
+        scope: "postings",
       }),
     });
     expect(huge.status).toBe(413);
@@ -385,6 +387,13 @@ describe("Media persistence integration", () => {
       message: "Images must be 5 MB or smaller.",
       error: { code: "PAYLOAD_TOO_LARGE" },
     });
+
+    const noScope = await request("/media/uploads", {
+      method: "POST",
+      headers: owner.headers(),
+      body: JSON.stringify({ filename: "a.png", contentType: "image/png" }),
+    });
+    expect(noScope.status).toBe(400);
 
     const badId = await request("/media/not-a-uuid", {
       headers: owner.headers(),

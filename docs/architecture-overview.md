@@ -170,24 +170,28 @@ EXIF and GPS, and means what is served was produced by the worker, not supplied
 by the client. A policy failure rejects the item with its reason. Both outcomes
 delete the quarantined upload.
 
-**When an image is attached.** A newly uploaded image is attached by media id:
-posting photos as `{ mediaId, position }`, and `logoMediaId`,
-`coverImageMediaId`, and `avatarMediaId` on the organization, blog, and profile
-writes. `resolveAttachableImage` accepts only a `ready` item uploaded by the
-acting user. Logos and blog covers must also have been uploaded with scope
-`organizations`. The feature stores the processed image's blob name and URL.
+**When an image is attached.** Every field that holds an image goes through one
+rule, `MediaService.resolveImageReference`: posting photos
+(`{ mediaId, position }`), `logoMediaId`, `coverImageMediaId`, and
+`avatarMediaId`. Features only map their own field names onto it.
 
-An image that is already stored may be resent by its blob URL and name, which
-must match the managed location for the name:
+- A new image is sent as a media id. It resolves only to a `ready` item that
+  the acting user uploaded for that target's scope, and the feature stores the
+  processed image's blob name and URL.
+- Scopes form a closed set: `postings` for posting photos, `organizations` for
+  logos and blog covers, and `avatars` for avatars. `POST /media/uploads`
+  requires one, so an image uploaded as a posting photo cannot become an
+  avatar.
+- An image that is already stored may be resent by its blob URL and name,
+  whoever uploaded it: a photo already on the posting (including one another
+  member uploaded, a seeded photo, or one copied by duplication), or the stored
+  logo, cover, or avatar. The URL must match the managed location for the name.
+  Sending both as `null` clears a logo, cover, or avatar.
+- Any other blob reference is rejected, even one whose name records the acting
+  user as its owner.
 
-- Posting photos already on the posting may be kept by anyone who can manage
-  it. That covers photos another member uploaded, seeded photos, and duplicated
-  postings.
-- The stored organization logo, blog cover, and avatar may be resent unchanged,
-  whoever uploaded it, or cleared with `null`.
-
-Any other blob reference is rejected, even one whose name records the acting
-user as its owner.
+`DELETE /media/{id}` refuses, with 409, an item whose processed image is still
+attached. A replaced image is removed by the feature that replaced it.
 
 **Cleanup.** `blob-cleanup` treats quarantined uploads as candidates whatever
 their declared content type. With `--delete`, it also removes the media rows of

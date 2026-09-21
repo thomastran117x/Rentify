@@ -1,4 +1,3 @@
-import BadRequestError from "@/errors/http/bad-request.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { MediaService } from "@/features/media/media.service";
 import type { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
@@ -6,8 +5,14 @@ import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.mode
 import type { OrganizationProfileInput } from "@/features/organizations/organizations.model";
 import { type Uuid } from "@/configuration/validation/uuid";
 
-// The upload scope the organization workspace uses for logos and blog covers.
-export const ORGANIZATION_MEDIA_SCOPE = "organizations";
+// Logos stored before media records existed were named under this prefix.
+const LEGACY_LOGO_BLOB_PREFIX = "organizations/";
+
+const LOGO_FIELDS = {
+  mediaId: "logoMediaId",
+  url: "logoUrl",
+  blobName: "logoBlobName",
+} as const;
 
 /**
  * Validates and cleans up the organization logo blob reference, shared by
@@ -26,9 +31,8 @@ export class OrganizationLogoService {
   ) {}
 
   /**
-   * Validates the logo fields of a profile write and returns the profile to
-   * store. A new logo arrives as `logoMediaId` and resolves to its processed
-   * image; the stored logo may be resent unchanged; null clears it.
+   * Applies MediaService's image rule to the logo fields of a profile write and
+   * returns the profile to store.
    */
   async resolveLogoInput(
     actorUserId: Uuid,
@@ -36,93 +40,40 @@ export class OrganizationLogoService {
     logoMediaId: Uuid | undefined,
     currentLogoBlobName: string | null,
   ): Promise<OrganizationProfileInput> {
-    if (logoMediaId) {
-      if (profile.logoUrl || profile.logoBlobName) {
-        throw new BadRequestError(
-          "Send either logoMediaId or logoUrl and logoBlobName, not both.",
-        );
-      }
+    const logo = await this.mediaService.resolveImageReference(
+      actorUserId,
+      {
+        mediaId: logoMediaId,
+        url: profile.logoUrl,
+        blobName: profile.logoBlobName,
+      },
+      {
+        scope: "organizations",
+        storedBlobNames: new Set(
+          currentLogoBlobName ? [currentLogoBlobName] : [],
+        ),
+        fields: LOGO_FIELDS,
+      },
+    );
 
-      const image = await this.mediaService.resolveAttachableImage(
-        actorUserId,
-        logoMediaId,
-        { scope: ORGANIZATION_MEDIA_SCOPE },
-      );
-
-      return {
-        ...profile,
-        logoUrl: image.blobUrl,
-        logoBlobName: image.blobName,
-      };
+    if (logo === undefined) {
+      return profile;
     }
 
-    this.assertLogoReference(profile, currentLogoBlobName);
-    return profile;
+    return {
+      ...profile,
+      logoUrl: logo?.blobUrl ?? null,
+      logoBlobName: logo?.blobName ?? null,
+    };
   }
 
   isLogoBlobName(blobName: string): boolean {
     const normalized = blobName.trim();
 
     return (
-      normalized.toLowerCase().startsWith(`${ORGANIZATION_MEDIA_SCOPE}/`) ||
+      normalized.toLowerCase().startsWith(LEGACY_LOGO_BLOB_PREFIX) ||
       this.mediaService.isProcessedImageBlobName(normalized)
     );
-  }
-
-  private assertLogoReference(
-    profile: OrganizationProfileInput,
-    currentLogoBlobName: string | null,
-  ): void {
-    const hasLogoUrl = profile.logoUrl !== undefined;
-    const hasLogoBlobName = profile.logoBlobName !== undefined;
-
-    if (hasLogoUrl !== hasLogoBlobName) {
-      throw new BadRequestError(
-        "Logo URL and logo blob name must be provided together when updating the organization logo.",
-      );
-    }
-
-    if (!hasLogoUrl && !hasLogoBlobName) {
-      return;
-    }
-
-    if (!profile.logoUrl && !profile.logoBlobName) {
-      return;
-    }
-
-    if (!profile.logoUrl || !profile.logoBlobName) {
-      throw new BadRequestError(
-        "Logo URL and logo blob name must both be set or both be null.",
-      );
-    }
-
-    const logoBlobName = profile.logoBlobName.trim();
-
-    if (!this.isLogoBlobName(logoBlobName)) {
-      throw new BadRequestError(
-        "Organization logos must use an organizations-scoped blob.",
-      );
-    }
-
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Organization logos require Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (!this.mediaService.isManagedUrl(profile.logoUrl, logoBlobName)) {
-      throw new BadRequestError(
-        "Logo URL must match the Blob Storage location for the provided blob name.",
-      );
-    }
-
-    // Resending the stored logo is what every save that leaves it alone does,
-    // whoever uploaded it. A new logo only arrives as logoMediaId.
-    if (logoBlobName !== currentLogoBlobName) {
-      throw new BadRequestError(
-        "A new organization logo must be uploaded and sent as logoMediaId.",
-      );
-    }
   }
 
   async cleanupReplacedLogo(input: {

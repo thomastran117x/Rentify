@@ -7,7 +7,6 @@ import {
   sanitizeRichText,
 } from "@/configuration/security/html-sanitizer";
 import type { MediaService } from "@/features/media/media.service";
-import { ORGANIZATION_MEDIA_SCOPE } from "@/features/organizations/organization-logo.service";
 import type { OrganizationAccessService } from "@/features/organizations/organization-access.service";
 import type { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
 import type { OrganizationBlogPublicSearchService } from "@/features/organizations/blog/search/public-search.service";
@@ -41,6 +40,15 @@ import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 const MAX_SLUG_ATTEMPTS = 50;
 // Matches OrganizationBlogPost.slug in the Prisma schema.
 const BLOG_SLUG_MAX_LENGTH = 200;
+
+// Covers stored before media records existed were named under this prefix.
+const LEGACY_COVER_BLOB_PREFIX = "organizations/";
+
+const COVER_IMAGE_FIELDS = {
+  mediaId: "coverImageMediaId",
+  url: "coverImageUrl",
+  blobName: "coverImageBlobName",
+} as const;
 
 export class OrganizationBlogService {
   private readonly logger = loggerFactory.forClass(
@@ -433,9 +441,9 @@ export class OrganizationBlogService {
   }
 
   /**
-   * Validates the cover image fields of a blog write and returns the values to
-   * store. A new cover arrives as `coverImageMediaId` and resolves to its
-   * processed image; the stored cover may be resent unchanged; null clears it.
+   * Applies MediaService's image rule to the cover image fields of a blog write
+   * and returns the values to store; both are undefined when the write left
+   * the cover alone.
    */
   private async resolveBlogCoverImage(
     input: {
@@ -449,92 +457,28 @@ export class OrganizationBlogService {
     coverImageUrl?: string | null;
     coverImageBlobName?: string | null;
   }> {
-    if (input.coverImageMediaId) {
-      if (input.coverImageUrl || input.coverImageBlobName) {
-        throw new BadRequestError(
-          "Send either coverImageMediaId or coverImageUrl and coverImageBlobName, not both.",
-        );
-      }
-
-      const image = await this.mediaService.resolveAttachableImage(
-        input.actorUserId,
-        input.coverImageMediaId,
-        { scope: ORGANIZATION_MEDIA_SCOPE },
-      );
-
-      return {
-        coverImageUrl: image.blobUrl,
-        coverImageBlobName: image.blobName,
-      };
-    }
-
-    this.assertBlogCoverImageReference(
-      input.coverImageUrl,
-      input.coverImageBlobName,
-      currentBlobName,
+    const cover = await this.mediaService.resolveImageReference(
+      input.actorUserId,
+      {
+        mediaId: input.coverImageMediaId,
+        url: input.coverImageUrl,
+        blobName: input.coverImageBlobName,
+      },
+      {
+        scope: "organizations",
+        storedBlobNames: new Set(currentBlobName ? [currentBlobName] : []),
+        fields: COVER_IMAGE_FIELDS,
+      },
     );
 
+    if (cover === undefined) {
+      return {};
+    }
+
     return {
-      coverImageUrl: input.coverImageUrl,
-      coverImageBlobName: input.coverImageBlobName,
+      coverImageUrl: cover?.blobUrl ?? null,
+      coverImageBlobName: cover?.blobName ?? null,
     };
-  }
-
-  private assertBlogCoverImageReference(
-    coverImageUrl: string | null | undefined,
-    coverImageBlobName: string | null | undefined,
-    currentBlobName: string | null,
-  ): void {
-    const hasUrl = coverImageUrl !== undefined;
-    const hasBlobName = coverImageBlobName !== undefined;
-
-    if (hasUrl !== hasBlobName) {
-      throw new BadRequestError(
-        "Cover image URL and blob name must be provided together.",
-      );
-    }
-
-    if (!hasUrl && !hasBlobName) {
-      return;
-    }
-
-    if (!coverImageUrl && !coverImageBlobName) {
-      return;
-    }
-
-    if (!coverImageUrl || !coverImageBlobName) {
-      throw new BadRequestError(
-        "Cover image URL and blob name must both be set or both be null.",
-      );
-    }
-
-    const blobName = coverImageBlobName.trim();
-
-    if (!this.isOrganizationBlobName(blobName)) {
-      throw new BadRequestError(
-        "Cover images must use an organizations-scoped blob.",
-      );
-    }
-
-    if (!this.mediaService.isConfigured()) {
-      throw new BadRequestError(
-        "Cover images require Blob Storage to be configured on the backend.",
-      );
-    }
-
-    if (!this.mediaService.isManagedUrl(coverImageUrl, blobName)) {
-      throw new BadRequestError(
-        "Cover image URL must match the Blob Storage location for the provided blob name.",
-      );
-    }
-
-    // Resending the stored cover is what every save that leaves it alone does,
-    // whoever uploaded it. A new cover only arrives as coverImageMediaId.
-    if (blobName !== currentBlobName) {
-      throw new BadRequestError(
-        "A new cover image must be uploaded and sent as coverImageMediaId.",
-      );
-    }
   }
 
   private async cleanupReplacedCoverImage(
@@ -583,7 +527,7 @@ export class OrganizationBlogService {
     const normalized = blobName.trim();
 
     return (
-      normalized.toLowerCase().startsWith(`${ORGANIZATION_MEDIA_SCOPE}/`) ||
+      normalized.toLowerCase().startsWith(LEGACY_COVER_BLOB_PREFIX) ||
       this.mediaService.isProcessedImageBlobName(normalized)
     );
   }

@@ -4,6 +4,15 @@ import { readStoredSession } from "@/lib/auth/storage";
 import { resolveUploadContentType } from "@/lib/blob/image-policy";
 import { resolveApiBaseUrl } from "@/lib/env";
 
+/**
+ * What an upload is for, mirroring the backend's closed set. Each attach
+ * target accepts only images uploaded for it: posting photos `postings`,
+ * organization logos and blog covers `organizations`, avatars `avatars`.
+ */
+export const MEDIA_SCOPES = ["postings", "organizations", "avatars"] as const;
+
+export type MediaScope = (typeof MEDIA_SCOPES)[number];
+
 export type MediaStatus =
   | "pending_upload"
   | "uploaded"
@@ -35,7 +44,7 @@ export interface CreateMediaUploadInput {
   contentType: string;
   /** Declared up front so an oversized file is refused before the transfer. */
   sizeBytes?: number;
-  scope?: string;
+  scope: MediaScope;
 }
 
 export interface MediaUploadInstructions {
@@ -116,7 +125,7 @@ export interface UploadedImage {
 export type UploadImageStage = "uploading" | "processing";
 
 export interface UploadImageOptions {
-  scope: string;
+  scope: MediaScope;
   /** Reports when the transfer ends and server-side processing begins. */
   onStageChange?: (stage: UploadImageStage) => void;
   /** Delays between status checks, in order; the last one repeats. */
