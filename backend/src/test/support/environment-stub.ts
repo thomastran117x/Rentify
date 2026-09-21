@@ -1,7 +1,10 @@
 import { SUPPORTED_IMAGE_CONTENT_TYPES } from "@/configuration/environment/constants";
 
 const tokenConfig = {
+  accessTokenAlgorithm: "HS256" as const,
   accessTokenSecret: "test-access-secret-value-with-32chars",
+  accessTokenPrivateKey: undefined,
+  accessTokenPublicKey: undefined,
   refreshTokenSecret: "test-refresh-secret-value-with-32c",
   accessTokenTtlSeconds: 15 * 60,
   refreshTokenTtlSeconds: 30 * 24 * 60 * 60,
