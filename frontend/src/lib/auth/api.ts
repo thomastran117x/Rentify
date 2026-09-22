@@ -1,6 +1,7 @@
 import {
   authenticatedJson,
   buildPathWithQuery,
+  cancelStoredSessionRefresh,
   hasRefreshCookieHint,
   optionalAuthJson,
   publicJson,
@@ -157,6 +158,7 @@ export const authApi = {
     return hasRefreshCookieHint();
   },
   login(input: LoginInput): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, LoginInput>(
       "POST",
       "/auth/local/login",
@@ -167,6 +169,7 @@ export const authApi = {
     );
   },
   logout(): Promise<{ loggedOut: true }> {
+    cancelStoredSessionRefresh();
     return postAuthenticatedJson<{ loggedOut: true }, Record<string, never>>(
       "/auth/logout",
       {},
@@ -184,6 +187,7 @@ export const authApi = {
   authenticateWithGoogle(
     input: OAuthAuthenticateInput,
   ): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/google",
@@ -196,6 +200,7 @@ export const authApi = {
   authenticateWithMicrosoft(
     input: OAuthAuthenticateInput,
   ): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/microsoft",
@@ -208,6 +213,7 @@ export const authApi = {
   authenticateWithApple(
     input: OAuthAuthenticateInput,
   ): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/apple",
@@ -252,6 +258,7 @@ export const authApi = {
     );
   },
   verifyEmail(input: VerifyEmailInput): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, VerifyEmailInput>(
       "POST",
       "/auth/local/email/verify",
@@ -354,6 +361,7 @@ export const authApi = {
     );
   },
   resetPassword(input: ResetPasswordInput): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, ResetPasswordInput>(
       "POST",
       "/auth/local/password/reset",

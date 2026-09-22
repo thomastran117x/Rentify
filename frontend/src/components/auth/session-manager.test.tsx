@@ -109,6 +109,26 @@ describe("SessionManager", () => {
     expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
+  it("anchors scheduling to receipt time when the client clock is ahead", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime((NOW_SECONDS + 30 * 60) * 1_000);
+    refreshMock.mockResolvedValue(sessionWithToken("replacement"));
+
+    render(
+      <SessionManager
+        session={sessionWithToken(createToken(NOW_SECONDS, NOW_SECONDS + 900))}
+        onComplete={vi.fn()}
+      />,
+    );
+    await flushEffects();
+
+    await advanceTime(839_999);
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    await advanceTime(1);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
   it("reschedules when the stored access token changes", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW_SECONDS * 1_000);
@@ -232,13 +252,12 @@ describe("SessionManager", () => {
 
     render(
       <SessionManager
-        session={sessionWithToken(
-          createToken(NOW_SECONDS - 100, NOW_SECONDS + 10),
-        )}
+        session={sessionWithToken(createToken(NOW_SECONDS, NOW_SECONDS + 10))}
         onComplete={vi.fn()}
       />,
     );
     await flushEffects();
+    await advanceTime(9_000);
     expect(refreshMock).toHaveBeenCalledTimes(1);
 
     const retryDelays = [5_000, 10_000, 20_000, 40_000, 60_000, 60_000];

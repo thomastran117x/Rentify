@@ -44,7 +44,9 @@ async function verifyProtectedRequest(page: Page): Promise<void> {
 test("refreshes an active session before its access token expires", async ({
   page,
 }) => {
-  await page.clock.install({ time: new Date() });
+  await page.clock.install({
+    time: new Date(Date.now() + 30 * 60 * 1_000),
+  });
   const failures = trackUnexpectedFailures(page);
   const refreshStatuses: number[] = [];
 
@@ -118,4 +120,45 @@ test("preserves the session and retries a transient refresh failure", async ({
       (message) => !message.includes("server responded with a status of 503"),
     ),
   ).toEqual([]);
+});
+
+test("does not restore authentication when logout races a scheduled refresh", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date() });
+  const failures = trackUnexpectedFailures(page);
+  let releaseRefresh: (() => void) | undefined;
+  let markRefreshStarted: (() => void) | undefined;
+  const refreshStarted = new Promise<void>((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  const refreshRelease = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+
+  await login(page, "viewer-one", { nextPath: "/account" });
+  await page.route("**/api/v1/auth/refresh", async (route) => {
+    markRefreshStarted?.();
+    await refreshRelease;
+    await route.continue().catch(() => undefined);
+  });
+
+  const abortedRefresh = page.waitForEvent("requestfailed", (request) =>
+    new URL(request.url()).pathname.endsWith("/auth/refresh"),
+  );
+  await page.clock.fastForward(ACCESS_TOKEN_REFRESH_DELAY_MS);
+  await refreshStarted;
+
+  await page.locator('[aria-label$="account menu"]').click();
+  await Promise.all([
+    page.waitForURL("**/login"),
+    page.getByRole("button", { name: "Log out", exact: true }).click(),
+    abortedRefresh,
+  ]);
+  releaseRefresh?.();
+  await page.waitForLoadState("networkidle");
+
+  await expect(page.getByText("Welcome back", { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label$="account menu"]')).toHaveCount(0);
+  expect(failures.consoleErrors).toEqual([]);
 });

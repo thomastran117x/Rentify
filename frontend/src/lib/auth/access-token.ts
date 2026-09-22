@@ -4,7 +4,7 @@ const SHORT_TOKEN_REFRESH_LEAD_RATIO = 0.1;
 export interface AccessTokenTiming {
   expiresAtMs: number;
   issuedAtMs: number;
-  refreshAtMs: number;
+  refreshDelayMs: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,7 +67,7 @@ export function readAccessTokenTiming(
     return {
       expiresAtMs,
       issuedAtMs,
-      refreshAtMs: expiresAtMs - refreshLeadTimeMs,
+      refreshDelayMs: lifetimeMs - refreshLeadTimeMs,
     };
   } catch {
     return null;

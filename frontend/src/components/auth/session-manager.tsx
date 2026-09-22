@@ -61,7 +61,10 @@ export function SessionManager({ session, onComplete }: SessionManagerProps) {
       return;
     }
 
-    const { refreshAtMs } = timing;
+    // JWT NumericDate values use the issuer's clock. Anchor the decoded token
+    // lifetime to receipt time so a skewed client clock cannot make every
+    // freshly rotated token look immediately overdue.
+    const refreshAtMs = Date.now() + timing.refreshDelayMs;
 
     let cancelled = false;
     let refreshInFlight = false;

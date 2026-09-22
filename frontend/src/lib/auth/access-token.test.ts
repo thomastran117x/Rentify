@@ -19,7 +19,7 @@ describe("access token timing", () => {
     ).toEqual({
       issuedAtMs: 1_000_000,
       expiresAtMs: 1_900_000,
-      refreshAtMs: 1_840_000,
+      refreshDelayMs: 840_000,
     });
   });
 
@@ -29,7 +29,7 @@ describe("access token timing", () => {
     ).toEqual({
       issuedAtMs: 1_000_000,
       expiresAtMs: 1_030_000,
-      refreshAtMs: 1_027_000,
+      refreshDelayMs: 27_000,
     });
   });
 
