@@ -36,7 +36,7 @@ function mediaView(overrides: Partial<MediaView> = {}): MediaView {
 
 const UPLOAD = {
   method: "PUT" as const,
-  uploadUrl: "https://storage.test/quarantine/images/u/m?sig=1",
+  url: "https://storage.test/quarantine/images/u/m?sig=1",
   expiresAt: "2026-09-19T12:15:00.000Z",
   headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": "image/png" },
 };
@@ -50,7 +50,7 @@ function routeMediaApi(completed: MediaView, reads: MediaView[] = []) {
   authenticatedJsonMock.mockImplementation(
     async (method: string, path: string) => {
       if (method === "POST" && path === "/media/uploads") {
-        return { media: mediaView(), upload: UPLOAD };
+        return { mediaId: MEDIA_ID, upload: UPLOAD };
       }
       if (method === "POST" && path.endsWith("/complete")) {
         return { media: completed };
@@ -164,11 +164,20 @@ describe("uploadImage", () => {
         scope: "postings",
       },
     );
-    expect(globalThis.fetch).toHaveBeenCalledWith(UPLOAD.uploadUrl, {
+    expect(globalThis.fetch).toHaveBeenCalledWith(UPLOAD.url, {
       method: "PUT",
       headers: UPLOAD.headers,
       body: expect.any(File),
     });
+    // Completion and polling address the media id the create call returned.
+    expect(authenticatedJsonMock).toHaveBeenCalledWith(
+      "POST",
+      `/media/${MEDIA_ID}/complete`,
+    );
+    expect(authenticatedJsonMock).toHaveBeenCalledWith(
+      "GET",
+      `/media/${MEDIA_ID}`,
+    );
     // Backs off through the configured delays, repeating the last.
     expect(sleep.mock.calls).toEqual([[10], [20]]);
   });

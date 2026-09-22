@@ -113,31 +113,44 @@ describe("Media persistence integration", () => {
     });
     const fixture = await createPngFixture();
 
-    const { media, upload } = await startUpload(owner.headers(), {
+    const created = await startUpload(owner.headers(), {
       sizeBytes: fixture.byteLength,
     });
-    expect(media).toMatchObject({
-      status: "pending_upload",
-      scope: "postings",
-      url: null,
+    const { mediaId, upload } = created;
+    // Only the id and a write-only upload target: no media view, and no
+    // blob name or URL that could render the quarantined bytes.
+    expect(Object.keys(created).sort()).toEqual(["mediaId", "upload"]);
+    expect(Object.keys(upload).sort()).toEqual([
+      "expiresAt",
+      "headers",
+      "method",
+      "url",
+    ]);
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({ status: "pending_upload", scope: "postings" });
+
+    const pendingRead = await request(`/media/${mediaId}`, {
+      headers: owner.headers(),
     });
-    expect(upload).not.toHaveProperty("blobUrl");
-    expect(upload).not.toHaveProperty("blobName");
+    await expect(
+      readData<{ media: MediaView }>(pendingRead),
+    ).resolves.toMatchObject({
+      media: { status: "pending_upload", url: null },
+    });
 
-    const quarantinedName = new URL(upload.uploadUrl).searchParams.get(
-      "blobName",
-    );
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName");
     expect(quarantinedName).toBe(
-      `quarantine/images/${owner.userId}/${media.id}`,
+      `quarantine/images/${owner.userId}/${mediaId}`,
     );
 
-    const early = await request(`/media/${media.id}/complete`, {
+    const early = await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
     });
     expect(early.status).toBe(409);
 
-    expect((await putBytes(upload.uploadUrl, fixture)).status).toBe(201);
+    expect((await putBytes(upload.url, fixture)).status).toBe(201);
 
     // Quarantined bytes are never served, even to someone holding the name.
     const served = await request(
@@ -145,14 +158,14 @@ describe("Media persistence integration", () => {
     );
     expect(served.status).toBe(404);
 
-    const completed = await request(`/media/${media.id}/complete`, {
+    const completed = await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
     });
     expect(completed.status).toBe(202);
     await expect(readData<{ media: MediaView }>(completed)).resolves.toEqual({
       media: expect.objectContaining({
-        id: media.id,
+        id: mediaId,
         status: "uploaded",
         sizeBytes: fixture.byteLength,
         url: null,
@@ -162,10 +175,10 @@ describe("Media persistence integration", () => {
     await waitForRabbitMqPayload<MediaProcessingJobPayload>(
       persistenceApp.infra.rabbitMq,
       MEDIA_PROCESSING_QUEUE_NAME,
-      (payload) => payload.mediaId === media.id,
+      (payload) => payload.mediaId === mediaId,
     );
 
-    const read = await request(`/media/${media.id}`, {
+    const read = await request(`/media/${mediaId}`, {
       headers: owner.headers(),
     });
     expect(read.status).toBe(200);
@@ -178,12 +191,10 @@ describe("Media persistence integration", () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
     });
-    const { media, upload } = await startUpload(owner.headers());
-    const quarantinedName = new URL(upload.uploadUrl).searchParams.get(
-      "blobName",
-    )!;
-    await putBytes(upload.uploadUrl, await createPngFixture(10, 6));
-    await request(`/media/${media.id}/complete`, {
+    const { mediaId, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
+    await putBytes(upload.url, await createPngFixture(10, 6));
+    await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
     });
@@ -191,13 +202,13 @@ describe("Media persistence integration", () => {
     // What the worker does with the queued job.
     await persistenceApp.container
       .resolve(containerTokens.mediaProcessingService)
-      .process(media.id);
+      .process(mediaId);
 
-    const read = await request(`/media/${media.id}`, {
+    const read = await request(`/media/${mediaId}`, {
       headers: owner.headers(),
     });
     const { media: ready } = await readData<{ media: MediaView }>(read);
-    const processedName = `media/images/${owner.userId}/${media.id}.webp`;
+    const processedName = `media/images/${owner.userId}/${mediaId}.webp`;
 
     expect(ready).toMatchObject({
       status: "ready",
@@ -221,18 +232,18 @@ describe("Media persistence integration", () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
     });
-    const { media, upload } = await startUpload(owner.headers());
-    await putBytes(upload.uploadUrl, Buffer.from("definitely not a png"));
-    await request(`/media/${media.id}/complete`, {
+    const { mediaId, upload } = await startUpload(owner.headers());
+    await putBytes(upload.url, Buffer.from("definitely not a png"));
+    await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
     });
 
     await persistenceApp.container
       .resolve(containerTokens.mediaProcessingService)
-      .process(media.id);
+      .process(mediaId);
 
-    const read = await request(`/media/${media.id}`, {
+    const read = await request(`/media/${mediaId}`, {
       headers: owner.headers(),
     });
     await expect(readData<{ media: MediaView }>(read)).resolves.toMatchObject({
@@ -250,20 +261,20 @@ describe("Media persistence integration", () => {
     });
     const pending = await startUpload(owner.headers());
     const ready = await startUpload(owner.headers());
-    await putBytes(ready.upload.uploadUrl, await createPngFixture(8, 8));
-    await request(`/media/${ready.media.id}/complete`, {
+    await putBytes(ready.upload.url, await createPngFixture(8, 8));
+    await request(`/media/${ready.mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
     });
     await persistenceApp.container
       .resolve(containerTokens.mediaProcessingService)
-      .process(ready.media.id);
+      .process(ready.mediaId);
 
     const refused = await request("/postings", {
       method: "POST",
       headers: owner.headers(),
       body: JSON.stringify(
-        buildPostingBody([{ mediaId: pending.media.id, position: 0 }]),
+        buildPostingBody([{ mediaId: pending.mediaId, position: 0 }]),
       ),
     });
     expect(refused.status).toBe(400);
@@ -289,20 +300,20 @@ describe("Media persistence integration", () => {
       method: "POST",
       headers: owner.headers(),
       body: JSON.stringify(
-        buildPostingBody([{ mediaId: ready.media.id, position: 0 }]),
+        buildPostingBody([{ mediaId: ready.mediaId, position: 0 }]),
       ),
     });
     expect(created.status).toBe(201);
     const posting = await readData<{
       photos: Array<{ blobName: string; blobUrl: string }>;
     }>(created);
-    const processedName = `media/images/${owner.userId}/${ready.media.id}.webp`;
+    const processedName = `media/images/${owner.userId}/${ready.mediaId}.webp`;
     expect(posting.photos).toEqual([
       expect.objectContaining({ blobName: processedName }),
     ]);
 
     // The posting now displays it, so it can no longer be deleted as media.
-    const deleteAttached = await request(`/media/${ready.media.id}`, {
+    const deleteAttached = await request(`/media/${ready.mediaId}`, {
       method: "DELETE",
       headers: owner.headers(),
     });
@@ -319,17 +330,17 @@ describe("Media persistence integration", () => {
     const otherUser = await createAuthenticatedRequestContext({
       email: "user1@rentify.local",
     });
-    const { media, upload } = await startUpload(owner.headers());
-    await putBytes(upload.uploadUrl, await createPngFixture());
+    const { mediaId, upload } = await startUpload(owner.headers());
+    await putBytes(upload.url, await createPngFixture());
 
-    const foreignRead = await request(`/media/${media.id}`, {
+    const foreignRead = await request(`/media/${mediaId}`, {
       headers: otherUser.headers(),
     });
-    const foreignComplete = await request(`/media/${media.id}/complete`, {
+    const foreignComplete = await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: otherUser.headers(),
     });
-    const foreignDelete = await request(`/media/${media.id}`, {
+    const foreignDelete = await request(`/media/${mediaId}`, {
       method: "DELETE",
       headers: otherUser.headers(),
     });
@@ -337,13 +348,13 @@ describe("Media persistence integration", () => {
     expect(foreignComplete.status).toBe(404);
     expect(foreignDelete.status).toBe(404);
 
-    const deleted = await request(`/media/${media.id}`, {
+    const deleted = await request(`/media/${mediaId}`, {
       method: "DELETE",
       headers: owner.headers(),
     });
     expect(deleted.status).toBe(200);
 
-    const afterDelete = await request(`/media/${media.id}`, {
+    const afterDelete = await request(`/media/${mediaId}`, {
       headers: owner.headers(),
     });
     expect(afterDelete.status).toBe(404);

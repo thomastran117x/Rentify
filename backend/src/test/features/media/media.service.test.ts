@@ -90,21 +90,21 @@ describe("MediaService", () => {
           contentType: "image/png",
           scope: "postings",
         }),
-      ).resolves.toMatchObject({ media: { status: "pending_upload" } });
+      ).resolves.toMatchObject({ mediaId: expect.any(String) });
     });
 
     it("never derives anything from the client's filename", async () => {
       const { mediaService, mediaRepository } = createLocalMediaService();
 
-      const { media } = await mediaService.createMediaUpload({
+      const { mediaId } = await mediaService.createMediaUpload({
         userId: USER_1_ID,
         filename: "../../photo.png.exe",
         contentType: "image/jpeg",
         scope: "postings",
       });
 
-      expect(await mediaRepository.findById(media.id)).toMatchObject({
-        originalBlobName: `quarantine/images/${USER_1_ID}/${media.id}`,
+      expect(await mediaRepository.findById(mediaId)).toMatchObject({
+        originalBlobName: `quarantine/images/${USER_1_ID}/${mediaId}`,
         declaredContentType: "image/jpeg",
         originalFilename: "../../photo.png.exe",
       });
@@ -123,7 +123,7 @@ describe("MediaService", () => {
 
       await expect(
         mediaService.receiveLocalUploadBytes({
-          ...readLocalUploadUrl(upload.uploadUrl),
+          ...readLocalUploadUrl(upload.url),
           token: "bad-token",
           contentType: "application/pdf",
           body: Buffer.from("not-an-image"),
@@ -253,7 +253,7 @@ describe("MediaService", () => {
       const result = await startUpload(mediaService, {
         scope: "organizations",
       });
-      const record = await mediaRepository.findById(result.media.id);
+      const record = await mediaRepository.findById(result.mediaId);
 
       expect(record).toMatchObject({
         userId: USER_1_ID,
@@ -261,23 +261,31 @@ describe("MediaService", () => {
         scope: "organizations",
         declaredContentType: "image/png",
         originalFilename: "photo.png",
-        originalBlobName: `quarantine/images/${USER_1_ID}/${result.media.id}`,
+        originalBlobName: `quarantine/images/${USER_1_ID}/${result.mediaId}`,
       });
-      expect(readLocalUploadUrl(result.upload.uploadUrl).blobName).toBe(
+      expect(readLocalUploadUrl(result.upload.url).blobName).toBe(
         record?.originalBlobName,
       );
-      expect(result.media).toMatchObject({
-        status: "pending_upload",
-        url: null,
-      });
-      // Nothing returned may address the quarantined bytes.
+      // Only the id and a write-only upload target: no media view, and nothing
+      // that could be rendered or that addresses the quarantined bytes to read.
+      expect(Object.keys(result).sort()).toEqual(["mediaId", "upload"]);
       expect(Object.keys(result.upload).sort()).toEqual([
         "expiresAt",
         "headers",
         "method",
-        "uploadUrl",
+        "url",
       ]);
-      expect(JSON.stringify(result.media)).not.toContain("quarantine");
+      expect(result.upload.method).toBe("PUT");
+      expect(result.upload.headers).toEqual({
+        "x-ms-blob-type": "BlockBlob",
+        "Content-Type": "image/png",
+      });
+      expect(
+        JSON.stringify({ ...result, upload: { ...result.upload, url: "" } }),
+      ).not.toContain("quarantine");
+      await expect(
+        mediaService.getMediaView(USER_1_ID, result.mediaId),
+      ).resolves.toMatchObject({ status: "pending_upload", url: null });
     });
 
     it("records nothing for a refused upload", async () => {
@@ -290,10 +298,9 @@ describe("MediaService", () => {
         scope: "postings",
       });
 
-      expect(result.media.scope).toBe("postings");
-      expect(
-        (await mediaRepository.findById(result.media.id))?.originalFilename,
-      ).toBeNull();
+      const record = await mediaRepository.findById(result.mediaId);
+      expect(record?.scope).toBe("postings");
+      expect(record?.originalFilename).toBeNull();
 
       await expect(
         startUpload(mediaService, { contentType: "application/pdf" }),
@@ -331,21 +338,21 @@ describe("MediaService", () => {
     it("queues processing once the bytes have arrived", async () => {
       const { mediaService, mediaRepository, queue } =
         createLocalMediaService();
-      const { media, upload } = await startUpload(mediaService);
+      const { mediaId, upload } = await startUpload(mediaService);
 
       await expect(
-        mediaService.completeMediaUpload(USER_1_ID, media.id),
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
       ).rejects.toThrow(ConflictError);
       expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
 
       // Bytes are not validated on arrival: that is the worker's job, on both
       // storage paths.
       const body = Buffer.from("not-validated-yet");
-      await uploadBytes(mediaService, upload.uploadUrl, body);
+      await uploadBytes(mediaService, upload.url, body);
 
       const completed = await mediaService.completeMediaUpload(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
 
       expect(completed).toMatchObject({
@@ -353,14 +360,14 @@ describe("MediaService", () => {
         sizeBytes: body.byteLength,
         url: null,
       });
-      expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(media.id);
+      expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(mediaId);
 
       // Repeating it reports the current state without queueing again.
       await expect(
-        mediaService.completeMediaUpload(USER_1_ID, media.id),
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ status: "uploaded" });
       expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledTimes(1);
-      expect((await mediaRepository.findById(media.id))?.status).toBe(
+      expect((await mediaRepository.findById(mediaId))?.status).toBe(
         "uploaded",
       );
     });
@@ -368,24 +375,24 @@ describe("MediaService", () => {
     it("re-queues an upload whose processing job was lost", async () => {
       const { mediaService, mediaRepository, queue } =
         createLocalMediaService();
-      const { media } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
       mediaRepository.put({
         ...record,
         status: "uploaded",
         updatedAt: new Date(Date.now() - 5 * 60 * 1000),
       });
 
-      await mediaService.completeMediaUpload(USER_1_ID, media.id);
+      await mediaService.completeMediaUpload(USER_1_ID, mediaId);
 
-      expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(media.id);
+      expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(mediaId);
     });
 
     it("rejects an upload whose stored bytes are over the limit", async () => {
       const { mediaService, mediaRepository, blobService, queue } =
         createLocalMediaService();
-      const { media } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
       // Written directly, as an Azure PUT would be: nothing checked it.
       await blobService.writeLocalBlob(
         record.originalBlobName,
@@ -395,10 +402,10 @@ describe("MediaService", () => {
       process.env.MAX_IMAGE_SIZE_BYTES = "32";
 
       await expect(
-        mediaService.completeMediaUpload(USER_1_ID, media.id),
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
       ).rejects.toThrow(PayloadTooLargeError);
 
-      expect(await mediaRepository.findById(media.id)).toMatchObject({
+      expect(await mediaRepository.findById(mediaId)).toMatchObject({
         status: "rejected",
         rejectionReason: "Images must be 32 bytes or smaller.",
       });
@@ -411,8 +418,8 @@ describe("MediaService", () => {
     it("still reports the size limit when deleting the oversized upload fails", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
       await blobService.writeLocalBlob(
         record.originalBlobName,
         Buffer.alloc(64),
@@ -424,9 +431,9 @@ describe("MediaService", () => {
         .mockRejectedValueOnce(new Error("storage unavailable"));
 
       await expect(
-        mediaService.completeMediaUpload(USER_1_ID, media.id),
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
       ).rejects.toThrow(PayloadTooLargeError);
-      expect((await mediaRepository.findById(media.id))?.status).toBe(
+      expect((await mediaRepository.findById(mediaId))?.status).toBe(
         "rejected",
       );
     });
@@ -434,60 +441,60 @@ describe("MediaService", () => {
     it("accepts a local upload only while the media awaits its bytes", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media, upload } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId, upload } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
 
-      await uploadBytes(mediaService, upload.uploadUrl, Buffer.from("bytes"));
+      await uploadBytes(mediaService, upload.url, Buffer.from("bytes"));
 
       // Stored under the declared type, whatever header the PUT carried.
       await expect(
         blobService.readLocalBlob(record.originalBlobName),
       ).resolves.toMatchObject({ contentType: "image/png" });
 
-      await mediaService.completeMediaUpload(USER_1_ID, media.id);
+      await mediaService.completeMediaUpload(USER_1_ID, mediaId);
 
       await expect(
-        uploadBytes(mediaService, upload.uploadUrl, Buffer.from("again")),
+        uploadBytes(mediaService, upload.url, Buffer.from("again")),
       ).rejects.toThrow("Blob upload URL is no longer valid.");
 
       process.env.MAX_IMAGE_SIZE_BYTES = "4";
       const second = await startUpload(mediaService);
       await expect(
-        uploadBytes(mediaService, second.upload.uploadUrl, Buffer.alloc(5)),
+        uploadBytes(mediaService, second.upload.url, Buffer.alloc(5)),
       ).rejects.toThrow(PayloadTooLargeError);
     });
 
     it("hides another user's media", async () => {
       const { mediaService } = createLocalMediaService();
-      const { media } = await startUpload(mediaService);
+      const { mediaId } = await startUpload(mediaService);
 
       await expect(
-        mediaService.getMediaView(USER_2_ID, media.id),
+        mediaService.getMediaView(USER_2_ID, mediaId),
       ).rejects.toThrow(ResourceNotFoundError);
       await expect(
-        mediaService.completeMediaUpload(USER_2_ID, media.id),
+        mediaService.completeMediaUpload(USER_2_ID, mediaId),
       ).rejects.toThrow(ResourceNotFoundError);
       await expect(
-        mediaService.deleteMediaById(USER_2_ID, media.id),
+        mediaService.deleteMediaById(USER_2_ID, mediaId),
       ).rejects.toThrow(ResourceNotFoundError);
       await expect(
-        mediaService.getMediaView(USER_1_ID, media.id),
-      ).resolves.toMatchObject({ id: media.id });
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({ id: mediaId });
     });
 
     it("exposes a URL only for the processed image of a ready media", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
       const processedBlobName = blobService.buildProcessedImageBlobName(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
 
       mediaRepository.put({ ...record, status: "processing" });
       await expect(
-        mediaService.getMediaView(USER_1_ID, media.id),
+        mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ status: "processing", url: null });
 
       mediaRepository.put({
@@ -500,7 +507,7 @@ describe("MediaService", () => {
       });
 
       await expect(
-        mediaService.getMediaView(USER_1_ID, media.id),
+        mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({
         status: "ready",
         url: blobService.getBlobUrl(processedBlobName),
@@ -512,12 +519,12 @@ describe("MediaService", () => {
     it("deletes a media item with both of its blobs", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media, upload } = await startUpload(mediaService);
-      await uploadBytes(mediaService, upload.uploadUrl, Buffer.from("bytes"));
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId, upload } = await startUpload(mediaService);
+      await uploadBytes(mediaService, upload.url, Buffer.from("bytes"));
+      const record = (await mediaRepository.findById(mediaId))!;
       const processedBlobName = blobService.buildProcessedImageBlobName(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
       await blobService.writeLocalBlob(
         processedBlobName,
@@ -526,9 +533,9 @@ describe("MediaService", () => {
       );
       mediaRepository.put({ ...record, status: "ready", processedBlobName });
 
-      await mediaService.deleteMediaById(USER_1_ID, media.id);
+      await mediaService.deleteMediaById(USER_1_ID, mediaId);
 
-      expect(await mediaRepository.findById(media.id)).toBeNull();
+      expect(await mediaRepository.findById(mediaId)).toBeNull();
       for (const blobName of [record.originalBlobName, processedBlobName]) {
         await expect(blobService.readLocalBlob(blobName)).rejects.toThrow(
           ResourceNotFoundError,
@@ -539,16 +546,16 @@ describe("MediaService", () => {
     it("refuses to delete an image that is still attached", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media } = await mediaService.createMediaUpload({
+      const { mediaId } = await mediaService.createMediaUpload({
         userId: USER_1_ID,
         filename: "logo.png",
         contentType: "image/png",
         scope: "organizations",
       });
-      const record = (await mediaRepository.findById(media.id))!;
+      const record = (await mediaRepository.findById(mediaId))!;
       const processedBlobName = blobService.buildProcessedImageBlobName(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
       await blobService.writeLocalBlob(
         processedBlobName,
@@ -559,10 +566,10 @@ describe("MediaService", () => {
       mediaRepository.attachedBlobNames.add(processedBlobName);
 
       await expect(
-        mediaService.deleteMediaById(USER_1_ID, media.id),
+        mediaService.deleteMediaById(USER_1_ID, mediaId),
       ).rejects.toThrow(ConflictError);
 
-      expect(await mediaRepository.findById(media.id)).not.toBeNull();
+      expect(await mediaRepository.findById(mediaId)).not.toBeNull();
       await expect(
         blobService.readLocalBlob(processedBlobName),
       ).resolves.toBeDefined();
@@ -571,11 +578,11 @@ describe("MediaService", () => {
     it("drops the media record when its processed image is deleted by name", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
-      const { media } = await startUpload(mediaService);
-      const record = (await mediaRepository.findById(media.id))!;
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
       const processedBlobName = blobService.buildProcessedImageBlobName(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
       mediaRepository.put({ ...record, status: "ready", processedBlobName });
 
@@ -584,7 +591,7 @@ describe("MediaService", () => {
         processedBlobName,
       );
 
-      expect(await mediaRepository.findById(media.id)).toBeNull();
+      expect(await mediaRepository.findById(mediaId)).toBeNull();
     });
   });
 
@@ -600,16 +607,16 @@ describe("MediaService", () => {
       overrides: Partial<{ scope: MediaScope; rejectionReason: string }> = {},
     ) {
       const context = createLocalMediaService();
-      const { media } = await context.mediaService.createMediaUpload({
+      const { mediaId } = await context.mediaService.createMediaUpload({
         userId: USER_1_ID,
         filename: "logo.png",
         contentType: "image/png",
         scope: overrides.scope ?? "organizations",
       });
-      const record = (await context.mediaRepository.findById(media.id))!;
+      const record = (await context.mediaRepository.findById(mediaId))!;
       const processedBlobName = context.blobService.buildProcessedImageBlobName(
         USER_1_ID,
-        media.id,
+        mediaId,
       );
       context.mediaRepository.put({
         ...record,
@@ -618,7 +625,7 @@ describe("MediaService", () => {
         rejectionReason: overrides.rejectionReason ?? null,
       });
 
-      return { ...context, mediaId: media.id, processedBlobName };
+      return { ...context, mediaId, processedBlobName };
     }
 
     function resolve(

@@ -94,10 +94,10 @@ export class MediaService {
     // Deliberately not the whole target: its blobName and blobUrl point into
     // quarantine, and nothing a client receives may address quarantined bytes.
     return {
-      media: this.toView(record),
+      mediaId: record.id,
       upload: {
         method: target.method,
-        uploadUrl: target.uploadUrl,
+        url: target.uploadUrl,
         expiresAt: target.expiresAt,
         headers: target.headers,
       },

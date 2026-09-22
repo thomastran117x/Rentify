@@ -9262,7 +9262,7 @@
       "post": {
         "operationId": "createMediaUpload",
         "summary": "Start an image upload",
-        "description": "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The client PUTs the image bytes to `upload.uploadUrl` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no blob name or readable URL. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
+        "description": "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
         "tags": [
           "media"
         ],
@@ -9319,22 +9319,10 @@
                   "success": true,
                   "message": "Media upload created successfully.",
                   "data": {
-                    "media": {
-                      "id": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10",
-                      "status": "pending_upload",
-                      "scope": "postings",
-                      "url": null,
-                      "contentType": "image/jpeg",
-                      "sizeBytes": null,
-                      "width": null,
-                      "height": null,
-                      "rejectionReason": null,
-                      "createdAt": "2026-05-25T18:15:00.000Z",
-                      "updatedAt": "2026-05-25T18:15:00.000Z"
-                    },
+                    "mediaId": "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10",
                     "upload": {
                       "method": "PUT",
-                      "uploadUrl": "https://storage.example.net/rentify/quarantine/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10?sig=abc123",
+                      "url": "https://storage.example.net/rentify/quarantine/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10?sig=abc123",
                       "expiresAt": "2026-05-25T18:30:00.000Z",
                       "headers": {
                         "x-ms-blob-type": "BlockBlob",
@@ -27560,7 +27548,7 @@
         "type": "object",
         "required": [
           "method",
-          "uploadUrl",
+          "url",
           "expiresAt",
           "headers"
         ],
@@ -27569,7 +27557,7 @@
             "type": "string",
             "const": "PUT"
           },
-          "uploadUrl": {
+          "url": {
             "type": "string",
             "format": "uri",
             "description": "Write-only upload target. It cannot be used to read."
@@ -27589,12 +27577,13 @@
       "CreatedMediaUpload": {
         "type": "object",
         "required": [
-          "media",
+          "mediaId",
           "upload"
         ],
         "properties": {
-          "media": {
-            "$ref": "#/components/schemas/MediaView"
+          "mediaId": {
+            "type": "string",
+            "format": "uuid"
           },
           "upload": {
             "$ref": "#/components/schemas/MediaUploadInstructions"

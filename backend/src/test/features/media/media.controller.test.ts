@@ -29,8 +29,8 @@ const mediaView = {
 function createController() {
   const mediaService = {
     createMediaUpload: jest.fn(async () => ({
-      media: mediaView,
-      upload: { method: "PUT", uploadUrl: "https://upload.test/x" },
+      mediaId: MEDIA_ID,
+      upload: { method: "PUT", url: "https://upload.test/x" },
     })),
     completeMediaUpload: jest.fn(async () => ({
       ...mediaView,
@@ -77,7 +77,10 @@ describe("MediaController", () => {
       requestOrigin: "https://api.rent.test",
     });
     await expect(result.json()).resolves.toMatchObject({
-      data: { media: mediaView },
+      data: {
+        mediaId: MEDIA_ID,
+        upload: { method: "PUT", url: "https://upload.test/x" },
+      },
     });
   });
 
