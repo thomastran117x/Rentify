@@ -16,6 +16,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     declaredContentType: "image/png",
     detectedContentType: null,
     originalFilename: "photo.png",
+    originalEtag: null,
     sizeBytes: null,
     width: null,
     height: null,
@@ -92,7 +93,9 @@ describe("MediaRepository", () => {
     const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ updateMany });
 
-    await expect(repository.markUploaded(MEDIA_1_ID, 42)).resolves.toBe(true);
+    await expect(
+      repository.markUploaded(MEDIA_1_ID, 42, '"0x8DD"'),
+    ).resolves.toBe(true);
     await expect(repository.claimForProcessing(MEDIA_1_ID)).resolves.toBe(true);
     await expect(
       repository.markReady(MEDIA_1_ID, {
@@ -112,7 +115,7 @@ describe("MediaRepository", () => {
 
     expect(calls[0]).toEqual({
       where: { id: MEDIA_1_ID, status: { in: ["pending_upload"] } },
-      data: { status: "uploaded", sizeBytes: 42 },
+      data: { status: "uploaded", sizeBytes: 42, originalEtag: '"0x8DD"' },
     });
     expect(calls[1].where.status).toEqual({ in: ["uploaded", "processing"] });
     expect(calls[2]).toEqual({
@@ -144,7 +147,9 @@ describe("MediaRepository", () => {
       updateMany: jest.fn(async () => ({ count: 0 })),
     });
 
-    await expect(repository.markUploaded(MEDIA_1_ID, 1)).resolves.toBe(false);
+    await expect(repository.markUploaded(MEDIA_1_ID, 1, null)).resolves.toBe(
+      false,
+    );
   });
 
   it("deletes by id without failing on a missing row", async () => {

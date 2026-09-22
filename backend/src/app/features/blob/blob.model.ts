@@ -21,6 +21,8 @@ export interface BlobProperties {
   contentType?: string;
   contentLength?: number;
   lastModified?: Date;
+  /** Changes whenever the blob is written, even with identical bytes. */
+  etag?: string;
 }
 
 export interface ManagedBlobItem {

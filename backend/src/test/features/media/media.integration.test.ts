@@ -172,6 +172,12 @@ describe("Media persistence integration", () => {
       }),
     });
 
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      originalEtag: expect.stringMatching(/^"stub-/),
+    });
+
     await waitForRabbitMqPayload<MediaProcessingJobPayload>(
       persistenceApp.infra.rabbitMq,
       MEDIA_PROCESSING_QUEUE_NAME,
@@ -253,6 +259,36 @@ describe("Media persistence integration", () => {
         rejectionReason: "Uploaded file could not be read as an image.",
       },
     });
+  });
+
+  it("rejects an empty upload when it is completed", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { mediaId, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
+    expect((await putBytes(upload.url, Buffer.alloc(0))).status).toBe(201);
+
+    const completed = await request(`/media/${mediaId}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+
+    expect(completed.status).toBe(422);
+    await expect(completed.json()).resolves.toMatchObject({
+      success: false,
+      message: "The uploaded file is empty.",
+    });
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      rejectionReason: "The uploaded file is empty.",
+      originalEtag: null,
+    });
+    expect(persistenceApp.stubs.blobService.storage.has(quarantinedName)).toBe(
+      false,
+    );
   });
 
   it("attaches a processed image to a posting and refuses an unprocessed one", async () => {

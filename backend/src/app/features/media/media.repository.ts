@@ -66,10 +66,15 @@ export class MediaRepository extends BaseRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  markUploaded(id: Uuid, sizeBytes: number): Promise<boolean> {
+  markUploaded(
+    id: Uuid,
+    sizeBytes: number,
+    etag: string | null,
+  ): Promise<boolean> {
     return this.transition(id, ["pending_upload"], {
       status: "uploaded",
       sizeBytes,
+      originalEtag: etag,
     });
   }
 
@@ -166,6 +171,7 @@ export class MediaRepository extends BaseRepository {
       declaredContentType: row.declaredContentType,
       detectedContentType: row.detectedContentType,
       originalFilename: row.originalFilename,
+      originalEtag: row.originalEtag,
       sizeBytes: row.sizeBytes,
       width: row.width,
       height: row.height,

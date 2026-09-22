@@ -133,6 +133,18 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
 }
 
 /**
+ * Refuses an upload with no bytes. Kept apart from assertImageSizeWithinLimit
+ * because that also checks what a client declares and what the local upload
+ * route writes, where an empty body is left for completion to refuse, as it is
+ * on Azure.
+ */
+export function assertImageNotEmpty(sizeBytes: number): void {
+  if (sizeBytes === 0) {
+    throw new UnprocessableEntityError("The uploaded file is empty.");
+  }
+}
+
+/**
  * Validates the actual bytes of an upload: that they decode as an image, that
  * the real format matches what the client declared, and that the dimensions are
  * within policy. Returns the detected content type.

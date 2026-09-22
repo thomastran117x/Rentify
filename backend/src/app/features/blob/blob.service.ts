@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Stats } from "node:fs";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -190,6 +191,7 @@ export class BlobService {
           contentType: properties.contentType,
           contentLength: properties.contentLength,
           lastModified: properties.lastModified,
+          etag: properties.etag,
         };
       } catch (error) {
         if (hasErrorCode(error, "statusCode", 404)) {
@@ -213,6 +215,7 @@ export class BlobService {
         contentType: this.parseLocalContentType(metadataRaw),
         contentLength: stats.size,
         lastModified: stats.mtime,
+        etag: this.localEtag(stats),
       };
     } catch (error) {
       if (hasErrorCode(error, "code", "ENOENT")) {
@@ -707,6 +710,14 @@ export class BlobService {
     if (unexpectedFailure?.status === "rejected") {
       throw unexpectedFailure.reason;
     }
+  }
+
+  // Local files have no ETag, so one is derived from what a rewrite changes.
+  // PUT /blob/upload stops accepting bytes once an item leaves pending_upload,
+  // so locally this only guards against the backend's own overwrites; it is
+  // kept so both storage paths run the same checks.
+  private localEtag(stats: Pick<Stats, "mtimeMs" | "size">): string {
+    return `"${Math.trunc(stats.mtimeMs * 1000).toString(16)}-${stats.size.toString(16)}"`;
   }
 
   private resolveLocalBlobPaths(blobName: string): {

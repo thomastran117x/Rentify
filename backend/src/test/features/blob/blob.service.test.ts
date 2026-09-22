@@ -281,6 +281,12 @@ describe("BlobService", () => {
     expect(properties.contentLength).toBe(5);
     // fs.stat builds its Date in Node's realm, so toBeInstanceOf(Date) fails.
     expect(properties.lastModified?.getTime()).toBeGreaterThan(0);
+    expect(properties.etag).toMatch(/^"[0-9a-f]+-5"$/);
+
+    // Rewriting the file changes the synthesized ETag.
+    await service.writeLocalBlob(blobName, Buffer.from("123456"), "image/png");
+    const rewritten = await service.getProperties(blobName);
+    expect(rewritten.etag).not.toBe(properties.etag);
     await expect(
       service.getProperties(`general/${USER_1_ID}/missing.png`),
     ).rejects.toThrow(ResourceNotFoundError);
@@ -300,7 +306,7 @@ describe("BlobService", () => {
         contentType: "image/webp",
         contentLength: 42,
         lastModified,
-        etag: "ignored",
+        etag: '"0x8DD1"',
       })
       .mockRejectedValueOnce(
         Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
@@ -318,6 +324,7 @@ describe("BlobService", () => {
       contentType: "image/webp",
       contentLength: 42,
       lastModified,
+      etag: '"0x8DD1"',
     });
     await expect(service.getProperties(blobName)).rejects.toThrow(
       ResourceNotFoundError,

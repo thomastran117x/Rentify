@@ -124,7 +124,7 @@ export interface PersistenceTestStubs {
     isQuarantineBlobName: jest.Mock<boolean, [string]>;
     isProcessedImageBlobName: jest.Mock<boolean, [string]>;
     getProperties: jest.Mock<
-      Promise<{ contentType?: string; contentLength?: number }>,
+      Promise<{ contentType?: string; contentLength?: number; etag?: string }>,
       [string]
     >;
     downloadBlob: jest.Mock<
@@ -809,6 +809,19 @@ function buildTestBlobFileUrl(blobName: string): string {
 
 function createPersistenceTestStubs(): PersistenceTestStubs {
   const blobStorage = new Map<string, { contentType: string; body: Buffer }>();
+  // Every write stores a new entry object, so keying ETags by entry identity
+  // gives a rewritten blob a new ETag, as Azure does, even with the same bytes.
+  const blobEtags = new WeakMap<object, string>();
+  let nextBlobEtag = 0;
+  const blobEtagFor = (stored: object): string => {
+    let etag = blobEtags.get(stored);
+    if (!etag) {
+      nextBlobEtag += 1;
+      etag = `"stub-${nextBlobEtag}"`;
+      blobEtags.set(stored, etag);
+    }
+    return etag;
+  };
   // Naming is pure, so the real implementation is used rather than a copy of
   // the convention that could drift. Created lazily, after the environment
   // has loaded.
@@ -934,6 +947,7 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         return {
           contentType: stored.contentType,
           contentLength: stored.body.byteLength,
+          etag: blobEtagFor(stored),
         };
       }),
       downloadBlob: jest.fn(async (blobName: string) => {

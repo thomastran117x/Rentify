@@ -415,6 +415,65 @@ describe("MediaService", () => {
       expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
     });
 
+    it("pins the completed bytes by their ETag", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { mediaId, upload } = await startUpload(mediaService);
+      await uploadBytes(mediaService, upload.url, Buffer.from("bytes"));
+      const record = (await mediaRepository.findById(mediaId))!;
+      const { etag } = await blobService.getProperties(record.originalBlobName);
+
+      await mediaService.completeMediaUpload(USER_1_ID, mediaId);
+
+      expect(etag).toEqual(expect.any(String));
+      expect((await mediaRepository.findById(mediaId))?.originalEtag).toBe(
+        etag,
+      );
+    });
+
+    it("records no ETag when storage reports none", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      jest
+        .spyOn(blobService, "getProperties")
+        .mockResolvedValueOnce({ contentLength: 5 });
+
+      await mediaService.completeMediaUpload(USER_1_ID, mediaId);
+
+      expect(await mediaRepository.findById(mediaId)).toMatchObject({
+        status: "uploaded",
+        sizeBytes: 5,
+        originalEtag: null,
+      });
+    });
+
+    it("rejects an empty upload", async () => {
+      const { mediaService, mediaRepository, blobService, queue } =
+        createLocalMediaService();
+      const { mediaId, upload } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      await uploadBytes(mediaService, upload.url, Buffer.alloc(0));
+
+      await expect(
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          status: 422,
+          message: "The uploaded file is empty.",
+        }),
+      );
+
+      expect(await mediaRepository.findById(mediaId)).toMatchObject({
+        status: "rejected",
+        rejectionReason: "The uploaded file is empty.",
+      });
+      await expect(
+        blobService.readLocalBlob(record.originalBlobName),
+      ).rejects.toThrow(ResourceNotFoundError);
+      expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    });
+
     it("still reports the size limit when deleting the oversized upload fails", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();

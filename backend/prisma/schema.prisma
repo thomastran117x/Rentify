@@ -76,6 +76,7 @@ model Media {
   declaredContentType String      @map("declared_content_type") @db.VarChar(100)
   detectedContentType String?     @map("detected_content_type") @db.VarChar(100)
   originalFilename    String?     @map("original_filename") @db.VarChar(255)
+  originalEtag        String?     @map("original_etag") @db.VarChar(100)
   sizeBytes           Int?        @map("size_bytes")
   width               Int?
   height              Int?

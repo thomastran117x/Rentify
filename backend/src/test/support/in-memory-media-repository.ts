@@ -33,6 +33,7 @@ export class InMemoryMediaRepository {
       declaredContentType: input.declaredContentType,
       detectedContentType: null,
       originalFilename: input.originalFilename,
+      originalEtag: null,
       sizeBytes: null,
       width: null,
       height: null,
@@ -58,10 +59,15 @@ export class InMemoryMediaRepository {
     return this.find((record) => record.processedBlobName === blobName);
   }
 
-  async markUploaded(id: Uuid, sizeBytes: number): Promise<boolean> {
+  async markUploaded(
+    id: Uuid,
+    sizeBytes: number,
+    etag: string | null,
+  ): Promise<boolean> {
     return this.transition(id, ["pending_upload"], {
       status: "uploaded",
       sizeBytes,
+      originalEtag: etag,
     });
   }
 

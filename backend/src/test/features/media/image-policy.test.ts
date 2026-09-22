@@ -1,5 +1,6 @@
 import {
   assertImageBytes,
+  assertImageNotEmpty,
   assertImageSizeWithinLimit,
   formatByteLimit,
   isImagePolicyRejection,
@@ -150,6 +151,14 @@ describe("rejection messages", () => {
     expect(formatByteLimit(1.5 * 1024 * 1024)).toBe("1.5 MB");
     expect(formatByteLimit(512 * 1024)).toBe("512 KB");
     expect(formatByteLimit(900)).toBe("900 bytes");
+  });
+});
+
+describe("assertImageNotEmpty", () => {
+  it("rejects an empty upload and accepts anything else", () => {
+    expect(() => assertImageNotEmpty(0)).toThrow(UnprocessableEntityError);
+    expect(() => assertImageNotEmpty(0)).toThrow("The uploaded file is empty.");
+    expect(() => assertImageNotEmpty(1)).not.toThrow();
   });
 });
 

@@ -6195,7 +6195,7 @@ paths:
     post:
       operationId: completeMediaUpload
       summary: Report an image upload as finished
-      description: Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. Returns 409 when no bytes have been uploaded yet and 413 when the upload is over the limit (the media is then rejected). Calling it again after the first success returns the current state.
+      description: 'Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. The blob''s ETag is recorded with its length, and processing only accepts those exact bytes: writing the upload again after this call, even with identical content, gets the media rejected. Returns 409 when no bytes have been uploaded yet, 413 when the upload is over the limit, and 422 when it is empty (in both of those cases the media is then rejected). Calling it again after the first success returns the current state.'
       tags:
         - media
       security:
@@ -6257,6 +6257,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

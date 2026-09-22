@@ -59,6 +59,7 @@ async function quarantine(
     declaredContentType: options.declaredContentType ?? "image/png",
     detectedContentType: null,
     originalFilename: "upload",
+    originalEtag: null,
     sizeBytes: body?.byteLength ?? null,
     width: null,
     height: null,
