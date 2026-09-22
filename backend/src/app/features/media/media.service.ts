@@ -5,6 +5,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
 import {
+  assertImageNotEmpty,
   assertImageSizeWithinLimit,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
@@ -108,6 +109,10 @@ export class MediaService {
    * Called by the client once its PUT has finished. Confirms the bytes exist,
    * applies the size limit to their real length, and queues processing.
    * Repeating it is harmless: past pending_upload it reports the current state.
+   *
+   * The blob's ETag is recorded with its size. The upload credential is still
+   * valid after this, so the worker only processes the bytes seen here and
+   * refuses a blob that was written again, even with identical content.
    */
   async completeMediaUpload(userId: Uuid, mediaId: Uuid): Promise<MediaView> {
     const record = await this.requireOwnedRecord(userId, mediaId);
@@ -121,16 +126,17 @@ export class MediaService {
       return this.toView(record);
     }
 
-    const sizeBytes = await this.readUploadedSize(record);
+    const { sizeBytes, etag } = await this.readUploadedProperties(record);
 
     try {
+      assertImageNotEmpty(sizeBytes);
       assertImageSizeWithinLimit(sizeBytes);
     } catch (error) {
       await this.reject(record, (error as Error).message);
       throw error;
     }
 
-    if (await this.mediaRepository.markUploaded(record.id, sizeBytes)) {
+    if (await this.mediaRepository.markUploaded(record.id, sizeBytes, etag)) {
       await this.mediaProcessingQueue.enqueueMediaProcessingJob(record.id);
     }
 
@@ -396,13 +402,18 @@ export class MediaService {
     return record;
   }
 
-  private async readUploadedSize(record: MediaRecord): Promise<number> {
+  private async readUploadedProperties(
+    record: MediaRecord,
+  ): Promise<{ sizeBytes: number; etag: string | null }> {
     try {
       const properties = await this.blobService.getProperties(
         record.originalBlobName,
       );
 
-      return properties.contentLength ?? 0;
+      return {
+        sizeBytes: properties.contentLength ?? 0,
+        etag: properties.etag ?? null,
+      };
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
         throw new ConflictError("The upload has not been received yet.");

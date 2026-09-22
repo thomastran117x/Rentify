@@ -1,5 +1,7 @@
 import sharp from "sharp";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord, MediaStatus } from "@/features/media/media.model";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
@@ -38,11 +40,19 @@ function createContext() {
 
 type Context = ReturnType<typeof createContext>;
 
-/** Stores an upload in quarantine and a row for it in the given state. */
+/**
+ * Stores an upload in quarantine and a row for it in the given state, pinned to
+ * the stored blob's ETag as completion would pin it. A `legacy` row predates
+ * the ETag and has none.
+ */
 async function quarantine(
   context: Context,
   body: Buffer | null,
-  options: { declaredContentType?: string; status?: MediaStatus } = {},
+  options: {
+    declaredContentType?: string;
+    status?: MediaStatus;
+    legacy?: boolean;
+  } = {},
 ): Promise<MediaRecord> {
   const id = testUuid(9000, nextMediaIndex++);
   const now = new Date();
@@ -59,6 +69,7 @@ async function quarantine(
     declaredContentType: options.declaredContentType ?? "image/png",
     detectedContentType: null,
     originalFilename: "upload",
+    originalEtag: null,
     sizeBytes: body?.byteLength ?? null,
     width: null,
     height: null,
@@ -67,12 +78,25 @@ async function quarantine(
     updatedAt: now,
   };
 
+  // Local storage outlives a run and ids repeat between runs, so clear what an
+  // earlier run may have left for this id.
+  await context.blobService.deleteBlob(record.originalBlobName);
+  await context.blobService.deleteBlob(
+    context.blobService.buildProcessedImageBlobName(USER_1_ID, id),
+  );
+
   if (body) {
     await context.blobService.writeLocalBlob(
       record.originalBlobName,
       body,
       record.declaredContentType,
     );
+
+    if (!options.legacy) {
+      record.originalEtag =
+        (await context.blobService.getProperties(record.originalBlobName))
+          .etag ?? null;
+    }
   }
 
   context.mediaRepository.put(record);
@@ -248,6 +272,177 @@ describe("MediaProcessingService", () => {
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "The uploaded file could not be found.",
+    });
+  });
+
+  describe("the pinned upload", () => {
+    const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
+
+    /** Writes new bytes over a quarantined upload, as a reused SAS could. */
+    async function overwrite(context: Context, record: MediaRecord) {
+      await context.blobService.writeLocalBlob(
+        record.originalBlobName,
+        Buffer.from("x".repeat(4096)),
+        "text/plain",
+      );
+    }
+
+    async function expectRejected(
+      context: Context,
+      record: MediaRecord,
+      rejectionReason: string,
+    ) {
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({ status: "rejected", rejectionReason });
+      await expectMissing(context, record.originalBlobName);
+      await expectMissing(
+        context,
+        context.blobService.buildProcessedImageBlobName(USER_1_ID, record.id),
+      );
+    }
+
+    it("downloads only the completed bytes, capped one past the limit", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      const download = jest.spyOn(context.blobService, "downloadBlob");
+      process.env.MAX_IMAGE_SIZE_BYTES = "4096";
+
+      await context.service.process(record.id);
+
+      expect(download).toHaveBeenCalledWith(record.originalBlobName, {
+        ifMatch: record.originalEtag,
+        maxBytes: 4096,
+      });
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "ready",
+      );
+    });
+
+    it("rejects an upload overwritten after completion without downloading it", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      await overwrite(context, record);
+      const download = jest.spyOn(context.blobService, "downloadBlob");
+      // The replacement is also oversized; the change is still the reason.
+      process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+
+      await expect(context.service.process(record.id)).resolves.toBeUndefined();
+
+      expect(download).not.toHaveBeenCalled();
+      await expectRejected(context, record, UPLOAD_CHANGED_REASON);
+    });
+
+    it.each([
+      ["an empty upload", 0, "The uploaded file is empty."],
+      ["an oversized upload", 64, "Images must be 32 bytes or smaller."],
+    ])(
+      "rejects %s from its properties without downloading it",
+      async (_label, sizeBytes, reason) => {
+        const context = createContext();
+        const record = await quarantine(context, Buffer.alloc(sizeBytes));
+        const download = jest.spyOn(context.blobService, "downloadBlob");
+        process.env.MAX_IMAGE_SIZE_BYTES = "32";
+
+        await context.service.process(record.id);
+
+        expect(download).not.toHaveBeenCalled();
+        await expectRejected(context, record, reason);
+      },
+    );
+
+    it.each([
+      [
+        "changed during the download",
+        new BlobChangedError(),
+        UPLOAD_CHANGED_REASON,
+      ],
+      [
+        "grew past the limit during the download",
+        new PayloadTooLargeError("Blob is larger than the allowed maximum."),
+        "Images must be 8 MB or smaller.",
+      ],
+      [
+        "disappeared during the download",
+        new ResourceNotFoundError("Blob not found."),
+        "The uploaded file could not be found.",
+      ],
+    ])(
+      "rejects an upload that %s, without a retry",
+      async (_label, error, reason) => {
+        const context = createContext();
+        const record = await quarantine(context, await createPngFixture());
+        process.env.MAX_IMAGE_SIZE_BYTES = String(8 * 1024 * 1024);
+        jest
+          .spyOn(context.blobService, "downloadBlob")
+          .mockRejectedValueOnce(error);
+
+        await expect(
+          context.service.process(record.id),
+        ).resolves.toBeUndefined();
+
+        await expectRejected(context, record, reason);
+      },
+    );
+
+    it("still processes a row completed before the ETag was recorded", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(), {
+        legacy: true,
+      });
+      // Rewritten with valid bytes: without a recorded ETag nothing can tell.
+      await context.blobService.writeLocalBlob(
+        record.originalBlobName,
+        await createPngFixture(6, 4),
+        "image/png",
+      );
+
+      await context.service.process(record.id);
+
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "ready",
+        originalEtag: null,
+        width: 6,
+        height: 4,
+      });
+    });
+
+    it("still holds a legacy row to the size limit", async () => {
+      const context = createContext();
+      const record = await quarantine(context, Buffer.alloc(64), {
+        legacy: true,
+      });
+      process.env.MAX_IMAGE_SIZE_BYTES = "32";
+
+      await context.service.process(record.id);
+
+      await expectRejected(
+        context,
+        record,
+        "Images must be 32 bytes or smaller.",
+      );
+    });
+
+    it("retries when the properties cannot be read", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      jest
+        .spyOn(context.blobService, "getProperties")
+        .mockRejectedValueOnce(new Error("storage unavailable"));
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        "storage unavailable",
+      );
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "processing",
+      );
+
+      await context.service.process(record.id);
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "ready",
+      );
     });
   });
 

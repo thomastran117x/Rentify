@@ -4385,7 +4385,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeMediaUpload",
       summary: "Report an image upload as finished",
       description:
-        "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. Returns 409 when no bytes have been uploaded yet and 413 when the upload is over the limit (the media is then rejected). Calling it again after the first success returns the current state.",
+        "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. The blob's ETag is recorded with its length, and processing only accepts those exact bytes: writing the upload again after this call, even with identical content, gets the media rejected. Returns 409 when no bytes have been uploaded yet, 413 when the upload is over the limit, and 422 when it is empty (in both of those cases the media is then rejected). Calling it again after the first success returns the current state.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4401,7 +4401,7 @@ function buildOperations(): OperationDefinition[] {
           "MediaResult",
           { media: { ...mediaViewPendingExample, status: "uploaded" } },
         ),
-        ...commonErrors([400, 401, 403, 404, 409, 413, 429, 500]),
+        ...commonErrors([400, 401, 403, 404, 409, 413, 422, 429, 500]),
       },
     },
     {

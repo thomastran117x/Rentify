@@ -53,6 +53,11 @@ export interface MediaRecord {
   declaredContentType: string;
   detectedContentType: string | null;
   originalFilename: string | null;
+  /**
+   * The original blob's ETag when the upload was completed. The worker only
+   * processes those exact bytes. Null for rows completed before it was stored.
+   */
+  originalEtag: string | null;
   sizeBytes: number | null;
   width: number | null;
   height: number | null;

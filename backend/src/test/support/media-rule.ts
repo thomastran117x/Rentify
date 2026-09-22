@@ -53,6 +53,7 @@ export function createMediaRule(
         declaredContentType: "image/png",
         detectedContentType: "image/png",
         originalFilename: null,
+        originalEtag: null,
         sizeBytes: 1,
         width: 1,
         height: 1,

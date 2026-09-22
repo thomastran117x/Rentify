@@ -156,16 +156,38 @@ Nothing under `quarantine/` is ever displayed:
 
 **At completion.** `POST /media/{id}/complete` checks that the bytes arrived
 (409 if not) and holds their stored length to the size limit (413, and the item
-is rejected). The local `PUT /blob/upload` only accepts bytes for a quarantine
-name whose item is still `pending_upload`, and applies the same size limit.
+is rejected). An empty upload is refused with 422 and the item is rejected. The
+local `PUT /blob/upload` only accepts bytes for a quarantine name whose item is
+still `pending_upload`, and applies the same size limit.
+
+Completion also pins the bytes: it records the blob's ETag with its length, in
+`media.original_etag`. The Azure SAS stays valid for its whole TTL after
+completion, so a client could otherwise complete with a small file and then PUT
+a much larger one, up to Azure's single-PUT ceiling of about 5,000 MiB, before
+the worker ran. Only the bytes seen at completion are processed. Writing the
+upload again gets the item rejected, even with identical bytes, because every
+write changes the ETag. Shortening or revoking the SAS itself is out of scope
+here.
 
 **Processing closes the Azure gap.** On the Azure path the client PUTs straight
 to storage and the API never sees the bytes. The SAS does not constrain them:
 its `contentType` is Azure's `rsct`, which only overrides the `Content-Type`
 returned on download. This was measured against a real account: a SAS issued
 for `image/png` accepted a JPEG and a 29-byte text file. So every upload,
-whichever storage path it took, is validated by the worker instead. The worker
-decodes the bytes with sharp and matches the real format against the declared
+whichever storage path it took, is validated by the worker instead.
+
+Before downloading anything, the worker reads the blob's properties. It
+rejects a blob whose ETag no longer matches the one recorded at completion
+("The upload changed after it was completed."), checked first because a
+replacement is often also oversized, and then an empty or oversized blob. The
+download is then conditional on that ETag (`If-Match`) and asks for at most one
+byte past the size limit, so a replaced or oversized blob is refused without
+being buffered. A 412 during the download is the same final rejection. Rows
+completed before the ETag was recorded skip the comparison but keep both size
+checks. The local stand-in derives an ETag from the file's modification time
+and size and checks the same conditions before reading the file.
+
+The worker decodes the bytes with sharp and matches the real format against the declared
 type and today's allow-list. It holds the length and dimensions to the policy
 and decodes every pixel, which catches truncated data. An accepted image is
 re-encoded to WebP. That applies its EXIF orientation, drops metadata such as

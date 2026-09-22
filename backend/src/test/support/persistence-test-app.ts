@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 import BadRequestError from "@/errors/http/bad-request.error";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { CreateBlobUploadUrlInput } from "@/features/blob/blob.model";
-import { BlobService } from "@/features/blob/blob.service";
+import BlobChangedError from "@/errors/blob-changed.error";
+import {
+  BlobService,
+  type DownloadBlobOptions,
+} from "@/features/blob/blob.service";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -124,12 +129,12 @@ export interface PersistenceTestStubs {
     isQuarantineBlobName: jest.Mock<boolean, [string]>;
     isProcessedImageBlobName: jest.Mock<boolean, [string]>;
     getProperties: jest.Mock<
-      Promise<{ contentType?: string; contentLength?: number }>,
+      Promise<{ contentType?: string; contentLength?: number; etag?: string }>,
       [string]
     >;
     downloadBlob: jest.Mock<
       Promise<{ body: Buffer; contentType?: string }>,
-      [string]
+      [string, DownloadBlobOptions?]
     >;
     uploadBuffer: jest.Mock<
       Promise<{ blobName: string; blobUrl: string }>,
@@ -809,6 +814,19 @@ function buildTestBlobFileUrl(blobName: string): string {
 
 function createPersistenceTestStubs(): PersistenceTestStubs {
   const blobStorage = new Map<string, { contentType: string; body: Buffer }>();
+  // Every write stores a new entry object, so keying ETags by entry identity
+  // gives a rewritten blob a new ETag, as Azure does, even with the same bytes.
+  const blobEtags = new WeakMap<object, string>();
+  let nextBlobEtag = 0;
+  const blobEtagFor = (stored: object): string => {
+    let etag = blobEtags.get(stored);
+    if (!etag) {
+      nextBlobEtag += 1;
+      etag = `"stub-${nextBlobEtag}"`;
+      blobEtags.set(stored, etag);
+    }
+    return etag;
+  };
   // Naming is pure, so the real implementation is used rather than a copy of
   // the convention that could drift. Created lazily, after the environment
   // has loaded.
@@ -934,18 +952,32 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         return {
           contentType: stored.contentType,
           contentLength: stored.body.byteLength,
+          etag: blobEtagFor(stored),
         };
       }),
-      downloadBlob: jest.fn(async (blobName: string) => {
-        const stored = blobStorage.get(blobName);
-        if (!stored) {
-          throw new ResourceNotFoundError("Blob not found.");
-        }
-        return {
-          body: Buffer.from(stored.body),
-          contentType: stored.contentType,
-        };
-      }),
+      downloadBlob: jest.fn(
+        async (blobName: string, options: DownloadBlobOptions = {}) => {
+          const stored = blobStorage.get(blobName);
+          if (!stored) {
+            throw new ResourceNotFoundError("Blob not found.");
+          }
+          if (options.ifMatch && options.ifMatch !== blobEtagFor(stored)) {
+            throw new BlobChangedError();
+          }
+          if (
+            options.maxBytes !== undefined &&
+            stored.body.byteLength > options.maxBytes
+          ) {
+            throw new PayloadTooLargeError(
+              "Blob is larger than the allowed maximum.",
+            );
+          }
+          return {
+            body: Buffer.from(stored.body),
+            contentType: stored.contentType,
+          };
+        },
+      ),
       uploadBuffer: jest.fn(
         async (input: {
           blobName: string;

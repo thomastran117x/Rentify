@@ -1,5 +1,8 @@
+import { Readable } from "node:stream";
+import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
 import BadRequestError from "@/errors/http/bad-request.error";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import { testUuid } from "../../support/uuid";
@@ -231,6 +234,30 @@ describe("BlobService", () => {
     );
   });
 
+  it("checks the ETag and the limit before reading a local blob", async () => {
+    useLocalBlobStorage();
+
+    const service = new BlobService();
+    const blobName = `quarantine/images/${USER_1_ID}/conditional`;
+    await service.writeLocalBlob(blobName, Buffer.alloc(16), "image/png");
+    const { etag } = await service.getProperties(blobName);
+
+    await expect(
+      service.downloadBlob(blobName, { ifMatch: etag, maxBytes: 16 }),
+    ).resolves.toMatchObject({ body: Buffer.alloc(16) });
+    await expect(
+      service.downloadBlob(blobName, { ifMatch: '"stale"' }),
+    ).rejects.toThrow(BlobChangedError);
+    await expect(
+      service.downloadBlob(blobName, { maxBytes: 15 }),
+    ).rejects.toThrow(PayloadTooLargeError);
+    await expect(
+      service.downloadBlob(`quarantine/images/${USER_1_ID}/missing`, {
+        maxBytes: 15,
+      }),
+    ).rejects.toThrow(ResourceNotFoundError);
+  });
+
   it("rejects invalid local blob names and missing files", async () => {
     useLocalBlobStorage();
 
@@ -281,6 +308,12 @@ describe("BlobService", () => {
     expect(properties.contentLength).toBe(5);
     // fs.stat builds its Date in Node's realm, so toBeInstanceOf(Date) fails.
     expect(properties.lastModified?.getTime()).toBeGreaterThan(0);
+    expect(properties.etag).toMatch(/^"[0-9a-f]+-5"$/);
+
+    // Rewriting the file changes the synthesized ETag.
+    await service.writeLocalBlob(blobName, Buffer.from("123456"), "image/png");
+    const rewritten = await service.getProperties(blobName);
+    expect(rewritten.etag).not.toBe(properties.etag);
     await expect(
       service.getProperties(`general/${USER_1_ID}/missing.png`),
     ).rejects.toThrow(ResourceNotFoundError);
@@ -300,7 +333,7 @@ describe("BlobService", () => {
         contentType: "image/webp",
         contentLength: 42,
         lastModified,
-        etag: "ignored",
+        etag: '"0x8DD1"',
       })
       .mockRejectedValueOnce(
         Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
@@ -318,6 +351,7 @@ describe("BlobService", () => {
       contentType: "image/webp",
       contentLength: 42,
       lastModified,
+      etag: '"0x8DD1"',
     });
     await expect(service.getProperties(blobName)).rejects.toThrow(
       ResourceNotFoundError,
@@ -325,34 +359,130 @@ describe("BlobService", () => {
     await expect(service.getProperties(blobName)).rejects.toThrow("ServerBusy");
   });
 
-  it("downloads Azure blobs and maps a 404 to not found", async () => {
-    useAzureBlobStorage();
+  describe("Azure downloads", () => {
+    function azureDownloadResponse(
+      chunks: Buffer[],
+      contentType: string | undefined = "image/png",
+    ) {
+      return { readableStreamBody: Readable.from(chunks), contentType };
+    }
 
-    const service = new BlobService();
-    const downloadToBuffer = jest
-      .fn()
-      .mockResolvedValueOnce(Buffer.from("bytes"))
-      .mockRejectedValueOnce(
-        Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
-      )
-      .mockRejectedValueOnce(
-        Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
-      );
-    const getProperties = jest.fn(async () => ({ contentType: "image/png" }));
-    const helper = service as unknown as {
-      createBlobClient(blobName: string): unknown;
-    };
-    helper.createBlobClient = () => ({ downloadToBuffer, getProperties });
+    function useAzureClient(download: jest.Mock) {
+      useAzureBlobStorage();
+      const service = new BlobService();
+      const getProperties = jest.fn();
+      const downloadToBuffer = jest.fn();
+      const helper = service as unknown as {
+        createBlobClient(blobName: string): unknown;
+      };
+      helper.createBlobClient = () => ({
+        download,
+        getProperties,
+        downloadToBuffer,
+      });
+      return { service, getProperties, downloadToBuffer };
+    }
+
     const blobName = `quarantine/images/${USER_1_ID}/upload`;
 
-    await expect(service.downloadBlob(blobName)).resolves.toEqual({
-      body: Buffer.from("bytes"),
-      contentType: "image/png",
+    it("downloads a whole blob in one request and maps a 404 to not found", async () => {
+      const download = jest
+        .fn()
+        .mockResolvedValueOnce(
+          azureDownloadResponse([Buffer.from("by"), Buffer.from("tes")]),
+        )
+        .mockRejectedValueOnce(
+          Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
+        )
+        .mockRejectedValueOnce(
+          Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
+        );
+      const { service, getProperties, downloadToBuffer } =
+        useAzureClient(download);
+
+      await expect(service.downloadBlob(blobName)).resolves.toEqual({
+        body: Buffer.from("bytes"),
+        contentType: "image/png",
+      });
+      await expect(service.downloadBlob(blobName)).rejects.toThrow(
+        ResourceNotFoundError,
+      );
+      await expect(service.downloadBlob(blobName)).rejects.toThrow(
+        "ServerBusy",
+      );
+      expect(download).toHaveBeenNthCalledWith(1, 0, undefined, {
+        conditions: undefined,
+      });
+      // The content type comes with the download; nothing else is requested.
+      expect(getProperties).not.toHaveBeenCalled();
+      expect(downloadToBuffer).not.toHaveBeenCalled();
     });
-    await expect(service.downloadBlob(blobName)).rejects.toThrow(
-      ResourceNotFoundError,
-    );
-    await expect(service.downloadBlob(blobName)).rejects.toThrow("ServerBusy");
+
+    it("asks for one byte past the limit, conditional on the ETag", async () => {
+      const download = jest
+        .fn()
+        .mockResolvedValueOnce(azureDownloadResponse([Buffer.alloc(16)]));
+      const { service } = useAzureClient(download);
+
+      await expect(
+        service.downloadBlob(blobName, { ifMatch: '"0x8DD1"', maxBytes: 16 }),
+      ).resolves.toMatchObject({ body: Buffer.alloc(16) });
+      expect(download).toHaveBeenCalledWith(0, 17, {
+        conditions: { ifMatch: '"0x8DD1"' },
+      });
+    });
+
+    it("stops reading once a blob passes the limit", async () => {
+      // Endless: if the download read to the end, this test would never finish.
+      async function* chunks() {
+        for (;;) {
+          yield Buffer.alloc(8);
+        }
+      }
+      const stream = Readable.from(chunks());
+      const download = jest.fn().mockResolvedValueOnce({
+        readableStreamBody: stream,
+        contentType: "image/png",
+      });
+      const { service } = useAzureClient(download);
+
+      await expect(
+        service.downloadBlob(blobName, { maxBytes: 12 }),
+      ).rejects.toThrow(PayloadTooLargeError);
+      expect(stream.destroyed).toBe(true);
+    });
+
+    it("reports a changed blob as BlobChangedError", async () => {
+      const download = jest.fn().mockRejectedValueOnce(
+        Object.assign(new Error("ConditionNotMet"), {
+          statusCode: 412,
+          code: "ConditionNotMet",
+        }),
+      );
+      const { service } = useAzureClient(download);
+
+      await expect(
+        service.downloadBlob(blobName, { ifMatch: '"0x8DD1"', maxBytes: 16 }),
+      ).rejects.toThrow(BlobChangedError);
+    });
+
+    it("reads an empty blob, whose range is unsatisfiable, as no bytes", async () => {
+      const download = jest
+        .fn()
+        .mockRejectedValueOnce(
+          Object.assign(new Error("InvalidRange"), { statusCode: 416 }),
+        )
+        .mockResolvedValueOnce({ contentType: undefined });
+      const { service } = useAzureClient(download);
+
+      await expect(
+        service.downloadBlob(blobName, { maxBytes: 16 }),
+      ).resolves.toEqual({ body: Buffer.alloc(0) });
+      await expect(service.downloadBlob(blobName)).resolves.toEqual({
+        body: Buffer.alloc(0),
+        contentType: undefined,
+      });
+    });
   });
 
   it("requires complete Azure configuration", () => {

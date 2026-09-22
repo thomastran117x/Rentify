@@ -2,12 +2,17 @@ import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import type { Uuid } from "@/configuration/validation/uuid";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import BlobChangedError from "@/errors/blob-changed.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
   assertImageBytes,
+  assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  describeImageSizeLimit,
   isImagePolicyRejection,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
@@ -21,6 +26,7 @@ import type { MediaRepository } from "@/features/media/media.repository";
 const PROCESSED_IMAGE_QUALITY = 85;
 const PROCESSED_IMAGE_CONTENT_TYPE = "image/webp";
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
+const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
 const PROCESSING_FAILED_REASON = "The image could not be processed.";
 
 /**
@@ -33,6 +39,13 @@ const PROCESSING_FAILED_REASON = "The image could not be processed.";
  * have meant to publish (EXIF, GPS), applies the EXIF orientation so the
  * stored pixels are upright, and means what is served was produced by this
  * process rather than supplied by the client.
+ *
+ * The upload credential outlives completion, so the blob may have been written
+ * again since. Its properties are checked before anything is downloaded: the
+ * ETag must still be the one recorded at completion, and the length must be
+ * within policy. The download is then conditional on that ETag and capped at
+ * one byte past the limit, so a replaced or oversized blob is refused without
+ * being buffered.
  */
 export class MediaProcessingService {
   private readonly logger = loggerFactory.forClass(
@@ -74,15 +87,15 @@ export class MediaProcessingService {
 
     const original = await this.downloadOriginal(record);
 
-    if (!original) {
-      await this.reject(record, MISSING_UPLOAD_REASON);
+    if ("rejection" in original) {
+      await this.reject(record, original.rejection);
       return;
     }
 
     let detectedContentType: SupportedImageContentType;
 
     try {
-      detectedContentType = await this.inspect(record, original);
+      detectedContentType = await this.inspect(record, original.body);
     } catch (error) {
       if (isImagePolicyRejection(error)) {
         await this.reject(record, error.message);
@@ -92,7 +105,7 @@ export class MediaProcessingService {
       throw error;
     }
 
-    const processed = await sharp(original, {
+    const processed = await sharp(original.body, {
       limitInputPixels: environment.getImageUploadsConfig().maxPixels,
       failOn: "error",
     })
@@ -148,6 +161,7 @@ export class MediaProcessingService {
     record: MediaRecord,
     original: Buffer,
   ): Promise<SupportedImageContentType> {
+    assertImageNotEmpty(original.byteLength);
     assertImageSizeWithinLimit(original.byteLength);
 
     // Re-checked against today's allow-list: a type narrowed out since the
@@ -158,13 +172,70 @@ export class MediaProcessingService {
     );
   }
 
-  private async downloadOriginal(record: MediaRecord): Promise<Buffer | null> {
+  /**
+   * Checks the original's properties, then downloads exactly that blob. A
+   * refusal is final and comes back as the reason; anything else a retry could
+   * fix, such as storage being unavailable, is thrown.
+   */
+  private async downloadOriginal(
+    record: MediaRecord,
+  ): Promise<{ body: Buffer } | { rejection: string }> {
+    let properties: BlobProperties;
+
     try {
-      return (await this.blobService.downloadBlob(record.originalBlobName))
-        .body;
+      properties = await this.blobService.getProperties(
+        record.originalBlobName,
+      );
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        return null;
+        return { rejection: MISSING_UPLOAD_REASON };
+      }
+
+      throw error;
+    }
+
+    // First, because it is the accurate reason: an overwrite is often also
+    // oversized, and the client should hear that its upload was replaced.
+    // Rows completed before the ETag was recorded skip this; their size is
+    // still held to the policy below and by the capped download.
+    if (record.originalEtag && properties.etag !== record.originalEtag) {
+      return { rejection: UPLOAD_CHANGED_REASON };
+    }
+
+    const sizeBytes = properties.contentLength ?? 0;
+
+    try {
+      assertImageNotEmpty(sizeBytes);
+      assertImageSizeWithinLimit(sizeBytes);
+    } catch (error) {
+      if (isImagePolicyRejection(error)) {
+        return { rejection: error.message };
+      }
+
+      throw error;
+    }
+
+    try {
+      const { body } = await this.blobService.downloadBlob(
+        record.originalBlobName,
+        {
+          ifMatch: properties.etag,
+          maxBytes: environment.getImageUploadsConfig().maxSizeBytes,
+        },
+      );
+
+      return { body };
+    } catch (error) {
+      if (error instanceof ResourceNotFoundError) {
+        return { rejection: MISSING_UPLOAD_REASON };
+      }
+
+      if (error instanceof BlobChangedError) {
+        return { rejection: UPLOAD_CHANGED_REASON };
+      }
+
+      if (error instanceof PayloadTooLargeError) {
+        return { rejection: describeImageSizeLimit() };
       }
 
       throw error;
