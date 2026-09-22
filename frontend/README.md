@@ -88,5 +88,6 @@ Browser tests live in `tests/e2e`. For normal validation, start Docker and set `
 - Google and Microsoft sign-in use authorization code + PKCE
 - Apple sign-in uses Apple's JS SDK popup (loaded on demand from `appleid.cdn-apple.com`); the backend verifies the returned ID token, and the user's name is forwarded only on first consent because Apple never includes it in the token
 - OAuth popup completion routes live at `/auth/google`, `/auth/microsoft`, and `/auth/apple`
-- the API client includes device headers, refresh-session retry logic, and CSRF support for auth-related requests
+- access JWTs remain memory-only and refresh silently before expiration while the page is active; a one-time request retry remains as a timing-race fallback
+- refresh tokens remain in HttpOnly cookies, while the API client includes device headers and CSRF support for auth-related requests
 - frontend API helpers expect the backend response envelope with `success`, `message`, `data`, `error`, and `meta`

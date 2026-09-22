@@ -791,6 +791,128 @@ describe("api client", () => {
     expect(clearStoredSessionMock).toHaveBeenCalled();
   });
 
+  it.each([400, 401, 403, 422])(
+    "clears the stored session when refresh receives definitive status %i",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(null, { status })),
+      );
+      const { refreshStoredSession } = await import("./client");
+
+      await expect(refreshStoredSession()).resolves.toBeNull();
+      expect(clearStoredSessionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    [408, "ApiClientError"],
+    [429, "ApiRateLimitError"],
+    [503, "ApiServerError"],
+  ])(
+    "preserves the stored session when refresh receives transient status %i",
+    async (status, errorName) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                success: false,
+                message: "Temporarily unavailable.",
+                data: null,
+                error: {
+                  code: status === 429 ? "RATE_LIMITED" : "TEMPORARY_FAILURE",
+                },
+                meta: {
+                  requestId: `refresh-${status}`,
+                },
+              }),
+              {
+                status,
+                headers: { "content-type": "application/json" },
+              },
+            ),
+        ),
+      );
+      const { refreshStoredSession } = await import("./client");
+
+      await expect(refreshStoredSession()).rejects.toMatchObject({
+        name: errorName,
+        status,
+      });
+      expect(clearStoredSessionMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves the stored session when refresh receives a malformed success payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ accessToken: "missing-envelope" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const { refreshStoredSession } = await import("./client");
+
+    await expect(refreshStoredSession()).rejects.toMatchObject({
+      name: "ApiProtocolError",
+    });
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates concurrent refresh requests", async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { refreshStoredSession } = await import("./client");
+
+    const firstRefresh = refreshStoredSession();
+    const secondRefresh = refreshStoredSession();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveRefresh?.(
+      new Response(
+        JSON.stringify({
+          success: true,
+          message: "ok",
+          data: {
+            accessToken: "replacement-access-token",
+            device: {
+              known: true,
+              knownByIp: false,
+            },
+            user: {
+              id: "user-1",
+              email: "person@example.com",
+              username: "person",
+              role: "user",
+            },
+          },
+          error: null,
+          meta: {
+            requestId: "refresh-concurrent",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([
+      expect.objectContaining({ accessToken: "replacement-access-token" }),
+      expect.objectContaining({ accessToken: "replacement-access-token" }),
+    ]);
+    expect(writeStoredSessionMock).toHaveBeenCalledTimes(1);
+  });
+
   it("refreshes without optional browser and session headers", async () => {
     document.cookie = "csrf_token=; Max-Age=0";
     getDeviceIdMock.mockReturnValue(undefined);
@@ -846,6 +968,7 @@ describe("api client", () => {
     await expect(refreshStoredSession()).rejects.toMatchObject({
       name: "ApiNetworkError",
     });
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
     await expect(textRequest("/openapi.yaml")).rejects.toMatchObject({
       name: "ApiNetworkError",
     });

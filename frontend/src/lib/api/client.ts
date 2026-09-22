@@ -529,6 +529,10 @@ export function hasRefreshCookieHint(): boolean {
   return Boolean(readCsrfToken());
 }
 
+function isDefinitiveRefreshRejection(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
 export async function refreshStoredSession(): Promise<AuthResponseBody | null> {
   if (refreshSessionPromise) {
     return refreshSessionPromise;
@@ -573,12 +577,17 @@ export async function refreshStoredSession(): Promise<AuthResponseBody | null> {
       throw toNetworkError(request, error);
     }
 
-    if (!response.ok) {
+    if (isDefinitiveRefreshRejection(response.status)) {
       clearStoredSession();
       return null;
     }
 
     const payload = await readApiPayload(response, request);
+
+    if (!response.ok) {
+      throw toApiError(response, payload, request);
+    }
+
     const nextSession = unwrapApiResponse<AuthResponseBody>(payload, request);
     writeStoredSession(nextSession);
     return nextSession;
