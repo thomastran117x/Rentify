@@ -12,6 +12,7 @@ import {
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
 import BadRequestError from "@/errors/http/bad-request.error";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -68,6 +69,58 @@ function hasErrorCode(
     key in error &&
     (error as Record<string, unknown>)[key] === value
   );
+}
+
+/**
+ * The blob no longer has the ETag a download was made conditional on: it was
+ * written again after the caller last read its properties.
+ */
+export class BlobChangedError extends Error {
+  constructor() {
+    super("The blob changed since its properties were read.");
+    this.name = "BlobChangedError";
+  }
+}
+
+export interface DownloadBlobOptions {
+  /** Only download while the blob still has this ETag (BlobChangedError). */
+  ifMatch?: string;
+  /**
+   * Refuse a blob larger than this (PayloadTooLargeError), without reading
+   * more than one byte past it.
+   */
+  maxBytes?: number;
+}
+
+/**
+ * Buffers a download stream, giving up as soon as it passes maxBytes. Ending
+ * the iteration early destroys the stream, so the rest is never read.
+ */
+async function readDownloadStream(
+  stream: NodeJS.ReadableStream,
+  maxBytes: number | undefined,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let receivedBytes = 0;
+
+  for await (const chunk of stream) {
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    receivedBytes += buffer.byteLength;
+
+    if (maxBytes !== undefined && receivedBytes > maxBytes) {
+      throw blobTooLarge(maxBytes);
+    }
+
+    chunks.push(buffer);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+function blobTooLarge(maxBytes: number): PayloadTooLargeError {
+  return new PayloadTooLargeError("Blob is larger than the allowed maximum.", {
+    maxBytes,
+  });
 }
 
 /**
@@ -250,33 +303,74 @@ export class BlobService {
     }
   }
 
-  async downloadBlob(blobName: string): Promise<{
+  /**
+   * Reads a whole blob into memory. With maxBytes, a single ranged GET asks for
+   * at most one byte more than the limit, so an oversized blob costs at most
+   * that much to refuse. With ifMatch, the read is made conditional on the ETag
+   * so what arrives is the blob the caller already checked.
+   */
+  async downloadBlob(
+    blobName: string,
+    options: DownloadBlobOptions = {},
+  ): Promise<{
     body: Buffer;
     contentType?: string;
   }> {
-    if (this.config) {
-      const blobClient = this.createBlobClient(blobName);
+    const normalizedBlobName = this.normalizeBlobName(blobName);
+    const { ifMatch, maxBytes } = options;
 
+    if (this.config) {
       try {
-        const [body, properties] = await Promise.all([
-          blobClient.downloadToBuffer(),
-          blobClient.getProperties(),
-        ]);
+        // Not downloadToBuffer: given a count it allocates that many bytes and
+        // fails when the blob is shorter, so it cannot express "up to".
+        const response = await this.createBlobClient(
+          normalizedBlobName,
+        ).download(0, maxBytes === undefined ? undefined : maxBytes + 1, {
+          conditions: ifMatch ? { ifMatch } : undefined,
+        });
 
         return {
-          body,
-          contentType: properties.contentType ?? undefined,
+          body: response.readableStreamBody
+            ? await readDownloadStream(response.readableStreamBody, maxBytes)
+            : Buffer.alloc(0),
+          contentType: response.contentType ?? undefined,
         };
       } catch (error) {
         if (hasErrorCode(error, "statusCode", 404)) {
           throw new ResourceNotFoundError("Blob not found.");
         }
 
+        if (hasErrorCode(error, "statusCode", 412)) {
+          throw new BlobChangedError();
+        }
+
+        // A range starting at 0 is only unsatisfiable for an empty blob.
+        if (hasErrorCode(error, "statusCode", 416)) {
+          return { body: Buffer.alloc(0) };
+        }
+
         throw error;
       }
     }
 
-    const localBlob = await this.readLocalBlob(blobName);
+    // Checked before reading, so an oversized or replaced file is never
+    // loaded. The same conditions as Azure, so both paths behave alike.
+    if (ifMatch !== undefined || maxBytes !== undefined) {
+      const properties = await this.getProperties(normalizedBlobName);
+
+      if (ifMatch !== undefined && properties.etag !== ifMatch) {
+        throw new BlobChangedError();
+      }
+
+      if (
+        maxBytes !== undefined &&
+        (properties.contentLength ?? 0) > maxBytes
+      ) {
+        throw blobTooLarge(maxBytes);
+      }
+    }
+
+    const localBlob = await this.readLocalBlob(normalizedBlobName);
     return {
       body: localBlob.body,
       contentType: localBlob.contentType,
@@ -291,10 +385,10 @@ export class BlobService {
     blobName: string;
     blobUrl: string;
   }> {
-    // Trusted server-side path: the only caller is thumbnail generation, which
-    // hands us bytes sharp just encoded. The image allow-list and byte
-    // validation would be re-checking output we produced ourselves, so this
-    // keeps the generic content-type check.
+    // Trusted server-side path: its callers, thumbnail generation and the
+    // media processing worker, hand us bytes sharp just encoded. The image
+    // allow-list and byte validation would be re-checking output we produced
+    // ourselves, so this keeps the generic content-type check.
     const contentType = this.normalizeContentType(input.contentType);
 
     if (this.config) {

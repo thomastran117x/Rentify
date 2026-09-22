@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 import BadRequestError from "@/errors/http/bad-request.error";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { CreateBlobUploadUrlInput } from "@/features/blob/blob.model";
-import { BlobService } from "@/features/blob/blob.service";
+import {
+  BlobChangedError,
+  BlobService,
+  type DownloadBlobOptions,
+} from "@/features/blob/blob.service";
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
@@ -129,7 +134,7 @@ export interface PersistenceTestStubs {
     >;
     downloadBlob: jest.Mock<
       Promise<{ body: Buffer; contentType?: string }>,
-      [string]
+      [string, DownloadBlobOptions?]
     >;
     uploadBuffer: jest.Mock<
       Promise<{ blobName: string; blobUrl: string }>,
@@ -950,16 +955,29 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
           etag: blobEtagFor(stored),
         };
       }),
-      downloadBlob: jest.fn(async (blobName: string) => {
-        const stored = blobStorage.get(blobName);
-        if (!stored) {
-          throw new ResourceNotFoundError("Blob not found.");
-        }
-        return {
-          body: Buffer.from(stored.body),
-          contentType: stored.contentType,
-        };
-      }),
+      downloadBlob: jest.fn(
+        async (blobName: string, options: DownloadBlobOptions = {}) => {
+          const stored = blobStorage.get(blobName);
+          if (!stored) {
+            throw new ResourceNotFoundError("Blob not found.");
+          }
+          if (options.ifMatch && options.ifMatch !== blobEtagFor(stored)) {
+            throw new BlobChangedError();
+          }
+          if (
+            options.maxBytes !== undefined &&
+            stored.body.byteLength > options.maxBytes
+          ) {
+            throw new PayloadTooLargeError(
+              "Blob is larger than the allowed maximum.",
+            );
+          }
+          return {
+            body: Buffer.from(stored.body),
+            contentType: stored.contentType,
+          };
+        },
+      ),
       uploadBuffer: jest.fn(
         async (input: {
           blobName: string;

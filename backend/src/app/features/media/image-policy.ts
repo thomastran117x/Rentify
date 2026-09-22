@@ -109,6 +109,13 @@ export function normalizeImageContentType(
   return normalized;
 }
 
+/** The refusal for an image over MAX_IMAGE_SIZE_BYTES, as the client sees it. */
+export function describeImageSizeLimit(): string {
+  const { maxSizeBytes } = environment.getImageUploadsConfig();
+
+  return `Images must be ${formatByteLimit(maxSizeBytes)} or smaller.`;
+}
+
 /**
  * Checks a byte length against MAX_IMAGE_SIZE_BYTES. Used both for the size a
  * client declares when asking for an upload URL and for the real length of an
@@ -122,13 +129,10 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   }
 
   if (sizeBytes > maxSizeBytes) {
-    throw new PayloadTooLargeError(
-      `Images must be ${formatByteLimit(maxSizeBytes)} or smaller.`,
-      {
-        sizeBytes,
-        maxSizeBytes,
-      },
-    );
+    throw new PayloadTooLargeError(describeImageSizeLimit(), {
+      sizeBytes,
+      maxSizeBytes,
+    });
   }
 }
 

@@ -261,6 +261,54 @@ describe("Media persistence integration", () => {
     });
   });
 
+  it("rejects an upload overwritten after it was completed", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { mediaId, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
+    await putBytes(upload.url, await createPngFixture(10, 6));
+    const completed = await request(`/media/${mediaId}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+    expect(completed.status).toBe(202);
+
+    // What a second PUT with a still-valid Azure SAS does: the local route
+    // refuses it once the item has left pending_upload, Azure does not.
+    expect(
+      (await putBytes(upload.url, await createPngFixture(10, 6))).status,
+    ).toBe(400);
+    persistenceApp.stubs.blobService.storage.set(quarantinedName, {
+      contentType: "text/plain",
+      body: Buffer.from("x".repeat(4096)),
+    });
+    persistenceApp.stubs.blobService.downloadBlob.mockClear();
+
+    await persistenceApp.container
+      .resolve(containerTokens.mediaProcessingService)
+      .process(mediaId);
+
+    const read = await request(`/media/${mediaId}`, {
+      headers: owner.headers(),
+    });
+    await expect(readData<{ media: MediaView }>(read)).resolves.toMatchObject({
+      media: {
+        status: "rejected",
+        url: null,
+        rejectionReason: "The upload changed after it was completed.",
+      },
+    });
+    expect(
+      persistenceApp.stubs.blobService.downloadBlob,
+    ).not.toHaveBeenCalled();
+    expect(
+      persistenceApp.stubs.blobService.storage.has(
+        `media/images/${owner.userId}/${mediaId}.webp`,
+      ),
+    ).toBe(false);
+  });
+
   it("rejects an empty upload when it is completed", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
