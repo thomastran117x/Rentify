@@ -24,6 +24,19 @@ const SHARP_FORMAT_CONTENT_TYPES: Record<string, SupportedImageContentType> = {
   webp: "image/webp",
 };
 
+/**
+ * How strictly sharp decodes an upload, at validation and at re-encoding alike.
+ *
+ * "error", not "warning". libjpeg recovers from some damage and only warns about
+ * it, such as stray bytes between markers or a short entropy segment, and real
+ * phone exports, editors, and messaging apps produce such files. "warning"
+ * would refuse them although they decode to a usable image. Truncation that
+ * matters (a missing end of image, or pixel data cut short) is still an error,
+ * and the full-decode pass below catches it. Revisit only if a corpus of real
+ * uploads shows "warning" accepts every legitimate sample.
+ */
+export const IMAGE_DECODE_FAIL_ON = "error" as const;
+
 const IMAGE_FORMAT_LABELS: Record<SupportedImageContentType, string> = {
   "image/jpeg": "JPEG",
   "image/png": "PNG",
@@ -189,7 +202,7 @@ export async function assertImageBytes(
   try {
     metadata = await sharp(body, {
       limitInputPixels: false,
-      failOn: "error",
+      failOn: IMAGE_DECODE_FAIL_ON,
     }).metadata();
   } catch {
     throw new UnsupportedMediaTypeError(
@@ -254,7 +267,7 @@ export async function assertImageBytes(
     // in tiles rather than materialising the whole raster.
     await sharp(body, {
       limitInputPixels: policy.maxPixels,
-      failOn: "error",
+      failOn: IMAGE_DECODE_FAIL_ON,
     }).stats();
   } catch {
     throw new UnsupportedMediaTypeError(

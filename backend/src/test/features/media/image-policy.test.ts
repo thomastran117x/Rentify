@@ -1,4 +1,5 @@
 import {
+  IMAGE_DECODE_FAIL_ON,
   assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -11,11 +12,13 @@ import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import sharp from "sharp";
 import {
+  appendTrailingBytes,
   corruptImageTail,
   createAnimatedWebpFixture,
   createApngFixture,
   createGifFixture,
   createJpegFixture,
+  createJpegWithExtraneousBytesFixture,
   createPngFixture,
   createSingleFrameAnimatedWebpFixture,
   createWebpFixture,
@@ -313,6 +316,42 @@ describe("assertImageBytes", () => {
     await expect(assertImageBytes(oversized, "image/png")).rejects.toThrow(
       UnprocessableEntityError,
     );
+  });
+});
+
+describe("decode strictness", () => {
+  it("accepts a JPEG that libjpeg recovers from with a warning", async () => {
+    const jpeg = await createJpegWithExtraneousBytesFixture();
+
+    expect(IMAGE_DECODE_FAIL_ON).toBe("error");
+    await expect(assertImageBytes(jpeg, "image/jpeg")).resolves.toBe(
+      "image/jpeg",
+    );
+    // Why the level is not "warning": it refuses this usable image.
+    await expect(sharp(jpeg, { failOn: "warning" }).stats()).rejects.toThrow(
+      /extraneous bytes/,
+    );
+  });
+
+  it("accepts bytes after the end of the image", async () => {
+    for (const [body, contentType] of [
+      [appendTrailingBytes(await createJpegFixture(16, 16)), "image/jpeg"],
+      [appendTrailingBytes(await createPngFixture(16, 16)), "image/png"],
+      [appendTrailingBytes(await createWebpFixture(16, 16)), "image/webp"],
+    ] as const) {
+      await expect(assertImageBytes(body, contentType)).resolves.toBe(
+        contentType,
+      );
+    }
+  });
+
+  it("still rejects a JPEG cut short", async () => {
+    // A flat test JPEG is mostly header, so cut only the end of its scan.
+    const jpeg = await createJpegFixture(64, 64);
+
+    await expect(
+      assertImageBytes(jpeg.subarray(0, jpeg.length - 16), "image/jpeg"),
+    ).rejects.toThrow("Uploaded image data is truncated or corrupt.");
   });
 });
 

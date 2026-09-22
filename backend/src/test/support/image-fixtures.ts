@@ -53,6 +53,23 @@ export function corruptImageTail(image: Buffer): Buffer {
   return damaged;
 }
 
+// A JPEG libjpeg decodes with a warning: stray bytes before its start-of-scan
+// marker, as some encoders leave. It separates failOn "error" from "warning".
+export async function createJpegWithExtraneousBytesFixture(): Promise<Buffer> {
+  const jpeg = await createJpegFixture(16, 16);
+  const startOfScan = jpeg.indexOf(Buffer.from([0xff, 0xda]));
+
+  return Buffer.concat([
+    jpeg.subarray(0, startOfScan),
+    Buffer.from([1, 2, 3, 4]),
+    jpeg.subarray(startOfScan),
+  ]);
+}
+
+export function appendTrailingBytes(image: Buffer): Buffer {
+  return Buffer.concat([image, Buffer.from("trailing bytes after the image")]);
+}
+
 // A format sharp can decode but the policy deliberately excludes, used to prove
 // the allow-list is narrower than "whatever sharp accepts".
 export function createGifFixture(width = 4, height = 4): Promise<Buffer> {
