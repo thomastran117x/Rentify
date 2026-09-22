@@ -176,9 +176,10 @@ returned on download. This was measured against a real account: a SAS issued
 for `image/png` accepted a JPEG and a 29-byte text file. So every upload,
 whichever storage path it took, is validated by the worker instead.
 
-Before downloading anything, the worker reads the blob's properties. It rejects
-an empty or oversized blob, and a blob whose ETag no longer matches the one
-recorded at completion ("The upload changed after it was completed."). The
+Before downloading anything, the worker reads the blob's properties. It
+rejects a blob whose ETag no longer matches the one recorded at completion
+("The upload changed after it was completed."), checked first because a
+replacement is often also oversized, and then an empty or oversized blob. The
 download is then conditional on that ETag (`If-Match`) and asks for at most one
 byte past the size limit, so a replaced or oversized blob is refused without
 being buffered. A 412 during the download is the same final rejection. Rows

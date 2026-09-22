@@ -323,6 +323,8 @@ describe("MediaProcessingService", () => {
       const record = await quarantine(context, await createPngFixture());
       await overwrite(context, record);
       const download = jest.spyOn(context.blobService, "downloadBlob");
+      // The replacement is also oversized; the change is still the reason.
+      process.env.MAX_IMAGE_SIZE_BYTES = "1024";
 
       await expect(context.service.process(record.id)).resolves.toBeUndefined();
 

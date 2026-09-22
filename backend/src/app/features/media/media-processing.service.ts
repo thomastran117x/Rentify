@@ -196,6 +196,14 @@ export class MediaProcessingService {
       throw error;
     }
 
+    // First, because it is the accurate reason: an overwrite is often also
+    // oversized, and the client should hear that its upload was replaced.
+    // Rows completed before the ETag was recorded skip this; their size is
+    // still held to the policy below and by the capped download.
+    if (record.originalEtag && properties.etag !== record.originalEtag) {
+      return { rejection: UPLOAD_CHANGED_REASON };
+    }
+
     const sizeBytes = properties.contentLength ?? 0;
 
     try {
@@ -207,12 +215,6 @@ export class MediaProcessingService {
       }
 
       throw error;
-    }
-
-    // Rows completed before the ETag was recorded skip this; their size is
-    // still held to the policy above and by the capped download below.
-    if (record.originalEtag && properties.etag !== record.originalEtag) {
-      return { rejection: UPLOAD_CHANGED_REASON };
     }
 
     try {
