@@ -189,7 +189,11 @@ and size and checks the same conditions before reading the file.
 
 The worker decodes the bytes with sharp and matches the real format against the declared
 type and today's allow-list. It holds the length and dimensions to the policy
-and decodes every pixel, which catches truncated data. An accepted image is
+and decodes every pixel, which catches truncated data. Animated and multi-page
+images are rejected ("Animated or multi-page images are not supported."),
+because only the first frame would survive. An APNG is the exception: libvips
+reads it as a static PNG and does not report its frames, so it is accepted and
+published as its first frame. An accepted image is
 re-encoded to WebP. That applies its EXIF orientation, drops metadata such as
 EXIF and GPS, and means what is served was produced by the worker, not supplied
 by the client. A policy failure rejects the item with its reason. Both outcomes

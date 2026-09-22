@@ -12,9 +12,12 @@ import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.erro
 import sharp from "sharp";
 import {
   corruptImageTail,
+  createAnimatedWebpFixture,
+  createApngFixture,
   createGifFixture,
   createJpegFixture,
   createPngFixture,
+  createSingleFrameAnimatedWebpFixture,
   createWebpFixture,
   truncateImage,
 } from "../../support/image-fixtures";
@@ -263,6 +266,44 @@ describe("assertImageBytes", () => {
         "Uploaded image data is truncated or corrupt.",
       );
     }
+  });
+
+  it("rejects an animated image as final", async () => {
+    const error = await assertImageBytes(
+      await createAnimatedWebpFixture(3),
+      "image/webp",
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(UnprocessableEntityError);
+    expect((error as UnprocessableEntityError).message).toBe(
+      "Animated or multi-page images are not supported.",
+    );
+    expect((error as UnprocessableEntityError).details).toEqual({ pages: 3 });
+    expect(isImagePolicyRejection(error)).toBe(true);
+  });
+
+  it("accepts a single-frame image in an animated container", async () => {
+    const webp = await createSingleFrameAnimatedWebpFixture();
+
+    await expect(sharp(webp).metadata()).resolves.toMatchObject({ pages: 1 });
+    await expect(assertImageBytes(webp, "image/webp")).resolves.toBe(
+      "image/webp",
+    );
+  });
+
+  it("accepts an APNG as the static PNG libvips reads it as", async () => {
+    const apng = await createApngFixture();
+
+    // The precondition behind accepting APNG: libvips does not report its
+    // frames. If sharp starts to, the pages check will reject it and this test
+    // should be revisited rather than deleted.
+    const metadata = await sharp(apng).metadata();
+    expect(metadata.format).toBe("png");
+    expect(metadata.pages).toBeUndefined();
+
+    await expect(assertImageBytes(apng, "image/png")).resolves.toBe(
+      "image/png",
+    );
   });
 
   it("rejects images exceeding the total pixel budget", async () => {

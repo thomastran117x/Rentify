@@ -173,6 +173,11 @@ export function assertImageNotEmpty(sizeBytes: number): void {
  * be stored and then fail when rendered or thumbnailed. The full decode only
  * runs once the pixel budget has passed, so it is bounded, and it keeps
  * limitInputPixels as a second guard against a decompression bomb.
+ *
+ * Animated and multi-page images are refused, using the frame count from the
+ * header. An APNG is the exception: libvips reads it as a static PNG and does
+ * not report its frames, so it is accepted and becomes its first frame.
+ * Refusing it would mean parsing its acTL chunk by hand.
  */
 export async function assertImageBytes(
   body: Buffer,
@@ -204,6 +209,17 @@ export async function assertImageBytes(
         detected: metadata.format ?? "unknown",
         supportedContentTypes: [...SUPPORTED_IMAGE_CONTENT_TYPES],
       },
+    );
+  }
+
+  // sharp decodes only the first frame unless asked otherwise, so an animation
+  // accepted here would be published as a still with no explanation.
+  const pages = metadata.pages ?? 1;
+
+  if (pages > 1) {
+    throw new UnprocessableEntityError(
+      "Animated or multi-page images are not supported.",
+      { pages },
     );
   }
 
