@@ -3,8 +3,8 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { CreateBlobUploadUrlInput } from "@/features/blob/blob.model";
+import BlobChangedError from "@/errors/blob-changed.error";
 import {
-  BlobChangedError,
   BlobService,
   type DownloadBlobOptions,
 } from "@/features/blob/blob.service";

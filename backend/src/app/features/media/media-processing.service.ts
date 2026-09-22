@@ -4,10 +4,8 @@ import { loggerFactory } from "@/configuration/logging";
 import type { Uuid } from "@/configuration/validation/uuid";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import {
-  BlobChangedError,
-  type BlobService,
-} from "@/features/blob/blob.service";
+import BlobChangedError from "@/errors/blob-changed.error";
+import type { BlobService } from "@/features/blob/blob.service";
 import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {

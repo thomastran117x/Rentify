@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
-import { BlobChangedError, BlobService } from "@/features/blob/blob.service";
+import BlobChangedError from "@/errors/blob-changed.error";
+import { BlobService } from "@/features/blob/blob.service";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";

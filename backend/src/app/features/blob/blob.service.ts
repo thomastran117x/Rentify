@@ -11,6 +11,7 @@ import {
 } from "@azure/storage-blob";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
+import BlobChangedError from "@/errors/blob-changed.error";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
@@ -69,17 +70,6 @@ function hasErrorCode(
     key in error &&
     (error as Record<string, unknown>)[key] === value
   );
-}
-
-/**
- * The blob no longer has the ETag a download was made conditional on: it was
- * written again after the caller last read its properties.
- */
-export class BlobChangedError extends Error {
-  constructor() {
-    super("The blob changed since its properties were read.");
-    this.name = "BlobChangedError";
-  }
 }
 
 export interface DownloadBlobOptions {

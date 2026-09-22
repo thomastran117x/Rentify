@@ -1,7 +1,8 @@
 import sharp from "sharp";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
-import { BlobChangedError, BlobService } from "@/features/blob/blob.service";
+import BlobChangedError from "@/errors/blob-changed.error";
+import { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord, MediaStatus } from "@/features/media/media.model";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
