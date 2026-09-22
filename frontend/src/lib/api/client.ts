@@ -5,6 +5,7 @@ import { getDeviceId, getDevicePlatform } from "@/lib/auth/device";
 import {
   clearStoredSession,
   readStoredSession,
+  subscribeToStoredSession,
   writeStoredSession,
 } from "@/lib/auth/storage";
 import type { AuthResponseBody } from "@/lib/auth/types";
@@ -47,6 +48,8 @@ interface PerformJsonRequestOptions<TBody> extends JsonRequestOptions<TBody> {
 const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
 let refreshSessionPromise: Promise<AuthResponseBody | null> | null = null;
+let refreshSessionController: AbortController | null = null;
+let refreshInvalidation = 0;
 const UNKNOWN_REQUEST_CONTEXT: ApiRequestContext = {
   method: "GET",
   path: "unknown",
@@ -529,13 +532,33 @@ export function hasRefreshCookieHint(): boolean {
   return Boolean(readCsrfToken());
 }
 
+function isDefinitiveRefreshRejection(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+export function cancelStoredSessionRefresh(): void {
+  refreshInvalidation += 1;
+  refreshSessionController?.abort();
+}
+
 export async function refreshStoredSession(): Promise<AuthResponseBody | null> {
   if (refreshSessionPromise) {
     return refreshSessionPromise;
   }
 
   refreshSessionPromise = (async () => {
-    const session = readStoredSession();
+    const initiatingSession = readStoredSession();
+    const initiatingInvalidation = refreshInvalidation;
+    const controller = new AbortController();
+    refreshSessionController = controller;
+    const isStale = () =>
+      refreshInvalidation !== initiatingInvalidation ||
+      readStoredSession() !== initiatingSession;
+    const unsubscribe = subscribeToStoredSession(() => {
+      if (isStale()) {
+        controller.abort();
+      }
+    });
     const deviceId = getDeviceId();
     const devicePlatform = getDevicePlatform();
     const csrfToken = readCsrfToken();
@@ -548,40 +571,67 @@ export async function refreshStoredSession(): Promise<AuthResponseBody | null> {
     let response: Response;
 
     try {
-      response = await fetch(request.requestUrl, {
-        method: "POST",
-        headers: {
-          accept: "application/json",
-          "content-type": "application/json",
-          ...getClientAppHeader(),
-          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-          ...(deviceId ? { "x-device-id": deviceId } : {}),
-          ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          ...(session?.refreshToken
-            ? { refreshToken: session.refreshToken }
-            : {}),
-        }),
-      });
-    } catch (error) {
-      if (isAbortError(error)) {
-        throw error;
+      try {
+        response = await fetch(request.requestUrl, {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            ...getClientAppHeader(),
+            ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+            ...(deviceId ? { "x-device-id": deviceId } : {}),
+            ...(devicePlatform ? { "x-device-platform": devicePlatform } : {}),
+          },
+          credentials: "include",
+          signal: controller.signal,
+          body: JSON.stringify({
+            ...(initiatingSession?.refreshToken
+              ? { refreshToken: initiatingSession.refreshToken }
+              : {}),
+          }),
+        });
+      } catch (error) {
+        if (isAbortError(error)) {
+          if (isStale()) {
+            return null;
+          }
+
+          throw error;
+        }
+
+        throw toNetworkError(request, error);
       }
 
-      throw toNetworkError(request, error);
-    }
+      if (isStale()) {
+        return null;
+      }
 
-    if (!response.ok) {
-      clearStoredSession();
-      return null;
-    }
+      if (isDefinitiveRefreshRejection(response.status)) {
+        clearStoredSession();
+        return null;
+      }
 
-    const payload = await readApiPayload(response, request);
-    const nextSession = unwrapApiResponse<AuthResponseBody>(payload, request);
-    writeStoredSession(nextSession);
-    return nextSession;
+      const payload = await readApiPayload(response, request);
+
+      if (!response.ok) {
+        throw toApiError(response, payload, request);
+      }
+
+      const nextSession = unwrapApiResponse<AuthResponseBody>(payload, request);
+
+      if (isStale()) {
+        return null;
+      }
+
+      writeStoredSession(nextSession);
+      return nextSession;
+    } finally {
+      unsubscribe();
+
+      if (refreshSessionController === controller) {
+        refreshSessionController = null;
+      }
+    }
   })();
 
   try {

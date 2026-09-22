@@ -14,6 +14,7 @@ const {
   optionalMock,
   publicMock,
   refreshMock,
+  cancelRefreshMock,
   hintMock,
   deviceMock,
   tokenListMock,
@@ -24,6 +25,7 @@ const {
   optionalMock: vi.fn(),
   publicMock: vi.fn(),
   refreshMock: vi.fn(),
+  cancelRefreshMock: vi.fn(),
   hintMock: vi.fn(),
   deviceMock: vi.fn(() => "device-1"),
   tokenListMock: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock("@/lib/api/client", () => ({
   optionalAuthJson: optionalMock,
   publicJson: publicMock,
   refreshStoredSession: refreshMock,
+  cancelStoredSessionRefresh: cancelRefreshMock,
   hasRefreshCookieHint: hintMock,
 }));
 vi.mock("@/lib/auth/device", () => ({ getDeviceId: deviceMock }));
@@ -101,10 +104,12 @@ describe("auth API request contracts", () => {
       "/auth/oauth/google/link",
       expect.objectContaining({ deviceId: "device-1" }),
     );
+    expect(cancelRefreshMock).toHaveBeenCalledTimes(6);
   });
 
   it("covers recovery, device, provider, session, and PAT endpoints", () => {
     authApi.logout();
+    expect(cancelRefreshMock).toHaveBeenCalledTimes(1);
     authApi.verifyLocalSession();
     authApi.linkedOAuthProviders();
     authApi.unlinkOAuthProvider("apple");

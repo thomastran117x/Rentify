@@ -4,6 +4,7 @@ import type { AuthResponseBody } from "@/lib/auth/types";
 const getDeviceIdMock = vi.fn();
 const getDevicePlatformMock = vi.fn();
 const readStoredSessionMock = vi.fn();
+const subscribeToStoredSessionMock = vi.fn();
 const writeStoredSessionMock = vi.fn();
 const clearStoredSessionMock = vi.fn();
 
@@ -14,6 +15,7 @@ vi.mock("@/lib/auth/device", () => ({
 
 vi.mock("@/lib/auth/storage", () => ({
   readStoredSession: readStoredSessionMock,
+  subscribeToStoredSession: subscribeToStoredSessionMock,
   writeStoredSession: writeStoredSessionMock,
   clearStoredSession: clearStoredSessionMock,
 }));
@@ -41,6 +43,7 @@ describe("authApi", () => {
     vi.clearAllMocks();
     getDeviceIdMock.mockReturnValue("device-1");
     getDevicePlatformMock.mockReturnValue("web");
+    subscribeToStoredSessionMock.mockReturnValue(() => undefined);
     readStoredSessionMock.mockReturnValue({
       accessToken: "old-access-token",
       refreshToken: "old-refresh-token",

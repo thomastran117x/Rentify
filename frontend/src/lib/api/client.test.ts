@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const getDeviceIdMock = vi.fn();
 const getDevicePlatformMock = vi.fn();
 const readStoredSessionMock = vi.fn();
+const subscribeToStoredSessionMock = vi.fn();
 const writeStoredSessionMock = vi.fn();
 const clearStoredSessionMock = vi.fn();
 
@@ -13,6 +14,7 @@ vi.mock("@/lib/auth/device", () => ({
 
 vi.mock("@/lib/auth/storage", () => ({
   readStoredSession: readStoredSessionMock,
+  subscribeToStoredSession: subscribeToStoredSessionMock,
   writeStoredSession: writeStoredSessionMock,
   clearStoredSession: clearStoredSessionMock,
 }));
@@ -53,6 +55,7 @@ describe("api client", () => {
     vi.clearAllMocks();
     getDeviceIdMock.mockReturnValue("device-1");
     getDevicePlatformMock.mockReturnValue("web");
+    subscribeToStoredSessionMock.mockReturnValue(() => undefined);
     readStoredSessionMock.mockReturnValue({
       accessToken: "access-token",
       refreshToken: "refresh-token",
@@ -673,6 +676,7 @@ describe("api client", () => {
       }));
       vi.doMock("@/lib/auth/storage", () => ({
         readStoredSession: readStoredSessionMock,
+        subscribeToStoredSession: subscribeToStoredSessionMock,
         writeStoredSession: writeStoredSessionMock,
         clearStoredSession: clearStoredSessionMock,
       }));
@@ -791,6 +795,195 @@ describe("api client", () => {
     expect(clearStoredSessionMock).toHaveBeenCalled();
   });
 
+  it.each([400, 401, 403, 422])(
+    "clears the stored session when refresh receives definitive status %i",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(null, { status })),
+      );
+      const { refreshStoredSession } = await import("./client");
+
+      await expect(refreshStoredSession()).resolves.toBeNull();
+      expect(clearStoredSessionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    [408, "ApiClientError"],
+    [429, "ApiRateLimitError"],
+    [503, "ApiServerError"],
+  ])(
+    "preserves the stored session when refresh receives transient status %i",
+    async (status, errorName) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                success: false,
+                message: "Temporarily unavailable.",
+                data: null,
+                error: {
+                  code: status === 429 ? "RATE_LIMITED" : "TEMPORARY_FAILURE",
+                },
+                meta: {
+                  requestId: `refresh-${status}`,
+                },
+              }),
+              {
+                status,
+                headers: { "content-type": "application/json" },
+              },
+            ),
+        ),
+      );
+      const { refreshStoredSession } = await import("./client");
+
+      await expect(refreshStoredSession()).rejects.toMatchObject({
+        name: errorName,
+        status,
+      });
+      expect(clearStoredSessionMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves the stored session when refresh receives a malformed success payload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ accessToken: "missing-envelope" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    );
+    const { refreshStoredSession } = await import("./client");
+
+    await expect(refreshStoredSession()).rejects.toMatchObject({
+      name: "ApiProtocolError",
+    });
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates concurrent refresh requests", async () => {
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { refreshStoredSession } = await import("./client");
+
+    const firstRefresh = refreshStoredSession();
+    const secondRefresh = refreshStoredSession();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resolveRefresh?.(
+      new Response(
+        JSON.stringify({
+          success: true,
+          message: "ok",
+          data: {
+            accessToken: "replacement-access-token",
+            device: {
+              known: true,
+              knownByIp: false,
+            },
+            user: {
+              id: "user-1",
+              email: "person@example.com",
+              username: "person",
+              role: "user",
+            },
+          },
+          error: null,
+          meta: {
+            requestId: "refresh-concurrent",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([
+      expect.objectContaining({ accessToken: "replacement-access-token" }),
+      expect.objectContaining({ accessToken: "replacement-access-token" }),
+    ]);
+    expect(writeStoredSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts and discards a refresh response after session replacement", async () => {
+    const initiatingSession = {
+      accessToken: "old-access-token",
+      refreshToken: "old-refresh-token",
+    };
+    const replacementSession = {
+      accessToken: "new-login-access-token",
+      refreshToken: "new-login-refresh-token",
+    };
+    let currentSession = initiatingSession;
+    let onSessionChange: (() => void) | undefined;
+    let resolveRefresh: ((response: Response) => void) | undefined;
+    let refreshSignal: AbortSignal | undefined;
+    readStoredSessionMock.mockImplementation(() => currentSession);
+    subscribeToStoredSessionMock.mockImplementation((listener: () => void) => {
+      onSessionChange = listener;
+      return () => undefined;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string | URL | Request, init?: RequestInit) =>
+          new Promise<Response>((resolve) => {
+            refreshSignal = init?.signal ?? undefined;
+            resolveRefresh = resolve;
+          }),
+      ),
+    );
+    const { refreshStoredSession } = await import("./client");
+
+    const refresh = refreshStoredSession();
+    currentSession = replacementSession;
+    onSessionChange?.();
+
+    expect(refreshSignal?.aborted).toBe(true);
+    resolveRefresh?.(createRefreshSuccessResponse("stale-access-token"));
+    await expect(refresh).resolves.toBeNull();
+    expect(writeStoredSessionMock).not.toHaveBeenCalled();
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels an in-flight refresh when logout starts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string | URL | Request, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(
+                new DOMException("The operation was aborted.", "AbortError"),
+              );
+            });
+          }),
+      ),
+    );
+    const { cancelStoredSessionRefresh, refreshStoredSession } = await import(
+      "./client"
+    );
+
+    const refresh = refreshStoredSession();
+    cancelStoredSessionRefresh();
+
+    await expect(refresh).resolves.toBeNull();
+    expect(writeStoredSessionMock).not.toHaveBeenCalled();
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
+  });
+
   it("refreshes without optional browser and session headers", async () => {
     document.cookie = "csrf_token=; Max-Age=0";
     getDeviceIdMock.mockReturnValue(undefined);
@@ -846,6 +1039,7 @@ describe("api client", () => {
     await expect(refreshStoredSession()).rejects.toMatchObject({
       name: "ApiNetworkError",
     });
+    expect(clearStoredSessionMock).not.toHaveBeenCalled();
     await expect(textRequest("/openapi.yaml")).rejects.toMatchObject({
       name: "ApiNetworkError",
     });
@@ -882,3 +1076,30 @@ describe("api client", () => {
     });
   });
 });
+
+function createRefreshSuccessResponse(accessToken: string): Response {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "ok",
+      data: {
+        accessToken,
+        device: {
+          known: true,
+          knownByIp: false,
+        },
+        user: {
+          id: "user-1",
+          email: "person@example.com",
+          username: "person",
+          role: "user",
+        },
+      },
+      error: null,
+      meta: {
+        requestId: "refresh-race",
+      },
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
