@@ -47,15 +47,20 @@ export interface CreateMediaUploadInput {
   scope: MediaScope;
 }
 
+/** A write-only credential for the quarantined upload. */
 export interface MediaUploadInstructions {
   method: "PUT";
-  uploadUrl: string;
+  url: string;
   expiresAt: string;
   headers: Record<string, string>;
 }
 
+/**
+ * Starting an upload returns only the media id and where to PUT the bytes.
+ * There is nothing to display until `get` reports the image `ready`.
+ */
 export interface CreatedMediaUpload {
-  media: MediaView;
+  mediaId: string;
   upload: MediaUploadInstructions;
 }
 
@@ -161,13 +166,13 @@ export async function uploadImage(
   const timeoutMs = options.timeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS;
 
   options.onStageChange?.("uploading");
-  const { media, upload } = await mediaApi.createUpload({
+  const { mediaId, upload } = await mediaApi.createUpload({
     filename: file.name,
     contentType: resolveUploadContentType(file),
     sizeBytes: file.size,
     scope: options.scope,
   });
-  const response = await fetch(upload.uploadUrl, {
+  const response = await fetch(upload.url, {
     method: upload.method,
     headers: upload.headers,
     body: file,
@@ -178,7 +183,7 @@ export async function uploadImage(
   }
 
   options.onStageChange?.("processing");
-  let current = await mediaApi.complete(media.id);
+  let current = await mediaApi.complete(mediaId);
   const startedAt = now();
   let attempt = 0;
 
@@ -191,7 +196,7 @@ export async function uploadImage(
 
     await sleep(delays[Math.min(attempt, delays.length - 1)] ?? 1000);
     attempt += 1;
-    current = await mediaApi.get(media.id);
+    current = await mediaApi.get(mediaId);
   }
 
   if (current.status === "rejected" || !current.url) {

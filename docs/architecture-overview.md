@@ -111,7 +111,8 @@ from blob names and are never trusted as input.
 
 ```text
 POST /media/uploads          row: pending_upload   (credential signed after the row exists)
-PUT  <upload.uploadUrl>      bytes -> quarantine/images/<userId>/<mediaId>
+                             returns { mediaId, upload: { method, url, expiresAt, headers } }
+PUT  <upload.url>            bytes -> quarantine/images/<userId>/<mediaId>
 POST /media/{id}/complete    row: uploaded, media.processing job queued
 media-processing-worker      row: processing -> ready | rejected
                              ready: media/images/<userId>/<mediaId>.webp
@@ -143,10 +144,12 @@ name.
 **Quarantine.** The client uploads to `quarantine/images/<userId>/<mediaId>`.
 Nothing under `quarantine/` is ever displayed:
 
-- the upload response carries only a write-only upload URL, with no blob name
-  or readable URL;
+- the upload response carries only the media id and a write-only upload
+  target: no media view, blob name, or readable URL;
 - `GET /media/{id}` sets `url` only once the item is `ready`, and then to the
-  processed image;
+  processed image, so only a `ready` item can ever be rendered;
+- a media id resolves for attachment only once it is `ready` (see below), so a
+  pending upload cannot be attached to a posting or anything else;
 - the local `GET /blob/file` stand-in answers 404 for any quarantine name; and
 - `MediaService.isManagedUrl` refuses a quarantine name as an attachment
   reference.

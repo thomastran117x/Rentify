@@ -4344,7 +4344,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createMediaUpload",
       summary: "Start an image upload",
       description:
-        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The client PUTs the image bytes to `upload.uploadUrl` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no blob name or readable URL. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
+        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4364,10 +4364,10 @@ function buildOperations(): OperationDefinition[] {
           "Media upload created successfully.",
           "CreatedMediaUpload",
           {
-            media: mediaViewPendingExample,
+            mediaId: mediaIdExample,
             upload: {
               method: "PUT",
-              uploadUrl: `https://storage.example.net/rentify/quarantine/images/user-1/${mediaIdExample}?sig=abc123`,
+              url: `https://storage.example.net/rentify/quarantine/images/user-1/${mediaIdExample}?sig=abc123`,
               expiresAt: "2026-05-25T18:30:00.000Z",
               headers: {
                 "x-ms-blob-type": "BlockBlob",
@@ -10595,10 +10595,10 @@ function buildComponents(): Record<string, unknown> {
       },
       MediaUploadInstructions: {
         type: "object",
-        required: ["method", "uploadUrl", "expiresAt", "headers"],
+        required: ["method", "url", "expiresAt", "headers"],
         properties: {
           method: { type: "string", const: "PUT" },
-          uploadUrl: {
+          url: {
             type: "string",
             format: "uri",
             description: "Write-only upload target. It cannot be used to read.",
@@ -10612,9 +10612,9 @@ function buildComponents(): Record<string, unknown> {
       },
       CreatedMediaUpload: {
         type: "object",
-        required: ["media", "upload"],
+        required: ["mediaId", "upload"],
         properties: {
-          media: schemaRef("MediaView"),
+          mediaId: { type: "string", format: "uuid" },
           upload: schemaRef("MediaUploadInstructions"),
         },
       },

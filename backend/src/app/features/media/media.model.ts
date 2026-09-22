@@ -97,9 +97,10 @@ export interface MediaView {
   updatedAt: string;
 }
 
+/** A write-only credential for the quarantine upload. It cannot be read with. */
 export interface MediaUploadInstructions {
   method: "PUT";
-  uploadUrl: string;
+  url: string;
   expiresAt: string;
   headers: {
     "x-ms-blob-type": "BlockBlob";
@@ -107,8 +108,14 @@ export interface MediaUploadInstructions {
   };
 }
 
+/**
+ * The response to starting an upload: the media id and where to PUT the bytes,
+ * nothing else. There is no media view and no renderable URL here, because
+ * nothing exists to render yet; status and, once ready, the processed image's
+ * url come from GET /media/:id.
+ */
 export interface CreatedMediaUpload {
-  media: MediaView;
+  mediaId: Uuid;
   upload: MediaUploadInstructions;
 }
 
