@@ -1,4 +1,5 @@
 import {
+  IMAGE_DECODE_FAIL_ON,
   assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -11,10 +12,15 @@ import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import sharp from "sharp";
 import {
+  appendTrailingBytes,
   corruptImageTail,
+  createAnimatedWebpFixture,
+  createApngFixture,
   createGifFixture,
   createJpegFixture,
+  createJpegWithExtraneousBytesFixture,
   createPngFixture,
+  createSingleFrameAnimatedWebpFixture,
   createWebpFixture,
   truncateImage,
 } from "../../support/image-fixtures";
@@ -265,6 +271,44 @@ describe("assertImageBytes", () => {
     }
   });
 
+  it("rejects an animated image as final", async () => {
+    const error = await assertImageBytes(
+      await createAnimatedWebpFixture(3),
+      "image/webp",
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(UnprocessableEntityError);
+    expect((error as UnprocessableEntityError).message).toBe(
+      "Animated or multi-page images are not supported.",
+    );
+    expect((error as UnprocessableEntityError).details).toEqual({ pages: 3 });
+    expect(isImagePolicyRejection(error)).toBe(true);
+  });
+
+  it("accepts a single-frame image in an animated container", async () => {
+    const webp = await createSingleFrameAnimatedWebpFixture();
+
+    await expect(sharp(webp).metadata()).resolves.toMatchObject({ pages: 1 });
+    await expect(assertImageBytes(webp, "image/webp")).resolves.toBe(
+      "image/webp",
+    );
+  });
+
+  it("accepts an APNG as the static PNG libvips reads it as", async () => {
+    const apng = await createApngFixture();
+
+    // The precondition behind accepting APNG: libvips does not report its
+    // frames. If sharp starts to, the pages check will reject it and this test
+    // should be revisited rather than deleted.
+    const metadata = await sharp(apng).metadata();
+    expect(metadata.format).toBe("png");
+    expect(metadata.pages).toBeUndefined();
+
+    await expect(assertImageBytes(apng, "image/png")).resolves.toBe(
+      "image/png",
+    );
+  });
+
   it("rejects images exceeding the total pixel budget", async () => {
     const oversized = await createPngFixture(64, 64);
     process.env.MAX_IMAGE_PIXELS = "256";
@@ -272,6 +316,42 @@ describe("assertImageBytes", () => {
     await expect(assertImageBytes(oversized, "image/png")).rejects.toThrow(
       UnprocessableEntityError,
     );
+  });
+});
+
+describe("decode strictness", () => {
+  it("accepts a JPEG that libjpeg recovers from with a warning", async () => {
+    const jpeg = await createJpegWithExtraneousBytesFixture();
+
+    expect(IMAGE_DECODE_FAIL_ON).toBe("error");
+    await expect(assertImageBytes(jpeg, "image/jpeg")).resolves.toBe(
+      "image/jpeg",
+    );
+    // Why the level is not "warning": it refuses this usable image.
+    await expect(sharp(jpeg, { failOn: "warning" }).stats()).rejects.toThrow(
+      /extraneous bytes/,
+    );
+  });
+
+  it("accepts bytes after the end of the image", async () => {
+    for (const [body, contentType] of [
+      [appendTrailingBytes(await createJpegFixture(16, 16)), "image/jpeg"],
+      [appendTrailingBytes(await createPngFixture(16, 16)), "image/png"],
+      [appendTrailingBytes(await createWebpFixture(16, 16)), "image/webp"],
+    ] as const) {
+      await expect(assertImageBytes(body, contentType)).resolves.toBe(
+        contentType,
+      );
+    }
+  });
+
+  it("still rejects a JPEG cut short", async () => {
+    // A flat test JPEG is mostly header, so cut only the end of its scan.
+    const jpeg = await createJpegFixture(64, 64);
+
+    await expect(
+      assertImageBytes(jpeg.subarray(0, jpeg.length - 16), "image/jpeg"),
+    ).rejects.toThrow("Uploaded image data is truncated or corrupt.");
   });
 });
 

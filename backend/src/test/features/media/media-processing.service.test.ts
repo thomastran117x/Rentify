@@ -11,6 +11,8 @@ import {
   useLocalBlobStorage,
 } from "../../support/blob-environment";
 import {
+  createAnimatedWebpFixture,
+  createApngFixture,
   createGifFixture,
   createJpegFixture,
   createPngFixture,
@@ -172,6 +174,89 @@ describe("MediaProcessingService", () => {
 
   it.each([
     [
+      "a Display P3",
+      () =>
+        sharp({
+          create: {
+            width: 8,
+            height: 8,
+            channels: 3,
+            background: { r: 255, g: 0, b: 0 },
+          },
+        })
+          .withIccProfile("p3")
+          .jpeg()
+          .toBuffer(),
+    ],
+    [
+      "a CMYK",
+      () =>
+        sharp({
+          create: {
+            width: 8,
+            height: 8,
+            channels: 3,
+            background: { r: 255, g: 0, b: 0 },
+          },
+        })
+          .toColourspace("cmyk")
+          .jpeg()
+          .toBuffer(),
+    ],
+  ])("publishes %s JPEG as sRGB", async (_label, body) => {
+    const context = createContext();
+    const record = await quarantine(context, await body(), {
+      declaredContentType: "image/jpeg",
+    });
+
+    await context.service.process(record.id);
+
+    const ready = (await context.mediaRepository.findById(record.id))!;
+    const stored = await context.blobService.readLocalBlob(
+      ready.processedBlobName!,
+    );
+    const metadata = await sharp(stored.body).metadata();
+    const pixels = await sharp(stored.body).raw().toBuffer();
+
+    expect(ready.status).toBe("ready");
+    expect(metadata).toMatchObject({ space: "srgb", channels: 3 });
+    expect(metadata.icc).toBeUndefined();
+    // Still red once converted, rather than CMYK or P3 values read as sRGB.
+    expect(pixels[0]).toBeGreaterThan(200);
+    expect(pixels[1]).toBeLessThan(30);
+    expect(pixels[2]).toBeLessThan(30);
+  });
+
+  it("publishes an APNG as its first frame", async () => {
+    const context = createContext();
+    const record = await quarantine(context, await createApngFixture(8));
+
+    await context.service.process(record.id);
+
+    const ready = (await context.mediaRepository.findById(record.id))!;
+    const stored = await context.blobService.readLocalBlob(
+      ready.processedBlobName!,
+    );
+    const { data } = await sharp(stored.body)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    expect(ready).toMatchObject({
+      status: "ready",
+      detectedContentType: "image/png",
+      width: 8,
+      height: 8,
+    });
+    const metadata = await sharp(stored.body).metadata();
+    expect(metadata.format).toBe("webp");
+    expect(metadata.pages).toBeUndefined();
+    // The first frame is red; the second, dropped, is blue.
+    expect(data[0]).toBeGreaterThan(200);
+    expect(data[2]).toBeLessThan(30);
+  });
+
+  it.each([
+    [
       "bytes that are not an image",
       async () => Buffer.from("not-an-image"),
       "image/png",
@@ -190,6 +275,12 @@ describe("MediaProcessingService", () => {
       "Uploaded file contents do not match the declared image type.",
     ],
     [
+      "an animated image",
+      () => createAnimatedWebpFixture(),
+      "image/webp",
+      "Animated or multi-page images are not supported.",
+    ],
+    [
       "truncated image data",
       async () => truncateImage(await createPngFixture(64, 64)),
       "image/png",
@@ -203,7 +294,8 @@ describe("MediaProcessingService", () => {
         declaredContentType,
       });
 
-      await context.service.process(record.id);
+      // A refusal is final: it returns rather than throwing for a retry.
+      await expect(context.service.process(record.id)).resolves.toBeUndefined();
 
       const rejected = await context.mediaRepository.findById(record.id);
       expect(rejected?.status).toBe("rejected");

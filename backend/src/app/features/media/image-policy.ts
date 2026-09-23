@@ -24,6 +24,19 @@ const SHARP_FORMAT_CONTENT_TYPES: Record<string, SupportedImageContentType> = {
   webp: "image/webp",
 };
 
+/**
+ * How strictly sharp decodes an upload, at validation and at re-encoding alike.
+ *
+ * "error", not "warning". libjpeg recovers from some damage and only warns about
+ * it, such as stray bytes between markers or a short entropy segment, and real
+ * phone exports, editors, and messaging apps produce such files. "warning"
+ * would refuse them although they decode to a usable image. Truncation that
+ * matters (a missing end of image, or pixel data cut short) is still an error,
+ * and the full-decode pass below catches it. Revisit only if a corpus of real
+ * uploads shows "warning" accepts every legitimate sample.
+ */
+export const IMAGE_DECODE_FAIL_ON = "error" as const;
+
 const IMAGE_FORMAT_LABELS: Record<SupportedImageContentType, string> = {
   "image/jpeg": "JPEG",
   "image/png": "PNG",
@@ -173,6 +186,11 @@ export function assertImageNotEmpty(sizeBytes: number): void {
  * be stored and then fail when rendered or thumbnailed. The full decode only
  * runs once the pixel budget has passed, so it is bounded, and it keeps
  * limitInputPixels as a second guard against a decompression bomb.
+ *
+ * Animated and multi-page images are refused, using the frame count from the
+ * header. An APNG is the exception: libvips reads it as a static PNG and does
+ * not report its frames, so it is accepted and becomes its first frame.
+ * Refusing it would mean parsing its acTL chunk by hand.
  */
 export async function assertImageBytes(
   body: Buffer,
@@ -184,7 +202,7 @@ export async function assertImageBytes(
   try {
     metadata = await sharp(body, {
       limitInputPixels: false,
-      failOn: "error",
+      failOn: IMAGE_DECODE_FAIL_ON,
     }).metadata();
   } catch {
     throw new UnsupportedMediaTypeError(
@@ -204,6 +222,17 @@ export async function assertImageBytes(
         detected: metadata.format ?? "unknown",
         supportedContentTypes: [...SUPPORTED_IMAGE_CONTENT_TYPES],
       },
+    );
+  }
+
+  // sharp decodes only the first frame unless asked otherwise, so an animation
+  // accepted here would be published as a still with no explanation.
+  const pages = metadata.pages ?? 1;
+
+  if (pages > 1) {
+    throw new UnprocessableEntityError(
+      "Animated or multi-page images are not supported.",
+      { pages },
     );
   }
 
@@ -238,7 +267,7 @@ export async function assertImageBytes(
     // in tiles rather than materialising the whole raster.
     await sharp(body, {
       limitInputPixels: policy.maxPixels,
-      failOn: "error",
+      failOn: IMAGE_DECODE_FAIL_ON,
     }).stats();
   } catch {
     throw new UnsupportedMediaTypeError(

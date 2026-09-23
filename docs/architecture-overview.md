@@ -189,10 +189,17 @@ and size and checks the same conditions before reading the file.
 
 The worker decodes the bytes with sharp and matches the real format against the declared
 type and today's allow-list. It holds the length and dimensions to the policy
-and decodes every pixel, which catches truncated data. An accepted image is
-re-encoded to WebP. That applies its EXIF orientation, drops metadata such as
-EXIF and GPS, and means what is served was produced by the worker, not supplied
-by the client. A policy failure rejects the item with its reason. Both outcomes
+and decodes every pixel, which catches truncated data. Animated and multi-page
+images are rejected ("Animated or multi-page images are not supported."),
+because only the first frame would survive. An APNG is the exception: libvips
+reads it as a static PNG and does not report its frames, so it is accepted and
+published as its first frame. Decoding uses sharp's `failOn: "error"`, so a
+JPEG that libjpeg recovers from with only a warning, such as stray bytes between
+markers, is accepted; truncated data is still rejected. An accepted image is
+re-encoded to WebP. That applies its EXIF orientation, converts it to sRGB
+(Display P3 and CMYK included), drops metadata such as EXIF, GPS, and ICC
+profiles, and means what is served was produced by the worker, not supplied by
+the client. A policy failure rejects the item with its reason. Both outcomes
 delete the quarantined upload.
 
 **When an image is attached.** Every field that holds an image goes through one

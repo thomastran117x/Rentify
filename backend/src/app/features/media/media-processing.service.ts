@@ -13,6 +13,7 @@ import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
   describeImageSizeLimit,
+  IMAGE_DECODE_FAIL_ON,
   isImagePolicyRejection,
   normalizeImageContentType,
 } from "@/features/media/image-policy";
@@ -107,7 +108,7 @@ export class MediaProcessingService {
 
     const processed = await sharp(original.body, {
       limitInputPixels: environment.getImageUploadsConfig().maxPixels,
-      failOn: "error",
+      failOn: IMAGE_DECODE_FAIL_ON,
     })
       .rotate()
       .webp({ quality: PROCESSED_IMAGE_QUALITY })
