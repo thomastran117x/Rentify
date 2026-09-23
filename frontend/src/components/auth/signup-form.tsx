@@ -511,94 +511,93 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       ) : null}
 
       <form className="space-y-5" onSubmit={handleSubmit}>
-        {currentStep === 0 ? (
-          <>
-            <AuthOAuthButtons
-              onSuccess={handleOAuthSuccess}
-              onError={setGeneralError}
-              onSignupRequired={setOAuthSignupPending}
-            />
+        <div className={currentStep === 0 ? "space-y-5" : "hidden"}>
+          <AuthOAuthButtons
+            onSuccess={handleOAuthSuccess}
+            onError={setGeneralError}
+            onSignupRequired={setOAuthSignupPending}
+          />
 
-            <div className="flex items-center gap-3">
-              <div className={theme.auth.dividerLine} />
-              <span className={theme.auth.dividerText}>Or use an email</span>
-              <div className={theme.auth.dividerLine} />
-            </div>
+          <div className="flex items-center gap-3">
+            <div className={theme.auth.dividerLine} />
+            <span className={theme.auth.dividerText}>Or use an email</span>
+            <div className={theme.auth.dividerLine} />
+          </div>
 
-            <div className="space-y-2">
-              <AuthField
-                id="email"
-                label="Email"
-                error={errors.email}
-                errorId="signup-email-error"
-                hasValue={emailHasValue}
-                icon={
-                  <div className={theme.auth.fieldIcon}>
-                    <MailIcon />
-                  </div>
-                }
-              >
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  aria-invalid={Boolean(errors.email) || emailTaken}
-                  aria-describedby={
-                    errors.email
-                      ? "signup-email-error"
-                      : "signup-email-availability"
-                  }
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className={theme.auth.fieldInput}
-                />
-              </AuthField>
-
-              {/* Suppressed while a format error is showing, so the field never
-                  carries two competing messages. */}
-              {errors.email ? null : (
-                <EmailAvailabilityHint
-                  id="signup-email-availability"
-                  availability={emailAvailability}
-                />
-              )}
-            </div>
-
-            <AuthPasswordField
-              id="password"
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              error={errors.password}
-              errorId="signup-password-error"
-              hint="At least 8 characters."
-            />
-
-            <AuthPasswordField
-              id="confirmPassword"
-              label="Confirm password"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              autoComplete="new-password"
-              placeholder="Repeat your password"
-              error={errors.confirmPassword}
-              errorId="signup-confirm-password-error"
-            />
-
-            <button
-              type="button"
-              onClick={handleContinue}
-              className={theme.auth.primaryButton}
+          <div className="space-y-2">
+            <AuthField
+              id="email"
+              label="Email"
+              error={errors.email}
+              errorId="signup-email-error"
+              hasValue={emailHasValue}
+              icon={
+                <div className={theme.auth.fieldIcon}>
+                  <MailIcon />
+                </div>
+              }
             >
-              Continue
-            </button>
-          </>
-        ) : (
-          <>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                aria-invalid={Boolean(errors.email) || emailTaken}
+                aria-describedby={
+                  errors.email
+                    ? "signup-email-error"
+                    : "signup-email-availability"
+                }
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className={theme.auth.fieldInput}
+              />
+            </AuthField>
+
+            {/* Suppressed while a format error is showing, so the field never
+                  carries two competing messages. */}
+            {errors.email ? null : (
+              <EmailAvailabilityHint
+                id="signup-email-availability"
+                availability={emailAvailability}
+              />
+            )}
+          </div>
+
+          <AuthPasswordField
+            id="password"
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            placeholder="Create a password"
+            error={errors.password}
+            errorId="signup-password-error"
+            hint="At least 8 characters."
+          />
+
+          <AuthPasswordField
+            id="confirmPassword"
+            label="Confirm password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            autoComplete="new-password"
+            placeholder="Repeat your password"
+            error={errors.confirmPassword}
+            errorId="signup-confirm-password-error"
+          />
+
+          <button
+            type="button"
+            onClick={handleContinue}
+            className={theme.auth.primaryButton}
+          >
+            Continue
+          </button>
+        </div>
+        {maxStepReached >= 1 ? (
+          <div className={currentStep === 1 ? "space-y-5" : "hidden"}>
             <div className="grid gap-5 sm:grid-cols-2">
               <AuthField
                 id="firstName"
@@ -781,8 +780,8 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
                 {pending ? "Creating account..." : "Create account"}
               </button>
             </div>
-          </>
-        )}
+          </div>
+        ) : null}
       </form>
     </div>
   );

@@ -118,6 +118,10 @@ test.describe("signup username availability", () => {
   /**
    * Signup is a two-step form and the username field lives on the second
    * step, so each test has to get past "Account" first.
+   *
+   * The username field is addressed by role throughout: `getByLabel` matches
+   * accessible names loosely, so it also picks up the suggestion chips
+   * ("Use username <name>") and the refresh button.
    */
   async function openProfileStep(page: Page) {
     // Role-scoped: the page footer also has an "Email" link.
@@ -136,7 +140,7 @@ test.describe("signup username availability", () => {
     await page.goto("/signup");
     await openProfileStep(page);
 
-    const username = page.getByLabel("Username");
+    const username = page.getByRole("textbox", { name: "Username" });
     await expect(username).toBeVisible();
     await username.fill("renter-one");
 
@@ -177,7 +181,7 @@ test.describe("signup username availability", () => {
 
     await page.getByLabel("First name").fill("Jane");
     await page.getByLabel("Last name").fill("Doe");
-    await page.getByLabel("Username").fill("friendlyshittyperson");
+    await page.getByRole("textbox", { name: "Username" }).fill("friendlyshittyperson");
 
     await expect(page.getByText("That username isn’t allowed.")).toBeVisible({
       timeout: 15_000,
@@ -193,7 +197,7 @@ test.describe("signup username availability", () => {
     await openProfileStep(page);
 
     const candidate = `e2e-free-${Date.now()}`;
-    await page.getByLabel("Username").fill(candidate);
+    await page.getByRole("textbox", { name: "Username" }).fill(candidate);
 
     await expect(page.getByText(`${candidate} is available.`)).toBeVisible({
       timeout: 15_000,
@@ -211,7 +215,7 @@ test.describe("signup username availability", () => {
 
     await page.goto("/signup");
     await openProfileStep(page);
-    await page.getByLabel("Username").fill("no");
+    await page.getByRole("textbox", { name: "Username" }).fill("no");
 
     // Comfortably longer than the 400ms debounce.
     await page.waitForTimeout(1500);

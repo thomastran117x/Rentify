@@ -48,12 +48,35 @@ export function UsernameSuggestions({
   }, [refreshVersion]);
 
   return (
-    <div className="flex min-h-8 flex-wrap items-center gap-2">
-      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-        Need inspiration?
-      </p>
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          Need inspiration?
+        </p>
 
-      <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setError(false);
+            setRefreshVersion((current) => current + 1);
+          }}
+          disabled={disabled || loading}
+          aria-label="Refresh username suggestions"
+          title="Refresh"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+
+      <div
+        className="flex min-h-8 flex-wrap items-center gap-2"
+        aria-live="polite"
+      >
         {loading && suggestions.length === 0 ? (
           <span className="text-sm text-slate-500 dark:text-slate-400">
             Finding available usernames...
@@ -80,24 +103,6 @@ export function UsernameSuggestions({
           </span>
         ) : null}
       </div>
-
-      <button
-        type="button"
-        onClick={() => {
-          setLoading(true);
-          setError(false);
-          setRefreshVersion((current) => current + 1);
-        }}
-        disabled={disabled || loading}
-        aria-label="Refresh username suggestions"
-        title="Refresh"
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
-      >
-        <RefreshCw
-          className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
     </div>
   );
 }
