@@ -80,6 +80,7 @@ describe("auth API request contracts", () => {
       username: "u",
       email: "a@example.com",
       password: "p",
+      dateOfBirth: "2008-02-29",
       captchaToken: "c",
     });
     authApi.verifyEmail({ email: "a@example.com", code: "123" });
@@ -88,6 +89,10 @@ describe("auth API request contracts", () => {
     authApi.authenticateWithGoogle({ nonce: "nonce", code: "code" });
     authApi.authenticateWithMicrosoft({ nonce: "nonce", idToken: "id" });
     authApi.authenticateWithApple({ nonce: "nonce", idToken: "id" });
+    authApi.completeOAuthSignup({
+      signupToken: "signup-token",
+      dateOfBirth: "2012-06-15",
+    });
     authApi.linkOAuthProvider("google", { nonce: "nonce", code: "code" });
     expect(publicMock).toHaveBeenCalledWith(
       "POST",
@@ -104,7 +109,7 @@ describe("auth API request contracts", () => {
       "/auth/oauth/google/link",
       expect.objectContaining({ deviceId: "device-1" }),
     );
-    expect(cancelRefreshMock).toHaveBeenCalledTimes(6);
+    expect(cancelRefreshMock).toHaveBeenCalledTimes(7);
   });
 
   it("covers recovery, device, provider, session, and PAT endpoints", () => {

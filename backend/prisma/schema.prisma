@@ -20,6 +20,8 @@ model User {
   tokenVersion  Int      @default(0) @map("token_version")
   firstName     String?  @map("first_name") @db.VarChar(255)
   lastName      String?  @map("last_name") @db.VarChar(255)
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
+  dateOfBirthProvidedAt DateTime? @map("date_of_birth_provided_at") @db.DateTime(6)
   role          String   @db.VarChar(50)
   emailVerified Boolean  @default(false) @map("email_verified")
   preferredOrganizationId String? @map("preferred_organization_id") @db.VarChar(36)

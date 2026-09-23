@@ -129,6 +129,7 @@ describe("EmailAvailabilityService", () => {
           username: "casey-doe",
           email: "casey@example.com",
           passwordHash: "hash",
+          dateOfBirth: "2012-06-15",
           createdAt: new Date().toISOString(),
         },
       });
@@ -161,6 +162,7 @@ describe("EmailAvailabilityService", () => {
           username: "casey-doe",
           email: "casey@example.com",
           passwordHash: "hash",
+          dateOfBirth: "2012-06-15",
           createdAt: new Date().toISOString(),
         },
       });
@@ -234,6 +236,7 @@ describe("EmailAvailabilityService", () => {
           username: "casey-doe",
           email: "casey@example.com",
           passwordHash: "hash",
+          dateOfBirth: "2012-06-15",
           createdAt: new Date().toISOString(),
         },
       });

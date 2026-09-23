@@ -10,6 +10,7 @@ import {
   requireOAuthProviderParam,
   resolveDeviceId,
   toChangePasswordInput,
+  toCompleteOAuthSignupInput,
   toForgotPasswordInput,
   toForgotUsernameInput,
   toLinkOAuthProviderInput,
@@ -181,6 +182,7 @@ describe("credential mappers", () => {
         username: "test-user",
         email: "user@example.com",
         password: "Rentify123!",
+        dateOfBirth: "2012-06-15",
         captchaToken: "captcha-ok",
         firstName: "Test",
         lastName: "User",
@@ -191,6 +193,7 @@ describe("credential mappers", () => {
       username: "test-user",
       email: "user@example.com",
       password: "Rentify123!",
+      dateOfBirth: "2012-06-15",
       firstName: "Test",
       lastName: "User",
       deviceId: "fingerprint-device",
@@ -352,6 +355,7 @@ describe("oauth mappers", () => {
     firstName: "Test",
     lastName: "User",
     totpCode: undefined,
+    dateOfBirth: "2012-06-15",
   };
 
   it("maps an oauth authenticate body", () => {
@@ -366,6 +370,22 @@ describe("oauth mappers", () => {
       lastName: "User",
       deviceId: "fingerprint-device",
       totpCode: undefined,
+      dateOfBirth: "2012-06-15",
+    });
+  });
+
+  it("maps an OAuth signup completion", () => {
+    expect(
+      toCompleteOAuthSignupInput(createRequest(), {
+        signupToken: "signup-token",
+        dateOfBirth: "2012-06-15",
+        deviceId: undefined,
+      }),
+    ).toEqual({
+      client,
+      signupToken: "signup-token",
+      dateOfBirth: "2012-06-15",
+      deviceId: "fingerprint-device",
     });
   });
 

@@ -14,7 +14,7 @@ const termsSections = [
   },
   {
     title: "Accounts and responsibilities",
-    body: "If you create an account, you are responsible for maintaining your credentials and for the activity that occurs under that account, subject to applicable consumer protections and local law.",
+    body: "If you create an account, you must provide accurate signup information, including your date of birth, and keep your credentials secure. People of any age may create an account, subject to applicable consumer protections and local law.",
   },
   {
     title: "Listings, availability, and pricing",
@@ -22,7 +22,7 @@ const termsSections = [
   },
   {
     title: "Limitations and additional terms",
-    body: "Rentify may update or suspend parts of the marketplace from time to time. Specific listings, payment flows, local rules, or booking agreements may carry additional terms depending on the category and jurisdiction involved.",
+    body: "Rentify may update or suspend parts of the marketplace from time to time. Specific listings, transactions, payment flows, local rules, or booking agreements may carry additional terms or age requirements depending on the category and jurisdiction involved; there is no platform-wide 18+ rule.",
   },
 ];
 
@@ -60,7 +60,7 @@ export default function TermsPage() {
       stats={[
         { label: "Legal sections", value: "4" },
         { label: "Applies to", value: "All users" },
-        { label: "Updated", value: "May 2026" },
+        { label: "Updated", value: "Sep 2026" },
       ]}
     >
       <section className="grid gap-5">

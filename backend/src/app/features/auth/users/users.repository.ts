@@ -11,6 +11,7 @@ import {
   oauthProviderSchema,
 } from "@/features/auth/auth.model";
 import type { VerifiedOAuthProfile } from "@/features/auth/oauth/oauth.types";
+import { toDateOfBirthPersistence } from "@/features/auth/date-of-birth";
 import ConflictError from "@/errors/http/conflict.error";
 import {
   asOptionalUuid,
@@ -210,6 +211,8 @@ export class UsersRepository extends BaseRepository {
           passwordHash,
           firstName: input.firstName ?? null,
           lastName: input.lastName ?? null,
+          dateOfBirth: toDateOfBirthPersistence(input.dateOfBirth),
+          dateOfBirthProvidedAt: new Date(),
           role: "user",
           emailVerified: false,
           profile: {
@@ -229,6 +232,7 @@ export class UsersRepository extends BaseRepository {
   async createOAuthUser(
     input: VerifiedOAuthProfile,
     username: string,
+    dateOfBirth: string,
   ): Promise<AuthUserRecord> {
     try {
       const user = await this.executeAsync(() =>
@@ -239,6 +243,8 @@ export class UsersRepository extends BaseRepository {
             passwordHash: null,
             firstName: input.firstName ?? null,
             lastName: input.lastName ?? null,
+            dateOfBirth: toDateOfBirthPersistence(dateOfBirth),
+            dateOfBirthProvidedAt: new Date(),
             role: "user",
             emailVerified: input.emailVerified,
             oauthIdentities: {
@@ -359,6 +365,7 @@ export class UsersRepository extends BaseRepository {
       passwordHash: string;
       firstName?: string;
       lastName?: string;
+      dateOfBirth: string;
     },
   ): Promise<AuthUserRecord> {
     const user = await this.executeAsync(() =>
@@ -370,6 +377,8 @@ export class UsersRepository extends BaseRepository {
           passwordHash: input.passwordHash,
           firstName: input.firstName ?? null,
           lastName: input.lastName ?? null,
+          dateOfBirth: toDateOfBirthPersistence(input.dateOfBirth),
+          dateOfBirthProvidedAt: new Date(),
           emailVerified: true,
           profile: {
             update: {

@@ -224,6 +224,13 @@ export const authOauthRouteModule: RouteModule = {
         "appleAuthenticate",
       ),
     );
+    app.post(
+      "/auth/oauth/signup/complete",
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
+        "completeSignup",
+      ),
+    );
     app.get(
       "/auth/oauth/providers",
       resolveHandler<OAuthController>(

@@ -6,6 +6,7 @@ import {
   type OAuthProvider,
 } from "@/features/auth/auth.model";
 import type { Uuid } from "@/configuration/validation/uuid";
+import { dateOfBirthSchema } from "@/features/auth/date-of-birth";
 
 export const oauthAuthenticateRequestSchema = z
   .object({
@@ -18,6 +19,7 @@ export const oauthAuthenticateRequestSchema = z
     firstName: optionalTrimmedString,
     lastName: optionalTrimmedString,
     totpCode: z.string().optional(),
+    dateOfBirth: dateOfBirthSchema.optional(),
   })
   .superRefine((input, context) => {
     // An id token is self-contained. Without one, the authorization-code flow
@@ -58,6 +60,30 @@ export interface OAuthAuthenticateInput {
   firstName?: string;
   lastName?: string;
   totpCode?: string;
+  dateOfBirth?: string;
+}
+
+export const completeOAuthSignupRequestSchema = z.object({
+  signupToken: requiredSafeTrimmedString("Signup token is required."),
+  dateOfBirth: dateOfBirthSchema,
+  deviceId: optionalTrimmedString,
+});
+
+export type CompleteOAuthSignupRequestBody = z.infer<
+  typeof completeOAuthSignupRequestSchema
+>;
+
+export interface CompleteOAuthSignupInput {
+  client: ClientRequestContext;
+  signupToken: string;
+  dateOfBirth: string;
+  deviceId?: string;
+}
+
+export interface OAuthSignupRequiredResult {
+  signupRequired: true;
+  signupToken: string;
+  expiresInSeconds: number;
 }
 
 export interface LinkOAuthProviderInput extends OAuthAuthenticateInput {

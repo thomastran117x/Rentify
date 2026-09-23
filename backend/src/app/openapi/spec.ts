@@ -74,6 +74,11 @@ const signupPendingExample = {
   email: "new-user@example.com",
   alreadyPending: false,
 };
+const oauthSignupRequiredExample = {
+  signupRequired: true,
+  signupToken: "opaque-signup-token",
+  expiresInSeconds: 600,
+};
 const organizationSummaryExample = {
   id: "org-1",
   slug: "northwind",
@@ -1580,7 +1585,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localSignup",
       summary: "Create a new local account",
       description:
-        "Begins local signup and sends a verification challenge to the supplied email address. The username is rejected when it contains a term disallowed by the username content policy.",
+        "Begins local signup and sends a verification challenge to the supplied email address. A valid, non-future date of birth is required, but there is no minimum signup age. The username is rejected when it contains a term disallowed by the username content policy.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1593,6 +1598,7 @@ function buildOperations(): OperationDefinition[] {
         username: "taylor-renter",
         email: "new-user@example.com",
         password: "Rentify123!",
+        dateOfBirth: "2012-06-15",
         captchaToken: "turnstile-token",
         firstName: "Taylor",
         lastName: "Renter",
@@ -2268,7 +2274,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "googleAuthenticate",
       summary: "Authenticate with Google OAuth",
       description:
-        "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token, depending on the client flow.",
+        "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2285,6 +2291,7 @@ function buildOperations(): OperationDefinition[] {
         deviceId: "device-1",
         firstName: "Taylor",
         lastName: "Owner",
+        dateOfBirth: "2012-06-15",
       }),
       responses: {
         "200": successResponse(
@@ -2292,6 +2299,12 @@ function buildOperations(): OperationDefinition[] {
           "Authenticated successfully.",
           "AuthSessionResponseData",
           authSessionExample,
+        ),
+        "202": successResponse(
+          202,
+          "Date of birth is required to complete signup.",
+          "OAuthSignupRequiredResult",
+          oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
       },
@@ -2324,6 +2337,12 @@ function buildOperations(): OperationDefinition[] {
           "AuthSessionResponseData",
           authSessionExample,
         ),
+        "202": successResponse(
+          202,
+          "Date of birth is required to complete signup.",
+          "OAuthSignupRequiredResult",
+          oauthSignupRequiredExample,
+        ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
       },
     },
@@ -2355,7 +2374,48 @@ function buildOperations(): OperationDefinition[] {
           "AuthSessionResponseData",
           authSessionExample,
         ),
+        "202": successResponse(
+          202,
+          "Date of birth is required to complete signup.",
+          "OAuthSignupRequiredResult",
+          oauthSignupRequiredExample,
+        ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/oauth/signup/complete",
+      operationId: "completeOauthSignup",
+      summary: "Complete a new OAuth account",
+      description:
+        "Redeems a short-lived OAuth signup continuation after collecting a valid, non-future date of birth. Users of any age may complete signup.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "OAuth routes are exempt from browser CSRF enforcement.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("CompleteOAuthSignupRequest", {
+        signupToken: "opaque-signup-token",
+        dateOfBirth: "2012-06-15",
+        deviceId: "device-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Signup completed successfully.",
+          "AuthSessionResponseData",
+          { ...authSessionExample, isNewUser: true },
+        ),
+        "410": errorResponse(
+          "The signup continuation is invalid, expired, or already used.",
+          "This social signup session has expired. Start again to continue.",
+          "OAUTH_SIGNUP_CONTINUATION_EXPIRED",
+        ),
+        ...commonErrors([400, 403, 409, 429, 500]),
       },
     },
     {
@@ -10221,6 +10281,19 @@ function buildComponents(): Record<string, unknown> {
           alreadyPending: { type: "boolean" },
         },
       },
+      OAuthSignupRequiredResult: {
+        type: "object",
+        required: ["signupRequired", "signupToken", "expiresInSeconds"],
+        properties: {
+          signupRequired: { type: "boolean", enum: [true] },
+          signupToken: {
+            type: "string",
+            description:
+              "Opaque, single-use continuation token for completing a new OAuth signup.",
+          },
+          expiresInSeconds: { type: "integer", enum: [600] },
+        },
+      },
       SessionVerificationResult: {
         type: "object",
         additionalProperties: true,
@@ -10281,7 +10354,13 @@ function buildComponents(): Record<string, unknown> {
       },
       LocalSignupRequest: {
         type: "object",
-        required: ["username", "email", "password", "captchaToken"],
+        required: [
+          "username",
+          "email",
+          "password",
+          "dateOfBirth",
+          "captchaToken",
+        ],
         properties: {
           username: {
             type: "string",
@@ -10293,6 +10372,12 @@ function buildComponents(): Record<string, unknown> {
           },
           email: { type: "string", format: "email" },
           password: { type: "string" },
+          dateOfBirth: {
+            type: "string",
+            format: "date",
+            description:
+              "A real, non-future calendar date in YYYY-MM-DD format. There is no minimum signup age.",
+          },
           captchaToken: { type: "string" },
           firstName: { type: "string" },
           lastName: { type: "string" },
@@ -10429,6 +10514,26 @@ function buildComponents(): Record<string, unknown> {
           deviceId: { type: "string" },
           firstName: { type: "string" },
           lastName: { type: "string" },
+          dateOfBirth: {
+            type: "string",
+            format: "date",
+            description:
+              "Optional for returning users and provider linking. Required to create a new OAuth account.",
+          },
+        },
+      },
+      CompleteOAuthSignupRequest: {
+        type: "object",
+        required: ["signupToken", "dateOfBirth"],
+        properties: {
+          signupToken: { type: "string" },
+          dateOfBirth: {
+            type: "string",
+            format: "date",
+            description:
+              "A real, non-future calendar date in YYYY-MM-DD format. There is no minimum signup age.",
+          },
+          deviceId: { type: "string" },
         },
       },
       RefreshRequest: {

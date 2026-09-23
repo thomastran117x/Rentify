@@ -4,9 +4,12 @@ import { useState, type ReactNode } from "react";
 import { publicEnv } from "@/lib/env";
 import { authApi } from "@/lib/auth/api";
 import type {
+  OAuthAuthenticateResult,
+  OAuthSignupRequiredResult,
   AuthResponseBody,
   LinkedOAuthProvidersResult,
 } from "@/lib/auth/types";
+import { isOAuthSignupRequired } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 export type OAuthProvider = "google" | "microsoft" | "apple";
@@ -18,6 +21,9 @@ interface AuthOAuthButtonsProps {
   onLinked?: (result: LinkedOAuthProvidersResult) => void;
   onError: (message: string) => void;
   disabledProviders?: OAuthProvider[];
+  dateOfBirth?: string;
+  beforeAuthenticate?: () => boolean;
+  onSignupRequired?: (result: OAuthSignupRequiredResult) => void;
 }
 
 interface PopupAuthResult {
@@ -267,17 +273,19 @@ async function authenticateWithProvider(
   provider: OAuthProvider,
   input: ProviderInput,
   nonce: string,
-): Promise<AuthResponseBody> {
+  dateOfBirth?: string,
+): Promise<OAuthAuthenticateResult> {
   if (provider === "google") {
     return authApi.authenticateWithGoogle({
       code: input.code ?? "",
       codeVerifier: input.codeVerifier ?? "",
       nonce,
+      dateOfBirth,
     });
   }
 
   if (provider === "apple") {
-    return authApi.authenticateWithApple({ ...input, nonce });
+    return authApi.authenticateWithApple({ ...input, nonce, dateOfBirth });
   }
 
   return authApi.authenticateWithMicrosoft({
@@ -285,6 +293,7 @@ async function authenticateWithProvider(
     code: input.code,
     codeVerifier: input.codeVerifier,
     nonce,
+    dateOfBirth,
   });
 }
 
@@ -584,6 +593,9 @@ export function AuthOAuthButtons({
   onLinked,
   onError,
   disabledProviders = [],
+  dateOfBirth,
+  beforeAuthenticate,
+  onSignupRequired,
 }: AuthOAuthButtonsProps) {
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
     null,
@@ -623,6 +635,10 @@ export function AuthOAuthButtons({
   ).filter((provider) => provider.enabled);
 
   async function handleProviderClick(provider: OAuthProvider) {
+    if (!isLinkMode && beforeAuthenticate && !beforeAuthenticate()) {
+      return;
+    }
+
     setPendingProvider(provider);
     onError("");
 
@@ -638,8 +654,17 @@ export function AuthOAuthButtons({
         return;
       }
 
-      const session = await authenticateWithProvider(provider, input, nonce);
-      onSuccess?.(session);
+      const result = await authenticateWithProvider(
+        provider,
+        input,
+        nonce,
+        dateOfBirth,
+      );
+      if (isOAuthSignupRequired(result)) {
+        onSignupRequired?.(result);
+        return;
+      }
+      onSuccess?.(result);
     } catch (error) {
       onError(
         error instanceof Error

@@ -21,6 +21,8 @@ export interface SeedUserFixture {
   username: string;
   firstName: string;
   lastName: string;
+  dateOfBirth?: string;
+  dateOfBirthProvidedAt?: string;
   role: FixtureRole;
   emailVerified: boolean;
   phoneNumber?: string;

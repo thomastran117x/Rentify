@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
+import { OAuthSignupDateOfBirthDialog } from "@/components/auth/oauth-signup-date-of-birth-dialog";
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
@@ -15,7 +16,11 @@ import {
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
-import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
+import {
+  ApiClientError,
+  type AuthResponseBody,
+  type OAuthSignupRequiredResult,
+} from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
 import { theme } from "@/styles/theme";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
@@ -342,6 +347,8 @@ export function LoginForm({
   const [welcomeSession, setWelcomeSession] = useState<AuthResponseBody | null>(
     null,
   );
+  const [oauthSignupPending, setOAuthSignupPending] =
+    useState<OAuthSignupRequiredResult | null>(null);
   const [devicePending, setDevicePending] = useState(false);
   const [deviceMfaDialogState, setDeviceMfaDialogState] =
     useState<DeviceMfaDialogState | null>(null);
@@ -589,6 +596,7 @@ export function LoginForm({
     setUnlockEmail(null);
     clearPersistedAuthPendingFlowByType("login-unlock");
     setSession(session);
+    setOAuthSignupPending(null);
     if (!session.device.known) {
       authApi.verifyDevice().catch(() => {});
     }
@@ -724,9 +732,22 @@ export function LoginForm({
           onCancel={handleDeviceMfaCancel}
         />
       ) : null}
+      {oauthSignupPending ? (
+        <OAuthSignupDateOfBirthDialog
+          pendingSignup={oauthSignupPending}
+          onSuccess={handleOAuthSuccess}
+          onCancel={() => {
+            setOAuthSignupPending(null);
+            setGeneralError(
+              "Social signup was cancelled. No account was created.",
+            );
+          }}
+        />
+      ) : null}
       <AuthOAuthButtons
         onSuccess={handleOAuthSuccess}
         onError={setGeneralError}
+        onSignupRequired={setOAuthSignupPending}
       />
 
       <div className="flex items-center gap-3">

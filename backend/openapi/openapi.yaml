@@ -271,7 +271,7 @@ paths:
     post:
       operationId: localSignup
       summary: Create a new local account
-      description: Begins local signup and sends a verification challenge to the supplied email address. The username is rejected when it contains a term disallowed by the username content policy.
+      description: Begins local signup and sends a verification challenge to the supplied email address. A valid, non-future date of birth is required, but there is no minimum signup age. The username is rejected when it contains a term disallowed by the username content policy.
       tags:
         - auth
       x-rentify-permissions:
@@ -290,6 +290,7 @@ paths:
               username: taylor-renter
               email: new-user@example.com
               password: Rentify123!
+              dateOfBirth: '2012-06-15'
               captchaToken: turnstile-token
               firstName: Taylor
               lastName: Renter
@@ -1573,7 +1574,7 @@ paths:
     post:
       operationId: googleAuthenticate
       summary: Authenticate with Google OAuth
-      description: Authenticates with Google using either an authorization code plus PKCE verifier or an ID token, depending on the client flow.
+      description: Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.
       tags:
         - auth
       x-rentify-permissions:
@@ -1596,6 +1597,7 @@ paths:
               deviceId: device-1
               firstName: Taylor
               lastName: Owner
+              dateOfBirth: '2012-06-15'
       responses:
         '200':
           description: Successful response.
@@ -1631,6 +1633,29 @@ paths:
                       name: Owner One Organization
                       role: primary_manager
                     organizationMembershipCount: 1
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '202':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -1708,6 +1733,29 @@ paths:
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '202':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1782,6 +1830,29 @@ paths:
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '202':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1790,6 +1861,92 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/oauth/signup/complete:
+    post:
+      operationId: completeOauthSignup
+      summary: Complete a new OAuth account
+      description: Redeems a short-lived OAuth signup continuation after collecting a valid, non-future date of birth. Users of any age may complete signup.
+      tags:
+        - auth
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+        csrf: OAuth routes are exempt from browser CSRF enforcement.
+        rateLimitPolicy: auth-sensitive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteOAuthSignupRequest'
+            example:
+              signupToken: opaque-signup-token
+              dateOfBirth: '2012-06-15'
+              deviceId: device-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthSessionResponseData'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Signup completed successfully.
+                data:
+                  accessToken: access-token-1
+                  refreshToken: refresh-token-1
+                  device:
+                    deviceId: device-1
+                    known: true
+                    knownByIp: true
+                  user:
+                    id: user-1
+                    email: owner1@rentify.local
+                    username: owner-one
+                    avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    role: owner
+                    activeOrganization:
+                      id: org-1
+                      name: Owner One Organization
+                      role: primary_manager
+                    organizationMembershipCount: 1
+                  isNewUser: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          description: The signup continuation is invalid, expired, or already used.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              example:
+                success: false
+                message: This social signup session has expired. Start again to continue.
+                data: null
+                error:
+                  code: OAUTH_SIGNUP_CONTINUATION_EXPIRED
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -18278,6 +18435,24 @@ components:
           format: email
         alreadyPending:
           type: boolean
+    OAuthSignupRequiredResult:
+      type: object
+      required:
+        - signupRequired
+        - signupToken
+        - expiresInSeconds
+      properties:
+        signupRequired:
+          type: boolean
+          enum:
+            - true
+        signupToken:
+          type: string
+          description: Opaque, single-use continuation token for completing a new OAuth signup.
+        expiresInSeconds:
+          type: integer
+          enum:
+            - 600
     SessionVerificationResult:
       type: object
       additionalProperties: true
@@ -18353,6 +18528,7 @@ components:
         - username
         - email
         - password
+        - dateOfBirth
         - captchaToken
       properties:
         username:
@@ -18366,6 +18542,10 @@ components:
           format: email
         password:
           type: string
+        dateOfBirth:
+          type: string
+          format: date
+          description: A real, non-future calendar date in YYYY-MM-DD format. There is no minimum signup age.
         captchaToken:
           type: string
         firstName:
@@ -18548,6 +18728,24 @@ components:
         firstName:
           type: string
         lastName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+          description: Optional for returning users and provider linking. Required to create a new OAuth account.
+    CompleteOAuthSignupRequest:
+      type: object
+      required:
+        - signupToken
+        - dateOfBirth
+      properties:
+        signupToken:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+          description: A real, non-future calendar date in YYYY-MM-DD format. There is no minimum signup age.
+        deviceId:
           type: string
     RefreshRequest:
       type: object

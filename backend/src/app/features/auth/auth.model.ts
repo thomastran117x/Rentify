@@ -84,6 +84,7 @@ export interface CreateLocalUserInput {
   email: string;
   firstName?: string;
   lastName?: string;
+  dateOfBirth: string;
 }
 
 export interface UserProfileRecord {

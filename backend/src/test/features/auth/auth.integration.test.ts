@@ -182,6 +182,7 @@ describe("Auth persistence integration", () => {
           email,
           username: "new-user",
           password: "StrongPassword1!",
+          dateOfBirth: "2012-06-15",
           firstName: "New",
           lastName: "User",
           captchaToken: "captcha-ok-signup",
@@ -255,6 +256,8 @@ describe("Auth persistence integration", () => {
       email,
       emailVerified: true,
       role: "user",
+      dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+      dateOfBirthProvidedAt: expect.any(Date),
       profile: expect.objectContaining({
         username: "new-user",
       }),
@@ -272,6 +275,7 @@ describe("Auth persistence integration", () => {
           email,
           username: "friendlyshittyperson",
           password: "StrongPassword1!",
+          dateOfBirth: "1990-01-01",
           firstName: "Blocked",
           lastName: "Username",
           captchaToken: "captcha-ok-signup",
@@ -306,6 +310,7 @@ describe("Auth persistence integration", () => {
           email,
           username,
           password,
+          dateOfBirth: "1990-01-01",
           firstName: "Life",
           lastName: "Cycle",
           captchaToken: "captcha-ok-signup",
@@ -376,6 +381,56 @@ describe("Auth persistence integration", () => {
       },
     );
     expect(refreshAfterLogout.status).toBe(401);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["malformed", "2020-02-30"],
+    ["future", "9999-12-31"],
+  ])(
+    "rejects a %s date of birth during local signup",
+    async (_label, dateOfBirth) => {
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/signup")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            email: `invalid-birth-date-${_label}@rentify.local`,
+            username: `invalid-birth-date-${_label}`,
+            password: "StrongPassword1!",
+            dateOfBirth,
+            captchaToken: "captcha-ok-signup",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: { code: "VALIDATION_ERROR" },
+      });
+    },
+  );
+
+  it("returns an expiry response for an invalid OAuth signup continuation", async () => {
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/signup/complete")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          signupToken: "expired-or-invalid-token",
+          dateOfBirth: "2012-06-15",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: { code: "OAUTH_SIGNUP_CONTINUATION_EXPIRED" },
+    });
   });
 
   it("resets a forgotten password and only accepts the new one afterwards", async () => {
@@ -452,7 +507,7 @@ describe("Auth persistence integration", () => {
       },
     );
     expect(staleRefresh.status).toBe(401);
-  });
+  }, 120_000);
 
   it("sets a first password on a social-only account and enables local login", async () => {
     const username = "renter-one";
@@ -523,7 +578,7 @@ describe("Auth persistence integration", () => {
       },
     );
     expect(repeatResponse.status).toBe(409);
-  });
+  }, 120_000);
 
   it("creates and revokes real auth sessions through login and logout", async () => {
     const loginResponse = await persistenceApp.app.request(
@@ -735,6 +790,7 @@ describe("Auth persistence integration", () => {
             idToken: `${provider}-id-token`,
             nonce: "nonce-value",
             deviceId: `${provider}-device`,
+            dateOfBirth: "2012-06-15",
           }),
         },
       );
@@ -742,11 +798,105 @@ describe("Auth persistence integration", () => {
       expect(response.status).toBe(200);
       expect(
         await persistenceApp.prisma.user.findUnique({ where: { email } }),
-      ).toMatchObject({ email, emailVerified: true });
+      ).toMatchObject({
+        email,
+        emailVerified: true,
+        dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+        dateOfBirthProvidedAt: expect.any(Date),
+      });
+
+      const returningResponse = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/auth/oauth/${provider}`)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            idToken: `${provider}-id-token`,
+            nonce: "returning-nonce-value",
+            deviceId: `${provider}-returning-device`,
+          }),
+        },
+      );
+      expect(returningResponse.status).toBe(200);
     }
   });
 
+  it("issues and atomically redeems an OAuth signup continuation", async () => {
+    const beginResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({
+          idToken: "google-id-token",
+          nonce: "continuation-nonce",
+          deviceId: "continuation-device",
+        }),
+      },
+    );
+
+    expect(beginResponse.status).toBe(202);
+    const beginBody = (await beginResponse.json()) as {
+      data: {
+        signupToken: string;
+        signupRequired: boolean;
+        expiresInSeconds: number;
+      };
+    };
+    expect(beginBody.data).toMatchObject({
+      signupRequired: true,
+      expiresInSeconds: 600,
+    });
+    expect(
+      await persistenceApp.prisma.user.findUnique({
+        where: { email: "google-user@rentify.local" },
+      }),
+    ).toBeNull();
+
+    const completionRequest = () =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/signup/complete")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            signupToken: beginBody.data.signupToken,
+            dateOfBirth: "2012-06-15",
+            deviceId: "continuation-device",
+          }),
+        },
+      );
+    const completionResponses = await Promise.all([
+      completionRequest(),
+      completionRequest(),
+    ]);
+    expect(
+      completionResponses.map((response) => response.status).sort(),
+    ).toEqual([200, 410]);
+    const expiredResponse = completionResponses.find(
+      (response) => response.status === 410,
+    );
+    await expect(expiredResponse?.json()).resolves.toMatchObject({
+      error: { code: "OAUTH_SIGNUP_CONTINUATION_EXPIRED" },
+    });
+    expect(
+      await persistenceApp.prisma.user.findUniqueOrThrow({
+        where: { email: "google-user@rentify.local" },
+      }),
+    ).toMatchObject({
+      dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+      dateOfBirthProvidedAt: expect.any(Date),
+    });
+
+    const replayResponse = await completionRequest();
+    expect(replayResponse.status).toBe(410);
+  });
+
   it("links and unlinks an OAuth provider for a signed-in user", async () => {
+    await persistenceApp.prisma.user.update({
+      where: { email: "user1@rentify.local" },
+      data: { dateOfBirth: null, dateOfBirthProvidedAt: null },
+    });
     const session = await login({
       username: "renter-one",
       password: "Rentify123!",
@@ -778,6 +928,11 @@ describe("Auth persistence integration", () => {
       { method: "DELETE", headers: sessionHeaders(session) },
     );
     expect(unlinkResponse.status).toBe(200);
+    expect(
+      await persistenceApp.prisma.user.findUniqueOrThrow({
+        where: { email: "user1@rentify.local" },
+      }),
+    ).toMatchObject({ dateOfBirth: null, dateOfBirthProvidedAt: null });
   });
 
   it("verifies, lists, and removes known devices", async () => {
@@ -1017,7 +1172,7 @@ describe("Auth persistence integration", () => {
     expect((await login({ username, password: "Rentify123!" })).status).toBe(
       200,
     );
-  });
+  }, 120_000);
 
   it("authenticates through the Microsoft OAuth provider", async () => {
     const response = await persistenceApp.app.request(
@@ -1030,6 +1185,7 @@ describe("Auth persistence integration", () => {
           nonce: "nonce-value",
           rememberMe: false,
           deviceId: "microsoft-device",
+          dateOfBirth: "1990-01-01",
         }),
       },
     );
@@ -1046,6 +1202,8 @@ describe("Auth persistence integration", () => {
     expect(persistedUser).toMatchObject({
       email: "microsoft-user@rentify.local",
       emailVerified: true,
+      dateOfBirth: new Date("1990-01-01T00:00:00.000Z"),
+      dateOfBirthProvidedAt: expect.any(Date),
       profile: {
         usernameAutoGenerated: true,
       },

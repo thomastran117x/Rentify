@@ -83,6 +83,25 @@ describe("AuthOAuthButtons", () => {
     );
   });
 
+  it("does not open a provider popup when signup prerequisites fail", async () => {
+    const user = userEvent.setup();
+    const openMock = vi.spyOn(window, "open");
+    const beforeAuthenticate = vi.fn(() => false);
+    render(
+      <AuthOAuthButtons
+        onError={vi.fn()}
+        beforeAuthenticate={beforeAuthenticate}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+
+    expect(beforeAuthenticate).toHaveBeenCalled();
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
   it("exchanges a verified Google popup code for an authenticated session", async () => {
     const user = userEvent.setup();
     const onSuccess = vi.fn();
@@ -90,7 +109,13 @@ describe("AuthOAuthButtons", () => {
     const popup = { closed: false, close: vi.fn() };
     const openMock = vi.spyOn(window, "open").mockReturnValue(popup as never);
     authenticateGoogleMock.mockResolvedValue({ accessToken: "access" });
-    render(<AuthOAuthButtons onError={onError} onSuccess={onSuccess} />);
+    render(
+      <AuthOAuthButtons
+        onError={onError}
+        onSuccess={onSuccess}
+        dateOfBirth="2012-06-15"
+      />,
+    );
 
     await user.click(
       screen.getByRole("button", { name: "Continue with Google" }),
@@ -121,11 +146,44 @@ describe("AuthOAuthButtons", () => {
 
     await waitFor(() =>
       expect(authenticateGoogleMock).toHaveBeenCalledWith(
-        expect.objectContaining({ code: "code-1" }),
+        expect.objectContaining({
+          code: "code-1",
+          dateOfBirth: "2012-06-15",
+        }),
       ),
     );
     expect(onSuccess).toHaveBeenCalledWith({ accessToken: "access" });
     expect(popup.close).toHaveBeenCalledOnce();
+  });
+
+  it("routes a new-account continuation to the signup callback", async () => {
+    const user = userEvent.setup();
+    const onSignupRequired = vi.fn();
+    authenticateGoogleMock.mockResolvedValue({
+      signupRequired: true,
+      signupToken: "signup-token",
+      expiresInSeconds: 600,
+    });
+    render(
+      <AuthOAuthButtons
+        onError={vi.fn()}
+        onSignupRequired={onSignupRequired}
+      />,
+    );
+
+    await openAndRespond(
+      user,
+      "Continue with Google",
+      (state) => `?code=code-1&state=${state}`,
+    );
+
+    await waitFor(() =>
+      expect(onSignupRequired).toHaveBeenCalledWith({
+        signupRequired: true,
+        signupToken: "signup-token",
+        expiresInSeconds: 600,
+      }),
+    );
   });
 
   it("hides providers disabled by configuration", () => {

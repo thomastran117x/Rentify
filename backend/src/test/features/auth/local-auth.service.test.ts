@@ -588,6 +588,7 @@ describe("LocalAuthService", () => {
         username: "pending-user",
         email: existingUser.email,
         password: "CorrectHorseBatteryStaple1!",
+        dateOfBirth: "2012-06-15",
         firstName: "Pending",
         lastName: "User",
         deviceId: DEVICE_1_ID,
@@ -614,6 +615,7 @@ describe("LocalAuthService", () => {
         username: "available-user",
         email: "user@example.com",
         password: "CorrectHorseBatteryStaple1!",
+        dateOfBirth: "2012-06-15",
         firstName: "Test",
         lastName: "User",
         deviceId: DEVICE_1_ID,
@@ -881,6 +883,7 @@ describe("LocalAuthService", () => {
           passwordHash: pendingPasswordHash,
           firstName: "Pending",
           lastName: "User",
+          dateOfBirth: "2012-06-15",
           deviceId: DEVICE_1_ID,
           createdAt: "2026-01-01T00:00:00.000Z",
         };
@@ -950,6 +953,7 @@ describe("LocalAuthService", () => {
         username: "new-user",
         email: "new-user@example.com",
         password: "CorrectHorseBatteryStaple1!",
+        dateOfBirth: "2012-06-15",
         firstName: "New",
         lastName: "User",
         deviceId: DEVICE_1_ID,
@@ -1228,6 +1232,7 @@ describe("LocalAuthService", () => {
         username: "Casey-Doe",
         email: "pending@example.com",
         password: "StrongPassw0rd!",
+        dateOfBirth: "2012-06-15",
         deviceId: DEVICE_1_ID,
       });
 
@@ -1247,6 +1252,7 @@ describe("LocalAuthService", () => {
         username: "casey-doe",
         email: "pending@example.com",
         password: "StrongPassw0rd!",
+        dateOfBirth: "2012-06-15",
         deviceId: DEVICE_1_ID,
       });
 
@@ -1271,6 +1277,7 @@ describe("LocalAuthService", () => {
         username: "casey-doe",
         email: "nobody@example.com",
         password: "StrongPassw0rd!",
+        dateOfBirth: "2012-06-15",
         deviceId: DEVICE_1_ID,
       });
 

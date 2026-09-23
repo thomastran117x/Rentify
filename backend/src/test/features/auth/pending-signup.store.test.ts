@@ -37,6 +37,7 @@ function createSignup(overrides: Record<string, unknown> = {}) {
     username: "test-user",
     email: "User@Example.com",
     passwordHash: "$2b$12$hash",
+    dateOfBirth: "2012-06-15",
     firstName: "Test",
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,

@@ -60,6 +60,22 @@ export interface SignupVerificationPendingResult {
   alreadyPending: boolean;
 }
 
+export interface OAuthSignupRequiredResult {
+  signupRequired: true;
+  signupToken: string;
+  expiresInSeconds: number;
+}
+
+export type OAuthAuthenticateResult =
+  | AuthResponseBody
+  | OAuthSignupRequiredResult;
+
+export function isOAuthSignupRequired(
+  result: OAuthAuthenticateResult,
+): result is OAuthSignupRequiredResult {
+  return "signupRequired" in result;
+}
+
 export interface UsernameSuggestionsResult {
   suggestions: string[];
 }

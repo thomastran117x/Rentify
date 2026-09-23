@@ -542,6 +542,7 @@ describe("Identity bloom filter persistence integration", () => {
         username: "pending-person",
         email: "pending-person@example.com",
         passwordHash: "hash",
+        dateOfBirth: "2012-06-15",
         createdAt: new Date().toISOString(),
       },
       600,

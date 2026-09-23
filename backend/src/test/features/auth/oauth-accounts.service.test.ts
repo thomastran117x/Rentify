@@ -1,5 +1,6 @@
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
   AuthUserRecord,
@@ -80,6 +81,7 @@ const oauthInput = {
   code: "code-1",
   codeVerifier: "verifier-1",
   deviceId: "device-1",
+  dateOfBirth: "2012-06-15",
 };
 
 function createHarness() {
@@ -140,6 +142,19 @@ function createHarness() {
       suggestions: ["bright-otter-4827"],
     })),
   };
+  const pendingOAuthSignups = new Map<string, unknown>();
+  const oauthSignupStore = {
+    getTtlInSeconds: jest.fn(() => 600),
+    create: jest.fn(async (record: unknown) => {
+      pendingOAuthSignups.set("signup-token", record);
+      return "signup-token";
+    }),
+    read: jest.fn(
+      async (token: string) => pendingOAuthSignups.get(token) ?? null,
+    ),
+    delete: jest.fn(async (token: string) => pendingOAuthSignups.delete(token)),
+    acquireCompletionLock: jest.fn(async () => ({ release: jest.fn() })),
+  };
 
   return {
     authRepository,
@@ -149,6 +164,7 @@ function createHarness() {
     usernameBloomService,
     emailBloomService,
     usernameService,
+    oauthSignupStore,
     mfaTotpService,
     tokenService,
     service: new OAuthAccountsService(
@@ -167,11 +183,71 @@ function createHarness() {
         tokenService as never,
         deviceService as never,
       ),
+      oauthSignupStore as never,
     ),
   };
 }
 
 describe("OAuthAccountsService sign-in", () => {
+  it("pauses a new social signup when date of birth is missing", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.googleAuthenticate({
+        ...oauthInput,
+        dateOfBirth: undefined,
+      }),
+    ).resolves.toEqual({
+      signupRequired: true,
+      signupToken: "signup-token",
+      expiresInSeconds: 600,
+    });
+    expect(harness.authRepository.createOAuthUser).not.toHaveBeenCalled();
+    expect(harness.oauthSignupStore.create).toHaveBeenCalledWith(
+      expect.objectContaining({ profile: googleProfile }),
+    );
+  });
+
+  it("completes a paused social signup with any valid date of birth", async () => {
+    const harness = createHarness();
+    await harness.service.googleAuthenticate({
+      ...oauthInput,
+      dateOfBirth: undefined,
+    });
+
+    const result = await harness.service.completeSignup({
+      client: createClient(),
+      signupToken: "signup-token",
+      dateOfBirth: "2012-06-15",
+      deviceId: "device-1",
+    });
+
+    expect(harness.authRepository.createOAuthUser).toHaveBeenCalledWith(
+      googleProfile,
+      "bright-otter-4827",
+      "2012-06-15",
+    );
+    expect(harness.oauthSignupStore.delete).toHaveBeenCalledWith(
+      "signup-token",
+    );
+    expect(result).toMatchObject({
+      accessToken: "access-token",
+      isNewUser: true,
+    });
+  });
+
+  it("rejects an expired social signup continuation", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.completeSignup({
+        client: createClient(),
+        signupToken: "missing-token",
+        dateOfBirth: "2012-06-15",
+      }),
+    ).rejects.toBeInstanceOf(OAuthSignupContinuationExpiredError);
+  });
+
   it("creates a new user when the provider account is verified and unlinked", async () => {
     const harness = createHarness();
     const createdUser = createUser({ email: "oauth-created@example.com" });
@@ -186,10 +262,13 @@ describe("OAuthAccountsService sign-in", () => {
     expect(harness.authRepository.createOAuthUser).toHaveBeenCalledWith(
       expect.objectContaining({ email: createdUser.email }),
       "bright-otter-4827",
+      "2012-06-15",
     );
-    expect(result.accessToken).toBe("access-token");
-    expect(result.user.email).toBe(createdUser.email);
-    expect(result.isNewUser).toBe(true);
+    expect(result).toMatchObject({
+      accessToken: "access-token",
+      user: { email: createdUser.email },
+      isNewUser: true,
+    });
   });
 
   it("adds the generated username to the bloom filter", async () => {
@@ -215,6 +294,7 @@ describe("OAuthAccountsService sign-in", () => {
       2,
       googleProfile,
       "calm-willow-1034",
+      "2012-06-15",
     );
   });
 
@@ -292,8 +372,8 @@ describe("OAuthAccountsService sign-in", () => {
     const result = await harness.service.googleAuthenticate(oauthInput);
 
     expect(harness.authRepository.findUserByEmail).not.toHaveBeenCalled();
-    expect(result.user.email).toBe("renamed@example.com");
-    expect(result.isNewUser).toBeUndefined();
+    expect(result).toMatchObject({ user: { email: "renamed@example.com" } });
+    expect(result).not.toHaveProperty("isNewUser");
   });
 
   it("rejects a provider profile with an unverified email", async () => {
