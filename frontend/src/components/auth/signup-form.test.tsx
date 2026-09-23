@@ -214,12 +214,13 @@ describe("SignupForm", () => {
     );
 
     expect(screen.getByLabelText("Username")).toHaveValue("bright-otter-4827");
-    expect(
-      screen.getByText("bright-otter-4827 is available."),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Checking availability..."),
-    ).not.toBeInTheDocument();
+
+    // Scoped to the username hint: the email hint uses the same
+    // "Checking availability..." string and stays mounted, hidden, on the
+    // first step, where a queryByText would still find it.
+    const hint = document.getElementById("signup-username-availability");
+    expect(hint).toHaveTextContent("bright-otter-4827 is available.");
+    expect(hint).not.toHaveTextContent("Checking availability...");
     expect(checkUsernameAvailabilityMock).not.toHaveBeenCalled();
   });
 
