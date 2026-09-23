@@ -21,8 +21,6 @@ interface AuthOAuthButtonsProps {
   onLinked?: (result: LinkedOAuthProvidersResult) => void;
   onError: (message: string) => void;
   disabledProviders?: OAuthProvider[];
-  dateOfBirth?: string;
-  beforeAuthenticate?: () => boolean;
   onSignupRequired?: (result: OAuthSignupRequiredResult) => void;
 }
 
@@ -273,19 +271,17 @@ async function authenticateWithProvider(
   provider: OAuthProvider,
   input: ProviderInput,
   nonce: string,
-  dateOfBirth?: string,
 ): Promise<OAuthAuthenticateResult> {
   if (provider === "google") {
     return authApi.authenticateWithGoogle({
       code: input.code ?? "",
       codeVerifier: input.codeVerifier ?? "",
       nonce,
-      dateOfBirth,
     });
   }
 
   if (provider === "apple") {
-    return authApi.authenticateWithApple({ ...input, nonce, dateOfBirth });
+    return authApi.authenticateWithApple({ ...input, nonce });
   }
 
   return authApi.authenticateWithMicrosoft({
@@ -293,7 +289,6 @@ async function authenticateWithProvider(
     code: input.code,
     codeVerifier: input.codeVerifier,
     nonce,
-    dateOfBirth,
   });
 }
 
@@ -593,8 +588,6 @@ export function AuthOAuthButtons({
   onLinked,
   onError,
   disabledProviders = [],
-  dateOfBirth,
-  beforeAuthenticate,
   onSignupRequired,
 }: AuthOAuthButtonsProps) {
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
@@ -635,10 +628,6 @@ export function AuthOAuthButtons({
   ).filter((provider) => provider.enabled);
 
   async function handleProviderClick(provider: OAuthProvider) {
-    if (!isLinkMode && beforeAuthenticate && !beforeAuthenticate()) {
-      return;
-    }
-
     setPendingProvider(provider);
     onError("");
 
@@ -654,12 +643,7 @@ export function AuthOAuthButtons({
         return;
       }
 
-      const result = await authenticateWithProvider(
-        provider,
-        input,
-        nonce,
-        dateOfBirth,
-      );
+      const result = await authenticateWithProvider(provider, input, nonce);
       if (isOAuthSignupRequired(result)) {
         onSignupRequired?.(result);
         return;
