@@ -195,9 +195,7 @@ export function SignupVerificationPanel({
         captchaToken,
       });
 
-      setResentMessage(
-        "If this email needs verification, a new code is on the way.",
-      );
+      setResentMessage("A new code is on the way.");
     } catch (error) {
       const failure = getResendFailureResult(error);
       setGeneralError(failure.generalError);
@@ -213,7 +211,7 @@ export function SignupVerificationPanel({
       <div className={theme.auth.successPanel}>
         <p className="text-sm font-semibold">Check your inbox</p>
         <p className="mt-2 text-sm leading-6">
-          If {result.email} needs verification, we sent a 6-digit code.
+          We sent a 6-digit code to {result.email}.
         </p>
         <p className="mt-2 text-sm leading-6">
           Verify your email before signing in to your Rentify workspace.

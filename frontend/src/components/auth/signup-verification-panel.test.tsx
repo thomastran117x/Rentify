@@ -230,9 +230,7 @@ describe("SignupVerificationPanel", () => {
       captchaToken: "captcha-token",
     });
     expect(
-      await screen.findByText(
-        "If this email needs verification, a new code is on the way.",
-      ),
+      await screen.findByText("A new code is on the way."),
     ).toBeInTheDocument();
     expect(clearCaptchaTokenMock).toHaveBeenCalled();
   });
