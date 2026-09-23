@@ -13,6 +13,7 @@ import {
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { getPasswordStrengthError } from "@/lib/auth/password";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
@@ -61,8 +62,13 @@ function validateReset(values: {
 
   if (!values.newPassword) {
     errors.newPassword = "New password is required.";
-  } else if (values.newPassword.length < 8) {
-    errors.newPassword = "Password must be at least 8 characters.";
+  } else {
+    // `resetPasswordSchema` uses the same `strongPasswordSchema` as signup.
+    const passwordError = getPasswordStrengthError(values.newPassword);
+
+    if (passwordError) {
+      errors.newPassword = passwordError;
+    }
   }
 
   if (!values.confirmPassword) {
@@ -504,9 +510,10 @@ export function ForgotPasswordForm() {
           value={newPassword}
           onChange={setNewPassword}
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="Create a password"
           error={resetErrors.newPassword}
           errorId="forgot-password-new-password-error"
+          hint="At least 8 characters, including uppercase, lowercase, a number, and a special character."
         />
 
         <AuthPasswordField

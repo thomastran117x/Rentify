@@ -28,6 +28,7 @@ import {
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
+import { getPasswordStrengthError } from "@/lib/auth/password";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
 import {
   getCurrentUtcDateOnly,
@@ -98,8 +99,14 @@ function validateAccountStep(values: AccountStepValues): SignupErrors {
 
   if (!values.password) {
     errors.password = "Password is required.";
-  } else if (values.password.length < 8) {
-    errors.password = "Password must be at least 8 characters.";
+  } else {
+    // The backend rejects anything `strongPasswordSchema` refuses, so check the
+    // same rule here rather than spending a request on a guaranteed 400.
+    const passwordError = getPasswordStrengthError(values.password);
+
+    if (passwordError) {
+      errors.password = passwordError;
+    }
   }
 
   if (!values.confirmPassword) {
@@ -574,7 +581,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
             placeholder="Create a password"
             error={errors.password}
             errorId="signup-password-error"
-            hint="At least 8 characters."
+            hint="At least 8 characters, including uppercase, lowercase, a number, and a special character."
           />
 
           <AuthPasswordField

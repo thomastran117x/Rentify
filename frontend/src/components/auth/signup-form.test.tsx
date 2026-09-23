@@ -120,7 +120,7 @@ async function completeAccountStep(
 ) {
   const {
     email = "person@example.com",
-    password = "password123",
+    password = "StrongPassw0rd!",
     confirmPassword = password,
   } = values;
 
@@ -334,7 +334,7 @@ describe("SignupForm", () => {
     render(<SignupForm />);
 
     await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
     await user.type(screen.getByLabelText("Confirm password"), "password124");
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -365,6 +365,25 @@ describe("SignupForm", () => {
     expect(signupMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a password the backend would refuse", async () => {
+    // `strongPasswordSchema` needs 8+ chars with upper, lower, digit, and a
+    // special character, so checking only the length sent guaranteed 400s.
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      screen.getByText(
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+  });
+
   it("keeps the first step's values when the user goes back", async () => {
     const user = userEvent.setup();
     render(<SignupForm />);
@@ -376,7 +395,7 @@ describe("SignupForm", () => {
     expect(await screen.findByLabelText("Email")).toHaveValue(
       "person@example.com",
     );
-    expect(screen.getByLabelText("Password")).toHaveValue("password123");
+    expect(screen.getByLabelText("Password")).toHaveValue("StrongPassw0rd!");
 
     // And the second step still holds what was typed there.
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -426,7 +445,7 @@ describe("SignupForm", () => {
         lastName: "Doe",
         username: "person",
         email: "person@example.com",
-        password: "password123",
+        password: "StrongPassw0rd!",
         dateOfBirth: "2012-06-15",
         captchaToken: "captcha-token",
       });
@@ -678,8 +697,11 @@ describe("SignupForm", () => {
     render(<SignupForm />);
 
     await user.type(screen.getByLabelText("Email"), "taken@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "StrongPassw0rd!",
+    );
 
     expect(
       await screen.findByText("This email is already in use."),
@@ -711,8 +733,11 @@ describe("SignupForm", () => {
       await screen.findByText(/already started signing up/i),
     ).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "StrongPassw0rd!",
+    );
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByLabelText("First name");
 
