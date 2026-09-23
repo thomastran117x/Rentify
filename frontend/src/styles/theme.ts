@@ -295,9 +295,9 @@ export const theme = {
     fieldIcon:
       "pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-violet-600 dark:text-violet-400",
     fieldInput:
-      "h-14 w-full rounded-2xl bg-transparent pl-12 pr-4 text-[15px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500",
+      "h-12 w-full rounded-2xl bg-transparent pl-12 pr-4 text-[15px] sm:h-14 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500",
     fieldInputWithAction:
-      "h-14 w-full rounded-2xl bg-transparent pl-12 pr-14 text-[15px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500",
+      "h-12 w-full rounded-2xl bg-transparent pl-12 pr-14 text-[15px] sm:h-14 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500",
     fieldText: "text-sm text-slate-500 dark:text-slate-400",
     fieldErrorText: "text-sm text-rose-700 dark:text-rose-300",
 
@@ -305,10 +305,10 @@ export const theme = {
       "absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-slate-600",
 
     primaryButton:
-      "inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-violet-600 px-5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-md hover:shadow-violet-600/25 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-y-0",
+      "inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-2xl bg-violet-600 sm:h-14 px-5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition duration-200 hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-md hover:shadow-violet-600/25 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-y-0",
 
     secondaryButton:
-      "inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50/70 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-y-0 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:border-violet-800 dark:hover:bg-violet-950/40",
+      "inline-flex h-12 w-full cursor-pointer items-center justify-center rounded-2xl border border-slate-200 sm:h-14 bg-white px-5 text-sm font-semibold text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50/70 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-y-0 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:border-violet-800 dark:hover:bg-violet-950/40",
 
     tertiaryLink:
       "inline-flex h-12 w-full items-center justify-center text-sm font-medium text-violet-700 transition duration-200 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200",

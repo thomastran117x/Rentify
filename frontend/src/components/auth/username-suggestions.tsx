@@ -48,31 +48,12 @@ export function UsernameSuggestions({
   }, [refreshVersion]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/30">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-          Need inspiration?
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            setError(false);
-            setRefreshVersion((current) => current + 1);
-          }}
-          disabled={disabled || loading}
-          aria-label="Refresh username suggestions"
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-            aria-hidden="true"
-          />
-          Refresh
-        </button>
-      </div>
+    <div className="flex min-h-8 flex-wrap items-center gap-2">
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+        Need inspiration?
+      </p>
 
-      <div className="mt-2 flex min-h-8 flex-wrap gap-2" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-2" aria-live="polite">
         {loading && suggestions.length === 0 ? (
           <span className="text-sm text-slate-500 dark:text-slate-400">
             Finding available usernames...
@@ -86,7 +67,7 @@ export function UsernameSuggestions({
             onClick={() => onSelect(suggestion)}
             disabled={disabled}
             aria-label={`Use username ${suggestion}`}
-            className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-sm font-medium text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-200 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/40"
+            className="rounded-full border border-violet-200 bg-white px-3 py-1 text-sm font-medium text-violet-700 transition hover:border-violet-400 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-900 dark:bg-slate-900 dark:text-violet-300 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
           >
             {suggestion}
           </button>
@@ -99,6 +80,24 @@ export function UsernameSuggestions({
           </span>
         ) : null}
       </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setLoading(true);
+          setError(false);
+          setRefreshVersion((current) => current + 1);
+        }}
+        disabled={disabled || loading}
+        aria-label="Refresh username suggestions"
+        title="Refresh"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
+      >
+        <RefreshCw
+          className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
     </div>
   );
 }
