@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
+import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
@@ -361,14 +362,6 @@ export function ForgotPasswordForm() {
     () => username.trim().length > 0,
     [username],
   );
-  const newPasswordHasValue = useMemo(
-    () => newPassword.length > 0,
-    [newPassword],
-  );
-  const confirmPasswordHasValue = useMemo(
-    () => confirmPassword.length > 0,
-    [confirmPassword],
-  );
 
   if (status === "loading" || authFlowRestorePending) {
     return (
@@ -505,69 +498,27 @@ export function ForgotPasswordForm() {
           />
         </div>
 
-        <div className="space-y-2">
-          <label htmlFor="newPassword" className={theme.auth.fieldLabel}>
-            New password
-          </label>
-          <input
-            id="newPassword"
-            name="newPassword"
-            type="password"
-            autoComplete="new-password"
-            placeholder="At least 8 characters"
-            aria-invalid={Boolean(resetErrors.newPassword)}
-            aria-describedby={
-              resetErrors.newPassword
-                ? "forgot-password-new-password-error"
-                : undefined
-            }
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
-              resetErrors.newPassword
-                ? theme.auth.fieldError
-                : newPasswordHasValue
-                  ? theme.auth.fieldActive
-                  : theme.auth.fieldDefault
-            }`}
-          />
-          <FieldErrorMessage
-            id="forgot-password-new-password-error"
-            message={resetErrors.newPassword}
-          />
-        </div>
+        <AuthPasswordField
+          id="newPassword"
+          label="New password"
+          value={newPassword}
+          onChange={setNewPassword}
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
+          error={resetErrors.newPassword}
+          errorId="forgot-password-new-password-error"
+        />
 
-        <div className="space-y-2">
-          <label htmlFor="confirmPassword" className={theme.auth.fieldLabel}>
-            Confirm new password
-          </label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Repeat your new password"
-            aria-invalid={Boolean(resetErrors.confirmPassword)}
-            aria-describedby={
-              resetErrors.confirmPassword
-                ? "forgot-password-confirm-password-error"
-                : undefined
-            }
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
-              resetErrors.confirmPassword
-                ? theme.auth.fieldError
-                : confirmPasswordHasValue
-                  ? theme.auth.fieldActive
-                  : theme.auth.fieldDefault
-            }`}
-          />
-          <FieldErrorMessage
-            id="forgot-password-confirm-password-error"
-            message={resetErrors.confirmPassword}
-          />
-        </div>
+        <AuthPasswordField
+          id="confirmPassword"
+          label="Confirm new password"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
+          placeholder="Repeat your new password"
+          error={resetErrors.confirmPassword}
+          errorId="forgot-password-confirm-password-error"
+        />
 
         <button
           type="submit"
