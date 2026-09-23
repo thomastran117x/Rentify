@@ -357,6 +357,15 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    // Both steps live in one form, so once the second step has been reached its
+    // submit button stays mounted and becomes the form's default submitter.
+    // Without this, pressing Enter on the first step would run the full signup,
+    // or raise profile errors on a step the user cannot see.
+    if (currentStep === 0) {
+      handleContinue();
+      return;
+    }
+
     const nextErrors = validateSignup({
       firstName,
       lastName,

@@ -384,6 +384,21 @@ describe("SignupForm", () => {
     expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
   });
 
+  it("submits the account step when Enter is pressed on the first step", async () => {
+    // Both steps share one form, so once the second step has been reached its
+    // hidden submit button would otherwise become the default submitter and
+    // Enter would run the full signup from the first step.
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    await completeAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    await user.type(screen.getByLabelText("Email"), "{Enter}");
+
+    expect(signupMock).not.toHaveBeenCalled();
+    expect(await screen.findByLabelText("First name")).toBeVisible();
+  });
+
   it("keeps the first step's values when the user goes back", async () => {
     const user = userEvent.setup();
     render(<SignupForm />);
