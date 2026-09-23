@@ -10,6 +10,8 @@ import type {
   RefreshRequestBody,
 } from "@/features/auth/session/session.model";
 import type {
+  CompleteOAuthSignupInput,
+  CompleteOAuthSignupRequestBody,
   LinkOAuthProviderInput,
   OAuthAuthenticateInput,
   OAuthAuthenticateRequestBody,
@@ -182,6 +184,7 @@ export function toLocalSignupInput(
     username: input.username,
     email: input.email,
     password: input.password,
+    dateOfBirth: input.dateOfBirth,
     firstName: input.firstName,
     lastName: input.lastName,
     deviceId: resolveDeviceId(request, input.deviceId),
@@ -203,6 +206,19 @@ export function toOAuthAuthenticateInput(
     lastName: input.lastName,
     deviceId: resolveDeviceId(request, input.deviceId),
     totpCode: input.totpCode,
+    dateOfBirth: input.dateOfBirth,
+  };
+}
+
+export function toCompleteOAuthSignupInput(
+  request: Request,
+  input: CompleteOAuthSignupRequestBody,
+): CompleteOAuthSignupInput {
+  return {
+    client: request.client,
+    signupToken: input.signupToken,
+    dateOfBirth: input.dateOfBirth,
+    deviceId: resolveDeviceId(request, input.deviceId),
   };
 }
 

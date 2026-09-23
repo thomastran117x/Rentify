@@ -1,4 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
@@ -97,6 +103,15 @@ vi.mock("@/components/auth/signup-verification-panel", () => ({
     </div>
   ),
 }));
+
+function render(ui: ReactNode) {
+  const result = testingLibraryRender(ui);
+  const dateInput = screen.queryByLabelText("Date of birth");
+  if (dateInput) {
+    fireEvent.change(dateInput, { target: { value: "2012-06-15" } });
+  }
+  return result;
+}
 
 describe("SignupForm", () => {
   beforeEach(() => {
@@ -262,11 +277,12 @@ describe("SignupForm", () => {
       clearCaptchaTokenMock,
     ]);
 
-    render(<SignupForm />);
+    testingLibraryRender(<SignupForm />);
 
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(screen.getByText("First name is required.")).toBeInTheDocument();
+    expect(screen.getByText("Date of birth is required.")).toBeInTheDocument();
     expect(screen.getByText("Last name is required.")).toBeInTheDocument();
     expect(screen.getByText("Username is required.")).toBeInTheDocument();
     expect(screen.getByText("Email is required.")).toBeInTheDocument();
@@ -305,6 +321,7 @@ describe("SignupForm", () => {
         username: "person",
         email: "person@example.com",
         password: "password123",
+        dateOfBirth: "2012-06-15",
         captchaToken: "captcha-token",
       });
     });

@@ -38,6 +38,9 @@ function createController() {
     appleAuthenticate: jest.fn(async () =>
       createSessionResult({ isNewUser: true }),
     ),
+    completeSignup: jest.fn(async () =>
+      createSessionResult({ isNewUser: true }),
+    ),
     linkOAuthProvider: jest.fn(async () => providersResult),
     linkedOAuthProviders: jest.fn(async () => providersResult),
     unlinkOAuthProvider: jest.fn(async () => providersResult),
@@ -59,6 +62,7 @@ const oauthBody = {
   deviceId: "oauth-device",
   firstName: "OAuth",
   lastName: "User",
+  dateOfBirth: "2012-06-15",
 };
 
 beforeEach(() => {
@@ -86,6 +90,7 @@ describe("OAuthController sign-in handlers", () => {
       lastName: "User",
       deviceId: "oauth-device",
       totpCode: undefined,
+      dateOfBirth: "2012-06-15",
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -143,6 +148,56 @@ describe("OAuthController sign-in handlers", () => {
     );
 
     expect(mockRequireJwtAuth).not.toHaveBeenCalled();
+  });
+
+  it("returns an accepted continuation when a new OAuth user needs a date of birth", async () => {
+    const { controller, oauthAccountsService } = createController();
+    oauthAccountsService.googleAuthenticate.mockResolvedValueOnce({
+      signupRequired: true,
+      signupToken: "signup-token",
+      expiresInSeconds: 600,
+    } as never);
+
+    const response = await invoke(
+      controller.googleAuthenticate,
+      createContext({ body: oauthBody }),
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        signupRequired: true,
+        signupToken: "signup-token",
+        expiresInSeconds: 600,
+      },
+    });
+  });
+
+  it("completes an OAuth signup with a valid continuation and date of birth", async () => {
+    const { controller, oauthAccountsService } = createController();
+
+    const response = await invoke(
+      controller.completeSignup,
+      createContext({
+        body: {
+          signupToken: "signup-token",
+          dateOfBirth: "2012-06-15",
+          deviceId: "oauth-device",
+        },
+      }),
+    );
+
+    expect(oauthAccountsService.completeSignup).toHaveBeenCalledWith({
+      client: expect.any(Object),
+      signupToken: "signup-token",
+      dateOfBirth: "2012-06-15",
+      deviceId: "oauth-device",
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      message: "Signup completed successfully.",
+      data: { isNewUser: true },
+    });
   });
 });
 

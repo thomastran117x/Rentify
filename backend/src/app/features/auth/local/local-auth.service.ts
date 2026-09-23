@@ -159,6 +159,7 @@ export class LocalAuthService {
         username: input.username,
         email: input.email,
         passwordHash,
+        dateOfBirth: input.dateOfBirth,
         firstName: input.firstName,
         lastName: input.lastName,
         deviceId: input.deviceId,
@@ -218,6 +219,7 @@ export class LocalAuthService {
             email: pendingSignup.email,
             firstName: pendingSignup.firstName,
             lastName: pendingSignup.lastName,
+            dateOfBirth: pendingSignup.dateOfBirth,
           },
           pendingSignup.passwordHash,
         );
@@ -240,6 +242,7 @@ export class LocalAuthService {
             passwordHash: pendingSignup.passwordHash,
             firstName: pendingSignup.firstName,
             lastName: pendingSignup.lastName,
+            dateOfBirth: pendingSignup.dateOfBirth,
           },
         );
       }

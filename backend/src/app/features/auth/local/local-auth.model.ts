@@ -8,11 +8,13 @@ import {
   strongPasswordSchema,
   UNSAFE_AUTH_INPUT_MESSAGE,
 } from "@/features/auth/auth.model";
+import { dateOfBirthSchema } from "@/features/auth/date-of-birth";
 
 export const localSignupRequestSchema = z.object({
   username: authUsernameSchema,
   email: z.email().transform((value) => value.trim().toLowerCase()),
   password: strongPasswordSchema,
+  dateOfBirth: dateOfBirthSchema,
   captchaToken: requiredSafeTrimmedString("Captcha token is required."),
   firstName: optionalTrimmedString,
   lastName: optionalTrimmedString,
@@ -74,6 +76,7 @@ export interface LocalSignupInput {
   username: string;
   email: string;
   password: string;
+  dateOfBirth: string;
   firstName?: string;
   lastName?: string;
   deviceId?: string;

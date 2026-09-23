@@ -17,6 +17,10 @@ import {
 import { authApi } from "@/lib/auth/api";
 import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
+import {
+  getCurrentUtcDateOnly,
+  validateDateOfBirth,
+} from "@/lib/auth/date-of-birth";
 import { useEmailAvailability } from "@/lib/auth/use-email-availability";
 import {
   getUsernameAvailabilityError,
@@ -26,7 +30,10 @@ import { EmailAvailabilityHint } from "@/components/auth/email-availability-hint
 import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { UsernameSuggestions } from "@/components/auth/username-suggestions";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
-import type { AuthResponseBody } from "@/lib/auth/types";
+import type {
+  AuthResponseBody,
+  OAuthSignupRequiredResult,
+} from "@/lib/auth/types";
 import { ApiClientError } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
@@ -37,6 +44,7 @@ interface SignupErrors {
   email?: string;
   password?: string;
   confirmPassword?: string;
+  dateOfBirth?: string;
   captchaToken?: string;
 }
 
@@ -47,9 +55,15 @@ function validateSignup(values: {
   email: string;
   password: string;
   confirmPassword: string;
+  dateOfBirth: string;
   captchaToken: string;
 }): SignupErrors {
   const errors: SignupErrors = {};
+
+  const dateOfBirthError = validateDateOfBirth(values.dateOfBirth);
+  if (dateOfBirthError) {
+    errors.dateOfBirth = dateOfBirthError;
+  }
 
   if (!values.firstName.trim()) {
     errors.firstName = "First name is required.";
@@ -362,6 +376,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
     useAuthCaptchaToken();
   const [showPassword, setShowPassword] = useState(false);
@@ -419,6 +434,38 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
     router.replace(nextPath);
   }
 
+  function validateDateBeforeOAuth(): boolean {
+    const dateError = validateDateOfBirth(dateOfBirth);
+    setErrors((current) => ({
+      ...current,
+      dateOfBirth: dateError ?? undefined,
+    }));
+    setGeneralError(null);
+    return dateError === null;
+  }
+
+  async function handleOAuthSignupRequired(result: OAuthSignupRequiredResult) {
+    if (!validateDateBeforeOAuth()) {
+      return;
+    }
+
+    try {
+      handleOAuthSuccess(
+        await authApi.completeOAuthSignup({
+          signupToken: result.signupToken,
+          dateOfBirth,
+        }),
+      );
+    } catch (error) {
+      setGeneralError(
+        getApiErrorMessage(error, {
+          action: "complete your account",
+          fallback: "We couldn't complete your account. Please try again.",
+        }),
+      );
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -429,6 +476,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
       email,
       password,
       confirmPassword,
+      dateOfBirth,
       captchaToken,
     });
 
@@ -458,6 +506,7 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
         username: normalizeUsername(username),
         email: normalizeEmail(email),
         password,
+        dateOfBirth,
         captchaToken,
       });
 
@@ -500,6 +549,10 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
     () => confirmPassword.length > 0,
     [confirmPassword],
   );
+  const dateOfBirthHasValue = useMemo(
+    () => dateOfBirth.length > 0,
+    [dateOfBirth],
+  );
 
   if (status === "loading" || authFlowRestorePending) {
     return (
@@ -538,9 +591,59 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
 
   return (
     <div className="space-y-5">
+      <div className={theme.auth.fieldGroup}>
+        <div className="mb-4">
+          <p className={theme.auth.fieldSectionLabel}>Age information</p>
+          <p className={theme.auth.fieldSectionDescription}>
+            Your date of birth supports age-aware marketplace experiences. It
+            does not prevent people under 18 from signing up.
+          </p>
+        </div>
+
+        <SignupField
+          id="dateOfBirth"
+          label="Date of birth"
+          error={errors.dateOfBirth}
+          errorId="signup-date-of-birth-error"
+          hasValue={dateOfBirthHasValue}
+          activeClassName={theme.auth.fieldActive}
+          icon={
+            <div className={theme.auth.fieldIcon}>
+              <UserIcon />
+            </div>
+          }
+        >
+          <input
+            id="dateOfBirth"
+            name="dateOfBirth"
+            type="date"
+            autoComplete="bday"
+            max={getCurrentUtcDateOnly()}
+            aria-invalid={Boolean(errors.dateOfBirth)}
+            aria-describedby={
+              errors.dateOfBirth ? "signup-date-of-birth-error" : undefined
+            }
+            value={dateOfBirth}
+            onChange={(event) => {
+              setDateOfBirth(event.target.value);
+              if (errors.dateOfBirth) {
+                setErrors((current) => ({
+                  ...current,
+                  dateOfBirth: undefined,
+                }));
+              }
+            }}
+            className={theme.auth.fieldInput}
+          />
+        </SignupField>
+      </div>
+
       <AuthOAuthButtons
         onSuccess={handleOAuthSuccess}
         onError={setGeneralError}
+        dateOfBirth={dateOfBirth}
+        beforeAuthenticate={validateDateBeforeOAuth}
+        onSignupRequired={(result) => void handleOAuthSignupRequired(result)}
       />
 
       <div className="flex items-center gap-3">

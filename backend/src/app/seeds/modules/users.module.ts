@@ -15,6 +15,8 @@ import {
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const BCRYPT_SALT_ROUNDS = 12;
+const DEFAULT_SEED_DATE_OF_BIRTH = "1990-01-01";
+const DEFAULT_SEED_DATE_OF_BIRTH_PROVIDED_AT = "2026-01-01T00:00:00.000Z";
 
 interface OrganizationBlogPostSeed {
   title: string;
@@ -180,6 +182,13 @@ export const usersSeedModule: SeedModule = {
           passwordHash,
           firstName: fixtureUser.firstName,
           lastName: fixtureUser.lastName,
+          dateOfBirth: new Date(
+            `${fixtureUser.dateOfBirth ?? DEFAULT_SEED_DATE_OF_BIRTH}T00:00:00.000Z`,
+          ),
+          dateOfBirthProvidedAt: new Date(
+            fixtureUser.dateOfBirthProvidedAt ??
+              DEFAULT_SEED_DATE_OF_BIRTH_PROVIDED_AT,
+          ),
           role: fixtureUser.role,
           emailVerified: fixtureUser.emailVerified,
         },
@@ -189,6 +198,13 @@ export const usersSeedModule: SeedModule = {
           passwordHash,
           firstName: fixtureUser.firstName,
           lastName: fixtureUser.lastName,
+          dateOfBirth: new Date(
+            `${fixtureUser.dateOfBirth ?? DEFAULT_SEED_DATE_OF_BIRTH}T00:00:00.000Z`,
+          ),
+          dateOfBirthProvidedAt: new Date(
+            fixtureUser.dateOfBirthProvidedAt ??
+              DEFAULT_SEED_DATE_OF_BIRTH_PROVIDED_AT,
+          ),
           role: fixtureUser.role,
           emailVerified: fixtureUser.emailVerified,
         },

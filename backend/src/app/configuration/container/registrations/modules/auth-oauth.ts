@@ -7,10 +7,18 @@ import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
+import { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
 
 export const authOauthRegistrationModule: ContainerRegistrationModule = {
   id: "auth-oauth",
   register(container) {
+    container.register({
+      token: containerTokens.oauthSignupStore,
+      lifetime: "scoped",
+      dependencies: [containerTokens.cacheService],
+      resolve: ({ resolve }) =>
+        new OAuthSignupStore(resolve(containerTokens.cacheService)),
+    });
     container.register({
       token: containerTokens.authOAuthIdentityRepository,
       lifetime: "singleton",
@@ -58,6 +66,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
         containerTokens.usernameService,
         containerTokens.mfaTotpService,
         containerTokens.authSessionService,
+        containerTokens.oauthSignupStore,
       ],
       resolve: ({ resolve }) =>
         new OAuthAccountsService(
@@ -71,6 +80,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.usernameService),
           resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.authSessionService),
+          resolve(containerTokens.oauthSignupStore),
         ),
     });
     container.register({

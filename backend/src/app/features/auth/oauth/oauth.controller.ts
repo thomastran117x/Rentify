@@ -1,15 +1,19 @@
 import type { Request, Response } from "express";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
-import { ok } from "@/configuration/http/responses";
+import { accepted, ok } from "@/configuration/http/responses";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
+  toCompleteOAuthSignupInput,
   toLinkOAuthProviderInput,
   toOAuthAuthenticateInput,
   toUnlinkOAuthProviderInput,
 } from "@/features/auth/auth.request-mappers";
 import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
-import { oauthAuthenticateRequestSchema } from "@/features/auth/oauth/oauth-accounts.model";
+import {
+  completeOAuthSignupRequestSchema,
+  oauthAuthenticateRequestSchema,
+} from "@/features/auth/oauth/oauth-accounts.model";
 import { asUuid } from "@/configuration/validation/uuid";
 
 export class OAuthController {
@@ -26,6 +30,12 @@ export class OAuthController {
     const result = await this.oauthAccountsService.googleAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("signupRequired" in result) {
+      accepted(response, result, {
+        message: "Date of birth is required to complete signup.",
+      });
+      return;
+    }
     writeAuthSessionResponse(request, response, result, {
       message: "Authenticated successfully.",
     });
@@ -42,6 +52,12 @@ export class OAuthController {
     const result = await this.oauthAccountsService.microsoftAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("signupRequired" in result) {
+      accepted(response, result, {
+        message: "Date of birth is required to complete signup.",
+      });
+      return;
+    }
     writeAuthSessionResponse(request, response, result, {
       message: "Authenticated successfully.",
     });
@@ -58,8 +74,30 @@ export class OAuthController {
     const result = await this.oauthAccountsService.appleAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("signupRequired" in result) {
+      accepted(response, result, {
+        message: "Date of birth is required to complete signup.",
+      });
+      return;
+    }
     writeAuthSessionResponse(request, response, result, {
       message: "Authenticated successfully.",
+    });
+  };
+
+  completeSignup = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const input = await parseRequestBody(
+      request,
+      completeOAuthSignupRequestSchema,
+    );
+    const result = await this.oauthAccountsService.completeSignup(
+      toCompleteOAuthSignupInput(request, input),
+    );
+    writeAuthSessionResponse(request, response, result, {
+      message: "Signup completed successfully.",
     });
   };
 

@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 const privacySections = [
   {
     title: "Information we collect",
-    body: "We may collect contact details, account details, usage information, device information, and messages you choose to send through the site or account-related flows.",
+    body: "We may collect contact details, account details including your date of birth, usage information, device information, and messages you choose to send through the site or account-related flows.",
   },
   {
     title: "How information is used",
-    body: "Information is used to operate the service, maintain security, support customer communication, improve product experiences, and meet legal or compliance obligations.",
+    body: "Information is used to operate the service, maintain security, support customer communication, improve product experiences, meet legal or compliance obligations, and support age-aware eligibility for individual listings or transactions.",
   },
   {
     title: "Sharing and processors",
@@ -22,7 +22,7 @@ const privacySections = [
   },
   {
     title: "Retention and rights",
-    body: "We retain information for as long as necessary to provide the service, resolve disputes, enforce agreements, and meet regulatory requirements. Users may request access, correction, or deletion where applicable.",
+    body: "We retain account information, including the date of birth supplied at signup, for as long as necessary to provide the service, resolve disputes, enforce agreements, and meet regulatory requirements. Users may request access, correction, or deletion where applicable.",
   },
 ];
 
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
             Last updated
           </p>
           <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
-            May 13, 2026
+            September 22, 2026
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Review and adapt this content with counsel before using it as your

@@ -15,6 +15,7 @@ import type {
   KnownDevicesResult,
   LinkedOAuthProvidersResult,
   OAuthProvider,
+  OAuthAuthenticateResult,
   PersonalAccessTokenListResult,
   CreatePersonalAccessTokenResult,
   RevokePersonalAccessTokenResult,
@@ -39,6 +40,7 @@ interface SignupInput {
   username: string;
   email: string;
   password: string;
+  dateOfBirth: string;
   captchaToken: string;
   deviceId?: string;
 }
@@ -94,6 +96,13 @@ interface OAuthAuthenticateInput {
   rememberMe?: boolean;
   firstName?: string;
   lastName?: string;
+  dateOfBirth?: string;
+  deviceId?: string;
+}
+
+interface CompleteOAuthSignupInput {
+  signupToken: string;
+  dateOfBirth: string;
   deviceId?: string;
 }
 
@@ -186,9 +195,9 @@ export const authApi = {
   },
   authenticateWithGoogle(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthResponseBody> {
+  ): Promise<OAuthAuthenticateResult> {
     cancelStoredSessionRefresh();
-    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+    return publicJson<OAuthAuthenticateResult, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/google",
       {
@@ -199,9 +208,9 @@ export const authApi = {
   },
   authenticateWithMicrosoft(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthResponseBody> {
+  ): Promise<OAuthAuthenticateResult> {
     cancelStoredSessionRefresh();
-    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+    return publicJson<OAuthAuthenticateResult, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/microsoft",
       {
@@ -212,9 +221,9 @@ export const authApi = {
   },
   authenticateWithApple(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthResponseBody> {
+  ): Promise<OAuthAuthenticateResult> {
     cancelStoredSessionRefresh();
-    return publicJson<AuthResponseBody, OAuthAuthenticateInput>(
+    return publicJson<OAuthAuthenticateResult, OAuthAuthenticateInput>(
       "POST",
       "/auth/oauth/apple",
       {
@@ -251,6 +260,19 @@ export const authApi = {
     return publicJson<SignupVerificationPendingResult, SignupInput>(
       "POST",
       "/auth/local/signup",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
+  },
+  completeOAuthSignup(
+    input: CompleteOAuthSignupInput,
+  ): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
+    return publicJson<AuthResponseBody, CompleteOAuthSignupInput>(
+      "POST",
+      "/auth/oauth/signup/complete",
       {
         ...input,
         deviceId: input.deviceId ?? getDeviceId(),

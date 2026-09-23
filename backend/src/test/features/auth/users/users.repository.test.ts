@@ -204,6 +204,7 @@ describe("UsersRepository", () => {
         email: "New@Example.com",
         firstName: "New",
         lastName: "User",
+        dateOfBirth: "2012-06-15",
       },
       "password-hash",
     );
@@ -212,12 +213,15 @@ describe("UsersRepository", () => {
       passwordHash: "fresh-hash",
       firstName: "Pending",
       lastName: "User",
+      dateOfBirth: "2012-06-15",
     });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           email: "new@example.com",
           passwordHash: "password-hash",
+          dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+          dateOfBirthProvidedAt: expect.any(Date),
           emailVerified: false,
           profile: {
             create: expect.objectContaining({
@@ -234,6 +238,8 @@ describe("UsersRepository", () => {
         },
         data: expect.objectContaining({
           passwordHash: "fresh-hash",
+          dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+          dateOfBirthProvidedAt: expect.any(Date),
           emailVerified: true,
           profile: {
             update: expect.objectContaining({
@@ -279,6 +285,7 @@ describe("UsersRepository", () => {
     const created = await repository.createOAuthUser(
       createOAuthProfile(),
       "bright-otter-4827",
+      "2012-06-15",
     );
     const found = await repository.findUserByOAuthIdentity(
       "google",
@@ -290,6 +297,8 @@ describe("UsersRepository", () => {
         data: expect.objectContaining({
           email: "user@example.com",
           passwordHash: null,
+          dateOfBirth: new Date("2012-06-15T00:00:00.000Z"),
+          dateOfBirthProvidedAt: expect.any(Date),
           profile: {
             create: expect.objectContaining({
               username: "bright-otter-4827",
@@ -328,7 +337,11 @@ describe("UsersRepository", () => {
     } as any);
 
     await expect(
-      repository.createOAuthUser(createOAuthProfile(), "bright-otter-4827"),
+      repository.createOAuthUser(
+        createOAuthProfile(),
+        "bright-otter-4827",
+        "2012-06-15",
+      ),
     ).rejects.toBeInstanceOf(OAuthUsernameAllocationConflictError);
   });
 
@@ -350,7 +363,11 @@ describe("UsersRepository", () => {
     } as any);
 
     await expect(
-      repository.createOAuthUser(createOAuthProfile(), "bright-otter-4827"),
+      repository.createOAuthUser(
+        createOAuthProfile(),
+        "bright-otter-4827",
+        "2012-06-15",
+      ),
     ).rejects.toBe(uniqueViolation);
   });
 

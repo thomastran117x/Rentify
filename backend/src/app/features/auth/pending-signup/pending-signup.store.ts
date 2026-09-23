@@ -10,6 +10,7 @@ export interface PendingLocalSignupRecord {
   username: string;
   email: string;
   passwordHash: string;
+  dateOfBirth: string;
   firstName?: string;
   lastName?: string;
   deviceId?: string;
