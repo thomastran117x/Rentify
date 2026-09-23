@@ -181,7 +181,9 @@ test.describe("signup username availability", () => {
 
     await page.getByLabel("First name").fill("Jane");
     await page.getByLabel("Last name").fill("Doe");
-    await page.getByRole("textbox", { name: "Username" }).fill("friendlyshittyperson");
+    await page
+      .getByRole("textbox", { name: "Username" })
+      .fill("friendlyshittyperson");
 
     await expect(page.getByText("That username isn’t allowed.")).toBeVisible({
       timeout: 15_000,
