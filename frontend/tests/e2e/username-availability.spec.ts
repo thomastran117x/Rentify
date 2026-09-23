@@ -115,10 +115,26 @@ test.describe("signup username availability", () => {
     });
   });
 
+  /**
+   * Signup is a two-step form and the username field lives on the second
+   * step, so each test has to get past "Account" first.
+   */
+  async function openProfileStep(page: Page) {
+    // Role-scoped: the page footer also has an "Email" link.
+    await page
+      .getByRole("textbox", { name: "Email" })
+      .fill(`e2e-${Date.now()}@example.com`);
+    await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
+    await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByLabel("First name")).toBeVisible();
+  }
+
   test("reports a seeded username as taken and blocks submission", async ({
     page,
   }) => {
     await page.goto("/signup");
+    await openProfileStep(page);
 
     const username = page.getByLabel("Username");
     await expect(username).toBeVisible();
@@ -139,12 +155,6 @@ test.describe("signup username availability", () => {
 
     await page.getByLabel("First name").fill("Jane");
     await page.getByLabel("Last name").fill("Doe");
-    // Role-scoped: the page footer also has an "Email" link.
-    await page
-      .getByRole("textbox", { name: "Email" })
-      .fill("jane.doe@example.com");
-    await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
-    await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
     await page.getByRole("button", { name: "Create account" }).click();
 
     await expect(
@@ -157,6 +167,7 @@ test.describe("signup username availability", () => {
     page,
   }) => {
     await page.goto("/signup");
+    await openProfileStep(page);
 
     let signupCalled = false;
     await page.route("**/api/v1/auth/local/signup", async (route) => {
@@ -167,11 +178,6 @@ test.describe("signup username availability", () => {
     await page.getByLabel("First name").fill("Jane");
     await page.getByLabel("Last name").fill("Doe");
     await page.getByLabel("Username").fill("friendlyshittyperson");
-    await page
-      .getByRole("textbox", { name: "Email" })
-      .fill("jane.doe@example.com");
-    await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
-    await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
 
     await expect(page.getByText("That username isn’t allowed.")).toBeVisible({
       timeout: 15_000,
@@ -184,6 +190,7 @@ test.describe("signup username availability", () => {
 
   test("confirms an unused username as available", async ({ page }) => {
     await page.goto("/signup");
+    await openProfileStep(page);
 
     const candidate = `e2e-free-${Date.now()}`;
     await page.getByLabel("Username").fill(candidate);
@@ -203,6 +210,7 @@ test.describe("signup username availability", () => {
     });
 
     await page.goto("/signup");
+    await openProfileStep(page);
     await page.getByLabel("Username").fill("no");
 
     // Comfortably longer than the 400ms debounce.
