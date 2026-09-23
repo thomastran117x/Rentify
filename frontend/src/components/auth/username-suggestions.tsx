@@ -64,7 +64,7 @@ export function UsernameSuggestions({
           disabled={disabled || loading}
           aria-label="Refresh username suggestions"
           title="Refresh"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
+          className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-400 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
         >
           <RefreshCw
             className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
@@ -90,7 +90,7 @@ export function UsernameSuggestions({
             onClick={() => onSelect(suggestion)}
             disabled={disabled}
             aria-label={`Use username ${suggestion}`}
-            className="rounded-full border border-violet-200 bg-white px-3 py-1 text-sm font-medium text-violet-700 transition hover:border-violet-400 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-900 dark:bg-slate-900 dark:text-violet-300 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
+            className="cursor-pointer rounded-full border border-violet-200 bg-white px-3 py-1 text-sm font-medium text-violet-700 transition hover:border-violet-400 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-900 dark:bg-slate-900 dark:text-violet-300 dark:hover:border-violet-700 dark:hover:bg-violet-950/40"
           >
             {suggestion}
           </button>

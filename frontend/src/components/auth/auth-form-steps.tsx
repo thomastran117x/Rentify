@@ -73,7 +73,7 @@ export function AuthFormSteps({
                   : state === "done"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
-              } ${reached ? "" : "cursor-not-allowed opacity-50"}`}
+              } ${reached ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
             >
               <span aria-hidden="true">
                 {state === "done" ? "✓" : index + 1}
