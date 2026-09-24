@@ -29,10 +29,15 @@ interface AuthShellConfig {
   title: string;
   description: string;
   features: AuthFeature[];
-  spotlightLabel: string;
-  spotlightTitle: string;
-  spotlightDescription: string;
-  spotlightItems: string[];
+  /**
+   * Optional. Signup omits the spotlight: its form is the longest of the three,
+   * and a second block of marketing copy below it made the mobile page a long
+   * scroll past the thing the visitor came to do.
+   */
+  spotlightLabel?: string;
+  spotlightTitle?: string;
+  spotlightDescription?: string;
+  spotlightItems?: string[];
 }
 
 const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
@@ -73,16 +78,14 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
   },
   signup: {
     eyebrow: "Create your workspace",
-    title:
-      "Start a Rentify account that feels connected to the rest of the platform.",
+    title: "Start renting, or start listing, in two short steps.",
     description:
-      "The sign-up flow now leans on the same tone as the homepage and header so account creation feels like the next step in the product, not a detour into a different UI.",
+      "Set up how you sign in, tell us who you are, and you are done. Everything else can wait until you need it.",
     features: [
       {
         icon: Sparkles,
-        title: "Cleaner onboarding",
-        description:
-          "Create an account in a calmer layout with clearer sections.",
+        title: "Two steps",
+        description: "A handful of fields at a time instead of a long form.",
       },
       {
         icon: Mail,
@@ -95,15 +98,6 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
         description:
           "Continue into search, bookings, or listing creation with less friction.",
       },
-    ],
-    spotlightLabel: "Why this flow feels familiar",
-    spotlightTitle: "One theme across discovery and account setup.",
-    spotlightDescription:
-      "The same violet accents, white surfaces, and roomy spacing from the public site carry through account creation so new users always know they are still in Rentify.",
-    spotlightItems: [
-      "Profile and credentials are grouped into clearer sections.",
-      "Support states stay visible without overwhelming the page.",
-      "Calls to action match the rest of the website.",
     ],
   },
   "forgot-password": {
@@ -187,29 +181,31 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
             })}
           </div>
 
-          <section className={theme.auth.spotlight}>
-            <p className={theme.auth.spotlightLabel}>
-              {content.spotlightLabel}
-            </p>
-            <h2 className={theme.auth.spotlightTitle}>
-              {content.spotlightTitle}
-            </h2>
-            <p className={theme.auth.spotlightDescription}>
-              {content.spotlightDescription}
-            </p>
+          {content.spotlightTitle ? (
+            <section className={theme.auth.spotlight}>
+              <p className={theme.auth.spotlightLabel}>
+                {content.spotlightLabel}
+              </p>
+              <h2 className={theme.auth.spotlightTitle}>
+                {content.spotlightTitle}
+              </h2>
+              <p className={theme.auth.spotlightDescription}>
+                {content.spotlightDescription}
+              </p>
 
-            <div className={theme.auth.spotlightList}>
-              {content.spotlightItems.map((item) => (
-                <div key={item} className={theme.auth.spotlightItem}>
-                  <Sparkles
-                    className="mt-0.5 h-4 w-4 shrink-0 text-violet-600"
-                    aria-hidden="true"
-                  />
-                  <p>{item}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+              <div className={theme.auth.spotlightList}>
+                {content.spotlightItems?.map((item) => (
+                  <div key={item} className={theme.auth.spotlightItem}>
+                    <Sparkles
+                      className="mt-0.5 h-4 w-4 shrink-0 text-violet-600"
+                      aria-hidden="true"
+                    />
+                    <p>{item}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </section>
 
         <section className={theme.auth.formColumn}>

@@ -96,7 +96,6 @@ interface OAuthAuthenticateInput {
   rememberMe?: boolean;
   firstName?: string;
   lastName?: string;
-  dateOfBirth?: string;
   deviceId?: string;
 }
 

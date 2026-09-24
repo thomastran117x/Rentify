@@ -245,10 +245,10 @@ describe("ForgotPasswordForm", () => {
     await screen.findByText("Check your inbox");
 
     await user.type(screen.getByLabelText("Reset code"), "123456");
-    await user.type(screen.getByLabelText("New password"), "password123");
+    await user.type(screen.getByLabelText("New password"), "StrongPassw0rd!");
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "password123",
+      "StrongPassw0rd!",
     );
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
@@ -256,7 +256,7 @@ describe("ForgotPasswordForm", () => {
       expect(resetPasswordMock).toHaveBeenCalledWith({
         username: "person",
         code: "123456",
-        newPassword: "password123",
+        newPassword: "StrongPassw0rd!",
       });
     });
     expect(setSession).toHaveBeenCalled();
@@ -302,7 +302,9 @@ describe("ForgotPasswordForm", () => {
       screen.getByText("Enter the 6-digit reset code from your email."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Password must be at least 8 characters."),
+      screen.getByText(
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
     expect(resetPasswordMock).not.toHaveBeenCalled();
@@ -352,10 +354,10 @@ describe("ForgotPasswordForm", () => {
     render(<ForgotPasswordForm />);
     await screen.findByText("Check your inbox");
     await user.type(screen.getByLabelText("Reset code"), "123456");
-    await user.type(screen.getByLabelText("New password"), "password123");
+    await user.type(screen.getByLabelText("New password"), "StrongPassw0rd!");
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "password123",
+      "StrongPassw0rd!",
     );
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 

@@ -83,25 +83,6 @@ describe("AuthOAuthButtons", () => {
     );
   });
 
-  it("does not open a provider popup when signup prerequisites fail", async () => {
-    const user = userEvent.setup();
-    const openMock = vi.spyOn(window, "open");
-    const beforeAuthenticate = vi.fn(() => false);
-    render(
-      <AuthOAuthButtons
-        onError={vi.fn()}
-        beforeAuthenticate={beforeAuthenticate}
-      />,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "Continue with Google" }),
-    );
-
-    expect(beforeAuthenticate).toHaveBeenCalled();
-    expect(openMock).not.toHaveBeenCalled();
-  });
-
   it("exchanges a verified Google popup code for an authenticated session", async () => {
     const user = userEvent.setup();
     const onSuccess = vi.fn();
@@ -109,13 +90,7 @@ describe("AuthOAuthButtons", () => {
     const popup = { closed: false, close: vi.fn() };
     const openMock = vi.spyOn(window, "open").mockReturnValue(popup as never);
     authenticateGoogleMock.mockResolvedValue({ accessToken: "access" });
-    render(
-      <AuthOAuthButtons
-        onError={onError}
-        onSuccess={onSuccess}
-        dateOfBirth="2012-06-15"
-      />,
-    );
+    render(<AuthOAuthButtons onError={onError} onSuccess={onSuccess} />);
 
     await user.click(
       screen.getByRole("button", { name: "Continue with Google" }),
@@ -148,7 +123,6 @@ describe("AuthOAuthButtons", () => {
       expect(authenticateGoogleMock).toHaveBeenCalledWith(
         expect.objectContaining({
           code: "code-1",
-          dateOfBirth: "2012-06-15",
         }),
       ),
     );

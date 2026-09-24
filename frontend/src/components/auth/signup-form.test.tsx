@@ -3,8 +3,8 @@ import {
   render as testingLibraryRender,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
-import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
@@ -104,13 +104,56 @@ vi.mock("@/components/auth/signup-verification-panel", () => ({
   ),
 }));
 
-function render(ui: ReactNode) {
-  const result = testingLibraryRender(ui);
-  const dateInput = screen.queryByLabelText("Date of birth");
-  if (dateInput) {
-    fireEvent.change(dateInput, { target: { value: "2012-06-15" } });
-  }
-  return result;
+const render = testingLibraryRender;
+
+type User = ReturnType<typeof userEvent.setup>;
+
+/**
+ * Fill the "Account" step and advance to "About you".
+ *
+ * Signup is a two-step form, so almost every test that cares about a profile
+ * field has to get past this step first.
+ */
+async function completeAccountStep(
+  user: User,
+  values: { email?: string; password?: string; confirmPassword?: string } = {},
+) {
+  const {
+    email = "person@example.com",
+    password = "StrongPassw0rd!",
+    confirmPassword = password,
+  } = values;
+
+  await user.type(screen.getByLabelText("Email"), email);
+  await user.type(screen.getByLabelText("Password"), password);
+  await user.type(screen.getByLabelText("Confirm password"), confirmPassword);
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await screen.findByLabelText("First name");
+}
+
+/** Fill the "About you" step, leaving submission to the caller. */
+async function fillProfileStep(
+  user: User,
+  values: {
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    dateOfBirth?: string;
+  } = {},
+) {
+  const {
+    firstName = "Jane",
+    lastName = "Doe",
+    username = "person",
+    dateOfBirth = "2012-06-15",
+  } = values;
+
+  await user.type(screen.getByLabelText("First name"), firstName);
+  await user.type(screen.getByLabelText("Last name"), lastName);
+  await user.type(screen.getByLabelText("Username"), username);
+  fireEvent.change(screen.getByLabelText("Date of birth"), {
+    target: { value: dateOfBirth },
+  });
 }
 
 describe("SignupForm", () => {
@@ -162,6 +205,7 @@ describe("SignupForm", () => {
   it("fills the username field from a suggestion", async () => {
     const user = userEvent.setup();
     render(<SignupForm />);
+    await completeAccountStep(user);
 
     await user.click(
       await screen.findByRole("button", {
@@ -170,12 +214,13 @@ describe("SignupForm", () => {
     );
 
     expect(screen.getByLabelText("Username")).toHaveValue("bright-otter-4827");
-    expect(
-      screen.getByText("bright-otter-4827 is available."),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Checking availability..."),
-    ).not.toBeInTheDocument();
+
+    // Scoped to the username hint: the email hint uses the same
+    // "Checking availability..." string and stays mounted, hidden, on the
+    // first step, where a queryByText would still find it.
+    const hint = document.getElementById("signup-username-availability");
+    expect(hint).toHaveTextContent("bright-otter-4827 is available.");
+    expect(hint).not.toHaveTextContent("Checking availability...");
     expect(checkUsernameAvailabilityMock).not.toHaveBeenCalled();
   });
 
@@ -269,7 +314,35 @@ describe("SignupForm", () => {
     expect(screen.queryByText(/Welcome modal for/)).not.toBeInTheDocument();
   });
 
-  it("shows validation errors for missing and invalid values", async () => {
+  it("keeps an empty first step from advancing", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByText("Email is required.")).toBeInTheDocument();
+    expect(screen.getByText("Password is required.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Please confirm your password."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+    expect(signupMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a mismatched password from advancing", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
+    await user.type(screen.getByLabelText("Confirm password"), "password124");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+  });
+
+  it("shows validation errors for the missing values on the second step", async () => {
     const user = userEvent.setup();
     useAuthCaptchaTokenMock.mockReturnValue([
       "",
@@ -277,23 +350,90 @@ describe("SignupForm", () => {
       clearCaptchaTokenMock,
     ]);
 
-    testingLibraryRender(<SignupForm />);
+    render(<SignupForm />);
+    await completeAccountStep(user);
 
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(screen.getByText("First name is required.")).toBeInTheDocument();
-    expect(screen.getByText("Date of birth is required.")).toBeInTheDocument();
     expect(screen.getByText("Last name is required.")).toBeInTheDocument();
     expect(screen.getByText("Username is required.")).toBeInTheDocument();
-    expect(screen.getByText("Email is required.")).toBeInTheDocument();
-    expect(screen.getByText("Password is required.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Please confirm your password."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Date of birth is required.")).toBeInTheDocument();
     expect(
       screen.getByText("Complete the captcha before creating your account."),
     ).toBeInTheDocument();
     expect(signupMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a password the backend would refuse", async () => {
+    // `strongPasswordSchema` needs 8+ chars with upper, lower, digit, and a
+    // special character, so checking only the length sent guaranteed 400s.
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      screen.getByText(
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+  });
+
+  it("submits the account step when Enter is pressed on the first step", async () => {
+    // Both steps share one form, so once the second step has been reached its
+    // hidden submit button would otherwise become the default submitter and
+    // Enter would run the full signup from the first step.
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    await completeAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    await user.type(screen.getByLabelText("Email"), "{Enter}");
+
+    expect(signupMock).not.toHaveBeenCalled();
+    expect(await screen.findByLabelText("First name")).toBeVisible();
+  });
+
+  it("keeps the first step's values when the user goes back", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    await completeAccountStep(user, { email: "person@example.com" });
+
+    await user.type(screen.getByLabelText("First name"), "Jane");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByLabelText("Email")).toHaveValue(
+      "person@example.com",
+    );
+    expect(screen.getByLabelText("Password")).toHaveValue("StrongPassw0rd!");
+
+    // And the second step still holds what was typed there.
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByLabelText("First name")).toHaveValue("Jane");
+  });
+
+  it("unlocks the second step in the stepper once it is reached", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    const nav = screen.getByRole("navigation", { name: "Signup steps" });
+    expect(
+      within(nav).getByRole("button", { name: /About you/ }),
+    ).toBeDisabled();
+
+    await completeAccountStep(user);
+
+    expect(
+      within(nav).getByRole("button", { name: /About you/ }),
+    ).toHaveAttribute("aria-current", "step");
+    expect(
+      within(nav).getByRole("button", { name: /Account/ }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("submits a normalized signup request and shows verification state", async () => {
@@ -306,12 +446,12 @@ describe("SignupForm", () => {
 
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), " Jane ");
-    await user.type(screen.getByLabelText("Last name"), " Doe ");
-    await user.type(screen.getByLabelText("Username"), " Person ");
-    await user.type(screen.getByLabelText("Email"), " Person@Example.com ");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: " Person@Example.com " });
+    await fillProfileStep(user, {
+      firstName: " Jane ",
+      lastName: " Doe ",
+      username: " Person ",
+    });
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() => {
@@ -320,7 +460,7 @@ describe("SignupForm", () => {
         lastName: "Doe",
         username: "person",
         email: "person@example.com",
-        password: "password123",
+        password: "StrongPassw0rd!",
         dateOfBirth: "2012-06-15",
         captchaToken: "captcha-token",
       });
@@ -343,12 +483,12 @@ describe("SignupForm", () => {
 
     render(<SignupForm nextPath="/organizations/invitations/token-123" />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "person");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "person",
+    });
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(
@@ -393,12 +533,12 @@ describe("SignupForm", () => {
 
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "person");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "person",
+    });
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(
@@ -406,9 +546,37 @@ describe("SignupForm", () => {
     ).toHaveLength(2);
   });
 
+  it("returns to the first step when the server rejects the email", async () => {
+    const user = userEvent.setup();
+    signupMock.mockRejectedValue(
+      new ApiClientError("An account with this email already exists.", {
+        code: "CONFLICT",
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 409,
+      }),
+    );
+
+    render(<SignupForm />);
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user);
+
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    // The message belongs to the email field, so the step holding it reopens.
+    expect(
+      await screen.findByText("This email is already in use."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveValue("person@example.com");
+  });
+
   it("confirms an available username as the user types", async () => {
     const user = userEvent.setup();
     render(<SignupForm />);
+    await completeAccountStep(user);
 
     await user.type(screen.getByLabelText("Username"), "jane-doe");
 
@@ -432,12 +600,12 @@ describe("SignupForm", () => {
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "taken-name");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "taken-name",
+    });
 
     expect(
       await screen.findByText("That username is already taken."),
@@ -463,12 +631,12 @@ describe("SignupForm", () => {
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "friendlyshittyperson");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "friendlyshittyperson",
+    });
 
     expect(
       await screen.findAllByText("That username isn’t allowed."),
@@ -504,12 +672,12 @@ describe("SignupForm", () => {
     );
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "jane-doe");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "jane-doe",
+    });
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(
@@ -543,19 +711,21 @@ describe("SignupForm", () => {
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "jane-doe");
     await user.type(screen.getByLabelText("Email"), "taken@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "StrongPassw0rd!",
+    );
 
     expect(
       await screen.findByText("This email is already in use."),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
+    // The second step never opens, so there is nothing to submit.
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
     expect(signupMock).not.toHaveBeenCalled();
   });
 
@@ -571,16 +741,26 @@ describe("SignupForm", () => {
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "jane-doe");
     await user.type(screen.getByLabelText("Email"), "pending@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
 
+    // The explanation sits with the email field, on the first step.
     expect(
       await screen.findByText(/already started signing up/i),
     ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "StrongPassw0rd!",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByLabelText("First name");
+
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "jane-doe",
+    });
 
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
@@ -595,12 +775,12 @@ describe("SignupForm", () => {
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "jane-doe");
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "jane@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "jane-doe",
+    });
 
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
@@ -620,6 +800,7 @@ describe("SignupForm", () => {
   it("does not check availability for a username that fails the format rule", async () => {
     const user = userEvent.setup();
     render(<SignupForm />);
+    await completeAccountStep(user);
 
     await user.type(screen.getByLabelText("Username"), "no");
 
@@ -654,12 +835,12 @@ describe("SignupForm", () => {
 
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("First name"), "Jane");
-    await user.type(screen.getByLabelText("Last name"), "Doe");
-    await user.type(screen.getByLabelText("Username"), "person");
-    await user.type(screen.getByLabelText("Email"), "person@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.type(screen.getByLabelText("Confirm password"), "password123");
+    await completeAccountStep(user, { email: "person@example.com" });
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "person",
+    });
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(

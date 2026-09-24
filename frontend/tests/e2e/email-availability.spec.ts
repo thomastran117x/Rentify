@@ -38,21 +38,20 @@ test.describe("signup email availability", () => {
       timeout: 15_000,
     });
 
-    // Filling the rest and submitting must not reach the API.
+    // Filling the rest and continuing must not open the second step, and must
+    // never reach the API.
     let signupCalled = false;
     await page.route("**/api/v1/auth/local/signup", async (route) => {
       signupCalled = true;
       await route.abort();
     });
 
-    await page.getByLabel("First name").fill("Jane");
-    await page.getByLabel("Last name").fill("Doe");
-    await page.getByLabel("Username").fill(`jane-${Date.now()}`);
     await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
     await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
-    await page.getByRole("button", { name: "Create account" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
 
     await page.waitForTimeout(1_000);
+    await expect(page.getByLabel("First name")).toBeHidden();
     expect(signupCalled).toBe(false);
   });
 
@@ -119,8 +118,12 @@ test.describe("signup email availability", () => {
     await expect(
       page.getByText("We couldn't check that email right now."),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.getByRole("button", { name: "Create account" }),
-    ).toBeEnabled();
+
+    // A failed check must not wedge the step.
+    await page.getByLabel("Password", { exact: true }).fill("StrongPassw0rd!");
+    await page.getByLabel("Confirm password").fill("StrongPassw0rd!");
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByLabel("First name")).toBeVisible();
   });
 });
