@@ -128,6 +128,10 @@ export interface PersistenceTestStubs {
     buildProcessedImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
     isQuarantineBlobName: jest.Mock<boolean, [string]>;
     isProcessedImageBlobName: jest.Mock<boolean, [string]>;
+    buildImageVariantBlobNames: jest.Mock<
+      ReturnType<BlobService["buildImageVariantBlobNames"]>,
+      [string]
+    >;
     getProperties: jest.Mock<
       Promise<{ contentType?: string; contentLength?: number; etag?: string }>,
       [string]
@@ -943,6 +947,9 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       ),
       isProcessedImageBlobName: jest.fn((blobName: string) =>
         realBlobNaming().isProcessedImageBlobName(blobName),
+      ),
+      buildImageVariantBlobNames: jest.fn((blobName: string) =>
+        realBlobNaming().buildImageVariantBlobNames(blobName),
       ),
       getProperties: jest.fn(async (blobName: string) => {
         const stored = blobStorage.get(blobName);

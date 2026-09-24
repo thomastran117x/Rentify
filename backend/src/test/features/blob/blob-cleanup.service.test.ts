@@ -4,6 +4,7 @@ import {
   type BlobCleanupStorage,
 } from "@/features/blob/blob-cleanup.service";
 import type { ManagedBlobItem } from "@/features/blob/blob.model";
+import { BlobCleanupRepository } from "@/features/blob/blob-cleanup.repository";
 
 const NOW = new Date("2026-09-08T12:00:00.000Z");
 const OLD = new Date("2026-09-07T11:59:59.000Z");
@@ -168,6 +169,43 @@ describe("BlobCleanupService", () => {
         },
       ],
     });
+  });
+
+  it("never offers a live rendition, and offers every rendition of an orphan", async () => {
+    const live = "media/images/owner-1/live";
+    const orphan = "media/images/owner-1/orphan";
+    const emptyTable = { findMany: jest.fn(async () => []) };
+    const repository = new BlobCleanupRepository({
+      profile: {
+        findMany: jest.fn(async () => [{ avatarBlobName: `${live}.webp` }]),
+      },
+      organization: emptyTable,
+      organizationBlogPost: emptyTable,
+      postingPhoto: emptyTable,
+      organizationAuditLog: emptyTable,
+    } as never);
+    const inventory = [live, orphan].flatMap((base) =>
+      [".webp", ".medium.webp", ".thumbnail.webp"].map((suffix) => ({
+        name: `${base}${suffix}`,
+        contentType: "image/webp",
+        lastModified: OLD,
+        contentLength: 1,
+      })),
+    );
+    const service = new BlobCleanupService(
+      repository,
+      createStorage(inventory),
+      () => NOW,
+    );
+
+    const result = await service.run(false);
+
+    expect(result.referenced).toBe(3);
+    expect(result.candidates.map((candidate) => candidate.blobName)).toEqual([
+      `${orphan}.webp`,
+      `${orphan}.medium.webp`,
+      `${orphan}.thumbnail.webp`,
+    ]);
   });
 
   it("uses a safe message for non-error deletion failures", async () => {

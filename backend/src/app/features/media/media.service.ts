@@ -320,7 +320,7 @@ export class MediaService {
     blobName: string,
   ): Promise<void> {
     this.assertOwnedBy(userId, blobName);
-    await this.blobService.deleteBlob(blobName);
+    await this.deleteImageBlobs(blobName);
 
     if (!this.blobService.isProcessedImageBlobName(blobName)) {
       return;
@@ -436,12 +436,25 @@ export class MediaService {
   }
 
   private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
-    const blobNames = [record.originalBlobName, record.processedBlobName];
+    await this.blobService.deleteBlob(record.originalBlobName);
 
-    for (const blobName of blobNames) {
-      if (blobName) {
-        await this.blobService.deleteBlob(blobName);
-      }
+    if (record.processedBlobName) {
+      await this.deleteImageBlobs(record.processedBlobName);
+    }
+  }
+
+  /**
+   * Deletes a stored image. A processed image goes with its renditions, which
+   * nothing references by name; any other name is a single blob.
+   */
+  private async deleteImageBlobs(blobName: string): Promise<void> {
+    const variants = this.blobService.buildImageVariantBlobNames(blobName);
+    const blobNames = variants
+      ? [variants.large, variants.medium, variants.thumbnail]
+      : [blobName];
+
+    for (const name of blobNames) {
+      await this.blobService.deleteBlob(name);
     }
   }
 
