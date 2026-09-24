@@ -185,11 +185,20 @@ imageUploads:
   maxWidth: 8000
   maxHeight: 8000
   maxPixels: 40000000
+  maxProcessedEdge: 2560
 ```
 
 The matching overrides are `ALLOWED_IMAGE_TYPES` (comma-separated),
-`MAX_IMAGE_SIZE_BYTES`, `MAX_IMAGE_WIDTH`, `MAX_IMAGE_HEIGHT`, and
-`MAX_IMAGE_PIXELS`.
+`MAX_IMAGE_SIZE_BYTES`, `MAX_IMAGE_WIDTH`, `MAX_IMAGE_HEIGHT`,
+`MAX_IMAGE_PIXELS`, and `MAX_PROCESSED_IMAGE_EDGE`.
+
+`maxProcessedEdge` caps the image that is stored and served, not the upload.
+The media processing worker scales a larger image down so that its longest
+edge fits, after applying its EXIF orientation, and keeps the aspect ratio. A
+6000×4000 upload is served at 2560×1707. It never enlarges a smaller image.
+The value must be an integer from 256 to 8000; anything else is a startup
+error. Changing it affects only images processed afterwards. Images that are
+already `ready` keep their stored size.
 
 `allowedContentTypes` can only **narrow** the built-in set. JPEG, PNG, and WebP
 are the formats the pipeline can actually validate: each has a sharp decoder, a

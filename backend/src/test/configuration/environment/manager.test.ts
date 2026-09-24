@@ -520,7 +520,21 @@ describe("EnvironmentManager", () => {
       maxWidth: 8_000,
       maxHeight: 8_000,
       maxPixels: 40_000_000,
+      maxProcessedEdge: 2_560,
     });
+
+    process.env = buildRequiredEnv({ MAX_PROCESSED_IMAGE_EDGE: "1024" });
+    const cappedManager = new EnvironmentManager();
+    cappedManager.load();
+
+    expect(cappedManager.getImageUploadsConfig().maxProcessedEdge).toBe(1024);
+
+    // Compose forwards an unset host variable as an empty string.
+    process.env = buildRequiredEnv({ MAX_PROCESSED_IMAGE_EDGE: "" });
+    const blankManager = new EnvironmentManager();
+    blankManager.load();
+
+    expect(blankManager.getImageUploadsConfig().maxProcessedEdge).toBe(2_560);
 
     process.env = buildRequiredEnv({
       ALLOWED_IMAGE_TYPES: "image/png, IMAGE/WEBP",
@@ -547,6 +561,16 @@ describe("EnvironmentManager", () => {
     expect(() => new EnvironmentManager().load()).toThrow(
       "MAX_IMAGE_SIZE_BYTES must be greater than or equal to 1.",
     );
+  });
+
+  it.each([
+    ["255", "MAX_PROCESSED_IMAGE_EDGE must be greater than or equal to 256."],
+    ["8001", "MAX_PROCESSED_IMAGE_EDGE must be less than or equal to 8000."],
+    ["1000.5", "MAX_PROCESSED_IMAGE_EDGE must be an integer."],
+  ])("rejects MAX_PROCESSED_IMAGE_EDGE=%s at startup", (value, message) => {
+    process.env = buildRequiredEnv({ MAX_PROCESSED_IMAGE_EDGE: value });
+
+    expect(() => new EnvironmentManager().load()).toThrow(message);
   });
 
   it("reads required and optional raw environment variables after load", () => {

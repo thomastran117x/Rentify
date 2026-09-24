@@ -196,11 +196,13 @@ reads it as a static PNG and does not report its frames, so it is accepted and
 published as its first frame. Decoding uses sharp's `failOn: "error"`, so a
 JPEG that libjpeg recovers from with only a warning, such as stray bytes between
 markers, is accepted; truncated data is still rejected. An accepted image is
-re-encoded to WebP. That applies its EXIF orientation, converts it to sRGB
-(Display P3 and CMYK included), drops metadata such as EXIF, GPS, and ICC
-profiles, and means what is served was produced by the worker, not supplied by
-the client. A policy failure rejects the item with its reason. Both outcomes
-delete the quarantined upload.
+re-encoded to WebP. That applies its EXIF orientation, scales the upright image
+down to `imageUploads.maxProcessedEdge` (2560 px on the longest edge by
+default, never enlarging), converts it to sRGB (Display P3 and CMYK included),
+drops metadata such as EXIF, GPS, and ICC profiles, and means what is served
+was produced by the worker, not supplied by the client. The width and height
+reported by `GET /media/{id}` are the processed image's. A policy failure
+rejects the item with its reason. Both outcomes delete the quarantined upload.
 
 **When an image is attached.** Every field that holds an image goes through one
 rule, `MediaService.resolveImageReference`: posting photos

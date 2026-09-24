@@ -172,6 +172,83 @@ describe("MediaProcessingService", () => {
     expect(metadata.orientation).toBeUndefined();
   });
 
+  describe("the processed size cap", () => {
+    /** Processes an upload and returns the ready row and its stored image. */
+    async function processUpload(
+      body: Buffer,
+      declaredContentType = "image/png",
+    ) {
+      const context = createContext();
+      const record = await quarantine(context, body, { declaredContentType });
+
+      await context.service.process(record.id);
+
+      const ready = (await context.mediaRepository.findById(record.id))!;
+      const stored = await context.blobService.readLocalBlob(
+        ready.processedBlobName!,
+      );
+
+      return { ready, metadata: await sharp(stored.body).metadata() };
+    }
+
+    it("scales a large image down to the default longest edge", async () => {
+      const { ready, metadata } = await processUpload(
+        await createPngFixture(4000, 3000),
+      );
+
+      expect(ready).toMatchObject({
+        status: "ready",
+        width: 2560,
+        height: 1920,
+      });
+      expect(metadata).toMatchObject({ width: 2560, height: 1920 });
+    });
+
+    it("never enlarges an image already within the cap", async () => {
+      const { ready, metadata } = await processUpload(
+        await createPngFixture(1000, 800),
+      );
+
+      expect(ready).toMatchObject({ width: 1000, height: 800 });
+      expect(metadata).toMatchObject({ width: 1000, height: 800 });
+    });
+
+    it("caps a rotated portrait after making it upright", async () => {
+      // Stored landscape with orientation 6: displayed as a 3000x4000 portrait.
+      const rotatedJpeg = await sharp({
+        create: {
+          width: 4000,
+          height: 3000,
+          channels: 3,
+          background: { r: 40, g: 120, b: 200 },
+        },
+      })
+        .jpeg()
+        .withMetadata({ orientation: 6 })
+        .toBuffer();
+
+      const { ready, metadata } = await processUpload(
+        rotatedJpeg,
+        "image/jpeg",
+      );
+
+      expect(ready).toMatchObject({ width: 1920, height: 2560 });
+      expect(metadata).toMatchObject({ width: 1920, height: 2560 });
+      expect(metadata.orientation).toBeUndefined();
+    });
+
+    it("applies a configured cap and keeps a panorama's aspect ratio", async () => {
+      process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+
+      const { ready, metadata } = await processUpload(
+        await createPngFixture(2048, 256),
+      );
+
+      expect(ready).toMatchObject({ width: 256, height: 32 });
+      expect(metadata).toMatchObject({ width: 256, height: 32 });
+    });
+  });
+
   it.each([
     [
       "a Display P3",
