@@ -481,6 +481,15 @@ const personalAccessTokenCreateExample = {
   token: "rpat_live_secret_token",
 };
 const mediaIdExample = "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10";
+function imageVariantsExample(processedUrl: string) {
+  const base = processedUrl.replace(/\.webp$/, "");
+
+  return {
+    thumbnail: `${base}.thumbnail.webp`,
+    medium: `${base}.medium.webp`,
+    large: processedUrl,
+  };
+}
 const mediaViewPendingExample = {
   id: mediaIdExample,
   status: "pending_upload",
@@ -490,14 +499,17 @@ const mediaViewPendingExample = {
   sizeBytes: null,
   width: null,
   height: null,
+  variants: null,
   rejectionReason: null,
   createdAt: "2026-05-25T18:15:00.000Z",
   updatedAt: "2026-05-25T18:15:00.000Z",
 };
+const mediaProcessedUrlExample = `https://cdn.rentify.local/media/images/user-1/${mediaIdExample}.webp`;
 const mediaViewReadyExample = {
   ...mediaViewPendingExample,
   status: "ready",
-  url: `https://cdn.rentify.local/media/images/user-1/${mediaIdExample}.webp`,
+  url: mediaProcessedUrlExample,
+  variants: imageVariantsExample(mediaProcessedUrlExample),
   contentType: "image/jpeg",
   sizeBytes: 184_220,
   width: 1600,
@@ -1215,6 +1227,18 @@ const searchStatusExample = {
 function schemaRef(name: string): Record<string, string> {
   return {
     $ref: `#/components/schemas/${name}`,
+  };
+}
+
+/**
+ * A response field holding an image's rendition URLs. Null when the image has
+ * none: it predates media processing, is seeded, or is not a processed image.
+ */
+function imageVariantsField(description: string): Record<string, unknown> {
+  return {
+    oneOf: [schemaRef("ImageVariants"), { type: "null" }],
+    readOnly: true,
+    description,
   };
 }
 
@@ -10669,6 +10693,7 @@ function buildComponents(): Record<string, unknown> {
           "sizeBytes",
           "width",
           "height",
+          "variants",
           "rejectionReason",
           "createdAt",
           "updatedAt",
@@ -10693,9 +10718,37 @@ function buildComponents(): Record<string, unknown> {
           sizeBytes: { type: "integer", nullable: true },
           width: { type: "integer", nullable: true },
           height: { type: "integer", nullable: true },
+          variants: imageVariantsField(
+            "The processed image's renditions. Set with `url` once all of them exist; null for an image processed before renditions existed until the backfill reaches it.",
+          ),
           rejectionReason: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ImageVariants: {
+        type: "object",
+        description:
+          "Renditions of one processed image, for a `srcset`. Each fits inside a square of its size and is never enlarged, so a small image's renditions may all have the same dimensions.",
+        required: ["thumbnail", "medium", "large"],
+        additionalProperties: false,
+        properties: {
+          thumbnail: {
+            type: "string",
+            format: "uri",
+            description: "At most 300 px on its longest edge.",
+          },
+          medium: {
+            type: "string",
+            format: "uri",
+            description: "At most 800 px on its longest edge.",
+          },
+          large: {
+            type: "string",
+            format: "uri",
+            description:
+              "The processed image itself, capped by the deployment's processed-image edge (2560 px by default).",
+          },
         },
       },
       MediaUploadInstructions: {

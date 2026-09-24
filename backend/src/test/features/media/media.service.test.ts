@@ -572,6 +572,46 @@ describe("MediaService", () => {
         url: blobService.getBlobUrl(processedBlobName),
         width: 8,
         height: 8,
+        // Processed before renditions existed, and not yet backfilled.
+        variants: null,
+      });
+    });
+
+    it("exposes rendition URLs once the ready media records them", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      const processedBlobName = blobService.buildProcessedImageBlobName(
+        USER_1_ID,
+        mediaId,
+      );
+      const variants = {
+        medium: { width: 8, height: 8, sizeBytes: 2 },
+        thumbnail: { width: 8, height: 8, sizeBytes: 1 },
+      };
+
+      mediaRepository.put({ ...record, status: "processing", variants });
+      await expect(
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({ url: null, variants: null });
+
+      mediaRepository.put({
+        ...record,
+        status: "ready",
+        processedBlobName,
+        variants,
+      });
+      const names = blobService.buildImageVariantBlobNames(processedBlobName)!;
+
+      await expect(
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({
+        variants: {
+          thumbnail: blobService.getBlobUrl(names.thumbnail),
+          medium: blobService.getBlobUrl(names.medium),
+          large: blobService.getBlobUrl(processedBlobName),
+        },
       });
     });
 

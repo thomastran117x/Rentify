@@ -232,6 +232,22 @@ describe("Media persistence integration", () => {
     expect(
       persistenceApp.stubs.blobService.storage.get(processedName)?.contentType,
     ).toBe("image/webp");
+
+    const renditions = {
+      thumbnail: `media/images/${owner.userId}/${mediaId}.thumbnail.webp`,
+      medium: `media/images/${owner.userId}/${mediaId}.medium.webp`,
+      large: processedName,
+    };
+    for (const [rendition, blobName] of Object.entries(renditions)) {
+      expect(
+        new URL(
+          ready.variants![rendition as keyof typeof renditions],
+        ).searchParams.get("blobName"),
+      ).toBe(blobName);
+      expect(
+        persistenceApp.stubs.blobService.storage.get(blobName)?.contentType,
+      ).toBe("image/webp");
+    }
   });
 
   it("rejects an upload whose bytes are not an image", async () => {

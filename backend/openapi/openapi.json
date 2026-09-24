@@ -9673,6 +9673,7 @@
                       "sizeBytes": null,
                       "width": null,
                       "height": null,
+                      "variants": null,
                       "rejectionReason": null,
                       "createdAt": "2026-05-25T18:15:00.000Z",
                       "updatedAt": "2026-05-25T18:15:00.000Z"
@@ -9782,6 +9783,11 @@
                       "sizeBytes": 184220,
                       "width": 1600,
                       "height": 1200,
+                      "variants": {
+                        "thumbnail": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.thumbnail.webp",
+                        "medium": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.medium.webp",
+                        "large": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp"
+                      },
                       "rejectionReason": null,
                       "createdAt": "2026-05-25T18:15:00.000Z",
                       "updatedAt": "2026-05-25T18:15:04.000Z"
@@ -27794,6 +27800,7 @@
           "sizeBytes",
           "width",
           "height",
+          "variants",
           "rejectionReason",
           "createdAt",
           "updatedAt"
@@ -27832,6 +27839,18 @@
             "type": "integer",
             "nullable": true
           },
+          "variants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "The processed image's renditions. Set with `url` once all of them exist; null for an image processed before renditions existed until the backfill reaches it."
+          },
           "rejectionReason": {
             "type": "string",
             "nullable": true
@@ -27843,6 +27862,33 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ImageVariants": {
+        "type": "object",
+        "description": "Renditions of one processed image, for a `srcset`. Each fits inside a square of its size and is never enlarged, so a small image's renditions may all have the same dimensions.",
+        "required": [
+          "thumbnail",
+          "medium",
+          "large"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "thumbnail": {
+            "type": "string",
+            "format": "uri",
+            "description": "At most 300 px on its longest edge."
+          },
+          "medium": {
+            "type": "string",
+            "format": "uri",
+            "description": "At most 800 px on its longest edge."
+          },
+          "large": {
+            "type": "string",
+            "format": "uri",
+            "description": "The processed image itself, capped by the deployment's processed-image edge (2560 px by default)."
           }
         }
       },

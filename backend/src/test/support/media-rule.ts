@@ -59,6 +59,10 @@ export function createMediaRule(
         sizeBytes: 1,
         width: 1,
         height: 1,
+        variants: {
+          medium: { width: 1, height: 1, sizeBytes: 1 },
+          thumbnail: { width: 1, height: 1, sizeBytes: 1 },
+        },
         rejectionReason: null,
         createdAt: now,
         updatedAt: now,

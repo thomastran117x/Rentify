@@ -37,6 +37,7 @@ export class InMemoryMediaRepository {
       sizeBytes: null,
       width: null,
       height: null,
+      variants: null,
       rejectionReason: null,
       createdAt: now,
       updatedAt: now,

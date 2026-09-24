@@ -43,6 +43,29 @@ export const MEDIA_STATUSES = [
  */
 export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 
+/** A rendition as it was written: what it measures and how large it is. */
+export interface ImageRenditionInfo {
+  width: number;
+  height: number;
+  sizeBytes: number;
+}
+
+/**
+ * The smaller renditions written beside a processed image. The large one is the
+ * processed image itself and is described by the record's own dimensions.
+ */
+export interface MediaVariantsMetadata {
+  medium: ImageRenditionInfo;
+  thumbnail: ImageRenditionInfo;
+}
+
+/** The addresses of an image's renditions, smallest first. */
+export interface ImageVariants {
+  thumbnail: string;
+  medium: string;
+  large: string;
+}
+
 export interface MediaRecord {
   id: Uuid;
   userId: Uuid;
@@ -61,6 +84,12 @@ export interface MediaRecord {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
+  /**
+   * The smaller renditions, once written. Null while the item is unfinished,
+   * and for images processed before renditions existed until the backfill
+   * reaches them.
+   */
+  variants: MediaVariantsMetadata | null;
   rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -81,6 +110,7 @@ export interface MarkMediaReadyInput {
   sizeBytes: number;
   width: number;
   height: number;
+  variants: MediaVariantsMetadata;
 }
 
 /**
@@ -97,6 +127,8 @@ export interface MediaView {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
+  /** Set with `url`, once every rendition of the ready image exists. */
+  variants: ImageVariants | null;
   rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;

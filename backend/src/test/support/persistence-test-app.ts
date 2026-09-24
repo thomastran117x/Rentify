@@ -518,23 +518,29 @@ async function dropSeedSnapshot(
 /**
  * Creates a media item that has already been processed, as though it had been
  * uploaded through the API and picked up by the media processing worker, and
- * stores its processed image in the in-memory blob storage. For suites that
- * attach images and are not about the upload itself.
+ * stores its renditions in the in-memory blob storage. For suites that attach
+ * images and are not about the upload itself. `legacy` makes an item processed
+ * before renditions existed: only the processed image, and none recorded.
  */
 export async function createReadyMedia(
   userId: string,
-  options: { scope?: string } = {},
+  options: { scope?: string; legacy?: boolean } = {},
 ): Promise<{ mediaId: Uuid; blobName: string; blobUrl: string }> {
   const persistenceApp = requirePersistenceApp();
   const mediaId = asUuid(randomUUID());
   const ownerId = asUuid(userId);
   const blobService = persistenceApp.stubs.blobService;
   const blobName = blobService.buildProcessedImageBlobName(ownerId, mediaId);
+  const renditions = blobService.buildImageVariantBlobNames(blobName)!;
 
-  blobService.storage.set(blobName, {
-    contentType: "image/webp",
-    body: Buffer.from("processed-image"),
-  });
+  for (const name of options.legacy
+    ? [blobName]
+    : [renditions.large, renditions.medium, renditions.thumbnail]) {
+    blobService.storage.set(name, {
+      contentType: "image/webp",
+      body: Buffer.from("processed-image"),
+    });
+  }
   await persistenceApp.prisma.media.create({
     data: {
       id: mediaId,
@@ -551,6 +557,14 @@ export async function createReadyMedia(
       sizeBytes: 15,
       width: 8,
       height: 8,
+      ...(options.legacy
+        ? {}
+        : {
+            variants: {
+              medium: { width: 8, height: 8, sizeBytes: 15 },
+              thumbnail: { width: 8, height: 8, sizeBytes: 15 },
+            },
+          }),
     },
   });
 

@@ -3,9 +3,11 @@ import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import type {
   CreateMediaRecordInput,
+  ImageRenditionInfo,
   MarkMediaReadyInput,
   MediaRecord,
   MediaStatus,
+  MediaVariantsMetadata,
 } from "@/features/media/media.model";
 
 /**
@@ -96,6 +98,7 @@ export class MediaRepository extends BaseRepository {
       sizeBytes: input.sizeBytes,
       width: input.width,
       height: input.height,
+      variants: input.variants as unknown as Prisma.InputJsonValue,
       rejectionReason: null,
     });
   }
@@ -175,9 +178,46 @@ export class MediaRepository extends BaseRepository {
       sizeBytes: row.sizeBytes,
       width: row.width,
       height: row.height,
+      variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
+}
+
+function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const { width, height, sizeBytes } = value as Record<string, unknown>;
+
+  if (
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    typeof sizeBytes !== "number"
+  ) {
+    return null;
+  }
+
+  return { width, height, sizeBytes };
+}
+
+/**
+ * Reads the stored renditions back. Anything not in the shape the worker
+ * writes counts as none, so a malformed row is backfilled again rather than
+ * served with renditions that may not exist.
+ */
+export function parseMediaVariants(
+  value: Prisma.JsonValue | null,
+): MediaVariantsMetadata | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const medium = parseRenditionInfo(value.medium);
+  const thumbnail = parseRenditionInfo(value.thumbnail);
+
+  return medium && thumbnail ? { medium, thumbnail } : null;
 }
