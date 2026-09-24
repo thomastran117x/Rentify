@@ -248,6 +248,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -711,6 +712,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -783,6 +785,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1242,6 +1245,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1360,6 +1364,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1431,6 +1436,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1504,6 +1510,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1627,6 +1634,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1724,6 +1732,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1821,6 +1830,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -1917,6 +1927,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                     role: owner
                     activeOrganization:
                       id: org-1
@@ -3393,6 +3404,7 @@ paths:
                       lastName: One
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                       role: primary_manager
                       joinedAt: '2026-05-01T00:00:00.000Z'
                     - membershipId: membership-2
@@ -3402,6 +3414,7 @@ paths:
                       lastName: Operator
                       username: taylor-operator
                       avatarUrl: https://cdn.rentify.local/avatars/user-2.png
+                      avatarVariants: null
                       role: operator
                       joinedAt: '2026-05-03T10:00:00.000Z'
                   invitations:
@@ -3900,6 +3913,7 @@ paths:
                     lastName: Operator
                     username: taylor-operator
                     avatarUrl: https://cdn.rentify.local/avatars/user-2.png
+                    avatarVariants: null
                     role: manager
                     joinedAt: '2026-05-03T10:00:00.000Z'
                 error: null
@@ -4064,6 +4078,7 @@ paths:
                         email: owner1@rentify.local
                         username: owner-one
                         avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                        avatarVariants: null
                       action: organization.renamed
                       resourceType: organization
                       resourceId: org-1
@@ -4169,6 +4184,7 @@ paths:
                       email: owner1@rentify.local
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                     action: organization.restored
                     resourceType: organization
                     resourceId: org-1
@@ -4282,6 +4298,7 @@ paths:
                         email: owner1@rentify.local
                         username: owner-one
                         avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                        avatarVariants: null
                       title: Summer availability update
                       body: Our downtown studios now accept weekend bookings.
                       status: published
@@ -4375,6 +4392,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                   title: Summer availability update
                   body: Our downtown studios now accept weekend bookings.
                   status: published
@@ -4460,6 +4478,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                   title: Summer availability update
                   body: Our downtown studios now accept weekend bookings.
                   status: published
@@ -4630,6 +4649,7 @@ paths:
                         email: owner1@rentify.local
                         username: owner-one
                         avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                        avatarVariants: null
                       title: Introducing weekend stays at our downtown studios
                       slug: introducing-weekend-stays
                       excerpt: Weekend bookings are now open across every downtown studio.
@@ -4758,6 +4778,7 @@ paths:
                         email: owner1@rentify.local
                         username: owner-one
                         avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                        avatarVariants: null
                       title: Introducing weekend stays at our downtown studios
                       slug: introducing-weekend-stays
                       excerpt: Weekend bookings are now open across every downtown studio.
@@ -4848,6 +4869,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                   title: Introducing weekend stays at our downtown studios
                   slug: introducing-weekend-stays
                   excerpt: Weekend bookings are now open across every downtown studio.
@@ -4944,6 +4966,7 @@ paths:
                         id: user-2
                         username: renter-one
                         avatarUrl: https://cdn.rentify.local/avatars/renter-1.png
+                        avatarVariants: null
                       body: This is exactly what we needed for the weekend.
                       createdAt: '2026-05-29T09:00:00.000Z'
                       editedAt: null
@@ -5031,6 +5054,7 @@ paths:
                     id: user-2
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/renter-1.png
+                    avatarVariants: null
                   body: This is exactly what we needed for the weekend.
                   createdAt: '2026-05-29T09:00:00.000Z'
                   editedAt: null
@@ -5177,6 +5201,7 @@ paths:
                     id: user-2
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/renter-1.png
+                    avatarVariants: null
                   body: This is exactly what we needed for the weekend.
                   createdAt: '2026-05-29T09:00:00.000Z'
                   editedAt: null
@@ -5364,6 +5389,7 @@ paths:
                         email: owner1@rentify.local
                         username: owner-one
                         avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                        avatarVariants: null
                       title: Introducing weekend stays at our downtown studios
                       slug: introducing-weekend-stays
                       excerpt: Weekend bookings are now open across every downtown studio.
@@ -5469,6 +5495,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                   title: Introducing weekend stays at our downtown studios
                   slug: introducing-weekend-stays
                   excerpt: Weekend bookings are now open across every downtown studio.
@@ -5562,6 +5589,7 @@ paths:
                     email: owner1@rentify.local
                     username: owner-one
                     avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                    avatarVariants: null
                   title: Introducing weekend stays at our downtown studios
                   slug: introducing-weekend-stays
                   excerpt: Weekend bookings are now open across every downtown studio.
@@ -5722,6 +5750,7 @@ paths:
                       reviewer:
                         username: renter-two
                         avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                        avatarVariants: null
                       response:
                         body: Thank you for renting with us — see you next time!
                         respondedAt: '2026-06-02T09:00:00.000Z'
@@ -5729,6 +5758,7 @@ paths:
                           id: user-1
                           username: owner-one
                           avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                          avatarVariants: null
                       createdAt: '2026-06-01T18:30:00.000Z'
                       updatedAt: '2026-06-01T18:30:00.000Z'
                   summary:
@@ -5816,6 +5846,7 @@ paths:
                   reviewer:
                     username: renter-two
                     avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                    avatarVariants: null
                   response:
                     body: Thank you for renting with us — see you next time!
                     respondedAt: '2026-06-02T09:00:00.000Z'
@@ -5823,6 +5854,7 @@ paths:
                       id: user-1
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                   createdAt: '2026-06-01T18:30:00.000Z'
                   updatedAt: '2026-06-01T18:30:00.000Z'
                 error: null
@@ -5890,6 +5922,7 @@ paths:
                   reviewer:
                     username: renter-two
                     avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                    avatarVariants: null
                   response:
                     body: Thank you for renting with us — see you next time!
                     respondedAt: '2026-06-02T09:00:00.000Z'
@@ -5897,6 +5930,7 @@ paths:
                       id: user-1
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                   createdAt: '2026-06-01T18:30:00.000Z'
                   updatedAt: '2026-06-01T18:30:00.000Z'
                 error: null
@@ -5969,6 +6003,7 @@ paths:
                   reviewer:
                     username: renter-two
                     avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                    avatarVariants: null
                   response:
                     body: Thank you for renting with us — see you next time!
                     respondedAt: '2026-06-02T09:00:00.000Z'
@@ -5976,6 +6011,7 @@ paths:
                       id: user-1
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                   createdAt: '2026-06-01T18:30:00.000Z'
                   updatedAt: '2026-06-01T18:30:00.000Z'
                 error: null
@@ -6114,6 +6150,7 @@ paths:
                   reviewer:
                     username: renter-two
                     avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                    avatarVariants: null
                   response:
                     body: Thank you for renting with us — see you next time!
                     respondedAt: '2026-06-02T09:00:00.000Z'
@@ -6121,6 +6158,7 @@ paths:
                       id: user-1
                       username: owner-one
                       avatarUrl: https://cdn.rentify.local/avatars/owner-1.png
+                      avatarVariants: null
                   createdAt: '2026-06-01T18:30:00.000Z'
                   updatedAt: '2026-06-01T18:30:00.000Z'
                 error: null
@@ -6195,6 +6233,7 @@ paths:
                   reviewer:
                     username: renter-two
                     avatarUrl: https://cdn.rentify.local/avatars/renter-2.png
+                    avatarVariants: null
                   response: null
                   createdAt: '2026-06-01T18:30:00.000Z'
                   updatedAt: '2026-06-01T18:30:00.000Z'
@@ -6704,6 +6743,7 @@ paths:
                       username: taylor-renter
                       phoneNumber: +1 555 0100
                       avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                      avatarVariants: null
                       trustworthinessScore: 4
                       rentPostingsCount: 2
                       availableRentPostingsCount: 1
@@ -6773,6 +6813,7 @@ paths:
                   username: taylor-renter
                   phoneNumber: +1 555 0100
                   avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                  avatarVariants: null
                   trustworthinessScore: 4
                   rentPostingsCount: 2
                   availableRentPostingsCount: 1
@@ -6848,6 +6889,7 @@ paths:
                   username: taylor-renter
                   phoneNumber: +1 555 0100
                   avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                  avatarVariants: null
                   trustworthinessScore: 4
                   rentPostingsCount: 2
                   availableRentPostingsCount: 1
@@ -10382,6 +10424,7 @@ paths:
                       reviewer:
                         username: taylor-renter
                         avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                        avatarVariants: null
                       createdAt: '2026-05-18T10:00:00.000Z'
                       updatedAt: '2026-05-18T10:00:00.000Z'
                   summary:
@@ -10470,6 +10513,7 @@ paths:
                   reviewer:
                     username: taylor-renter
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                   createdAt: '2026-05-18T10:00:00.000Z'
                   updatedAt: '2026-05-18T10:00:00.000Z'
                 error: null
@@ -10540,6 +10584,7 @@ paths:
                     reviewer:
                       username: taylor-renter
                       avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                      avatarVariants: null
                     createdAt: '2026-05-18T10:00:00.000Z'
                     updatedAt: '2026-05-18T10:00:00.000Z'
                 error: null
@@ -10613,6 +10658,7 @@ paths:
                   reviewer:
                     username: taylor-renter
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                   createdAt: '2026-05-18T10:00:00.000Z'
                   updatedAt: '2026-05-18T10:00:00.000Z'
                 error: null
@@ -11674,12 +11720,14 @@ paths:
                     email: user1@rentify.local
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                     role: user
                   assignedModerator:
                     id: moderator-1
                     email: moderator1@rentify.local
                     username: mod-one
                     avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                    avatarVariants: null
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
@@ -11826,12 +11874,14 @@ paths:
                         email: user1@rentify.local
                         username: renter-one
                         avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                        avatarVariants: null
                         role: user
                       assignedModerator:
                         id: moderator-1
                         email: moderator1@rentify.local
                         username: mod-one
                         avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                        avatarVariants: null
                         role: moderator
                       subjectSnapshot:
                         subjectType: posting
@@ -11927,12 +11977,14 @@ paths:
                     email: user1@rentify.local
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                     role: user
                   assignedModerator:
                     id: moderator-1
                     email: moderator1@rentify.local
                     username: mod-one
                     avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                    avatarVariants: null
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
@@ -11953,6 +12005,7 @@ paths:
                         email: user1@rentify.local
                         username: renter-one
                         avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                        avatarVariants: null
                         role: user
                       createdAt: '2026-05-25T15:00:00.000Z'
                       note: Initial report submitted by renter.
@@ -11963,6 +12016,7 @@ paths:
                         email: moderator1@rentify.local
                         username: mod-one
                         avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                        avatarVariants: null
                         role: moderator
                       assignmentUserId: moderator-1
                       createdAt: '2026-05-25T15:10:00.000Z'
@@ -12042,12 +12096,14 @@ paths:
                     email: user1@rentify.local
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                     role: user
                   assignedModerator:
                     id: moderator-1
                     email: moderator1@rentify.local
                     username: mod-one
                     avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                    avatarVariants: null
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
@@ -12141,12 +12197,14 @@ paths:
                     email: user1@rentify.local
                     username: renter-one
                     avatarUrl: https://cdn.rentify.local/avatars/user-1.png
+                    avatarVariants: null
                     role: user
                   assignedModerator:
                     id: moderator-1
                     email: moderator1@rentify.local
                     username: mod-one
                     avatarUrl: https://cdn.rentify.local/avatars/mod-1.png
+                    avatarVariants: null
                     role: moderator
                   subjectSnapshot:
                     subjectType: posting
@@ -17329,6 +17387,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
         role:
           type: string
           enum:
@@ -17696,6 +17760,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
         role:
           $ref: '#/components/schemas/OrganizationRole'
         joinedAt:
@@ -17957,6 +18027,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
     OrganizationAuditChange:
       type: object
       required:
@@ -18058,6 +18134,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
     OrganizationAnnouncementRecord:
       type: object
       required:
@@ -18163,6 +18245,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
     OrganizationBlogOrganizationSummary:
       type: object
       required:
@@ -18354,6 +18442,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
     OrganizationBlogCommentRecord:
       type: object
       required:
@@ -18469,6 +18563,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
     OrganizationReviewResponse:
       type: object
       required:
@@ -18492,6 +18592,12 @@ components:
             avatarUrl:
               type: string
               format: uri
+            avatarVariants:
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - type: 'null'
+              readOnly: true
+              description: Renditions of `avatarUrl`.
     OrganizationReviewRecord:
       type: object
       required:
@@ -19492,9 +19598,29 @@ components:
           $ref: '#/components/schemas/FeatureFlagSource'
     PublicProfileRecord:
       type: object
+      properties:
+        avatarUrl:
+          type: string
+          format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
       additionalProperties: true
     ProfileRecord:
       type: object
+      properties:
+        avatarUrl:
+          type: string
+          format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
       additionalProperties: true
     ListProfilesResult:
       type: object
@@ -20101,6 +20227,21 @@ components:
           nullable: true
     PostingReviewRecord:
       type: object
+      properties:
+        reviewer:
+          type: object
+          properties:
+            username:
+              type: string
+            avatarUrl:
+              type: string
+              format: uri
+            avatarVariants:
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - type: 'null'
+              readOnly: true
+              description: Renditions of `avatarUrl`.
       additionalProperties: true
     GetOwnPostingReviewResult:
       type: object
@@ -20523,6 +20664,12 @@ components:
         avatarUrl:
           type: string
           format: uri
+        avatarVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `avatarUrl`.
         role:
           type: string
           enum:

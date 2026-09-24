@@ -154,6 +154,7 @@ describe("ProfileRepository", () => {
           username: "casey-doe",
           phoneNumber: "+1 555 0100",
           avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+          avatarVariants: null,
           trustworthinessScore: 4,
           rentPostingsCount: 3,
           availableRentPostingsCount: 2,
@@ -169,6 +170,7 @@ describe("ProfileRepository", () => {
           username: "alex-rivera",
           phoneNumber: undefined,
           avatarUrl: undefined,
+          avatarVariants: null,
           trustworthinessScore: 4,
           rentPostingsCount: 3,
           availableRentPostingsCount: 2,
@@ -186,6 +188,31 @@ describe("ProfileRepository", () => {
       },
       query: "casey",
     });
+  });
+
+  it("describes the renditions of a processed avatar on both profile views", async () => {
+    const avatarBlobName = `media/images/${USER_1_ID}/avatar-1.webp`;
+    const avatarUrl = `https://storage.example.com/uploads/${avatarBlobName}`;
+    const row = createProfilePersistence({ avatarUrl, avatarBlobName });
+    const repository = new ProfileRepository({
+      profile: {
+        findUnique: jest.fn(async () => row),
+        findMany: jest.fn(async () => [row]),
+        count: jest.fn(async () => 1),
+      },
+    } as any);
+    const expected = {
+      thumbnail: `https://storage.example.com/uploads/media/images/${USER_1_ID}/avatar-1.thumbnail.webp`,
+      medium: `https://storage.example.com/uploads/media/images/${USER_1_ID}/avatar-1.medium.webp`,
+      large: avatarUrl,
+    };
+
+    await expect(repository.findByUserId(USER_1_ID)).resolves.toMatchObject({
+      avatarVariants: expected,
+    });
+    await expect(
+      repository.findPublicProfiles({ page: 1, pageSize: 10 }),
+    ).resolves.toMatchObject({ profiles: [{ avatarVariants: expected }] });
   });
 
   it("maps findByUserId results and returns null when the profile is missing", async () => {
@@ -212,6 +239,7 @@ describe("ProfileRepository", () => {
       usernameChangeAvailableAt: undefined,
       phoneNumber: "+1 555 0100",
       avatarUrl: `https://storage.example.com/avatars/${USER_1_ID}.png`,
+      avatarVariants: null,
       avatarBlobName: `avatars/${USER_1_ID}.png`,
       isPrivate: false,
       recommendationPersonalizationEnabled: true,

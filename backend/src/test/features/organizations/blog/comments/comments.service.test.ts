@@ -28,7 +28,7 @@ function createComment(
     id: COMMENT_1_ID,
     blogPostId: POST_ID,
     organizationId: ORG_ID,
-    author: { id: AUTHOR_ID, username: RENTER_ONE_ID },
+    author: { id: AUTHOR_ID, username: RENTER_ONE_ID, avatarVariants: null },
     body: "Great post.",
     createdAt: "2026-07-16T00:00:00.000Z",
     editedAt: null,

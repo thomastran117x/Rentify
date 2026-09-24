@@ -23,6 +23,7 @@ function createUser(): AuthUserRecord {
     oauthIdentities: [],
     organizationMemberships: [],
     profile: {
+      avatarVariants: null,
       id: PROFILE_1_ID,
       userId: USER_1_ID,
       username: "test-user",

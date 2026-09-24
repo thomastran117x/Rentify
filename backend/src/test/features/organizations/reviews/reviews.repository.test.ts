@@ -64,6 +64,7 @@ describe("OrganizationReviewRepository", () => {
         reviewer: {
           username: "renter-two",
           avatarUrl: "https://example.test/avatar.png",
+          avatarVariants: null,
         },
         response: undefined,
       }),
@@ -90,7 +91,12 @@ describe("OrganizationReviewRepository", () => {
     expect(result?.response).toEqual({
       body: "Thanks!",
       respondedAt: "2026-07-17T00:00:00.000Z",
-      author: { id: USER_1_ID, username: "owner-one", avatarUrl: undefined },
+      author: {
+        id: USER_1_ID,
+        username: "owner-one",
+        avatarUrl: undefined,
+        avatarVariants: null,
+      },
     });
   });
 

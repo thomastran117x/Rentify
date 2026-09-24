@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { htmlToPlainText } from "@/configuration/security/html-sanitizer";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -1291,6 +1292,10 @@ export class OrganizationBlogRepository extends BaseRepository {
           email: author.email,
           username: author.profile?.username ?? author.email,
           avatarUrl: author.profile?.avatarUrl ?? undefined,
+          avatarVariants: describeImageVariants(
+            author.profile?.avatarBlobName,
+            author.profile?.avatarUrl,
+          ),
         }
       : undefined;
   }

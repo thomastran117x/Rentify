@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 
 import {
@@ -241,6 +242,7 @@ export interface OrganizationMemberRecord {
   lastName?: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
   role: OrganizationRole;
   joinedAt: string;
 }

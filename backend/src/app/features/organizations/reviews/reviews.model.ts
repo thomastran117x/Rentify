@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -59,12 +60,14 @@ export type ListOrganizationReviewsQuery = z.infer<
 export interface OrganizationReviewerSummary {
   username?: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
 }
 
 export interface OrganizationReviewResponderSummary {
   id: Uuid;
   username?: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
 }
 
 export interface OrganizationReviewResponse {

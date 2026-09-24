@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -86,6 +87,7 @@ export interface OrganizationAuditActorSummary {
   email: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
 }
 
 export interface OrganizationAuditChange {

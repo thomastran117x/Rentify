@@ -25,6 +25,7 @@ const STORED_AVATAR_URL = `${STORAGE_ORIGIN}${STORED_AVATAR_BLOB}`;
 
 function createProfile(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
   return {
+    avatarVariants: null,
     id: PROFILE_1_ID,
     userId: USER_1_ID,
     email: "user@example.com",
@@ -52,6 +53,7 @@ function createPublicProfile(
   overrides: Partial<PublicProfileRecord> = {},
 ): PublicProfileRecord {
   return {
+    avatarVariants: null,
     id: PROFILE_1_ID,
     userId: USER_1_ID,
     email: "user@example.com",

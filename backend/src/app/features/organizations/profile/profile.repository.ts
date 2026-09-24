@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -811,6 +812,10 @@ export class OrganizationsProfileRepository extends BaseRepository {
       lastName: membership.user.lastName ?? undefined,
       username: membership.user.profile?.username ?? membership.user.email,
       avatarUrl: membership.user.profile?.avatarUrl ?? undefined,
+      avatarVariants: describeImageVariants(
+        membership.user.profile?.avatarBlobName,
+        membership.user.profile?.avatarUrl,
+      ),
       role: membership.role,
       joinedAt: membership.createdAt.toISOString(),
     };

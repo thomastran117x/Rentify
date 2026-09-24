@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
@@ -31,6 +32,7 @@ type UserSummaryPersistence = {
   profile: {
     username: string;
     avatarUrl: string | null;
+    avatarBlobName: string | null;
   } | null;
 };
 
@@ -177,6 +179,7 @@ export class ReportsRepository extends BaseRepository {
                 select: {
                   username: true,
                   avatarUrl: true,
+                  avatarBlobName: true,
                 },
               },
             },
@@ -222,6 +225,7 @@ export class ReportsRepository extends BaseRepository {
                 select: {
                   username: true,
                   avatarUrl: true,
+                  avatarBlobName: true,
                 },
               },
             },
@@ -251,6 +255,7 @@ export class ReportsRepository extends BaseRepository {
             select: {
               username: true,
               avatarUrl: true,
+              avatarBlobName: true,
             },
           },
         },
@@ -860,6 +865,10 @@ export class ReportsRepository extends BaseRepository {
       email: user.email,
       username: user.profile?.username ?? undefined,
       avatarUrl: user.profile?.avatarUrl ?? undefined,
+      avatarVariants: describeImageVariants(
+        user.profile?.avatarBlobName,
+        user.profile?.avatarUrl,
+      ),
       role: normalizeAppRole(user.role),
     };
   }

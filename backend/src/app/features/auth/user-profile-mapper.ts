@@ -46,6 +46,7 @@ export function toAuthUserProfile(user: AuthUserRecord): AuthUserProfile {
     username: user.profile.username,
     phoneNumber: user.profile.phoneNumber,
     avatarUrl: user.profile.avatarUrl,
+    avatarVariants: user.profile.avatarVariants,
     isPrivate: user.profile.isPrivate,
     recommendationPersonalizationEnabled:
       user.profile.recommendationPersonalizationEnabled,

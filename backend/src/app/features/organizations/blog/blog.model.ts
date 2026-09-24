@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
 import {
@@ -137,6 +138,7 @@ export interface OrganizationBlogAuthorSummary {
   email: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
 }
 
 // Minimal organization identity attached to a blog post when it is surfaced

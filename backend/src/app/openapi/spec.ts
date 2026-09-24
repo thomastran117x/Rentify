@@ -60,6 +60,7 @@ const authSessionExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
     role: "owner",
     activeOrganization: {
       id: "org-1",
@@ -99,6 +100,7 @@ const organizationMemberExample = {
   lastName: "Operator",
   username: "taylor-operator",
   avatarUrl: "https://cdn.rentify.local/avatars/user-2.png",
+  avatarVariants: null,
   role: "operator",
   joinedAt: "2026-05-03T10:00:00.000Z",
 };
@@ -139,6 +141,7 @@ const organizationWorkspaceDetailExample = {
       lastName: "One",
       username: "owner-one",
       avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+      avatarVariants: null,
       role: "primary_manager",
       joinedAt: "2026-05-01T00:00:00.000Z",
     },
@@ -224,6 +227,7 @@ const organizationAuditExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   action: "organization.renamed",
   resourceType: "organization",
@@ -268,6 +272,7 @@ const organizationAnnouncementExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   title: "Summer availability update",
   body: "Our downtown studios now accept weekend bookings.",
@@ -295,6 +300,7 @@ const organizationBlogPostExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   title: "Introducing weekend stays at our downtown studios",
   slug: "introducing-weekend-stays",
@@ -318,6 +324,7 @@ const organizationBlogCommentExample = {
     id: "user-2",
     username: "renter-one",
     avatarUrl: "https://cdn.rentify.local/avatars/renter-1.png",
+    avatarVariants: null,
   },
   body: "This is exactly what we needed for the weekend.",
   createdAt: "2026-05-29T09:00:00.000Z",
@@ -375,6 +382,7 @@ const organizationReviewExample = {
   reviewer: {
     username: "renter-two",
     avatarUrl: "https://cdn.rentify.local/avatars/renter-2.png",
+    avatarVariants: null,
   },
   response: {
     body: "Thank you for renting with us — see you next time!",
@@ -383,6 +391,7 @@ const organizationReviewExample = {
       id: "user-1",
       username: "owner-one",
       avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+      avatarVariants: null,
     },
   },
   createdAt: "2026-06-01T18:30:00.000Z",
@@ -531,6 +540,7 @@ const publicProfileExample = {
   username: "taylor-renter",
   phoneNumber: "+1 555 0100",
   avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+  avatarVariants: null,
   trustworthinessScore: 4,
   rentPostingsCount: 2,
   availableRentPostingsCount: 1,
@@ -691,6 +701,7 @@ const reviewExample = {
   reviewer: {
     username: "taylor-renter",
     avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+    avatarVariants: null,
   },
   createdAt: "2026-05-18T10:00:00.000Z",
   updatedAt: "2026-05-18T10:00:00.000Z",
@@ -796,6 +807,7 @@ const reportExample = {
     email: "user1@rentify.local",
     username: "renter-one",
     avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+    avatarVariants: null,
     role: "user",
   },
   assignedModerator: {
@@ -803,6 +815,7 @@ const reportExample = {
     email: "moderator1@rentify.local",
     username: "mod-one",
     avatarUrl: "https://cdn.rentify.local/avatars/mod-1.png",
+    avatarVariants: null,
     role: "moderator",
   },
   subjectSnapshot: {
@@ -9273,6 +9286,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: {
             type: "string",
             enum: ["user", "owner", "moderator", "admin"],
@@ -9558,6 +9572,7 @@ function buildComponents(): Record<string, unknown> {
           lastName: { type: "string" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: schemaRef("OrganizationRole"),
           joinedAt: { type: "string", format: "date-time" },
         },
@@ -9768,6 +9783,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationAuditChange: {
@@ -9844,6 +9860,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationAnnouncementRecord: {
@@ -9917,6 +9934,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationBlogOrganizationSummary: {
@@ -10052,6 +10070,7 @@ function buildComponents(): Record<string, unknown> {
               "Falls back to a generic label when the account has no profile username. An email address is never exposed here, because this record is served on a public page.",
           },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationBlogCommentRecord: {
@@ -10163,6 +10182,7 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationReviewResponse: {
@@ -10178,6 +10198,7 @@ function buildComponents(): Record<string, unknown> {
               id: { type: "string" },
               username: { type: "string" },
               avatarUrl: { type: "string", format: "uri" },
+              avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
             },
           },
         },
@@ -11008,10 +11029,18 @@ function buildComponents(): Record<string, unknown> {
       },
       PublicProfileRecord: {
         type: "object",
+        properties: {
+          avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+        },
         additionalProperties: true,
       },
       ProfileRecord: {
         type: "object",
+        properties: {
+          avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+        },
         additionalProperties: true,
       },
       ListProfilesResult: {
@@ -11551,6 +11580,16 @@ function buildComponents(): Record<string, unknown> {
       },
       PostingReviewRecord: {
         type: "object",
+        properties: {
+          reviewer: {
+            type: "object",
+            properties: {
+              username: { type: "string" },
+              avatarUrl: { type: "string", format: "uri" },
+              avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+            },
+          },
+        },
         additionalProperties: true,
       },
       GetOwnPostingReviewResult: {
@@ -11932,6 +11971,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: {
             type: "string",
             enum: ["user", "owner", "moderator", "admin"],

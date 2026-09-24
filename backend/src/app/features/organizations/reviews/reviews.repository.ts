@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -248,6 +249,10 @@ export class OrganizationReviewRepository extends BaseRepository {
                   id: asUuid(row.responseAuthor.id),
                   username: row.responseAuthor.profile?.username ?? undefined,
                   avatarUrl: row.responseAuthor.profile?.avatarUrl ?? undefined,
+                  avatarVariants: describeImageVariants(
+                    row.responseAuthor.profile?.avatarBlobName,
+                    row.responseAuthor.profile?.avatarUrl,
+                  ),
                 }
               : undefined,
           }
@@ -263,6 +268,10 @@ export class OrganizationReviewRepository extends BaseRepository {
       reviewer: {
         username: row.reviewer.profile?.username ?? undefined,
         avatarUrl: row.reviewer.profile?.avatarUrl ?? undefined,
+        avatarVariants: describeImageVariants(
+          row.reviewer.profile?.avatarBlobName,
+          row.reviewer.profile?.avatarUrl,
+        ),
       },
       response,
       createdAt: row.createdAt.toISOString(),
