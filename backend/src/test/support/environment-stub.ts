@@ -197,6 +197,7 @@ function readImageUploadsConfig() {
     maxWidth: readNumber(process.env.MAX_IMAGE_WIDTH, 8_000),
     maxHeight: readNumber(process.env.MAX_IMAGE_HEIGHT, 8_000),
     maxPixels: readNumber(process.env.MAX_IMAGE_PIXELS, 40_000_000),
+    maxProcessedEdge: readNumber(process.env.MAX_PROCESSED_IMAGE_EDGE, 2_560),
   };
 }
 
@@ -231,6 +232,7 @@ const imageUploadsConfig = {
   maxWidth: 8_000,
   maxHeight: 8_000,
   maxPixels: 40_000_000,
+  maxProcessedEdge: 2_560,
 };
 
 const identityBloomConfig = {

@@ -118,6 +118,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "imageUploads.allowedContentTypes": "ALLOWED_IMAGE_TYPES",
   "imageUploads.maxHeight": "MAX_IMAGE_HEIGHT",
   "imageUploads.maxPixels": "MAX_IMAGE_PIXELS",
+  "imageUploads.maxProcessedEdge": "MAX_PROCESSED_IMAGE_EDGE",
   "imageUploads.maxSizeBytes": "MAX_IMAGE_SIZE_BYTES",
   "imageUploads.maxWidth": "MAX_IMAGE_WIDTH",
   "logging.fallbackDirectory": "LOG_FALLBACK_DIRECTORY",

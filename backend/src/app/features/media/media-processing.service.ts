@@ -39,7 +39,9 @@ const PROCESSING_FAILED_REASON = "The image could not be processed.";
  * re-encoded rather than copied. Re-encoding strips metadata a client may not
  * have meant to publish (EXIF, GPS), applies the EXIF orientation so the
  * stored pixels are upright, and means what is served was produced by this
- * process rather than supplied by the client.
+ * process rather than supplied by the client. It also scales the image down so
+ * its longest edge is within `imageUploads.maxProcessedEdge`, since the full
+ * upload can be far larger than anything the UI displays.
  *
  * The upload credential outlives completion, so the blob may have been written
  * again since. Its properties are checked before anything is downloaded: the
@@ -106,11 +108,19 @@ export class MediaProcessingService {
       throw error;
     }
 
+    const policy = environment.getImageUploadsConfig();
     const processed = await sharp(original.body, {
-      limitInputPixels: environment.getImageUploadsConfig().maxPixels,
+      limitInputPixels: policy.maxPixels,
       failOn: IMAGE_DECODE_FAIL_ON,
     })
+      // Rotated first, so the cap applies to the upright image.
       .rotate()
+      .resize({
+        width: policy.maxProcessedEdge,
+        height: policy.maxProcessedEdge,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
       .webp({ quality: PROCESSED_IMAGE_QUALITY })
       .toBuffer({ resolveWithObject: true });
     const processedBlobName = this.blobService.buildProcessedImageBlobName(

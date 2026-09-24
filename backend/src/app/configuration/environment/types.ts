@@ -81,6 +81,7 @@ export type RawEnvironmentValues = {
   MAX_IMAGE_PIXELS?: string;
   MAX_IMAGE_SIZE_BYTES?: string;
   MAX_IMAGE_WIDTH?: string;
+  MAX_PROCESSED_IMAGE_EDGE?: string;
   MICROSOFT_OAUTH_CLIENT_ID?: string;
   MICROSOFT_OAUTH_CLIENT_IDS?: string;
   MICROSOFT_OAUTH_CLIENT_SECRET?: string;
@@ -405,6 +406,7 @@ export interface AppEnvironment {
     maxWidth: number;
     maxHeight: number;
     maxPixels: number;
+    maxProcessedEdge: number;
   };
   logging: {
     fallbackDirectory: string;

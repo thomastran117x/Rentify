@@ -219,6 +219,17 @@ export function buildImageUploadsConfig(
       integer: true,
       min: 1,
     }),
+    maxProcessedEdge: parseNumber(
+      raw,
+      "MAX_PROCESSED_IMAGE_EDGE",
+      2_560,
+      errors,
+      {
+        integer: true,
+        min: 256,
+        max: 8_000,
+      },
+    ),
   };
 }
 

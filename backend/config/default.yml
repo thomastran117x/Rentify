@@ -109,6 +109,10 @@ imageUploads:
   maxWidth: 8000
   maxHeight: 8000
   maxPixels: 40000000
+  # Longest edge of the image the worker stores and serves. Larger uploads are
+  # scaled down to fit, keeping their aspect ratio; smaller ones are never
+  # enlarged. An integer from 256 to 8000.
+  maxProcessedEdge: 2560
 
 paypal:
   environment: sandbox
