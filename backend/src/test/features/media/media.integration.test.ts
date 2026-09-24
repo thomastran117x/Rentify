@@ -5,10 +5,14 @@ import type {
   MediaProcessingJobPayload,
   MediaView,
 } from "@/features/media/media.model";
+import { MediaRepository } from "@/features/media/media.repository";
+import { MediaVariantsBackfillService } from "@/features/media/media-variants-backfill.service";
+import type { BlobService } from "@/features/blob/blob.service";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -517,5 +521,69 @@ describe("Media persistence integration", () => {
       body: JSON.stringify({ filename: "a.png", contentType: "image/png" }),
     });
     expect(anonymous.status).toBe(401);
+  });
+
+  it("backfills the renditions of ready media processed before they existed", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const blobService = persistenceApp.stubs.blobService;
+    const legacy = await Promise.all([
+      createReadyMedia(owner.userId, { legacy: true }),
+      createReadyMedia(owner.userId, { legacy: true }),
+    ]);
+    const current = await createReadyMedia(owner.userId);
+    for (const { blobName } of legacy) {
+      blobService.storage.set(blobName, {
+        contentType: "image/webp",
+        body: await createPngFixture(1000, 500),
+      });
+    }
+    const backfill = new MediaVariantsBackfillService(
+      new MediaRepository(),
+      blobService as unknown as BlobService,
+    );
+
+    const preview = await backfill.run({ dryRun: true, batchSize: 1 });
+    expect(preview.pending.map((item) => item.mediaId).sort()).toEqual(
+      legacy.map((item) => item.mediaId).sort(),
+    );
+
+    const result = await backfill.run({ dryRun: false, batchSize: 1 });
+    expect(result).toMatchObject({ scanned: 2, converted: 2, failed: 0 });
+
+    for (const { mediaId, blobName } of legacy) {
+      const row = await persistenceApp.prisma.media.findUniqueOrThrow({
+        where: { id: mediaId },
+      });
+      expect(row.variants).toMatchObject({
+        medium: { width: 800, height: 400 },
+        thumbnail: { width: 300, height: 150 },
+      });
+      expect(
+        blobService.storage.has(blobName.replace(/\.webp$/, ".medium.webp")),
+      ).toBe(true);
+    }
+    // An item that already has renditions is never selected.
+    expect(result.failures).toEqual([]);
+    expect(
+      preview.pending.some((item) => item.mediaId === current.mediaId),
+    ).toBe(false);
+
+    await expect(
+      backfill.run({ dryRun: false, batchSize: 1 }),
+    ).resolves.toMatchObject({ scanned: 0, converted: 0 });
+
+    // The guarded update refuses a row that is no longer the same image.
+    await expect(
+      new MediaRepository().setVariants(
+        legacy[0]!.mediaId,
+        "media/images/other/name.webp",
+        {
+          medium: { width: 1, height: 1, sizeBytes: 1 },
+          thumbnail: { width: 1, height: 1, sizeBytes: 1 },
+        },
+      ),
+    ).resolves.toBe(false);
   });
 });

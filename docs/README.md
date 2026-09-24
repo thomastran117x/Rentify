@@ -20,6 +20,7 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 - [database.md](./database.md): connection targets, migrations, seeds, and isolated test databases
 - [troubleshooting.md](./troubleshooting.md): startup, ports, configuration, authentication, logs, queues, and search
+- [media-variants-backfill.md](./media-variants-backfill.md): writing the medium and thumbnail renditions of images processed before they existed
 
 ## Product and Planning
 

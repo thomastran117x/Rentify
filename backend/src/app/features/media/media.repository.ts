@@ -1,4 +1,4 @@
-import type { Media, Prisma } from "@/generated/prisma/client";
+import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import type {
@@ -137,6 +137,60 @@ export class MediaRepository extends BaseRepository {
       );
 
     return photos + profiles + organizations + blogPosts > 0;
+  }
+
+  /**
+   * Ready items processed before renditions existed, in id order after
+   * `afterId`, for the backfill to page through.
+   */
+  async listReadyWithoutVariants(
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    const rows = await this.executeAsync(
+      () =>
+        this.prisma.media.findMany({
+          where: {
+            status: "ready",
+            processedBlobName: { not: null },
+            variants: { equals: Prisma.DbNull },
+            ...(afterId ? { id: { gt: afterId } } : {}),
+          },
+          orderBy: { id: "asc" },
+          take: limit,
+        }),
+      { operationName: "listReadyWithoutVariants" },
+    );
+
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  /**
+   * Records renditions the backfill wrote. Applies only while the item is
+   * still ready with the same processed image and still has none recorded, so
+   * a row deleted, re-processed, or backfilled by a concurrent run is left
+   * alone and the caller learns it lost.
+   */
+  async setVariants(
+    id: Uuid,
+    processedBlobName: string,
+    variants: MediaVariantsMetadata,
+  ): Promise<boolean> {
+    const result = await this.executeAsync(
+      () =>
+        this.prisma.media.updateMany({
+          where: {
+            id,
+            status: "ready",
+            processedBlobName,
+            variants: { equals: Prisma.DbNull },
+          },
+          data: { variants: variants as unknown as Prisma.InputJsonValue },
+        }),
+      { operationName: "setVariants" },
+    );
+
+    return result.count > 0;
   }
 
   async deleteById(id: Uuid): Promise<void> {

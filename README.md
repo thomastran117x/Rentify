@@ -123,6 +123,16 @@ restorable organization-logo and posting-photo history. Only unreferenced
 media uploads left unfinished for 24 hours are removed too. Always review the
 preview before using `--delete`.
 
+Image renditions backfill (writes unless given `--dry-run`; run it right after
+deploying the release that adds renditions):
+
+```bash
+docker compose run --rm --build media-variants-backfill --dry-run
+docker compose run --rm --build media-variants-backfill
+```
+
+See [the backfill runbook](./docs/media-variants-backfill.md).
+
 ## API Contract
 
 The backend returns a shared JSON envelope:

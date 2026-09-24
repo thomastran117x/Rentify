@@ -329,6 +329,26 @@ services:
     entrypoint: ["node", "dist/scripts/cleanup-orphaned-blobs.js"]
     command: []
 
+  media-variants-backfill:
+    build: *backend-build
+    image: rent-backend:local
+    profiles: ["maintenance"]
+    restart: "no"
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *backend-environment
+      DATABASE_POOL_CONNECTION_LIMIT: 2
+      DATABASE_POOL_MINIMUM_IDLE: 1
+    # Reads and writes blobs, so it shares the local blob disk with the API
+    # when Azure is not configured.
+    volumes: *backend-blob-volumes
+    entrypoint: ["node", "dist/scripts/backfill-media-variants.js"]
+    command: []
+
   analytics-worker:
     build: *backend-build
     image: rent-backend:local

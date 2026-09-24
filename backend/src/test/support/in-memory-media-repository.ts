@@ -4,6 +4,7 @@ import type {
   MarkMediaReadyInput,
   MediaRecord,
   MediaStatus,
+  MediaVariantsMetadata,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 
@@ -100,6 +101,43 @@ export class InMemoryMediaRepository {
 
   async isBlobAttached(blobName: string): Promise<boolean> {
     return this.attachedBlobNames.has(blobName);
+  }
+
+  async listReadyWithoutVariants(
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    return [...this.rows.values()]
+      .filter(
+        (record) =>
+          record.status === "ready" &&
+          record.processedBlobName !== null &&
+          record.variants === null &&
+          (afterId === null || record.id > afterId),
+      )
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .slice(0, limit)
+      .map((record) => ({ ...record }));
+  }
+
+  async setVariants(
+    id: Uuid,
+    processedBlobName: string,
+    variants: MediaVariantsMetadata,
+  ): Promise<boolean> {
+    const record = this.rows.get(id);
+
+    if (
+      !record ||
+      record.status !== "ready" ||
+      record.processedBlobName !== processedBlobName ||
+      record.variants !== null
+    ) {
+      return false;
+    }
+
+    this.rows.set(id, { ...record, variants });
+    return true;
   }
 
   async deleteById(id: Uuid): Promise<void> {

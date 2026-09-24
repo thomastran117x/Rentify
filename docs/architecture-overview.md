@@ -222,10 +222,10 @@ features keep storing only the large name and no reference table changed. The
 renditions sit flat in the owner's directory, so the owner check reads them
 like the processed image. `media.variants` records their dimensions and sizes;
 it is set with `ready` and stays `NULL` for images processed before renditions
-existed, until the media-variants backfill reaches them. Storage per image
-grows by about 1.3x. The 640x480 posting-card crop under
-`.../thumbnails/<id>.webp` is a separate image that the posting thumbnail
-worker writes; it has no renditions of its own.
+existed, until the [media-variants backfill](./media-variants-backfill.md)
+reaches them. Storage per image grows by about 1.3x. The 640x480 posting-card
+crop under `.../thumbnails/<id>.webp` is a separate image that the posting
+thumbnail worker writes; it has no renditions of its own.
 
 **When an image is attached.** Every field that holds an image goes through one
 rule, `MediaService.resolveImageReference`: posting photos
