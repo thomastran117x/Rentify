@@ -529,6 +529,13 @@ describe("EnvironmentManager", () => {
 
     expect(cappedManager.getImageUploadsConfig().maxProcessedEdge).toBe(1024);
 
+    // Compose forwards an unset host variable as an empty string.
+    process.env = buildRequiredEnv({ MAX_PROCESSED_IMAGE_EDGE: "" });
+    const blankManager = new EnvironmentManager();
+    blankManager.load();
+
+    expect(blankManager.getImageUploadsConfig().maxProcessedEdge).toBe(2_560);
+
     process.env = buildRequiredEnv({
       ALLOWED_IMAGE_TYPES: "image/png, IMAGE/WEBP",
     });
