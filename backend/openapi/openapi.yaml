@@ -8221,10 +8221,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8256,7 +8260,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -8540,10 +8548,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8575,7 +8587,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -8697,10 +8713,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8732,7 +8752,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -8884,10 +8908,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8919,7 +8947,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -8981,8 +9013,8 @@ paths:
                 hourly:
                   amount: 25
               photos:
-                - blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                  blobName: postings/posting-1/photo-1.jpg
+                - blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   position: 0
                 - mediaId: 8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10
                   position: 1
@@ -9049,10 +9081,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9084,7 +9120,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9173,10 +9213,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9208,7 +9252,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9291,10 +9339,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9326,7 +9378,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9411,10 +9467,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9446,7 +9506,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9531,10 +9595,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9566,7 +9634,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9652,10 +9724,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9687,7 +9763,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9772,10 +9852,14 @@ paths:
                   pricingCurrency: CAD
                   photos:
                     - id: photo-1
-                      blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                      blobName: postings/posting-1/photo-1.jpg
+                      blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                      variants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9807,7 +9891,11 @@ paths:
                     postalCode: M5V 1A1
                     latitude: 43.65
                     longitude: -79.38
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9980,7 +10068,11 @@ paths:
                     - postingId: posting-1
                       name: Sunny loft workspace
                       status: published
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       totals:
                         searchImpressions: 120
                         searchClicks: 28
@@ -10156,7 +10248,11 @@ paths:
                   postingId: posting-1
                   name: Sunny loft workspace
                   status: published
-                  primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                  primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                  primaryPhotoVariants:
+                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   window: 7d
                   granularity: day
                   totals:
@@ -10886,10 +10982,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -10921,7 +11021,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -11188,10 +11292,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -11223,7 +11331,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -11346,10 +11458,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -11381,7 +11497,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -12980,10 +13100,14 @@ paths:
                         pricingCurrency: CAD
                         photos:
                           - id: photo-1
-                            blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                            blobName: postings/posting-1/photo-1.jpg
+                            blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                             thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                             thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                            variants:
+                              thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                             position: 0
                             createdAt: '2026-05-01T10:00:00.000Z'
                             updatedAt: '2026-05-01T10:00:00.000Z'
@@ -13015,7 +13139,11 @@ paths:
                           postalCode: M5V 1A1
                           latitude: 43.65
                           longitude: -79.38
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                         viewerReviewState:
                           eligible: true
@@ -13125,10 +13253,14 @@ paths:
                       pricingCurrency: CAD
                       photos:
                         - id: photo-1
-                          blobUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
-                          blobName: postings/posting-1/photo-1.jpg
+                          blobUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          blobName: media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
+                          variants:
+                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -13160,7 +13292,11 @@ paths:
                         postalCode: M5V 1A1
                         latitude: 43.65
                         longitude: -79.38
-                      primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                      primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      primaryPhotoVariants:
+                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -13262,7 +13398,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -13374,7 +13514,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -13569,7 +13713,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -13684,7 +13832,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -13809,7 +13961,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         effectiveMaxBookingDurationDays: 30
                       holdExpiresAt: '2026-05-28T12:00:00.000Z'
                       approvedAt: '2026-05-25T12:00:00.000Z'
@@ -13959,7 +14115,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         effectiveMaxBookingDurationDays: 30
                       isExpiringHold: false
                       actionNeededCategory: approval
@@ -14077,7 +14237,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                   viewerAccess:
                     side: owner
@@ -14179,7 +14343,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14342,7 +14510,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14440,7 +14612,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14538,7 +14714,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     effectiveMaxBookingDurationDays: 30
                   cancellationReason: Trip dates changed.
                   cancelledAt: '2026-05-26T08:00:00.000Z'
@@ -15349,6 +15529,7 @@ paths:
                     id: posting-1
                     name: Downtown Toronto Loft
                     primaryPhotoUrl: https://example.com/postings/loft/main.jpg
+                    primaryPhotoVariants: null
                   pricing:
                     currency: CAD
                     stayTotal: 1800
@@ -16130,7 +16311,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -16224,7 +16409,11 @@ paths:
                       posting:
                         id: posting-1
                         name: Sunny loft workspace
-                        primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                        primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        primaryPhotoVariants:
+                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   pagination:
                     page: 1
                     pageSize: 20
@@ -16329,7 +16518,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -16414,7 +16607,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   checkInReadyAt: '2026-06-14T14:30:00.000Z'
                 error: null
                 meta:
@@ -16498,7 +16695,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   checkInCompletedAt: '2026-06-14T15:05:00.000Z'
                 error: null
                 meta:
@@ -16582,7 +16783,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   completedAt: '2026-06-17T11:05:00.000Z'
                 error: null
                 meta:
@@ -16675,7 +16880,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   dispute:
                     id: dispute-1
                     rentingId: renting-1
@@ -16768,7 +16977,11 @@ paths:
                   posting:
                     id: posting-1
                     name: Sunny loft workspace
-                    primaryPhotoUrl: https://cdn.rentify.local/postings/posting-1/photo-1.jpg
+                    primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    primaryPhotoVariants:
+                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -19470,6 +19683,10 @@ components:
     PostingRecord:
       type: object
       properties:
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostingPhotoRecord'
         expiresAt:
           type: string
           format: date-time
@@ -19479,12 +19696,67 @@ components:
     PublicPostingRecord:
       type: object
       properties:
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostingPhotoRecord'
+        primaryPhotoUrl:
+          type: string
+          format: uri
+          description: The photo at position 0, or the first photo.
+        primaryPhotoVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `primaryPhotoUrl`.
+        primaryThumbnailUrl:
+          type: string
+          format: uri
+          description: The 640x480 card crop of the primary photo, once the posting thumbnail worker has written it.
         expiresAt:
           type: string
           format: date-time
           nullable: true
           description: 'Optional owner-set expiry, as the end of the chosen calendar day in UTC. Null or absent means the listing never expires. When the date passes, a published posting is automatically moved to `paused`: it leaves public search and stops accepting new booking requests, while bookings already accepted are unaffected. To bring it back, set a future date and call `/postings/{id}/unpause`; unpausing while the date is in the past is rejected.'
       additionalProperties: true
+    PostingPhotoRecord:
+      type: object
+      required:
+        - id
+        - blobUrl
+        - blobName
+        - variants
+        - position
+      properties:
+        id:
+          type: string
+        blobUrl:
+          type: string
+          format: uri
+        blobName:
+          type: string
+        thumbnailBlobUrl:
+          type: string
+          format: uri
+          description: The 640x480 card crop, written for the primary photo only.
+        thumbnailBlobName:
+          type: string
+        variants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `blobUrl`.
+        position:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     ListOwnerPostingsResult:
       type: object
       properties:
@@ -20547,9 +20819,35 @@ components:
       additionalProperties: true
     PostingAnalyticsListResult:
       type: object
+      properties:
+        postings:
+          type: array
+          items:
+            type: object
+            properties:
+              primaryPhotoUrl:
+                type: string
+                format: uri
+              primaryPhotoVariants:
+                oneOf:
+                  - $ref: '#/components/schemas/ImageVariants'
+                  - type: 'null'
+                readOnly: true
+                description: Renditions of `primaryPhotoUrl`.
+            additionalProperties: true
       additionalProperties: true
     PostingAnalyticsDetail:
       type: object
+      properties:
+        primaryPhotoUrl:
+          type: string
+          format: uri
+        primaryPhotoVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `primaryPhotoUrl`.
       additionalProperties: true
     CreateBookingRequest:
       type: object
@@ -20608,6 +20906,24 @@ components:
           type: string
     BookingRequestRecord:
       type: object
+      properties:
+        posting:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            primaryPhotoUrl:
+              type: string
+              format: uri
+            primaryPhotoVariants:
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - type: 'null'
+              readOnly: true
+              description: Renditions of `primaryPhotoUrl`.
+          additionalProperties: true
       additionalProperties: true
     SendBookingMessageRequest:
       type: object
@@ -20855,6 +21171,12 @@ components:
               type: string
             primaryPhotoUrl:
               type: string
+            primaryPhotoVariants:
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - type: 'null'
+              readOnly: true
+              description: Renditions of `primaryPhotoUrl`.
         pricing:
           type: object
           required:
@@ -21004,6 +21326,24 @@ components:
         - pagination
     RentingRecord:
       type: object
+      properties:
+        posting:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            primaryPhotoUrl:
+              type: string
+              format: uri
+            primaryPhotoVariants:
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - type: 'null'
+              readOnly: true
+              description: Renditions of `primaryPhotoUrl`.
+          additionalProperties: true
       additionalProperties: true
     ListRentingsResult:
       type: object

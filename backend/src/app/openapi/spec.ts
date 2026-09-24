@@ -516,6 +516,12 @@ const mediaViewReadyExample = {
   height: 1200,
   updatedAt: "2026-05-25T18:15:04.000Z",
 };
+const postingPhotoBlobNameExample =
+  "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp";
+const postingPhotoUrlExample = `https://cdn.rentify.local/uploads/${postingPhotoBlobNameExample}`;
+const postingPhotoVariantsExample = imageVariantsExample(
+  postingPhotoUrlExample,
+);
 const publicProfileExample = {
   id: "profile-1",
   userId: "user-1",
@@ -570,11 +576,12 @@ const postingExample = {
   photos: [
     {
       id: "photo-1",
-      blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-      blobName: "postings/posting-1/photo-1.jpg",
+      blobUrl: postingPhotoUrlExample,
+      blobName: postingPhotoBlobNameExample,
       thumbnailBlobUrl:
         "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
       thumbnailBlobName: "postings/posting-1/photo-1-thumb.jpg",
+      variants: postingPhotoVariantsExample,
       position: 0,
       createdAt: "2026-05-01T10:00:00.000Z",
       updatedAt: "2026-05-01T10:00:00.000Z",
@@ -609,7 +616,8 @@ const postingExample = {
     latitude: 43.65,
     longitude: -79.38,
   },
-  primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+  primaryPhotoUrl: postingPhotoUrlExample,
+  primaryPhotoVariants: postingPhotoVariantsExample,
   primaryThumbnailUrl:
     "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
   viewerReviewState: {
@@ -891,7 +899,8 @@ const analyticsDetailExample = {
   postingId: "posting-1",
   name: "Sunny loft workspace",
   status: "published",
-  primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+  primaryPhotoUrl: postingPhotoUrlExample,
+  primaryPhotoVariants: postingPhotoVariantsExample,
   window: "7d",
   granularity: "day",
   totals: analyticsSummaryExample.totals,
@@ -971,7 +980,8 @@ const bookingRequestExample = {
   posting: {
     id: "posting-1",
     name: "Sunny loft workspace",
-    primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+    primaryPhotoUrl: postingPhotoUrlExample,
+    primaryPhotoVariants: postingPhotoVariantsExample,
     effectiveMaxBookingDurationDays: 30,
   },
 };
@@ -1054,6 +1064,8 @@ const checkoutSummaryExample = {
     id: "posting-1",
     name: "Downtown Toronto Loft",
     primaryPhotoUrl: "https://example.com/postings/loft/main.jpg",
+    // A seeded photo is not a processed image, so it has no renditions.
+    primaryPhotoVariants: null,
   },
   pricing: {
     currency: "CAD",
@@ -1118,7 +1130,8 @@ const rentingExample = {
   posting: {
     id: "posting-1",
     name: "Sunny loft workspace",
-    primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+    primaryPhotoUrl: postingPhotoUrlExample,
+    primaryPhotoVariants: postingPhotoVariantsExample,
   },
 };
 const searchStatusExample = {
@@ -5488,8 +5501,8 @@ function buildOperations(): OperationDefinition[] {
         pricing: postingExample.pricing,
         photos: [
           {
-            blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-            blobName: "postings/posting-1/photo-1.jpg",
+            blobUrl: postingPhotoUrlExample,
+            blobName: postingPhotoBlobNameExample,
             position: 0,
           },
           { mediaId: mediaIdExample, position: 1 },
@@ -5725,8 +5738,8 @@ function buildOperations(): OperationDefinition[] {
                 postingId: "posting-1",
                 name: "Sunny loft workspace",
                 status: "published",
-                primaryPhotoUrl:
-                  "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                primaryPhotoUrl: postingPhotoUrlExample,
+                primaryPhotoVariants: postingPhotoVariantsExample,
                 totals: analyticsSummaryExample.totals,
                 derivedMetrics: analyticsSummaryExample.derivedMetrics,
               },
@@ -11169,6 +11182,10 @@ function buildComponents(): Record<string, unknown> {
       PostingRecord: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            items: schemaRef("PostingPhotoRecord"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11182,6 +11199,24 @@ function buildComponents(): Record<string, unknown> {
       PublicPostingRecord: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            items: schemaRef("PostingPhotoRecord"),
+          },
+          primaryPhotoUrl: {
+            type: "string",
+            format: "uri",
+            description: "The photo at position 0, or the first photo.",
+          },
+          primaryPhotoVariants: imageVariantsField(
+            "Renditions of `primaryPhotoUrl`.",
+          ),
+          primaryThumbnailUrl: {
+            type: "string",
+            format: "uri",
+            description:
+              "The 640x480 card crop of the primary photo, once the posting thumbnail worker has written it.",
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11191,6 +11226,26 @@ function buildComponents(): Record<string, unknown> {
           },
         },
         additionalProperties: true,
+      },
+      PostingPhotoRecord: {
+        type: "object",
+        required: ["id", "blobUrl", "blobName", "variants", "position"],
+        properties: {
+          id: { type: "string" },
+          blobUrl: { type: "string", format: "uri" },
+          blobName: { type: "string" },
+          thumbnailBlobUrl: {
+            type: "string",
+            format: "uri",
+            description:
+              "The 640x480 card crop, written for the primary photo only.",
+          },
+          thumbnailBlobName: { type: "string" },
+          variants: imageVariantsField("Renditions of `blobUrl`."),
+          position: { type: "integer", minimum: 0 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
       },
       ListOwnerPostingsResult: {
         type: "object",
@@ -12134,10 +12189,31 @@ function buildComponents(): Record<string, unknown> {
       },
       PostingAnalyticsListResult: {
         type: "object",
+        properties: {
+          postings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                primaryPhotoUrl: { type: "string", format: "uri" },
+                primaryPhotoVariants: imageVariantsField(
+                  "Renditions of `primaryPhotoUrl`.",
+                ),
+              },
+              additionalProperties: true,
+            },
+          },
+        },
         additionalProperties: true,
       },
       PostingAnalyticsDetail: {
         type: "object",
+        properties: {
+          primaryPhotoUrl: { type: "string", format: "uri" },
+          primaryPhotoVariants: imageVariantsField(
+            "Renditions of `primaryPhotoUrl`.",
+          ),
+        },
         additionalProperties: true,
       },
       CreateBookingRequest: {
@@ -12177,6 +12253,20 @@ function buildComponents(): Record<string, unknown> {
       },
       BookingRequestRecord: {
         type: "object",
+        properties: {
+          posting: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              primaryPhotoUrl: { type: "string", format: "uri" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
+            },
+            additionalProperties: true,
+          },
+        },
         additionalProperties: true,
       },
       SendBookingMessageRequest: {
@@ -12430,6 +12520,9 @@ function buildComponents(): Record<string, unknown> {
               id: { type: "string" },
               name: { type: "string" },
               primaryPhotoUrl: { type: "string" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
             },
           },
           pricing: {
@@ -12563,6 +12656,20 @@ function buildComponents(): Record<string, unknown> {
       },
       RentingRecord: {
         type: "object",
+        properties: {
+          posting: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              primaryPhotoUrl: { type: "string", format: "uri" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
+            },
+            additionalProperties: true,
+          },
+        },
         additionalProperties: true,
       },
       ListRentingsResult: {

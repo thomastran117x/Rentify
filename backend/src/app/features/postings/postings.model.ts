@@ -12,6 +12,8 @@ import {
   uuidSchemaWithMessage,
   type Uuid,
 } from "@/configuration/validation/uuid";
+import { describeImageVariants } from "@/features/media/image-variants";
+import type { ImageVariants } from "@/features/media/media.model";
 
 export const MAX_POSTING_PHOTOS = 10;
 export const MAX_BATCH_IDS = 50;
@@ -674,6 +676,8 @@ export interface PostingPhotoRecord {
   blobName: string;
   thumbnailBlobUrl?: string;
   thumbnailBlobName?: string;
+  /** The photo's renditions; null when it is not a processed image. */
+  variants: ImageVariants | null;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -822,6 +826,7 @@ export interface PublicPostingRecord
   location: PublicPostingLocationRecord;
   organization?: PublicPostingOrganizationSummary;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants: ImageVariants | null;
   primaryThumbnailUrl?: string;
   viewerReviewState?: PostingViewerReviewState;
 }
@@ -1106,6 +1111,12 @@ export function toPublicPostingRecord(
   return {
     ...(publicPosting as unknown as PublicPostingRecord),
     primaryPhotoUrl: primaryPhoto?.blobUrl,
+    // Derived rather than copied, so a record cached before renditions were
+    // exposed still carries them.
+    primaryPhotoVariants: describeImageVariants(
+      primaryPhoto?.blobName,
+      primaryPhoto?.blobUrl,
+    ),
     primaryThumbnailUrl: primaryPhoto?.thumbnailBlobUrl,
     effectiveMaxBookingDurationDays:
       posting.maxBookingDurationDays ?? DEFAULT_MAX_BOOKING_DURATION_DAYS,

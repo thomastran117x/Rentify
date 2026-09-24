@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import { MAX_PAGE_SIZE } from "@/features/postings/postings.model";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -110,6 +111,7 @@ export interface PostingAnalyticsListItem {
   name: string;
   status: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants: ImageVariants | null;
   totals: PostingAnalyticsMetrics;
   derivedMetrics: PostingAnalyticsDerivedMetrics;
 }
@@ -142,6 +144,7 @@ export interface PostingAnalyticsDetail {
   name: string;
   status: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants: ImageVariants | null;
   window: PostingAnalyticsWindow;
   granularity: PostingAnalyticsGranularity;
   totals: PostingAnalyticsMetrics;

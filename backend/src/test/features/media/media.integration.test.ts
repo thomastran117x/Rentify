@@ -409,12 +409,31 @@ describe("Media persistence integration", () => {
     });
     expect(created.status).toBe(201);
     const posting = await readData<{
-      photos: Array<{ blobName: string; blobUrl: string }>;
+      photos: Array<{
+        blobName: string;
+        blobUrl: string;
+        variants: Record<"thumbnail" | "medium" | "large", string> | null;
+      }>;
     }>(created);
     const processedName = `media/images/${owner.userId}/${ready.mediaId}.webp`;
     expect(posting.photos).toEqual([
       expect.objectContaining({ blobName: processedName }),
     ]);
+    // Each rendition URL addresses a blob the worker wrote.
+    const [photo] = posting.photos;
+    expect(photo?.variants?.large).toBe(photo?.blobUrl);
+    for (const [rendition, suffix] of [
+      ["thumbnail", ".thumbnail.webp"],
+      ["medium", ".medium.webp"],
+    ] as const) {
+      const blobName = new URL(photo!.variants![rendition]).searchParams.get(
+        "blobName",
+      );
+      expect(blobName).toBe(processedName.replace(/\.webp$/, suffix));
+      expect(persistenceApp.stubs.blobService.storage.has(blobName!)).toBe(
+        true,
+      );
+    }
 
     // The posting now displays it, so it can no longer be deleted as media.
     const deleteAttached = await request(`/media/${ready.mediaId}`, {
