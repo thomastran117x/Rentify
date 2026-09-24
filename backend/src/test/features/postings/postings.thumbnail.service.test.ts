@@ -1,3 +1,5 @@
+import sharp from "sharp";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { PostingThumbnailService } from "@/features/postings/thumbnail/thumbnail.service";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
@@ -100,6 +102,107 @@ describe("PostingThumbnailService", () => {
       postingsPublicCacheService.invalidatePublic as unknown as jest.Mock,
     ).toHaveBeenCalledWith(POSTING_1_ID);
     expect(repository.enqueuedSearchPostingId).toBe(POSTING_1_ID);
+  });
+
+  describe("the crop source of a processed photo", () => {
+    const PROCESSED = "media/images/owner-1/photo-1.webp";
+    const MEDIUM = "media/images/owner-1/photo-1.medium.webp";
+
+    function image(width: number, height: number) {
+      return sharp({
+        create: {
+          width,
+          height,
+          channels: 3,
+          background: { r: 10, g: 20, b: 30 },
+        },
+      })
+        .webp()
+        .toBuffer();
+    }
+
+    async function generate(
+      download: (blobName: string) => Promise<{ body: Buffer }>,
+    ) {
+      const repository = new FakePostingsRepository();
+      repository.primaryPhoto = {
+        ...repository.primaryPhoto,
+        blobName: PROCESSED,
+      };
+      const downloadBlob = jest.fn(download);
+      const uploadBuffer = jest.fn(
+        async (_input: { blobName: string; body: Buffer }) => ({
+          blobName: "media/images/owner-1/thumbnails/photo-1.webp",
+          blobUrl: "https://cdn.test/thumbnails/photo-1.webp",
+        }),
+      );
+      const service = new PostingThumbnailService(
+        repository as unknown as PostingsRepository,
+        {
+          downloadBlob,
+          uploadBuffer,
+          buildPostingPhotoThumbnailBlobName: () =>
+            "media/images/owner-1/thumbnails/photo-1.webp",
+        } as unknown as BlobService,
+        {
+          invalidatePublic: jest.fn(async () => 1),
+        } as unknown as PostingsPublicCacheService,
+      );
+
+      await service.generateForPosting(POSTING_1_ID);
+
+      const [upload] = uploadBuffer.mock.calls[0] ?? [];
+      return {
+        downloaded: downloadBlob.mock.calls.map(([name]) => name),
+        crop: upload ? await sharp(upload.body).metadata() : undefined,
+      };
+    }
+
+    it("crops from the medium rendition when it covers the crop", async () => {
+      const medium = await image(800, 600);
+
+      const { downloaded, crop } = await generate(async () => ({
+        body: medium,
+      }));
+
+      expect(downloaded).toEqual([MEDIUM]);
+      expect(crop).toMatchObject({ width: 640, height: 480 });
+    });
+
+    it("crops from the full photo when the medium rendition is too small", async () => {
+      // A panorama: 800x200 would have to be enlarged to fill 640x480.
+      const medium = await image(800, 200);
+      const full = await image(2560, 640);
+
+      const { downloaded, crop } = await generate(async (name) => ({
+        body: name === MEDIUM ? medium : full,
+      }));
+
+      expect(downloaded).toEqual([MEDIUM, PROCESSED]);
+      expect(crop).toMatchObject({ width: 640, height: 480 });
+    });
+
+    it("crops from the full photo when it has no medium rendition yet", async () => {
+      const full = await image(1600, 1200);
+
+      const { downloaded, crop } = await generate(async (name) => {
+        if (name === MEDIUM) {
+          throw new ResourceNotFoundError("Blob could not be found.");
+        }
+        return { body: full };
+      });
+
+      expect(downloaded).toEqual([MEDIUM, PROCESSED]);
+      expect(crop).toMatchObject({ width: 640, height: 480 });
+    });
+
+    it("surfaces a storage failure so the job is retried", async () => {
+      await expect(
+        generate(async () => {
+          throw new Error("storage unavailable");
+        }),
+      ).rejects.toThrow("storage unavailable");
+    });
   });
 
   it("bails out when a primary photo already has a thumbnail", async () => {
