@@ -3334,6 +3334,7 @@ export class PostingsRepository extends BaseRepository {
       },
       photos: posting.photos.map((photo) => ({
         blobUrl: photo.blobUrl,
+        blobName: photo.blobName,
         position: photo.position,
       })),
       blockedRanges: this.collectBlockedRanges(posting),

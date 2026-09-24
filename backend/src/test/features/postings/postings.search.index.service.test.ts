@@ -49,10 +49,13 @@ function createDocument() {
     photos: [
       {
         blobUrl: "https://cdn.example.test/photo-2.jpg",
+        blobName: "postings/photo-2.jpg",
         position: 2,
       },
       {
-        blobUrl: "https://cdn.example.test/photo-0.jpg",
+        blobUrl:
+          "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
+        blobName: "media/images/u1/photo-0.webp",
         position: 0,
       },
     ],
@@ -356,10 +359,18 @@ describe("PostingsSearchIndexService", () => {
     };
 
     expect(body).toMatchObject({
-      primaryPhotoUrl: "https://cdn.example.test/photo-0.jpg",
+      primaryPhotoUrl:
+        "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
+      primaryPhotoVariants: {
+        thumbnail:
+          "https://cdn.example.test/uploads/media/images/u1/photo-0.thumbnail.webp",
+        medium:
+          "https://cdn.example.test/uploads/media/images/u1/photo-0.medium.webp",
+        large: "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
+      },
       photoUrls: [
         "https://cdn.example.test/photo-2.jpg",
-        "https://cdn.example.test/photo-0.jpg",
+        "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
       ],
       geoPoint: {
         lat: 43.64,

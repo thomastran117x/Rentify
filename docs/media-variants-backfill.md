@@ -90,3 +90,12 @@ would convert.
    ```
 
 Storage grows by about 1.3x per image.
+
+## Search index
+
+The same release raises the postings index mapping version to add the primary
+photo's renditions to the search document. The search maintainer reindexes by
+itself once it runs the new version; see the
+[search worker guide](../backend/src/app/workers/search/README.md#search-maintainer).
+Search results are loaded from the database, not from the document, so they
+show renditions immediately, before that reindex finishes.

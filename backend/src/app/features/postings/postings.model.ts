@@ -1055,6 +1055,7 @@ export interface PostingSearchDocument {
   };
   photos: Array<{
     blobUrl: string;
+    blobName: string;
     position: number;
   }>;
   blockedRanges: Array<{
