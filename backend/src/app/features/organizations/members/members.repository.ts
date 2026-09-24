@@ -75,6 +75,10 @@ export class OrganizationsMembersRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
+      logoVariants: describeImageVariants(
+        organization.logoBlobName,
+        organization.logoUrl,
+      ),
       logoBlobName: organization.logoBlobName,
       customFields: this.parseCustomFields(organization.customFields),
     };

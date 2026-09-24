@@ -47,6 +47,7 @@ type PublicBlogPostPersistence = Prisma.OrganizationBlogPostGetPayload<{
         slug: true;
         name: true;
         logoUrl: true;
+        logoBlobName: true;
       };
     };
   };
@@ -312,6 +313,7 @@ export class OrganizationBlogRepository extends BaseRepository {
               slug: true,
               name: true,
               logoUrl: true,
+              logoBlobName: true,
             },
           },
         },
@@ -1236,6 +1238,10 @@ export class OrganizationBlogRepository extends BaseRepository {
       body: row.body,
       coverImageUrl: row.coverImageUrl ?? undefined,
       coverImageBlobName: row.coverImageBlobName ?? undefined,
+      coverImageVariants: describeImageVariants(
+        row.coverImageBlobName,
+        row.coverImageUrl,
+      ),
       tags: this.parseTags(row.tags),
       status: row.status as OrganizationBlogStatus,
       commentsEnabled: row.commentsEnabled,
@@ -1256,6 +1262,10 @@ export class OrganizationBlogRepository extends BaseRepository {
         slug: row.organization.slug,
         name: row.organization.name,
         logoUrl: row.organization.logoUrl ?? undefined,
+        logoVariants: describeImageVariants(
+          row.organization.logoBlobName,
+          row.organization.logoUrl,
+        ),
       },
       author: this.mapAuthor(row.author),
       title: row.title,
@@ -1268,6 +1278,10 @@ export class OrganizationBlogRepository extends BaseRepository {
       readingMinutes: this.estimateReadingMinutes(row.body),
       coverImageUrl: row.coverImageUrl ?? undefined,
       coverImageBlobName: row.coverImageBlobName ?? undefined,
+      coverImageVariants: describeImageVariants(
+        row.coverImageBlobName,
+        row.coverImageUrl,
+      ),
       tags: this.parseTags(row.tags),
       status: row.status as OrganizationBlogStatus,
       commentsEnabled: row.commentsEnabled,

@@ -133,6 +133,7 @@ describe("OrganizationsProfileRepository", () => {
         postalCode: "98101",
         logoUrl: "https://northwind.example.com/logo.png",
         logoBlobName: "organizations/logo.png",
+        logoVariants: null,
         customFields: { Founded: "2001" },
       },
       viewerRole: "operator",

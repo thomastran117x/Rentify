@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -21,6 +22,7 @@ type PublicOrganizationRow = {
   country: string | null;
   postalCode: string | null;
   logoUrl: string | null;
+  logoBlobName: string | null;
   customFields: Prisma.JsonValue | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -63,6 +65,7 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
       | "country"
       | "postalCode"
       | "logoUrl"
+      | "logoBlobName"
       | "customFields"
     >,
   ): PublicOrganizationProfileFields {
@@ -76,6 +79,10 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
+      logoVariants: describeImageVariants(
+        organization.logoBlobName,
+        organization.logoUrl,
+      ),
       customFields: this.parseCustomFields(organization.customFields),
     };
   }
@@ -194,6 +201,7 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
           o.country AS country,
           o.postal_code AS postalCode,
           o.logo_url AS logoUrl,
+          o.logo_blob_name AS logoBlobName,
           o.custom_fields AS customFields,
           o.created_at AS createdAt,
           o.updated_at AS updatedAt,
@@ -216,6 +224,7 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
           o.country,
           o.postal_code,
           o.logo_url,
+          o.logo_blob_name,
           o.custom_fields,
           o.created_at,
           o.updated_at

@@ -4,6 +4,7 @@ import { createFixtureId } from "@/seeds/types";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -673,6 +674,80 @@ describe("Organizations persistence integration", () => {
       },
     );
     expect(operatorCreateResponse.status).toBe(403);
+  });
+
+  it("exposes the renditions of an uploaded logo and blog cover", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const logo = await createReadyMedia(owner.userId, {
+      scope: "organizations",
+    });
+    const cover = await createReadyMedia(owner.userId, {
+      scope: "organizations",
+    });
+    type Variants = Record<"thumbnail" | "medium" | "large", string>;
+    const renditionsOf = (media: { blobName: string; blobUrl: string }) => ({
+      thumbnail: expect.stringContaining(
+        encodeURIComponent(
+          media.blobName.replace(/\.webp$/, ".thumbnail.webp"),
+        ),
+      ),
+      medium: expect.stringContaining(
+        encodeURIComponent(media.blobName.replace(/\.webp$/, ".medium.webp")),
+      ),
+      large: media.blobUrl,
+    });
+
+    const updated = await request(`/organizations/${ORGANIZATION_ID}`, {
+      method: "PATCH",
+      headers: owner.headers(),
+      body: JSON.stringify({ name: "Northwind", logoMediaId: logo.mediaId }),
+    });
+    expect(updated.status).toBe(200);
+
+    const workspace = await readData<{
+      organization: { logoVariants: Variants };
+    }>(
+      await request(`/organizations/${ORGANIZATION_ID}/workspace`, {
+        headers: owner.headers(),
+      }),
+    );
+    expect(workspace.organization.logoVariants).toEqual(renditionsOf(logo));
+
+    const publicDetail = await readData<{
+      organization: { logoVariants: Variants };
+    }>(await request(`/organizations/${ORGANIZATION_ID}`));
+    expect(publicDetail.organization.logoVariants).toEqual(renditionsOf(logo));
+
+    const created = await request(
+      `/organizations/${ORGANIZATION_ID}/blog-posts`,
+      {
+        method: "POST",
+        headers: owner.headers(),
+        body: JSON.stringify({
+          title: "Covered post",
+          body: "<p>With a cover.</p>",
+          status: "published",
+          coverImageMediaId: cover.mediaId,
+        }),
+      },
+    );
+    expect(created.status).toBe(201);
+    const post = await readData<{ slug: string; coverImageVariants: Variants }>(
+      created,
+    );
+    expect(post.coverImageVariants).toEqual(renditionsOf(cover));
+
+    const publicList = await readData<{
+      posts: Array<{
+        slug: string;
+        coverImageVariants: Variants;
+        organization?: { logoVariants: Variants };
+      }>;
+    }>(await request(`/organizations/${ORGANIZATION_ID}/blog`));
+    const listed = publicList.posts.find((entry) => entry.slug === post.slug);
+    expect(listed?.coverImageVariants).toEqual(renditionsOf(cover));
   });
 
   it("creates blog posts, sanitizes HTML, and exposes only published posts publicly", async () => {

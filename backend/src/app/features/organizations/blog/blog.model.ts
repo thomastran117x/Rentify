@@ -149,6 +149,7 @@ export interface OrganizationBlogOrganizationSummary {
   slug: string;
   name: string;
   logoUrl?: string;
+  logoVariants: ImageVariants | null;
 }
 
 export interface OrganizationBlogPostRecord {
@@ -162,6 +163,8 @@ export interface OrganizationBlogPostRecord {
   body: string;
   coverImageUrl?: string;
   coverImageBlobName?: string;
+  /** Renditions of the cover; null when it is not a processed image. */
+  coverImageVariants: ImageVariants | null;
   tags: string[];
   status: OrganizationBlogStatus;
   /** Whether readers may currently post comments on this post. */

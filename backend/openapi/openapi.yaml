@@ -3017,6 +3017,7 @@ paths:
                       country: US
                       postalCode: '95060'
                       logoUrl: https://cdn.rentify.local/logos/org-1.png
+                      logoVariants: null
                       customFields:
                         Response time: Within 24 hours
                       createdAt: '2026-05-01T00:00:00.000Z'
@@ -3545,6 +3546,7 @@ paths:
                     country: US
                     postalCode: '95060'
                     logoUrl: https://cdn.rentify.local/logos/org-1.png
+                    logoVariants: null
                     customFields:
                       Response time: Within 24 hours
                     createdAt: '2026-05-01T00:00:00.000Z'
@@ -4656,6 +4658,7 @@ paths:
                       body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                       coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                       coverImageBlobName: organizations/org-1/blog/cover-1.png
+                      coverImageVariants: null
                       tags:
                         - announcement
                         - downtown
@@ -4785,6 +4788,7 @@ paths:
                       body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                       coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                       coverImageBlobName: organizations/org-1/blog/cover-1.png
+                      coverImageVariants: null
                       tags:
                         - announcement
                         - downtown
@@ -4876,6 +4880,7 @@ paths:
                   body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                   coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                   coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  coverImageVariants: null
                   tags:
                     - announcement
                     - downtown
@@ -5396,6 +5401,7 @@ paths:
                       body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                       coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                       coverImageBlobName: organizations/org-1/blog/cover-1.png
+                      coverImageVariants: null
                       tags:
                         - announcement
                         - downtown
@@ -5502,6 +5508,7 @@ paths:
                   body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                   coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                   coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  coverImageVariants: null
                   tags:
                     - announcement
                     - downtown
@@ -5596,6 +5603,7 @@ paths:
                   body: <h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>
                   coverImageUrl: https://cdn.rentify.local/organizations/org-1/blog/cover-1.png
                   coverImageBlobName: organizations/org-1/blog/cover-1.png
+                  coverImageVariants: null
                   tags:
                     - announcement
                     - downtown
@@ -17563,6 +17571,12 @@ components:
           type: string
           maxLength: 1024
           nullable: true
+        logoVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: 'Renditions of `logoUrl`. Read-only: derived from the stored logo.'
         logoMediaId:
           type: string
           format: uuid
@@ -17646,6 +17660,12 @@ components:
           format: uri
           maxLength: 1024
           nullable: true
+        logoVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: 'Renditions of `logoUrl`. Read-only: derived from the stored logo.'
         customFields:
           type: object
           additionalProperties:
@@ -18268,6 +18288,12 @@ components:
         logoUrl:
           type: string
           format: uri
+        logoVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `logoUrl`.
     OrganizationBlogPostRecord:
       type: object
       required:
@@ -18302,6 +18328,12 @@ components:
           format: uri
         coverImageBlobName:
           type: string
+        coverImageVariants:
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - type: 'null'
+          readOnly: true
+          description: Renditions of `coverImageUrl`.
         tags:
           type: array
           items:

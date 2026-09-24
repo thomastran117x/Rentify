@@ -162,6 +162,7 @@ const publicOrganizationExample = {
   country: "US",
   postalCode: "95060",
   logoUrl: "https://cdn.rentify.local/logos/org-1.png",
+  logoVariants: null,
   customFields: { "Response time": "Within 24 hours" },
   createdAt: "2026-05-01T00:00:00.000Z",
   updatedAt: "2026-05-28T10:00:00.000Z",
@@ -309,6 +310,7 @@ const organizationBlogPostExample = {
   coverImageUrl:
     "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
   coverImageBlobName: "organizations/org-1/blog/cover-1.png",
+  coverImageVariants: null,
   tags: ["announcement", "downtown"],
   status: "published",
   commentsEnabled: true,
@@ -9413,6 +9415,9 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
           },
           logoBlobName: { type: "string", maxLength: 1024, nullable: true },
+          logoVariants: imageVariantsField(
+            "Renditions of `logoUrl`. Read-only: derived from the stored logo.",
+          ),
           logoMediaId: {
             type: "string",
             format: "uuid",
@@ -9480,6 +9485,9 @@ function buildComponents(): Record<string, unknown> {
             maxLength: 1024,
             nullable: true,
           },
+          logoVariants: imageVariantsField(
+            "Renditions of `logoUrl`. Read-only: derived from the stored logo.",
+          ),
           customFields: {
             type: "object",
             additionalProperties: { type: "string", maxLength: 1000 },
@@ -9945,6 +9953,7 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 160 },
           name: { type: "string" },
           logoUrl: { type: "string", format: "uri" },
+          logoVariants: imageVariantsField("Renditions of `logoUrl`."),
         },
       },
       OrganizationBlogPostRecord: {
@@ -9971,6 +9980,9 @@ function buildComponents(): Record<string, unknown> {
           body: { type: "string" },
           coverImageUrl: { type: "string", format: "uri" },
           coverImageBlobName: { type: "string" },
+          coverImageVariants: imageVariantsField(
+            "Renditions of `coverImageUrl`.",
+          ),
           tags: { type: "array", items: { type: "string" } },
           status: schemaRef("OrganizationBlogStatus"),
           commentsEnabled: {
