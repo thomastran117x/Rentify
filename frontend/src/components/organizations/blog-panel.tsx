@@ -3,7 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
-import { uploadImage, type UploadImageStage } from "@/lib/media/api";
+import {
+  uploadImage,
+  type ImageVariants,
+  type UploadedImage,
+  type UploadImageStage,
+} from "@/lib/media/api";
 import type {
   OrganizationBlogPostRecord,
   OrganizationBlogStatus,
@@ -21,6 +26,7 @@ import {
 } from "@/components/organizations/shared/styles";
 import { BLOG_STATUS_STYLES } from "@/components/organizations/shared/badges";
 import { formatDate } from "@/components/organizations/shared/format";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 export interface BlogFormValue {
   title: string;
@@ -30,6 +36,8 @@ export interface BlogFormValue {
   tags: string[];
   coverImageUrl: string;
   coverImageBlobName: string;
+  /** Renditions of the cover shown, for its preview. Never sent. */
+  coverImageVariants: ImageVariants | null;
   /** Set when a new cover was uploaded and has not been saved yet. */
   coverImageMediaId: string;
   status: OrganizationBlogStatus;
@@ -45,6 +53,7 @@ export function emptyBlogForm(): BlogFormValue {
     tags: [],
     coverImageUrl: "",
     coverImageBlobName: "",
+    coverImageVariants: null,
     coverImageMediaId: "",
     status: "draft",
     // New posts accept comments unless a manager says otherwise.
@@ -54,14 +63,16 @@ export function emptyBlogForm(): BlogFormValue {
 
 function CoverImageUploader({
   coverImageUrl,
+  coverImageVariants,
   onUploaded,
   onRemove,
   onError,
   disabled,
 }: {
   coverImageUrl: string;
+  coverImageVariants: ImageVariants | null;
   /** Called with the processed image once the server has accepted it. */
-  onUploaded: (url: string, mediaId: string) => void;
+  onUploaded: (image: UploadedImage) => void;
   onRemove: () => void;
   onError: (message: string) => void;
   disabled?: boolean;
@@ -81,7 +92,7 @@ function CoverImageUploader({
         scope: "organizations",
         onStageChange: setStage,
       });
-      onUploaded(image.url, image.mediaId);
+      onUploaded(image);
     } catch (error) {
       // Surface the server's reason rather than a generic retry prompt - see
       // the same note in profile-fieldset.tsx.
@@ -100,9 +111,10 @@ function CoverImageUploader({
       <span className={labelClass}>Cover image</span>
       <div className="flex items-center gap-4">
         {coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={coverImageUrl}
+            variants={coverImageVariants}
+            sizes="128px"
             alt="Blog cover"
             className="h-20 w-32 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
           />
@@ -304,12 +316,14 @@ export function BlogPanel({
 
             <CoverImageUploader
               coverImageUrl={form.coverImageUrl}
-              onUploaded={(url, mediaId) =>
+              coverImageVariants={form.coverImageVariants}
+              onUploaded={(image) =>
                 onFormChange({
                   ...form,
-                  coverImageUrl: url,
+                  coverImageUrl: image.url,
                   coverImageBlobName: "",
-                  coverImageMediaId: mediaId,
+                  coverImageVariants: image.variants,
+                  coverImageMediaId: image.mediaId,
                 })
               }
               onRemove={() =>
@@ -317,6 +331,7 @@ export function BlogPanel({
                   ...form,
                   coverImageUrl: "",
                   coverImageBlobName: "",
+                  coverImageVariants: null,
                   coverImageMediaId: "",
                 })
               }

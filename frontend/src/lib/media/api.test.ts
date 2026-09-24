@@ -27,6 +27,7 @@ function mediaView(overrides: Partial<MediaView> = {}): MediaView {
     sizeBytes: null,
     width: null,
     height: null,
+    variants: null,
     rejectionReason: null,
     createdAt: "2026-09-19T12:00:00.000Z",
     updatedAt: "2026-09-19T12:00:00.000Z",
@@ -135,6 +136,11 @@ describe("uploadImage", () => {
     const ready = mediaView({
       status: "ready",
       url: `https://cdn.test/media/images/u/${MEDIA_ID}.webp`,
+      variants: {
+        thumbnail: `https://cdn.test/media/images/u/${MEDIA_ID}.thumbnail.webp`,
+        medium: `https://cdn.test/media/images/u/${MEDIA_ID}.medium.webp`,
+        large: `https://cdn.test/media/images/u/${MEDIA_ID}.webp`,
+      },
     });
     routeMediaApi(mediaView({ status: "uploaded" }), [
       mediaView({ status: "processing" }),
@@ -152,7 +158,12 @@ describe("uploadImage", () => {
       },
     );
 
-    expect(image).toEqual({ mediaId: MEDIA_ID, url: ready.url });
+    // The renditions come along, so a preview can be drawn from them.
+    expect(image).toEqual({
+      mediaId: MEDIA_ID,
+      url: ready.url,
+      variants: ready.variants,
+    });
     expect(stages).toEqual(["uploading", "processing"]);
     expect(authenticatedJsonMock).toHaveBeenCalledWith(
       "POST",

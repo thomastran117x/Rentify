@@ -27,6 +27,7 @@ import {
   displayReadingMinutes,
 } from "@/components/organizations/blog-visuals";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 const SORT_OPTIONS: { value: OrganizationBlogSort; label: string }[] = [
   { value: "relevance", label: "Most relevant" },
@@ -57,9 +58,10 @@ function OrganizationLabel({ post }: { post: OrganizationBlogPostRecord }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">
       {post.organization?.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <ResponsiveImage
           src={post.organization.logoUrl}
+          variants={post.organization.logoVariants}
+          sizes="16px"
           alt=""
           className="h-4 w-4 rounded-full object-cover"
         />
@@ -103,9 +105,10 @@ function FeaturedPost({ post }: { post: OrganizationBlogPostRecord }) {
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 lg:aspect-auto dark:bg-slate-900">
         {post.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={post.coverImageUrl}
+            variants={post.coverImageVariants}
+            sizes="(min-width: 1024px) 50vw, 100vw"
             alt=""
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           />
@@ -164,9 +167,10 @@ function FeedCard({ post }: { post: OrganizationBlogPostRecord }) {
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {post.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={post.coverImageUrl}
+            variants={post.coverImageVariants}
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             alt=""
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
           />

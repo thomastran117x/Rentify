@@ -13,7 +13,7 @@ import {
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
-import { uploadImage } from "@/lib/media/api";
+import { uploadImage, type ImageVariants } from "@/lib/media/api";
 import {
   MAX_EXPIRY_HORIZON_DAYS,
   isExpiryBeyondHorizon,
@@ -45,6 +45,7 @@ import {
   type SeasonalPricingRuleInput,
   type UpsertPostingInput,
 } from "@/lib/postings/api";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 type PostingSubtypeOption = {
   value: string;
@@ -81,6 +82,8 @@ interface PostingFormState {
 interface PhotoItem {
   key: string;
   previewUrl: string;
+  /** The stored photo's renditions; a local file being added has none. */
+  previewVariants?: ImageVariants | null;
   file?: File;
   blobUrl?: string;
   blobName?: string;
@@ -247,7 +250,12 @@ export function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
     .sort((a, b) => a.position - b.position)
     .map((photo, index) => ({
       key: `existing-${photo.blobName}-${index}`,
-      previewUrl: photo.thumbnailBlobUrl ?? photo.blobUrl,
+      // With renditions the browser picks a small one; without, the card crop
+      // is the smallest copy there is.
+      previewUrl: photo.variants
+        ? photo.blobUrl
+        : (photo.thumbnailBlobUrl ?? photo.blobUrl),
+      previewVariants: photo.variants ?? null,
       blobUrl: photo.blobUrl,
       blobName: photo.blobName,
     }));
@@ -894,9 +902,10 @@ export function PhotoUploader({
                     : "border-slate-200 dark:border-slate-800"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <ResponsiveImage
                   src={photo.previewUrl}
+                  variants={photo.previewVariants}
+                  sizes="(min-width: 768px) 25vw, 50vw"
                   alt="Posting photo preview"
                   className="aspect-[4/3] w-full object-cover"
                 />
@@ -976,9 +985,10 @@ export function ListingPreview({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       {heroPhoto ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <ResponsiveImage
           src={heroPhoto.previewUrl}
+          variants={heroPhoto.previewVariants}
+          sizes="(min-width: 1024px) 33vw, 100vw"
           alt="Primary photo preview"
           className="aspect-[16/9] w-full object-cover"
         />
@@ -1003,9 +1013,10 @@ export function ListingPreview({
                   : "ring-1 ring-slate-200 hover:ring-violet-300 dark:ring-slate-700 dark:hover:ring-violet-700"
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <ResponsiveImage
                 src={photo.previewUrl}
+                variants={photo.previewVariants}
+                sizes="80px"
                 alt=""
                 className="h-14 w-20 object-cover"
               />

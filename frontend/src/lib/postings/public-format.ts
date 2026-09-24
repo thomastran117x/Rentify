@@ -1,3 +1,5 @@
+import type { ImageVariants } from "@/lib/media/api";
+
 export type PublicPostingAvailabilityStatus =
   | "available"
   | "limited"
@@ -54,6 +56,59 @@ export function isRenderablePreviewImageUrl(value?: string): value is string {
   } catch {
     return false;
   }
+}
+
+/** An image to draw, with the renditions to choose from when it has them. */
+export interface PreviewImage {
+  src: string;
+  variants: ImageVariants | null;
+}
+
+/**
+ * The image a posting card shows. The 640x480 card crop is kept while it
+ * exists, since it is already card-sized; otherwise the primary photo, with
+ * its renditions so the browser fetches the medium one, not the full image.
+ */
+export function resolvePostingCardImage(posting: {
+  primaryThumbnailUrl?: string;
+  primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
+}): PreviewImage | null {
+  if (isRenderablePreviewImageUrl(posting.primaryThumbnailUrl)) {
+    return { src: posting.primaryThumbnailUrl, variants: null };
+  }
+
+  if (isRenderablePreviewImageUrl(posting.primaryPhotoUrl)) {
+    return {
+      src: posting.primaryPhotoUrl,
+      variants: posting.primaryPhotoVariants ?? null,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * The image for a photo drawn smaller than a card, such as a list thumbnail.
+ * Its renditions come first, since even the thumbnail rendition is smaller
+ * than the card crop; without them, the crop, then the photo itself.
+ */
+export function resolvePhotoPreviewImage(
+  photo:
+    | {
+        blobUrl?: string;
+        thumbnailBlobUrl?: string;
+        variants?: ImageVariants | null;
+      }
+    | null
+    | undefined,
+): PreviewImage | null {
+  if (photo?.variants && isRenderablePreviewImageUrl(photo.blobUrl)) {
+    return { src: photo.blobUrl, variants: photo.variants };
+  }
+
+  const url = photo?.thumbnailBlobUrl ?? photo?.blobUrl;
+  return isRenderablePreviewImageUrl(url) ? { src: url, variants: null } : null;
 }
 
 export function formatPostingAttributeLabel(key: string): string {

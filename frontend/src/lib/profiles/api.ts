@@ -4,6 +4,7 @@ import {
   publicJson,
 } from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export interface PublicProfileRecord {
   id: string;
@@ -14,6 +15,7 @@ export interface PublicProfileRecord {
   username: string;
   phoneNumber?: string;
   avatarUrl?: string;
+  avatarVariants?: ImageVariants | null;
   trustworthinessScore: number;
   rentPostingsCount: number;
   availableRentPostingsCount: number;

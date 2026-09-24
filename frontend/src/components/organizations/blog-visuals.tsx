@@ -1,4 +1,5 @@
 import type { OrganizationBlogPostRecord } from "@/lib/organizations/api";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 type BlogAuthor = OrganizationBlogPostRecord["author"];
 
@@ -41,6 +42,13 @@ const AVATAR_SIZES = {
   lg: "h-11 w-11 text-sm",
 } as const;
 
+// The drawn size of each avatar, for the browser's choice of rendition.
+const AVATAR_PIXELS: Record<keyof typeof AVATAR_SIZES, string> = {
+  sm: "28px",
+  md: "36px",
+  lg: "44px",
+};
+
 export function AuthorAvatar({
   author,
   size = "md",
@@ -52,9 +60,10 @@ export function AuthorAvatar({
 
   if (author?.avatarUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <ResponsiveImage
         src={author.avatarUrl}
+        variants={author.avatarVariants}
+        sizes={AVATAR_PIXELS[size]}
         alt=""
         className={`${dimension} shrink-0 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700`}
       />

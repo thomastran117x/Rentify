@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 import { getInitials } from "@/components/organizations/shared/format";
+import { ResponsiveImage } from "@/components/common/responsive-image";
+import type { ImageVariants } from "@/lib/media/api";
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -14,15 +16,18 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 export function Avatar({
   name,
   imageUrl,
+  imageVariants,
 }: {
   name: string;
   imageUrl?: string;
+  imageVariants?: ImageVariants | null;
 }) {
   if (imageUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <ResponsiveImage
         src={imageUrl}
+        variants={imageVariants}
+        sizes="44px"
         alt={`${name} avatar`}
         className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
       />

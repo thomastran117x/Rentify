@@ -1,3 +1,5 @@
+import type { ImageVariants } from "@/lib/media/api";
+
 export type BookingRequestStatus =
   | "pending"
   | "approved"
@@ -45,6 +47,7 @@ export interface BookingRequestPostingSummary {
   id: string;
   name: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
   effectiveMaxBookingDurationDays: number;
 }
 
@@ -179,6 +182,7 @@ export interface RentingRecord {
     id: string;
     name: string;
     primaryPhotoUrl?: string;
+    primaryPhotoVariants?: ImageVariants | null;
   };
   dispute?: RentingDisputeRecord;
 }

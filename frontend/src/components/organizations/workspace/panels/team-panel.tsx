@@ -171,7 +171,11 @@ export function TeamPanel() {
                 className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between dark:border-slate-800 dark:bg-slate-950/40"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar name={displayName} imageUrl={member.avatarUrl} />
+                  <Avatar
+                    name={displayName}
+                    imageUrl={member.avatarUrl}
+                    imageVariants={member.avatarVariants}
+                  />
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-slate-950 dark:text-white">
                       {displayName}

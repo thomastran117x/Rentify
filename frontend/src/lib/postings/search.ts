@@ -1,6 +1,7 @@
 import { buildPathWithQuery, publicJson } from "@/lib/api/client";
 import { toApiDebug } from "@/lib/api/debug";
 import { ApiError } from "@/lib/api/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type PostingSort =
   | "relevance"
@@ -95,6 +96,7 @@ export interface PublicPostingSummary {
   name: string;
   description: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
   primaryThumbnailUrl?: string;
   variant: {
     family: string;

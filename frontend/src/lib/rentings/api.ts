@@ -1,5 +1,6 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type RentingStatus =
   | "confirmed"
@@ -49,6 +50,7 @@ export interface RentingRecord {
     id: string;
     name: string;
     primaryPhotoUrl?: string;
+    primaryPhotoVariants?: ImageVariants | null;
   };
   dispute?: RentingDisputeRecord;
 }

@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
-import { uploadImage, type UploadImageStage } from "@/lib/media/api";
+import {
+  uploadImage,
+  type ImageVariants,
+  type UploadedImage,
+  type UploadImageStage,
+} from "@/lib/media/api";
 import {
   dangerButtonClass,
   fieldLabelClass,
@@ -10,17 +15,20 @@ import {
   secondaryButtonClass,
 } from "@/components/organizations/shared/styles";
 import type { ProfileFormValue } from "@/components/organizations/workspace/forms";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 export function OrganizationLogoField({
   logoUrl,
+  logoVariants,
   onUploaded,
   onRemove,
   onError,
   disabled,
 }: {
   logoUrl: string;
+  logoVariants?: ImageVariants | null;
   /** Called with the processed image once the server has accepted it. */
-  onUploaded: (url: string, mediaId: string) => void;
+  onUploaded: (image: UploadedImage) => void;
   onRemove: () => void;
   onError: (message: string) => void;
   disabled?: boolean;
@@ -42,7 +50,7 @@ export function OrganizationLogoField({
         scope: "organizations",
         onStageChange: setStage,
       });
-      onUploaded(image.url, image.mediaId);
+      onUploaded(image);
     } catch (error) {
       // Surface the server's reason. Collapsing everything to "try again" made
       // a rejected file indistinguishable from a dropped connection, so the
@@ -62,9 +70,10 @@ export function OrganizationLogoField({
       <span className={fieldLabelClass}>Logo</span>
       <div className="flex items-center gap-4">
         {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={logoUrl}
+            variants={logoVariants}
+            sizes="64px"
             alt="Organization logo"
             className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
           />
@@ -247,16 +256,24 @@ export function OrganizationProfileFieldset({
 
       <OrganizationLogoField
         logoUrl={value.logoUrl}
-        onUploaded={(url, mediaId) =>
+        logoVariants={value.logoVariants}
+        onUploaded={(image) =>
           onChange({
             ...value,
-            logoUrl: url,
+            logoUrl: image.url,
             logoBlobName: "",
-            logoMediaId: mediaId,
+            logoVariants: image.variants,
+            logoMediaId: image.mediaId,
           })
         }
         onRemove={() =>
-          onChange({ ...value, logoUrl: "", logoBlobName: "", logoMediaId: "" })
+          onChange({
+            ...value,
+            logoUrl: "",
+            logoBlobName: "",
+            logoVariants: null,
+            logoMediaId: "",
+          })
         }
         onError={onError}
         disabled={disabled}

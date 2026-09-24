@@ -227,6 +227,22 @@ reaches them. Storage per image grows by about 1.3x. The 640x480 posting-card
 crop under `.../thumbnails/<id>.webp` is a separate image that the posting
 thumbnail worker writes; it has no renditions of its own.
 
+Responses that carry an image also carry its rendition URLs, as an
+`ImageVariants` object (`thumbnail`, `medium`, `large`) next to the URL:
+`variants` on a media view or a posting photo, and `primaryPhotoVariants`,
+`avatarVariants`, `logoVariants`, and `coverImageVariants` elsewhere. Outside
+the media view, the object is derived from the stored blob name and URL
+(`describeImageVariants` in `features/media/image-variants.ts`) rather than
+looked up, so any repository mapper can produce it. It is `null` for an image
+that is not a processed image, such as a seeded `example.com` photo or one
+stored before media existed. It is not `null` for an image processed before
+renditions existed, whose smaller renditions only exist once the backfill has
+run. The frontend draws every image through `ResponsiveImage`
+(`components/common/responsive-image`), which offers the renditions as a
+`srcset` with the drawn size as `sizes`, and falls back to the plain URL when
+there are none or one fails to load. Inline images in blog bodies are raw HTML
+and are not covered.
+
 **When an image is attached.** Every field that holds an image goes through one
 rule, `MediaService.resolveImageReference`: posting photos
 (`{ mediaId, position }`), `logoMediaId`, `coverImageMediaId`, and

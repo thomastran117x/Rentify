@@ -21,6 +21,18 @@ export type MediaStatus =
   | "rejected";
 
 /**
+ * The renditions of a processed image, smallest first: a thumbnail fitted
+ * inside 300 px, a medium inside 800 px, and the processed image itself. Feed
+ * them to ResponsiveImage. A field holding them is null (or absent, in a
+ * response cached before they were exposed) for an image with no renditions.
+ */
+export interface ImageVariants {
+  thumbnail: string;
+  medium: string;
+  large: string;
+}
+
+/**
  * An uploaded image as the API reports it. `url` is only set once the image is
  * `ready`, and then always points at the processed copy: the bytes a client
  * uploads sit in quarantine and are never addressable.
@@ -34,6 +46,8 @@ export interface MediaView {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
+  /** Set with `url` once the image has all of its renditions. */
+  variants: ImageVariants | null;
   rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
@@ -125,6 +139,8 @@ export interface UploadedImage {
   mediaId: string;
   /** The processed image, safe to display. */
   url: string;
+  /** Its renditions, for a preview drawn smaller than the image. */
+  variants: ImageVariants | null;
 }
 
 export type UploadImageStage = "uploading" | "processing";
@@ -205,5 +221,9 @@ export async function uploadImage(
     );
   }
 
-  return { mediaId: current.id, url: current.url };
+  return {
+    mediaId: current.id,
+    url: current.url,
+    variants: current.variants ?? null,
+  };
 }

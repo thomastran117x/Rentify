@@ -1,5 +1,6 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type PaymentStatus =
   | "awaiting_method"
@@ -156,6 +157,7 @@ export interface CheckoutSummary {
     id: string;
     name: string;
     primaryPhotoUrl?: string;
+    primaryPhotoVariants?: ImageVariants | null;
   };
   pricing: {
     currency: string;
