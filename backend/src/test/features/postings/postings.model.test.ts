@@ -359,8 +359,7 @@ describe("postings.model", () => {
       }),
     );
 
-    // Derived from the photo itself, not copied from its stored variants, so
-    // a record cached before renditions were exposed still carries them.
+    // Derived from the photo's blob name and URL.
     expect(publicPosting.primaryPhotoVariants).toEqual({
       thumbnail: `${base}/owner-1/photo-2.thumbnail.webp`,
       medium: `${base}/owner-1/photo-2.medium.webp`,

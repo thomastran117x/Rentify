@@ -10,7 +10,10 @@ import type {
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
-const POSTINGS_PUBLIC_CACHE_NAMESPACE = "postings:public";
+// Versioned with the shape of PublicPostingRecord. Raise it when a field is
+// added, so records cached by the previous release are not served without it.
+// v2: image renditions (primaryPhotoVariants, photos[].variants).
+const POSTINGS_PUBLIC_CACHE_NAMESPACE = "postings:public:v2";
 
 export interface PostingsPublicCacheConfig extends ReadThroughCachePolicy {}
 

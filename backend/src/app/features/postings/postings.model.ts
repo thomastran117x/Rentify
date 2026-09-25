@@ -1112,8 +1112,6 @@ export function toPublicPostingRecord(
   return {
     ...(publicPosting as unknown as PublicPostingRecord),
     primaryPhotoUrl: primaryPhoto?.blobUrl,
-    // Derived rather than copied, so a record cached before renditions were
-    // exposed still carries them.
     primaryPhotoVariants: describeImageVariants(
       primaryPhoto?.blobName,
       primaryPhoto?.blobUrl,
