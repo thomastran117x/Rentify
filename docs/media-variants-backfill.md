@@ -27,9 +27,12 @@ thumbnail beside it, and records them in `media.variants`.
   `ready` with the same processed image. If it was deleted mid-run, the
   renditions just written are deleted again; if a concurrent run recorded them
   first, they are kept. Either way the item counts as `skipped`.
-- **Continues past failures.** A missing processed image or one that cannot be
-  decoded is reported in `failures` and the run moves on. The exit code is 1
-  when anything failed.
+- **Continues past failures.** A missing processed image, one that cannot be
+  decoded, or one larger than the size its media row records is reported in
+  `failures` and the run moves on. The exit code is 1 when anything failed.
+- **Any processed size.** The download is bounded by the processed image's
+  recorded size, not the upload limit. Images processed before the edge cap
+  were re-encoded at full resolution and can be larger than any upload.
 
 ## Running it
 

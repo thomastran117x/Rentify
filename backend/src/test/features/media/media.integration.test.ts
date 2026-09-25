@@ -552,10 +552,13 @@ describe("Media persistence integration", () => {
       createReadyMedia(owner.userId, { legacy: true }),
     ]);
     const current = await createReadyMedia(owner.userId);
-    for (const { blobName } of legacy) {
-      blobService.storage.set(blobName, {
-        contentType: "image/webp",
-        body: await createPngFixture(1000, 500),
+    for (const { mediaId, blobName } of legacy) {
+      const body = await createPngFixture(1000, 500);
+      blobService.storage.set(blobName, { contentType: "image/webp", body });
+      // The backfill bounds its download by the recorded processed size.
+      await persistenceApp.prisma.media.update({
+        where: { id: mediaId },
+        data: { sizeBytes: body.byteLength },
       });
     }
     const backfill = new MediaVariantsBackfillService(

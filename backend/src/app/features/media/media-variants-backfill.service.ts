@@ -1,4 +1,5 @@
 import { environment } from "@/configuration/environment/index";
+import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { BlobService } from "@/features/blob/blob.service";
 import { SMALLER_IMAGE_VARIANTS } from "@/features/blob/image-variant-names";
@@ -136,10 +137,14 @@ export class MediaVariantsBackfillService {
       throw new Error("The processed image name has no renditions.");
     }
 
-    // The processed image is this application's own output, already upright
-    // and within the processed cap; the size limit only guards a damaged blob.
+    // Bounded by the processed image's own recorded size, not the upload
+    // limit: that limit applies to what clients send, and an image processed
+    // before the processed-edge cap existed was re-encoded at full resolution,
+    // so its output can be larger than any upload. The processed image is never
+    // rewritten, so a blob larger than recorded is not the one that was made.
     const { body } = await this.blobService.downloadBlob(names.large, {
-      maxBytes: environment.getImageUploadsConfig().maxSizeBytes,
+      maxBytes:
+        record.sizeBytes ?? environment.getImageUploadsConfig().maxSizeBytes,
     });
     const renditions = await renderSmallerRenditions(body);
     const variants = await uploadSmallerRenditions(
@@ -176,6 +181,10 @@ export class MediaVariantsBackfillService {
 function describeFailure(error: unknown): string {
   if (error instanceof ResourceNotFoundError) {
     return "The processed image could not be found.";
+  }
+
+  if (error instanceof PayloadTooLargeError) {
+    return "The processed image is larger than its media record says.";
   }
 
   return error instanceof Error ? error.message : "Unknown backfill error.";

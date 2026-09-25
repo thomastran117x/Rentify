@@ -38,7 +38,12 @@ type Context = ReturnType<typeof createContext>;
 /** A ready item processed before renditions existed, with its stored image. */
 async function addLegacyReadyMedia(
   context: Context,
-  options: { width?: number; height?: number; stored?: boolean } = {},
+  options: {
+    width?: number;
+    height?: number;
+    stored?: boolean;
+    sizeBytes?: number;
+  } = {},
 ): Promise<MediaRecord & { renditions: string[] }> {
   const id = testUuid(9200, nextMediaIndex++);
   const processedBlobName = context.blobService.buildProcessedImageBlobName(
@@ -54,19 +59,21 @@ async function addLegacyReadyMedia(
     await context.blobService.deleteBlob(blobName);
   }
 
+  const body = await sharp({
+    create: {
+      width: options.width ?? 1600,
+      height: options.height ?? 1200,
+      channels: 3,
+      background: { r: 30, g: 90, b: 160 },
+    },
+  })
+    .webp()
+    .toBuffer();
+
   if (options.stored ?? true) {
     await context.blobService.uploadBuffer({
       blobName: processedBlobName,
-      body: await sharp({
-        create: {
-          width: options.width ?? 1600,
-          height: options.height ?? 1200,
-          channels: 3,
-          background: { r: 30, g: 90, b: 160 },
-        },
-      })
-        .webp()
-        .toBuffer(),
+      body,
       contentType: "image/webp",
     });
   }
@@ -83,7 +90,8 @@ async function addLegacyReadyMedia(
     detectedContentType: "image/png",
     originalFilename: null,
     originalEtag: null,
-    sizeBytes: 1,
+    // As the worker records it: the processed image's own size.
+    sizeBytes: options.sizeBytes ?? body.byteLength,
     width: options.width ?? 1600,
     height: options.height ?? 1200,
     variants: null,
@@ -136,6 +144,40 @@ describe("MediaVariantsBackfillService", () => {
       thumbnail: { width: 300, height: 225 },
     });
     expect(mediaVariantsBackfillExitCode(result)).toBe(0);
+  });
+
+  it("backfills a processed image larger than today's upload limit", async () => {
+    // Processed before the edge cap, at full resolution: its output can exceed
+    // anything a client may upload now.
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+    const context = createContext();
+    const legacy = await addLegacyReadyMedia(context, {
+      width: 2400,
+      height: 1800,
+    });
+    expect(legacy.sizeBytes).toBeGreaterThan(1024);
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result).toMatchObject({ converted: 1, failed: 0 });
+    await expect(
+      readDimensions(context, legacy.renditions[1]!),
+    ).resolves.toMatchObject({ width: 800, height: 600 });
+  });
+
+  it("refuses a processed image larger than its recorded size", async () => {
+    const context = createContext();
+    const legacy = await addLegacyReadyMedia(context, { sizeBytes: 16 });
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result.failures).toEqual([
+      {
+        mediaId: legacy.id,
+        processedBlobName: legacy.processedBlobName,
+        message: "The processed image is larger than its media record says.",
+      },
+    ]);
   });
 
   it("does nothing on a second run", async () => {
