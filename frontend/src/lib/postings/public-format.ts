@@ -90,8 +90,9 @@ export function resolvePostingCardImage(posting: {
 
 /**
  * The image for a photo drawn smaller than a card, such as a list thumbnail.
- * Its renditions come first, since even the thumbnail rendition is smaller
- * than the card crop; without them, the crop, then the photo itself.
+ * Its renditions are offered first, since even the thumbnail rendition is
+ * smaller than the card crop. The crop, or else the photo, is the plain URL, so
+ * a rendition that fails to load falls back to the crop, not the full image.
  */
 export function resolvePhotoPreviewImage(
   photo:
@@ -103,12 +104,21 @@ export function resolvePhotoPreviewImage(
     | null
     | undefined,
 ): PreviewImage | null {
-  if (photo?.variants && isRenderablePreviewImageUrl(photo.blobUrl)) {
-    return { src: photo.blobUrl, variants: photo.variants };
+  const url = [photo?.thumbnailBlobUrl, photo?.blobUrl].find(
+    isRenderablePreviewImageUrl,
+  );
+
+  if (!url) {
+    return null;
   }
 
-  const url = photo?.thumbnailBlobUrl ?? photo?.blobUrl;
-  return isRenderablePreviewImageUrl(url) ? { src: url, variants: null } : null;
+  return {
+    src: url,
+    variants:
+      photo?.variants && isRenderablePreviewImageUrl(photo.blobUrl)
+        ? photo.variants
+        : null,
+  };
 }
 
 export function formatPostingAttributeLabel(key: string): string {

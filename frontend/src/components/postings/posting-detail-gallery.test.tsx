@@ -105,8 +105,15 @@ describe("PostingDetailGallery", () => {
     const strip = screen
       .getByRole("button", { name: "View photo 1 for Mountain Cabin" })
       .querySelector("img");
-    // With renditions the strip draws the photo itself, not its card crop.
-    expect(strip).toHaveAttribute("src", "https://cdn.rent.local/a.webp");
+    // Renditions are offered, with the card crop as the fallback.
+    expect(strip).toHaveAttribute(
+      "src",
+      "https://cdn.rent.local/photo-1-thumb.jpg",
+    );
+    expect(strip).toHaveAttribute(
+      "srcset",
+      expect.stringContaining("https://cdn.rent.local/a.thumbnail.webp 300w"),
+    );
     expect(strip).toHaveAttribute("sizes", "128px");
   });
 

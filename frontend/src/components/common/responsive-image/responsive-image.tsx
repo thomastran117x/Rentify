@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, type ImgHTMLAttributes } from "react";
+import { useCallback, useState, type ImgHTMLAttributes } from "react";
 import type { ImageVariants } from "@/lib/media/api";
 
 /**
- * The longest edge each rendition is fitted inside. The backend never enlarges
- * an image, so a small or portrait image is narrower than this; the browser
- * then picks a slightly larger rendition than it needs, never a blurrier one.
+ * Each rendition's width. The thumbnail and medium are scaled to exactly these
+ * widths, so their descriptors are true whatever the image's shape. An image
+ * narrower than a width keeps its own, but then every rendition below it is the
+ * same size, so picking one still never costs sharpness. The large rendition
+ * is the processed image, which a portrait or a lower cap makes narrower than
+ * 2560; declaring it that wide only makes the browser reach for it last, and
+ * there is nothing larger to offer anyway.
  */
 const RENDITION_WIDTHS: Record<keyof ImageVariants, number> = {
   thumbnail: 300,
@@ -48,6 +52,10 @@ export type ResponsiveImageProps = Omit<
  * or a local preview) it renders `src` alone. If a rendition fails to load,
  * as it can for an image processed before renditions existed and not yet
  * backfilled, it falls back to `src` rather than showing a broken image.
+ *
+ * A server-rendered image can fail before hydration attaches `onError`, and
+ * React does not replay that event, so the image is also checked once it is
+ * attached: finished loading with no pixels means it already failed.
  */
 export function ResponsiveImage({
   src,
@@ -61,6 +69,20 @@ export function ResponsiveImage({
   // Keyed on the srcset, so new renditions are tried again after a failure.
   const [failedSrcSet, setFailedSrcSet] = useState<string | null>(null);
   const useRenditions = srcSet !== undefined && srcSet !== failedSrcSet;
+  const detectEarlyFailure = useCallback(
+    (image: HTMLImageElement | null) => {
+      if (
+        image &&
+        srcSet !== undefined &&
+        image.getAttribute("srcset") === srcSet &&
+        image.complete &&
+        image.naturalWidth === 0
+      ) {
+        setFailedSrcSet(srcSet);
+      }
+    },
+    [srcSet],
+  );
 
   return (
     // The renditions are already sized by the backend; next/image would only
@@ -68,6 +90,7 @@ export function ResponsiveImage({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       {...imageProps}
+      ref={detectEarlyFailure}
       alt={alt}
       src={src}
       srcSet={useRenditions ? srcSet : undefined}

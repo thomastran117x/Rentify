@@ -250,11 +250,9 @@ export function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
     .sort((a, b) => a.position - b.position)
     .map((photo, index) => ({
       key: `existing-${photo.blobName}-${index}`,
-      // With renditions the browser picks a small one; without, the card crop
-      // is the smallest copy there is.
-      previewUrl: photo.variants
-        ? photo.blobUrl
-        : (photo.thumbnailBlobUrl ?? photo.blobUrl),
+      // The card crop is the fallback: without renditions, or when one fails,
+      // it is the smallest copy there is.
+      previewUrl: photo.thumbnailBlobUrl ?? photo.blobUrl,
       previewVariants: photo.variants ?? null,
       blobUrl: photo.blobUrl,
       blobName: photo.blobName,

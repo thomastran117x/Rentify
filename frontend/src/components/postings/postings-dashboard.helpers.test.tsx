@@ -130,7 +130,7 @@ describe("postings dashboard helpers", () => {
     ).toBeNull();
   });
 
-  it("prefers a photo's renditions to its card crop", () => {
+  it("offers a photo's renditions with its card crop as the fallback", () => {
     const variants = {
       thumbnail: "https://img/primary.thumbnail.webp",
       medium: "https://img/primary.medium.webp",
@@ -154,7 +154,7 @@ describe("postings dashboard helpers", () => {
           ],
         }),
       ),
-    ).toEqual({ src: "https://img/primary.webp", variants });
+    ).toEqual({ src: "https://img/crop.webp", variants });
   });
 
   it("renders image and family-initial thumbnail states", () => {

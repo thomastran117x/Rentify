@@ -67,12 +67,9 @@ export function PostingDetailGallery({
               >
                 <div className="aspect-square">
                   <ResponsiveImage
-                    // Without renditions, the card crop is the smallest copy.
-                    src={
-                      photo.variants
-                        ? photo.blobUrl
-                        : (photo.thumbnailBlobUrl ?? photo.blobUrl)
-                    }
+                    // The card crop is the fallback: without renditions, or when
+                    // one fails, it is the smallest copy there is.
+                    src={photo.thumbnailBlobUrl ?? photo.blobUrl}
                     variants={photo.variants}
                     sizes="128px"
                     alt=""

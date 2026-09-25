@@ -81,6 +81,62 @@ describe("ResponsiveImage", () => {
     expect(onError).toHaveBeenCalledTimes(1);
   });
 
+  it("falls back when a rendition failed before the image was hydrated", () => {
+    // Loaded to completion with no pixels: an error React never saw.
+    const complete = vi
+      .spyOn(HTMLImageElement.prototype, "complete", "get")
+      .mockReturnValue(true);
+    const naturalWidth = vi
+      .spyOn(HTMLImageElement.prototype, "naturalWidth", "get")
+      .mockReturnValue(0);
+
+    try {
+      render(
+        <ResponsiveImage
+          src={VARIANTS.large}
+          variants={VARIANTS}
+          sizes="240px"
+          alt="Card"
+        />,
+      );
+
+      const image = screen.getByRole("img", { name: "Card" });
+      expect(image).not.toHaveAttribute("srcset");
+      expect(image).toHaveAttribute("src", VARIANTS.large);
+    } finally {
+      complete.mockRestore();
+      naturalWidth.mockRestore();
+    }
+  });
+
+  it("keeps the renditions of an image that loaded before hydration", () => {
+    const complete = vi
+      .spyOn(HTMLImageElement.prototype, "complete", "get")
+      .mockReturnValue(true);
+    const naturalWidth = vi
+      .spyOn(HTMLImageElement.prototype, "naturalWidth", "get")
+      .mockReturnValue(300);
+
+    try {
+      render(
+        <ResponsiveImage
+          src={VARIANTS.large}
+          variants={VARIANTS}
+          sizes="240px"
+          alt="Card"
+        />,
+      );
+
+      expect(screen.getByRole("img", { name: "Card" })).toHaveAttribute(
+        "srcset",
+        buildImageSrcSet(VARIANTS),
+      );
+    } finally {
+      complete.mockRestore();
+      naturalWidth.mockRestore();
+    }
+  });
+
   it("tries new renditions again after an earlier one failed", () => {
     const { rerender } = render(
       <ResponsiveImage

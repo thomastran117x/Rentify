@@ -86,13 +86,19 @@ describe("resolvePostingCardImage", () => {
 });
 
 describe("resolvePhotoPreviewImage", () => {
-  it("prefers renditions to the card crop", () => {
+  it("offers renditions with the card crop as the fallback", () => {
     expect(
       resolvePhotoPreviewImage({
         blobUrl: VARIANTS.large,
         thumbnailBlobUrl: "https://cdn.test/thumbnails/m.webp",
         variants: VARIANTS,
       }),
+    ).toEqual({
+      src: "https://cdn.test/thumbnails/m.webp",
+      variants: VARIANTS,
+    });
+    expect(
+      resolvePhotoPreviewImage({ blobUrl: VARIANTS.large, variants: VARIANTS }),
     ).toEqual({ src: VARIANTS.large, variants: VARIANTS });
   });
 
