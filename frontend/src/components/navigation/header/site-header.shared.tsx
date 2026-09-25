@@ -2,6 +2,8 @@ import type { ComponentType } from "react";
 import { Building2, UserCog } from "lucide-react";
 import { theme } from "@/styles/theme";
 import type { AuthResponseUser } from "@/lib/auth/types";
+import { ResponsiveImage } from "@/components/common/responsive-image";
+import type { ImageVariants } from "@/lib/media/api";
 
 export interface HeaderNavigationLink {
   href: string;
@@ -129,14 +131,16 @@ export function ChevronDownIcon() {
 interface UserAvatarProps {
   name: string;
   imageUrl?: string | null;
+  imageVariants?: ImageVariants | null;
 }
 
-export function UserAvatar({ name, imageUrl }: UserAvatarProps) {
+export function UserAvatar({ name, imageUrl, imageVariants }: UserAvatarProps) {
   if (imageUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <ResponsiveImage
         src={imageUrl}
+        variants={imageVariants}
+        sizes="36px"
         alt={`${name} avatar`}
         className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
       />

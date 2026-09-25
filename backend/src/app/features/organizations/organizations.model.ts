@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 
 import {
@@ -174,10 +175,15 @@ export interface OrganizationProfileFields {
   postalCode: string | null;
   logoUrl: string | null;
   logoBlobName: string | null;
+  /** Renditions of the logo; null when it is not a processed image. */
+  logoVariants: ImageVariants | null;
   customFields: Record<string, string> | null;
 }
 
-export type OrganizationProfileInput = Partial<OrganizationProfileFields>;
+// logoVariants is derived from the stored logo, never written.
+export type OrganizationProfileInput = Partial<
+  Omit<OrganizationProfileFields, "logoVariants">
+>;
 
 // Field names audited when an organization's profile changes (also used to
 // restore a prior version). Keep in sync with OrganizationProfileFields + name.
@@ -241,6 +247,7 @@ export interface OrganizationMemberRecord {
   lastName?: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
   role: OrganizationRole;
   joinedAt: string;
 }

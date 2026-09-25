@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
 import {
@@ -137,6 +138,7 @@ export interface OrganizationBlogAuthorSummary {
   email: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariants | null;
 }
 
 // Minimal organization identity attached to a blog post when it is surfaced
@@ -147,6 +149,7 @@ export interface OrganizationBlogOrganizationSummary {
   slug: string;
   name: string;
   logoUrl?: string;
+  logoVariants: ImageVariants | null;
 }
 
 export interface OrganizationBlogPostRecord {
@@ -160,6 +163,8 @@ export interface OrganizationBlogPostRecord {
   body: string;
   coverImageUrl?: string;
   coverImageBlobName?: string;
+  /** Renditions of the cover; null when it is not a processed image. */
+  coverImageVariants: ImageVariants | null;
   tags: string[];
   status: OrganizationBlogStatus;
   /** Whether readers may currently post comments on this post. */

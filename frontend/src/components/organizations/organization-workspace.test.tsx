@@ -194,6 +194,7 @@ function BlogActionsHarness() {
             tags: ["news"],
             coverImageUrl: "",
             coverImageBlobName: "",
+            coverImageVariants: null,
             coverImageMediaId: "",
             status: "draft",
             commentsEnabled: true,

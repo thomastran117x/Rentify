@@ -1,4 +1,5 @@
 import { BaseRepository } from "@/features/base/base.repository";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 
 export interface BlobReferenceSourceCounts {
@@ -58,6 +59,12 @@ export class BlobCleanupRepository extends BaseRepository {
           if (normalized) {
             blobNames.add(normalized);
           }
+
+          // A processed image is served in three renditions, and a reference
+          // to it keeps all of them.
+          listImageVariantBlobNames(normalized).forEach((variant) =>
+            blobNames.add(variant),
+          );
         };
 
         profiles.forEach((row) => add(row.avatarBlobName));

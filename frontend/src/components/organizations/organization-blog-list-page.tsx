@@ -26,6 +26,7 @@ import {
   displayReadingMinutes,
 } from "@/components/organizations/blog-visuals";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 // Matches the backend default so paging behaviour is unchanged by default.
@@ -113,9 +114,10 @@ function FeaturedPost({
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 lg:aspect-auto dark:bg-slate-900">
         {post.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={post.coverImageUrl}
+            variants={post.coverImageVariants}
+            sizes="(min-width: 1024px) 50vw, 100vw"
             alt=""
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           />
@@ -162,9 +164,10 @@ function BlogCard({
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {post.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ResponsiveImage
             src={post.coverImageUrl}
+            variants={post.coverImageVariants}
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             alt=""
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
           />

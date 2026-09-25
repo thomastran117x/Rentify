@@ -510,6 +510,7 @@ describe("ReportsService", () => {
           role: "owner",
           username: "renter-two",
           avatarUrl: "https://example.test/avatar.png",
+          avatarVariants: null,
         },
       },
     );

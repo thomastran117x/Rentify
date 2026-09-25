@@ -695,6 +695,35 @@ describe("PostingsRepository", () => {
     });
   });
 
+  it("describes the renditions of a processed photo", async () => {
+    const repository = new PostingsRepository({
+      postingPhoto: {
+        findFirst: jest.fn(async () => ({
+          id: "photo-1",
+          blobUrl: "https://cdn.test/uploads/media/images/owner-1/photo-1.webp",
+          blobName: "media/images/owner-1/photo-1.webp",
+          thumbnailBlobUrl: null,
+          thumbnailBlobName: null,
+          position: 0,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+        })),
+      },
+    } as any);
+
+    await expect(
+      repository.findPrimaryPhotoForThumbnailing(POSTING_1_ID),
+    ).resolves.toMatchObject({
+      variants: {
+        thumbnail:
+          "https://cdn.test/uploads/media/images/owner-1/photo-1.thumbnail.webp",
+        medium:
+          "https://cdn.test/uploads/media/images/owner-1/photo-1.medium.webp",
+        large: "https://cdn.test/uploads/media/images/owner-1/photo-1.webp",
+      },
+    });
+  });
+
   it("reads and updates posting photo thumbnails", async () => {
     const findFirst = jest.fn(async () => ({
       id: "photo-1",
@@ -722,6 +751,8 @@ describe("PostingsRepository", () => {
       blobName: "postings/photo-1.jpg",
       thumbnailBlobUrl: undefined,
       thumbnailBlobName: undefined,
+      // Stored before media existed, so it has no renditions.
+      variants: null,
       position: 0,
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",

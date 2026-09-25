@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -1239,6 +1240,10 @@ export class BookingsRepository extends BaseRepository {
         id: asUuid(bookingRequest.posting.id),
         name: bookingRequest.posting.name,
         primaryPhotoUrl: bookingRequest.posting.photos[0]?.blobUrl,
+        primaryPhotoVariants: describeImageVariants(
+          bookingRequest.posting.photos[0]?.blobName,
+          bookingRequest.posting.photos[0]?.blobUrl,
+        ),
         effectiveMaxBookingDurationDays:
           bookingRequest.posting.maxBookingDurationDays ??
           DEFAULT_MAX_BOOKING_DURATION_DAYS,

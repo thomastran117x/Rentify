@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 import type { PublicPostingPhoto } from "@/lib/postings/public";
 import { isRenderablePreviewImageUrl } from "@/lib/postings/public-format";
 import { theme } from "@/styles/theme";
@@ -30,9 +31,11 @@ export function PostingDetailGallery({
       <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shadow-sm">
         <div className="aspect-[4/3]">
           {selectedPhoto ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ResponsiveImage
               src={selectedPhoto.blobUrl}
+              variants={selectedPhoto.variants}
+              // The detail column is at most ~610px wide in the page layout.
+              sizes="(min-width: 1280px) 610px, (min-width: 1024px) 50vw, 100vw"
               alt={name}
               className="h-full w-full object-cover"
             />
@@ -63,9 +66,12 @@ export function PostingDetailGallery({
                 aria-pressed={isSelected}
               >
                 <div className="aspect-square">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <ResponsiveImage
+                    // The card crop is the fallback: without renditions, or when
+                    // one fails, it is the smallest copy there is.
                     src={photo.thumbnailBlobUrl ?? photo.blobUrl}
+                    variants={photo.variants}
+                    sizes="128px"
                     alt=""
                     className="h-full w-full object-cover"
                   />

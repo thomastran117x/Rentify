@@ -5,10 +5,14 @@ import type {
   MediaProcessingJobPayload,
   MediaView,
 } from "@/features/media/media.model";
+import { MediaRepository } from "@/features/media/media.repository";
+import { MediaVariantsBackfillService } from "@/features/media/media-variants-backfill.service";
+import type { BlobService } from "@/features/blob/blob.service";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -232,6 +236,22 @@ describe("Media persistence integration", () => {
     expect(
       persistenceApp.stubs.blobService.storage.get(processedName)?.contentType,
     ).toBe("image/webp");
+
+    const renditions = {
+      thumbnail: `media/images/${owner.userId}/${mediaId}.thumbnail.webp`,
+      medium: `media/images/${owner.userId}/${mediaId}.medium.webp`,
+      large: processedName,
+    };
+    for (const [rendition, blobName] of Object.entries(renditions)) {
+      expect(
+        new URL(
+          ready.variants![rendition as keyof typeof renditions],
+        ).searchParams.get("blobName"),
+      ).toBe(blobName);
+      expect(
+        persistenceApp.stubs.blobService.storage.get(blobName)?.contentType,
+      ).toBe("image/webp");
+    }
   });
 
   it("rejects an upload whose bytes are not an image", async () => {
@@ -389,12 +409,31 @@ describe("Media persistence integration", () => {
     });
     expect(created.status).toBe(201);
     const posting = await readData<{
-      photos: Array<{ blobName: string; blobUrl: string }>;
+      photos: Array<{
+        blobName: string;
+        blobUrl: string;
+        variants: Record<"thumbnail" | "medium" | "large", string> | null;
+      }>;
     }>(created);
     const processedName = `media/images/${owner.userId}/${ready.mediaId}.webp`;
     expect(posting.photos).toEqual([
       expect.objectContaining({ blobName: processedName }),
     ]);
+    // Each rendition URL addresses a blob the worker wrote.
+    const [photo] = posting.photos;
+    expect(photo?.variants?.large).toBe(photo?.blobUrl);
+    for (const [rendition, suffix] of [
+      ["thumbnail", ".thumbnail.webp"],
+      ["medium", ".medium.webp"],
+    ] as const) {
+      const blobName = new URL(photo!.variants![rendition]).searchParams.get(
+        "blobName",
+      );
+      expect(blobName).toBe(processedName.replace(/\.webp$/, suffix));
+      expect(persistenceApp.stubs.blobService.storage.has(blobName!)).toBe(
+        true,
+      );
+    }
 
     // The posting now displays it, so it can no longer be deleted as media.
     const deleteAttached = await request(`/media/${ready.mediaId}`, {
@@ -501,5 +540,72 @@ describe("Media persistence integration", () => {
       body: JSON.stringify({ filename: "a.png", contentType: "image/png" }),
     });
     expect(anonymous.status).toBe(401);
+  });
+
+  it("backfills the renditions of ready media processed before they existed", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const blobService = persistenceApp.stubs.blobService;
+    const legacy = await Promise.all([
+      createReadyMedia(owner.userId, { legacy: true }),
+      createReadyMedia(owner.userId, { legacy: true }),
+    ]);
+    const current = await createReadyMedia(owner.userId);
+    for (const { mediaId, blobName } of legacy) {
+      const body = await createPngFixture(1000, 500);
+      blobService.storage.set(blobName, { contentType: "image/webp", body });
+      // The backfill bounds its download by the recorded processed size.
+      await persistenceApp.prisma.media.update({
+        where: { id: mediaId },
+        data: { sizeBytes: body.byteLength },
+      });
+    }
+    const backfill = new MediaVariantsBackfillService(
+      new MediaRepository(),
+      blobService as unknown as BlobService,
+    );
+
+    const preview = await backfill.run({ dryRun: true, batchSize: 1 });
+    expect(preview.pending.map((item) => item.mediaId).sort()).toEqual(
+      legacy.map((item) => item.mediaId).sort(),
+    );
+
+    const result = await backfill.run({ dryRun: false, batchSize: 1 });
+    expect(result).toMatchObject({ scanned: 2, converted: 2, failed: 0 });
+
+    for (const { mediaId, blobName } of legacy) {
+      const row = await persistenceApp.prisma.media.findUniqueOrThrow({
+        where: { id: mediaId },
+      });
+      expect(row.variants).toMatchObject({
+        medium: { width: 800, height: 400 },
+        thumbnail: { width: 300, height: 150 },
+      });
+      expect(
+        blobService.storage.has(blobName.replace(/\.webp$/, ".medium.webp")),
+      ).toBe(true);
+    }
+    // An item that already has renditions is never selected.
+    expect(result.failures).toEqual([]);
+    expect(
+      preview.pending.some((item) => item.mediaId === current.mediaId),
+    ).toBe(false);
+
+    await expect(
+      backfill.run({ dryRun: false, batchSize: 1 }),
+    ).resolves.toMatchObject({ scanned: 0, converted: 0 });
+
+    // The guarded update refuses a row that is no longer the same image.
+    await expect(
+      new MediaRepository().setVariants(
+        legacy[0]!.mediaId,
+        "media/images/other/name.webp",
+        {
+          medium: { width: 1, height: 1, sizeBytes: 1 },
+          thumbnail: { width: 1, height: 1, sizeBytes: 1 },
+        },
+      ),
+    ).resolves.toBe(false);
   });
 });

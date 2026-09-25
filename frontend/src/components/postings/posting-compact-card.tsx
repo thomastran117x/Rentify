@@ -3,10 +3,11 @@ import Link from "next/link";
 import { AvailabilityBadge } from "@/components/postings/availability-badge";
 import {
   formatPostingPrice,
-  isRenderablePreviewImageUrl,
+  resolvePostingCardImage,
 } from "@/lib/postings/public-format";
 import type { PublicPostingSummary } from "@/lib/postings/search";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 // A sibling of PostingResultCard rather than a variant of it. That component is
 // a wide list row -- two-column layout, description, tags, published date, an
@@ -27,20 +28,18 @@ export function PostingCompactCard({
   footnote,
   actions,
 }: PostingCompactCardProps) {
-  const previewImageUrl = [
-    posting.primaryThumbnailUrl,
-    posting.primaryPhotoUrl,
-  ].find(isRenderablePreviewImageUrl);
+  const previewImage = resolvePostingCardImage(posting);
 
   return (
     <article
       className={`${theme.marketplace.resultCard} relative flex h-full flex-col`}
     >
       <div className="relative aspect-[4/3] w-full shrink-0 border-b border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800">
-        {previewImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewImageUrl}
+        {previewImage ? (
+          <ResponsiveImage
+            src={previewImage.src}
+            variants={previewImage.variants}
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
             alt={posting.name}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover"

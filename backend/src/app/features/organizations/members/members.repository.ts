@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -74,6 +75,10 @@ export class OrganizationsMembersRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
+      logoVariants: describeImageVariants(
+        organization.logoBlobName,
+        organization.logoUrl,
+      ),
       logoBlobName: organization.logoBlobName,
       customFields: this.parseCustomFields(organization.customFields),
     };
@@ -366,6 +371,10 @@ export class OrganizationsMembersRepository extends BaseRepository {
       lastName: membership.user.lastName ?? undefined,
       username: membership.user.profile?.username ?? membership.user.email,
       avatarUrl: membership.user.profile?.avatarUrl ?? undefined,
+      avatarVariants: describeImageVariants(
+        membership.user.profile?.avatarBlobName,
+        membership.user.profile?.avatarUrl,
+      ),
       role: membership.role,
       joinedAt: membership.createdAt.toISOString(),
     };

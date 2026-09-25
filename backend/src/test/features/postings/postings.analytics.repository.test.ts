@@ -690,7 +690,9 @@ describe("PostingsAnalyticsRepository", () => {
           postingId: POSTING_1_ID,
           name: "Sunny loft",
           status: "published",
-          primaryPhotoUrl: "https://example.test/photo.jpg",
+          primaryPhotoUrl:
+            "https://cdn.test/uploads/media/images/owner-1/photo.webp",
+          primaryPhotoBlobName: "media/images/owner-1/photo.webp",
           publishedAt: new Date("2026-05-18T00:00:00.000Z"),
           pausedAt: null,
           archivedAt: null,
@@ -744,7 +746,15 @@ describe("PostingsAnalyticsRepository", () => {
     });
     expect(result.postings[0]).toMatchObject({
       postingId: POSTING_1_ID,
-      primaryPhotoUrl: "https://example.test/photo.jpg",
+      primaryPhotoUrl:
+        "https://cdn.test/uploads/media/images/owner-1/photo.webp",
+      primaryPhotoVariants: {
+        thumbnail:
+          "https://cdn.test/uploads/media/images/owner-1/photo.thumbnail.webp",
+        medium:
+          "https://cdn.test/uploads/media/images/owner-1/photo.medium.webp",
+        large: "https://cdn.test/uploads/media/images/owner-1/photo.webp",
+      },
       totals: expect.objectContaining({
         confirmedBookedDays: 1,
       }),
@@ -760,6 +770,7 @@ describe("PostingsAnalyticsRepository", () => {
           name: "Sunny loft",
           status: "published",
           primaryPhotoUrl: null,
+          primaryPhotoBlobName: null,
           publishedAt: new Date("2026-05-18T00:00:00.000Z"),
           pausedAt: null,
           archivedAt: null,
@@ -823,6 +834,7 @@ describe("PostingsAnalyticsRepository", () => {
     expect(result).toMatchObject({
       postingId: POSTING_1_ID,
       name: "Sunny loft",
+      primaryPhotoVariants: null,
       granularity: "hour",
       totals: expect.objectContaining({
         activeDaysPublished: 3,

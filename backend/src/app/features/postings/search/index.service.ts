@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
@@ -58,8 +59,9 @@ type ElasticsearchMappingResponse = Record<
  *
  * 2: added `organizationName` (organization-name matching and sorting).
  * 3: added `location.{city,region,country}.keyword` (exact location filters).
+ * 4: added `primaryPhotoVariants` (the primary photo's rendition URLs).
  */
-export const POSTINGS_INDEX_MAPPING_VERSION = 3;
+export const POSTINGS_INDEX_MAPPING_VERSION = 4;
 
 class ElasticsearchAliasStateError extends ElasticsearchUnavailableError {
   constructor(message: string) {
@@ -471,6 +473,10 @@ export class PostingsSearchIndexService {
         postalCode: document.location.postalCode,
       },
       primaryPhotoUrl: primaryPhoto?.blobUrl,
+      primaryPhotoVariants: describeImageVariants(
+        primaryPhoto?.blobName,
+        primaryPhoto?.blobUrl,
+      ),
       photoUrls: document.photos.map((photo) => photo.blobUrl),
       blockedRanges: document.blockedRanges,
       minBookingDurationDays: document.minBookingDurationDays,
@@ -679,6 +685,8 @@ export class PostingsSearchIndexService {
           reviewCount: { type: "integer" },
           geoPoint: { type: "geo_point" },
           primaryPhotoUrl: { type: "keyword", index: false },
+          // Stored for display only, never searched.
+          primaryPhotoVariants: { type: "object", enabled: false },
           photoUrls: { type: "keyword", index: false },
           createdAt: { type: "date" },
           updatedAt: { type: "date" },

@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/api";
 import { publicJson } from "@/lib/api/client";
 import type { ActiveOrganizationSummary } from "@/lib/auth/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type OrganizationRole = "primary_manager" | "manager" | "operator";
 export type OrganizationInviteStatus =
@@ -83,6 +84,7 @@ export interface OrganizationMember {
   lastName?: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants?: ImageVariants | null;
   role: OrganizationRole;
   joinedAt: string;
 }
@@ -129,6 +131,7 @@ export interface OrganizationAuditRecord {
     email: string;
     username: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
   action: OrganizationAuditAction;
   resourceType: OrganizationAuditResourceType;
@@ -164,6 +167,7 @@ export interface OrganizationAnnouncementRecord {
     email: string;
     username: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
   title: string;
   body: string;
@@ -211,18 +215,21 @@ export interface OrganizationBlogPostRecord {
     slug: string;
     name: string;
     logoUrl?: string;
+    logoVariants?: ImageVariants | null;
   };
   author?: {
     id: string;
     email: string;
     username: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
   title: string;
   slug: string;
   excerpt?: string;
   body: string;
   coverImageUrl?: string;
+  coverImageVariants?: ImageVariants | null;
   coverImageBlobName?: string;
   tags: string[];
   status: OrganizationBlogStatus;
@@ -301,6 +308,7 @@ export interface OrganizationReviewResponse {
     id: string;
     username?: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
 }
 
@@ -314,6 +322,7 @@ export interface OrganizationReviewRecord {
   reviewer: {
     username?: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
   response?: OrganizationReviewResponse | null;
   createdAt: string;
@@ -362,10 +371,13 @@ export interface OrganizationProfileFields {
   postalCode: string | null;
   logoUrl: string | null;
   logoBlobName: string | null;
+  logoVariants?: ImageVariants | null;
   customFields: Record<string, string> | null;
 }
 
-export type OrganizationProfileInput = Partial<OrganizationProfileFields> & {
+export type OrganizationProfileInput = Partial<
+  Omit<OrganizationProfileFields, "logoVariants">
+> & {
   /**
    * A newly uploaded logo that has finished processing. Sent instead of
    * logoUrl/logoBlobName, which are only used to keep or clear the stored logo.
@@ -383,6 +395,7 @@ export interface PublicOrganizationProfileFields {
   country: string | null;
   postalCode: string | null;
   logoUrl: string | null;
+  logoVariants?: ImageVariants | null;
   customFields: Record<string, string> | null;
 }
 

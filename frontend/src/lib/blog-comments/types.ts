@@ -1,3 +1,5 @@
+import type { ImageVariants } from "@/lib/media/api";
+
 /** Longest comment the server accepts. Mirrors the backend model. */
 export const MAX_BLOG_COMMENT_LENGTH = 2000;
 
@@ -12,6 +14,7 @@ export interface BlogCommentAuthorSummary {
   id: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants?: ImageVariants | null;
 }
 
 /** Who tombstoned a comment, in the only terms a reader needs. */

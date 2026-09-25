@@ -116,6 +116,7 @@ PUT  <upload.url>            bytes -> quarantine/images/<userId>/<mediaId>
 POST /media/{id}/complete    row: uploaded, media.processing job queued
 media-processing-worker      row: processing -> ready | rejected
                              ready: media/images/<userId>/<mediaId>.webp
+                                    + .medium.webp, .thumbnail.webp
 GET  /media/{id}             poll until ready (url set) or rejected (reason set)
 attach by mediaId            postings, logos, blog covers, avatars
 ```
@@ -204,6 +205,49 @@ was produced by the worker, not supplied by the client. The width and height
 reported by `GET /media/{id}` are the processed image's. A policy failure
 rejects the item with its reason. Both outcomes delete the quarantined upload.
 
+**Renditions.** From the processed image the worker also writes two smaller
+renditions, so a list or an avatar need not download the full image. They are
+uploaded before the item is marked `ready`, so a ready image always has all
+three:
+
+| Rendition   | Blob name                                        | Size                                   |
+| ----------- | ------------------------------------------------ | -------------------------------------- |
+| `large`     | `media/images/<userId>/<mediaId>.webp`           | Inside `imageUploads.maxProcessedEdge` |
+| `medium`    | `media/images/<userId>/<mediaId>.medium.webp`    | 800 px wide                            |
+| `thumbnail` | `media/images/<userId>/<mediaId>.thumbnail.webp` | 300 px wide                            |
+
+None is enlarged, so a narrower image keeps its own width. The smaller two are
+sized by width, not longest edge, so the `300w` and `800w` descriptors in a
+`srcset` are their real widths and a portrait is never picked too small. They
+are scaled from the processed image, so the upload is decoded only once.
+
+The names are derived from the processed name
+(`buildImageVariantBlobNames` in `features/blob/image-variant-names.ts`), so
+features keep storing only the large name and no reference table changed. The
+renditions sit flat in the owner's directory, so the owner check reads them
+like the processed image. `media.variants` records their dimensions and sizes;
+it is set with `ready` and stays `NULL` for images processed before renditions
+existed, until the [media-variants backfill](./media-variants-backfill.md)
+reaches them. Storage per image grows by about 1.3x. The 640x480 posting-card
+crop under `.../thumbnails/<id>.webp` is a separate image that the posting
+thumbnail worker writes; it has no renditions of its own.
+
+Responses that carry an image also carry its rendition URLs, as an
+`ImageVariants` object (`thumbnail`, `medium`, `large`) next to the URL:
+`variants` on a media view or a posting photo, and `primaryPhotoVariants`,
+`avatarVariants`, `logoVariants`, and `coverImageVariants` elsewhere. Every
+response, the media view included, derives the object from the stored blob name
+and URL (`describeImageVariants` in `features/media/image-variants.ts`) rather
+than looking it up, so any repository mapper can produce it and they all agree. It is `null` for an image
+that is not a processed image, such as a seeded `example.com` photo or one
+stored before media existed. It is not `null` for an image processed before
+renditions existed, whose smaller renditions only exist once the backfill has
+run. The frontend draws every image through `ResponsiveImage`
+(`components/common/responsive-image`), which offers the renditions as a
+`srcset` with the drawn size as `sizes`, and falls back to the plain URL when
+there are none or one fails to load. Inline images in blog bodies are raw HTML
+and are not covered.
+
 **When an image is attached.** Every field that holds an image goes through one
 rule, `MediaService.resolveImageReference`: posting photos
 (`{ mediaId, position }`), `logoMediaId`, `coverImageMediaId`, and
@@ -229,7 +273,10 @@ attached. A replaced image is removed by the feature that replaced it.
 
 **Cleanup.** `blob-cleanup` treats quarantined uploads as candidates whatever
 their declared content type. With `--delete`, it also removes the media rows of
-blobs it deleted, and unfinished rows that have not moved in 24 hours.
+blobs it deleted, and unfinished rows that have not moved in 24 hours. Every
+reference to a processed image, including one in a restorable audit snapshot,
+also keeps its medium and thumbnail renditions, so a live rendition is never a
+candidate. Deleting a media item or a replaced image deletes all three.
 
 **Storage layout.** Quarantined and processed images currently share one Azure
 container. If that container allows anonymous blob reads, a quarantined upload

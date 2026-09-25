@@ -1,4 +1,5 @@
 import type { BlobService } from "@/features/blob/blob.service";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { MediaScope } from "@/features/media/media.model";
 import { MediaService } from "@/features/media/media.service";
 import { asUuid } from "@/configuration/validation/uuid";
@@ -24,6 +25,7 @@ export function createMediaRule(
       blobName.trim().startsWith("quarantine/"),
     isProcessedImageBlobName: (blobName: string) =>
       blobName.trim().startsWith("media/images/"),
+    buildImageVariantBlobNames,
   };
   const mediaService = new MediaService(
     blobService as unknown as BlobService,
@@ -57,6 +59,10 @@ export function createMediaRule(
         sizeBytes: 1,
         width: 1,
         height: 1,
+        variants: {
+          medium: { width: 1, height: 1, sizeBytes: 1 },
+          thumbnail: { width: 1, height: 1, sizeBytes: 1 },
+        },
         rejectionReason: null,
         createdAt: now,
         updatedAt: now,

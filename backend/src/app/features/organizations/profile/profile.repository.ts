@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -114,6 +115,7 @@ type PublicOrganizationRow = {
   country: string | null;
   postalCode: string | null;
   logoUrl: string | null;
+  logoBlobName: string | null;
   customFields: Prisma.JsonValue | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -146,6 +148,10 @@ export class OrganizationsProfileRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
+      logoVariants: describeImageVariants(
+        organization.logoBlobName,
+        organization.logoUrl,
+      ),
       logoBlobName: organization.logoBlobName,
       customFields: this.parseCustomFields(organization.customFields),
     };
@@ -212,6 +218,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       | "country"
       | "postalCode"
       | "logoUrl"
+      | "logoBlobName"
       | "customFields"
     >,
   ): PublicOrganizationProfileFields {
@@ -225,6 +232,10 @@ export class OrganizationsProfileRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
+      logoVariants: describeImageVariants(
+        organization.logoBlobName,
+        organization.logoUrl,
+      ),
       customFields: this.parseCustomFields(organization.customFields),
     };
   }
@@ -358,6 +369,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
             o.country AS country,
             o.postal_code AS postalCode,
             o.logo_url AS logoUrl,
+            o.logo_blob_name AS logoBlobName,
             o.custom_fields AS customFields,
             o.created_at AS createdAt,
             o.updated_at AS updatedAt,
@@ -380,6 +392,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
             o.country,
             o.postal_code,
             o.logo_url,
+            o.logo_blob_name,
             o.custom_fields,
             o.created_at,
             o.updated_at
@@ -439,6 +452,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
           o.country AS country,
           o.postal_code AS postalCode,
           o.logo_url AS logoUrl,
+          o.logo_blob_name AS logoBlobName,
           o.custom_fields AS customFields,
           o.created_at AS createdAt,
           o.updated_at AS updatedAt,
@@ -461,6 +475,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
           o.country,
           o.postal_code,
           o.logo_url,
+          o.logo_blob_name,
           o.custom_fields,
           o.created_at,
           o.updated_at
@@ -811,6 +826,10 @@ export class OrganizationsProfileRepository extends BaseRepository {
       lastName: membership.user.lastName ?? undefined,
       username: membership.user.profile?.username ?? membership.user.email,
       avatarUrl: membership.user.profile?.avatarUrl ?? undefined,
+      avatarVariants: describeImageVariants(
+        membership.user.profile?.avatarBlobName,
+        membership.user.profile?.avatarUrl,
+      ),
       role: membership.role,
       joinedAt: membership.createdAt.toISOString(),
     };

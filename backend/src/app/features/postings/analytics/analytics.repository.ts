@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -66,6 +67,7 @@ interface PostingAnalyticsListRow extends AnalyticsAggregateRow {
   name: string;
   status: string;
   primaryPhotoUrl: string | null;
+  primaryPhotoBlobName: string | null;
   publishedAt: Date | null;
   pausedAt: Date | null;
   archivedAt: Date | null;
@@ -80,6 +82,7 @@ interface PostingAnalyticsHeaderRow {
   name: string;
   status: string;
   primaryPhotoUrl: string | null;
+  primaryPhotoBlobName: string | null;
   publishedAt: Date | null;
   pausedAt: Date | null;
   archivedAt: Date | null;
@@ -681,6 +684,13 @@ export class PostingsAnalyticsRepository extends BaseRepository {
               ORDER BY rp.position ASC
               LIMIT 1
             ) AS primaryPhotoUrl,
+            (
+              SELECT rp.blob_name
+              FROM posting_photos rp
+              WHERE rp.posting_id = ra.posting_id
+              ORDER BY rp.position ASC
+              LIMIT 1
+            ) AS primaryPhotoBlobName,
             r.published_at AS publishedAt,
             r.paused_at AS pausedAt,
             r.archived_at AS archivedAt,
@@ -744,6 +754,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           name: row.name,
           status: row.status,
           primaryPhotoUrl: row.primaryPhotoUrl ?? undefined,
+          primaryPhotoVariants: describeImageVariants(
+            row.primaryPhotoBlobName,
+            row.primaryPhotoUrl,
+          ),
           totals,
           derivedMetrics: this.createDerivedMetrics(totals),
         };
@@ -841,6 +855,10 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       name: header.name,
       status: header.status,
       primaryPhotoUrl: header.primaryPhotoUrl ?? undefined,
+      primaryPhotoVariants: describeImageVariants(
+        header.primaryPhotoBlobName,
+        header.primaryPhotoUrl,
+      ),
       window: input.window,
       granularity: input.granularity,
       totals,
@@ -938,6 +956,13 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             ORDER BY rp.position ASC
             LIMIT 1
           ) AS primaryPhotoUrl,
+          (
+            SELECT rp.blob_name
+            FROM posting_photos rp
+            WHERE rp.posting_id = r.id
+            ORDER BY rp.position ASC
+            LIMIT 1
+          ) AS primaryPhotoBlobName,
           r.published_at AS publishedAt,
           r.paused_at AS pausedAt,
           r.archived_at AS archivedAt

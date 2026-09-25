@@ -5,6 +5,7 @@ import type {
   OrganizationDetailResult,
   OrganizationProfileInput,
 } from "@/lib/organizations/api";
+import type { ImageVariants } from "@/lib/media/api";
 
 export interface ProfileFormValue {
   description: string;
@@ -19,6 +20,8 @@ export interface ProfileFormValue {
   postalCode: string;
   logoUrl: string;
   logoBlobName: string;
+  /** Renditions of the logo shown, for its preview. Never sent. */
+  logoVariants: ImageVariants | null;
   /** Set when a new logo was uploaded and has not been saved yet. */
   logoMediaId: string;
   customFields: { key: string; value: string }[];
@@ -38,6 +41,7 @@ export function emptyProfileForm(): ProfileFormValue {
     postalCode: "",
     logoUrl: "",
     logoBlobName: "",
+    logoVariants: null,
     logoMediaId: "",
     customFields: [],
   };
@@ -73,6 +77,7 @@ export function profileFormFromDetail(
     postalCode: organization.postalCode ?? "",
     logoUrl: organization.logoUrl ?? "",
     logoBlobName: organization.logoBlobName ?? "",
+    logoVariants: organization.logoVariants ?? null,
     logoMediaId: "",
     customFields: Object.entries(organization.customFields ?? {}).map(
       ([key, value]) => ({ key, value }),

@@ -60,6 +60,7 @@ const authSessionExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
     role: "owner",
     activeOrganization: {
       id: "org-1",
@@ -99,6 +100,7 @@ const organizationMemberExample = {
   lastName: "Operator",
   username: "taylor-operator",
   avatarUrl: "https://cdn.rentify.local/avatars/user-2.png",
+  avatarVariants: null,
   role: "operator",
   joinedAt: "2026-05-03T10:00:00.000Z",
 };
@@ -139,6 +141,7 @@ const organizationWorkspaceDetailExample = {
       lastName: "One",
       username: "owner-one",
       avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+      avatarVariants: null,
       role: "primary_manager",
       joinedAt: "2026-05-01T00:00:00.000Z",
     },
@@ -159,6 +162,7 @@ const publicOrganizationExample = {
   country: "US",
   postalCode: "95060",
   logoUrl: "https://cdn.rentify.local/logos/org-1.png",
+  logoVariants: null,
   customFields: { "Response time": "Within 24 hours" },
   createdAt: "2026-05-01T00:00:00.000Z",
   updatedAt: "2026-05-28T10:00:00.000Z",
@@ -224,6 +228,7 @@ const organizationAuditExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   action: "organization.renamed",
   resourceType: "organization",
@@ -268,6 +273,7 @@ const organizationAnnouncementExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   title: "Summer availability update",
   body: "Our downtown studios now accept weekend bookings.",
@@ -295,6 +301,7 @@ const organizationBlogPostExample = {
     email: "owner1@rentify.local",
     username: "owner-one",
     avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+    avatarVariants: null,
   },
   title: "Introducing weekend stays at our downtown studios",
   slug: "introducing-weekend-stays",
@@ -303,6 +310,7 @@ const organizationBlogPostExample = {
   coverImageUrl:
     "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
   coverImageBlobName: "organizations/org-1/blog/cover-1.png",
+  coverImageVariants: null,
   tags: ["announcement", "downtown"],
   status: "published",
   commentsEnabled: true,
@@ -318,6 +326,7 @@ const organizationBlogCommentExample = {
     id: "user-2",
     username: "renter-one",
     avatarUrl: "https://cdn.rentify.local/avatars/renter-1.png",
+    avatarVariants: null,
   },
   body: "This is exactly what we needed for the weekend.",
   createdAt: "2026-05-29T09:00:00.000Z",
@@ -375,6 +384,7 @@ const organizationReviewExample = {
   reviewer: {
     username: "renter-two",
     avatarUrl: "https://cdn.rentify.local/avatars/renter-2.png",
+    avatarVariants: null,
   },
   response: {
     body: "Thank you for renting with us — see you next time!",
@@ -383,6 +393,7 @@ const organizationReviewExample = {
       id: "user-1",
       username: "owner-one",
       avatarUrl: "https://cdn.rentify.local/avatars/owner-1.png",
+      avatarVariants: null,
     },
   },
   createdAt: "2026-06-01T18:30:00.000Z",
@@ -481,6 +492,15 @@ const personalAccessTokenCreateExample = {
   token: "rpat_live_secret_token",
 };
 const mediaIdExample = "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10";
+function imageVariantsExample(processedUrl: string) {
+  const base = processedUrl.replace(/\.webp$/, "");
+
+  return {
+    thumbnail: `${base}.thumbnail.webp`,
+    medium: `${base}.medium.webp`,
+    large: processedUrl,
+  };
+}
 const mediaViewPendingExample = {
   id: mediaIdExample,
   status: "pending_upload",
@@ -490,20 +510,29 @@ const mediaViewPendingExample = {
   sizeBytes: null,
   width: null,
   height: null,
+  variants: null,
   rejectionReason: null,
   createdAt: "2026-05-25T18:15:00.000Z",
   updatedAt: "2026-05-25T18:15:00.000Z",
 };
+const mediaProcessedUrlExample = `https://cdn.rentify.local/media/images/user-1/${mediaIdExample}.webp`;
 const mediaViewReadyExample = {
   ...mediaViewPendingExample,
   status: "ready",
-  url: `https://cdn.rentify.local/media/images/user-1/${mediaIdExample}.webp`,
+  url: mediaProcessedUrlExample,
+  variants: imageVariantsExample(mediaProcessedUrlExample),
   contentType: "image/jpeg",
   sizeBytes: 184_220,
   width: 1600,
   height: 1200,
   updatedAt: "2026-05-25T18:15:04.000Z",
 };
+const postingPhotoBlobNameExample =
+  "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp";
+const postingPhotoUrlExample = `https://cdn.rentify.local/uploads/${postingPhotoBlobNameExample}`;
+const postingPhotoVariantsExample = imageVariantsExample(
+  postingPhotoUrlExample,
+);
 const publicProfileExample = {
   id: "profile-1",
   userId: "user-1",
@@ -513,6 +542,7 @@ const publicProfileExample = {
   username: "taylor-renter",
   phoneNumber: "+1 555 0100",
   avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+  avatarVariants: null,
   trustworthinessScore: 4,
   rentPostingsCount: 2,
   availableRentPostingsCount: 1,
@@ -558,11 +588,12 @@ const postingExample = {
   photos: [
     {
       id: "photo-1",
-      blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-      blobName: "postings/posting-1/photo-1.jpg",
+      blobUrl: postingPhotoUrlExample,
+      blobName: postingPhotoBlobNameExample,
       thumbnailBlobUrl:
         "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
       thumbnailBlobName: "postings/posting-1/photo-1-thumb.jpg",
+      variants: postingPhotoVariantsExample,
       position: 0,
       createdAt: "2026-05-01T10:00:00.000Z",
       updatedAt: "2026-05-01T10:00:00.000Z",
@@ -597,7 +628,8 @@ const postingExample = {
     latitude: 43.65,
     longitude: -79.38,
   },
-  primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+  primaryPhotoUrl: postingPhotoUrlExample,
+  primaryPhotoVariants: postingPhotoVariantsExample,
   primaryThumbnailUrl:
     "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
   viewerReviewState: {
@@ -671,6 +703,7 @@ const reviewExample = {
   reviewer: {
     username: "taylor-renter",
     avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+    avatarVariants: null,
   },
   createdAt: "2026-05-18T10:00:00.000Z",
   updatedAt: "2026-05-18T10:00:00.000Z",
@@ -776,6 +809,7 @@ const reportExample = {
     email: "user1@rentify.local",
     username: "renter-one",
     avatarUrl: "https://cdn.rentify.local/avatars/user-1.png",
+    avatarVariants: null,
     role: "user",
   },
   assignedModerator: {
@@ -783,6 +817,7 @@ const reportExample = {
     email: "moderator1@rentify.local",
     username: "mod-one",
     avatarUrl: "https://cdn.rentify.local/avatars/mod-1.png",
+    avatarVariants: null,
     role: "moderator",
   },
   subjectSnapshot: {
@@ -879,7 +914,8 @@ const analyticsDetailExample = {
   postingId: "posting-1",
   name: "Sunny loft workspace",
   status: "published",
-  primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+  primaryPhotoUrl: postingPhotoUrlExample,
+  primaryPhotoVariants: postingPhotoVariantsExample,
   window: "7d",
   granularity: "day",
   totals: analyticsSummaryExample.totals,
@@ -959,7 +995,8 @@ const bookingRequestExample = {
   posting: {
     id: "posting-1",
     name: "Sunny loft workspace",
-    primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+    primaryPhotoUrl: postingPhotoUrlExample,
+    primaryPhotoVariants: postingPhotoVariantsExample,
     effectiveMaxBookingDurationDays: 30,
   },
 };
@@ -1042,6 +1079,8 @@ const checkoutSummaryExample = {
     id: "posting-1",
     name: "Downtown Toronto Loft",
     primaryPhotoUrl: "https://example.com/postings/loft/main.jpg",
+    // A seeded photo is not a processed image, so it has no renditions.
+    primaryPhotoVariants: null,
   },
   pricing: {
     currency: "CAD",
@@ -1106,7 +1145,8 @@ const rentingExample = {
   posting: {
     id: "posting-1",
     name: "Sunny loft workspace",
-    primaryPhotoUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+    primaryPhotoUrl: postingPhotoUrlExample,
+    primaryPhotoVariants: postingPhotoVariantsExample,
   },
 };
 const searchStatusExample = {
@@ -1215,6 +1255,18 @@ const searchStatusExample = {
 function schemaRef(name: string): Record<string, string> {
   return {
     $ref: `#/components/schemas/${name}`,
+  };
+}
+
+/**
+ * A response field holding an image's rendition URLs. Null when the image has
+ * none: it predates media processing, is seeded, or is not a processed image.
+ */
+function imageVariantsField(description: string): Record<string, unknown> {
+  return {
+    oneOf: [schemaRef("ImageVariants"), { type: "null" }],
+    readOnly: true,
+    description,
   };
 }
 
@@ -5464,8 +5516,8 @@ function buildOperations(): OperationDefinition[] {
         pricing: postingExample.pricing,
         photos: [
           {
-            blobUrl: "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-            blobName: "postings/posting-1/photo-1.jpg",
+            blobUrl: postingPhotoUrlExample,
+            blobName: postingPhotoBlobNameExample,
             position: 0,
           },
           { mediaId: mediaIdExample, position: 1 },
@@ -5701,8 +5753,8 @@ function buildOperations(): OperationDefinition[] {
                 postingId: "posting-1",
                 name: "Sunny loft workspace",
                 status: "published",
-                primaryPhotoUrl:
-                  "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                primaryPhotoUrl: postingPhotoUrlExample,
+                primaryPhotoVariants: postingPhotoVariantsExample,
                 totals: analyticsSummaryExample.totals,
                 derivedMetrics: analyticsSummaryExample.derivedMetrics,
               },
@@ -9236,6 +9288,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: {
             type: "string",
             enum: ["user", "owner", "moderator", "admin"],
@@ -9362,6 +9415,9 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
           },
           logoBlobName: { type: "string", maxLength: 1024, nullable: true },
+          logoVariants: imageVariantsField(
+            "Renditions of `logoUrl`. Read-only: derived from the stored logo.",
+          ),
           logoMediaId: {
             type: "string",
             format: "uuid",
@@ -9429,6 +9485,9 @@ function buildComponents(): Record<string, unknown> {
             maxLength: 1024,
             nullable: true,
           },
+          logoVariants: imageVariantsField(
+            "Renditions of `logoUrl`. Read-only: derived from the stored logo.",
+          ),
           customFields: {
             type: "object",
             additionalProperties: { type: "string", maxLength: 1000 },
@@ -9521,6 +9580,7 @@ function buildComponents(): Record<string, unknown> {
           lastName: { type: "string" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: schemaRef("OrganizationRole"),
           joinedAt: { type: "string", format: "date-time" },
         },
@@ -9731,6 +9791,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationAuditChange: {
@@ -9807,6 +9868,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationAnnouncementRecord: {
@@ -9880,6 +9942,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationBlogOrganizationSummary: {
@@ -9890,6 +9953,7 @@ function buildComponents(): Record<string, unknown> {
           slug: { type: "string", maxLength: 160 },
           name: { type: "string" },
           logoUrl: { type: "string", format: "uri" },
+          logoVariants: imageVariantsField("Renditions of `logoUrl`."),
         },
       },
       OrganizationBlogPostRecord: {
@@ -9916,6 +9980,9 @@ function buildComponents(): Record<string, unknown> {
           body: { type: "string" },
           coverImageUrl: { type: "string", format: "uri" },
           coverImageBlobName: { type: "string" },
+          coverImageVariants: imageVariantsField(
+            "Renditions of `coverImageUrl`.",
+          ),
           tags: { type: "array", items: { type: "string" } },
           status: schemaRef("OrganizationBlogStatus"),
           commentsEnabled: {
@@ -10015,6 +10082,7 @@ function buildComponents(): Record<string, unknown> {
               "Falls back to a generic label when the account has no profile username. An email address is never exposed here, because this record is served on a public page.",
           },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationBlogCommentRecord: {
@@ -10126,6 +10194,7 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
         },
       },
       OrganizationReviewResponse: {
@@ -10141,6 +10210,7 @@ function buildComponents(): Record<string, unknown> {
               id: { type: "string" },
               username: { type: "string" },
               avatarUrl: { type: "string", format: "uri" },
+              avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
             },
           },
         },
@@ -10669,6 +10739,7 @@ function buildComponents(): Record<string, unknown> {
           "sizeBytes",
           "width",
           "height",
+          "variants",
           "rejectionReason",
           "createdAt",
           "updatedAt",
@@ -10693,9 +10764,37 @@ function buildComponents(): Record<string, unknown> {
           sizeBytes: { type: "integer", nullable: true },
           width: { type: "integer", nullable: true },
           height: { type: "integer", nullable: true },
+          variants: imageVariantsField(
+            "The processed image's renditions, set with `url`. For an image processed before renditions existed, the smaller two exist only once the backfill has reached it; clients should fall back to `url` if one fails to load.",
+          ),
           rejectionReason: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ImageVariants: {
+        type: "object",
+        description:
+          "Renditions of one processed image, for a `srcset`. None is enlarged, so a small image's renditions may all have the same dimensions.",
+        required: ["thumbnail", "medium", "large"],
+        additionalProperties: false,
+        properties: {
+          thumbnail: {
+            type: "string",
+            format: "uri",
+            description: "300 px wide, or the image's own width if narrower.",
+          },
+          medium: {
+            type: "string",
+            format: "uri",
+            description: "800 px wide, or the image's own width if narrower.",
+          },
+          large: {
+            type: "string",
+            format: "uri",
+            description:
+              "The processed image itself, capped by the deployment's processed-image edge (2560 px by default).",
+          },
         },
       },
       MediaUploadInstructions: {
@@ -10942,10 +11041,18 @@ function buildComponents(): Record<string, unknown> {
       },
       PublicProfileRecord: {
         type: "object",
+        properties: {
+          avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+        },
         additionalProperties: true,
       },
       ProfileRecord: {
         type: "object",
+        properties: {
+          avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+        },
         additionalProperties: true,
       },
       ListProfilesResult: {
@@ -11116,6 +11223,10 @@ function buildComponents(): Record<string, unknown> {
       PostingRecord: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            items: schemaRef("PostingPhotoRecord"),
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11129,6 +11240,24 @@ function buildComponents(): Record<string, unknown> {
       PublicPostingRecord: {
         type: "object",
         properties: {
+          photos: {
+            type: "array",
+            items: schemaRef("PostingPhotoRecord"),
+          },
+          primaryPhotoUrl: {
+            type: "string",
+            format: "uri",
+            description: "The photo at position 0, or the first photo.",
+          },
+          primaryPhotoVariants: imageVariantsField(
+            "Renditions of `primaryPhotoUrl`.",
+          ),
+          primaryThumbnailUrl: {
+            type: "string",
+            format: "uri",
+            description:
+              "The 640x480 card crop of the primary photo, once the posting thumbnail worker has written it.",
+          },
           expiresAt: {
             type: "string",
             format: "date-time",
@@ -11138,6 +11267,26 @@ function buildComponents(): Record<string, unknown> {
           },
         },
         additionalProperties: true,
+      },
+      PostingPhotoRecord: {
+        type: "object",
+        required: ["id", "blobUrl", "blobName", "variants", "position"],
+        properties: {
+          id: { type: "string" },
+          blobUrl: { type: "string", format: "uri" },
+          blobName: { type: "string" },
+          thumbnailBlobUrl: {
+            type: "string",
+            format: "uri",
+            description:
+              "The 640x480 card crop, written for the primary photo only.",
+          },
+          thumbnailBlobName: { type: "string" },
+          variants: imageVariantsField("Renditions of `blobUrl`."),
+          position: { type: "integer", minimum: 0 },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
       },
       ListOwnerPostingsResult: {
         type: "object",
@@ -11443,6 +11592,16 @@ function buildComponents(): Record<string, unknown> {
       },
       PostingReviewRecord: {
         type: "object",
+        properties: {
+          reviewer: {
+            type: "object",
+            properties: {
+              username: { type: "string" },
+              avatarUrl: { type: "string", format: "uri" },
+              avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
+            },
+          },
+        },
         additionalProperties: true,
       },
       GetOwnPostingReviewResult: {
@@ -11824,6 +11983,7 @@ function buildComponents(): Record<string, unknown> {
           email: { type: "string", format: "email" },
           username: { type: "string" },
           avatarUrl: { type: "string", format: "uri" },
+          avatarVariants: imageVariantsField("Renditions of `avatarUrl`."),
           role: {
             type: "string",
             enum: ["user", "owner", "moderator", "admin"],
@@ -12081,10 +12241,31 @@ function buildComponents(): Record<string, unknown> {
       },
       PostingAnalyticsListResult: {
         type: "object",
+        properties: {
+          postings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                primaryPhotoUrl: { type: "string", format: "uri" },
+                primaryPhotoVariants: imageVariantsField(
+                  "Renditions of `primaryPhotoUrl`.",
+                ),
+              },
+              additionalProperties: true,
+            },
+          },
+        },
         additionalProperties: true,
       },
       PostingAnalyticsDetail: {
         type: "object",
+        properties: {
+          primaryPhotoUrl: { type: "string", format: "uri" },
+          primaryPhotoVariants: imageVariantsField(
+            "Renditions of `primaryPhotoUrl`.",
+          ),
+        },
         additionalProperties: true,
       },
       CreateBookingRequest: {
@@ -12124,6 +12305,20 @@ function buildComponents(): Record<string, unknown> {
       },
       BookingRequestRecord: {
         type: "object",
+        properties: {
+          posting: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              primaryPhotoUrl: { type: "string", format: "uri" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
+            },
+            additionalProperties: true,
+          },
+        },
         additionalProperties: true,
       },
       SendBookingMessageRequest: {
@@ -12377,6 +12572,9 @@ function buildComponents(): Record<string, unknown> {
               id: { type: "string" },
               name: { type: "string" },
               primaryPhotoUrl: { type: "string" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
             },
           },
           pricing: {
@@ -12510,6 +12708,20 @@ function buildComponents(): Record<string, unknown> {
       },
       RentingRecord: {
         type: "object",
+        properties: {
+          posting: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              primaryPhotoUrl: { type: "string", format: "uri" },
+              primaryPhotoVariants: imageVariantsField(
+                "Renditions of `primaryPhotoUrl`.",
+              ),
+            },
+            additionalProperties: true,
+          },
+        },
         additionalProperties: true,
       },
       ListRentingsResult: {

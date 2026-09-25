@@ -1,3 +1,4 @@
+import type { ImageVariants } from "@/features/media/media.model";
 import { z } from "zod";
 import {
   DEFAULT_PAGE_SIZE,
@@ -250,6 +251,7 @@ export interface CheckoutSummary {
     id: Uuid;
     name: string;
     primaryPhotoUrl?: string;
+    primaryPhotoVariants: ImageVariants | null;
   };
   pricing: {
     currency: string;

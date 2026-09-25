@@ -59,6 +59,7 @@ export function createAuthUser(
   overrides: Partial<AuthUserProfile> = {},
 ): AuthUserProfile {
   return {
+    avatarVariants: null,
     id: USER_1_ID,
     email: "user@example.com",
     firstName: "Test",

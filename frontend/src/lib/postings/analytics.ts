@@ -4,6 +4,7 @@ import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import { getClientAppHeader } from "@/lib/api/client-app";
 import { readStoredSession } from "@/lib/auth/storage";
 import { resolveApiBaseUrl } from "@/lib/env";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type PostingAnalyticsWindow = "7d" | "30d" | "all";
 export type PostingAnalyticsGranularity = "hour" | "day";
@@ -71,6 +72,7 @@ export interface PostingAnalyticsListItem {
   name: string;
   status: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
   totals: PostingAnalyticsMetrics;
   derivedMetrics: PostingAnalyticsDerivedMetrics;
 }
@@ -103,6 +105,7 @@ export interface PostingAnalyticsDetail {
   name: string;
   status: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
   window: PostingAnalyticsWindow;
   granularity: PostingAnalyticsGranularity;
   totals: PostingAnalyticsMetrics;

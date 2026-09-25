@@ -27,7 +27,7 @@ function createReview(
     rating: 5,
     title: "Great",
     comment: "Loved it",
-    reviewer: { username: "renter-two" },
+    reviewer: { username: "renter-two", avatarVariants: null },
     createdAt: "2026-07-16T00:00:00.000Z",
     updatedAt: "2026-07-16T00:00:00.000Z",
     ...overrides,
@@ -80,7 +80,11 @@ function createService(options?: {
           ? {
               body: input.response,
               respondedAt: "2026-07-17T00:00:00.000Z",
-              author: { id: USER_1_ID, username: "owner-one" },
+              author: {
+                id: USER_1_ID,
+                username: "owner-one",
+                avatarVariants: null,
+              },
             }
           : undefined,
       }),

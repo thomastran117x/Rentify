@@ -6,6 +6,7 @@ import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import BlobChangedError from "@/errors/blob-changed.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
@@ -21,11 +22,15 @@ import {
   deleteQuarantinedUpload,
   rejectMedia,
 } from "@/features/media/media-rejection";
+import {
+  PROCESSED_IMAGE_CONTENT_TYPE,
+  renderImage,
+  renderSmallerRenditions,
+  uploadSmallerRenditions,
+} from "@/features/media/image-renditions";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 
-const PROCESSED_IMAGE_QUALITY = 85;
-const PROCESSED_IMAGE_CONTENT_TYPE = "image/webp";
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
 const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
 const PROCESSING_FAILED_REASON = "The image could not be processed.";
@@ -41,7 +46,10 @@ const PROCESSING_FAILED_REASON = "The image could not be processed.";
  * stored pixels are upright, and means what is served was produced by this
  * process rather than supplied by the client. It also scales the image down so
  * its longest edge is within `imageUploads.maxProcessedEdge`, since the full
- * upload can be far larger than anything the UI displays.
+ * upload can be far larger than anything the UI displays. Two smaller
+ * renditions, medium and thumbnail, are written beside it from the same
+ * decoded pipeline, all before the item is marked ready, so a ready image
+ * always has all three.
  *
  * The upload credential outlives completion, so the blob may have been written
  * again since. Its properties are checked before anything is downloaded: the
@@ -109,30 +117,39 @@ export class MediaProcessingService {
     }
 
     const policy = environment.getImageUploadsConfig();
-    const processed = await sharp(original.body, {
-      limitInputPixels: policy.maxPixels,
-      failOn: IMAGE_DECODE_FAIL_ON,
-    })
-      // Rotated first, so the cap applies to the upright image.
-      .rotate()
-      .resize({
-        width: policy.maxProcessedEdge,
-        height: policy.maxProcessedEdge,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({ quality: PROCESSED_IMAGE_QUALITY })
-      .toBuffer({ resolveWithObject: true });
+    // Rotated first, so the cap applies to the upright image. The upload is
+    // decoded once, here; the smaller renditions come from the result.
+    const processed = await renderImage(
+      sharp(original.body, {
+        limitInputPixels: policy.maxPixels,
+        failOn: IMAGE_DECODE_FAIL_ON,
+      }).rotate(),
+      policy.maxProcessedEdge,
+    );
+    const renditions = await renderSmallerRenditions(processed.data);
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
       record.id,
     );
+    const renditionNames =
+      this.blobService.buildImageVariantBlobNames(processedBlobName);
 
+    if (!renditionNames) {
+      throw new Error("Processed image name has no renditions.");
+    }
+
+    // A failure part way through throws, and the retried job writes every
+    // rendition again under the same names.
     await this.blobService.uploadBuffer({
       blobName: processedBlobName,
       body: processed.data,
       contentType: PROCESSED_IMAGE_CONTENT_TYPE,
     });
+    const variants = await uploadSmallerRenditions(
+      this.blobService,
+      renditionNames,
+      renditions,
+    );
 
     // sizeBytes, width, and height now describe what is served, not what was
     // uploaded; detectedContentType records what the upload really was.
@@ -140,14 +157,19 @@ export class MediaProcessingService {
       processedBlobName,
       detectedContentType,
       sizeBytes: processed.data.byteLength,
-      width: processed.info.width,
-      height: processed.info.height,
+      width: processed.width,
+      height: processed.height,
+      variants,
     });
 
     if (!marked && !(await this.isReadyAs(record.id, processedBlobName))) {
       // The row was deleted, or rejected by a dead-lettered duplicate, while
-      // this ran. Nothing references the image just written.
-      await this.blobService.deleteBlob(processedBlobName);
+      // this ran. Nothing references the renditions just written.
+      await Promise.all(
+        listImageVariantBlobNames(processedBlobName).map((blobName) =>
+          this.blobService.deleteBlob(blobName),
+        ),
+      );
       return;
     }
 

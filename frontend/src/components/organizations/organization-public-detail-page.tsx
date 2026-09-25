@@ -190,6 +190,7 @@ export function OrganizationPublicDetailPage({
                 <OrganizationLogo
                   name={organization.name}
                   logoUrl={organization.logoUrl}
+                  logoVariants={organization.logoVariants}
                   size="lg"
                 />
               </div>

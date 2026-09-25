@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -13,7 +14,7 @@ const AUTHOR_INCLUDE = {
       id: true,
       email: true,
       profile: {
-        select: { username: true, avatarUrl: true },
+        select: { username: true, avatarUrl: true, avatarBlobName: true },
       },
     },
   },
@@ -305,6 +306,10 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
         // public page, so an address must not leak through a missing profile.
         username: row.author?.profile?.username ?? "Member",
         avatarUrl: row.author?.profile?.avatarUrl ?? undefined,
+        avatarVariants: describeImageVariants(
+          row.author?.profile?.avatarBlobName,
+          row.author?.profile?.avatarUrl,
+        ),
       },
       body: row.body,
       createdAt: row.createdAt.toISOString(),

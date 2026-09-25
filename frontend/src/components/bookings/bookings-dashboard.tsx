@@ -49,6 +49,7 @@ import type {
   RenterBookingDashboardBucket,
   RenterBookingDashboardResult,
 } from "@/lib/bookings/types";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 type DashboardView = "owner" | "renter";
 type BannerTone = "error" | "success";
@@ -366,9 +367,10 @@ export function BookingItemCard({
       <div className="grid gap-0 lg:grid-cols-[170px_minmax(0,1fr)]">
         <div className="relative min-h-44 bg-slate-100 dark:bg-slate-800">
           {item.posting.primaryPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ResponsiveImage
               src={item.posting.primaryPhotoUrl}
+              variants={item.posting.primaryPhotoVariants}
+              sizes="(min-width: 1024px) 170px, 100vw"
               alt={item.posting.name}
               className="absolute inset-0 h-full w-full object-cover"
             />

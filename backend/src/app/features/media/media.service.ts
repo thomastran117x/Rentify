@@ -4,6 +4,8 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
+import { describeImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -320,7 +322,7 @@ export class MediaService {
     blobName: string,
   ): Promise<void> {
     this.assertOwnedBy(userId, blobName);
-    await this.blobService.deleteBlob(blobName);
+    await this.deleteImageBlobs(blobName);
 
     if (!this.blobService.isProcessedImageBlobName(blobName)) {
       return;
@@ -381,6 +383,10 @@ export class MediaService {
       sizeBytes: record.sizeBytes,
       width: record.width,
       height: record.height,
+      // Derived the same way as every other response that carries an image,
+      // so the media view never disagrees with the posting, profile, or
+      // organization it is attached to. See describeImageVariants.
+      variants: describeImageVariants(record.processedBlobName, url),
       rejectionReason: record.rejectionReason,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
@@ -436,13 +442,25 @@ export class MediaService {
   }
 
   private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
-    const blobNames = [record.originalBlobName, record.processedBlobName];
+    await this.blobService.deleteBlob(record.originalBlobName);
 
-    for (const blobName of blobNames) {
-      if (blobName) {
-        await this.blobService.deleteBlob(blobName);
-      }
+    if (record.processedBlobName) {
+      await this.deleteImageBlobs(record.processedBlobName);
     }
+  }
+
+  /**
+   * Deletes a stored image. A processed image goes with its renditions, which
+   * nothing references by name; any other name is a single blob.
+   */
+  private async deleteImageBlobs(blobName: string): Promise<void> {
+    const renditions = listImageVariantBlobNames(blobName);
+
+    await Promise.all(
+      (renditions.length > 0 ? renditions : [blobName]).map((name) =>
+        this.blobService.deleteBlob(name),
+      ),
+    );
   }
 
   private isStale(record: MediaRecord): boolean {

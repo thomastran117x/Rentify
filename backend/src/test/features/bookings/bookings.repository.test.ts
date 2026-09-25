@@ -67,7 +67,8 @@ function createBookingRequestPersistence(
       maxBookingDurationDays: null,
       photos: [
         {
-          blobUrl: `https://example.test/${POSTING_1_ID}.jpg`,
+          blobUrl: `https://cdn.test/uploads/media/images/owner-1/${POSTING_1_ID}.webp`,
+          blobName: `media/images/owner-1/${POSTING_1_ID}.webp`,
         },
       ],
     },
@@ -168,7 +169,12 @@ describe("BookingsRepository", () => {
       posting: {
         id: POSTING_1_ID,
         name: "Sunny loft",
-        primaryPhotoUrl: `https://example.test/${POSTING_1_ID}.jpg`,
+        primaryPhotoUrl: `https://cdn.test/uploads/media/images/owner-1/${POSTING_1_ID}.webp`,
+        primaryPhotoVariants: {
+          thumbnail: `https://cdn.test/uploads/media/images/owner-1/${POSTING_1_ID}.thumbnail.webp`,
+          medium: `https://cdn.test/uploads/media/images/owner-1/${POSTING_1_ID}.medium.webp`,
+          large: `https://cdn.test/uploads/media/images/owner-1/${POSTING_1_ID}.webp`,
+        },
         effectiveMaxBookingDurationDays: 30,
       },
     });

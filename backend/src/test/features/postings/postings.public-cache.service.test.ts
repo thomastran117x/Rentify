@@ -240,7 +240,7 @@ describe("PostingsPublicCacheService", () => {
       },
     });
     const externalLock = await cacheService.acquireLock(
-      `postings:public:rebuild:${POSTING_1_ID}`,
+      `postings:public:v2:rebuild:${POSTING_1_ID}`,
       5_000,
     );
 
@@ -262,7 +262,7 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      `postings:public:data:${POSTING_1_ID}:0`,
+      `postings:public:v2:data:${POSTING_1_ID}:0`,
       createEnvelope(stalePosting, {
         freshOffsetMs: -1_000,
         staleOffsetMs: 10_000,
@@ -301,7 +301,7 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      `postings:public:data:${POSTING_1_ID}:0`,
+      `postings:public:v2:data:${POSTING_1_ID}:0`,
       createEnvelope(stalePosting, {
         freshOffsetMs: -1_000,
         staleOffsetMs: 10_000,
@@ -384,7 +384,7 @@ describe("PostingsPublicCacheService", () => {
     });
 
     await cacheService.setJson(
-      `postings:public:data:${POSTING_1_ID}:0`,
+      `postings:public:v2:data:${POSTING_1_ID}:0`,
       createEnvelope(cachedPosting, {
         freshOffsetMs: 10_000,
         staleOffsetMs: 20_000,

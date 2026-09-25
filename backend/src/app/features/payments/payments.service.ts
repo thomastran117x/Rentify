@@ -224,6 +224,7 @@ export class PaymentsService {
         id: posting.id,
         name: posting.name,
         primaryPhotoUrl: posting.primaryPhotoUrl,
+        primaryPhotoVariants: posting.primaryPhotoVariants,
       },
       pricing: this.buildCheckoutPricing(context),
       cancellationPolicy: {

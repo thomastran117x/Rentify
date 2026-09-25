@@ -575,7 +575,68 @@ describe("MediaService", () => {
       });
     });
 
-    it("deletes a media item with both of its blobs", async () => {
+    it("exposes rendition URLs for a ready media, whether or not they are recorded yet", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      const processedBlobName = blobService.buildProcessedImageBlobName(
+        USER_1_ID,
+        mediaId,
+      );
+      const variants = {
+        medium: { width: 8, height: 8, sizeBytes: 2 },
+        thumbnail: { width: 8, height: 8, sizeBytes: 1 },
+      };
+
+      mediaRepository.put({ ...record, status: "processing", variants });
+      await expect(
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({ url: null, variants: null });
+
+      const names = blobService.buildImageVariantBlobNames(processedBlobName)!;
+      const expected = {
+        thumbnail: blobService.getBlobUrl(names.thumbnail),
+        medium: blobService.getBlobUrl(names.medium),
+        large: blobService.getBlobUrl(processedBlobName),
+      };
+
+      // Described the same way as wherever the image is attached, including
+      // before the backfill has written an older image's smaller renditions.
+      for (const recorded of [variants, null]) {
+        mediaRepository.put({
+          ...record,
+          status: "ready",
+          processedBlobName,
+          variants: recorded,
+        });
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId),
+        ).resolves.toMatchObject({ variants: expected });
+      }
+    });
+
+    async function writeRenditions(
+      blobService: BlobService,
+      processedBlobName: string,
+    ): Promise<string[]> {
+      const variants =
+        blobService.buildImageVariantBlobNames(processedBlobName);
+      const blobNames = variants ? Object.values(variants) : [];
+
+      for (const blobName of blobNames) {
+        await blobService.writeLocalBlob(
+          blobName,
+          Buffer.from("webp"),
+          "image/webp",
+        );
+      }
+
+      return blobNames;
+    }
+
+    it("deletes a media item with its upload and every rendition", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
       const { mediaId, upload } = await startUpload(mediaService);
@@ -585,17 +646,14 @@ describe("MediaService", () => {
         USER_1_ID,
         mediaId,
       );
-      await blobService.writeLocalBlob(
-        processedBlobName,
-        Buffer.from("webp"),
-        "image/webp",
-      );
+      const renditions = await writeRenditions(blobService, processedBlobName);
       mediaRepository.put({ ...record, status: "ready", processedBlobName });
 
       await mediaService.deleteMediaById(USER_1_ID, mediaId);
 
       expect(await mediaRepository.findById(mediaId)).toBeNull();
-      for (const blobName of [record.originalBlobName, processedBlobName]) {
+      expect(renditions).toHaveLength(3);
+      for (const blobName of [record.originalBlobName, ...renditions]) {
         await expect(blobService.readLocalBlob(blobName)).rejects.toThrow(
           ResourceNotFoundError,
         );
@@ -634,7 +692,7 @@ describe("MediaService", () => {
       ).resolves.toBeDefined();
     });
 
-    it("drops the media record when its processed image is deleted by name", async () => {
+    it("drops the media record and every rendition when its processed image is deleted by name", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
       const { mediaId } = await startUpload(mediaService);
@@ -643,6 +701,7 @@ describe("MediaService", () => {
         USER_1_ID,
         mediaId,
       );
+      const renditions = await writeRenditions(blobService, processedBlobName);
       mediaRepository.put({ ...record, status: "ready", processedBlobName });
 
       await mediaService.deleteReplacedImageByBlobName(
@@ -651,6 +710,11 @@ describe("MediaService", () => {
       );
 
       expect(await mediaRepository.findById(mediaId)).toBeNull();
+      for (const blobName of renditions) {
+        await expect(blobService.readLocalBlob(blobName)).rejects.toThrow(
+          ResourceNotFoundError,
+        );
+      }
     });
   });
 

@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -446,6 +447,10 @@ export class UsersRepository extends BaseRepository {
       username: profile.username,
       phoneNumber: profile.phoneNumber ?? undefined,
       avatarUrl: profile.avatarUrl ?? undefined,
+      avatarVariants: describeImageVariants(
+        profile.avatarBlobName,
+        profile.avatarUrl,
+      ),
       avatarBlobName: profile.avatarBlobName ?? undefined,
       isPrivate: profile.isPrivate,
       recommendationPersonalizationEnabled:

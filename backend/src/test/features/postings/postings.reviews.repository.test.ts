@@ -61,6 +61,7 @@ describe("PostingsReviewsRepository", () => {
       reviewer: {
         username: "renter-one",
         avatarUrl: "https://example.test/avatar.png",
+        avatarVariants: null,
       },
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-02T00:00:00.000Z",
@@ -122,6 +123,7 @@ describe("PostingsReviewsRepository", () => {
       reviewer: {
         username: undefined,
         avatarUrl: undefined,
+        avatarVariants: null,
       },
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-02T00:00:00.000Z",

@@ -8,6 +8,7 @@ import {
   formatDateTime,
   formatMoney,
 } from "@/lib/rentings/format";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 const MS_PER_MINUTE = 60_000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -77,9 +78,10 @@ export function CheckoutOrderSummary({
       <div className="flex gap-4 px-5 py-4">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
           {posting.primaryPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ResponsiveImage
               src={posting.primaryPhotoUrl}
+              variants={posting.primaryPhotoVariants}
+              sizes="80px"
               alt={posting.name}
               className="absolute inset-0 h-full w-full object-cover"
             />

@@ -6,7 +6,15 @@ import {
   formatPublishedDate,
   humanizePostingValue,
   isRenderablePreviewImageUrl,
+  resolvePhotoPreviewImage,
+  resolvePostingCardImage,
 } from "./public-format";
+
+const VARIANTS = {
+  thumbnail: "https://cdn.test/media/images/u/m.thumbnail.webp",
+  medium: "https://cdn.test/media/images/u/m.medium.webp",
+  large: "https://cdn.test/media/images/u/m.webp",
+};
 
 describe("public posting format helpers", () => {
   it("humanizes labels and applies known overrides", () => {
@@ -41,5 +49,78 @@ describe("public posting format helpers", () => {
     expect(
       isRenderablePreviewImageUrl("https://cdn.rentify.test/photo.jpg"),
     ).toBe(true);
+  });
+});
+
+describe("resolvePostingCardImage", () => {
+  it("keeps the card crop while it exists", () => {
+    expect(
+      resolvePostingCardImage({
+        primaryThumbnailUrl: "https://cdn.test/thumbnails/m.webp",
+        primaryPhotoUrl: VARIANTS.large,
+        primaryPhotoVariants: VARIANTS,
+      }),
+    ).toEqual({ src: "https://cdn.test/thumbnails/m.webp", variants: null });
+  });
+
+  it("otherwise offers the primary photo's renditions", () => {
+    expect(
+      resolvePostingCardImage({
+        primaryPhotoUrl: VARIANTS.large,
+        primaryPhotoVariants: VARIANTS,
+      }),
+    ).toEqual({ src: VARIANTS.large, variants: VARIANTS });
+    expect(
+      resolvePostingCardImage({ primaryPhotoUrl: "https://cdn.test/a.jpg" }),
+    ).toEqual({ src: "https://cdn.test/a.jpg", variants: null });
+  });
+
+  it("has nothing to show for seeded or missing photos", () => {
+    expect(
+      resolvePostingCardImage({
+        primaryPhotoUrl: "https://example.com/dev-seed/main.jpg",
+      }),
+    ).toBeNull();
+    expect(resolvePostingCardImage({})).toBeNull();
+  });
+});
+
+describe("resolvePhotoPreviewImage", () => {
+  it("offers renditions with the card crop as the fallback", () => {
+    expect(
+      resolvePhotoPreviewImage({
+        blobUrl: VARIANTS.large,
+        thumbnailBlobUrl: "https://cdn.test/thumbnails/m.webp",
+        variants: VARIANTS,
+      }),
+    ).toEqual({
+      src: "https://cdn.test/thumbnails/m.webp",
+      variants: VARIANTS,
+    });
+    expect(
+      resolvePhotoPreviewImage({ blobUrl: VARIANTS.large, variants: VARIANTS }),
+    ).toEqual({ src: VARIANTS.large, variants: VARIANTS });
+  });
+
+  it("falls back to the crop, then the photo", () => {
+    expect(
+      resolvePhotoPreviewImage({
+        blobUrl: "https://cdn.test/a.jpg",
+        thumbnailBlobUrl: "https://cdn.test/thumbnails/a.webp",
+      }),
+    ).toEqual({ src: "https://cdn.test/thumbnails/a.webp", variants: null });
+    expect(
+      resolvePhotoPreviewImage({ blobUrl: "https://cdn.test/a.jpg" }),
+    ).toEqual({ src: "https://cdn.test/a.jpg", variants: null });
+  });
+
+  it("has nothing to show for seeded or missing photos", () => {
+    expect(
+      resolvePhotoPreviewImage({
+        blobUrl: "https://example.com/seed.jpg",
+        variants: VARIANTS,
+      }),
+    ).toBeNull();
+    expect(resolvePhotoPreviewImage(null)).toBeNull();
   });
 });

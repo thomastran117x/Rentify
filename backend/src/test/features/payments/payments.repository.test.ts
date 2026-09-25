@@ -2061,7 +2061,13 @@ describe("PaymentsRepository", () => {
                   id: "posting-1",
                   name: "Lakeside cabin",
                   cancellationPolicyNotes: "No parties.",
-                  photos: [{ blobUrl: "https://blob.example/1.jpg" }],
+                  photos: [
+                    {
+                      blobUrl:
+                        "https://blob.example/uploads/media/images/u1/m1.webp",
+                      blobName: "media/images/u1/m1.webp",
+                    },
+                  ],
                 },
                 payment: createPaymentPersistence({
                   attempts: [attemptPersistence({ paymentMethod: "bogus" })],
@@ -2085,7 +2091,15 @@ describe("PaymentsRepository", () => {
         expect(context?.posting).toEqual({
           id: "posting-1",
           name: "Lakeside cabin",
-          primaryPhotoUrl: "https://blob.example/1.jpg",
+          primaryPhotoUrl:
+            "https://blob.example/uploads/media/images/u1/m1.webp",
+          primaryPhotoVariants: {
+            thumbnail:
+              "https://blob.example/uploads/media/images/u1/m1.thumbnail.webp",
+            medium:
+              "https://blob.example/uploads/media/images/u1/m1.medium.webp",
+            large: "https://blob.example/uploads/media/images/u1/m1.webp",
+          },
           cancellationPolicyNotes: "No parties.",
         });
         expect(context?.payment?.id).toBe(PAYMENT_1_ID);

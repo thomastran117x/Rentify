@@ -66,6 +66,57 @@ describe("PostingDetailGallery", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers each photo's renditions, sized for where it is drawn", () => {
+    const variants = (name: string) => ({
+      thumbnail: `https://cdn.rent.local/${name}.thumbnail.webp`,
+      medium: `https://cdn.rent.local/${name}.medium.webp`,
+      large: `https://cdn.rent.local/${name}.webp`,
+    });
+    render(
+      <PostingDetailGallery
+        name="Mountain Cabin"
+        photos={[
+          buildPhoto({
+            id: "photo-a",
+            blobUrl: "https://cdn.rent.local/a.webp",
+            variants: variants("a"),
+          }),
+          buildPhoto({
+            id: "photo-b",
+            blobUrl: "https://cdn.rent.local/b.webp",
+            thumbnailBlobUrl: undefined,
+            variants: variants("b"),
+          }),
+        ]}
+      />,
+    );
+
+    const main = screen.getByAltText("Mountain Cabin");
+    expect(main).toHaveAttribute("src", "https://cdn.rent.local/a.webp");
+    expect(main).toHaveAttribute(
+      "srcset",
+      expect.stringContaining("https://cdn.rent.local/a.medium.webp 800w"),
+    );
+    expect(main).toHaveAttribute(
+      "sizes",
+      "(min-width: 1280px) 610px, (min-width: 1024px) 50vw, 100vw",
+    );
+
+    const strip = screen
+      .getByRole("button", { name: "View photo 1 for Mountain Cabin" })
+      .querySelector("img");
+    // Renditions are offered, with the card crop as the fallback.
+    expect(strip).toHaveAttribute(
+      "src",
+      "https://cdn.rent.local/photo-1-thumb.jpg",
+    );
+    expect(strip).toHaveAttribute(
+      "srcset",
+      expect.stringContaining("https://cdn.rent.local/a.thumbnail.webp 300w"),
+    );
+    expect(strip).toHaveAttribute("sizes", "128px");
+  });
+
   it("switches the main preview when a thumbnail is selected", async () => {
     const user = userEvent.setup();
 

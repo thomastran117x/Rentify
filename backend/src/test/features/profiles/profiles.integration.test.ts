@@ -2,6 +2,7 @@ import { buildApiPath } from "@/configuration/http/api-path";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
+  createReadyMedia,
   resetPersistenceState,
   teardownPersistenceTestApp,
   type PersistenceTestApp,
@@ -93,6 +94,39 @@ describe("Profiles persistence integration", () => {
     await expect(rereadResponse.json()).resolves.toMatchObject({
       data: { username: "renter-one-updated", isPrivate: true },
     });
+  });
+
+  it("exposes the renditions of an uploaded avatar", async () => {
+    const user = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const avatar = await createReadyMedia(user.userId, { scope: "avatars" });
+
+    const updateResponse = await request("/profile/me", {
+      method: "PUT",
+      headers: user.headers(),
+      body: JSON.stringify({
+        username: "renter-one",
+        avatarMediaId: avatar.mediaId,
+      }),
+    });
+    expect(updateResponse.status).toBe(200);
+
+    const profile = await readData<{
+      avatarUrl: string;
+      avatarVariants: Record<"thumbnail" | "medium" | "large", string>;
+    }>(await request("/profile/me", { headers: user.headers() }));
+    const addressed = (url: string) =>
+      new URL(url).searchParams.get("blobName");
+
+    expect(profile.avatarUrl).toBe(avatar.blobUrl);
+    expect(profile.avatarVariants.large).toBe(avatar.blobUrl);
+    expect(addressed(profile.avatarVariants.medium)).toBe(
+      avatar.blobName.replace(/\.webp$/, ".medium.webp"),
+    );
+    expect(addressed(profile.avatarVariants.thumbnail)).toBe(
+      avatar.blobName.replace(/\.webp$/, ".thumbnail.webp"),
+    );
   });
 
   it("rejects reading the signed-in profile without a token", async () => {

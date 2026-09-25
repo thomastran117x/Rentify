@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -2030,6 +2031,7 @@ export class PostingsRepository extends BaseRepository {
           blobName: photo.blobName,
           thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
           thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
+          variants: describeImageVariants(photo.blobName, photo.blobUrl),
           position: photo.position,
           createdAt: photo.createdAt.toISOString(),
           updatedAt: photo.updatedAt.toISOString(),
@@ -3228,6 +3230,7 @@ export class PostingsRepository extends BaseRepository {
           blobName: photo.blobName,
           thumbnailBlobUrl: photo.thumbnailBlobUrl ?? undefined,
           thumbnailBlobName: photo.thumbnailBlobName ?? undefined,
+          variants: describeImageVariants(photo.blobName, photo.blobUrl),
           position: photo.position,
           createdAt: photo.createdAt.toISOString(),
           updatedAt: photo.updatedAt.toISOString(),
@@ -3331,6 +3334,7 @@ export class PostingsRepository extends BaseRepository {
       },
       photos: posting.photos.map((photo) => ({
         blobUrl: photo.blobUrl,
+        blobName: photo.blobName,
         position: photo.position,
       })),
       blockedRanges: this.collectBlockedRanges(posting),

@@ -96,6 +96,7 @@ describe("OrganizationBlogRepository", () => {
         email: "owner@example.com",
         username: "owner-one",
         avatarUrl: "https://example.test/avatar.png",
+        avatarVariants: null,
       },
       title: "Blog title",
       slug: "blog-title",
@@ -103,6 +104,8 @@ describe("OrganizationBlogRepository", () => {
       body: "<p>Body</p>",
       coverImageUrl: `https://cdn/organizations/${ORG_1_ID}/blog/c.png`,
       coverImageBlobName: `organizations/${ORG_1_ID}/blog/c.png`,
+      // Stored before media existed, so it has no renditions.
+      coverImageVariants: null,
       tags: ["news", "update"],
       status: "published",
       commentsEnabled: true,
@@ -121,6 +124,26 @@ describe("OrganizationBlogRepository", () => {
         ]),
       }),
     );
+  });
+
+  it("describes the renditions of a processed cover", async () => {
+    const coverImageBlobName = `media/images/${USER_1_ID}/cover-1.webp`;
+    const coverImageUrl = `https://cdn.test/uploads/${coverImageBlobName}`;
+    const repository = new OrganizationBlogRepository({
+      organizationBlogPost: {
+        findFirst: jest.fn(async () =>
+          buildRow({ coverImageUrl, coverImageBlobName }),
+        ),
+      },
+    } as never);
+
+    const result = await repository.findPublishedBySlug(ORG_1_ID, "blog-title");
+
+    expect(result?.coverImageVariants).toEqual({
+      thumbnail: `https://cdn.test/uploads/media/images/${USER_1_ID}/cover-1.thumbnail.webp`,
+      medium: `https://cdn.test/uploads/media/images/${USER_1_ID}/cover-1.medium.webp`,
+      large: coverImageUrl,
+    });
   });
 
   it("maps a draft post without author, cover, tags, or published date", async () => {

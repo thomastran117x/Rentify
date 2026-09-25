@@ -1,3 +1,4 @@
+import { describeImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -187,6 +188,10 @@ export class OrganizationAuditRepository extends BaseRepository {
             email: row.actor.email,
             username: row.actor.profile?.username ?? row.actor.email,
             avatarUrl: row.actor.profile?.avatarUrl ?? undefined,
+            avatarVariants: describeImageVariants(
+              row.actor.profile?.avatarBlobName,
+              row.actor.profile?.avatarUrl,
+            ),
           }
         : undefined,
       action: row.action as OrganizationAuditRecord["action"],
