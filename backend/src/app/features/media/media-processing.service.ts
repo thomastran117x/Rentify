@@ -116,17 +116,16 @@ export class MediaProcessingService {
     }
 
     const policy = environment.getImageUploadsConfig();
-    // Rotated first, so every cap applies to the upright image. Each rendition
-    // clones this pipeline rather than re-reading the upload.
-    const source = sharp(original.body, {
-      limitInputPixels: policy.maxPixels,
-      failOn: IMAGE_DECODE_FAIL_ON,
-    }).rotate();
-    const processed = await renderImage(source, policy.maxProcessedEdge);
-    const renditions = await renderSmallerRenditions(
-      source,
+    // Rotated first, so the cap applies to the upright image. The upload is
+    // decoded once, here; the smaller renditions come from the result.
+    const processed = await renderImage(
+      sharp(original.body, {
+        limitInputPixels: policy.maxPixels,
+        failOn: IMAGE_DECODE_FAIL_ON,
+      }).rotate(),
       policy.maxProcessedEdge,
     );
+    const renditions = await renderSmallerRenditions(processed.data);
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
       record.id,

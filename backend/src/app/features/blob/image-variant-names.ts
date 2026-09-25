@@ -3,16 +3,18 @@ export const PROCESSED_IMAGE_DIRECTORY = "media/images";
 export const PROCESSED_IMAGE_EXTENSION = ".webp";
 
 /**
- * The longest edge of each smaller rendition, fitted inside a square of that
- * size. The large rendition is the processed image itself, capped by
- * `imageUploads.maxProcessedEdge`.
+ * The width of each smaller rendition, never enlarged: a narrower image keeps
+ * its own width. Sized by width rather than longest edge so that the `w`
+ * descriptor a srcset gives each one is its real width, and a portrait is not
+ * picked too small. The large rendition is the processed image itself, fitted
+ * inside `imageUploads.maxProcessedEdge`.
  */
-export const IMAGE_VARIANT_EDGES = {
+export const IMAGE_VARIANT_WIDTHS = {
   medium: 800,
   thumbnail: 300,
 } as const;
 
-export type ImageVariantName = keyof typeof IMAGE_VARIANT_EDGES;
+export type ImageVariantName = keyof typeof IMAGE_VARIANT_WIDTHS;
 
 export interface ImageVariantBlobNames {
   large: string;

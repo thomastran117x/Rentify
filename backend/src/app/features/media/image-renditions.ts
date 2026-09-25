@@ -1,8 +1,9 @@
-import type { Sharp } from "sharp";
+import sharp, { type Sharp } from "sharp";
 import {
-  IMAGE_VARIANT_EDGES,
+  IMAGE_VARIANT_WIDTHS,
   type ImageVariantBlobNames,
 } from "@/features/blob/image-variant-names";
+import { IMAGE_DECODE_FAIL_ON } from "@/features/media/image-policy";
 import type { BlobService } from "@/features/blob/blob.service";
 import type {
   ImageRenditionInfo,
@@ -18,51 +19,57 @@ export interface RenderedImage {
   height: number;
 }
 
-/**
- * Encodes one rendition of `source`, fitted inside a square of `edge` pixels
- * and never enlarged. `source` is cloned, so one decoded, rotated pipeline can
- * produce every rendition.
- */
+/** Encodes `source`, fitted inside a square of `edge` pixels, never enlarged. */
 export async function renderImage(
   source: Sharp,
   edge: number,
 ): Promise<RenderedImage> {
-  const { data, info } = await source
-    .clone()
-    .resize({
+  return encode(
+    source.resize({
       width: edge,
       height: edge,
       fit: "inside",
       withoutEnlargement: true,
-    })
+    }),
+  );
+}
+
+/**
+ * Encodes the medium and thumbnail renditions of a processed image, each
+ * scaled to its width and never enlarged.
+ *
+ * They are made from the processed image, not the upload. It is already
+ * upright, in sRGB, and no larger than the processed cap, so decoding it is a
+ * fraction of the cost of decoding a full-size upload again for each one, and
+ * scaling it down cannot take a rendition past that cap.
+ */
+export async function renderSmallerRenditions(
+  processed: Buffer,
+): Promise<{ medium: RenderedImage; thumbnail: RenderedImage }> {
+  const source = sharp(processed, { failOn: IMAGE_DECODE_FAIL_ON });
+  // One after the other: each clone decodes the source again, and running them
+  // at once would only raise the worker's peak memory.
+  const medium = await encode(
+    source
+      .clone()
+      .resize({ width: IMAGE_VARIANT_WIDTHS.medium, withoutEnlargement: true }),
+  );
+  const thumbnail = await encode(
+    source.clone().resize({
+      width: IMAGE_VARIANT_WIDTHS.thumbnail,
+      withoutEnlargement: true,
+    }),
+  );
+
+  return { medium, thumbnail };
+}
+
+async function encode(pipeline: Sharp): Promise<RenderedImage> {
+  const { data, info } = await pipeline
     .webp({ quality: PROCESSED_IMAGE_QUALITY })
     .toBuffer({ resolveWithObject: true });
 
   return { data, width: info.width, height: info.height };
-}
-
-/**
- * Encodes the medium and thumbnail renditions. Neither is allowed past the
- * large one's cap, so a deployment that caps processed images below 800 px
- * does not publish a "medium" larger than its "large".
- *
- * One after the other rather than together: each clone decodes the source
- * again, and running them at once would multiply the worker's peak memory.
- */
-export async function renderSmallerRenditions(
-  source: Sharp,
-  maxEdge: number,
-): Promise<{ medium: RenderedImage; thumbnail: RenderedImage }> {
-  const medium = await renderImage(
-    source,
-    Math.min(IMAGE_VARIANT_EDGES.medium, maxEdge),
-  );
-  const thumbnail = await renderImage(
-    source,
-    Math.min(IMAGE_VARIANT_EDGES.thumbnail, maxEdge),
-  );
-
-  return { medium, thumbnail };
 }
 
 /**
@@ -74,16 +81,15 @@ export async function uploadSmallerRenditions(
   names: ImageVariantBlobNames,
   renditions: { medium: RenderedImage; thumbnail: RenderedImage },
 ): Promise<MediaVariantsMetadata> {
-  await blobService.uploadBuffer({
-    blobName: names.medium,
-    body: renditions.medium.data,
-    contentType: PROCESSED_IMAGE_CONTENT_TYPE,
-  });
-  await blobService.uploadBuffer({
-    blobName: names.thumbnail,
-    body: renditions.thumbnail.data,
-    contentType: PROCESSED_IMAGE_CONTENT_TYPE,
-  });
+  await Promise.all(
+    (["medium", "thumbnail"] as const).map((rendition) =>
+      blobService.uploadBuffer({
+        blobName: names[rendition],
+        body: renditions[rendition].data,
+        contentType: PROCESSED_IMAGE_CONTENT_TYPE,
+      }),
+    ),
+  );
 
   return {
     medium: describeRendition(renditions.medium),

@@ -222,7 +222,7 @@ describe("MediaProcessingService", () => {
       });
     });
 
-    it("fits an upright portrait's renditions by its longest edge", async () => {
+    it("sizes an upright portrait's renditions by their width", async () => {
       // Stored landscape with orientation 6: displayed as a 1200x1600 portrait.
       const rotatedJpeg = await sharp({
         create: {
@@ -241,8 +241,10 @@ describe("MediaProcessingService", () => {
         "image/jpeg",
       );
 
-      expect(medium).toMatchObject({ width: 600, height: 800 });
-      expect(thumbnail).toMatchObject({ width: 225, height: 300 });
+      // By width, so a srcset's 800w and 300w descriptors are their real
+      // widths and a narrow column never gets a copy too small for it.
+      expect(medium).toMatchObject({ width: 800, height: 1067 });
+      expect(thumbnail).toMatchObject({ width: 300, height: 400 });
     });
 
     it("keeps the medium within a processed cap below its own size", async () => {

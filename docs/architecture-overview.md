@@ -205,16 +205,21 @@ was produced by the worker, not supplied by the client. The width and height
 reported by `GET /media/{id}` are the processed image's. A policy failure
 rejects the item with its reason. Both outcomes delete the quarantined upload.
 
-**Renditions.** From the same decoded, rotated pipeline the worker also writes
-two smaller renditions, so a list or an avatar need not download the full
-image. They are uploaded before the item is marked `ready`, so a ready image
-always has all three:
+**Renditions.** From the processed image the worker also writes two smaller
+renditions, so a list or an avatar need not download the full image. They are
+uploaded before the item is marked `ready`, so a ready image always has all
+three:
 
-| Rendition   | Blob name                                        | Fits inside                       |
-| ----------- | ------------------------------------------------ | --------------------------------- |
-| `large`     | `media/images/<userId>/<mediaId>.webp`           | `imageUploads.maxProcessedEdge`   |
-| `medium`    | `media/images/<userId>/<mediaId>.medium.webp`    | 800 px, never above the large cap |
-| `thumbnail` | `media/images/<userId>/<mediaId>.thumbnail.webp` | 300 px, never above the large cap |
+| Rendition   | Blob name                                        | Size                                   |
+| ----------- | ------------------------------------------------ | -------------------------------------- |
+| `large`     | `media/images/<userId>/<mediaId>.webp`           | Inside `imageUploads.maxProcessedEdge` |
+| `medium`    | `media/images/<userId>/<mediaId>.medium.webp`    | 800 px wide                            |
+| `thumbnail` | `media/images/<userId>/<mediaId>.thumbnail.webp` | 300 px wide                            |
+
+None is enlarged, so a narrower image keeps its own width. The smaller two are
+sized by width, not longest edge, so the `300w` and `800w` descriptors in a
+`srcset` are their real widths and a portrait is never picked too small. They
+are scaled from the processed image, so the upload is decoded only once.
 
 The names are derived from the processed name
 (`buildImageVariantBlobNames` in `features/blob/image-variant-names.ts`), so

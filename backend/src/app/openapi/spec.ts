@@ -10775,19 +10775,19 @@ function buildComponents(): Record<string, unknown> {
       ImageVariants: {
         type: "object",
         description:
-          "Renditions of one processed image, for a `srcset`. Each fits inside a square of its size and is never enlarged, so a small image's renditions may all have the same dimensions.",
+          "Renditions of one processed image, for a `srcset`. None is enlarged, so a small image's renditions may all have the same dimensions.",
         required: ["thumbnail", "medium", "large"],
         additionalProperties: false,
         properties: {
           thumbnail: {
             type: "string",
             format: "uri",
-            description: "At most 300 px on its longest edge.",
+            description: "300 px wide, or the image's own width if narrower.",
           },
           medium: {
             type: "string",
             format: "uri",
-            description: "At most 800 px on its longest edge.",
+            description: "800 px wide, or the image's own width if narrower.",
           },
           large: {
             type: "string",

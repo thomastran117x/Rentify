@@ -1,8 +1,6 @@
-import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { BlobService } from "@/features/blob/blob.service";
-import { IMAGE_DECODE_FAIL_ON } from "@/features/media/image-policy";
 import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
@@ -137,20 +135,12 @@ export class MediaVariantsBackfillService {
       throw new Error("The processed image name has no renditions.");
     }
 
-    const policy = environment.getImageUploadsConfig();
     // The processed image is this application's own output, already upright
-    // and within the pixel budget; the limits only guard a damaged blob.
+    // and within the processed cap; the size limit only guards a damaged blob.
     const { body } = await this.blobService.downloadBlob(names.large, {
-      maxBytes: policy.maxSizeBytes,
+      maxBytes: environment.getImageUploadsConfig().maxSizeBytes,
     });
-    const source = sharp(body, {
-      limitInputPixels: policy.maxPixels,
-      failOn: IMAGE_DECODE_FAIL_ON,
-    });
-    const renditions = await renderSmallerRenditions(
-      source,
-      policy.maxProcessedEdge,
-    );
+    const renditions = await renderSmallerRenditions(body);
     const variants = await uploadSmallerRenditions(
       this.blobService,
       names,

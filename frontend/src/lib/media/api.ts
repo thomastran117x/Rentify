@@ -21,8 +21,8 @@ export type MediaStatus =
   | "rejected";
 
 /**
- * The renditions of a processed image, smallest first: a thumbnail fitted
- * inside 300 px, a medium inside 800 px, and the processed image itself. Feed
+ * The renditions of a processed image, smallest first: a thumbnail 300 px
+ * wide, a medium 800 px wide, and the processed image itself. Feed
  * them to ResponsiveImage. A field holding them is null (or absent, in a
  * response cached before they were exposed) for an image with no renditions.
  */

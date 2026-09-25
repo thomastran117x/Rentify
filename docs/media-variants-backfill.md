@@ -1,8 +1,8 @@
 # Media Variants Backfill
 
 The media processing worker writes three renditions of every accepted image:
-the processed image itself (`large`), a `medium` (800 px on the longest edge),
-and a `thumbnail` (300 px). See "Renditions" in the
+the processed image itself (`large`), a `medium` (800 px wide), and a
+`thumbnail` (300 px wide). See "Renditions" in the
 [architecture overview](./architecture-overview.md#image-upload-validation).
 
 Images processed before renditions existed only have the large one. Until they
