@@ -1,5 +1,4 @@
 import sharp from "sharp";
-import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { PostingThumbnailService } from "@/features/postings/thumbnail/thumbnail.service";
 import type { PostingsPublicCacheService } from "@/features/postings/postings.public-cache.service";
 import type { PostingsRepository } from "@/features/postings/postings.repository";
@@ -7,6 +6,8 @@ import type { BlobService } from "@/features/blob/blob.service";
 import { testUuid } from "../../support/uuid";
 
 const POSTING_1_ID = testUuid(9000, 254272);
+// Photos stored before media existed have no media row.
+const NO_MEDIA = { findByProcessedBlobName: jest.fn(async () => null) };
 
 class FakePostingsRepository {
   primaryPhoto = {
@@ -78,6 +79,7 @@ describe("PostingThumbnailService", () => {
         buildPostingPhotoThumbnailBlobName,
       } as unknown as BlobService,
       postingsPublicCacheService,
+      NO_MEDIA,
     );
 
     await service.generateForPosting(POSTING_1_ID);
@@ -122,19 +124,33 @@ describe("PostingThumbnailService", () => {
     }
 
     async function generate(
-      download: (blobName: string) => Promise<{ body: Buffer }>,
+      recordedMedium: { width: number; height: number } | null,
+      options: { blobName?: string; download?: () => Promise<Buffer> } = {},
     ) {
       const repository = new FakePostingsRepository();
       repository.primaryPhoto = {
         ...repository.primaryPhoto,
-        blobName: PROCESSED,
+        blobName: options.blobName ?? PROCESSED,
       };
-      const downloadBlob = jest.fn(download);
+      const body = await image(1600, 1200);
+      const downloadBlob = jest.fn(async (_name: string) => ({
+        body: options.download ? await options.download() : body,
+      }));
       const uploadBuffer = jest.fn(
         async (_input: { blobName: string; body: Buffer }) => ({
           blobName: "media/images/owner-1/thumbnails/photo-1.webp",
           blobUrl: "https://cdn.test/thumbnails/photo-1.webp",
         }),
+      );
+      const findByProcessedBlobName = jest.fn(async (_name: string) =>
+        recordedMedium
+          ? ({
+              variants: {
+                medium: { ...recordedMedium, sizeBytes: 1 },
+                thumbnail: { width: 300, height: 225, sizeBytes: 1 },
+              },
+            } as never)
+          : ({ variants: null } as never),
       );
       const service = new PostingThumbnailService(
         repository as unknown as PostingsRepository,
@@ -147,6 +163,7 @@ describe("PostingThumbnailService", () => {
         {
           invalidatePublic: jest.fn(async () => 1),
         } as unknown as PostingsPublicCacheService,
+        { findByProcessedBlobName },
       );
 
       await service.generateForPosting(POSTING_1_ID);
@@ -154,53 +171,55 @@ describe("PostingThumbnailService", () => {
       const [upload] = uploadBuffer.mock.calls[0] ?? [];
       return {
         downloaded: downloadBlob.mock.calls.map(([name]) => name),
+        looked: findByProcessedBlobName.mock.calls.map(([name]) => name),
         crop: upload ? await sharp(upload.body).metadata() : undefined,
       };
     }
 
-    it("crops from the medium rendition when it covers the crop", async () => {
-      const medium = await image(800, 600);
+    it("crops from the medium rendition when the recorded one covers the crop", async () => {
+      const { downloaded, looked, crop } = await generate({
+        width: 800,
+        height: 600,
+      });
 
-      const { downloaded, crop } = await generate(async () => ({
-        body: medium,
-      }));
-
+      expect(looked).toEqual([PROCESSED]);
       expect(downloaded).toEqual([MEDIUM]);
       expect(crop).toMatchObject({ width: 640, height: 480 });
     });
 
-    it("crops from the full photo when the medium rendition is too small", async () => {
-      // A panorama: 800x200 would have to be enlarged to fill 640x480.
-      const medium = await image(800, 200);
-      const full = await image(2560, 640);
+    it("crops from the full photo, without fetching the medium, when it is too small", async () => {
+      // A panorama: an 800x200 medium would have to be enlarged to fill 640x480.
+      const { downloaded } = await generate({ width: 800, height: 200 });
 
-      const { downloaded, crop } = await generate(async (name) => ({
-        body: name === MEDIUM ? medium : full,
-      }));
+      expect(downloaded).toEqual([PROCESSED]);
+    });
 
-      expect(downloaded).toEqual([MEDIUM, PROCESSED]);
+    it("crops from the full photo when no renditions are recorded yet", async () => {
+      const { downloaded, crop } = await generate(null);
+
+      expect(downloaded).toEqual([PROCESSED]);
       expect(crop).toMatchObject({ width: 640, height: 480 });
     });
 
-    it("crops from the full photo when it has no medium rendition yet", async () => {
-      const full = await image(1600, 1200);
-
-      const { downloaded, crop } = await generate(async (name) => {
-        if (name === MEDIUM) {
-          throw new ResourceNotFoundError("Blob could not be found.");
-        }
-        return { body: full };
+    it("does not look up a photo that is not a processed image", async () => {
+      const { downloaded, looked } = await generate(null, {
+        blobName: "postings/photo-1.jpg",
       });
 
-      expect(downloaded).toEqual([MEDIUM, PROCESSED]);
-      expect(crop).toMatchObject({ width: 640, height: 480 });
+      expect(looked).toEqual([]);
+      expect(downloaded).toEqual(["postings/photo-1.jpg"]);
     });
 
     it("surfaces a storage failure so the job is retried", async () => {
       await expect(
-        generate(async () => {
-          throw new Error("storage unavailable");
-        }),
+        generate(
+          { width: 800, height: 600 },
+          {
+            download: async () => {
+              throw new Error("storage unavailable");
+            },
+          },
+        ),
       ).rejects.toThrow("storage unavailable");
     });
   });
@@ -223,6 +242,7 @@ describe("PostingThumbnailService", () => {
         downloadBlob,
       } as unknown as BlobService,
       postingsPublicCacheService,
+      NO_MEDIA,
     );
 
     await service.generateForPosting(POSTING_1_ID);
@@ -244,6 +264,7 @@ describe("PostingThumbnailService", () => {
         downloadBlob,
       } as unknown as BlobService,
       postingsPublicCacheService,
+      NO_MEDIA,
     );
 
     await service.generateForPosting(POSTING_1_ID);
