@@ -5,6 +5,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
 import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
+import { describeImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -21,7 +22,6 @@ import type {
   CreatedMediaUpload,
   ImageReferenceInput,
   ImageReferenceOptions,
-  ImageVariants,
   MediaRecord,
   MediaScope,
   MediaView,
@@ -383,32 +383,13 @@ export class MediaService {
       sizeBytes: record.sizeBytes,
       width: record.width,
       height: record.height,
-      variants: url ? this.toVariantUrls(record) : null,
+      // Derived the same way as every other response that carries an image,
+      // so the media view never disagrees with the posting, profile, or
+      // organization it is attached to. See describeImageVariants.
+      variants: describeImageVariants(record.processedBlobName, url),
       rejectionReason: record.rejectionReason,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
-    };
-  }
-
-  /**
-   * The rendition addresses of a ready item. Only offered once the record says
-   * they were written: an image processed before renditions existed has none
-   * until the backfill reaches it.
-   */
-  private toVariantUrls(record: MediaRecord): ImageVariants | null {
-    const names =
-      record.variants && record.processedBlobName
-        ? this.blobService.buildImageVariantBlobNames(record.processedBlobName)
-        : null;
-
-    if (!names) {
-      return null;
-    }
-
-    return {
-      thumbnail: this.blobService.getBlobUrl(names.thumbnail),
-      medium: this.blobService.getBlobUrl(names.medium),
-      large: this.blobService.getBlobUrl(names.large),
     };
   }
 

@@ -127,7 +127,11 @@ export interface MediaView {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
-  /** Set with `url`, once every rendition of the ready image exists. */
+  /**
+   * Set with `url`. An image processed before renditions existed is described
+   * too, before the backfill has written its smaller ones; clients fall back to
+   * `url` when one fails to load.
+   */
   variants: ImageVariants | null;
   rejectionReason: string | null;
   createdAt: string;

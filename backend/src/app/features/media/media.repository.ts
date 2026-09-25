@@ -260,8 +260,9 @@ function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {
 
 /**
  * Reads the stored renditions back. Anything not in the shape the worker
- * writes counts as none, so a malformed row is backfilled again rather than
- * served with renditions that may not exist.
+ * writes counts as none. The backfill only selects rows whose column is SQL
+ * NULL, so a malformed value is not rewritten by it; clear the column to have
+ * the backfill write that row's renditions again.
  */
 export function parseMediaVariants(
   value: Prisma.JsonValue | null,

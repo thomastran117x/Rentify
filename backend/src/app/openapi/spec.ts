@@ -10765,7 +10765,7 @@ function buildComponents(): Record<string, unknown> {
           width: { type: "integer", nullable: true },
           height: { type: "integer", nullable: true },
           variants: imageVariantsField(
-            "The processed image's renditions. Set with `url` once all of them exist; null for an image processed before renditions existed until the backfill reaches it.",
+            "The processed image's renditions, set with `url`. For an image processed before renditions existed, the smaller two exist only once the backfill has reached it; clients should fall back to `url` if one fails to load.",
           ),
           rejectionReason: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" },

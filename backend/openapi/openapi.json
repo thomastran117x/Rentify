@@ -28325,7 +28325,7 @@
               }
             ],
             "readOnly": true,
-            "description": "The processed image's renditions. Set with `url` once all of them exist; null for an image processed before renditions existed until the backfill reaches it."
+            "description": "The processed image's renditions, set with `url`. For an image processed before renditions existed, the smaller two exist only once the backfill has reached it; clients should fall back to `url` if one fails to load."
           },
           "rejectionReason": {
             "type": "string",

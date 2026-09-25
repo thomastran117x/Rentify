@@ -235,10 +235,10 @@ thumbnail worker writes; it has no renditions of its own.
 Responses that carry an image also carry its rendition URLs, as an
 `ImageVariants` object (`thumbnail`, `medium`, `large`) next to the URL:
 `variants` on a media view or a posting photo, and `primaryPhotoVariants`,
-`avatarVariants`, `logoVariants`, and `coverImageVariants` elsewhere. Outside
-the media view, the object is derived from the stored blob name and URL
-(`describeImageVariants` in `features/media/image-variants.ts`) rather than
-looked up, so any repository mapper can produce it. It is `null` for an image
+`avatarVariants`, `logoVariants`, and `coverImageVariants` elsewhere. Every
+response, the media view included, derives the object from the stored blob name
+and URL (`describeImageVariants` in `features/media/image-variants.ts`) rather
+than looking it up, so any repository mapper can produce it and they all agree. It is `null` for an image
 that is not a processed image, such as a seeded `example.com` photo or one
 stored before media existed. It is not `null` for an image processed before
 renditions existed, whose smaller renditions only exist once the backfill has

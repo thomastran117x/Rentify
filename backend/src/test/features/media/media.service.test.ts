@@ -572,12 +572,10 @@ describe("MediaService", () => {
         url: blobService.getBlobUrl(processedBlobName),
         width: 8,
         height: 8,
-        // Processed before renditions existed, and not yet backfilled.
-        variants: null,
       });
     });
 
-    it("exposes rendition URLs once the ready media records them", async () => {
+    it("exposes rendition URLs for a ready media, whether or not they are recorded yet", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
       const { mediaId } = await startUpload(mediaService);
@@ -596,23 +594,27 @@ describe("MediaService", () => {
         mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ url: null, variants: null });
 
-      mediaRepository.put({
-        ...record,
-        status: "ready",
-        processedBlobName,
-        variants,
-      });
       const names = blobService.buildImageVariantBlobNames(processedBlobName)!;
+      const expected = {
+        thumbnail: blobService.getBlobUrl(names.thumbnail),
+        medium: blobService.getBlobUrl(names.medium),
+        large: blobService.getBlobUrl(processedBlobName),
+      };
 
-      await expect(
-        mediaService.getMediaView(USER_1_ID, mediaId),
-      ).resolves.toMatchObject({
-        variants: {
-          thumbnail: blobService.getBlobUrl(names.thumbnail),
-          medium: blobService.getBlobUrl(names.medium),
-          large: blobService.getBlobUrl(processedBlobName),
-        },
-      });
+      // Described the same way as wherever the image is attached, including
+      // before the backfill has written an older image's smaller renditions.
+      for (const recorded of [variants, null]) {
+        mediaRepository.put({
+          ...record,
+          status: "ready",
+          processedBlobName,
+          variants: recorded,
+        });
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId),
+        ).resolves.toMatchObject({ variants: expected });
+      }
     });
 
     async function writeRenditions(
