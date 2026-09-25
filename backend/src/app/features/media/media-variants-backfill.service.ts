@@ -1,6 +1,7 @@
 import { environment } from "@/configuration/environment/index";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import { SMALLER_IMAGE_VARIANTS } from "@/features/blob/image-variant-names";
 import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
@@ -162,8 +163,12 @@ export class MediaVariantsBackfillService {
     }
 
     // The item was deleted, so nothing will ever reference what was written.
-    await this.blobService.deleteBlob(names.medium);
-    await this.blobService.deleteBlob(names.thumbnail);
+    // Only the renditions: the processed image is not this run's to delete.
+    await Promise.all(
+      SMALLER_IMAGE_VARIANTS.map((variant) =>
+        this.blobService.deleteBlob(names[variant]),
+      ),
+    );
     return false;
   }
 }

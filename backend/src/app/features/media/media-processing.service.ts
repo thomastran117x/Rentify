@@ -6,6 +6,7 @@ import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import BlobChangedError from "@/errors/blob-changed.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
@@ -164,9 +165,11 @@ export class MediaProcessingService {
     if (!marked && !(await this.isReadyAs(record.id, processedBlobName))) {
       // The row was deleted, or rejected by a dead-lettered duplicate, while
       // this ran. Nothing references the renditions just written.
-      for (const blobName of Object.values(renditionNames)) {
-        await this.blobService.deleteBlob(blobName);
-      }
+      await Promise.all(
+        listImageVariantBlobNames(processedBlobName).map((blobName) =>
+          this.blobService.deleteBlob(blobName),
+        ),
+      );
       return;
     }
 

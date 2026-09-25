@@ -16,6 +16,11 @@ export const IMAGE_VARIANT_WIDTHS = {
 
 export type ImageVariantName = keyof typeof IMAGE_VARIANT_WIDTHS;
 
+/** The renditions written beside the processed image, smallest last. */
+export const SMALLER_IMAGE_VARIANTS = Object.keys(
+  IMAGE_VARIANT_WIDTHS,
+) as ImageVariantName[];
+
 export interface ImageVariantBlobNames {
   large: string;
   medium: string;
@@ -64,5 +69,7 @@ export function buildImageVariantBlobNames(
 export function listImageVariantBlobNames(processedBlobName: string): string[] {
   const names = buildImageVariantBlobNames(processedBlobName);
 
-  return names ? [names.large, names.medium, names.thumbnail] : [];
+  return names
+    ? [names.large, ...SMALLER_IMAGE_VARIANTS.map((variant) => names[variant])]
+    : [];
 }

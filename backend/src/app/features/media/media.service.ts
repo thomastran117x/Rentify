@@ -4,6 +4,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -472,14 +473,13 @@ export class MediaService {
    * nothing references by name; any other name is a single blob.
    */
   private async deleteImageBlobs(blobName: string): Promise<void> {
-    const variants = this.blobService.buildImageVariantBlobNames(blobName);
-    const blobNames = variants
-      ? [variants.large, variants.medium, variants.thumbnail]
-      : [blobName];
+    const renditions = listImageVariantBlobNames(blobName);
 
-    for (const name of blobNames) {
-      await this.blobService.deleteBlob(name);
-    }
+    await Promise.all(
+      (renditions.length > 0 ? renditions : [blobName]).map((name) =>
+        this.blobService.deleteBlob(name),
+      ),
+    );
   }
 
   private isStale(record: MediaRecord): boolean {

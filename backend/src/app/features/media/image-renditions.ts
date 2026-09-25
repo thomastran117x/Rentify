@@ -1,6 +1,7 @@
 import sharp, { type Sharp } from "sharp";
 import {
   IMAGE_VARIANT_WIDTHS,
+  SMALLER_IMAGE_VARIANTS,
   type ImageVariantBlobNames,
 } from "@/features/blob/image-variant-names";
 import { IMAGE_DECODE_FAIL_ON } from "@/features/media/image-policy";
@@ -82,7 +83,7 @@ export async function uploadSmallerRenditions(
   renditions: { medium: RenderedImage; thumbnail: RenderedImage },
 ): Promise<MediaVariantsMetadata> {
   await Promise.all(
-    (["medium", "thumbnail"] as const).map((rendition) =>
+    SMALLER_IMAGE_VARIANTS.map((rendition) =>
       blobService.uploadBuffer({
         blobName: names[rendition],
         body: renditions[rendition].data,
