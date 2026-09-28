@@ -341,7 +341,7 @@ describe("postings.model", () => {
     );
   });
 
-  it("describes the renditions of a processed primary photo", () => {
+  it("references the renditions of a processed primary photo", () => {
     const base = "https://example.blob.core.windows.net/uploads/media/images";
     const publicPosting = toPublicPostingRecord(
       createPostingRecord({
@@ -359,11 +359,12 @@ describe("postings.model", () => {
       }),
     );
 
-    // Derived from the photo's blob name and URL.
+    // Resolved later, with the rest of the response.
     expect(publicPosting.primaryPhotoVariants).toEqual({
-      thumbnail: `${base}/owner-1/photo-2.thumbnail.webp`,
-      medium: `${base}/owner-1/photo-2.medium.webp`,
-      large: `${base}/owner-1/photo-2.webp`,
+      $imageVariants: {
+        blobName: "media/images/owner-1/photo-2.webp",
+        blobUrl: `${base}/owner-1/photo-2.webp`,
+      },
     });
     expect(
       toPublicPostingRecord(createPostingRecord({ photos: [] })),

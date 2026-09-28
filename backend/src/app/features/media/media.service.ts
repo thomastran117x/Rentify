@@ -5,7 +5,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
 import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
-import { describeImageVariants } from "@/features/media/image-variants";
+import { buildImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
@@ -383,10 +383,12 @@ export class MediaService {
       sizeBytes: record.sizeBytes,
       width: record.width,
       height: record.height,
-      // Derived the same way as every other response that carries an image,
-      // so the media view never disagrees with the posting, profile, or
-      // organization it is attached to. See describeImageVariants.
-      variants: describeImageVariants(record.processedBlobName, url),
+      // Built from this row the same way ImageVariantsResolver builds them
+      // for every response the image is attached to, so the two agree.
+      variants:
+        url && record.processedBlobName
+          ? buildImageVariants(record.processedBlobName, url, record)
+          : null,
       rejectionReason: record.rejectionReason,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),

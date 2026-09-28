@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -79,7 +79,7 @@ export class OrganizationsPublicSearchRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
-      logoVariants: describeImageVariants(
+      logoVariants: referenceImageVariants(
         organization.logoBlobName,
         organization.logoUrl,
       ),

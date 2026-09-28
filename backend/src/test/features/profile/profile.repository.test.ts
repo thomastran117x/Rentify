@@ -190,7 +190,7 @@ describe("ProfileRepository", () => {
     });
   });
 
-  it("describes the renditions of a processed avatar on both profile views", async () => {
+  it("references the renditions of a processed avatar on both profile views", async () => {
     const avatarBlobName = `media/images/${USER_1_ID}/avatar-1.webp`;
     const avatarUrl = `https://storage.example.com/uploads/${avatarBlobName}`;
     const row = createProfilePersistence({ avatarUrl, avatarBlobName });
@@ -202,9 +202,7 @@ describe("ProfileRepository", () => {
       },
     } as any);
     const expected = {
-      thumbnail: `https://storage.example.com/uploads/media/images/${USER_1_ID}/avatar-1.thumbnail.webp`,
-      medium: `https://storage.example.com/uploads/media/images/${USER_1_ID}/avatar-1.medium.webp`,
-      large: avatarUrl,
+      $imageVariants: { blobName: avatarBlobName, blobUrl: avatarUrl },
     };
 
     await expect(repository.findByUserId(USER_1_ID)).resolves.toMatchObject({

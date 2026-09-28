@@ -12,8 +12,8 @@ import {
   uuidSchemaWithMessage,
   type Uuid,
 } from "@/configuration/validation/uuid";
-import { describeImageVariants } from "@/features/media/image-variants";
-import type { ImageVariants } from "@/features/media/media.model";
+import { referenceImageVariants } from "@/features/media/image-variants";
+import type { ImageVariantsField } from "@/features/media/media.model";
 
 export const MAX_POSTING_PHOTOS = 10;
 export const MAX_BATCH_IDS = 50;
@@ -677,7 +677,7 @@ export interface PostingPhotoRecord {
   thumbnailBlobUrl?: string;
   thumbnailBlobName?: string;
   /** The photo's renditions; null when it is not a processed image. */
-  variants: ImageVariants | null;
+  variants: ImageVariantsField;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -826,7 +826,7 @@ export interface PublicPostingRecord
   location: PublicPostingLocationRecord;
   organization?: PublicPostingOrganizationSummary;
   primaryPhotoUrl?: string;
-  primaryPhotoVariants: ImageVariants | null;
+  primaryPhotoVariants: ImageVariantsField;
   primaryThumbnailUrl?: string;
   viewerReviewState?: PostingViewerReviewState;
 }
@@ -1112,7 +1112,7 @@ export function toPublicPostingRecord(
   return {
     ...(publicPosting as unknown as PublicPostingRecord),
     primaryPhotoUrl: primaryPhoto?.blobUrl,
-    primaryPhotoVariants: describeImageVariants(
+    primaryPhotoVariants: referenceImageVariants(
       primaryPhoto?.blobName,
       primaryPhoto?.blobUrl,
     ),

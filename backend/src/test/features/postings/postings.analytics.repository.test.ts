@@ -749,11 +749,10 @@ describe("PostingsAnalyticsRepository", () => {
       primaryPhotoUrl:
         "https://cdn.test/uploads/media/images/owner-1/photo.webp",
       primaryPhotoVariants: {
-        thumbnail:
-          "https://cdn.test/uploads/media/images/owner-1/photo.thumbnail.webp",
-        medium:
-          "https://cdn.test/uploads/media/images/owner-1/photo.medium.webp",
-        large: "https://cdn.test/uploads/media/images/owner-1/photo.webp",
+        $imageVariants: {
+          blobName: "media/images/owner-1/photo.webp",
+          blobUrl: "https://cdn.test/uploads/media/images/owner-1/photo.webp",
+        },
       },
       totals: expect.objectContaining({
         confirmedBookedDays: 1,

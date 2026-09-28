@@ -146,6 +146,49 @@ describe("MediaVariantsBackfillService", () => {
     expect(mediaVariantsBackfillExitCode(result)).toBe(0);
   });
 
+  it("writes only the renditions narrower than the image", async () => {
+    const context = createContext();
+    const legacy = await addLegacyReadyMedia(context, {
+      width: 500,
+      height: 400,
+    });
+    const [, medium, thumbnail] = legacy.renditions;
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result).toMatchObject({ converted: 1, failed: 0 });
+    await expect(
+      context.blobService.readLocalBlob(medium!),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    await expect(readDimensions(context, thumbnail!)).resolves.toMatchObject({
+      width: 300,
+      height: 240,
+    });
+    expect(
+      (await context.repository.findById(legacy.id))?.variants,
+    ).toMatchObject({
+      medium: null,
+      thumbnail: { width: 300, height: 240 },
+    });
+  });
+
+  it("reads the width from the image when the row has none", async () => {
+    const context = createContext();
+    const legacy = await addLegacyReadyMedia(context, {
+      width: 200,
+      height: 150,
+    });
+    context.repository.put({ ...legacy, width: null, height: null });
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result).toMatchObject({ converted: 1, failed: 0 });
+    expect((await context.repository.findById(legacy.id))?.variants).toEqual({
+      medium: null,
+      thumbnail: null,
+    });
+  });
+
   it("backfills a processed image larger than today's upload limit", async () => {
     // Processed before the edge cap, at full resolution: its output can exceed
     // anything a client may upload now.

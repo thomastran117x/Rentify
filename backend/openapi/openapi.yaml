@@ -6517,9 +6517,18 @@ paths:
                     width: 1600
                     height: 1200
                     variants:
-                      thumbnail: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.thumbnail.webp
-                      medium: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.medium.webp
-                      large: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp
+                        width: 1600
+                        height: 1200
                     rejectionReason: null
                     createdAt: '2026-05-25T18:15:00.000Z'
                     updatedAt: '2026-05-25T18:15:04.000Z'
@@ -8276,9 +8285,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8312,9 +8330,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -8603,9 +8630,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8639,9 +8675,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -8768,9 +8813,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8804,9 +8858,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -8963,9 +9026,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -8999,9 +9071,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -9136,9 +9217,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9172,9 +9262,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9268,9 +9367,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9304,9 +9412,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9394,9 +9511,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9430,9 +9556,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9522,9 +9657,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9558,9 +9702,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9650,9 +9803,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9686,9 +9848,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9779,9 +9950,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9815,9 +9995,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -9907,9 +10096,18 @@ paths:
                       thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                       variants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       position: 0
                       createdAt: '2026-05-01T10:00:00.000Z'
                       updatedAt: '2026-05-01T10:00:00.000Z'
@@ -9943,9 +10141,18 @@ paths:
                     longitude: -79.38
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                   viewerReviewState:
                     eligible: true
@@ -10120,9 +10327,18 @@ paths:
                       status: published
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       totals:
                         searchImpressions: 120
                         searchClicks: 28
@@ -10300,9 +10516,18 @@ paths:
                   status: published
                   primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                   primaryPhotoVariants:
-                    thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                    medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                    large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                    thumbnail:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                      width: 300
+                      height: 225
+                    medium:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                      width: 800
+                      height: 600
+                    large:
+                      url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      width: 1600
+                      height: 1200
                   window: 7d
                   granularity: day
                   totals:
@@ -11041,9 +11266,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -11077,9 +11311,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -11351,9 +11594,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -11387,9 +11639,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -11517,9 +11778,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -11553,9 +11823,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -13171,9 +13450,18 @@ paths:
                             thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                             thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                             variants:
-                              thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                              medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                              large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              thumbnail:
+                                url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                                width: 300
+                                height: 225
+                              medium:
+                                url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                                width: 800
+                                height: 600
+                              large:
+                                url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                                width: 1600
+                                height: 1200
                             position: 0
                             createdAt: '2026-05-01T10:00:00.000Z'
                             updatedAt: '2026-05-01T10:00:00.000Z'
@@ -13207,9 +13495,18 @@ paths:
                           longitude: -79.38
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                         viewerReviewState:
                           eligible: true
@@ -13324,9 +13621,18 @@ paths:
                           thumbnailBlobUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                           thumbnailBlobName: postings/posting-1/photo-1-thumb.jpg
                           variants:
-                            thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                            medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                            large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            thumbnail:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                              width: 300
+                              height: 225
+                            medium:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                              width: 800
+                              height: 600
+                            large:
+                              url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                              width: 1600
+                              height: 1200
                           position: 0
                           createdAt: '2026-05-01T10:00:00.000Z'
                           updatedAt: '2026-05-01T10:00:00.000Z'
@@ -13360,9 +13666,18 @@ paths:
                         longitude: -79.38
                       primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                       primaryPhotoVariants:
-                        thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                        medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                        large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        thumbnail:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                          width: 300
+                          height: 225
+                        medium:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                          width: 800
+                          height: 600
+                        large:
+                          url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          width: 1600
+                          height: 1200
                       primaryThumbnailUrl: https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg
                       viewerReviewState:
                         eligible: true
@@ -13466,9 +13781,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -13582,9 +13906,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -13781,9 +14114,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -13900,9 +14242,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         effectiveMaxBookingDurationDays: 30
                   pagination:
                     page: 1
@@ -14029,9 +14380,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         effectiveMaxBookingDurationDays: 30
                       holdExpiresAt: '2026-05-28T12:00:00.000Z'
                       approvedAt: '2026-05-25T12:00:00.000Z'
@@ -14183,9 +14543,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                         effectiveMaxBookingDurationDays: 30
                       isExpiringHold: false
                       actionNeededCategory: approval
@@ -14305,9 +14674,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                   viewerAccess:
                     side: owner
@@ -14411,9 +14789,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14578,9 +14965,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14680,9 +15076,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                 error: null
                 meta:
@@ -14782,9 +15187,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                     effectiveMaxBookingDurationDays: 30
                   cancellationReason: Trip dates changed.
                   cancelledAt: '2026-05-26T08:00:00.000Z'
@@ -16379,9 +16793,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -16477,9 +16900,18 @@ paths:
                         name: Sunny loft workspace
                         primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                         primaryPhotoVariants:
-                          thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                          medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                          large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                          thumbnail:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                            width: 300
+                            height: 225
+                          medium:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                            width: 800
+                            height: 600
+                          large:
+                            url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                            width: 1600
+                            height: 1200
                   pagination:
                     page: 1
                     pageSize: 20
@@ -16586,9 +17018,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -16675,9 +17116,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                   checkInReadyAt: '2026-06-14T14:30:00.000Z'
                 error: null
                 meta:
@@ -16763,9 +17213,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                   checkInCompletedAt: '2026-06-14T15:05:00.000Z'
                 error: null
                 meta:
@@ -16851,9 +17310,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                   completedAt: '2026-06-17T11:05:00.000Z'
                 error: null
                 meta:
@@ -16948,9 +17416,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                   dispute:
                     id: dispute-1
                     rentingId: renting-1
@@ -17045,9 +17522,18 @@ paths:
                     name: Sunny loft workspace
                     primaryPhotoUrl: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
                     primaryPhotoVariants:
-                      thumbnail: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
-                      medium: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
-                      large: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                      thumbnail:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp
+                        width: 300
+                        height: 225
+                      medium:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp
+                        width: 800
+                        height: 600
+                      large:
+                        url: https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp
+                        width: 1600
+                        height: 1200
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -19288,7 +19774,7 @@ components:
             - $ref: '#/components/schemas/ImageVariants'
             - type: 'null'
           readOnly: true
-          description: The processed image's renditions, set with `url`. For an image processed before renditions existed, the smaller two exist only once the backfill has reached it; clients should fall back to `url` if one fails to load.
+          description: The processed image's renditions, once they are recorded. Null until then, including for an image processed before renditions existed that the backfill has not reached yet; `url` still serves it.
         rejectionReason:
           type: string
           nullable: true
@@ -19300,7 +19786,7 @@ components:
           format: date-time
     ImageVariants:
       type: object
-      description: Renditions of one processed image, for a `srcset`. None is enlarged, so a small image's renditions may all have the same dimensions.
+      description: Recorded renditions of one processed image, each with its real dimensions, for a `srcset` with `w` descriptors. A rendition is only written when the image is wider than it; otherwise that entry is the large rendition, so a small image's entries can share one URL.
       required:
         - thumbnail
         - medium
@@ -19308,17 +19794,34 @@ components:
       additionalProperties: false
       properties:
         thumbnail:
-          type: string
-          format: uri
-          description: 300 px wide, or the image's own width if narrower.
+          allOf:
+            - $ref: '#/components/schemas/ImageRendition'
+          description: 300 px wide, or the large rendition when the image is no wider.
         medium:
-          type: string
-          format: uri
-          description: 800 px wide, or the image's own width if narrower.
+          allOf:
+            - $ref: '#/components/schemas/ImageRendition'
+          description: 800 px wide, or the large rendition when the image is no wider.
         large:
+          allOf:
+            - $ref: '#/components/schemas/ImageRendition'
+          description: The processed image itself, capped by the deployment's processed-image edge (2560 px by default).
+    ImageRendition:
+      type: object
+      required:
+        - url
+        - width
+        - height
+      additionalProperties: false
+      properties:
+        url:
           type: string
           format: uri
-          description: The processed image itself, capped by the deployment's processed-image edge (2560 px by default).
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
     MediaUploadInstructions:
       type: object
       required:

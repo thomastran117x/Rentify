@@ -68,9 +68,21 @@ describe("PostingDetailGallery", () => {
 
   it("offers each photo's renditions, sized for where it is drawn", () => {
     const variants = (name: string) => ({
-      thumbnail: `https://cdn.rent.local/${name}.thumbnail.webp`,
-      medium: `https://cdn.rent.local/${name}.medium.webp`,
-      large: `https://cdn.rent.local/${name}.webp`,
+      thumbnail: {
+        url: `https://cdn.rent.local/${name}.thumbnail.webp`,
+        width: 300,
+        height: 225,
+      },
+      medium: {
+        url: `https://cdn.rent.local/${name}.medium.webp`,
+        width: 800,
+        height: 600,
+      },
+      large: {
+        url: `https://cdn.rent.local/${name}.webp`,
+        width: 1600,
+        height: 1200,
+      },
     });
     render(
       <PostingDetailGallery

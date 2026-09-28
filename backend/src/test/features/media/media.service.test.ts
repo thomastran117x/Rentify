@@ -576,7 +576,7 @@ describe("MediaService", () => {
       });
     });
 
-    it("exposes rendition URLs for a ready media, whether or not they are recorded yet", async () => {
+    it("exposes only the renditions a ready media records", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();
       const { mediaId } = await startUpload(mediaService);
@@ -585,9 +585,10 @@ describe("MediaService", () => {
         USER_1_ID,
         mediaId,
       );
+      // Too narrow for a medium, so only a thumbnail was written.
       const variants = {
-        medium: { width: 8, height: 8, sizeBytes: 2 },
-        thumbnail: { width: 8, height: 8, sizeBytes: 1 },
+        medium: null,
+        thumbnail: { width: 300, height: 225, sizeBytes: 1 },
       };
 
       mediaRepository.put({ ...record, status: "processing", variants });
@@ -595,27 +596,42 @@ describe("MediaService", () => {
         mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ url: null, variants: null });
 
-      const names = buildImageVariantBlobNames(processedBlobName)!;
-      const expected = {
-        thumbnail: blobService.getBlobUrl(names.thumbnail),
-        medium: blobService.getBlobUrl(names.medium),
-        large: blobService.getBlobUrl(processedBlobName),
+      const ready = {
+        ...record,
+        status: "ready" as const,
+        processedBlobName,
+        width: 640,
+        height: 480,
+      };
+      const large = {
+        url: blobService.getBlobUrl(processedBlobName),
+        width: 640,
+        height: 480,
       };
 
-      // Described the same way as wherever the image is attached, including
-      // before the backfill has written an older image's smaller renditions.
-      for (const recorded of [variants, null]) {
-        mediaRepository.put({
-          ...record,
-          status: "ready",
-          processedBlobName,
-          variants: recorded,
-        });
+      mediaRepository.put({ ...ready, variants });
+      await expect(
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({
+        variants: {
+          thumbnail: {
+            url: blobService.getBlobUrl(
+              buildImageVariantBlobNames(processedBlobName)!.thumbnail,
+            ),
+            width: 300,
+            height: 225,
+          },
+          medium: large,
+          large,
+        },
+      });
 
-        await expect(
-          mediaService.getMediaView(USER_1_ID, mediaId),
-        ).resolves.toMatchObject({ variants: expected });
-      }
+      // Until the backfill records an older image's renditions, none are
+      // claimed, so a client never requests one that may not exist.
+      mediaRepository.put({ ...ready, variants: null });
+      await expect(
+        mediaService.getMediaView(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({ variants: null });
     });
 
     async function writeRenditions(

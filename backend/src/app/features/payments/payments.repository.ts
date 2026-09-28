@@ -1,5 +1,5 @@
-import type { ImageVariants } from "@/features/media/media.model";
-import { describeImageVariants } from "@/features/media/image-variants";
+import type { ImageVariantsField } from "@/features/media/media.model";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -91,7 +91,7 @@ export interface CheckoutContext {
     id: Uuid;
     name: string;
     primaryPhotoUrl?: string;
-    primaryPhotoVariants: ImageVariants | null;
+    primaryPhotoVariants: ImageVariantsField;
     cancellationPolicyNotes?: string;
   };
   payment: PaymentRecord | null;
@@ -808,7 +808,7 @@ export class PaymentsRepository extends BaseRepository {
         id: asUuid(booking.posting.id),
         name: booking.posting.name,
         primaryPhotoUrl: booking.posting.photos[0]?.blobUrl ?? undefined,
-        primaryPhotoVariants: describeImageVariants(
+        primaryPhotoVariants: referenceImageVariants(
           booking.posting.photos[0]?.blobName,
           booking.posting.photos[0]?.blobUrl,
         ),

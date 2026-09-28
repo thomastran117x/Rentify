@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { htmlToPlainText } from "@/configuration/security/html-sanitizer";
 import { BaseRepository } from "@/features/base/base.repository";
@@ -1238,7 +1238,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       body: row.body,
       coverImageUrl: row.coverImageUrl ?? undefined,
       coverImageBlobName: row.coverImageBlobName ?? undefined,
-      coverImageVariants: describeImageVariants(
+      coverImageVariants: referenceImageVariants(
         row.coverImageBlobName,
         row.coverImageUrl,
       ),
@@ -1262,7 +1262,7 @@ export class OrganizationBlogRepository extends BaseRepository {
         slug: row.organization.slug,
         name: row.organization.name,
         logoUrl: row.organization.logoUrl ?? undefined,
-        logoVariants: describeImageVariants(
+        logoVariants: referenceImageVariants(
           row.organization.logoBlobName,
           row.organization.logoUrl,
         ),
@@ -1278,7 +1278,7 @@ export class OrganizationBlogRepository extends BaseRepository {
       readingMinutes: this.estimateReadingMinutes(row.body),
       coverImageUrl: row.coverImageUrl ?? undefined,
       coverImageBlobName: row.coverImageBlobName ?? undefined,
-      coverImageVariants: describeImageVariants(
+      coverImageVariants: referenceImageVariants(
         row.coverImageBlobName,
         row.coverImageUrl,
       ),
@@ -1306,7 +1306,7 @@ export class OrganizationBlogRepository extends BaseRepository {
           email: author.email,
           username: author.profile?.username ?? author.email,
           avatarUrl: author.profile?.avatarUrl ?? undefined,
-          avatarVariants: describeImageVariants(
+          avatarVariants: referenceImageVariants(
             author.profile?.avatarBlobName,
             author.profile?.avatarUrl,
           ),

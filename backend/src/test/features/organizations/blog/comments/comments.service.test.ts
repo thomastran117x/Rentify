@@ -119,6 +119,13 @@ function createService(options: Options = {}) {
     assertSessionIsUsable: jest.fn(async () => undefined),
   };
 
+  // Resolves each event into a marked copy, so a test can tell it was resolved
+  // before it was published.
+  const imageVariants = {
+    resolve: jest.fn(
+      async <T>(event: T) => ({ ...event, resolved: true }) as T,
+    ),
+  };
   const realtimeGateway = {
     publish: jest.fn(),
     countReaders: jest.fn(async () => 3),
@@ -131,6 +138,7 @@ function createService(options: Options = {}) {
     cacheService,
     tokenService,
     realtimeGateway,
+    imageVariants,
     service: new OrganizationBlogCommentsService(
       repository as never,
       organizationAccessService as never,
@@ -138,6 +146,7 @@ function createService(options: Options = {}) {
       cacheService as never,
       tokenService as never,
       realtimeGateway as never,
+      imageVariants,
     ),
   };
 }
@@ -267,10 +276,12 @@ describe("OrganizationBlogCommentsService", () => {
         body: "Great post.",
       });
       expect(realtimeGateway.publish).toHaveBeenCalledTimes(1);
+      // Published as resolved: its author's avatar renditions filled in.
       expect(realtimeGateway.publish).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "comment.created",
           blogPostId: POST_ID,
+          resolved: true,
         }),
       );
       expect(result.id).toBe(COMMENT_1_ID);
@@ -784,15 +795,17 @@ describe("OrganizationBlogCommentsService", () => {
       await expect(service.countReaders(POST_ID)).resolves.toBe(3);
     });
 
-    it("publishes a comments toggle", () => {
+    it("publishes a comments toggle", async () => {
       const { service, realtimeGateway } = createService();
 
       service.publishCommentsToggled(POST_ID, false);
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(realtimeGateway.publish).toHaveBeenCalledWith({
         type: "comments.closed",
         blogPostId: POST_ID,
         commentsEnabled: false,
+        resolved: true,
       });
     });
   });

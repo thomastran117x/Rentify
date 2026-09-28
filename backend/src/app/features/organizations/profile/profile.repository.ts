@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
@@ -148,7 +148,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
-      logoVariants: describeImageVariants(
+      logoVariants: referenceImageVariants(
         organization.logoBlobName,
         organization.logoUrl,
       ),
@@ -232,7 +232,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       country: organization.country,
       postalCode: organization.postalCode,
       logoUrl: organization.logoUrl,
-      logoVariants: describeImageVariants(
+      logoVariants: referenceImageVariants(
         organization.logoBlobName,
         organization.logoUrl,
       ),
@@ -826,7 +826,7 @@ export class OrganizationsProfileRepository extends BaseRepository {
       lastName: membership.user.lastName ?? undefined,
       username: membership.user.profile?.username ?? membership.user.email,
       avatarUrl: membership.user.profile?.avatarUrl ?? undefined,
-      avatarVariants: describeImageVariants(
+      avatarVariants: referenceImageVariants(
         membership.user.profile?.avatarBlobName,
         membership.user.profile?.avatarUrl,
       ),

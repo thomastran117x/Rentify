@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -201,7 +201,7 @@ export class PostingsReviewsRepository extends BaseRepository {
       reviewer: {
         username: review.reviewer.profile?.username ?? undefined,
         avatarUrl: review.reviewer.profile?.avatarUrl ?? undefined,
-        avatarVariants: describeImageVariants(
+        avatarVariants: referenceImageVariants(
           review.reviewer.profile?.avatarBlobName,
           review.reviewer.profile?.avatarUrl,
         ),

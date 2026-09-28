@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
@@ -144,7 +145,10 @@ export class MediaVariantsBackfillService {
       maxBytes:
         record.sizeBytes ?? environment.getImageUploadsConfig().maxSizeBytes,
     });
-    const renditions = await renderSmallerRenditions(body);
+    const renditions = await renderSmallerRenditions(
+      body,
+      record.width ?? (await sharp(body).metadata()).width ?? 0,
+    );
     const variants = await uploadSmallerRenditions(
       this.blobService,
       names,

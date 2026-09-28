@@ -20,16 +20,24 @@ export type MediaStatus =
   | "ready"
   | "rejected";
 
+/** One stored rendition of an image, with its real dimensions. */
+export interface ImageRendition {
+  url: string;
+  width: number;
+  height: number;
+}
+
 /**
- * The renditions of a processed image, smallest first: a thumbnail 300 px
- * wide, a medium 800 px wide, and the processed image itself. Feed
- * them to ResponsiveImage. A field holding them is null (or absent, in a
- * response cached before they were exposed) for an image with no renditions.
+ * The recorded renditions of a processed image: a thumbnail 300 px wide, a
+ * medium 800 px wide, and the processed image itself. One the image was too
+ * narrow for is given as the large rendition. Feed them to ResponsiveImage. A
+ * field holding them is null (or absent, in a response cached before they
+ * were exposed) until the image's renditions are recorded.
  */
 export interface ImageVariants {
-  thumbnail: string;
-  medium: string;
-  large: string;
+  thumbnail: ImageRendition;
+  medium: ImageRendition;
+  large: ImageRendition;
 }
 
 /**
@@ -46,7 +54,7 @@ export interface MediaView {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
-  /** Set with `url` once the image has all of its renditions. */
+  /** Set with `url` once the image's renditions are recorded. */
   variants: ImageVariants | null;
   rejectionReason: string | null;
   createdAt: string;

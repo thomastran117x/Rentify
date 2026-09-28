@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -789,7 +789,7 @@ export class RentingsRepository extends BaseRepository {
         id: asUuid(renting.posting.id),
         name: renting.posting.name,
         primaryPhotoUrl: renting.posting.photos[0]?.blobUrl,
-        primaryPhotoVariants: describeImageVariants(
+        primaryPhotoVariants: referenceImageVariants(
           renting.posting.photos[0]?.blobName,
           renting.posting.photos[0]?.blobUrl,
         ),

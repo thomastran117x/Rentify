@@ -132,9 +132,17 @@ describe("postings dashboard helpers", () => {
 
   it("offers a photo's renditions with its card crop as the fallback", () => {
     const variants = {
-      thumbnail: "https://img/primary.thumbnail.webp",
-      medium: "https://img/primary.medium.webp",
-      large: "https://img/primary.webp",
+      thumbnail: {
+        url: "https://img/primary.thumbnail.webp",
+        width: 300,
+        height: 225,
+      },
+      medium: {
+        url: "https://img/primary.medium.webp",
+        width: 800,
+        height: 600,
+      },
+      large: { url: "https://img/primary.webp", width: 1600, height: 1200 },
     };
 
     expect(

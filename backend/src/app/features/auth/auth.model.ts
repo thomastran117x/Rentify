@@ -1,4 +1,4 @@
-import type { ImageVariants } from "@/features/media/media.model";
+import type { ImageVariantsField } from "@/features/media/media.model";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { usernameSchema } from "@/features/profile/profile.model";
@@ -94,7 +94,7 @@ export interface UserProfileRecord {
   username: string;
   phoneNumber?: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   avatarBlobName?: string;
   isPrivate: boolean;
   recommendationPersonalizationEnabled: boolean;
@@ -158,7 +158,7 @@ export interface AuthUserProfile {
   username: string;
   phoneNumber?: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   isPrivate: boolean;
   recommendationPersonalizationEnabled: boolean;
   trustworthinessScore: number;
@@ -193,7 +193,7 @@ export interface AuthResponseUser {
   email: string;
   username: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   role: AppRole;
   activeOrganization?: AuthActiveOrganizationSummary;
   organizationMembershipCount: number;

@@ -1,4 +1,4 @@
-import type { ImageVariants } from "@/features/media/media.model";
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 
 import {
@@ -176,7 +176,7 @@ export interface OrganizationProfileFields {
   logoUrl: string | null;
   logoBlobName: string | null;
   /** Renditions of the logo; null when it is not a processed image. */
-  logoVariants: ImageVariants | null;
+  logoVariants: ImageVariantsField;
   customFields: Record<string, string> | null;
 }
 
@@ -247,7 +247,7 @@ export interface OrganizationMemberRecord {
   lastName?: string;
   username: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   role: OrganizationRole;
   joinedAt: string;
 }

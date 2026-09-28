@@ -128,7 +128,10 @@ export class MediaProcessingService {
       }).rotate(),
       policy.maxProcessedEdge,
     );
-    const renditions = await renderSmallerRenditions(processed.data);
+    const renditions = await renderSmallerRenditions(
+      processed.data,
+      processed.width,
+    );
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
       record.id,

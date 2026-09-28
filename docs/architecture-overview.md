@@ -205,10 +205,9 @@ was produced by the worker, not supplied by the client. The width and height
 reported by `GET /media/{id}` are the processed image's. A policy failure
 rejects the item with its reason. Both outcomes delete the quarantined upload.
 
-**Renditions.** From the processed image the worker also writes two smaller
-renditions, so a list or an avatar need not download the full image. They are
-uploaded before the item is marked `ready`, so a ready image always has all
-three:
+**Renditions.** From the processed image the worker also writes up to two
+smaller renditions, so a list or an avatar need not download the full image.
+They are uploaded before the item is marked `ready`:
 
 | Rendition   | Blob name                                        | Size                                   |
 | ----------- | ------------------------------------------------ | -------------------------------------- |
@@ -216,33 +215,46 @@ three:
 | `medium`    | `media/images/<userId>/<mediaId>.medium.webp`    | 800 px wide                            |
 | `thumbnail` | `media/images/<userId>/<mediaId>.thumbnail.webp` | 300 px wide                            |
 
-None is enlarged, so a narrower image keeps its own width. The smaller two are
-sized by width, not longest edge, so the `300w` and `800w` descriptors in a
-`srcset` are their real widths and a portrait is never picked too small. They
-are scaled from the processed image, so the upload is decoded only once.
+A smaller rendition is only written when the processed image is wider than
+it: a copy of the same width would only be a duplicate to store and serve. So a
+600 px image gets a thumbnail but no medium, and a 200 px image gets neither.
+The smaller two are sized by width, not longest edge, so a portrait is never
+picked too small. They are scaled from the processed image, so the upload is
+decoded only once.
 
 The names are derived from the processed name
 (`buildImageVariantBlobNames` in `features/blob/image-variant-names.ts`), so
 features keep storing only the large name and no reference table changed. The
 renditions sit flat in the owner's directory, so the owner check reads them
-like the processed image. `media.variants` records their dimensions and sizes;
-it is set with `ready` and stays `NULL` for images processed before renditions
-existed, until the [media-variants backfill](./media-variants-backfill.md)
-reaches them. Storage per image grows by about 1.3x. The 640x480 posting-card
+like the processed image. `media.variants` records the dimensions and size of
+each one written, and `null` for one that was not; it is set with `ready` and
+stays `NULL` for images processed before renditions existed, until the
+[media-variants backfill](./media-variants-backfill.md) reaches them. Storage per image grows by about 1.3x. The 640x480 posting-card
 crop under `.../thumbnails/<id>.webp` is a separate image that the posting
 thumbnail worker writes; it has no renditions of its own.
 
-Responses that carry an image also carry its rendition URLs, as an
-`ImageVariants` object (`thumbnail`, `medium`, `large`) next to the URL:
-`variants` on a media view or a posting photo, and `primaryPhotoVariants`,
-`avatarVariants`, `logoVariants`, and `coverImageVariants` elsewhere. Every
-response, the media view included, derives the object from the stored blob name
-and URL (`describeImageVariants` in `features/media/image-variants.ts`) rather
-than looking it up, so any repository mapper can produce it and they all agree. It is `null` for an image
-that is not a processed image, such as a seeded `example.com` photo or one
-stored before media existed. It is not `null` for an image processed before
-renditions existed, whose smaller renditions only exist once the backfill has
-run. The frontend draws every image through `ResponsiveImage`
+Responses that carry an image also carry its renditions, as an `ImageVariants`
+object next to the URL: `variants` on a media view or a posting photo, and
+`primaryPhotoVariants`, `avatarVariants`, `logoVariants`, and
+`coverImageVariants` elsewhere. Each of `thumbnail`, `medium`, and `large` is
+`{ url, width, height }` with the rendition's real dimensions, so a `srcset`'s
+`w` descriptors are true. A rendition that was not written is given as the large
+one. The object only offers what `media.variants` records, so a client never
+requests a rendition that does not exist. It is `null` when nothing is
+recorded: a seeded `example.com` photo, an image stored before media existed,
+or one processed before renditions existed that the backfill has not reached.
+
+Repository mappers cannot look renditions up themselves: most are plain
+functions, and one response can carry dozens of images. They emit a reference
+instead (`referenceImageVariants` in `features/media/image-variants.ts`), and
+`imageVariantsMiddleware` resolves every reference in a JSON response with one
+`media` query (`ImageVariantsResolver`) as it is written. It wraps `res.json`
+after `outputFormatMiddleware`, so XML responses are resolved too. If that
+query fails, the response still goes out with the references set to `null`.
+The two payloads that bypass `res.json` resolve explicitly: blog comment
+socket events and posting search documents. The media view reads its own row.
+
+The frontend draws every image through `ResponsiveImage`
 (`components/common/responsive-image`), which offers the renditions as a
 `srcset` with the drawn size as `sizes`, and falls back to the plain URL when
 there are none or one fails to load. Inline images in blog bodies are raw HTML

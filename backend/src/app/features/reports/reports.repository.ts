@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { normalizeAppRole, type AppRole } from "@/features/auth/auth.model";
@@ -865,7 +865,7 @@ export class ReportsRepository extends BaseRepository {
       email: user.email,
       username: user.profile?.username ?? undefined,
       avatarUrl: user.profile?.avatarUrl ?? undefined,
-      avatarVariants: describeImageVariants(
+      avatarVariants: referenceImageVariants(
         user.profile?.avatarBlobName,
         user.profile?.avatarUrl,
       ),

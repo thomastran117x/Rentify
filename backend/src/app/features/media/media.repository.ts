@@ -8,6 +8,7 @@ import type {
   MediaRecord,
   MediaStatus,
   MediaVariantsMetadata,
+  RecordedRenditions,
 } from "@/features/media/media.model";
 
 /**
@@ -137,6 +138,53 @@ export class MediaRepository extends BaseRepository {
       );
 
     return photos + profiles + organizations + blogPosts > 0;
+  }
+
+  /**
+   * The recorded renditions of ready media, keyed by processed blob name, for
+   * ImageVariantsResolver. A name with no ready row is absent, so an image
+   * whose media row is gone, or that is not a processed image, has none.
+   */
+  async findRecordedRenditions(
+    processedBlobNames: string[],
+  ): Promise<Map<string, RecordedRenditions>> {
+    if (processedBlobNames.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.executeAsync(
+      () =>
+        this.prisma.media.findMany({
+          where: {
+            status: "ready",
+            processedBlobName: { in: processedBlobNames },
+          },
+          select: {
+            processedBlobName: true,
+            width: true,
+            height: true,
+            variants: true,
+          },
+        }),
+      { operationName: "findRecordedRenditions" },
+    );
+
+    return new Map(
+      rows.flatMap((row) =>
+        row.processedBlobName
+          ? [
+              [
+                row.processedBlobName,
+                {
+                  width: row.width,
+                  height: row.height,
+                  variants: parseMediaVariants(row.variants),
+                },
+              ] as const,
+            ]
+          : [],
+      ),
+    );
   }
 
   /**
@@ -271,8 +319,23 @@ export function parseMediaVariants(
     return null;
   }
 
-  const medium = parseRenditionInfo(value.medium);
-  const thumbnail = parseRenditionInfo(value.thumbnail);
+  // Each key is present: a rendition's info, or null when it was not written
+  // because the processed image is no wider than it.
+  if (!("medium" in value) || !("thumbnail" in value)) {
+    return null;
+  }
 
-  return medium && thumbnail ? { medium, thumbnail } : null;
+  const medium =
+    value.medium === null ? null : parseRenditionInfo(value.medium);
+  const thumbnail =
+    value.thumbnail === null ? null : parseRenditionInfo(value.thumbnail);
+
+  if (
+    (value.medium !== null && !medium) ||
+    (value.thumbnail !== null && !thumbnail)
+  ) {
+    return null;
+  }
+
+  return { medium, thumbnail };
 }

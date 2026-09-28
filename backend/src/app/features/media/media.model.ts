@@ -52,18 +52,54 @@ export interface ImageRenditionInfo {
 
 /**
  * The smaller renditions written beside a processed image. The large one is the
- * processed image itself and is described by the record's own dimensions.
+ * processed image itself and is described by the record's own dimensions. A
+ * rendition is null when it was not written because the processed image is no
+ * wider than it: it would only have been a copy of the large one.
  */
 export interface MediaVariantsMetadata {
-  medium: ImageRenditionInfo;
-  thumbnail: ImageRenditionInfo;
+  medium: ImageRenditionInfo | null;
+  thumbnail: ImageRenditionInfo | null;
 }
 
-/** The addresses of an image's renditions, smallest first. */
+/** One rendition as a client draws it: where it is and how large it is. */
+export interface ImageRendition {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * The renditions of an image, smallest first. A rendition that was not written
+ * because the image is no wider than it is the large one.
+ */
 export interface ImageVariants {
-  thumbnail: string;
-  medium: string;
-  large: string;
+  thumbnail: ImageRendition;
+  medium: ImageRendition;
+  large: ImageRendition;
+}
+
+/**
+ * A stored image whose renditions are still to be looked up. Mappers emit it,
+ * so they need not query media; ImageVariantsResolver replaces every one in a
+ * payload with its ImageVariants, or null, in one batched lookup before the
+ * payload leaves the process (a JSON response, a socket event, a search
+ * document).
+ */
+export interface ImageVariantsReference {
+  $imageVariants: { blobName: string; blobUrl: string };
+}
+
+/**
+ * A response field that carries an image's renditions: a reference until it
+ * is resolved, then the renditions, or null when none are recorded.
+ */
+export type ImageVariantsField = ImageVariants | ImageVariantsReference | null;
+
+/** What the resolver needs from a media row to describe its renditions. */
+export interface RecordedRenditions {
+  width: number | null;
+  height: number | null;
+  variants: MediaVariantsMetadata | null;
 }
 
 export interface MediaRecord {

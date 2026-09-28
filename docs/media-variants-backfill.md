@@ -1,24 +1,26 @@
 # Media Variants Backfill
 
-The media processing worker writes three renditions of every accepted image:
-the processed image itself (`large`), a `medium` (800 px wide), and a
-`thumbnail` (300 px wide). See "Renditions" in the
+The media processing worker writes up to three renditions of every accepted
+image: the processed image itself (`large`), a `medium` (800 px wide), and a
+`thumbnail` (300 px wide), skipping a smaller one the image is no wider than.
+See "Renditions" in the
 [architecture overview](./architecture-overview.md#image-upload-validation).
 
-Images processed before renditions existed only have the large one. Until they
-are backfilled, the API still offers rendition URLs for them, because those are
-derived from the stored blob name, but the medium and thumbnail blobs do not
-exist yet. The frontend falls back to the processed image when a rendition fails
-to load, so nothing breaks, but those surfaces keep downloading the full image.
-Run the backfill **immediately after deploying** the release that adds
-renditions.
+Images processed before renditions existed only have the large one, and their
+`media.variants` is `NULL`. The API offers only recorded renditions, so until
+they are backfilled their variants fields are `null` and every surface
+downloads the full image. Nothing breaks, but run the backfill **immediately
+after deploying** the release that adds renditions.
 
 ## What it does
 
 [`backfill-media-variants.ts`](../backend/src/app/scripts/backfill-media-variants.ts)
 selects `ready` media rows whose `variants` column is `NULL`, in batches ordered
 by id. For each one it downloads the processed image, writes the medium and
-thumbnail beside it, and records them in `media.variants`.
+thumbnail beside it when the image is wider than them, and records them in
+`media.variants`, as `null` for one it did not write. Responses offer the
+renditions from then on; no cache needs clearing, because they are looked up
+as each response is written.
 
 - **Re-runnable.** A converted row no longer matches the selection, so a second
   run reports `scanned: 0`. A run interrupted part way through simply converts
@@ -101,4 +103,7 @@ photo's renditions to the search document. The search maintainer reindexes by
 itself once it runs the new version; see the
 [search worker guide](../backend/src/app/workers/search/README.md#search-maintainer).
 Search results are loaded from the database, not from the document, so they
-show renditions immediately, before that reindex finishes.
+show renditions immediately, before that reindex finishes. The document
+records the renditions known when it was written, so one indexed before the
+backfill reached its photo keeps `null` until the posting is next indexed or
+the index is rebuilt with `POST /admin/search/reindex`.

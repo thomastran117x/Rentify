@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -490,7 +490,7 @@ export class ReportsService {
       role: normalizeAppRole(user.role),
       username: user.username ?? user.profile?.username ?? undefined,
       avatarUrl: user.avatarUrl ?? user.profile?.avatarUrl ?? undefined,
-      avatarVariants: describeImageVariants(
+      avatarVariants: referenceImageVariants(
         user.avatarBlobName ?? user.profile?.avatarBlobName,
         user.avatarUrl ?? user.profile?.avatarUrl,
       ),

@@ -1,4 +1,8 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import {
+  referenceImageVariants,
+  withoutImageVariantsReferences,
+  type ImageVariantsResolver,
+} from "@/features/media/image-variants";
 import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
@@ -75,6 +79,9 @@ export class PostingsSearchIndexService {
 
   constructor(
     private readonly elasticsearch: ElasticsearchClient = getElasticsearchClient(),
+    // Without one, documents are indexed with no renditions rather than with
+    // unresolved references.
+    private readonly imageVariants?: Pick<ImageVariantsResolver, "resolve">,
   ) {
     this.logger = loggerFactory.forClass(PostingsSearchIndexService, "service");
   }
@@ -160,7 +167,7 @@ export class PostingsSearchIndexService {
       `/${encodeURIComponent(indexName)}/_doc/${encodeURIComponent(document.id)}`,
       {
         method: "PUT",
-        body: JSON.stringify(this.toElasticsearchDocument(document)),
+        body: JSON.stringify((await this.prepareDocuments([document]))[0]),
       },
     );
   }
@@ -173,15 +180,16 @@ export class PostingsSearchIndexService {
       return;
     }
 
+    const prepared = await this.prepareDocuments(documents);
     const payload = documents
-      .flatMap((document) => [
+      .flatMap((document, index) => [
         JSON.stringify({
           index: {
             _index: targetIndexName,
             _id: document.id,
           },
         }),
-        JSON.stringify(this.toElasticsearchDocument(document)),
+        JSON.stringify(prepared[index]),
       ])
       .join("\n")
       .concat("\n");
@@ -436,6 +444,24 @@ export class PostingsSearchIndexService {
     return `${this.getBaseIndexName()}-write`;
   }
 
+  /**
+   * Maps documents for indexing, resolving the image rendition references in
+   * all of them with one lookup.
+   */
+  private async prepareDocuments(
+    documents: PostingSearchDocument[],
+  ): Promise<
+    ReturnType<PostingsSearchIndexService["toElasticsearchDocument"]>[]
+  > {
+    const mapped = documents.map((document) =>
+      this.toElasticsearchDocument(document),
+    );
+
+    return this.imageVariants
+      ? this.imageVariants.resolve(mapped)
+      : withoutImageVariantsReferences(mapped);
+  }
+
   private toElasticsearchDocument(
     document: PostingSearchDocument,
   ): Record<string, unknown> {
@@ -473,7 +499,7 @@ export class PostingsSearchIndexService {
         postalCode: document.location.postalCode,
       },
       primaryPhotoUrl: primaryPhoto?.blobUrl,
-      primaryPhotoVariants: describeImageVariants(
+      primaryPhotoVariants: referenceImageVariants(
         primaryPhoto?.blobName,
         primaryPhoto?.blobUrl,
       ),

@@ -1,30 +1,60 @@
 "use client";
 
 import { useCallback, useState, type ImgHTMLAttributes } from "react";
-import type { ImageVariants } from "@/lib/media/api";
+import type { ImageRendition, ImageVariants } from "@/lib/media/api";
+
+const RENDITIONS = ["thumbnail", "medium", "large"] as const;
+
+function isRendition(value: unknown): value is ImageRendition {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const { url, width } = value as Partial<ImageRendition>;
+
+  return (
+    typeof url === "string" &&
+    url.length > 0 &&
+    typeof width === "number" &&
+    Number.isInteger(width) &&
+    width > 0
+  );
+}
 
 /**
- * Each rendition's width. The thumbnail and medium are scaled to exactly these
- * widths, so their descriptors are true whatever the image's shape. An image
- * narrower than a width keeps its own, but then every rendition below it is the
- * same size, so picking one still never costs sharpness. The large rendition
- * is the processed image, which a portrait or a lower cap makes narrower than
- * 2560; declaring it that wide only makes the browser reach for it last, and
- * there is nothing larger to offer anyway.
+ * The `srcset` for an image's renditions, smallest first, described by their
+ * real widths. A rendition the image was too narrow for is given as the large
+ * one, so each URL is offered once.
+ *
+ * Undefined when there is nothing to choose between: no renditions, a single
+ * one, or a value not in the shape the API reports now (such as one cached by
+ * an older release), which is treated as none rather than trusted.
  */
-const RENDITION_WIDTHS: Record<keyof ImageVariants, number> = {
-  thumbnail: 300,
-  medium: 800,
-  large: 2560,
-};
+export function buildImageSrcSet(
+  variants: ImageVariants | null | undefined,
+): string | undefined {
+  if (!variants || typeof variants !== "object") {
+    return undefined;
+  }
 
-/** The `srcset` for an image's renditions, smallest first. */
-export function buildImageSrcSet(variants: ImageVariants): string {
-  return (["thumbnail", "medium", "large"] as const)
-    .map(
-      (rendition) => `${variants[rendition]} ${RENDITION_WIDTHS[rendition]}w`,
-    )
-    .join(", ");
+  const offered = new Map<string, number>();
+
+  for (const name of RENDITIONS) {
+    const rendition: unknown = variants[name];
+
+    if (!isRendition(rendition)) {
+      return undefined;
+    }
+    if (!offered.has(rendition.url)) {
+      offered.set(rendition.url, rendition.width);
+    }
+  }
+
+  if (offered.size < 2) {
+    return undefined;
+  }
+
+  return Array.from(offered, ([url, width]) => `${url} ${width}w`).join(", ");
 }
 
 export type ResponsiveImageProps = Omit<
@@ -48,10 +78,10 @@ export type ResponsiveImageProps = Omit<
  * An image that lets the browser choose among its renditions, so a list or an
  * avatar does not download the full processed image.
  *
- * Without renditions (a seeded photo, an image stored before media processing,
- * or a local preview) it renders `src` alone. If a rendition fails to load,
- * as it can for an image processed before renditions existed and not yet
- * backfilled, it falls back to `src` rather than showing a broken image.
+ * Without renditions (a seeded photo, an image stored before media processing
+ * or not yet backfilled, or a local preview) it renders `src` alone. The API
+ * only reports renditions it has recorded, but if one still fails to load, it
+ * falls back to `src` rather than showing a broken image.
  *
  * A server-rendered image can fail before hydration attaches `onError`, and
  * React does not replay that event, so the image is also checked once it is
@@ -65,7 +95,7 @@ export function ResponsiveImage({
   onError,
   ...imageProps
 }: ResponsiveImageProps) {
-  const srcSet = variants ? buildImageSrcSet(variants) : undefined;
+  const srcSet = buildImageSrcSet(variants);
   // Keyed on the srcset, so new renditions are tried again after a failure.
   const [failedSrcSet, setFailedSrcSet] = useState<string | null>(null);
   const useRenditions = srcSet !== undefined && srcSet !== failedSrcSet;

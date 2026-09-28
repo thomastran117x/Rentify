@@ -114,17 +114,29 @@ describe("Profiles persistence integration", () => {
 
     const profile = await readData<{
       avatarUrl: string;
-      avatarVariants: Record<"thumbnail" | "medium" | "large", string>;
+      avatarVariants: Record<
+        "thumbnail" | "medium" | "large",
+        { url: string; width: number; height: number }
+      >;
     }>(await request("/profile/me", { headers: user.headers() }));
     const addressed = (url: string) =>
       new URL(url).searchParams.get("blobName");
 
     expect(profile.avatarUrl).toBe(avatar.blobUrl);
-    expect(profile.avatarVariants.large).toBe(avatar.blobUrl);
-    expect(addressed(profile.avatarVariants.medium)).toBe(
+    // The renditions the media row records, at their recorded widths.
+    expect(profile.avatarVariants.large).toEqual({
+      url: avatar.blobUrl,
+      width: 1600,
+      height: 1200,
+    });
+    expect(profile.avatarVariants.medium).toMatchObject({
+      width: 800,
+      height: 600,
+    });
+    expect(addressed(profile.avatarVariants.medium.url)).toBe(
       avatar.blobName.replace(/\.webp$/, ".medium.webp"),
     );
-    expect(addressed(profile.avatarVariants.thumbnail)).toBe(
+    expect(addressed(profile.avatarVariants.thumbnail.url)).toBe(
       avatar.blobName.replace(/\.webp$/, ".thumbnail.webp"),
     );
   });

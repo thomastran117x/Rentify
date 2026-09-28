@@ -156,7 +156,10 @@ describe("MediaProcessingService", () => {
   });
 
   describe("renditions", () => {
-    /** Processes an upload; returns the ready row and each stored rendition. */
+    /**
+     * Processes an upload; returns the ready row and each stored rendition, or
+     * null for one that was not written.
+     */
     async function processRenditions(
       body: Buffer,
       declaredContentType = "image/png",
@@ -169,7 +172,17 @@ describe("MediaProcessingService", () => {
       const ready = (await context.mediaRepository.findById(record.id))!;
       const [large, medium, thumbnail] = await Promise.all(
         renditionNames(context, record.id).map(async (blobName) => {
-          const stored = await context.blobService.readLocalBlob(blobName);
+          const stored = await context.blobService
+            .readLocalBlob(blobName)
+            .catch((error: unknown) => {
+              if (error instanceof ResourceNotFoundError) {
+                return null;
+              }
+              throw error;
+            });
+          if (!stored) {
+            return null;
+          }
           const metadata = await sharp(stored.body).metadata();
 
           return {
@@ -182,7 +195,7 @@ describe("MediaProcessingService", () => {
         }),
       );
 
-      return { ready, large: large!, medium: medium!, thumbnail: thumbnail! };
+      return { ready, large: large!, medium, thumbnail };
     }
 
     it("writes a medium and a thumbnail beside the processed image", async () => {
@@ -201,25 +214,41 @@ describe("MediaProcessingService", () => {
       expect(thumbnail).toMatchObject({ width: 300, height: 225 });
       // The row records what was written, and so doubles as proof it exists.
       expect(ready.variants).toEqual({
-        medium: { width: 800, height: 600, sizeBytes: medium.sizeBytes },
+        medium: { width: 800, height: 600, sizeBytes: medium!.sizeBytes },
         thumbnail: {
           width: 300,
           height: 225,
-          sizeBytes: thumbnail.sizeBytes,
+          sizeBytes: thumbnail!.sizeBytes,
         },
       });
     });
 
-    it("never enlarges a small image into its renditions", async () => {
-      const { ready, medium, thumbnail } = await processRenditions(
+    it("writes no rendition that would be no smaller than the image", async () => {
+      const { ready, large, medium, thumbnail } = await processRenditions(
         await createPngFixture(120, 90),
       );
 
-      expect(medium).toMatchObject({ width: 120, height: 90 });
-      expect(thumbnail).toMatchObject({ width: 120, height: 90 });
-      expect(ready.variants?.thumbnail).toMatchObject({
-        width: 120,
-        height: 90,
+      // A copy of the same width would only be a duplicate to store and serve.
+      expect(large).toMatchObject({ width: 120, height: 90 });
+      expect(medium).toBeNull();
+      expect(thumbnail).toBeNull();
+      expect(ready.variants).toEqual({ medium: null, thumbnail: null });
+    });
+
+    it("writes only the renditions narrower than the image", async () => {
+      const { ready, medium, thumbnail } = await processRenditions(
+        await createPngFixture(500, 400),
+      );
+
+      expect(medium).toBeNull();
+      expect(thumbnail).toMatchObject({ width: 300, height: 240 });
+      expect(ready.variants).toEqual({
+        medium: null,
+        thumbnail: {
+          width: 300,
+          height: 240,
+          sizeBytes: thumbnail!.sizeBytes,
+        },
       });
     });
 
@@ -248,16 +277,17 @@ describe("MediaProcessingService", () => {
       expect(thumbnail).toMatchObject({ width: 300, height: 400 });
     });
 
-    it("keeps the medium within a processed cap below its own size", async () => {
-      process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+    it("sizes renditions from the processed image, not the upload", async () => {
+      process.env.MAX_PROCESSED_IMAGE_EDGE = "600";
 
       const { large, medium, thumbnail } = await processRenditions(
         await createPngFixture(1024, 1024),
       );
 
-      expect(large).toMatchObject({ width: 256, height: 256 });
-      expect(medium).toMatchObject({ width: 256, height: 256 });
-      expect(thumbnail).toMatchObject({ width: 256, height: 256 });
+      // The upload is wider than a medium, but its capped copy is not.
+      expect(large).toMatchObject({ width: 600, height: 600 });
+      expect(medium).toBeNull();
+      expect(thumbnail).toMatchObject({ width: 300, height: 300 });
     });
 
     it("writes every rendition again when a retry follows a partial upload", async () => {
@@ -839,7 +869,7 @@ describe("MediaProcessingService", () => {
 
   it("keeps the output when a duplicate job already finished the item", async () => {
     const context = createContext();
-    const record = await quarantine(context, await createPngFixture());
+    const record = await quarantine(context, await createPngFixture(1000, 750));
     const repository = context.mediaRepository;
     const markReady = repository.markReady.bind(repository);
     jest

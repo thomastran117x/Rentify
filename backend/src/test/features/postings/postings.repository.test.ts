@@ -695,7 +695,7 @@ describe("PostingsRepository", () => {
     });
   });
 
-  it("describes the renditions of a processed photo", async () => {
+  it("references the renditions of a processed photo", async () => {
     const repository = new PostingsRepository({
       postingPhoto: {
         findFirst: jest.fn(async () => ({
@@ -715,11 +715,10 @@ describe("PostingsRepository", () => {
       repository.findPrimaryPhotoForThumbnailing(POSTING_1_ID),
     ).resolves.toMatchObject({
       variants: {
-        thumbnail:
-          "https://cdn.test/uploads/media/images/owner-1/photo-1.thumbnail.webp",
-        medium:
-          "https://cdn.test/uploads/media/images/owner-1/photo-1.medium.webp",
-        large: "https://cdn.test/uploads/media/images/owner-1/photo-1.webp",
+        $imageVariants: {
+          blobName: "media/images/owner-1/photo-1.webp",
+          blobUrl: "https://cdn.test/uploads/media/images/owner-1/photo-1.webp",
+        },
       },
     });
   });

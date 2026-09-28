@@ -2094,11 +2094,10 @@ describe("PaymentsRepository", () => {
           primaryPhotoUrl:
             "https://blob.example/uploads/media/images/u1/m1.webp",
           primaryPhotoVariants: {
-            thumbnail:
-              "https://blob.example/uploads/media/images/u1/m1.thumbnail.webp",
-            medium:
-              "https://blob.example/uploads/media/images/u1/m1.medium.webp",
-            large: "https://blob.example/uploads/media/images/u1/m1.webp",
+            $imageVariants: {
+              blobName: "media/images/u1/m1.webp",
+              blobUrl: "https://blob.example/uploads/media/images/u1/m1.webp",
+            },
           },
           cancellationPolicyNotes: "No parties.",
         });

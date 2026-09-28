@@ -1,4 +1,4 @@
-import type { ImageVariants } from "@/features/media/media.model";
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 import type { AppRole } from "@/features/auth/auth.model";
 import { uuidSchema, type Uuid } from "@/configuration/validation/uuid";
@@ -120,7 +120,7 @@ export interface ContentReportUserSummary {
   email: string;
   username?: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   role: AppRole;
 }
 

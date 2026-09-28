@@ -11,9 +11,21 @@ import {
 } from "./public-format";
 
 const VARIANTS = {
-  thumbnail: "https://cdn.test/media/images/u/m.thumbnail.webp",
-  medium: "https://cdn.test/media/images/u/m.medium.webp",
-  large: "https://cdn.test/media/images/u/m.webp",
+  thumbnail: {
+    url: "https://cdn.test/media/images/u/m.thumbnail.webp",
+    width: 300,
+    height: 225,
+  },
+  medium: {
+    url: "https://cdn.test/media/images/u/m.medium.webp",
+    width: 800,
+    height: 600,
+  },
+  large: {
+    url: "https://cdn.test/media/images/u/m.webp",
+    width: 1600,
+    height: 1200,
+  },
 };
 
 describe("public posting format helpers", () => {
@@ -57,7 +69,7 @@ describe("resolvePostingCardImage", () => {
     expect(
       resolvePostingCardImage({
         primaryThumbnailUrl: "https://cdn.test/thumbnails/m.webp",
-        primaryPhotoUrl: VARIANTS.large,
+        primaryPhotoUrl: VARIANTS.large.url,
         primaryPhotoVariants: VARIANTS,
       }),
     ).toEqual({ src: "https://cdn.test/thumbnails/m.webp", variants: null });
@@ -66,10 +78,10 @@ describe("resolvePostingCardImage", () => {
   it("otherwise offers the primary photo's renditions", () => {
     expect(
       resolvePostingCardImage({
-        primaryPhotoUrl: VARIANTS.large,
+        primaryPhotoUrl: VARIANTS.large.url,
         primaryPhotoVariants: VARIANTS,
       }),
-    ).toEqual({ src: VARIANTS.large, variants: VARIANTS });
+    ).toEqual({ src: VARIANTS.large.url, variants: VARIANTS });
     expect(
       resolvePostingCardImage({ primaryPhotoUrl: "https://cdn.test/a.jpg" }),
     ).toEqual({ src: "https://cdn.test/a.jpg", variants: null });
@@ -89,7 +101,7 @@ describe("resolvePhotoPreviewImage", () => {
   it("offers renditions with the card crop as the fallback", () => {
     expect(
       resolvePhotoPreviewImage({
-        blobUrl: VARIANTS.large,
+        blobUrl: VARIANTS.large.url,
         thumbnailBlobUrl: "https://cdn.test/thumbnails/m.webp",
         variants: VARIANTS,
       }),
@@ -98,8 +110,11 @@ describe("resolvePhotoPreviewImage", () => {
       variants: VARIANTS,
     });
     expect(
-      resolvePhotoPreviewImage({ blobUrl: VARIANTS.large, variants: VARIANTS }),
-    ).toEqual({ src: VARIANTS.large, variants: VARIANTS });
+      resolvePhotoPreviewImage({
+        blobUrl: VARIANTS.large.url,
+        variants: VARIANTS,
+      }),
+    ).toEqual({ src: VARIANTS.large.url, variants: VARIANTS });
   });
 
   it("falls back to the crop, then the photo", () => {

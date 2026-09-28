@@ -686,17 +686,28 @@ describe("Organizations persistence integration", () => {
     const cover = await createReadyMedia(owner.userId, {
       scope: "organizations",
     });
-    type Variants = Record<"thumbnail" | "medium" | "large", string>;
+    type Variants = Record<
+      "thumbnail" | "medium" | "large",
+      { url: string; width: number; height: number }
+    >;
     const renditionsOf = (media: { blobName: string; blobUrl: string }) => ({
-      thumbnail: expect.stringContaining(
-        encodeURIComponent(
-          media.blobName.replace(/\.webp$/, ".thumbnail.webp"),
+      thumbnail: {
+        url: expect.stringContaining(
+          encodeURIComponent(
+            media.blobName.replace(/\.webp$/, ".thumbnail.webp"),
+          ),
         ),
-      ),
-      medium: expect.stringContaining(
-        encodeURIComponent(media.blobName.replace(/\.webp$/, ".medium.webp")),
-      ),
-      large: media.blobUrl,
+        width: 300,
+        height: 225,
+      },
+      medium: {
+        url: expect.stringContaining(
+          encodeURIComponent(media.blobName.replace(/\.webp$/, ".medium.webp")),
+        ),
+        width: 800,
+        height: 600,
+      },
+      large: { url: media.blobUrl, width: 1600, height: 1200 },
     });
 
     const updated = await request(`/organizations/${ORGANIZATION_ID}`, {

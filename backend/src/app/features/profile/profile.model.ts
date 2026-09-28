@@ -1,4 +1,4 @@
-import type { ImageVariants } from "@/features/media/media.model";
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 import {
   uuidSchemaWithMessage,
@@ -80,7 +80,7 @@ export interface ProfileRecord {
   usernameChangeAvailableAt?: string;
   phoneNumber?: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   avatarBlobName?: string;
   isPrivate: boolean;
   recommendationPersonalizationEnabled: boolean;
@@ -101,7 +101,7 @@ export interface PublicProfileRecord {
   username: string;
   phoneNumber?: string;
   avatarUrl?: string;
-  avatarVariants: ImageVariants | null;
+  avatarVariants: ImageVariantsField;
   trustworthinessScore: number;
   rentPostingsCount: number;
   availableRentPostingsCount: number;

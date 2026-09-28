@@ -137,9 +137,21 @@ describe("uploadImage", () => {
       status: "ready",
       url: `https://cdn.test/media/images/u/${MEDIA_ID}.webp`,
       variants: {
-        thumbnail: `https://cdn.test/media/images/u/${MEDIA_ID}.thumbnail.webp`,
-        medium: `https://cdn.test/media/images/u/${MEDIA_ID}.medium.webp`,
-        large: `https://cdn.test/media/images/u/${MEDIA_ID}.webp`,
+        thumbnail: {
+          url: `https://cdn.test/media/images/u/${MEDIA_ID}.thumbnail.webp`,
+          width: 300,
+          height: 225,
+        },
+        medium: {
+          url: `https://cdn.test/media/images/u/${MEDIA_ID}.medium.webp`,
+          width: 800,
+          height: 600,
+        },
+        large: {
+          url: `https://cdn.test/media/images/u/${MEDIA_ID}.webp`,
+          width: 1600,
+          height: 1200,
+        },
       },
     });
     routeMediaApi(mediaView({ status: "uploaded" }), [

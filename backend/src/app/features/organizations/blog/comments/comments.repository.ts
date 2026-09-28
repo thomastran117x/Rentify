@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -306,7 +306,7 @@ export class OrganizationBlogCommentsRepository extends BaseRepository {
         // public page, so an address must not leak through a missing profile.
         username: row.author?.profile?.username ?? "Member",
         avatarUrl: row.author?.profile?.avatarUrl ?? undefined,
-        avatarVariants: describeImageVariants(
+        avatarVariants: referenceImageVariants(
           row.author?.profile?.avatarBlobName,
           row.author?.profile?.avatarUrl,
         ),

@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import ConflictError from "@/errors/http/conflict.error";
@@ -358,7 +358,7 @@ export class ProfileRepository extends BaseRepository {
         eligibility.availableAt?.toISOString() ?? undefined,
       phoneNumber: profile.phoneNumber ?? undefined,
       avatarUrl: profile.avatarUrl ?? undefined,
-      avatarVariants: describeImageVariants(
+      avatarVariants: referenceImageVariants(
         profile.avatarBlobName,
         profile.avatarUrl,
       ),
@@ -386,7 +386,7 @@ export class ProfileRepository extends BaseRepository {
       username: profile.username,
       phoneNumber: profile.phoneNumber ?? undefined,
       avatarUrl: profile.avatarUrl ?? undefined,
-      avatarVariants: describeImageVariants(
+      avatarVariants: referenceImageVariants(
         profile.avatarBlobName,
         profile.avatarUrl,
       ),

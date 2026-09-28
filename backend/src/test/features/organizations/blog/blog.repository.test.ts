@@ -126,7 +126,7 @@ describe("OrganizationBlogRepository", () => {
     );
   });
 
-  it("describes the renditions of a processed cover", async () => {
+  it("references the renditions of a processed cover", async () => {
     const coverImageBlobName = `media/images/${USER_1_ID}/cover-1.webp`;
     const coverImageUrl = `https://cdn.test/uploads/${coverImageBlobName}`;
     const repository = new OrganizationBlogRepository({
@@ -140,9 +140,7 @@ describe("OrganizationBlogRepository", () => {
     const result = await repository.findPublishedBySlug(ORG_1_ID, "blog-title");
 
     expect(result?.coverImageVariants).toEqual({
-      thumbnail: `https://cdn.test/uploads/media/images/${USER_1_ID}/cover-1.thumbnail.webp`,
-      medium: `https://cdn.test/uploads/media/images/${USER_1_ID}/cover-1.medium.webp`,
-      large: coverImageUrl,
+      $imageVariants: { blobName: coverImageBlobName, blobUrl: coverImageUrl },
     });
   });
 

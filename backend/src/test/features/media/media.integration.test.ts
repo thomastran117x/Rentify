@@ -203,7 +203,7 @@ describe("Media persistence integration", () => {
     });
     const { mediaId, upload } = await startUpload(owner.headers());
     const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
-    await putBytes(upload.url, await createPngFixture(10, 6));
+    await putBytes(upload.url, await createPngFixture(1000, 600));
     await request(`/media/${mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
@@ -223,8 +223,8 @@ describe("Media persistence integration", () => {
     expect(ready).toMatchObject({
       status: "ready",
       contentType: "image/png",
-      width: 10,
-      height: 6,
+      width: 1000,
+      height: 600,
       rejectionReason: null,
     });
     expect(new URL(ready.url!).searchParams.get("blobName")).toBe(
@@ -238,18 +238,30 @@ describe("Media persistence integration", () => {
     ).toBe("image/webp");
 
     const renditions = {
-      thumbnail: `media/images/${owner.userId}/${mediaId}.thumbnail.webp`,
-      medium: `media/images/${owner.userId}/${mediaId}.medium.webp`,
-      large: processedName,
+      thumbnail: {
+        blobName: `media/images/${owner.userId}/${mediaId}.thumbnail.webp`,
+        width: 300,
+        height: 180,
+      },
+      medium: {
+        blobName: `media/images/${owner.userId}/${mediaId}.medium.webp`,
+        width: 800,
+        height: 480,
+      },
+      large: { blobName: processedName, width: 1000, height: 600 },
     };
-    for (const [rendition, blobName] of Object.entries(renditions)) {
+    for (const [rendition, expected] of Object.entries(renditions)) {
+      const served = ready.variants![rendition as keyof typeof renditions];
+      expect(new URL(served.url).searchParams.get("blobName")).toBe(
+        expected.blobName,
+      );
+      expect(served).toMatchObject({
+        width: expected.width,
+        height: expected.height,
+      });
       expect(
-        new URL(
-          ready.variants![rendition as keyof typeof renditions],
-        ).searchParams.get("blobName"),
-      ).toBe(blobName);
-      expect(
-        persistenceApp.stubs.blobService.storage.get(blobName)?.contentType,
+        persistenceApp.stubs.blobService.storage.get(expected.blobName)
+          ?.contentType,
       ).toBe("image/webp");
     }
   });
@@ -365,7 +377,7 @@ describe("Media persistence integration", () => {
     });
     const pending = await startUpload(owner.headers());
     const ready = await startUpload(owner.headers());
-    await putBytes(ready.upload.url, await createPngFixture(8, 8));
+    await putBytes(ready.upload.url, await createPngFixture(1000, 600));
     await request(`/media/${ready.mediaId}/complete`, {
       method: "POST",
       headers: owner.headers(),
@@ -412,23 +424,30 @@ describe("Media persistence integration", () => {
       photos: Array<{
         blobName: string;
         blobUrl: string;
-        variants: Record<"thumbnail" | "medium" | "large", string> | null;
+        variants: Record<
+          "thumbnail" | "medium" | "large",
+          { url: string; width: number }
+        > | null;
       }>;
     }>(created);
     const processedName = `media/images/${owner.userId}/${ready.mediaId}.webp`;
     expect(posting.photos).toEqual([
       expect.objectContaining({ blobName: processedName }),
     ]);
-    // Each rendition URL addresses a blob the worker wrote.
+    // Each rendition URL addresses a blob the worker wrote, at its width.
     const [photo] = posting.photos;
-    expect(photo?.variants?.large).toBe(photo?.blobUrl);
+    expect(photo?.variants?.large).toEqual({
+      url: photo?.blobUrl,
+      width: 1000,
+      height: 600,
+    });
     for (const [rendition, suffix] of [
       ["thumbnail", ".thumbnail.webp"],
       ["medium", ".medium.webp"],
     ] as const) {
-      const blobName = new URL(photo!.variants![rendition]).searchParams.get(
-        "blobName",
-      );
+      const blobName = new URL(
+        photo!.variants![rendition].url,
+      ).searchParams.get("blobName");
       expect(blobName).toBe(processedName.replace(/\.webp$/, suffix));
       expect(persistenceApp.stubs.blobService.storage.has(blobName!)).toBe(
         true,
@@ -558,7 +577,7 @@ describe("Media persistence integration", () => {
       // The backfill bounds its download by the recorded processed size.
       await persistenceApp.prisma.media.update({
         where: { id: mediaId },
-        data: { sizeBytes: body.byteLength },
+        data: { sizeBytes: body.byteLength, width: 1000, height: 500 },
       });
     }
     const backfill = new MediaVariantsBackfillService(

@@ -2,6 +2,7 @@ import {
   ElasticsearchRequestError,
   ElasticsearchUnavailableError,
 } from "@/configuration/resources/elasticsearch";
+import { ImageVariantsResolver } from "@/features/media/image-variants";
 import { PostingsSearchIndexService } from "@/features/postings/search/index.service";
 
 function createClient(overrides: Record<string, unknown> = {}) {
@@ -334,6 +335,22 @@ describe("PostingsSearchIndexService", () => {
       createClient({
         requestJson,
       }) as any,
+      new ImageVariantsResolver({
+        findRecordedRenditions: async () =>
+          new Map([
+            [
+              "media/images/u1/photo-0.webp",
+              {
+                width: 1600,
+                height: 1200,
+                variants: {
+                  medium: { width: 800, height: 600, sizeBytes: 1 },
+                  thumbnail: { width: 300, height: 225, sizeBytes: 1 },
+                },
+              },
+            ],
+          ]),
+      }),
     );
 
     await service.upsertDocument(createDocument() as any, "custom-index");
@@ -362,11 +379,21 @@ describe("PostingsSearchIndexService", () => {
       primaryPhotoUrl:
         "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
       primaryPhotoVariants: {
-        thumbnail:
-          "https://cdn.example.test/uploads/media/images/u1/photo-0.thumbnail.webp",
-        medium:
-          "https://cdn.example.test/uploads/media/images/u1/photo-0.medium.webp",
-        large: "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
+        thumbnail: {
+          url: "https://cdn.example.test/uploads/media/images/u1/photo-0.thumbnail.webp",
+          width: 300,
+          height: 225,
+        },
+        medium: {
+          url: "https://cdn.example.test/uploads/media/images/u1/photo-0.medium.webp",
+          width: 800,
+          height: 600,
+        },
+        large: {
+          url: "https://cdn.example.test/uploads/media/images/u1/photo-0.webp",
+          width: 1600,
+          height: 1200,
+        },
       },
       photoUrls: [
         "https://cdn.example.test/photo-2.jpg",

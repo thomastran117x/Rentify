@@ -492,13 +492,14 @@ const personalAccessTokenCreateExample = {
   token: "rpat_live_secret_token",
 };
 const mediaIdExample = "8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10";
+/** The renditions of a 1600x1200 processed image. */
 function imageVariantsExample(processedUrl: string) {
   const base = processedUrl.replace(/\.webp$/, "");
 
   return {
-    thumbnail: `${base}.thumbnail.webp`,
-    medium: `${base}.medium.webp`,
-    large: processedUrl,
+    thumbnail: { url: `${base}.thumbnail.webp`, width: 300, height: 225 },
+    medium: { url: `${base}.medium.webp`, width: 800, height: 600 },
+    large: { url: processedUrl, width: 1600, height: 1200 },
   };
 }
 const mediaViewPendingExample = {
@@ -1259,8 +1260,9 @@ function schemaRef(name: string): Record<string, string> {
 }
 
 /**
- * A response field holding an image's rendition URLs. Null when the image has
- * none: it predates media processing, is seeded, or is not a processed image.
+ * A response field holding an image's renditions. Null when none are recorded:
+ * the image predates media processing, is seeded, is not a processed image,
+ * or the backfill has not reached it yet.
  */
 function imageVariantsField(description: string): Record<string, unknown> {
   return {
@@ -10765,7 +10767,7 @@ function buildComponents(): Record<string, unknown> {
           width: { type: "integer", nullable: true },
           height: { type: "integer", nullable: true },
           variants: imageVariantsField(
-            "The processed image's renditions, set with `url`. For an image processed before renditions existed, the smaller two exist only once the backfill has reached it; clients should fall back to `url` if one fails to load.",
+            "The processed image's renditions, once they are recorded. Null until then, including for an image processed before renditions existed that the backfill has not reached yet; `url` still serves it.",
           ),
           rejectionReason: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" },
@@ -10775,26 +10777,35 @@ function buildComponents(): Record<string, unknown> {
       ImageVariants: {
         type: "object",
         description:
-          "Renditions of one processed image, for a `srcset`. None is enlarged, so a small image's renditions may all have the same dimensions.",
+          "Recorded renditions of one processed image, each with its real dimensions, for a `srcset` with `w` descriptors. A rendition is only written when the image is wider than it; otherwise that entry is the large rendition, so a small image's entries can share one URL.",
         required: ["thumbnail", "medium", "large"],
         additionalProperties: false,
         properties: {
           thumbnail: {
-            type: "string",
-            format: "uri",
-            description: "300 px wide, or the image's own width if narrower.",
+            allOf: [schemaRef("ImageRendition")],
+            description:
+              "300 px wide, or the large rendition when the image is no wider.",
           },
           medium: {
-            type: "string",
-            format: "uri",
-            description: "800 px wide, or the image's own width if narrower.",
+            allOf: [schemaRef("ImageRendition")],
+            description:
+              "800 px wide, or the large rendition when the image is no wider.",
           },
           large: {
-            type: "string",
-            format: "uri",
+            allOf: [schemaRef("ImageRendition")],
             description:
               "The processed image itself, capped by the deployment's processed-image edge (2560 px by default).",
           },
+        },
+      },
+      ImageRendition: {
+        type: "object",
+        required: ["url", "width", "height"],
+        additionalProperties: false,
+        properties: {
+          url: { type: "string", format: "uri" },
+          width: { type: "integer", minimum: 1 },
+          height: { type: "integer", minimum: 1 },
         },
       },
       MediaUploadInstructions: {

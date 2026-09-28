@@ -552,14 +552,14 @@ export async function createReadyMedia(
       declaredContentType: "image/png",
       detectedContentType: "image/png",
       sizeBytes: 15,
-      width: 8,
-      height: 8,
+      width: 1600,
+      height: 1200,
       ...(options.legacy
         ? {}
         : {
             variants: {
-              medium: { width: 8, height: 8, sizeBytes: 15 },
-              thumbnail: { width: 8, height: 8, sizeBytes: 15 },
+              medium: { width: 800, height: 600, sizeBytes: 15 },
+              thumbnail: { width: 300, height: 225, sizeBytes: 15 },
             },
           }),
     },

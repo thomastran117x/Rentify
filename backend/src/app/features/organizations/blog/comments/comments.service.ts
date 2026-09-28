@@ -1,3 +1,4 @@
+import type { ImageVariantsResolver } from "@/features/media/image-variants";
 import { randomBytes } from "node:crypto";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
@@ -57,6 +58,7 @@ export class OrganizationBlogCommentsService {
     private readonly cacheService: CacheService,
     private readonly tokenService: TokenService,
     private readonly realtimeGateway: OrganizationBlogCommentRealtimeGateway,
+    private readonly imageVariants: Pick<ImageVariantsResolver, "resolve">,
   ) {
     this.logger = loggerFactory.forClass(
       OrganizationBlogCommentsService,
@@ -513,7 +515,8 @@ export class OrganizationBlogCommentsService {
     try {
       // Emitted into the post's room; the Socket.IO adapter carries it to
       // sockets held by every other instance.
-      this.realtimeGateway.publish(event);
+      // Resolved here: a socket event does not go out through res.json.
+      this.realtimeGateway.publish(await this.imageVariants.resolve(event));
     } catch (error) {
       // Best-effort. The comment is already durably persisted, so a Redis blip
       // must not turn a delivered comment into a 500 that makes the author post

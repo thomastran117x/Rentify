@@ -1,4 +1,4 @@
-import { describeImageVariants } from "@/features/media/image-variants";
+import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type {
@@ -760,7 +760,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           name: row.name,
           status: row.status,
           primaryPhotoUrl: row.primaryPhotoUrl ?? undefined,
-          primaryPhotoVariants: describeImageVariants(
+          primaryPhotoVariants: referenceImageVariants(
             row.primaryPhotoBlobName,
             row.primaryPhotoUrl,
           ),
@@ -861,7 +861,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
       name: header.name,
       status: header.status,
       primaryPhotoUrl: header.primaryPhotoUrl ?? undefined,
-      primaryPhotoVariants: describeImageVariants(
+      primaryPhotoVariants: referenceImageVariants(
         header.primaryPhotoBlobName,
         header.primaryPhotoUrl,
       ),
