@@ -41,6 +41,7 @@ import { BlobService } from "@/features/blob/blob.service";
 import { MediaController } from "@/features/media/media.controller";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
+import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import { MediaRepository } from "@/features/media/media.repository";
 import type { ImageVariantsResolver } from "@/features/media/image-variants";
 import { MediaService } from "@/features/media/media.service";
@@ -430,6 +431,9 @@ export const containerTokens = {
   ),
   mediaProcessingService: createServiceToken<MediaProcessingService>(
     "MediaProcessingService",
+  ),
+  mediaCleanupService: createServiceToken<MediaCleanupService>(
+    "MediaCleanupService",
   ),
   mediaController: createServiceToken<MediaController>("MediaController"),
   blobController: createServiceToken<BlobController>("BlobController"),

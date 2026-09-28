@@ -340,6 +340,64 @@ export function buildWorkerConfig(
         },
       ),
     },
+    mediaCleanup: {
+      // A backlog drains at full speed regardless; the interval only sets how
+      // soon a newly stale item is noticed.
+      pollIntervalMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_POLL_INTERVAL_MS",
+        300_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      batchSize: parseNumber(raw, "MEDIA_CLEANUP_BATCH_SIZE", 100, errors, {
+        integer: true,
+        min: 1,
+      }),
+      pendingUploadTtlMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      stuckThresholdMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_STUCK_THRESHOLD_MS",
+        900_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      maxProcessingAgeMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      rejectedRetentionMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_REJECTED_RETENTION_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
     bookingExpiry: {
       pollIntervalMs: parseNumber(
         raw,

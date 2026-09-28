@@ -199,6 +199,9 @@ describe("EnvironmentManager", () => {
     expect(manager.getMediaProcessingWorkerConfig()).toBe(
       environment.workers.mediaProcessing,
     );
+    expect(manager.getMediaCleanupWorkerConfig()).toBe(
+      environment.workers.mediaCleanup,
+    );
     expect(manager.getBookingExpiryWorkerConfig()).toBe(
       environment.workers.bookingExpiry,
     );
@@ -544,6 +547,47 @@ describe("EnvironmentManager", () => {
 
     expect(narrowedManager.getImageUploadsConfig().allowedContentTypes).toEqual(
       ["image/png", "image/webp"],
+    );
+  });
+
+  it("defaults the media cleanup worker and allows overriding it", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getMediaCleanupWorkerConfig()).toEqual({
+      pollIntervalMs: 300_000,
+      batchSize: 100,
+      pendingUploadTtlMs: 86_400_000,
+      stuckThresholdMs: 900_000,
+      maxProcessingAgeMs: 86_400_000,
+      rejectedRetentionMs: 86_400_000,
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_CLEANUP_POLL_INTERVAL_MS: "10000",
+      MEDIA_CLEANUP_BATCH_SIZE: "20",
+      MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: "3600000",
+      MEDIA_CLEANUP_STUCK_THRESHOLD_MS: "60000",
+      MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS: "7200000",
+      MEDIA_CLEANUP_REJECTED_RETENTION_MS: "172800000",
+    });
+    const overriddenManager = new EnvironmentManager();
+    overriddenManager.load();
+
+    expect(overriddenManager.getMediaCleanupWorkerConfig()).toEqual({
+      pollIntervalMs: 10_000,
+      batchSize: 20,
+      pendingUploadTtlMs: 3_600_000,
+      stuckThresholdMs: 60_000,
+      maxProcessingAgeMs: 7_200_000,
+      rejectedRetentionMs: 172_800_000,
+    });
+
+    process.env = buildRequiredEnv({ MEDIA_CLEANUP_BATCH_SIZE: "0" });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_CLEANUP_BATCH_SIZE must be greater than or equal to 1.",
     );
   });
 

@@ -11,6 +11,9 @@ import type {
   RecordedRenditions,
 } from "@/features/media/media.model";
 
+// Completed uploads that still wait on their processing job.
+const STUCK_STATUSES: MediaStatus[] = ["uploaded", "processing"];
+
 /**
  * Every state change is a conditional update guarded on the current status, so
  * two actors racing on one row (a retried job and its original, or a client
@@ -246,6 +249,105 @@ export class MediaRepository extends BaseRepository {
       () => this.prisma.media.deleteMany({ where: { id } }),
       { operationName: "deleteById" },
     );
+  }
+
+  /**
+   * Uploads that were requested before `createdBefore` and never completed,
+   * oldest first, for the media cleanup to delete.
+   */
+  listAbandonedUploads(
+    createdBefore: Date,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: "pending_upload",
+        createdAt: { lt: createdBefore },
+      },
+      { createdAt: "asc" },
+      limit,
+      "listAbandonedUploads",
+    );
+  }
+
+  /**
+   * Items waiting on a processing job that have not moved since
+   * `updatedBefore`, least recently moved first: their job was most likely
+   * lost.
+   */
+  listStuck(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: { in: STUCK_STATUSES },
+        updatedAt: { lt: updatedBefore },
+      },
+      { updatedAt: "asc" },
+      limit,
+      "listStuck",
+    );
+  }
+
+  /** Items rejected before `updatedBefore`, oldest first. */
+  listRejected(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: "rejected",
+        updatedAt: { lt: updatedBefore },
+      },
+      { updatedAt: "asc" },
+      limit,
+      "listRejected",
+    );
+  }
+
+  /**
+   * Claims a stuck item for re-enqueueing by moving its `updatedAt` to now.
+   * Applies only while the item is still waiting and still unmoved since
+   * `updatedBefore`, so of several cleanup runs racing on one item only one
+   * re-enqueues it, and the next sweep waits a whole threshold again.
+   */
+  async claimStuckForRequeue(id: Uuid, updatedBefore: Date): Promise<boolean> {
+    const result = await this.executeAsync(
+      () =>
+        this.prisma.media.updateMany({
+          where: {
+            id,
+            status: { in: STUCK_STATUSES },
+            updatedAt: { lt: updatedBefore },
+          },
+          data: { updatedAt: new Date() },
+        }),
+      { operationName: "claimStuckForRequeue" },
+    );
+
+    return result.count > 0;
+  }
+
+  /**
+   * Deletes a row only while it is still in `status`, so an item that moved on
+   * after the caller read it, such as an upload completed meanwhile, is kept.
+   */
+  async deleteByIdIfStatus(id: Uuid, status: MediaStatus): Promise<boolean> {
+    const result = await this.executeAsync(
+      () => this.prisma.media.deleteMany({ where: { id, status } }),
+      { operationName: "deleteByIdIfStatus" },
+    );
+
+    return result.count > 0;
+  }
+
+  private async listForCleanup(
+    where: Prisma.MediaWhereInput,
+    orderBy: Prisma.MediaOrderByWithRelationInput,
+    limit: number,
+    operationName: string,
+  ): Promise<MediaRecord[]> {
+    const rows = await this.executeAsync(
+      () => this.prisma.media.findMany({ where, orderBy, take: limit }),
+      { operationName },
+    );
+
+    return rows.map((row) => this.toRecord(row));
   }
 
   private async transition(

@@ -170,6 +170,13 @@ workers:
   mediaProcessing:
     prefetch: 10
     maxAttempts: 5
+  mediaCleanup:
+    pollIntervalMs: 300000
+    batchSize: 100
+    pendingUploadTtlMs: 86400000
+    stuckThresholdMs: 900000
+    maxProcessingAgeMs: 86400000
+    rejectedRetentionMs: 86400000
   bookingExpiry:
     pollIntervalMs: 5000
     batchSize: 50

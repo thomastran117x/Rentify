@@ -20,6 +20,7 @@ import {
 } from "@/features/media/image-policy";
 import {
   deleteQuarantinedUpload,
+  PROCESSING_FAILED_REASON,
   rejectMedia,
 } from "@/features/media/media-rejection";
 import {
@@ -34,7 +35,6 @@ import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names"
 
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
 const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
-const PROCESSING_FAILED_REASON = "The image could not be processed.";
 
 /**
  * Turns a quarantined upload into a displayable image, or rejects it.

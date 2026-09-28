@@ -254,6 +254,82 @@ describe("MediaRepository", () => {
 
     expect(deleteMany).toHaveBeenCalledWith({ where: { id: MEDIA_1_ID } });
   });
+
+  it("lists cleanup candidates by status and age, oldest first, never a ready row", async () => {
+    const findMany = jest.fn(async (_args: any) => [
+      mediaRow({ status: "processing" }),
+    ]);
+    const repository = createRepository({ findMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+
+    await expect(
+      repository.listAbandonedUploads(cutoff, 10),
+    ).resolves.toMatchObject([{ id: MEDIA_1_ID, status: "processing" }]);
+    await repository.listStuck(cutoff, 20);
+    await repository.listRejected(cutoff, 30);
+
+    expect(findMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: { status: "pending_upload", createdAt: { lt: cutoff } },
+        orderBy: { createdAt: "asc" },
+        take: 10,
+      },
+      {
+        where: {
+          status: { in: ["uploaded", "processing"] },
+          updatedAt: { lt: cutoff },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
+      },
+      {
+        where: { status: "rejected", updatedAt: { lt: cutoff } },
+        orderBy: { updatedAt: "asc" },
+        take: 30,
+      },
+    ]);
+  });
+
+  it("claims a stuck row only while it is still waiting and unmoved", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+
+    await expect(
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff),
+    ).resolves.toBe(true);
+
+    const [[args]] = updateMany.mock.calls;
+    expect(args.where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["uploaded", "processing"] },
+      updatedAt: { lt: cutoff },
+    });
+    expect(args.data.updatedAt).toBeInstanceOf(Date);
+    expect(args.data.updatedAt.getTime()).toBeGreaterThan(cutoff.getTime());
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff),
+    ).resolves.toBe(false);
+  });
+
+  it("deletes a row only while it is still in the expected status", async () => {
+    const deleteMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ deleteMany });
+
+    await expect(
+      repository.deleteByIdIfStatus(MEDIA_1_ID, "pending_upload"),
+    ).resolves.toBe(true);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: MEDIA_1_ID, status: "pending_upload" },
+    });
+
+    deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.deleteByIdIfStatus(MEDIA_1_ID, "rejected"),
+    ).resolves.toBe(false);
+  });
   it("reports whether any feature table still references a blob", async () => {
     const zero = jest.fn(async (_args: unknown) => 0);
     const repository = new MediaRepository({

@@ -267,6 +267,10 @@ export class EnvironmentManager {
     return this.get().workers.mediaProcessing;
   }
 
+  getMediaCleanupWorkerConfig(): AppEnvironment["workers"]["mediaCleanup"] {
+    return this.get().workers.mediaCleanup;
+  }
+
   getBookingExpiryWorkerConfig(): AppEnvironment["workers"]["bookingExpiry"] {
     return this.get().workers.bookingExpiry;
   }

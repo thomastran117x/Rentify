@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { MediaController } from "@/features/media/media.controller";
+import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
@@ -55,6 +56,21 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         new MediaProcessingService(
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.blobService),
+        ),
+    });
+    container.register({
+      token: containerTokens.mediaCleanupService,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.mediaRepository,
+        containerTokens.blobService,
+        containerTokens.mediaProcessingQueueService,
+      ],
+      resolve: ({ resolve }) =>
+        new MediaCleanupService(
+          resolve(containerTokens.mediaRepository),
+          resolve(containerTokens.blobService),
+          resolve(containerTokens.mediaProcessingQueueService),
         ),
     });
     container.register({
