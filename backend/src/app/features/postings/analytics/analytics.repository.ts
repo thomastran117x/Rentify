@@ -62,6 +62,21 @@ interface AnalyticsCountRow {
   total: bigint | number;
 }
 
+/**
+ * The posting's first photo, as `primary_photo`, looked up once per posting so
+ * its URL and blob name always come from the same row. Joined against
+ * `postings r`.
+ */
+const PRIMARY_PHOTO_JOIN = Prisma.sql`
+  LEFT JOIN LATERAL (
+    SELECT rp.blob_url, rp.blob_name
+    FROM posting_photos rp
+    WHERE rp.posting_id = r.id
+    ORDER BY rp.position ASC
+    LIMIT 1
+  ) AS primary_photo ON TRUE
+`;
+
 interface PostingAnalyticsListRow extends AnalyticsAggregateRow {
   postingId: Uuid;
   name: string;
@@ -677,20 +692,8 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             ra.posting_id AS postingId,
             r.name AS name,
             r.status AS status,
-            (
-              SELECT rp.blob_url
-              FROM posting_photos rp
-              WHERE rp.posting_id = ra.posting_id
-              ORDER BY rp.position ASC
-              LIMIT 1
-            ) AS primaryPhotoUrl,
-            (
-              SELECT rp.blob_name
-              FROM posting_photos rp
-              WHERE rp.posting_id = ra.posting_id
-              ORDER BY rp.position ASC
-              LIMIT 1
-            ) AS primaryPhotoBlobName,
+            primary_photo.blob_url AS primaryPhotoUrl,
+            primary_photo.blob_name AS primaryPhotoBlobName,
             r.published_at AS publishedAt,
             r.paused_at AS pausedAt,
             r.archived_at AS archivedAt,
@@ -709,6 +712,7 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             COALESCE(SUM(ra.refunded_revenue), 0) AS refundedRevenue
           FROM ${tableSql} ra
           INNER JOIN postings r ON r.id = ra.posting_id
+          ${PRIMARY_PHOTO_JOIN}
           WHERE ${whereSql}
           GROUP BY
             ra.posting_id,
@@ -716,7 +720,9 @@ export class PostingsAnalyticsRepository extends BaseRepository {
             r.status,
             r.published_at,
             r.paused_at,
-            r.archived_at
+            r.archived_at,
+            primary_photo.blob_url,
+            primary_photo.blob_name
           ORDER BY confirmedBookings DESC, bookingRequests DESC, views DESC, r.updated_at DESC
           LIMIT ${input.pageSize}
           OFFSET ${skip}
@@ -949,24 +955,13 @@ export class PostingsAnalyticsRepository extends BaseRepository {
           r.id AS postingId,
           r.name AS name,
           r.status AS status,
-          (
-            SELECT rp.blob_url
-            FROM posting_photos rp
-            WHERE rp.posting_id = r.id
-            ORDER BY rp.position ASC
-            LIMIT 1
-          ) AS primaryPhotoUrl,
-          (
-            SELECT rp.blob_name
-            FROM posting_photos rp
-            WHERE rp.posting_id = r.id
-            ORDER BY rp.position ASC
-            LIMIT 1
-          ) AS primaryPhotoBlobName,
+          primary_photo.blob_url AS primaryPhotoUrl,
+          primary_photo.blob_name AS primaryPhotoBlobName,
           r.published_at AS publishedAt,
           r.paused_at AS pausedAt,
           r.archived_at AS archivedAt
         FROM postings r
+        ${PRIMARY_PHOTO_JOIN}
         WHERE r.id = ${postingId}
           AND r.organization_id = ${organizationId}
         LIMIT 1
