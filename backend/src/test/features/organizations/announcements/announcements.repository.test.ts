@@ -61,6 +61,7 @@ describe("OrganizationAnnouncementRepository", () => {
         email: "owner@example.com",
         username: "owner-one",
         avatarUrl: "https://example.test/avatar.png",
+        avatarVariants: null,
       },
       title: "Announcement title",
       body: "Announcement body",

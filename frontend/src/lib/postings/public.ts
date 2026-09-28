@@ -6,6 +6,7 @@ import {
   publicJson,
 } from "../api/client.ts";
 import { ApiError } from "../api/types.ts";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type PublicPostingDetailValue = string | number | boolean | string[];
 
@@ -15,6 +16,7 @@ export interface PublicPostingPhoto {
   blobName: string;
   thumbnailBlobUrl?: string;
   thumbnailBlobName?: string;
+  variants?: ImageVariants | null;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +86,7 @@ export interface PublicPostingDetail {
     longitude: number;
   };
   primaryPhotoUrl?: string;
+  primaryPhotoVariants?: ImageVariants | null;
   primaryThumbnailUrl?: string;
   publishedAt?: string;
   pausedAt?: string;
@@ -165,6 +168,7 @@ export interface PublicPostingReviewRecord {
   reviewer: {
     username?: string;
     avatarUrl?: string;
+    avatarVariants?: ImageVariants | null;
   };
   createdAt: string;
   updatedAt: string;

@@ -40,6 +40,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     role: "owner",
     emailVerified: true,
     profile: {
+      avatarVariants: null,
       id: PROFILE_1_ID,
       userId: USER_1_ID,
       username: "northwind-owner",

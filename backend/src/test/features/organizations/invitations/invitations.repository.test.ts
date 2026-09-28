@@ -270,6 +270,7 @@ describe("OrganizationsInvitationsRepository", () => {
         lastName: "Doe",
         username: "northwind-owner",
         avatarUrl: "https://example.test/avatar.png",
+        avatarVariants: null,
         role: "operator",
         joinedAt: "2026-05-01T00:00:00.000Z",
       },

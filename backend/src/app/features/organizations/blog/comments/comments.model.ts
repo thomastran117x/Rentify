@@ -1,3 +1,4 @@
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 import { organizationResourceIdSchema } from "@/features/organizations/organizations.model";
 import { organizationBlogSlugSchema } from "@/features/organizations/blog/blog.model";
@@ -101,6 +102,7 @@ export interface BlogCommentAuthorSummary {
   id: Uuid;
   username: string;
   avatarUrl?: string;
+  avatarVariants: ImageVariantsField;
 }
 
 /** Who tombstoned a comment, in the only terms a public reader needs. */

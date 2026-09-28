@@ -1,3 +1,5 @@
+import type { ImageVariants } from "@/lib/media/api";
+
 export type {
   ApiRequestContext,
   ApiErrorPayload,
@@ -30,6 +32,7 @@ export interface AuthResponseUser {
   email: string;
   username: string;
   avatarUrl?: string;
+  avatarVariants?: ImageVariants | null;
   role: "user" | "owner" | "moderator" | "admin";
   activeOrganization?: ActiveOrganizationSummary;
   organizationMembershipCount?: number;

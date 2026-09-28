@@ -123,6 +123,7 @@ function createPublicPosting(
     },
     primaryPhotoUrl:
       "https://example.blob.core.windows.net/postings/photo-1.jpg",
+    primaryPhotoVariants: null,
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     publishedAt: "2026-05-01T00:00:00.000Z",
@@ -279,6 +280,37 @@ describe("PostingsPublicCacheService", () => {
 
     await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
       name: "Fresh name",
+    });
+    expect(batchFindPublic).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebuilds a record cached by a release that predates its fields", async () => {
+    const current = createPublicPosting({ name: "Current shape" });
+    const { batchFindPublic, cacheService, service } = createService({
+      batchFindPublic: jest.fn(async () => createBatchResult([current])),
+    });
+    const { primaryPhotoVariants: _dropped, ...olderShape } =
+      createPublicPosting({ name: "Older shape" }) as PublicPostingRecord & {
+        primaryPhotoVariants?: unknown;
+      };
+
+    await cacheService.setJson(
+      `postings:public:data:${POSTING_1_ID}:0`,
+      createEnvelope(olderShape as PublicPostingRecord, {
+        freshOffsetMs: 10_000,
+        staleOffsetMs: 20_000,
+      }),
+    );
+
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
+      name: "Current shape",
+      primaryPhotoVariants: null,
+    });
+    expect(batchFindPublic).toHaveBeenCalledTimes(1);
+
+    // Rebuilt in place: the next read is a plain hit.
+    await expect(service.getPublicById(POSTING_1_ID)).resolves.toMatchObject({
+      name: "Current shape",
     });
     expect(batchFindPublic).toHaveBeenCalledTimes(1);
   });

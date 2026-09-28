@@ -1,5 +1,6 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import type { Pagination } from "@/lib/api/types";
+import type { ImageVariants } from "@/lib/media/api";
 
 export type ReportSubjectType =
   | "posting"
@@ -31,6 +32,7 @@ export interface ContentReportUserSummary {
   email: string;
   username?: string;
   avatarUrl?: string;
+  avatarVariants?: ImageVariants | null;
   role: "user" | "owner" | "moderator" | "admin";
 }
 

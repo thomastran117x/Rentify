@@ -82,6 +82,7 @@ model Media {
   sizeBytes           Int?        @map("size_bytes")
   width               Int?
   height              Int?
+  variants            Json?
   rejectionReason     String?     @map("rejection_reason") @db.VarChar(500)
   createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt           DateTime    @updatedAt @map("updated_at") @db.DateTime(6)

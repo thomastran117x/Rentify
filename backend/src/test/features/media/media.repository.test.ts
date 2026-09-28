@@ -4,6 +4,10 @@ import { testUuid } from "../../support/uuid";
 const MEDIA_1_ID = testUuid(9000, 994270);
 const USER_1_ID = testUuid(9000, 994271);
 const CREATED_AT = new Date("2026-09-19T12:00:00.000Z");
+const VARIANTS = {
+  medium: { width: 800, height: 600, sizeBytes: 5000 },
+  thumbnail: { width: 300, height: 225, sizeBytes: 900 },
+};
 
 function mediaRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -32,6 +36,94 @@ function createRepository(media: Record<string, jest.Mock>) {
 }
 
 describe("MediaRepository", () => {
+  it("reads stored renditions back, and treats a malformed value as none", async () => {
+    const findUnique = jest.fn();
+    const repository = createRepository({ findUnique });
+
+    for (const [stored, expected] of [
+      [VARIANTS, VARIANTS],
+      // A rendition the image was too narrow for is recorded as null.
+      [
+        { medium: null, thumbnail: VARIANTS.thumbnail },
+        { medium: null, thumbnail: VARIANTS.thumbnail },
+      ],
+      [
+        { medium: null, thumbnail: null },
+        { medium: null, thumbnail: null },
+      ],
+      [null, null],
+      [[], null],
+      ["x", null],
+      [{ medium: VARIANTS.medium }, null],
+      [{ medium: VARIANTS.medium, thumbnail: { width: "300" } }, null],
+      [{ medium: [], thumbnail: VARIANTS.thumbnail }, null],
+    ] as const) {
+      findUnique.mockResolvedValueOnce(mediaRow({ variants: stored }));
+
+      expect((await repository.findById(MEDIA_1_ID))?.variants).toEqual(
+        expected,
+      );
+    }
+  });
+
+  it("looks up the recorded renditions of ready rows by processed name", async () => {
+    const findMany = jest.fn(async () => [
+      {
+        processedBlobName: "media/images/u1/a.webp",
+        width: 1600,
+        height: 1200,
+        variants: VARIANTS,
+      },
+      {
+        processedBlobName: "media/images/u1/b.webp",
+        width: 120,
+        height: 90,
+        variants: null,
+      },
+    ]);
+    const repository = createRepository({ findMany });
+
+    const recorded = await repository.findRecordedRenditions([
+      "media/images/u1/a.webp",
+      "media/images/u1/b.webp",
+      "media/images/u1/missing.webp",
+    ]);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: "ready",
+          processedBlobName: {
+            in: [
+              "media/images/u1/a.webp",
+              "media/images/u1/b.webp",
+              "media/images/u1/missing.webp",
+            ],
+          },
+        },
+      }),
+    );
+    expect(recorded).toEqual(
+      new Map([
+        [
+          "media/images/u1/a.webp",
+          { width: 1600, height: 1200, variants: VARIANTS },
+        ],
+        ["media/images/u1/b.webp", { width: 120, height: 90, variants: null }],
+      ]),
+    );
+  });
+
+  it("skips the query when there is nothing to look up", async () => {
+    const findMany = jest.fn();
+    const repository = createRepository({ findMany });
+
+    await expect(repository.findRecordedRenditions([])).resolves.toEqual(
+      new Map(),
+    );
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
   it("creates a pending upload and maps the row", async () => {
     const create = jest.fn(async () => mediaRow());
     const repository = createRepository({ create });
@@ -104,6 +196,7 @@ describe("MediaRepository", () => {
         sizeBytes: 10,
         width: 4,
         height: 3,
+        variants: VARIANTS,
       }),
     ).resolves.toBe(true);
     await expect(
@@ -127,6 +220,7 @@ describe("MediaRepository", () => {
         sizeBytes: 10,
         width: 4,
         height: 3,
+        variants: VARIANTS,
         rejectionReason: null,
       },
     });

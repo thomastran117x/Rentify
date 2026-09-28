@@ -46,8 +46,12 @@ export const postingsSearchRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.postingsSearchIndexService,
       lifetime: "scoped",
-      dependencies: [],
-      resolve: () => new PostingsSearchIndexService(),
+      dependencies: [containerTokens.imageVariantsResolver],
+      resolve: ({ resolve }) =>
+        new PostingsSearchIndexService(
+          undefined,
+          resolve(containerTokens.imageVariantsResolver),
+        ),
     });
   },
 };

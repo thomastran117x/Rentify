@@ -21,7 +21,11 @@ function AccountIdentity({ session, displayName }: AccountIdentityProps) {
 
   return (
     <>
-      <UserAvatar name={avatarName} imageUrl={session.user.avatarUrl ?? null} />
+      <UserAvatar
+        name={avatarName}
+        imageUrl={session.user.avatarUrl ?? null}
+        imageVariants={session.user.avatarVariants}
+      />
 
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
@@ -71,6 +75,7 @@ export function SiteHeaderDesktopAccount({
           <UserAvatar
             name={avatarName}
             imageUrl={session.user.avatarUrl ?? null}
+            imageVariants={session.user.avatarVariants}
           />
         </summary>
 

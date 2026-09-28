@@ -69,6 +69,7 @@ describe("OrganizationAuditRepository", () => {
             email: "owner@example.com",
             username: "owner-one",
             avatarUrl: "https://example.test/avatar.png",
+            avatarVariants: null,
           },
           action: "organization.restored",
           resourceType: "organization",

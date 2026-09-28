@@ -32,6 +32,7 @@ import {
   type PostingAnalyticsDetail,
   type PostingAnalyticsWindow,
 } from "@/lib/postings/analytics";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 export function PostingDashboardDetail({ postingId }: { postingId: string }) {
   const router = useRouter();
@@ -206,9 +207,10 @@ export function PostingDashboardDetail({ postingId }: { postingId: string }) {
               <div className="grid gap-0 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="relative min-h-56 bg-slate-100 dark:bg-slate-800">
                   {detail.primaryPhotoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ResponsiveImage
                       src={detail.primaryPhotoUrl}
+                      variants={detail.primaryPhotoVariants}
+                      sizes="(min-width: 1024px) 220px, 100vw"
                       alt={detail.name}
                       className="absolute inset-0 h-full w-full object-cover"
                     />

@@ -341,6 +341,36 @@ describe("postings.model", () => {
     );
   });
 
+  it("references the renditions of a processed primary photo", () => {
+    const base = "https://example.blob.core.windows.net/uploads/media/images";
+    const publicPosting = toPublicPostingRecord(
+      createPostingRecord({
+        photos: [
+          {
+            id: "photo-2" as never,
+            blobUrl: `${base}/owner-1/photo-2.webp`,
+            blobName: "media/images/owner-1/photo-2.webp",
+            variants: null,
+            position: 1,
+            createdAt: "2026-05-01T00:00:00.000Z",
+            updatedAt: "2026-05-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    // Resolved later, with the rest of the response.
+    expect(publicPosting.primaryPhotoVariants).toEqual({
+      $imageVariants: {
+        blobName: "media/images/owner-1/photo-2.webp",
+        blobUrl: `${base}/owner-1/photo-2.webp`,
+      },
+    });
+    expect(
+      toPublicPostingRecord(createPostingRecord({ photos: [] })),
+    ).toMatchObject({ primaryPhotoUrl: undefined, primaryPhotoVariants: null });
+  });
+
   it("builds a public posting projection with rounded coordinates and primary media", () => {
     const publicPosting = toPublicPostingRecord(
       createPostingRecord({
@@ -355,6 +385,8 @@ describe("postings.model", () => {
     expect(publicPosting.primaryThumbnailUrl).toBe(
       "https://example.blob.core.windows.net/postings/thumbnails/photo-1.webp",
     );
+    // Stored before media existed, so it has no renditions.
+    expect(publicPosting.primaryPhotoVariants).toBeNull();
     expect(publicPosting.effectiveMaxBookingDurationDays).toBe(30);
     expect(publicPosting.location).toMatchObject({
       latitude: 43.65,

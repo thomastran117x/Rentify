@@ -16,6 +16,8 @@ Defaults in [default.yml](../../../../config/default.yml):
 
 The maintainer has a 100 ms minimum idle sleep. Domain [SearchService](../../features/search/search.service.ts) owns relay state, retries, reindex runs, and reconciliation. These tasks are not one generic `workers.search` poll.
 
+Postings mappings are `dynamic: false`, and each index records `POSTINGS_INDEX_MAPPING_VERSION` (in the [index service](../../features/postings/search/index.service.ts)) in its `_meta`. When a deploy raises that version, the reindex task finds the live index stale and starts a reindex run into a new index by itself, switching the alias once the run has caught up; nothing needs to be run by hand. To trigger one anyway, or to follow its progress, an admin can call `POST /admin/search/reindex` and `GET /admin/search/reindex-runs/{id}`. Version 4 added `primaryPhotoVariants`, the primary photo's rendition URLs, stored but not indexed.
+
 ## Search Indexer
 
 [search-indexer.worker.ts](./search-indexer.worker.ts) runs as `search-indexer-worker`. It consumes index-job batches and passes them to the search service. `workers.searchIndexer` defaults to prefetch 25, batch 25, flush interval 250 ms, concurrency 2, and maximum attempts 8. Effective prefetch is the greater of configured prefetch and batch size times concurrency.

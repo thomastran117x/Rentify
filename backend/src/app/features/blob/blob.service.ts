@@ -23,6 +23,10 @@ import type {
   CreateBlobUploadUrlInput,
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
+import {
+  PROCESSED_IMAGE_DIRECTORY,
+  PROCESSED_IMAGE_EXTENSION,
+} from "@/features/blob/image-variant-names";
 
 interface AzureBlobConfiguration {
   accountName: string;
@@ -49,9 +53,6 @@ const THUMBNAIL_DIRECTORY = "thumbnails";
 // Client uploads land here and are never served; see MediaService.
 const QUARANTINE_ROOT = "quarantine";
 const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
-// Validated, re-encoded images written by the media processing worker.
-const PROCESSED_IMAGE_DIRECTORY = "media/images";
-const PROCESSED_IMAGE_EXTENSION = ".webp";
 
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(

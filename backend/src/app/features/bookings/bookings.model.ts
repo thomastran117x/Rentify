@@ -1,3 +1,4 @@
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 import type { RentingDisputeRecord } from "@/features/rentings/rentings.model";
 import {
@@ -238,6 +239,7 @@ export interface BookingRequestPostingSummary {
   id: Uuid;
   name: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants: ImageVariantsField;
   effectiveMaxBookingDurationDays: number;
 }
 

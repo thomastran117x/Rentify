@@ -27,6 +27,7 @@ import {
   statusClasses,
 } from "@/lib/rentings/format";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 type BannerTone = "error" | "success";
 
@@ -304,9 +305,10 @@ export function RentingDetailClient({ rentingId }: RentingDetailClientProps) {
             <div className="grid gap-0 sm:grid-cols-[200px_minmax(0,1fr)]">
               <div className="relative min-h-40 bg-slate-100 dark:bg-slate-800">
                 {renting.posting.primaryPhotoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <ResponsiveImage
                     src={renting.posting.primaryPhotoUrl}
+                    variants={renting.posting.primaryPhotoVariants}
+                    sizes="(min-width: 640px) 200px, 100vw"
                     alt={renting.posting.name}
                     className="absolute inset-0 h-full w-full object-cover"
                   />

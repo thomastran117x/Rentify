@@ -1,3 +1,4 @@
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 import type { AppRole } from "@/features/auth/auth.model";
 import {
@@ -83,6 +84,7 @@ export interface RentingPostingSummary {
   id: Uuid;
   name: string;
   primaryPhotoUrl?: string;
+  primaryPhotoVariants: ImageVariantsField;
 }
 
 export interface RentingDisputeRecord {

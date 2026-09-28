@@ -6,7 +6,7 @@ import {
   formatDate,
   formatVariant,
   lifecycleActions,
-  primaryPhotoUrl,
+  primaryPhotoImage,
   safePrice,
 } from "./postings-dashboard";
 
@@ -68,6 +68,8 @@ describe("postings dashboard helpers", () => {
   });
 
   it("chooses positioned, first, thumbnail, blob, and invalid photo URLs", () => {
+    const primaryPhotoUrl = (record: PostingRecord) =>
+      primaryPhotoImage(record)?.src ?? null;
     expect(primaryPhotoUrl(posting())).toBeNull();
     expect(
       primaryPhotoUrl(
@@ -126,6 +128,41 @@ describe("postings dashboard helpers", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("offers a photo's renditions with its card crop as the fallback", () => {
+    const variants = {
+      thumbnail: {
+        url: "https://img/primary.thumbnail.webp",
+        width: 300,
+        height: 225,
+      },
+      medium: {
+        url: "https://img/primary.medium.webp",
+        width: 800,
+        height: 600,
+      },
+      large: { url: "https://img/primary.webp", width: 1600, height: 1200 },
+    };
+
+    expect(
+      primaryPhotoImage(
+        posting({
+          photos: [
+            {
+              id: "photo-1",
+              blobUrl: "https://img/primary.webp",
+              thumbnailBlobUrl: "https://img/crop.webp",
+              blobName: "primary",
+              variants,
+              position: 0,
+              createdAt: "2026-01-01",
+              updatedAt: "2026-01-01",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ src: "https://img/crop.webp", variants });
   });
 
   it("renders image and family-initial thumbnail states", () => {

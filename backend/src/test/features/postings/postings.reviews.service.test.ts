@@ -142,7 +142,7 @@ function buildReviewRecord(): PostingReviewRecord {
     rating: 5,
     title: "Excellent stay",
     comment: "Everything matched the listing.",
-    reviewer: {},
+    reviewer: { avatarVariants: null },
     createdAt: "2026-04-20T00:00:00.000Z",
     updatedAt: "2026-04-20T00:00:00.000Z",
   };

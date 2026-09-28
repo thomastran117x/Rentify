@@ -81,6 +81,7 @@ function createAuthUser(
   overrides: Partial<AuthUserProfile> = {},
 ): AuthUserProfile {
   return {
+    avatarVariants: null,
     id: USER_1_ID,
     email: "user@example.com",
     firstName: "Test",
@@ -504,6 +505,7 @@ describe("LocalAuthController", () => {
           id: USER_1_ID,
           email: "user@example.com",
           username: "test-user",
+          avatarVariants: null,
           role: "user",
           organizationMembershipCount: 0,
         },
@@ -552,6 +554,7 @@ describe("LocalAuthController", () => {
           id: USER_1_ID,
           email: "user@example.com",
           username: "test-user",
+          avatarVariants: null,
           role: "user",
           organizationMembershipCount: 0,
         },

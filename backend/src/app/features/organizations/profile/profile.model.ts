@@ -1,3 +1,4 @@
+import type { ImageVariantsField } from "@/features/media/media.model";
 import { z } from "zod";
 
 import {
@@ -72,6 +73,7 @@ export interface PublicOrganizationProfileFields {
   country: string | null;
   postalCode: string | null;
   logoUrl: string | null;
+  logoVariants: ImageVariantsField;
   customFields: Record<string, string> | null;
 }
 

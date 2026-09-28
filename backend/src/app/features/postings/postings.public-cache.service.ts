@@ -10,7 +10,21 @@ import type {
 import type { PostingsRepository } from "@/features/postings/postings.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
+// Kept stable across releases: every release reads and invalidates the same
+// keys, so an edit handled by either side of a rolling deploy clears the entry
+// for both. A record cached by an older release is rebuilt when read instead;
+// see isCurrentShape.
 const POSTINGS_PUBLIC_CACHE_NAMESPACE = "postings:public";
+
+/**
+ * Whether a cached record carries every field this release adds to
+ * PublicPostingRecord. One written by a release that predates a field lacks the
+ * key entirely, so it is rebuilt rather than served without it. Add a key here
+ * when PublicPostingRecord gains a field.
+ */
+function isCurrentShape(record: PublicPostingRecord): boolean {
+  return "primaryPhotoVariants" in record;
+}
 
 export interface PostingsPublicCacheConfig extends ReadThroughCachePolicy {}
 
@@ -48,12 +62,22 @@ export class PostingsPublicCacheService {
       return null;
     }
 
-    return this.readThroughCacheService.get(
-      POSTINGS_PUBLIC_CACHE_NAMESPACE,
-      normalizedPostingId,
-      () => this.resolvePublicPosting(asUuid(normalizedPostingId)),
-      this.getConfig(),
-    );
+    const load = () =>
+      this.readThroughCacheService.get(
+        POSTINGS_PUBLIC_CACHE_NAMESPACE,
+        normalizedPostingId,
+        () => this.resolvePublicPosting(asUuid(normalizedPostingId)),
+        this.getConfig(),
+      );
+    const cached = await load();
+
+    if (!cached || isCurrentShape(cached)) {
+      return cached;
+    }
+
+    // Written by an older release: rebuild it once, in place.
+    await this.invalidatePublic(asUuid(normalizedPostingId));
+    return load();
   }
 
   async getPublicByIds(

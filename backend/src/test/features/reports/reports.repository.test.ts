@@ -262,6 +262,7 @@ describe("ReportsRepository", () => {
           email: "user@example.com",
           username: "moderator-one",
           avatarUrl: "https://example.test/avatar.png",
+          avatarVariants: null,
           role: "moderator",
         },
         createdAt: "2026-05-03T00:00:00.000Z",
@@ -378,6 +379,7 @@ describe("ReportsRepository", () => {
       email: "user@example.com",
       username: "moderator-one",
       avatarUrl: "https://example.test/avatar.png",
+      avatarVariants: null,
       role: "admin",
     });
   });
@@ -549,6 +551,7 @@ describe("ReportsRepository", () => {
           email: "assigned@example.com",
           username: "assigned-mod",
           avatarUrl: undefined,
+          avatarVariants: null,
           role: "moderator",
         },
       }),

@@ -12,10 +12,11 @@ import {
   formatPostingPrice,
   formatPublishedDate,
   humanizePostingValue,
-  isRenderablePreviewImageUrl,
+  resolvePostingCardImage,
 } from "@/lib/postings/public-format";
 import type { PublicPostingSummary } from "@/lib/postings/search";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 // Intentionally not a "use client" module. The search page renders this as a
 // server component (only the `actions` island hydrates); the saved-postings
@@ -43,10 +44,7 @@ export function PostingResultCard({
   actions,
 }: PostingResultCardProps) {
   const publishedDate = formatPublishedDate(posting.publishedAt);
-  const previewImageUrl = [
-    posting.primaryThumbnailUrl,
-    posting.primaryPhotoUrl,
-  ].find(isRenderablePreviewImageUrl);
+  const previewImage = resolvePostingCardImage(posting);
   const organization = posting.organization;
   const familyLabel = humanizePostingValue(posting.variant.family);
   const subtypeLabel = humanizePostingValue(posting.variant.subtype);
@@ -55,10 +53,11 @@ export function PostingResultCard({
     <article className={theme.marketplace.resultCard}>
       <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
         <div className="relative min-h-48 border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 md:min-h-full md:border-b-0 md:border-r">
-          {previewImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewImageUrl}
+          {previewImage ? (
+            <ResponsiveImage
+              src={previewImage.src}
+              variants={previewImage.variants}
+              sizes="(min-width: 768px) 240px, 100vw"
               alt={posting.name}
               loading="lazy"
               className="absolute inset-0 h-full w-full object-cover"

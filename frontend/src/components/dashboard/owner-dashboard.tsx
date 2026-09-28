@@ -37,6 +37,7 @@ import {
   type PostingAnalyticsListResult,
   type PostingAnalyticsWindow,
 } from "@/lib/postings/analytics";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const DEFAULT_PAGE_SIZE = 20;
@@ -569,9 +570,10 @@ export function OwnerDashboard() {
                           <div className="flex items-center gap-3">
                             <div className="h-14 w-14 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
                               {posting.primaryPhotoUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <ResponsiveImage
                                   src={posting.primaryPhotoUrl}
+                                  variants={posting.primaryPhotoVariants}
+                                  sizes="56px"
                                   alt={posting.name}
                                   className="h-full w-full object-cover"
                                 />

@@ -9,6 +9,7 @@ import { csrfMiddleware } from "../middlewares/csrf.middleware";
 import { handleApplicationError } from "../middlewares/error-handler.middleware";
 import { httpLoggingMiddleware } from "../middlewares/http-logging.middleware";
 import { idempotencyMiddleware } from "../middlewares/idempotency.middleware";
+import { imageVariantsMiddleware } from "../middlewares/image-variants.middleware";
 import { outputFormatMiddleware } from "../middlewares/output-format.middleware";
 import { rateLimiterMiddleware } from "../middlewares/rate-limiter.middleware";
 import {
@@ -65,6 +66,8 @@ export function createApplication(): Express {
   api.use("/booking-requests/:id/payment-session", idempotencyMiddleware);
   api.use(rateLimiterMiddleware);
   api.use(outputFormatMiddleware);
+  // After outputFormatMiddleware: it wraps the res.json that one installs.
+  api.use(imageVariantsMiddleware);
   api.use(securityHeadersMiddleware);
   api.use(httpLoggingMiddleware);
 

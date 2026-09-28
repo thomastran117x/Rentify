@@ -5,6 +5,7 @@ import { MediaProcessingQueueService } from "@/features/media/media-processing.q
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaService } from "@/features/media/media.service";
+import { ImageVariantsResolver } from "@/features/media/image-variants";
 
 export const mediaRegistrationModule: ContainerRegistrationModule = {
   id: "media",
@@ -14,6 +15,13 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [],
       resolve: () => new MediaRepository(),
+    });
+    container.register({
+      token: containerTokens.imageVariantsResolver,
+      lifetime: "singleton",
+      dependencies: [containerTokens.mediaRepository],
+      resolve: ({ resolve }) =>
+        new ImageVariantsResolver(resolve(containerTokens.mediaRepository)),
     });
     container.register({
       token: containerTokens.mediaProcessingQueueService,

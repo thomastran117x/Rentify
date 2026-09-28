@@ -61,6 +61,7 @@ import {
   type LiveRabbitMqConfig,
 } from "./live-rabbitmq";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent_test";
 const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380/15";
@@ -514,23 +515,29 @@ async function dropSeedSnapshot(
 /**
  * Creates a media item that has already been processed, as though it had been
  * uploaded through the API and picked up by the media processing worker, and
- * stores its processed image in the in-memory blob storage. For suites that
- * attach images and are not about the upload itself.
+ * stores its renditions in the in-memory blob storage. For suites that attach
+ * images and are not about the upload itself. `legacy` makes an item processed
+ * before renditions existed: only the processed image, and none recorded.
  */
 export async function createReadyMedia(
   userId: string,
-  options: { scope?: string } = {},
+  options: { scope?: string; legacy?: boolean } = {},
 ): Promise<{ mediaId: Uuid; blobName: string; blobUrl: string }> {
   const persistenceApp = requirePersistenceApp();
   const mediaId = asUuid(randomUUID());
   const ownerId = asUuid(userId);
   const blobService = persistenceApp.stubs.blobService;
   const blobName = blobService.buildProcessedImageBlobName(ownerId, mediaId);
+  const renditions = buildImageVariantBlobNames(blobName)!;
 
-  blobService.storage.set(blobName, {
-    contentType: "image/webp",
-    body: Buffer.from("processed-image"),
-  });
+  for (const name of options.legacy
+    ? [blobName]
+    : [renditions.large, renditions.medium, renditions.thumbnail]) {
+    blobService.storage.set(name, {
+      contentType: "image/webp",
+      body: Buffer.from("processed-image"),
+    });
+  }
   await persistenceApp.prisma.media.create({
     data: {
       id: mediaId,
@@ -545,8 +552,16 @@ export async function createReadyMedia(
       declaredContentType: "image/png",
       detectedContentType: "image/png",
       sizeBytes: 15,
-      width: 8,
-      height: 8,
+      width: 1600,
+      height: 1200,
+      ...(options.legacy
+        ? {}
+        : {
+            variants: {
+              medium: { width: 800, height: 600, sizeBytes: 15 },
+              thumbnail: { width: 300, height: 225, sizeBytes: 15 },
+            },
+          }),
     },
   });
 

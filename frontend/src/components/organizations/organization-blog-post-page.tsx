@@ -17,6 +17,7 @@ import {
 } from "@/components/organizations/blog-visuals";
 import { BlogCommentsPanel } from "@/components/organizations/blog-comments-panel";
 import { theme } from "@/styles/theme";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 interface OrganizationBlogPostPageProps {
   /** Organization id used for API calls. */
@@ -192,9 +193,11 @@ export function OrganizationBlogPostPage({
           </header>
 
           {post.coverImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ResponsiveImage
               src={post.coverImageUrl}
+              variants={post.coverImageVariants}
+              // The article column is capped at 760px.
+              sizes="(min-width: 800px) 760px, 100vw"
               alt=""
               className="mt-9 max-h-[460px] w-full rounded-[1.75rem] object-cover shadow-sm ring-1 ring-slate-200 dark:ring-slate-800"
             />

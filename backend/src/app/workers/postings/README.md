@@ -14,6 +14,8 @@ Verify a due posting becomes paused and an upcoming posting receives the single 
 
 [posting-thumbnail.worker.ts](./posting-thumbnail.worker.ts) runs as `posting-thumbnail-worker` and explicitly connects MySQL and RabbitMQ. It consumes `postings.thumbnail.main`, calls thumbnail generation for the posting, and needs configured blob storage for image access/output.
 
+The 640x480 crop is cut from the primary photo's medium rendition (`<mediaId>.medium.webp`, 800 px wide) when the photo's media row records one that covers the crop without enlarging, which decodes far less than the full processed image. The recorded size decides this, so nothing is downloaded and then discarded. A photo with no renditions, one not yet backfilled, or one whose shape leaves the medium rendition too small, such as a panorama, is cropped from the full photo instead.
+
 `workers.postingsThumbnail` defaults to prefetch 10 and maximum attempts 5. Success is acknowledged. Failed jobs increment attempts and are republished to a retry tier or `postings.thumbnail.dead-letter`, then the original is acknowledged. The [queue service](../../features/postings/thumbnail/thumbnail.queue.service.ts) defines three delayed tiers of 5 s, 30 s, and 120 s.
 
 Verify a photo update results in expected thumbnail references/output. Exercise missing/unusable image or provider failures and confirm retry/dead-letter behavior. Do not assume seeded image URLs validate Azure access.

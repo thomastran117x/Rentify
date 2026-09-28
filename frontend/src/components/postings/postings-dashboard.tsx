@@ -21,7 +21,8 @@ import {
 } from "@/lib/auth/roles";
 import {
   formatPostingPrice,
-  isRenderablePreviewImageUrl,
+  resolvePhotoPreviewImage,
+  type PreviewImage,
 } from "@/lib/postings/public-format";
 import {
   postingsApi,
@@ -29,6 +30,7 @@ import {
   type PostingRecord,
   type PostingStatus,
 } from "@/lib/postings/api";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 type StatusFilter = "all" | PostingStatus;
 
@@ -101,22 +103,22 @@ export function formatVariant(posting: PostingRecord): string {
   );
 }
 
-export function primaryPhotoUrl(posting: PostingRecord): string | null {
+export function primaryPhotoImage(posting: PostingRecord): PreviewImage | null {
   const photos = posting.photos ?? [];
   const primary =
     photos.find((photo) => photo.position === 0) ?? photos[0] ?? null;
-  const url = primary?.thumbnailBlobUrl ?? primary?.blobUrl;
-  return isRenderablePreviewImageUrl(url) ? url : null;
+  return resolvePhotoPreviewImage(primary);
 }
 
 export function PostingThumb({ posting }: { posting: PostingRecord }) {
-  const url = primaryPhotoUrl(posting);
+  const image = primaryPhotoImage(posting);
 
-  if (url) {
+  if (image) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={url}
+      <ResponsiveImage
+        src={image.src}
+        variants={image.variants}
+        sizes="80px"
         alt={posting.name}
         className="h-14 w-20 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
       />

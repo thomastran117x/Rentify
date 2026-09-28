@@ -23,6 +23,7 @@ function createSessionResult(
     refreshTokenExpiresInSeconds: 3600,
     device: { deviceId: "device-1", known: true, knownByIp: false },
     user: {
+      avatarVariants: null,
       id: USER_1_ID,
       email: "user@example.com",
       username: "test-user",
@@ -91,6 +92,7 @@ describe("toAuthResponseBody", () => {
       email: "user@example.com",
       username: "test-user",
       avatarUrl: undefined,
+      avatarVariants: null,
       role: "user",
       activeOrganization: undefined,
       organizationMembershipCount: 0,

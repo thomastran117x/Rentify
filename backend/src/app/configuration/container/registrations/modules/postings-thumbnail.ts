@@ -20,12 +20,14 @@ export const postingsThumbnailRegistrationModule: ContainerRegistrationModule =
           containerTokens.postingsRepository,
           containerTokens.blobService,
           containerTokens.postingsPublicCacheService,
+          containerTokens.mediaRepository,
         ],
         resolve: ({ resolve }) =>
           new PostingThumbnailService(
             resolve(containerTokens.postingsRepository),
             resolve(containerTokens.blobService),
             resolve(containerTokens.postingsPublicCacheService),
+            resolve(containerTokens.mediaRepository),
           ),
       });
     },

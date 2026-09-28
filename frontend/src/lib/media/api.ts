@@ -20,6 +20,26 @@ export type MediaStatus =
   | "ready"
   | "rejected";
 
+/** One stored rendition of an image, with its real dimensions. */
+export interface ImageRendition {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * The recorded renditions of a processed image: a thumbnail 300 px wide, a
+ * medium 800 px wide, and the processed image itself. One the image was too
+ * narrow for is given as the large rendition. Feed them to ResponsiveImage. A
+ * field holding them is null (or absent, in a response cached before they
+ * were exposed) until the image's renditions are recorded.
+ */
+export interface ImageVariants {
+  thumbnail: ImageRendition;
+  medium: ImageRendition;
+  large: ImageRendition;
+}
+
 /**
  * An uploaded image as the API reports it. `url` is only set once the image is
  * `ready`, and then always points at the processed copy: the bytes a client
@@ -34,6 +54,8 @@ export interface MediaView {
   sizeBytes: number | null;
   width: number | null;
   height: number | null;
+  /** Set with `url` once the image's renditions are recorded. */
+  variants: ImageVariants | null;
   rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
@@ -125,6 +147,8 @@ export interface UploadedImage {
   mediaId: string;
   /** The processed image, safe to display. */
   url: string;
+  /** Its renditions, for a preview drawn smaller than the image. */
+  variants: ImageVariants | null;
 }
 
 export type UploadImageStage = "uploading" | "processing";
@@ -205,5 +229,9 @@ export async function uploadImage(
     );
   }
 
-  return { mediaId: current.id, url: current.url };
+  return {
+    mediaId: current.id,
+    url: current.url,
+    variants: current.variants ?? null,
+  };
 }

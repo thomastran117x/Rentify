@@ -173,6 +173,8 @@ describe("RentingsRepository", () => {
       posting: {
         id: POSTING_1_ID,
         primaryPhotoUrl: `https://example.test/${POSTING_1_ID}.jpg`,
+        // A photo stored before media existed has no renditions.
+        primaryPhotoVariants: null,
       },
     });
   });

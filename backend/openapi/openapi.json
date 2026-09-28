@@ -366,6 +366,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -1068,6 +1069,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -1174,6 +1176,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -1889,6 +1892,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2072,6 +2076,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2180,6 +2185,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2288,6 +2294,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2472,6 +2479,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2618,6 +2626,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2764,6 +2773,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -2909,6 +2919,7 @@
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
                       "role": "owner",
                       "activeOrganization": {
                         "id": "org-1",
@@ -4622,6 +4633,7 @@
                         "country": "US",
                         "postalCode": "95060",
                         "logoUrl": "https://cdn.rentify.local/logos/org-1.png",
+                        "logoVariants": null,
                         "customFields": {
                           "Response time": "Within 24 hours"
                         },
@@ -5214,6 +5226,7 @@
                         "lastName": "One",
                         "username": "owner-one",
                         "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null,
                         "role": "primary_manager",
                         "joinedAt": "2026-05-01T00:00:00.000Z"
                       },
@@ -5225,6 +5238,7 @@
                         "lastName": "Operator",
                         "username": "taylor-operator",
                         "avatarUrl": "https://cdn.rentify.local/avatars/user-2.png",
+                        "avatarVariants": null,
                         "role": "operator",
                         "joinedAt": "2026-05-03T10:00:00.000Z"
                       }
@@ -5418,6 +5432,7 @@
                       "country": "US",
                       "postalCode": "95060",
                       "logoUrl": "https://cdn.rentify.local/logos/org-1.png",
+                      "logoVariants": null,
                       "customFields": {
                         "Response time": "Within 24 hours"
                       },
@@ -5984,6 +5999,7 @@
                       "lastName": "Operator",
                       "username": "taylor-operator",
                       "avatarUrl": "https://cdn.rentify.local/avatars/user-2.png",
+                      "avatarVariants": null,
                       "role": "manager",
                       "joinedAt": "2026-05-03T10:00:00.000Z"
                     }
@@ -6231,7 +6247,8 @@
                           "id": "user-1",
                           "email": "owner1@rentify.local",
                           "username": "owner-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                          "avatarVariants": null
                         },
                         "action": "organization.renamed",
                         "resourceType": "organization",
@@ -6383,7 +6400,8 @@
                         "id": "user-1",
                         "email": "owner1@rentify.local",
                         "username": "owner-one",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null
                       },
                       "action": "organization.restored",
                       "resourceType": "organization",
@@ -6548,7 +6566,8 @@
                           "id": "user-1",
                           "email": "owner1@rentify.local",
                           "username": "owner-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                          "avatarVariants": null
                         },
                         "title": "Summer availability update",
                         "body": "Our downtown studios now accept weekend bookings.",
@@ -6684,7 +6703,8 @@
                       "id": "user-1",
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null
                     },
                     "title": "Summer availability update",
                     "body": "Our downtown studios now accept weekend bookings.",
@@ -6812,7 +6832,8 @@
                       "id": "user-1",
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null
                     },
                     "title": "Summer availability update",
                     "body": "Our downtown studios now accept weekend bookings.",
@@ -7063,7 +7084,8 @@
                           "id": "user-1",
                           "email": "owner1@rentify.local",
                           "username": "owner-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                          "avatarVariants": null
                         },
                         "title": "Introducing weekend stays at our downtown studios",
                         "slug": "introducing-weekend-stays",
@@ -7071,6 +7093,7 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                        "coverImageVariants": null,
                         "tags": [
                           "announcement",
                           "downtown"
@@ -7241,7 +7264,8 @@
                           "id": "user-1",
                           "email": "owner1@rentify.local",
                           "username": "owner-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                          "avatarVariants": null
                         },
                         "title": "Introducing weekend stays at our downtown studios",
                         "slug": "introducing-weekend-stays",
@@ -7249,6 +7273,7 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                        "coverImageVariants": null,
                         "tags": [
                           "announcement",
                           "downtown"
@@ -7368,7 +7393,8 @@
                       "id": "user-1",
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null
                     },
                     "title": "Introducing weekend stays at our downtown studios",
                     "slug": "introducing-weekend-stays",
@@ -7376,6 +7402,7 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                    "coverImageVariants": null,
                     "tags": [
                       "announcement",
                       "downtown"
@@ -7504,7 +7531,8 @@
                         "author": {
                           "id": "user-2",
                           "username": "renter-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png",
+                          "avatarVariants": null
                         },
                         "body": "This is exactly what we needed for the weekend.",
                         "createdAt": "2026-05-29T09:00:00.000Z",
@@ -7633,7 +7661,8 @@
                     "author": {
                       "id": "user-2",
                       "username": "renter-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png",
+                      "avatarVariants": null
                     },
                     "body": "This is exactly what we needed for the weekend.",
                     "createdAt": "2026-05-29T09:00:00.000Z",
@@ -7856,7 +7885,8 @@
                     "author": {
                       "id": "user-2",
                       "username": "renter-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-1.png",
+                      "avatarVariants": null
                     },
                     "body": "This is exactly what we needed for the weekend.",
                     "createdAt": "2026-05-29T09:00:00.000Z",
@@ -8132,7 +8162,8 @@
                           "id": "user-1",
                           "email": "owner1@rentify.local",
                           "username": "owner-one",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                          "avatarVariants": null
                         },
                         "title": "Introducing weekend stays at our downtown studios",
                         "slug": "introducing-weekend-stays",
@@ -8140,6 +8171,7 @@
                         "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                         "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                         "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                        "coverImageVariants": null,
                         "tags": [
                           "announcement",
                           "downtown"
@@ -8282,7 +8314,8 @@
                       "id": "user-1",
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null
                     },
                     "title": "Introducing weekend stays at our downtown studios",
                     "slug": "introducing-weekend-stays",
@@ -8290,6 +8323,7 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                    "coverImageVariants": null,
                     "tags": [
                       "announcement",
                       "downtown"
@@ -8419,7 +8453,8 @@
                       "id": "user-1",
                       "email": "owner1@rentify.local",
                       "username": "owner-one",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null
                     },
                     "title": "Introducing weekend stays at our downtown studios",
                     "slug": "introducing-weekend-stays",
@@ -8427,6 +8462,7 @@
                     "body": "<h2>Weekend stays are here</h2><p>Book any downtown studio for the weekend.</p>",
                     "coverImageUrl": "https://cdn.rentify.local/organizations/org-1/blog/cover-1.png",
                     "coverImageBlobName": "organizations/org-1/blog/cover-1.png",
+                    "coverImageVariants": null,
                     "tags": [
                       "announcement",
                       "downtown"
@@ -8654,7 +8690,8 @@
                         "comment": "Pickup was effortless and the team was responsive throughout.",
                         "reviewer": {
                           "username": "renter-two",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                          "avatarVariants": null
                         },
                         "response": {
                           "body": "Thank you for renting with us — see you next time!",
@@ -8662,7 +8699,8 @@
                           "author": {
                             "id": "user-1",
                             "username": "owner-one",
-                            "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                            "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                            "avatarVariants": null
                           }
                         },
                         "createdAt": "2026-06-01T18:30:00.000Z",
@@ -8791,7 +8829,8 @@
                     "comment": "Pickup was effortless and the team was responsive throughout.",
                     "reviewer": {
                       "username": "renter-two",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                      "avatarVariants": null
                     },
                     "response": {
                       "body": "Thank you for renting with us — see you next time!",
@@ -8799,7 +8838,8 @@
                       "author": {
                         "id": "user-1",
                         "username": "owner-one",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null
                       }
                     },
                     "createdAt": "2026-06-01T18:30:00.000Z",
@@ -8902,7 +8942,8 @@
                     "comment": "Pickup was effortless and the team was responsive throughout.",
                     "reviewer": {
                       "username": "renter-two",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                      "avatarVariants": null
                     },
                     "response": {
                       "body": "Thank you for renting with us — see you next time!",
@@ -8910,7 +8951,8 @@
                       "author": {
                         "id": "user-1",
                         "username": "owner-one",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null
                       }
                     },
                     "createdAt": "2026-06-01T18:30:00.000Z",
@@ -9020,7 +9062,8 @@
                     "comment": "Pickup was effortless and the team was responsive throughout.",
                     "reviewer": {
                       "username": "renter-two",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                      "avatarVariants": null
                     },
                     "response": {
                       "body": "Thank you for renting with us — see you next time!",
@@ -9028,7 +9071,8 @@
                       "author": {
                         "id": "user-1",
                         "username": "owner-one",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null
                       }
                     },
                     "createdAt": "2026-06-01T18:30:00.000Z",
@@ -9242,7 +9286,8 @@
                     "comment": "Pickup was effortless and the team was responsive throughout.",
                     "reviewer": {
                       "username": "renter-two",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                      "avatarVariants": null
                     },
                     "response": {
                       "body": "Thank you for renting with us — see you next time!",
@@ -9250,7 +9295,8 @@
                       "author": {
                         "id": "user-1",
                         "username": "owner-one",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                        "avatarVariants": null
                       }
                     },
                     "createdAt": "2026-06-01T18:30:00.000Z",
@@ -9362,7 +9408,8 @@
                     "comment": "Pickup was effortless and the team was responsive throughout.",
                     "reviewer": {
                       "username": "renter-two",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/renter-2.png",
+                      "avatarVariants": null
                     },
                     "response": null,
                     "createdAt": "2026-06-01T18:30:00.000Z",
@@ -9673,6 +9720,7 @@
                       "sizeBytes": null,
                       "width": null,
                       "height": null,
+                      "variants": null,
                       "rejectionReason": null,
                       "createdAt": "2026-05-25T18:15:00.000Z",
                       "updatedAt": "2026-05-25T18:15:00.000Z"
@@ -9782,6 +9830,23 @@
                       "sizeBytes": 184220,
                       "width": 1600,
                       "height": 1200,
+                      "variants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/media/images/user-1/8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "rejectionReason": null,
                       "createdAt": "2026-05-25T18:15:00.000Z",
                       "updatedAt": "2026-05-25T18:15:04.000Z"
@@ -10134,6 +10199,7 @@
                         "username": "taylor-renter",
                         "phoneNumber": "+1 555 0100",
                         "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                        "avatarVariants": null,
                         "trustworthinessScore": 4,
                         "rentPostingsCount": 2,
                         "availableRentPostingsCount": 1,
@@ -10233,6 +10299,7 @@
                     "username": "taylor-renter",
                     "phoneNumber": "+1 555 0100",
                     "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                    "avatarVariants": null,
                     "trustworthinessScore": 4,
                     "rentPostingsCount": 2,
                     "availableRentPostingsCount": 1,
@@ -10339,6 +10406,7 @@
                     "username": "taylor-renter",
                     "phoneNumber": "+1 555 0100",
                     "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                    "avatarVariants": null,
                     "trustworthinessScore": 4,
                     "rentPostingsCount": 2,
                     "availableRentPostingsCount": 1,
@@ -12396,10 +12464,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -12440,7 +12525,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -12842,10 +12944,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -12886,7 +13005,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -13063,10 +13199,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -13107,7 +13260,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -13333,10 +13503,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -13377,7 +13564,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -13471,8 +13675,8 @@
                 },
                 "photos": [
                   {
-                    "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                    "blobName": "postings/posting-1/photo-1.jpg",
+                    "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                     "position": 0
                   },
                   {
@@ -13567,10 +13771,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -13611,7 +13832,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -13741,10 +13979,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -13785,7 +14040,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -13907,10 +14179,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -13951,7 +14240,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -14076,10 +14382,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -14120,7 +14443,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -14245,10 +14585,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -14289,7 +14646,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -14415,10 +14789,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -14459,7 +14850,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -14584,10 +14992,27 @@
                     "photos": [
                       {
                         "id": "photo-1",
-                        "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                        "blobName": "postings/posting-1/photo-1.jpg",
+                        "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                         "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                        "variants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "position": 0,
                         "createdAt": "2026-05-01T10:00:00.000Z",
                         "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -14628,7 +15053,24 @@
                       "latitude": 43.65,
                       "longitude": -79.38
                     },
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                     "viewerReviewState": {
                       "eligible": true,
@@ -14878,7 +15320,24 @@
                         "postingId": "posting-1",
                         "name": "Sunny loft workspace",
                         "status": "published",
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "totals": {
                           "searchImpressions": 120,
                           "searchClicks": 28,
@@ -15124,7 +15583,24 @@
                     "postingId": "posting-1",
                     "name": "Sunny loft workspace",
                     "status": "published",
-                    "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                    "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                    "primaryPhotoVariants": {
+                      "thumbnail": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                        "width": 300,
+                        "height": 225
+                      },
+                      "medium": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                        "width": 800,
+                        "height": 600
+                      },
+                      "large": {
+                        "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "width": 1600,
+                        "height": 1200
+                      }
+                    },
                     "window": "7d",
                     "granularity": "day",
                     "totals": {
@@ -15297,7 +15773,8 @@
                         "comment": "Exactly as advertised and easy to book.",
                         "reviewer": {
                           "username": "taylor-renter",
-                          "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
+                          "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                          "avatarVariants": null
                         },
                         "createdAt": "2026-05-18T10:00:00.000Z",
                         "updatedAt": "2026-05-18T10:00:00.000Z"
@@ -15426,7 +15903,8 @@
                     "comment": "Exactly as advertised and easy to book.",
                     "reviewer": {
                       "username": "taylor-renter",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null
                     },
                     "createdAt": "2026-05-18T10:00:00.000Z",
                     "updatedAt": "2026-05-18T10:00:00.000Z"
@@ -15531,7 +16009,8 @@
                       "comment": "Exactly as advertised and easy to book.",
                       "reviewer": {
                         "username": "taylor-renter",
-                        "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
+                        "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                        "avatarVariants": null
                       },
                       "createdAt": "2026-05-18T10:00:00.000Z",
                       "updatedAt": "2026-05-18T10:00:00.000Z"
@@ -15642,7 +16121,8 @@
                     "comment": "Updating my review after a second stay.",
                     "reviewer": {
                       "username": "taylor-renter",
-                      "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png"
+                      "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null
                     },
                     "createdAt": "2026-05-18T10:00:00.000Z",
                     "updatedAt": "2026-05-18T10:00:00.000Z"
@@ -16206,10 +16686,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -16250,7 +16747,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -16657,10 +17171,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -16701,7 +17232,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -16888,10 +17436,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -16932,7 +17497,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -17188,6 +17770,7 @@
                       "email": "user1@rentify.local",
                       "username": "renter-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null,
                       "role": "user"
                     },
                     "assignedModerator": {
@@ -17195,6 +17778,7 @@
                       "email": "moderator1@rentify.local",
                       "username": "mod-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                      "avatarVariants": null,
                       "role": "moderator"
                     },
                     "subjectSnapshot": {
@@ -17406,6 +17990,7 @@
                           "email": "user1@rentify.local",
                           "username": "renter-one",
                           "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                          "avatarVariants": null,
                           "role": "user"
                         },
                         "assignedModerator": {
@@ -17413,6 +17998,7 @@
                           "email": "moderator1@rentify.local",
                           "username": "mod-one",
                           "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                          "avatarVariants": null,
                           "role": "moderator"
                         },
                         "subjectSnapshot": {
@@ -17548,6 +18134,7 @@
                       "email": "user1@rentify.local",
                       "username": "renter-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null,
                       "role": "user"
                     },
                     "assignedModerator": {
@@ -17555,6 +18142,7 @@
                       "email": "moderator1@rentify.local",
                       "username": "mod-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                      "avatarVariants": null,
                       "role": "moderator"
                     },
                     "subjectSnapshot": {
@@ -17580,6 +18168,7 @@
                           "email": "user1@rentify.local",
                           "username": "renter-one",
                           "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                          "avatarVariants": null,
                           "role": "user"
                         },
                         "createdAt": "2026-05-25T15:00:00.000Z",
@@ -17593,6 +18182,7 @@
                           "email": "moderator1@rentify.local",
                           "username": "mod-one",
                           "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                          "avatarVariants": null,
                           "role": "moderator"
                         },
                         "assignmentUserId": "moderator-1",
@@ -17712,6 +18302,7 @@
                       "email": "user1@rentify.local",
                       "username": "renter-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null,
                       "role": "user"
                     },
                     "assignedModerator": {
@@ -17719,6 +18310,7 @@
                       "email": "moderator1@rentify.local",
                       "username": "mod-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                      "avatarVariants": null,
                       "role": "moderator"
                     },
                     "subjectSnapshot": {
@@ -17855,6 +18447,7 @@
                       "email": "user1@rentify.local",
                       "username": "renter-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/user-1.png",
+                      "avatarVariants": null,
                       "role": "user"
                     },
                     "assignedModerator": {
@@ -17862,6 +18455,7 @@
                       "email": "moderator1@rentify.local",
                       "username": "mod-one",
                       "avatarUrl": "https://cdn.rentify.local/avatars/mod-1.png",
+                      "avatarVariants": null,
                       "role": "moderator"
                     },
                     "subjectSnapshot": {
@@ -19307,10 +19901,27 @@
                           "photos": [
                             {
                               "id": "photo-1",
-                              "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                              "blobName": "postings/posting-1/photo-1.jpg",
+                              "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                               "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                               "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                              "variants": {
+                                "thumbnail": {
+                                  "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                  "width": 300,
+                                  "height": 225
+                                },
+                                "medium": {
+                                  "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                  "width": 800,
+                                  "height": 600
+                                },
+                                "large": {
+                                  "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                  "width": 1600,
+                                  "height": 1200
+                                }
+                              },
                               "position": 0,
                               "createdAt": "2026-05-01T10:00:00.000Z",
                               "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -19351,7 +19962,24 @@
                             "latitude": 43.65,
                             "longitude": -79.38
                           },
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                           "viewerReviewState": {
                             "eligible": true,
@@ -19507,10 +20135,27 @@
                         "photos": [
                           {
                             "id": "photo-1",
-                            "blobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
-                            "blobName": "postings/posting-1/photo-1.jpg",
+                            "blobUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "blobName": "media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
                             "thumbnailBlobUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                             "thumbnailBlobName": "postings/posting-1/photo-1-thumb.jpg",
+                            "variants": {
+                              "thumbnail": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                                "width": 300,
+                                "height": 225
+                              },
+                              "medium": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                                "width": 800,
+                                "height": 600
+                              },
+                              "large": {
+                                "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                                "width": 1600,
+                                "height": 1200
+                              }
+                            },
                             "position": 0,
                             "createdAt": "2026-05-01T10:00:00.000Z",
                             "updatedAt": "2026-05-01T10:00:00.000Z"
@@ -19551,7 +20196,24 @@
                           "latitude": 43.65,
                           "longitude": -79.38
                         },
-                        "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                        "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                        "primaryPhotoVariants": {
+                          "thumbnail": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                            "width": 300,
+                            "height": 225
+                          },
+                          "medium": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                            "width": 800,
+                            "height": 600
+                          },
+                          "large": {
+                            "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                            "width": 1600,
+                            "height": 1200
+                          }
+                        },
                         "primaryThumbnailUrl": "https://cdn.rentify.local/postings/posting-1/photo-1-thumb.jpg",
                         "viewerReviewState": {
                           "eligible": true,
@@ -19695,7 +20357,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     }
                   },
@@ -19854,7 +20533,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "effectiveMaxBookingDurationDays": 30
                         }
                       }
@@ -20136,7 +20832,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "effectiveMaxBookingDurationDays": 30
                         }
                       }
@@ -20297,7 +21010,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "effectiveMaxBookingDurationDays": 30
                         }
                       }
@@ -20473,7 +21203,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "effectiveMaxBookingDurationDays": 30
                         },
                         "holdExpiresAt": "2026-05-28T12:00:00.000Z",
@@ -20680,7 +21427,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          },
                           "effectiveMaxBookingDurationDays": 30
                         },
                         "isExpiringHold": false,
@@ -20844,7 +21608,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     },
                     "viewerAccess": {
@@ -20987,7 +21768,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     }
                   },
@@ -21226,7 +22024,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     }
                   },
@@ -21367,7 +22182,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     }
                   },
@@ -21508,7 +22340,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg",
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      },
                       "effectiveMaxBookingDurationDays": 30
                     },
                     "cancellationReason": "Trip dates changed.",
@@ -22713,7 +23562,8 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Downtown Toronto Loft",
-                      "primaryPhotoUrl": "https://example.com/postings/loft/main.jpg"
+                      "primaryPhotoUrl": "https://example.com/postings/loft/main.jpg",
+                      "primaryPhotoVariants": null
                     },
                     "pricing": {
                       "currency": "CAD",
@@ -23841,7 +24691,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     }
                   },
                   "error": null,
@@ -23978,7 +24845,24 @@
                         "posting": {
                           "id": "posting-1",
                           "name": "Sunny loft workspace",
-                          "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                          "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "primaryPhotoVariants": {
+                            "thumbnail": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                              "width": 300,
+                              "height": 225
+                            },
+                            "medium": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                              "width": 800,
+                              "height": 600
+                            },
+                            "large": {
+                              "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                              "width": 1600,
+                              "height": 1200
+                            }
+                          }
                         }
                       }
                     ],
@@ -24128,7 +25012,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     }
                   },
                   "error": null,
@@ -24251,7 +25152,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     },
                     "checkInReadyAt": "2026-06-14T14:30:00.000Z"
                   },
@@ -24372,7 +25290,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     },
                     "checkInCompletedAt": "2026-06-14T15:05:00.000Z"
                   },
@@ -24493,7 +25428,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     },
                     "completedAt": "2026-06-17T11:05:00.000Z"
                   },
@@ -24628,7 +25580,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     },
                     "dispute": {
                       "id": "dispute-1",
@@ -24760,7 +25729,24 @@
                     "posting": {
                       "id": "posting-1",
                       "name": "Sunny loft workspace",
-                      "primaryPhotoUrl": "https://cdn.rentify.local/postings/posting-1/photo-1.jpg"
+                      "primaryPhotoUrl": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                      "primaryPhotoVariants": {
+                        "thumbnail": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.thumbnail.webp",
+                          "width": 300,
+                          "height": 225
+                        },
+                        "medium": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.medium.webp",
+                          "width": 800,
+                          "height": 600
+                        },
+                        "large": {
+                          "url": "https://cdn.rentify.local/uploads/media/images/7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/3e5a7b9c-1d2e-4f3a-8b4c-5d6e7f8a9b0c.webp",
+                          "width": 1600,
+                          "height": 1200
+                        }
+                      }
                     }
                   },
                   "error": null,
@@ -25281,6 +26267,18 @@
             "type": "string",
             "format": "uri"
           },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -25518,6 +26516,18 @@
             "maxLength": 1024,
             "nullable": true
           },
+          "logoVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `logoUrl`. Read-only: derived from the stored logo."
+          },
           "logoMediaId": {
             "type": "string",
             "format": "uuid",
@@ -25637,6 +26647,18 @@
             "format": "uri",
             "maxLength": 1024,
             "nullable": true
+          },
+          "logoVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `logoUrl`. Read-only: derived from the stored logo."
           },
           "customFields": {
             "type": "object",
@@ -25806,6 +26828,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           },
           "role": {
             "$ref": "#/components/schemas/OrganizationRole"
@@ -26160,6 +27194,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           }
         }
       },
@@ -26302,6 +27348,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           }
         }
       },
@@ -26450,6 +27508,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           }
         }
       },
@@ -26474,6 +27544,18 @@
           "logoUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "logoVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `logoUrl`."
           }
         }
       },
@@ -26521,6 +27603,18 @@
           },
           "coverImageBlobName": {
             "type": "string"
+          },
+          "coverImageVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `coverImageUrl`."
           },
           "tags": {
             "type": "array",
@@ -26711,6 +27805,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           }
         }
       },
@@ -26870,6 +27976,18 @@
           "avatarUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
           }
         }
       },
@@ -26902,6 +28020,18 @@
               "avatarUrl": {
                 "type": "string",
                 "format": "uri"
+              },
+              "avatarVariants": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ImageVariants"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "readOnly": true,
+                "description": "Renditions of `avatarUrl`."
               }
             }
           }
@@ -27794,6 +28924,7 @@
           "sizeBytes",
           "width",
           "height",
+          "variants",
           "rejectionReason",
           "createdAt",
           "updatedAt"
@@ -27832,6 +28963,18 @@
             "type": "integer",
             "nullable": true
           },
+          "variants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "The processed image's renditions, once they are recorded. Null until then, including for an image processed before renditions existed that the backfill has not reached yet; `url` still serves it."
+          },
           "rejectionReason": {
             "type": "string",
             "nullable": true
@@ -27843,6 +28986,65 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ImageVariants": {
+        "type": "object",
+        "description": "Recorded renditions of one processed image, each with its real dimensions, for a `srcset` with `w` descriptors. A rendition is only written when the image is wider than it; otherwise that entry is the large rendition, so a small image's entries can share one URL.",
+        "required": [
+          "thumbnail",
+          "medium",
+          "large"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "thumbnail": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageRendition"
+              }
+            ],
+            "description": "300 px wide, or the large rendition when the image is no wider."
+          },
+          "medium": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageRendition"
+              }
+            ],
+            "description": "800 px wide, or the large rendition when the image is no wider."
+          },
+          "large": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageRendition"
+              }
+            ],
+            "description": "The processed image itself, capped by the deployment's processed-image edge (2560 px by default)."
+          }
+        }
+      },
+      "ImageRendition": {
+        "type": "object",
+        "required": [
+          "url",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       },
@@ -28291,10 +29493,46 @@
       },
       "PublicProfileRecord": {
         "type": "object",
+        "properties": {
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
+          }
+        },
         "additionalProperties": true
       },
       "ProfileRecord": {
         "type": "object",
+        "properties": {
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
+          }
+        },
         "additionalProperties": true
       },
       "ListProfilesResult": {
@@ -28549,6 +29787,12 @@
       "PostingRecord": {
         "type": "object",
         "properties": {
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostingPhotoRecord"
+            }
+          },
           "expiresAt": {
             "type": "string",
             "format": "date-time",
@@ -28561,6 +29805,34 @@
       "PublicPostingRecord": {
         "type": "object",
         "properties": {
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostingPhotoRecord"
+            }
+          },
+          "primaryPhotoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The photo at position 0, or the first photo."
+          },
+          "primaryPhotoVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `primaryPhotoUrl`."
+          },
+          "primaryThumbnailUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The 640x480 card crop of the primary photo, once the posting thumbnail worker has written it."
+          },
           "expiresAt": {
             "type": "string",
             "format": "date-time",
@@ -28569,6 +29841,60 @@
           }
         },
         "additionalProperties": true
+      },
+      "PostingPhotoRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "blobUrl",
+          "blobName",
+          "variants",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blobUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "blobName": {
+            "type": "string"
+          },
+          "thumbnailBlobUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The 640x480 card crop, written for the primary photo only."
+          },
+          "thumbnailBlobName": {
+            "type": "string"
+          },
+          "variants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `blobUrl`."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "ListOwnerPostingsResult": {
         "type": "object",
@@ -29060,6 +30386,32 @@
       },
       "PostingReviewRecord": {
         "type": "object",
+        "properties": {
+          "reviewer": {
+            "type": "object",
+            "properties": {
+              "username": {
+                "type": "string"
+              },
+              "avatarUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "avatarVariants": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ImageVariants"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "readOnly": true,
+                "description": "Renditions of `avatarUrl`."
+              }
+            }
+          }
+        },
         "additionalProperties": true
       },
       "GetOwnPostingReviewResult": {
@@ -29652,6 +31004,18 @@
             "type": "string",
             "format": "uri"
           },
+          "avatarVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `avatarUrl`."
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -30078,10 +31442,55 @@
       },
       "PostingAnalyticsListResult": {
         "type": "object",
+        "properties": {
+          "postings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "primaryPhotoUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "primaryPhotoVariants": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ImageVariants"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "readOnly": true,
+                  "description": "Renditions of `primaryPhotoUrl`."
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
         "additionalProperties": true
       },
       "PostingAnalyticsDetail": {
         "type": "object",
+        "properties": {
+          "primaryPhotoUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "primaryPhotoVariants": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ImageVariants"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true,
+            "description": "Renditions of `primaryPhotoUrl`."
+          }
+        },
         "additionalProperties": true
       },
       "CreateBookingRequest": {
@@ -30164,6 +31573,36 @@
       },
       "BookingRequestRecord": {
         "type": "object",
+        "properties": {
+          "posting": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "primaryPhotoUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "primaryPhotoVariants": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ImageVariants"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "readOnly": true,
+                "description": "Renditions of `primaryPhotoUrl`."
+              }
+            },
+            "additionalProperties": true
+          }
+        },
         "additionalProperties": true
       },
       "SendBookingMessageRequest": {
@@ -30494,6 +31933,18 @@
               },
               "primaryPhotoUrl": {
                 "type": "string"
+              },
+              "primaryPhotoVariants": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ImageVariants"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "readOnly": true,
+                "description": "Renditions of `primaryPhotoUrl`."
               }
             }
           },
@@ -30713,6 +32164,36 @@
       },
       "RentingRecord": {
         "type": "object",
+        "properties": {
+          "posting": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "primaryPhotoUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "primaryPhotoVariants": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ImageVariants"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "readOnly": true,
+                "description": "Renditions of `primaryPhotoUrl`."
+              }
+            },
+            "additionalProperties": true
+          }
+        },
         "additionalProperties": true
       },
       "ListRentingsResult": {

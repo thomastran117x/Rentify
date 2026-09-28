@@ -19,6 +19,7 @@ import {
   truncateImage,
 } from "../../support/image-fixtures";
 import { testUuid } from "../../support/uuid";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const USER_1_ID = testUuid(9000, 994290);
 let nextMediaIndex = 994300;
@@ -75,6 +76,7 @@ async function quarantine(
     sizeBytes: body?.byteLength ?? null,
     width: null,
     height: null,
+    variants: null,
     rejectionReason: null,
     createdAt: now,
     updatedAt: now,
@@ -83,9 +85,9 @@ async function quarantine(
   // Local storage outlives a run and ids repeat between runs, so clear what an
   // earlier run may have left for this id.
   await context.blobService.deleteBlob(record.originalBlobName);
-  await context.blobService.deleteBlob(
-    context.blobService.buildProcessedImageBlobName(USER_1_ID, id),
-  );
+  for (const blobName of renditionNames(context, id)) {
+    await context.blobService.deleteBlob(blobName);
+  }
 
   if (body) {
     await context.blobService.writeLocalBlob(
@@ -103,6 +105,18 @@ async function quarantine(
 
   context.mediaRepository.put(record);
   return record;
+}
+
+/** The large, medium, and thumbnail blob names of an item, in that order. */
+function renditionNames(context: Context, mediaId: string): string[] {
+  const names = buildImageVariantBlobNames(
+    context.blobService.buildProcessedImageBlobName(
+      USER_1_ID,
+      mediaId as MediaRecord["id"],
+    ),
+  )!;
+
+  return [names.large, names.medium, names.thumbnail];
 }
 
 async function expectMissing(context: Context, blobName: string) {
@@ -139,6 +153,175 @@ describe("MediaProcessingService", () => {
       format: "webp",
     });
     await expectMissing(context, record.originalBlobName);
+  });
+
+  describe("renditions", () => {
+    /**
+     * Processes an upload; returns the ready row and each stored rendition, or
+     * null for one that was not written.
+     */
+    async function processRenditions(
+      body: Buffer,
+      declaredContentType = "image/png",
+    ) {
+      const context = createContext();
+      const record = await quarantine(context, body, { declaredContentType });
+
+      await context.service.process(record.id);
+
+      const ready = (await context.mediaRepository.findById(record.id))!;
+      const [large, medium, thumbnail] = await Promise.all(
+        renditionNames(context, record.id).map(async (blobName) => {
+          const stored = await context.blobService
+            .readLocalBlob(blobName)
+            .catch((error: unknown) => {
+              if (error instanceof ResourceNotFoundError) {
+                return null;
+              }
+              throw error;
+            });
+          if (!stored) {
+            return null;
+          }
+          const metadata = await sharp(stored.body).metadata();
+
+          return {
+            contentType: stored.contentType,
+            format: metadata.format,
+            width: metadata.width,
+            height: metadata.height,
+            sizeBytes: stored.body.byteLength,
+          };
+        }),
+      );
+
+      return { ready, large: large!, medium, thumbnail };
+    }
+
+    it("writes a medium and a thumbnail beside the processed image", async () => {
+      const { ready, large, medium, thumbnail } = await processRenditions(
+        await createPngFixture(4000, 3000),
+      );
+
+      expect(large).toMatchObject({ width: 2560, height: 1920 });
+      for (const rendition of [large, medium, thumbnail]) {
+        expect(rendition).toMatchObject({
+          contentType: "image/webp",
+          format: "webp",
+        });
+      }
+      expect(medium).toMatchObject({ width: 800, height: 600 });
+      expect(thumbnail).toMatchObject({ width: 300, height: 225 });
+      // The row records what was written, and so doubles as proof it exists.
+      expect(ready.variants).toEqual({
+        medium: { width: 800, height: 600, sizeBytes: medium!.sizeBytes },
+        thumbnail: {
+          width: 300,
+          height: 225,
+          sizeBytes: thumbnail!.sizeBytes,
+        },
+      });
+    });
+
+    it("writes no rendition that would be no smaller than the image", async () => {
+      const { ready, large, medium, thumbnail } = await processRenditions(
+        await createPngFixture(120, 90),
+      );
+
+      // A copy of the same width would only be a duplicate to store and serve.
+      expect(large).toMatchObject({ width: 120, height: 90 });
+      expect(medium).toBeNull();
+      expect(thumbnail).toBeNull();
+      expect(ready.variants).toEqual({ medium: null, thumbnail: null });
+    });
+
+    it("writes only the renditions narrower than the image", async () => {
+      const { ready, medium, thumbnail } = await processRenditions(
+        await createPngFixture(500, 400),
+      );
+
+      expect(medium).toBeNull();
+      expect(thumbnail).toMatchObject({ width: 300, height: 240 });
+      expect(ready.variants).toEqual({
+        medium: null,
+        thumbnail: {
+          width: 300,
+          height: 240,
+          sizeBytes: thumbnail!.sizeBytes,
+        },
+      });
+    });
+
+    it("sizes an upright portrait's renditions by their width", async () => {
+      // Stored landscape with orientation 6: displayed as a 1200x1600 portrait.
+      const rotatedJpeg = await sharp({
+        create: {
+          width: 1600,
+          height: 1200,
+          channels: 3,
+          background: { r: 40, g: 120, b: 200 },
+        },
+      })
+        .jpeg()
+        .withMetadata({ orientation: 6 })
+        .toBuffer();
+
+      const { medium, thumbnail } = await processRenditions(
+        rotatedJpeg,
+        "image/jpeg",
+      );
+
+      // By width, so a srcset's 800w and 300w descriptors are their real
+      // widths and a narrow column never gets a copy too small for it.
+      expect(medium).toMatchObject({ width: 800, height: 1067 });
+      expect(thumbnail).toMatchObject({ width: 300, height: 400 });
+    });
+
+    it("sizes renditions from the processed image, not the upload", async () => {
+      process.env.MAX_PROCESSED_IMAGE_EDGE = "600";
+
+      const { large, medium, thumbnail } = await processRenditions(
+        await createPngFixture(1024, 1024),
+      );
+
+      // The upload is wider than a medium, but its capped copy is not.
+      expect(large).toMatchObject({ width: 600, height: 600 });
+      expect(medium).toBeNull();
+      expect(thumbnail).toMatchObject({ width: 300, height: 300 });
+    });
+
+    it("writes every rendition again when a retry follows a partial upload", async () => {
+      const context = createContext();
+      const record = await quarantine(
+        context,
+        await createPngFixture(900, 600),
+      );
+      const uploadBuffer = context.blobService.uploadBuffer.bind(
+        context.blobService,
+      );
+      jest
+        .spyOn(context.blobService, "uploadBuffer")
+        .mockImplementationOnce(uploadBuffer)
+        .mockRejectedValueOnce(new Error("storage unavailable"));
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        "storage unavailable",
+      );
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "processing",
+      );
+
+      await context.service.process(record.id);
+
+      expect(
+        (await context.mediaRepository.findById(record.id))?.variants,
+      ).not.toBeNull();
+      for (const blobName of renditionNames(context, record.id)) {
+        await expect(
+          context.blobService.readLocalBlob(blobName),
+        ).resolves.toMatchObject({ contentType: "image/webp" });
+      }
+    });
   });
 
   it("applies EXIF orientation and drops the metadata", async () => {
@@ -679,15 +862,14 @@ describe("MediaProcessingService", () => {
 
     await context.service.process(record.id);
 
-    await expectMissing(
-      context,
-      context.blobService.buildProcessedImageBlobName(USER_1_ID, record.id),
-    );
+    for (const blobName of renditionNames(context, record.id)) {
+      await expectMissing(context, blobName);
+    }
   });
 
   it("keeps the output when a duplicate job already finished the item", async () => {
     const context = createContext();
-    const record = await quarantine(context, await createPngFixture());
+    const record = await quarantine(context, await createPngFixture(1000, 750));
     const repository = context.mediaRepository;
     const markReady = repository.markReady.bind(repository);
     jest
@@ -699,13 +881,11 @@ describe("MediaProcessingService", () => {
 
     await context.service.process(record.id);
 
-    const processedBlobName = context.blobService.buildProcessedImageBlobName(
-      USER_1_ID,
-      record.id,
-    );
-    await expect(
-      context.blobService.readLocalBlob(processedBlobName),
-    ).resolves.toMatchObject({ contentType: "image/webp" });
+    for (const blobName of renditionNames(context, record.id)) {
+      await expect(
+        context.blobService.readLocalBlob(blobName),
+      ).resolves.toMatchObject({ contentType: "image/webp" });
+    }
   });
 
   it("treats a failed quarantine cleanup as non-fatal", async () => {

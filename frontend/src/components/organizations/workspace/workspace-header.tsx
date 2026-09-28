@@ -15,6 +15,7 @@ import {
 } from "@/components/organizations/shared/primitives";
 import { OrganizationCreateForm } from "@/components/organizations/workspace/create-form";
 import { useOrganizationWorkspace } from "@/components/organizations/workspace/workspace-provider";
+import { ResponsiveImage } from "@/components/common/responsive-image";
 
 export function OrganizationWorkspaceHeader() {
   const {
@@ -49,9 +50,10 @@ export function OrganizationWorkspaceHeader() {
             <Eyebrow>Organization workspace</Eyebrow>
             <div className="mt-4 flex items-center gap-4">
               {detail?.organization.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ResponsiveImage
                   src={detail.organization.logoUrl}
+                  variants={detail.organization.logoVariants}
+                  sizes="56px"
                   alt={`${detail.organization.name} logo`}
                   className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
                 />

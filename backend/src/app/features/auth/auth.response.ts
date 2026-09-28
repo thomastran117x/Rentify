@@ -50,6 +50,7 @@ export function toAuthResponseBody(
       email: result.user.email,
       username: result.user.username,
       avatarUrl: result.user.avatarUrl,
+      avatarVariants: result.user.avatarVariants,
       role: result.user.role,
       activeOrganization: result.user.activeOrganization,
       organizationMembershipCount: result.user.organizationMembershipCount,

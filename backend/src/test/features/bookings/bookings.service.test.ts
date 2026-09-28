@@ -1067,6 +1067,7 @@ describe("BookingsService", () => {
       posting: {
         id: POSTING_1_ID,
         name: "City loft",
+        primaryPhotoVariants: null,
         effectiveMaxBookingDurationDays: 30,
       },
       status: "pending",
@@ -1078,6 +1079,7 @@ describe("BookingsService", () => {
       posting: {
         id: POSTING_2_ID,
         name: "Studio set",
+        primaryPhotoVariants: null,
         effectiveMaxBookingDurationDays: 30,
       },
       status: "payment_failed",
@@ -1096,6 +1098,7 @@ describe("BookingsService", () => {
       posting: {
         id: POSTING_4_ID,
         name: "Canal cottage",
+        primaryPhotoVariants: null,
         effectiveMaxBookingDurationDays: 30,
       },
       status: "paid",

@@ -36,6 +36,7 @@ export const organizationsBlogCommentsRegistrationModule: ContainerRegistrationM
           containerTokens.cacheService,
           containerTokens.tokenService,
           containerTokens.organizationBlogCommentSocketServer,
+          containerTokens.imageVariantsResolver,
         ],
         resolve: ({ resolve }) =>
           new OrganizationBlogCommentsService(
@@ -45,6 +46,7 @@ export const organizationsBlogCommentsRegistrationModule: ContainerRegistrationM
             resolve(containerTokens.cacheService),
             resolve(containerTokens.tokenService),
             resolve(containerTokens.organizationBlogCommentSocketServer),
+            resolve(containerTokens.imageVariantsResolver),
           ),
       });
       container.register({

@@ -3,6 +3,9 @@
 // `@/styles/theme` (theme.marketplace) so these surfaces match the postings
 // marketplace design.
 
+import { ResponsiveImage } from "@/components/common/responsive-image";
+import type { ImageVariants } from "@/lib/media/api";
+
 export function formatOrganizationDate(
   value: string,
   variant: "short" | "long" = "short",
@@ -42,6 +45,7 @@ function getInitials(name: string): string {
 interface OrganizationLogoProps {
   name: string;
   logoUrl: string | null;
+  logoVariants?: ImageVariants | null;
   size?: "sm" | "md" | "lg";
 }
 
@@ -54,18 +58,27 @@ const LOGO_SIZE_CLASS: Record<
   lg: "h-20 w-20 rounded-[1.4rem] text-2xl",
 };
 
+// The drawn size of each logo, for the browser's choice of rendition.
+const LOGO_PIXELS: Record<keyof typeof LOGO_SIZE_CLASS, string> = {
+  sm: "48px",
+  md: "64px",
+  lg: "80px",
+};
+
 export function OrganizationLogo({
   name,
   logoUrl,
+  logoVariants,
   size = "md",
 }: OrganizationLogoProps) {
   const sizeClass = LOGO_SIZE_CLASS[size];
 
   if (logoUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <ResponsiveImage
         src={logoUrl}
+        variants={logoVariants}
+        sizes={LOGO_PIXELS[size]}
         alt={`${name} logo`}
         className={`${sizeClass} shrink-0 object-cover ring-1 ring-slate-200 dark:ring-slate-700`}
       />

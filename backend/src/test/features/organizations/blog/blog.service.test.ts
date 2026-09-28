@@ -27,6 +27,7 @@ function createPost(
     slug: "blog-title",
     excerpt: "Excerpt",
     body: "<p>Body</p>",
+    coverImageVariants: null,
     tags: ["news"],
     status: "draft",
     commentsEnabled: true,

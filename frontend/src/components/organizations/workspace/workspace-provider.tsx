@@ -1294,6 +1294,7 @@ export function OrganizationWorkspaceProvider({
       body: post.body,
       tags: post.tags,
       coverImageUrl: post.coverImageUrl ?? "",
+      coverImageVariants: post.coverImageVariants ?? null,
       coverImageBlobName: post.coverImageBlobName ?? "",
       coverImageMediaId: "",
       status: post.status,

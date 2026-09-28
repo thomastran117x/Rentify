@@ -82,6 +82,7 @@ function OrganizationCard({
           <OrganizationLogo
             name={organization.name}
             logoUrl={organization.logoUrl}
+            logoVariants={organization.logoVariants}
             size="lg"
           />
         </div>
