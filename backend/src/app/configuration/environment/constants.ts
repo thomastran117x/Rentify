@@ -193,6 +193,11 @@ export function isSupportedImageContentType(
   );
 }
 
+// How long a local-disk upload URL stays valid. Azure upload URLs use
+// blobStorage.uploadSasTtlSeconds instead. Lives here so the environment
+// parser can check the media cleanup's pending-upload TTL against it.
+export const LOCAL_BLOB_UPLOAD_TTL_SECONDS = 15 * 60;
+
 export const DEFAULT_FRONTEND_URL = "http://localhost:3040";
 export const DEFAULT_EMAIL_APP_BASE_URL = "http://localhost:3000";
 export const DEFAULT_CAPTCHA_ALLOWED_HOST = "challenges.cloudflare.com";

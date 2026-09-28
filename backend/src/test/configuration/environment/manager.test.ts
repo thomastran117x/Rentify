@@ -591,6 +591,39 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it("keeps abandoned uploads until their upload URL can no longer be used", () => {
+    // An hour-long Azure upload URL plus 15 minutes to finish and complete.
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "3600",
+      MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: "3600000",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS must be at least 4500000",
+    );
+
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "3600",
+      MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: "4500000",
+    });
+    const hourLongManager = new EnvironmentManager();
+    hourLongManager.load();
+
+    expect(
+      hourLongManager.getMediaCleanupWorkerConfig().pendingUploadTtlMs,
+    ).toBe(4_500_000);
+
+    // A short Azure lifetime still leaves the 15-minute local one to cover.
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "60",
+      MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: "1799999",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS must be at least 1800000",
+    );
+  });
+
   it("rejects image policy values outside the supported set or bounds", () => {
     process.env = buildRequiredEnv({
       ALLOWED_IMAGE_TYPES: "image/svg+xml",

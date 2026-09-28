@@ -13,7 +13,12 @@ import {
   DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS,
   DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS,
   DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS,
+  LOCAL_BLOB_UPLOAD_TTL_SECONDS,
 } from "@/configuration/environment/constants";
+
+// Time allowed after an upload URL expires for a PUT that started just before
+// it to finish and for the client to complete the upload.
+const PENDING_UPLOAD_COMPLETION_GRACE_MS = 15 * 60 * 1000;
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
 import type {
   AppEnvironment,
@@ -766,10 +771,29 @@ function validateIdentityBloomConfig(
 export function validateRuntimeConfig(
   config: Pick<
     AppEnvironment,
-    "postingsCache" | "usernameBloom" | "emailBloom"
+    "postingsCache" | "usernameBloom" | "emailBloom" | "workers" | "blobStorage"
   >,
   errors: string[],
 ): void {
+  // The media cleanup must not delete an upload its client may still send or
+  // complete. Whichever storage path is active, its upload URL lives no longer
+  // than the longer of the two lifetimes.
+  const uploadUrlLifetimeMs =
+    Math.max(
+      config.blobStorage.uploadSasTtlSeconds,
+      LOCAL_BLOB_UPLOAD_TTL_SECONDS,
+    ) * 1000;
+  const minimumPendingUploadTtlMs =
+    uploadUrlLifetimeMs + PENDING_UPLOAD_COMPLETION_GRACE_MS;
+
+  if (
+    config.workers.mediaCleanup.pendingUploadTtlMs < minimumPendingUploadTtlMs
+  ) {
+    errors.push(
+      `MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS must be at least ${minimumPendingUploadTtlMs}: the upload URL lifetime (the longer of AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS and the ${LOCAL_BLOB_UPLOAD_TTL_SECONDS}-second local upload lifetime) plus ${PENDING_UPLOAD_COMPLETION_GRACE_MS / 60_000} minutes to finish and complete the upload.`,
+    );
+  }
+
   if (
     config.postingsCache.staleTtlSeconds < config.postingsCache.freshTtlSeconds
   ) {

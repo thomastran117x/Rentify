@@ -239,6 +239,13 @@ for what each step does.
 Every value must be a positive integer. A sweep that did work is followed by
 another at once, so a backlog drains without waiting for the poll interval.
 
+`pendingUploadTtlMs` must also outlast every upload URL the API can issue, so
+the cleanup never deletes an upload its client may still send or complete. The
+minimum is the longer of `blobStorage.uploadSasTtlSeconds`
+(`AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS`) and the fixed 15-minute local upload
+lifetime, plus 15 minutes to finish and complete the upload. A shorter value is
+a startup error. With the maximum one-hour SAS lifetime, that is 75 minutes.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:
