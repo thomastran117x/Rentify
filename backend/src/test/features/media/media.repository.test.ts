@@ -314,6 +314,43 @@ describe("MediaRepository", () => {
     ).resolves.toBe(false);
   });
 
+  it("rejects for cleanup only rows still in the state they were selected in", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+
+    await expect(
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck"),
+    ).resolves.toBe(true);
+    await expect(
+      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned"),
+    ).resolves.toBe(true);
+
+    expect(updateMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["uploaded", "processing"] },
+          updatedAt: { lt: cutoff },
+        },
+        data: { status: "rejected", rejectionReason: "stuck" },
+      },
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: "pending_upload",
+          createdAt: { lt: cutoff },
+        },
+        data: { status: "rejected", rejectionReason: "abandoned" },
+      },
+    ]);
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck"),
+    ).resolves.toBe(false);
+  });
+
   it("deletes a row only while it is still in the expected status", async () => {
     const deleteMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ deleteMany });

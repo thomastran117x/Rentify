@@ -306,21 +306,59 @@ export class MediaRepository extends BaseRepository {
    * `updatedBefore`, so of several cleanup runs racing on one item only one
    * re-enqueues it, and the next sweep waits a whole threshold again.
    */
-  async claimStuckForRequeue(id: Uuid, updatedBefore: Date): Promise<boolean> {
-    const result = await this.executeAsync(
-      () =>
-        this.prisma.media.updateMany({
-          where: {
-            id,
-            status: { in: STUCK_STATUSES },
-            updatedAt: { lt: updatedBefore },
-          },
-          data: { updatedAt: new Date() },
-        }),
-      { operationName: "claimStuckForRequeue" },
+  claimStuckForRequeue(id: Uuid, updatedBefore: Date): Promise<boolean> {
+    return this.updateForCleanup(
+      {
+        id,
+        status: { in: STUCK_STATUSES },
+        updatedAt: { lt: updatedBefore },
+      },
+      { updatedAt: new Date() },
+      "claimStuckForRequeue",
     );
+  }
 
-    return result.count > 0;
+  /**
+   * Rejects a stuck item only while it is still unmoved since `updatedBefore`.
+   * A redelivered job that claimed the row after the cleanup read it moves
+   * `updatedAt`, so an item being processed right now is left to finish.
+   */
+  rejectStuck(
+    id: Uuid,
+    updatedBefore: Date,
+    rejectionReason: string,
+  ): Promise<boolean> {
+    return this.updateForCleanup(
+      {
+        id,
+        status: { in: STUCK_STATUSES },
+        updatedAt: { lt: updatedBefore },
+      },
+      { status: "rejected", rejectionReason },
+      "rejectStuck",
+    );
+  }
+
+  /**
+   * Rejects an upload that was never completed, only while it is still
+   * pending and was created before `createdBefore`. This is the cleanup's
+   * claim on the row: once it applies, completing the upload can no longer
+   * move it to `uploaded`, so its bytes can be deleted safely.
+   */
+  rejectAbandonedUpload(
+    id: Uuid,
+    createdBefore: Date,
+    rejectionReason: string,
+  ): Promise<boolean> {
+    return this.updateForCleanup(
+      {
+        id,
+        status: "pending_upload",
+        createdAt: { lt: createdBefore },
+      },
+      { status: "rejected", rejectionReason },
+      "rejectAbandonedUpload",
+    );
   }
 
   /**
@@ -348,6 +386,19 @@ export class MediaRepository extends BaseRepository {
     );
 
     return rows.map((row) => this.toRecord(row));
+  }
+
+  private async updateForCleanup(
+    where: Prisma.MediaWhereInput,
+    data: Prisma.MediaUpdateManyMutationInput,
+    operationName: string,
+  ): Promise<boolean> {
+    const result = await this.executeAsync(
+      () => this.prisma.media.updateMany({ where, data }),
+      { operationName },
+    );
+
+    return result.count > 0;
   }
 
   private async transition(

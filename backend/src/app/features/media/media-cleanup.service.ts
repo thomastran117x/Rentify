@@ -5,9 +5,13 @@ import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
 import {
+  deleteQuarantinedUpload,
   PROCESSING_FAILED_REASON,
-  rejectMedia,
 } from "@/features/media/media-rejection";
+
+// Recorded on an abandoned upload while the cleanup deletes it. A client only
+// sees it if deleting the bytes fails and the row is kept for a later retry.
+const ABANDONED_UPLOAD_REASON = "The upload was never completed.";
 
 export type MediaCleanupOptions = Omit<
   AppEnvironment["workers"]["mediaCleanup"],
@@ -31,14 +35,14 @@ export interface MediaCleanupSummary {
  * Finishes off media items that will not finish by themselves, working from
  * the database alone so that it cleans Azure and local-disk storage alike:
  *
- * 1. an upload that was requested and never completed is deleted, bytes first;
+ * 1. an upload that was requested and never completed is deleted;
  * 2. an item waiting on a processing job that has not moved in a while is
  *    queued again, or rejected once it is too old to keep retrying;
  * 3. a rejected item is deleted once its retention has passed.
  *
- * A ready item is never selected. Every change is conditional on the status
- * the item was read in, so an item that moves on during a sweep is left alone
- * and several workers can sweep at once. The orphaned-blob cleanup remains the
+ * A ready item is never selected. Every change is conditional on the item
+ * still being in the state it was selected in, so an item that moves on during
+ * a sweep is left alone and several workers can sweep at once. The orphaned-blob cleanup remains the
  * backstop for blobs that no row accounts for.
  */
 export class MediaCleanupService {
@@ -53,9 +57,10 @@ export class MediaCleanupService {
       | "listAbandonedUploads"
       | "listStuck"
       | "listRejected"
+      | "rejectAbandonedUpload"
       | "claimStuckForRequeue"
+      | "rejectStuck"
       | "deleteByIdIfStatus"
-      | "markRejected"
     >,
     private readonly blobService: Pick<BlobService, "deleteBlob">,
     private readonly mediaProcessingQueue: Pick<
@@ -98,10 +103,12 @@ export class MediaCleanupService {
   }
 
   /**
-   * The bytes go first, so that a failed delete leaves the row behind to try
-   * again. The row is then deleted only if it is still pending: an upload
-   * completed in the meantime keeps its row, and processing rejects it for
-   * its missing bytes.
+   * The row is claimed first, by rejecting it while it is still pending, so a
+   * completion racing the sweep either wins before the claim and keeps its
+   * upload, or finds the item rejected; it can never move the row on after
+   * its bytes are gone. The bytes go next, then the row. If deleting the bytes
+   * fails, the rejected row stays behind, and the purge of old rejections
+   * tries again once its retention has passed.
    */
   private async deleteAbandonedUploads(
     createdBefore: Date,
@@ -118,13 +125,20 @@ export class MediaCleanupService {
       "abandoned-upload",
       summary,
       async (record) => {
+        if (
+          !(await this.mediaRepository.rejectAbandonedUpload(
+            record.id,
+            createdBefore,
+            ABANDONED_UPLOAD_REASON,
+          ))
+        ) {
+          return;
+        }
+
         await this.blobService.deleteBlob(record.originalBlobName);
 
         if (
-          await this.mediaRepository.deleteByIdIfStatus(
-            record.id,
-            "pending_upload",
-          )
+          await this.mediaRepository.deleteByIdIfStatus(record.id, "rejected")
         ) {
           summary.abandonedDeleted += 1;
         }
@@ -138,7 +152,9 @@ export class MediaCleanupService {
    * is queued, so only one sweep queues it; a job for an item another worker
    * has since finished is a no-op, because processing claims the row too.
    * An item unfinished since `createdBefore` is rejected instead, so one that
-   * keeps failing cannot be retried forever.
+   * keeps failing cannot be retried forever. Both are conditional on the item
+   * still being unmoved, so one a redelivered job has just claimed is left to
+   * finish rather than queued twice or rejected mid-processing.
    */
   private async recoverStuckMedia(
     updatedBefore: Date,
@@ -150,8 +166,18 @@ export class MediaCleanupService {
 
     await this.forEachItem(records, "stuck", summary, async (record) => {
       if (record.createdAt < createdBefore) {
-        if (await this.reject(record)) {
+        if (
+          await this.mediaRepository.rejectStuck(
+            record.id,
+            updatedBefore,
+            PROCESSING_FAILED_REASON,
+          )
+        ) {
           summary.rejected += 1;
+          await deleteQuarantinedUpload(
+            { blobService: this.blobService, logger: this.logger },
+            record,
+          );
         }
         return;
       }
@@ -216,17 +242,5 @@ export class MediaCleanupService {
         );
       }
     }
-  }
-
-  private reject(record: MediaRecord): Promise<boolean> {
-    return rejectMedia(
-      {
-        mediaRepository: this.mediaRepository,
-        blobService: this.blobService,
-        logger: this.logger,
-      },
-      record,
-      PROCESSING_FAILED_REASON,
-    );
   }
 }

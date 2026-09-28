@@ -180,22 +180,58 @@ describe("Media cleanup persistence integration", () => {
     });
   });
 
-  it("keeps an abandoned upload's row once it has been completed", async () => {
+  it("loses its claim to a completion or a job that moved the item first", async () => {
     const twoDaysAgo = ago(48 * HOUR_MS);
+    const repository = persistenceApp.container.resolve(
+      containerTokens.mediaRepository,
+    );
+    const pendingCutoff = ago(24 * HOUR_MS);
+    const stuckCutoff = ago(15 * 60 * 1000);
+
+    // As if the sweep read it while still pending, and the client completed
+    // it before the claim.
     const completed = await seedMedia("uploaded", {
       createdAt: twoDaysAgo,
       updatedAt: new Date(),
     });
-    const repository = persistenceApp.container.resolve(
-      containerTokens.mediaRepository,
-    );
-
-    // As if the sweep read it while still pending, then lost the race.
     await expect(
-      repository.deleteByIdIfStatus(asUuid(completed.id), "pending_upload"),
+      repository.rejectAbandonedUpload(
+        asUuid(completed.id),
+        pendingCutoff,
+        "abandoned",
+      ),
     ).resolves.toBe(false);
     await expect(findMedia(completed.id)).resolves.toMatchObject({
       status: "uploaded",
     });
+
+    // As if the sweep read it as stuck, and a redelivered job claimed it
+    // before the rejection.
+    const reclaimed = await seedMedia("processing", {
+      createdAt: twoDaysAgo,
+      updatedAt: new Date(),
+    });
+    await expect(
+      repository.rejectStuck(asUuid(reclaimed.id), stuckCutoff, "stuck"),
+    ).resolves.toBe(false);
+    await expect(findMedia(reclaimed.id)).resolves.toMatchObject({
+      status: "processing",
+    });
+
+    // Once the claim is held, completing the upload can no longer apply.
+    const abandoned = await seedMedia("pending_upload", {
+      createdAt: twoDaysAgo,
+      updatedAt: twoDaysAgo,
+    });
+    await expect(
+      repository.rejectAbandonedUpload(
+        asUuid(abandoned.id),
+        pendingCutoff,
+        "abandoned",
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      repository.markUploaded(asUuid(abandoned.id), 6, '"etag"'),
+    ).resolves.toBe(false);
   });
 });

@@ -63,13 +63,18 @@ function createContext(
     listRejected: jest.fn(
       async (_updatedBefore: Date, _limit: number) => candidates.rejected ?? [],
     ),
+    rejectAbandonedUpload: jest.fn(
+      async (_id: string, _createdBefore: Date, _reason: string) => true,
+    ),
     claimStuckForRequeue: jest.fn(
       async (_id: string, _updatedBefore: Date) => true,
+    ),
+    rejectStuck: jest.fn(
+      async (_id: string, _updatedBefore: Date, _reason: string) => true,
     ),
     deleteByIdIfStatus: jest.fn(
       async (_id: string, _status: MediaStatus) => true,
     ),
-    markRejected: jest.fn(async (_id: string, _reason: string) => true),
   };
   const blobService = {
     deleteBlob: jest.fn(async (_blobName: string) => undefined),
@@ -117,7 +122,7 @@ describe("MediaCleanupService", () => {
     );
   });
 
-  it("deletes an abandoned upload's bytes, then its row while still pending", async () => {
+  it("claims an abandoned upload, then deletes its bytes, then its row", async () => {
     const abandoned = record("pending_upload");
     const { mediaRepository, blobService, service } = createContext({
       abandoned: [abandoned],
@@ -126,28 +131,39 @@ describe("MediaCleanupService", () => {
     const summary = await service.sweep(OPTIONS);
 
     expect(summary.abandonedDeleted).toBe(1);
+    expect(mediaRepository.rejectAbandonedUpload).toHaveBeenCalledWith(
+      abandoned.id,
+      ago(24 * HOUR_MS),
+      "The upload was never completed.",
+    );
     expect(blobService.deleteBlob).toHaveBeenCalledWith(
       abandoned.originalBlobName,
     );
     expect(mediaRepository.deleteByIdIfStatus).toHaveBeenCalledWith(
       abandoned.id,
-      "pending_upload",
+      "rejected",
     );
-    expect(blobService.deleteBlob.mock.invocationCallOrder[0]).toBeLessThan(
-      mediaRepository.deleteByIdIfStatus.mock.invocationCallOrder[0],
-    );
+    const [claimed] =
+      mediaRepository.rejectAbandonedUpload.mock.invocationCallOrder;
+    const [bytesDeleted] = blobService.deleteBlob.mock.invocationCallOrder;
+    const [rowDeleted] =
+      mediaRepository.deleteByIdIfStatus.mock.invocationCallOrder;
+    expect(claimed).toBeLessThan(bytesDeleted!);
+    expect(bytesDeleted).toBeLessThan(rowDeleted!);
   });
 
-  it("keeps an abandoned upload's row when it was completed during the sweep", async () => {
-    const { mediaRepository, service } = createContext({
+  it("leaves an upload completed before the claim, bytes and all", async () => {
+    const { mediaRepository, blobService, service } = createContext({
       abandoned: [record("pending_upload")],
     });
-    mediaRepository.deleteByIdIfStatus.mockResolvedValueOnce(false);
+    mediaRepository.rejectAbandonedUpload.mockResolvedValueOnce(false);
 
     await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
       abandonedDeleted: 0,
       failed: 0,
     });
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
+    expect(mediaRepository.deleteByIdIfStatus).not.toHaveBeenCalled();
   });
 
   it("claims and re-enqueues a stuck item that is young enough to retry", async () => {
@@ -168,7 +184,7 @@ describe("MediaCleanupService", () => {
       [uploaded.id],
       [processing.id],
     ]);
-    expect(mediaRepository.markRejected).not.toHaveBeenCalled();
+    expect(mediaRepository.rejectStuck).not.toHaveBeenCalled();
   });
 
   it("does not enqueue a stuck item another sweep claimed first", async () => {
@@ -196,8 +212,9 @@ describe("MediaCleanupService", () => {
       requeued: 0,
       rejected: 1,
     });
-    expect(mediaRepository.markRejected).toHaveBeenCalledWith(
+    expect(mediaRepository.rejectStuck).toHaveBeenCalledWith(
       poison.id,
+      ago(15 * 60 * 1000),
       "The image could not be processed.",
     );
     expect(blobService.deleteBlob).toHaveBeenCalledWith(
@@ -216,20 +233,34 @@ describe("MediaCleanupService", () => {
       requeued: 1,
       rejected: 0,
     });
-    expect(mediaRepository.markRejected).not.toHaveBeenCalled();
+    expect(mediaRepository.rejectStuck).not.toHaveBeenCalled();
   });
 
-  it("does not count a rejection another actor already recorded", async () => {
+  it("leaves an old item alone once a redelivered job has claimed it", async () => {
     const { mediaRepository, blobService, service } = createContext({
       stuck: [record("processing", { createdAt: ago(48 * HOUR_MS) })],
     });
-    mediaRepository.markRejected.mockResolvedValueOnce(false);
+    // The job moved updatedAt, or another sweep rejected it first.
+    mediaRepository.rejectStuck.mockResolvedValueOnce(false);
 
     await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
       rejected: 0,
       failed: 0,
     });
     expect(blobService.deleteBlob).not.toHaveBeenCalled();
+  });
+
+  it("counts a rejection even when deleting its upload fails", async () => {
+    const { blobService, service } = createContext({
+      stuck: [record("processing", { createdAt: ago(48 * HOUR_MS) })],
+    });
+    blobService.deleteBlob.mockRejectedValueOnce(new Error("storage down"));
+
+    // The leftover upload goes with the row when old rejections are purged.
+    await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
+      rejected: 1,
+      failed: 0,
+    });
   });
 
   it("purges an old rejection's leftover upload and then its row", async () => {
@@ -277,10 +308,16 @@ describe("MediaCleanupService", () => {
       rejectedPurged: 1,
       failed: 2,
     });
-    // The failed upload's row stays behind so a later sweep tries again.
+    // The failed upload's row stays behind, rejected, for the purge of old
+    // rejections to try again.
+    expect(mediaRepository.rejectAbandonedUpload).toHaveBeenCalledWith(
+      failingUpload.id,
+      expect.any(Date),
+      expect.any(String),
+    );
     expect(mediaRepository.deleteByIdIfStatus).not.toHaveBeenCalledWith(
       failingUpload.id,
-      "pending_upload",
+      "rejected",
     );
     expect(queue.enqueueMediaProcessingJob).toHaveBeenLastCalledWith(stuck.id);
   });
