@@ -220,6 +220,25 @@ passes through the backend.
 See [architecture-overview.md](./architecture-overview.md) for where each part
 of the policy is enforced, and what is not enforced on the Azure path.
 
+## Media cleanup worker
+
+`workers.mediaCleanup` controls the sweep that deletes abandoned uploads,
+re-queues items whose processing job was lost, and deletes old rejections. See
+the [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup)
+for what each step does.
+
+| Key                   | Default    | Override                              | Meaning                                                         |
+| --------------------- | ---------- | ------------------------------------- | --------------------------------------------------------------- |
+| `pollIntervalMs`      | `300000`   | `MEDIA_CLEANUP_POLL_INTERVAL_MS`      | Wait between sweeps that found nothing to do                    |
+| `batchSize`           | `100`      | `MEDIA_CLEANUP_BATCH_SIZE`            | Most items each step handles per sweep                          |
+| `pendingUploadTtlMs`  | `86400000` | `MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS` | Age at which a never-completed upload is deleted                |
+| `stuckThresholdMs`    | `900000`   | `MEDIA_CLEANUP_STUCK_THRESHOLD_MS`    | Time an `uploaded` or `processing` item may sit unmoved         |
+| `maxProcessingAgeMs`  | `86400000` | `MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS` | Age past which a stuck item is rejected instead of queued again |
+| `rejectedRetentionMs` | `86400000` | `MEDIA_CLEANUP_REJECTED_RETENTION_MS` | Time a rejected item is kept, so its client can read the reason |
+
+Every value must be a positive integer. A sweep that did work is followed by
+another at once, so a backlog drains without waiting for the poll interval.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:

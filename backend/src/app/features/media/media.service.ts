@@ -28,7 +28,9 @@ import type {
 } from "@/features/media/media.model";
 
 // A row left in `uploaded` this long has lost its processing job (the enqueue
-// failed after the status changed), so completing it again re-queues it.
+// failed after the status changed), so completing it again re-queues it. This
+// is only a fast path for a client that retries: the media cleanup worker
+// re-queues such a row whether or not the client comes back.
 const STALE_UPLOADED_MS = 60 * 1000;
 
 /**
