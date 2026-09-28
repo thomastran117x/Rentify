@@ -47,10 +47,11 @@ const PROCESSING_FAILED_REASON = "The image could not be processed.";
  * stored pixels are upright, and means what is served was produced by this
  * process rather than supplied by the client. It also scales the image down so
  * its longest edge is within `imageUploads.maxProcessedEdge`, since the full
- * upload can be far larger than anything the UI displays. Two smaller
- * renditions, medium and thumbnail, are written beside it from the same
- * decoded pipeline, all before the item is marked ready, so a ready image
- * always has all three.
+ * upload can be far larger than anything the UI displays. The upload is
+ * decoded once. The two smaller renditions, medium and thumbnail, are then
+ * scaled from the encoded processed image, which is far cheaper to decode than
+ * a full-size upload, and all three are written before the item is marked
+ * ready, so a ready image always has them.
  *
  * The upload credential outlives completion, so the blob may have been written
  * again since. Its properties are checked before anything is downloaded: the
@@ -138,18 +139,16 @@ export class MediaProcessingService {
       throw new Error("Processed image name has no renditions.");
     }
 
-    // A failure part way through throws, and the retried job writes every
-    // rendition again under the same names.
-    await this.blobService.uploadBuffer({
-      blobName: processedBlobName,
-      body: processed.data,
-      contentType: PROCESSED_IMAGE_CONTENT_TYPE,
-    });
-    const variants = await uploadSmallerRenditions(
-      this.blobService,
-      renditionNames,
-      renditions,
-    );
+    // All three at once. A failure part way through throws, and the retried
+    // job writes every rendition again under the same names.
+    const [, variants] = await Promise.all([
+      this.blobService.uploadBuffer({
+        blobName: processedBlobName,
+        body: processed.data,
+        contentType: PROCESSED_IMAGE_CONTENT_TYPE,
+      }),
+      uploadSmallerRenditions(this.blobService, renditionNames, renditions),
+    ]);
 
     // sizeBytes, width, and height now describe what is served, not what was
     // uploaded; detectedContentType records what the upload really was.
