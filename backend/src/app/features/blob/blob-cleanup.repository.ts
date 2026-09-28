@@ -116,19 +116,19 @@ export class BlobCleanupRepository extends BaseRepository {
   /**
    * Removes media rows the cleanup has left without an image:
    *
+   * - a row that never reached `ready` whose quarantined upload it deleted;
    * - a row whose processed image it deleted, which it only does when nothing
-   *   references that image;
-   * - a row that never reached `ready` and has not moved since `olderThan` - an
-   *   upload the client abandoned, or one rejected long ago - including one
-   *   whose quarantined upload it just deleted.
+   *   references that image.
    *
    * A ready row is never removed because its *quarantined* upload was deleted.
    * That upload is only a leftover the worker failed to clean up; the row's
    * processed image may still be attached.
+   *
+   * Rows are not removed for their age alone. The media cleanup worker owns
+   * unfinished and rejected rows, and deletes them on its own schedule.
    */
   async deleteAbandonedMedia(input: {
     deletedBlobNames: string[];
-    olderThan: Date;
   }): Promise<number> {
     const result = await this.executeAsync(
       () =>
@@ -140,10 +140,6 @@ export class BlobCleanupRepository extends BaseRepository {
                 status: { not: "ready" },
               },
               { processedBlobName: { in: input.deletedBlobNames } },
-              {
-                status: { not: "ready" },
-                updatedAt: { lte: input.olderThan },
-              },
             ],
           },
         }),

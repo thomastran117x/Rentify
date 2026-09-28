@@ -169,14 +169,14 @@ describe("BlobCleanupRepository", () => {
     const repository = new BlobCleanupRepository({
       media: { deleteMany },
     } as any);
-    const olderThan = new Date("2026-09-18T12:00:00.000Z");
 
     await expect(
       repository.deleteAbandonedMedia({
         deletedBlobNames: ["quarantine/images/u/m"],
-        olderThan,
       }),
     ).resolves.toBe(3);
+    // Only rows whose blob was deleted: age alone is the media cleanup
+    // worker's concern.
     expect(deleteMany).toHaveBeenCalledWith({
       where: {
         OR: [
@@ -185,7 +185,6 @@ describe("BlobCleanupRepository", () => {
             status: { not: "ready" },
           },
           { processedBlobName: { in: ["quarantine/images/u/m"] } },
-          { status: { not: "ready" }, updatedAt: { lte: olderThan } },
         ],
       },
     });
