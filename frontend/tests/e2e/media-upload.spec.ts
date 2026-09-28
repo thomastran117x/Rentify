@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { expect, type Locator, type Page } from "@playwright/test";
 import { test } from "./helpers/fixtures";
 import { ensureActiveOrganization } from "./helpers/organizations";
@@ -16,11 +18,12 @@ test.describe.configure({ mode: "serial" });
 
 const ORGANIZATION_LABEL = "Harbor Loft Rentals - Primary Manager";
 
-// A valid 1x1 PNG. Small enough that every rendition keeps its size, which
-// still exercises the whole pipeline.
-const ONE_PIXEL_PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
-  "base64",
+// Wider than the medium rendition, so the worker writes both smaller ones: an
+// image no wider than a rendition gets none of that size.
+const LANDSCAPE_PNG = path.join(
+  __dirname,
+  "fixtures",
+  "landscape-1000x750.png",
 );
 
 // Processing is asynchronous; the preview only appears once the worker is done.
@@ -30,18 +33,18 @@ async function uploadImage(page: Page, inputLabel: string, name: string) {
   await page.getByLabel(inputLabel).setInputFiles({
     name,
     mimeType: "image/png",
-    buffer: ONE_PIXEL_PNG,
+    buffer: await readFile(LANDSCAPE_PNG),
   });
 }
 
 /**
- * Asserts the preview offers all three renditions, and that each is served as
- * the WebP the worker wrote.
+ * Asserts the preview offers all three renditions at their real widths, and
+ * that each is served as the WebP the worker wrote.
  */
 async function expectRenditions(page: Page, preview: Locator, sizes: string) {
   await expect(preview).toHaveAttribute(
     "srcset",
-    /\.thumbnail\.webp\S* 300w, \S+\.medium\.webp\S* 800w, \S+\.webp\S* 2560w$/,
+    /\.thumbnail\.webp\S* 300w, \S+\.medium\.webp\S* 800w, \S+\.webp\S* 1000w$/,
     { timeout: PROCESSING_TIMEOUT_MS },
   );
   await expect(preview).toHaveAttribute("sizes", sizes);
