@@ -9,6 +9,7 @@ import {
 } from "@/features/media/image-renditions";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 export const DEFAULT_BACKFILL_BATCH_SIZE = 50;
 
@@ -63,10 +64,7 @@ export class MediaVariantsBackfillService {
     >,
     private readonly blobService: Pick<
       BlobService,
-      | "buildImageVariantBlobNames"
-      | "downloadBlob"
-      | "uploadBuffer"
-      | "deleteBlob"
+      "downloadBlob" | "uploadBuffer" | "deleteBlob"
     >,
   ) {}
 
@@ -130,7 +128,7 @@ export class MediaVariantsBackfillService {
   /** Returns false when the item changed underneath the conversion. */
   private async convert(record: MediaRecord): Promise<boolean> {
     const names = record.processedBlobName
-      ? this.blobService.buildImageVariantBlobNames(record.processedBlobName)
+      ? buildImageVariantBlobNames(record.processedBlobName)
       : null;
 
     if (!names) {

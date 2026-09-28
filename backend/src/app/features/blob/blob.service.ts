@@ -24,10 +24,8 @@ import type {
   ManagedBlobItem,
 } from "@/features/blob/blob.model";
 import {
-  buildImageVariantBlobNames,
   PROCESSED_IMAGE_DIRECTORY,
   PROCESSED_IMAGE_EXTENSION,
-  type ImageVariantBlobNames,
 } from "@/features/blob/image-variant-names";
 
 interface AzureBlobConfiguration {
@@ -637,13 +635,6 @@ export class BlobService {
 
   buildProcessedImageBlobName(ownerId: Uuid, mediaId: Uuid): string {
     return `${PROCESSED_IMAGE_DIRECTORY}/${ownerId}/${mediaId}${PROCESSED_IMAGE_EXTENSION}`;
-  }
-
-  /** The renditions of a processed image; null for any other name. */
-  buildImageVariantBlobNames(
-    processedBlobName: string,
-  ): ImageVariantBlobNames | null {
-    return buildImageVariantBlobNames(processedBlobName);
   }
 
   /** True for anything under quarantine/, which must never be served. */

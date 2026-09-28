@@ -12,6 +12,7 @@ import {
   useLocalBlobStorage,
 } from "../../support/blob-environment";
 import { testUuid } from "../../support/uuid";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const USER_ID = testUuid(9200, 1);
 let nextMediaIndex = 10;
@@ -50,8 +51,7 @@ async function addLegacyReadyMedia(
     USER_ID,
     id,
   );
-  const names =
-    context.blobService.buildImageVariantBlobNames(processedBlobName)!;
+  const names = buildImageVariantBlobNames(processedBlobName)!;
   const renditions = [names.large, names.medium, names.thumbnail];
 
   // Local storage outlives a run and ids repeat between runs.

@@ -30,6 +30,7 @@ import {
 } from "@/features/media/image-renditions";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
 const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
@@ -131,8 +132,7 @@ export class MediaProcessingService {
       record.userId,
       record.id,
     );
-    const renditionNames =
-      this.blobService.buildImageVariantBlobNames(processedBlobName);
+    const renditionNames = buildImageVariantBlobNames(processedBlobName);
 
     if (!renditionNames) {
       throw new Error("Processed image name has no renditions.");

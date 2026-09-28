@@ -15,6 +15,7 @@ import {
   useLocalBlobStorage,
 } from "../../support/blob-environment";
 import { createPngFixture } from "../../support/image-fixtures";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const USER_1_ID = testUuid(9000, 994259);
 const USER_2_ID = testUuid(9000, 994260);
@@ -594,7 +595,7 @@ describe("MediaService", () => {
         mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ url: null, variants: null });
 
-      const names = blobService.buildImageVariantBlobNames(processedBlobName)!;
+      const names = buildImageVariantBlobNames(processedBlobName)!;
       const expected = {
         thumbnail: blobService.getBlobUrl(names.thumbnail),
         medium: blobService.getBlobUrl(names.medium),
@@ -621,8 +622,7 @@ describe("MediaService", () => {
       blobService: BlobService,
       processedBlobName: string,
     ): Promise<string[]> {
-      const variants =
-        blobService.buildImageVariantBlobNames(processedBlobName);
+      const variants = buildImageVariantBlobNames(processedBlobName);
       const blobNames = variants ? Object.values(variants) : [];
 
       for (const blobName of blobNames) {

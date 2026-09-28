@@ -19,6 +19,7 @@ import {
   truncateImage,
 } from "../../support/image-fixtures";
 import { testUuid } from "../../support/uuid";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const USER_1_ID = testUuid(9000, 994290);
 let nextMediaIndex = 994300;
@@ -108,7 +109,7 @@ async function quarantine(
 
 /** The large, medium, and thumbnail blob names of an item, in that order. */
 function renditionNames(context: Context, mediaId: string): string[] {
-  const names = context.blobService.buildImageVariantBlobNames(
+  const names = buildImageVariantBlobNames(
     context.blobService.buildProcessedImageBlobName(
       USER_1_ID,
       mediaId as MediaRecord["id"],

@@ -61,6 +61,7 @@ import {
   type LiveRabbitMqConfig,
 } from "./live-rabbitmq";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 const DEFAULT_DATABASE_URL = "mysql://rent:rent@127.0.0.1:3307/rent_test";
 const DEFAULT_REDIS_URL = "redis://127.0.0.1:6380/15";
@@ -128,10 +129,6 @@ export interface PersistenceTestStubs {
     buildProcessedImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
     isQuarantineBlobName: jest.Mock<boolean, [string]>;
     isProcessedImageBlobName: jest.Mock<boolean, [string]>;
-    buildImageVariantBlobNames: jest.Mock<
-      ReturnType<BlobService["buildImageVariantBlobNames"]>,
-      [string]
-    >;
     getProperties: jest.Mock<
       Promise<{ contentType?: string; contentLength?: number; etag?: string }>,
       [string]
@@ -531,7 +528,7 @@ export async function createReadyMedia(
   const ownerId = asUuid(userId);
   const blobService = persistenceApp.stubs.blobService;
   const blobName = blobService.buildProcessedImageBlobName(ownerId, mediaId);
-  const renditions = blobService.buildImageVariantBlobNames(blobName)!;
+  const renditions = buildImageVariantBlobNames(blobName)!;
 
   for (const name of options.legacy
     ? [blobName]
@@ -961,9 +958,6 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       ),
       isProcessedImageBlobName: jest.fn((blobName: string) =>
         realBlobNaming().isProcessedImageBlobName(blobName),
-      ),
-      buildImageVariantBlobNames: jest.fn((blobName: string) =>
-        realBlobNaming().buildImageVariantBlobNames(blobName),
       ),
       getProperties: jest.fn(async (blobName: string) => {
         const stored = blobStorage.get(blobName);

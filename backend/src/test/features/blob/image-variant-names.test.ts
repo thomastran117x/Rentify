@@ -46,7 +46,7 @@ describe("image variant names", () => {
   it("keeps variant names readable by the owner and processed-image checks", () => {
     useLocalBlobStorage();
     const service = new BlobService();
-    const variants = service.buildImageVariantBlobNames(PROCESSED);
+    const variants = buildImageVariantBlobNames(PROCESSED);
 
     expect(variants).not.toBeNull();
 
