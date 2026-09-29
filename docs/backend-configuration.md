@@ -48,6 +48,12 @@ public URLs, allowed-origin lists, service hosts, index names, provider choices,
 client IDs, worker polling and batch sizes, cache TTLs, logging, route switches,
 and feature defaults.
 
+The default CORS and CSRF allow-lists trust the local frontend at both
+`http://localhost:3040` and `http://127.0.0.1:3040`, so browsers and automation
+can use either loopback hostname. Runtime origin handling also expands a
+configured `localhost` or `127.0.0.1` origin to its other spelling while
+preserving the configured scheme and port.
+
 Environment variables remain mandatory for secrets and secret-bearing
 connection strings:
 

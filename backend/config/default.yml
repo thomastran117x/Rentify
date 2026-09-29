@@ -82,10 +82,13 @@ captcha:
 cors:
   allowedOrigins:
     - "${config.frontendOrigin}"
+    # Browser automation may address the local frontend by its IPv4 loopback.
+    - http://127.0.0.1:3040
 
 csrf:
   allowedOrigins:
     - "${config.frontendOrigin}"
+    - http://127.0.0.1:3040
 
 oauth:
   microsoft:
