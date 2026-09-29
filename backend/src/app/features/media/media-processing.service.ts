@@ -105,6 +105,11 @@ export class MediaProcessingService {
       return;
     }
 
+    // Progress is recorded between stages, so the media cleanup, which takes
+    // an item that has not moved in a while for one whose job was lost, never
+    // mistakes a slow job for a lost one.
+    await this.mediaRepository.recordProcessingProgress(record.id);
+
     let detectedContentType: SupportedImageContentType;
 
     try {
@@ -132,6 +137,7 @@ export class MediaProcessingService {
       processed.data,
       processed.width,
     );
+    await this.mediaRepository.recordProcessingProgress(record.id);
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
       record.id,

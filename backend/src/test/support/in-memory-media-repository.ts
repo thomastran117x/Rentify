@@ -17,6 +17,8 @@ export class InMemoryMediaRepository {
   readonly rows = new Map<string, MediaRecord>();
   /** Blob names a feature table references, for isBlobAttached. */
   readonly attachedBlobNames = new Set<string>();
+  /** Ids a processing job reported progress on, in order. */
+  readonly progressRecorded: string[] = [];
 
   asRepository(): MediaRepository {
     return this as unknown as MediaRepository;
@@ -40,6 +42,7 @@ export class InMemoryMediaRepository {
       height: null,
       variants: null,
       rejectionReason: null,
+      processingRequeues: 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -97,6 +100,11 @@ export class InMemoryMediaRepository {
       rejectionReason: rejectionReason.slice(0, 500),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
+  }
+
+  async recordProcessingProgress(id: Uuid): Promise<boolean> {
+    this.progressRecorded.push(id);
+    return this.transition(id, ["processing"], {});
   }
 
   async isBlobAttached(blobName: string): Promise<boolean> {

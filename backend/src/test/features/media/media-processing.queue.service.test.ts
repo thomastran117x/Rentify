@@ -208,4 +208,43 @@ describe("MediaProcessingQueueService", () => {
 
     expect(channel.nack).toHaveBeenCalledWith(message, false, true);
   });
+  it("reads the waiting jobs across the main and retry queues, and the main queue's consumers", async () => {
+    const counts: Record<
+      string,
+      { messageCount: number; consumerCount: number }
+    > = {
+      "media.processing.main": { messageCount: 2, consumerCount: 1 },
+      "media.processing.retry.1": { messageCount: 1, consumerCount: 0 },
+      "media.processing.retry.2": { messageCount: 0, consumerCount: 0 },
+      "media.processing.retry.3": { messageCount: 4, consumerCount: 0 },
+    };
+    const channel = Object.assign(createChannel(), {
+      checkQueue: jest.fn(async (queue: string) => ({
+        queue,
+        ...counts[queue],
+      })),
+    });
+    mockCreateRabbitMqChannel.mockResolvedValue(channel);
+    const service = new MediaProcessingQueueService();
+
+    await expect(service.readBacklog()).resolves.toEqual({
+      waitingJobs: 7,
+      consumers: 1,
+    });
+    expect(channel.assertQueue).toHaveBeenCalled();
+    expect(channel.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the channel when the backlog cannot be read", async () => {
+    const channel = Object.assign(createChannel(), {
+      checkQueue: jest.fn(async () => {
+        throw new Error("channel closed");
+      }),
+    });
+    mockCreateRabbitMqChannel.mockResolvedValue(channel);
+    const service = new MediaProcessingQueueService();
+
+    await expect(service.readBacklog()).rejects.toThrow("channel closed");
+    expect(channel.close).toHaveBeenCalledTimes(1);
+  });
 });

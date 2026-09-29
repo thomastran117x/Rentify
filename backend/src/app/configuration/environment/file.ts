@@ -182,8 +182,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "workers.mediaProcessing.maxAttempts": "MEDIA_PROCESSING_MAX_ATTEMPTS",
   "workers.mediaProcessing.prefetch": "MEDIA_PROCESSING_PREFETCH",
   "workers.mediaCleanup.batchSize": "MEDIA_CLEANUP_BATCH_SIZE",
-  "workers.mediaCleanup.maxProcessingAgeMs":
-    "MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS",
+  "workers.mediaCleanup.maxRequeues": "MEDIA_CLEANUP_MAX_REQUEUES",
   "workers.mediaCleanup.pendingUploadTtlMs":
     "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS",
   "workers.mediaCleanup.pollIntervalMs": "MEDIA_CLEANUP_POLL_INTERVAL_MS",

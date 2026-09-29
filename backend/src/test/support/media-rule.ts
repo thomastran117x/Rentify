@@ -62,6 +62,7 @@ export function createMediaRule(
           thumbnail: { width: 1, height: 1, sizeBytes: 1 },
         },
         rejectionReason: null,
+        processingRequeues: 0,
         createdAt: now,
         updatedAt: now,
       });

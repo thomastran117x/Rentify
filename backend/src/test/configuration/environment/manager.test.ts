@@ -560,7 +560,7 @@ describe("EnvironmentManager", () => {
       batchSize: 100,
       pendingUploadTtlMs: 86_400_000,
       stuckThresholdMs: 900_000,
-      maxProcessingAgeMs: 86_400_000,
+      maxRequeues: 3,
       rejectedRetentionMs: 86_400_000,
     });
 
@@ -569,7 +569,7 @@ describe("EnvironmentManager", () => {
       MEDIA_CLEANUP_BATCH_SIZE: "20",
       MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: "3600000",
       MEDIA_CLEANUP_STUCK_THRESHOLD_MS: "60000",
-      MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS: "7200000",
+      MEDIA_CLEANUP_MAX_REQUEUES: "0",
       MEDIA_CLEANUP_REJECTED_RETENTION_MS: "172800000",
     });
     const overriddenManager = new EnvironmentManager();
@@ -580,7 +580,7 @@ describe("EnvironmentManager", () => {
       batchSize: 20,
       pendingUploadTtlMs: 3_600_000,
       stuckThresholdMs: 60_000,
-      maxProcessingAgeMs: 7_200_000,
+      maxRequeues: 0,
       rejectedRetentionMs: 172_800_000,
     });
 

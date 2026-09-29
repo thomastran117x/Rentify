@@ -2,7 +2,10 @@ import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory } from "@/configuration/logging";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord } from "@/features/media/media.model";
-import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
+import type {
+  MediaProcessingBacklog,
+  MediaProcessingQueueService,
+} from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
 import {
   deleteQuarantinedUpload,
@@ -23,27 +26,33 @@ export interface MediaCleanupSummary {
   abandonedDeleted: number;
   /** Items whose processing job was lost, queued again. */
   requeued: number;
-  /** Items unfinished past the processing age limit, rejected. */
+  /** Items still unfinished after their last allowed re-queue, rejected. */
   rejected: number;
   /** Rejected items past their retention, deleted. */
   rejectedPurged: number;
+  /**
+   * Stuck items left alone because processing jobs are waiting or no worker
+   * is consuming them, so their own job may simply be delayed.
+   */
+  deferred: number;
   /** Items a step failed on; each is picked up again by a later sweep. */
   failed: number;
 }
 
 /**
  * Finishes off media items that will not finish by themselves, working from
- * the database alone so that it cleans Azure and local-disk storage alike:
+ * the database so that it cleans Azure and local-disk storage alike:
  *
  * 1. an upload that was requested and never completed is deleted;
  * 2. an item waiting on a processing job that has not moved in a while is
- *    queued again, or rejected once it is too old to keep retrying;
+ *    queued again, or rejected once it has been queued again too many times;
  * 3. a rejected item is deleted once its retention has passed.
  *
  * A ready item is never selected. Every change is conditional on the item
- * still being in the state it was selected in, so an item that moves on during
- * a sweep is left alone and several workers can sweep at once. The orphaned-blob cleanup remains the
- * backstop for blobs that no row accounts for.
+ * still being in the state it was selected in, so an item that moves on
+ * during a sweep is left alone and several workers can sweep at once, given
+ * clocks that agree to well within the stuck threshold. The orphaned-blob
+ * cleanup remains the backstop for blobs that no row accounts for.
  */
 export class MediaCleanupService {
   private readonly logger = loggerFactory.forClass(
@@ -60,41 +69,45 @@ export class MediaCleanupService {
       | "rejectAbandonedUpload"
       | "claimStuckForRequeue"
       | "rejectStuck"
+      | "deferRejectedPurge"
       | "deleteByIdIfStatus"
     >,
     private readonly blobService: Pick<BlobService, "deleteBlob">,
     private readonly mediaProcessingQueue: Pick<
       MediaProcessingQueueService,
-      "enqueueMediaProcessingJob"
+      "enqueueMediaProcessingJob" | "readBacklog"
     >,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   /** Runs each step once, on at most `batchSize` items. */
   async sweep(options: MediaCleanupOptions): Promise<MediaCleanupSummary> {
-    const nowMs = this.now().getTime();
-    const cutoff = (ageMs: number) => new Date(nowMs - ageMs);
+    const now = this.now();
+    const cutoff = (ageMs: number) => new Date(now.getTime() - ageMs);
     const summary: MediaCleanupSummary = {
       abandonedDeleted: 0,
       requeued: 0,
       rejected: 0,
       rejectedPurged: 0,
+      deferred: 0,
       failed: 0,
     };
 
     await this.deleteAbandonedUploads(
       cutoff(options.pendingUploadTtlMs),
+      now,
       options.batchSize,
       summary,
     );
     await this.recoverStuckMedia(
       cutoff(options.stuckThresholdMs),
-      cutoff(options.maxProcessingAgeMs),
-      options.batchSize,
+      now,
+      options,
       summary,
     );
     await this.purgeRejectedMedia(
       cutoff(options.rejectedRetentionMs),
+      now,
       options.batchSize,
       summary,
     );
@@ -112,6 +125,7 @@ export class MediaCleanupService {
    */
   private async deleteAbandonedUploads(
     createdBefore: Date,
+    now: Date,
     limit: number,
     summary: MediaCleanupSummary,
   ): Promise<void> {
@@ -130,6 +144,7 @@ export class MediaCleanupService {
             record.id,
             createdBefore,
             ABANDONED_UPLOAD_REASON,
+            now,
           ))
         ) {
           return;
@@ -148,29 +163,48 @@ export class MediaCleanupService {
 
   /**
    * RabbitMQ redelivers a job whose worker died, but not one lost at publish
-   * time, so an item with no job would wait forever. It is claimed before it
-   * is queued, so only one sweep queues it; a job for an item another worker
-   * has since finished is a no-op, because processing claims the row too.
-   * An item unfinished since `createdBefore` is rejected instead, so one that
-   * keeps failing cannot be retried forever. Both are conditional on the item
-   * still being unmoved, so one a redelivered job has just claimed is left to
-   * finish rather than queued twice or rejected mid-processing.
+   * time, so an item with no job would wait forever. An item that has not
+   * moved is only taken for one whose job was lost while no processing job
+   * is waiting and a worker is consuming them: during a backlog or an outage
+   * its job may simply be delayed, and queuing another would duplicate it, so
+   * the step waits instead. A job being processed reports progress between
+   * stages, so it never looks unmoved.
+   *
+   * A lost job is replaced by claiming the row, which counts the re-queue, and
+   * then publishing a new one, so only one sweep queues it. An item already
+   * queued again `maxRequeues` times is rejected instead, so one that keeps
+   * failing is bounded by attempts rather than by how long it has waited.
+   * Both are conditional on the item still being unmoved, so one a job has
+   * just claimed is left to finish.
    */
   private async recoverStuckMedia(
     updatedBefore: Date,
-    createdBefore: Date,
-    limit: number,
+    now: Date,
+    options: Pick<MediaCleanupOptions, "batchSize" | "maxRequeues">,
     summary: MediaCleanupSummary,
   ): Promise<void> {
-    const records = await this.mediaRepository.listStuck(updatedBefore, limit);
+    const records = await this.mediaRepository.listStuck(
+      updatedBefore,
+      options.batchSize,
+    );
+
+    if (records.length === 0) {
+      return;
+    }
+
+    if (!(await this.isProcessingIdle())) {
+      summary.deferred += records.length;
+      return;
+    }
 
     await this.forEachItem(records, "stuck", summary, async (record) => {
-      if (record.createdAt < createdBefore) {
+      if (record.processingRequeues >= options.maxRequeues) {
         if (
           await this.mediaRepository.rejectStuck(
             record.id,
             updatedBefore,
             PROCESSING_FAILED_REASON,
+            now,
           )
         ) {
           summary.rejected += 1;
@@ -186,6 +220,7 @@ export class MediaCleanupService {
         await this.mediaRepository.claimStuckForRequeue(
           record.id,
           updatedBefore,
+          now,
         )
       ) {
         await this.mediaProcessingQueue.enqueueMediaProcessingJob(record.id);
@@ -196,10 +231,13 @@ export class MediaCleanupService {
 
   /**
    * Rejection already deletes the upload, but only on a best-effort basis, so
-   * any leftover goes before the row does.
+   * any leftover goes before the row does. An item whose upload cannot be
+   * deleted is moved to the back of the purge order, so it cannot hold up
+   * newer ones by staying the oldest.
    */
   private async purgeRejectedMedia(
     updatedBefore: Date,
+    now: Date,
     limit: number,
     summary: MediaCleanupSummary,
   ): Promise<void> {
@@ -209,7 +247,16 @@ export class MediaCleanupService {
     );
 
     await this.forEachItem(records, "rejected", summary, async (record) => {
-      await this.blobService.deleteBlob(record.originalBlobName);
+      try {
+        await this.blobService.deleteBlob(record.originalBlobName);
+      } catch (error) {
+        await this.mediaRepository.deferRejectedPurge(
+          record.id,
+          updatedBefore,
+          now,
+        );
+        throw error;
+      }
 
       if (
         await this.mediaRepository.deleteByIdIfStatus(record.id, "rejected")
@@ -217,6 +264,28 @@ export class MediaCleanupService {
         summary.rejectedPurged += 1;
       }
     });
+  }
+
+  /**
+   * Whether no processing job is waiting and a worker is consuming them. A
+   * backlog that cannot be read counts as busy: acting without knowing could
+   * duplicate or wrongly reject a job that is only delayed.
+   */
+  private async isProcessingIdle(): Promise<boolean> {
+    let backlog: MediaProcessingBacklog;
+
+    try {
+      backlog = await this.mediaProcessingQueue.readBacklog();
+    } catch (error) {
+      this.logger.warn(
+        "Could not read the media processing backlog; stuck media is left for a later sweep.",
+        undefined,
+        error,
+      );
+      return false;
+    }
+
+    return backlog.waitingJobs === 0 && backlog.consumers > 0;
   }
 
   /**

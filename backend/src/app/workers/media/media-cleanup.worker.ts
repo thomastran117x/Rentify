@@ -41,13 +41,13 @@ export async function bootstrapMediaCleanupWorker(): Promise<void> {
         summary.rejected +
         summary.rejectedPurged;
 
-      if (processedCount > 0 || summary.failed > 0) {
+      if (processedCount > 0 || summary.failed > 0 || summary.deferred > 0) {
         workerLogger.info("Media cleanup sweep completed.", { ...summary });
       }
 
-      // Failures are left out, so a sweep whose every item failed waits out the
-      // poll interval instead of retrying them at once; a backlog of items
-      // that were handled drains at full speed.
+      // Failures and deferred items are left out, so a sweep that could not
+      // act waits out the poll interval instead of retrying at once; a backlog
+      // of items that were handled drains at full speed.
       return processedCount;
     },
   });

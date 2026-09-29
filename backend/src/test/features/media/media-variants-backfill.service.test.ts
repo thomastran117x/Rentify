@@ -96,6 +96,7 @@ async function addLegacyReadyMedia(
     height: options.height ?? 1200,
     variants: null,
     rejectionReason: null,
+    processingRequeues: 0,
     createdAt: now,
     updatedAt: now,
   };

@@ -113,8 +113,7 @@ export class MediaRepository extends BaseRepository {
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
-      status: "rejected",
-      rejectionReason: rejectionReason.slice(0, 500),
+      ...rejection(rejectionReason),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
   }
@@ -301,41 +300,48 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Claims a stuck item for re-enqueueing by moving its `updatedAt` to now.
-   * Applies only while the item is still waiting and still unmoved since
-   * `updatedBefore`, so of several cleanup runs racing on one item only one
-   * re-enqueues it, and the next sweep waits a whole threshold again.
+   * Claims a stuck item for re-enqueueing: moves its `updatedAt` to `claimedAt`
+   * and counts the re-queue. Applies only while the item is still waiting and
+   * still unmoved since `updatedBefore`, so of several cleanup runs racing on
+   * one item only one re-enqueues it, and the next sweep waits a whole
+   * threshold again. Both times come from the caller's clock, so the claim and
+   * the cutoff it is compared against agree.
    */
-  claimStuckForRequeue(id: Uuid, updatedBefore: Date): Promise<boolean> {
-    return this.updateForCleanup(
+  claimStuckForRequeue(
+    id: Uuid,
+    updatedBefore: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { updatedAt: claimedAt, processingRequeues: { increment: 1 } },
       {
-        id,
-        status: { in: STUCK_STATUSES },
-        updatedAt: { lt: updatedBefore },
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "claimStuckForRequeue",
       },
-      { updatedAt: new Date() },
-      "claimStuckForRequeue",
     );
   }
 
   /**
    * Rejects a stuck item only while it is still unmoved since `updatedBefore`.
-   * A redelivered job that claimed the row after the cleanup read it moves
-   * `updatedAt`, so an item being processed right now is left to finish.
+   * A job that claimed the row, or reported progress, after the cleanup read
+   * it moves `updatedAt`, so an item being processed right now is left alone.
    */
   rejectStuck(
     id: Uuid,
     updatedBefore: Date,
     rejectionReason: string,
+    rejectedAt: Date,
   ): Promise<boolean> {
-    return this.updateForCleanup(
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { ...rejection(rejectionReason), updatedAt: rejectedAt },
       {
-        id,
-        status: { in: STUCK_STATUSES },
-        updatedAt: { lt: updatedBefore },
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "rejectStuck",
       },
-      { status: "rejected", rejectionReason },
-      "rejectStuck",
     );
   }
 
@@ -349,15 +355,50 @@ export class MediaRepository extends BaseRepository {
     id: Uuid,
     createdBefore: Date,
     rejectionReason: string,
+    rejectedAt: Date,
   ): Promise<boolean> {
-    return this.updateForCleanup(
+    return this.transition(
+      id,
+      ["pending_upload"],
+      { ...rejection(rejectionReason), updatedAt: rejectedAt },
       {
-        id,
-        status: "pending_upload",
-        createdAt: { lt: createdBefore },
+        where: { createdAt: { lt: createdBefore } },
+        operationName: "rejectAbandonedUpload",
       },
-      { status: "rejected", rejectionReason },
-      "rejectAbandonedUpload",
+    );
+  }
+
+  /**
+   * Moves a rejected item the cleanup failed to purge to the back of the
+   * purge order, so one that keeps failing cannot hold up newer ones. It is
+   * tried again once its retention has passed a second time.
+   */
+  deferRejectedPurge(
+    id: Uuid,
+    updatedBefore: Date,
+    deferredAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["rejected"],
+      { updatedAt: deferredAt },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "deferRejectedPurge",
+      },
+    );
+  }
+
+  /**
+   * Records that a job is still working on an item, so the media cleanup does
+   * not take it for one whose job was lost. Called between processing stages.
+   */
+  recordProcessingProgress(id: Uuid): Promise<boolean> {
+    return this.transition(
+      id,
+      ["processing"],
+      { updatedAt: new Date() },
+      { operationName: "recordProcessingProgress" },
     );
   }
 
@@ -388,31 +429,23 @@ export class MediaRepository extends BaseRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
-  private async updateForCleanup(
-    where: Prisma.MediaWhereInput,
-    data: Prisma.MediaUpdateManyMutationInput,
-    operationName: string,
-  ): Promise<boolean> {
-    const result = await this.executeAsync(
-      () => this.prisma.media.updateMany({ where, data }),
-      { operationName },
-    );
-
-    return result.count > 0;
-  }
-
+  /**
+   * Applies `data` only while the row is in one of the `from` states and, when
+   * given, also matches `where`, and reports whether it applied.
+   */
   private async transition(
     id: Uuid,
     from: MediaStatus[],
     data: Prisma.MediaUpdateManyMutationInput,
+    options: { where?: Prisma.MediaWhereInput; operationName?: string } = {},
   ): Promise<boolean> {
     const result = await this.executeAsync(
       () =>
         this.prisma.media.updateMany({
-          where: { id, status: { in: from } },
+          where: { id, status: { in: from }, ...options.where },
           data,
         }),
-      { operationName: "transition" },
+      { operationName: options.operationName ?? "transition" },
     );
 
     return result.count > 0;
@@ -435,10 +468,21 @@ export class MediaRepository extends BaseRepository {
       height: row.height,
       variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
+      processingRequeues: row.processingRequeues,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
+}
+
+/** Every rejection, whoever records it, is stored the same way. */
+function rejection(
+  rejectionReason: string,
+): Pick<Prisma.MediaUpdateManyMutationInput, "status" | "rejectionReason"> {
+  return {
+    status: "rejected",
+    rejectionReason: rejectionReason.slice(0, 500),
+  };
 }
 
 function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {

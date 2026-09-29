@@ -115,7 +115,7 @@ export type RawEnvironmentValues = {
   MEDIA_CLEANUP_BATCH_SIZE?: string;
   MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS?: string;
   MEDIA_CLEANUP_STUCK_THRESHOLD_MS?: string;
-  MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS?: string;
+  MEDIA_CLEANUP_MAX_REQUEUES?: string;
   MEDIA_CLEANUP_REJECTED_RETENTION_MS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
@@ -363,7 +363,7 @@ export interface AppEnvironment {
       batchSize: number;
       pendingUploadTtlMs: number;
       stuckThresholdMs: number;
-      maxProcessingAgeMs: number;
+      maxRequeues: number;
       rejectedRetentionMs: number;
     };
     bookingExpiry: {

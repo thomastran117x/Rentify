@@ -291,10 +291,11 @@ a processed image that something references.
 
 - `media-cleanup-worker` runs all the time and works from the `media` table, so
   it covers Azure and local-disk storage alike. It deletes an upload still
-  `pending_upload` after 24 hours with its quarantined bytes, re-queues an item
-  in `uploaded` or `processing` that has not moved for 15 minutes, rejects one
-  still unfinished 24 hours after it was created, and deletes a rejection after
-  24 hours. It is what guarantees an item reaches a final state; see the
+  `pending_upload` after 24 hours with its quarantined bytes, and deletes a
+  rejection after 24 hours. It re-queues an item in `uploaded` or `processing`
+  that has not moved for 15 minutes, but only while no processing job is
+  waiting and a worker is consuming them, so a backlog or an outage is never
+  taken for a lost job. It rejects an item it has already re-queued 3 times. It is what guarantees an item reaches a final state; see the
   [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup).
 - `blob-cleanup` is a manual, Azure-only backstop that lists the container and
   looks for blobs no row accounts for. It treats quarantined uploads as

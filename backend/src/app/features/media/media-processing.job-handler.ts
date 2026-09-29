@@ -64,8 +64,10 @@ export function createMediaProcessingJobHandler(
 
     // The job is dead-lettered. Marking it rejected lets a polling client stop
     // waiting, but it is best effort: the failure that exhausted the retries -
-    // a database outage, say - is often still in progress, and the media
-    // cleanup worker rejects an item that never reached a final state.
+    // a database outage, say - is often still in progress. An item left
+    // unfinished is picked up by the media cleanup worker once no processing
+    // job is waiting: it is queued again, up to its re-queue limit, and then
+    // rejected.
     try {
       await processing.markProcessingFailed(payload.mediaId);
     } catch (markError) {

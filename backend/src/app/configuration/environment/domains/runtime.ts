@@ -14,11 +14,8 @@ import {
   DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS,
   DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS,
   LOCAL_BLOB_UPLOAD_TTL_SECONDS,
+  PENDING_UPLOAD_COMPLETION_GRACE_MS,
 } from "@/configuration/environment/constants";
-
-// Time allowed after an upload URL expires for a PUT that started just before
-// it to finish and for the client to complete the upload.
-const PENDING_UPLOAD_COMPLETION_GRACE_MS = 15 * 60 * 1000;
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
 import type {
   AppEnvironment,
@@ -382,16 +379,11 @@ export function buildWorkerConfig(
           min: 1,
         },
       ),
-      maxProcessingAgeMs: parseNumber(
-        raw,
-        "MEDIA_CLEANUP_MAX_PROCESSING_AGE_MS",
-        86_400_000,
-        errors,
-        {
-          integer: true,
-          min: 1,
-        },
-      ),
+      // Zero rejects a stuck item at once instead of queuing it again.
+      maxRequeues: parseNumber(raw, "MEDIA_CLEANUP_MAX_REQUEUES", 3, errors, {
+        integer: true,
+        min: 0,
+      }),
       rejectedRetentionMs: parseNumber(
         raw,
         "MEDIA_CLEANUP_REJECTED_RETENTION_MS",

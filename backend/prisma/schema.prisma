@@ -84,12 +84,14 @@ model Media {
   height              Int?
   variants            Json?
   rejectionReason     String?     @map("rejection_reason") @db.VarChar(500)
+  processingRequeues  Int         @default(0) @map("processing_requeues")
   createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt           DateTime    @updatedAt @map("updated_at") @db.DateTime(6)
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
   @@index([status, updatedAt])
+  @@index([status, createdAt])
   @@map("media")
 }
 

@@ -25,6 +25,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     width: null,
     height: null,
     rejectionReason: null,
+    processingRequeues: 0,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -290,64 +291,95 @@ describe("MediaRepository", () => {
     ]);
   });
 
-  it("claims a stuck row only while it is still waiting and unmoved", async () => {
+  it("claims a stuck row only while it is still waiting and unmoved, and counts the re-queue", async () => {
     const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ updateMany });
     const cutoff = new Date("2026-09-20T12:00:00.000Z");
+    const claimedAt = new Date("2026-09-20T12:15:00.000Z");
 
     await expect(
-      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff),
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff, claimedAt),
     ).resolves.toBe(true);
 
-    const [[args]] = updateMany.mock.calls;
-    expect(args.where).toEqual({
-      id: MEDIA_1_ID,
-      status: { in: ["uploaded", "processing"] },
-      updatedAt: { lt: cutoff },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["uploaded", "processing"] },
+        updatedAt: { lt: cutoff },
+      },
+      data: { updatedAt: claimedAt, processingRequeues: { increment: 1 } },
     });
-    expect(args.data.updatedAt).toBeInstanceOf(Date);
-    expect(args.data.updatedAt.getTime()).toBeGreaterThan(cutoff.getTime());
 
     updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
-      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff),
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff, claimedAt),
     ).resolves.toBe(false);
   });
 
-  it("rejects for cleanup only rows still in the state they were selected in", async () => {
+  it("changes cleanup rows only while they are in the state they were selected in", async () => {
     const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ updateMany });
     const cutoff = new Date("2026-09-20T12:00:00.000Z");
+    const at = new Date("2026-09-20T12:15:00.000Z");
 
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck"),
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "x".repeat(600), at),
     ).resolves.toBe(true);
     await expect(
-      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned"),
+      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned", at),
     ).resolves.toBe(true);
+    await expect(
+      repository.deferRejectedPurge(MEDIA_1_ID, cutoff, at),
+    ).resolves.toBe(true);
+    await expect(repository.recordProcessingProgress(MEDIA_1_ID)).resolves.toBe(
+      true,
+    );
 
-    expect(updateMany.mock.calls.map(([args]) => args)).toEqual([
+    const calls: any[] = updateMany.mock.calls.map(([args]) => args);
+    expect(calls.slice(0, 3)).toEqual([
       {
         where: {
           id: MEDIA_1_ID,
           status: { in: ["uploaded", "processing"] },
           updatedAt: { lt: cutoff },
         },
-        data: { status: "rejected", rejectionReason: "stuck" },
+        // Truncated like every other rejection.
+        data: {
+          status: "rejected",
+          rejectionReason: "x".repeat(500),
+          updatedAt: at,
+        },
       },
       {
         where: {
           id: MEDIA_1_ID,
-          status: "pending_upload",
+          status: { in: ["pending_upload"] },
           createdAt: { lt: cutoff },
         },
-        data: { status: "rejected", rejectionReason: "abandoned" },
+        data: {
+          status: "rejected",
+          rejectionReason: "abandoned",
+          updatedAt: at,
+        },
+      },
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["rejected"] },
+          updatedAt: { lt: cutoff },
+        },
+        data: { updatedAt: at },
       },
     ]);
+    expect(calls[3].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["processing"] },
+    });
+    expect(calls[3].data.updatedAt).toBeInstanceOf(Date);
 
     updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck"),
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck", at),
     ).resolves.toBe(false);
   });
 

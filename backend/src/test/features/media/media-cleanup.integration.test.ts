@@ -5,7 +5,10 @@ import type {
   MediaProcessingJobPayload,
   MediaStatus,
 } from "@/features/media/media.model";
-import type { MediaCleanupOptions } from "@/features/media/media-cleanup.service";
+import {
+  MediaCleanupService,
+  type MediaCleanupOptions,
+} from "@/features/media/media-cleanup.service";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 import {
   createAuthenticatedRequestContext,
@@ -22,7 +25,7 @@ const OPTIONS: MediaCleanupOptions = {
   batchSize: 100,
   pendingUploadTtlMs: 24 * HOUR_MS,
   stuckThresholdMs: 15 * 60 * 1000,
-  maxProcessingAgeMs: 24 * HOUR_MS,
+  maxRequeues: 3,
   rejectedRetentionMs: 24 * HOUR_MS,
 };
 
@@ -41,6 +44,7 @@ describe("Media cleanup persistence integration", () => {
   async function seedMedia(
     status: MediaStatus,
     times: { createdAt: Date; updatedAt: Date },
+    processingRequeues = 0,
   ): Promise<{ id: string; originalBlobName: string }> {
     const id = randomUUID();
     const originalBlobName = `quarantine/images/${ownerId}/${id}`;
@@ -57,6 +61,7 @@ describe("Media cleanup persistence integration", () => {
         scope: "postings",
         originalBlobName,
         declaredContentType: "image/png",
+        processingRequeues,
         ...times,
       },
     });
@@ -68,10 +73,28 @@ describe("Media cleanup persistence integration", () => {
     return persistenceApp.prisma.media.findUnique({ where: { id } });
   }
 
-  function sweep() {
-    return persistenceApp.container
-      .resolve(containerTokens.mediaCleanupService)
-      .sweep(OPTIONS);
+  /**
+   * The harness runs no processing worker, so by default the sweep is told the
+   * queue is idle and consumed; `readBacklog` itself is checked against
+   * RabbitMQ below.
+   */
+  function sweep(options: { realBacklog?: boolean } = {}) {
+    const container = persistenceApp.container;
+    const queue = container.resolve(
+      containerTokens.mediaProcessingQueueService,
+    );
+
+    return new MediaCleanupService(
+      container.resolve(containerTokens.mediaRepository),
+      container.resolve(containerTokens.blobService),
+      {
+        enqueueMediaProcessingJob: (mediaId) =>
+          queue.enqueueMediaProcessingJob(mediaId),
+        readBacklog: options.realBacklog
+          ? () => queue.readBacklog()
+          : async () => ({ waitingJobs: 0, consumers: 1 }),
+      },
+    ).sweep(OPTIONS);
   }
 
   beforeAll(async () => {
@@ -112,10 +135,16 @@ describe("Media cleanup persistence integration", () => {
       createdAt: anHourAgo,
       updatedAt: now,
     });
-    const poison = await seedMedia("uploaded", {
+    // Old, but never queued again: its age alone does not reject it.
+    const oldStuck = await seedMedia("uploaded", {
       createdAt: twoDaysAgo,
       updatedAt: anHourAgo,
     });
+    const exhausted = await seedMedia(
+      "uploaded",
+      { createdAt: anHourAgo, updatedAt: anHourAgo },
+      3,
+    );
     const oldRejected = await seedMedia("rejected", {
       createdAt: twoDaysAgo,
       updatedAt: twoDaysAgo,
@@ -132,29 +161,37 @@ describe("Media cleanup persistence integration", () => {
 
     await expect(sweep()).resolves.toEqual({
       abandonedDeleted: 1,
-      requeued: 1,
+      requeued: 2,
       rejected: 1,
       rejectedPurged: 1,
+      deferred: 0,
       failed: 0,
     });
 
     await expect(findMedia(abandoned.id)).resolves.toBeNull();
     expect(storage.has(abandoned.originalBlobName)).toBe(false);
 
-    const requeued = await findMedia(stuck.id);
-    expect(requeued?.status).toBe("processing");
-    expect(requeued!.updatedAt.getTime()).toBeGreaterThan(anHourAgo.getTime());
-    await waitForRabbitMqPayload<MediaProcessingJobPayload>(
-      persistenceApp.infra.rabbitMq,
-      MEDIA_PROCESSING_QUEUE_NAME,
-      (payload) => payload.mediaId === stuck.id,
-    );
+    for (const item of [stuck, oldStuck]) {
+      const requeued = await findMedia(item.id);
+      expect(requeued?.processingRequeues).toBe(1);
+      expect(requeued!.updatedAt.getTime()).toBeGreaterThan(
+        anHourAgo.getTime(),
+      );
+      await waitForRabbitMqPayload<MediaProcessingJobPayload>(
+        persistenceApp.infra.rabbitMq,
+        MEDIA_PROCESSING_QUEUE_NAME,
+        (payload) => payload.mediaId === item.id,
+      );
+    }
+    await expect(findMedia(stuck.id)).resolves.toMatchObject({
+      status: "processing",
+    });
 
-    await expect(findMedia(poison.id)).resolves.toMatchObject({
+    await expect(findMedia(exhausted.id)).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "The image could not be processed.",
     });
-    expect(storage.has(poison.originalBlobName)).toBe(false);
+    expect(storage.has(exhausted.originalBlobName)).toBe(false);
 
     await expect(findMedia(oldRejected.id)).resolves.toBeNull();
     expect(storage.has(oldRejected.originalBlobName)).toBe(false);
@@ -176,7 +213,37 @@ describe("Media cleanup persistence integration", () => {
       requeued: 0,
       rejected: 0,
       rejectedPurged: 0,
+      deferred: 0,
       failed: 0,
+    });
+  });
+
+  it("leaves stuck media alone while no worker consumes the processing queue", async () => {
+    const anHourAgo = ago(HOUR_MS);
+    const queue = persistenceApp.container.resolve(
+      containerTokens.mediaProcessingQueueService,
+    );
+    const stuck = await seedMedia(
+      "uploaded",
+      { createdAt: anHourAgo, updatedAt: anHourAgo },
+      3,
+    );
+    await queue.enqueueMediaProcessingJob(asUuid(stuck.id));
+
+    // Read from RabbitMQ itself: the job waits, and the harness runs no
+    // processing worker.
+    await expect(queue.readBacklog()).resolves.toEqual({
+      waitingJobs: 1,
+      consumers: 0,
+    });
+    await expect(sweep({ realBacklog: true })).resolves.toMatchObject({
+      requeued: 0,
+      rejected: 0,
+      deferred: 1,
+    });
+    await expect(findMedia(stuck.id)).resolves.toMatchObject({
+      status: "uploaded",
+      processingRequeues: 3,
     });
   });
 
@@ -199,6 +266,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(completed.id),
         pendingCutoff,
         "abandoned",
+        new Date(),
       ),
     ).resolves.toBe(false);
     await expect(findMedia(completed.id)).resolves.toMatchObject({
@@ -212,7 +280,12 @@ describe("Media cleanup persistence integration", () => {
       updatedAt: new Date(),
     });
     await expect(
-      repository.rejectStuck(asUuid(reclaimed.id), stuckCutoff, "stuck"),
+      repository.rejectStuck(
+        asUuid(reclaimed.id),
+        stuckCutoff,
+        "stuck",
+        new Date(),
+      ),
     ).resolves.toBe(false);
     await expect(findMedia(reclaimed.id)).resolves.toMatchObject({
       status: "processing",
@@ -228,6 +301,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(abandoned.id),
         pendingCutoff,
         "abandoned",
+        new Date(),
       ),
     ).resolves.toBe(true);
     await expect(

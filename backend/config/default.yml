@@ -175,7 +175,7 @@ workers:
     batchSize: 100
     pendingUploadTtlMs: 86400000
     stuckThresholdMs: 900000
-    maxProcessingAgeMs: 86400000
+    maxRequeues: 3
     rejectedRetentionMs: 86400000
   bookingExpiry:
     pollIntervalMs: 5000
