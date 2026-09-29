@@ -13,6 +13,8 @@ import {
   DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS,
   DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS,
   DEFAULT_IDENTITY_BLOOM_RELOAD_INTERVAL_MS,
+  LOCAL_BLOB_UPLOAD_TTL_SECONDS,
+  PENDING_UPLOAD_COMPLETION_GRACE_MS,
 } from "@/configuration/environment/constants";
 import { parseBoolean, parseNumber } from "@/configuration/environment/shared";
 import type {
@@ -333,6 +335,59 @@ export function buildWorkerConfig(
         raw,
         "MEDIA_PROCESSING_MAX_ATTEMPTS",
         5,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+    },
+    mediaCleanup: {
+      // A backlog drains at full speed regardless; the interval only sets how
+      // soon a newly stale item is noticed.
+      pollIntervalMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_POLL_INTERVAL_MS",
+        300_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      batchSize: parseNumber(raw, "MEDIA_CLEANUP_BATCH_SIZE", 100, errors, {
+        integer: true,
+        min: 1,
+      }),
+      pendingUploadTtlMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      stuckThresholdMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_STUCK_THRESHOLD_MS",
+        900_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
+      // Zero rejects a stuck item at once instead of queuing it again.
+      maxRequeues: parseNumber(raw, "MEDIA_CLEANUP_MAX_REQUEUES", 3, errors, {
+        integer: true,
+        min: 0,
+      }),
+      rejectedRetentionMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_REJECTED_RETENTION_MS",
+        86_400_000,
         errors,
         {
           integer: true,
@@ -708,10 +763,29 @@ function validateIdentityBloomConfig(
 export function validateRuntimeConfig(
   config: Pick<
     AppEnvironment,
-    "postingsCache" | "usernameBloom" | "emailBloom"
+    "postingsCache" | "usernameBloom" | "emailBloom" | "workers" | "blobStorage"
   >,
   errors: string[],
 ): void {
+  // The media cleanup must not delete an upload its client may still send or
+  // complete. Whichever storage path is active, its upload URL lives no longer
+  // than the longer of the two lifetimes.
+  const uploadUrlLifetimeMs =
+    Math.max(
+      config.blobStorage.uploadSasTtlSeconds,
+      LOCAL_BLOB_UPLOAD_TTL_SECONDS,
+    ) * 1000;
+  const minimumPendingUploadTtlMs =
+    uploadUrlLifetimeMs + PENDING_UPLOAD_COMPLETION_GRACE_MS;
+
+  if (
+    config.workers.mediaCleanup.pendingUploadTtlMs < minimumPendingUploadTtlMs
+  ) {
+    errors.push(
+      `MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS must be at least ${minimumPendingUploadTtlMs}: the upload URL lifetime (the longer of AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS and the ${LOCAL_BLOB_UPLOAD_TTL_SECONDS}-second local upload lifetime) plus ${PENDING_UPLOAD_COMPLETION_GRACE_MS / 60_000} minutes to finish and complete the upload.`,
+    );
+  }
+
   if (
     config.postingsCache.staleTtlSeconds < config.postingsCache.freshTtlSeconds
   ) {

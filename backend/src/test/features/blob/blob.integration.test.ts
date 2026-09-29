@@ -112,7 +112,6 @@ describe("Blob persistence integration", () => {
     // uploads: the ready item's leftover and the abandoned item's.
     const removed = await new BlobCleanupRepository().deleteAbandonedMedia({
       deletedBlobNames: [readyRow.originalBlobName, abandonedName],
-      olderThan: new Date(Date.now() + 60_000),
     });
 
     expect(removed).toBe(1);

@@ -78,6 +78,7 @@ async function quarantine(
     height: null,
     variants: null,
     rejectionReason: null,
+    processingRequeues: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -132,6 +133,12 @@ describe("MediaProcessingService", () => {
 
     await context.service.process(record.id);
 
+    // Progress is reported after the download and after rendering, so the
+    // media cleanup never takes a slow job for a lost one.
+    expect(context.mediaRepository.progressRecorded).toEqual([
+      record.id,
+      record.id,
+    ]);
     const processedBlobName = context.blobService.buildProcessedImageBlobName(
       USER_1_ID,
       record.id,

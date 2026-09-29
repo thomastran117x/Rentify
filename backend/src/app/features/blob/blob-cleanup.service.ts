@@ -33,7 +33,7 @@ export interface BlobCleanupResult {
   candidateBytes: number;
   deleted: number;
   deletedBytes: number;
-  /** Media rows removed: those of deleted blobs, and abandoned unfinished ones. */
+  /** Media rows removed because their blob was deleted. */
   mediaRecordsDeleted: number;
   failed: number;
   failedBytes: number;
@@ -143,7 +143,6 @@ export class BlobCleanupService {
 
     result.mediaRecordsDeleted = await this.repository.deleteAbandonedMedia({
       deletedBlobNames,
-      olderThan: new Date(cutoff),
     });
 
     return result;

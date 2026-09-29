@@ -127,6 +127,12 @@ export interface MediaRecord {
    */
   variants: MediaVariantsMetadata | null;
   rejectionReason: string | null;
+  /**
+   * How many times the media cleanup has queued a new processing job because
+   * the item's job was lost. The cleanup rejects the item once this reaches
+   * its limit.
+   */
+  processingRequeues: number;
   createdAt: Date;
   updatedAt: Date;
 }

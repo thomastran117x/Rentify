@@ -3,6 +3,12 @@ import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 
+/**
+ * The reason recorded when an item never finished processing: its job
+ * exhausted every retry, or it stayed unfinished past the cleanup's limit.
+ */
+export const PROCESSING_FAILED_REASON = "The image could not be processed.";
+
 export interface MediaRejectionDependencies {
   mediaRepository: Pick<MediaRepository, "markRejected">;
   blobService: Pick<BlobService, "deleteBlob">;

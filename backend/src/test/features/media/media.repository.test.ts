@@ -25,6 +25,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     width: null,
     height: null,
     rejectionReason: null,
+    processingRequeues: 0,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -253,6 +254,150 @@ describe("MediaRepository", () => {
     await repository.deleteById(MEDIA_1_ID);
 
     expect(deleteMany).toHaveBeenCalledWith({ where: { id: MEDIA_1_ID } });
+  });
+
+  it("lists cleanup candidates by status and age, oldest first, never a ready row", async () => {
+    const findMany = jest.fn(async (_args: any) => [
+      mediaRow({ status: "processing" }),
+    ]);
+    const repository = createRepository({ findMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+
+    await expect(
+      repository.listAbandonedUploads(cutoff, 10),
+    ).resolves.toMatchObject([{ id: MEDIA_1_ID, status: "processing" }]);
+    await repository.listStuck(cutoff, 20);
+    await repository.listRejected(cutoff, 30);
+
+    expect(findMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: { status: "pending_upload", createdAt: { lt: cutoff } },
+        orderBy: { createdAt: "asc" },
+        take: 10,
+      },
+      {
+        where: {
+          status: { in: ["uploaded", "processing"] },
+          updatedAt: { lt: cutoff },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 20,
+      },
+      {
+        where: { status: "rejected", updatedAt: { lt: cutoff } },
+        orderBy: { updatedAt: "asc" },
+        take: 30,
+      },
+    ]);
+  });
+
+  it("claims a stuck row only while it is still waiting and unmoved, and counts the re-queue", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+    const claimedAt = new Date("2026-09-20T12:15:00.000Z");
+
+    await expect(
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff, claimedAt),
+    ).resolves.toBe(true);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["uploaded", "processing"] },
+        updatedAt: { lt: cutoff },
+      },
+      data: { updatedAt: claimedAt, processingRequeues: { increment: 1 } },
+    });
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.claimStuckForRequeue(MEDIA_1_ID, cutoff, claimedAt),
+    ).resolves.toBe(false);
+  });
+
+  it("changes cleanup rows only while they are in the state they were selected in", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+    const at = new Date("2026-09-20T12:15:00.000Z");
+
+    await expect(
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "x".repeat(600), at),
+    ).resolves.toBe(true);
+    await expect(
+      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned", at),
+    ).resolves.toBe(true);
+    await expect(
+      repository.deferRejectedPurge(MEDIA_1_ID, cutoff, at),
+    ).resolves.toBe(true);
+    await expect(repository.recordProcessingProgress(MEDIA_1_ID)).resolves.toBe(
+      true,
+    );
+
+    const calls: any[] = updateMany.mock.calls.map(([args]) => args);
+    expect(calls.slice(0, 3)).toEqual([
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["uploaded", "processing"] },
+          updatedAt: { lt: cutoff },
+        },
+        // Truncated like every other rejection.
+        data: {
+          status: "rejected",
+          rejectionReason: "x".repeat(500),
+          updatedAt: at,
+        },
+      },
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["pending_upload"] },
+          createdAt: { lt: cutoff },
+        },
+        data: {
+          status: "rejected",
+          rejectionReason: "abandoned",
+          updatedAt: at,
+        },
+      },
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["rejected"] },
+          updatedAt: { lt: cutoff },
+        },
+        data: { updatedAt: at },
+      },
+    ]);
+    expect(calls[3].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["processing"] },
+    });
+    expect(calls[3].data.updatedAt).toBeInstanceOf(Date);
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck", at),
+    ).resolves.toBe(false);
+  });
+
+  it("deletes a row only while it is still in the expected status", async () => {
+    const deleteMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ deleteMany });
+
+    await expect(
+      repository.deleteByIdIfStatus(MEDIA_1_ID, "pending_upload"),
+    ).resolves.toBe(true);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: MEDIA_1_ID, status: "pending_upload" },
+    });
+
+    deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.deleteByIdIfStatus(MEDIA_1_ID, "rejected"),
+    ).resolves.toBe(false);
   });
   it("reports whether any feature table still references a blob", async () => {
     const zero = jest.fn(async (_args: unknown) => 0);

@@ -11,6 +11,7 @@ import {
 } from "@azure/storage-blob";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
+import { LOCAL_BLOB_UPLOAD_TTL_SECONDS } from "@/configuration/environment/constants";
 import BlobChangedError from "@/errors/blob-changed.error";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -43,7 +44,6 @@ interface LocalBlobConfiguration {
   defaultPublicOrigin: string;
 }
 
-const DEFAULT_SAS_TTL_SECONDS = 15 * 60;
 const SAFE_CONTENT_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i;
 const LOCAL_BLOB_CONTAINER_NAME = "local-dev";
 const LOCAL_BLOB_UPLOAD_PATH = buildApiPath("/blob/upload");
@@ -567,7 +567,7 @@ export class BlobService {
 
     return {
       storageRoot: path.resolve(process.cwd(), "tmp", "blob-storage"),
-      uploadTtlSeconds: DEFAULT_SAS_TTL_SECONDS,
+      uploadTtlSeconds: LOCAL_BLOB_UPLOAD_TTL_SECONDS,
       signingSecret,
       defaultPublicOrigin: `http://localhost:${port}`,
     };

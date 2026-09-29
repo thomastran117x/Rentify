@@ -11,6 +11,9 @@ import type {
   RecordedRenditions,
 } from "@/features/media/media.model";
 
+// Completed uploads that still wait on their processing job.
+const STUCK_STATUSES: MediaStatus[] = ["uploaded", "processing"];
+
 /**
  * Every state change is a conditional update guarded on the current status, so
  * two actors racing on one row (a retried job and its original, or a client
@@ -110,8 +113,7 @@ export class MediaRepository extends BaseRepository {
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
-      status: "rejected",
-      rejectionReason: rejectionReason.slice(0, 500),
+      ...rejection(rejectionReason),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
   }
@@ -248,18 +250,202 @@ export class MediaRepository extends BaseRepository {
     );
   }
 
+  /**
+   * Uploads that were requested before `createdBefore` and never completed,
+   * oldest first, for the media cleanup to delete.
+   */
+  listAbandonedUploads(
+    createdBefore: Date,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: "pending_upload",
+        createdAt: { lt: createdBefore },
+      },
+      { createdAt: "asc" },
+      limit,
+      "listAbandonedUploads",
+    );
+  }
+
+  /**
+   * Items waiting on a processing job that have not moved since
+   * `updatedBefore`, least recently moved first: their job was most likely
+   * lost.
+   */
+  listStuck(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: { in: STUCK_STATUSES },
+        updatedAt: { lt: updatedBefore },
+      },
+      { updatedAt: "asc" },
+      limit,
+      "listStuck",
+    );
+  }
+
+  /** Items rejected before `updatedBefore`, oldest first. */
+  listRejected(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
+    return this.listForCleanup(
+      {
+        status: "rejected",
+        updatedAt: { lt: updatedBefore },
+      },
+      { updatedAt: "asc" },
+      limit,
+      "listRejected",
+    );
+  }
+
+  /**
+   * Claims a stuck item for re-enqueueing: moves its `updatedAt` to `claimedAt`
+   * and counts the re-queue. Applies only while the item is still waiting and
+   * still unmoved since `updatedBefore`, so of several cleanup runs racing on
+   * one item only one re-enqueues it, and the next sweep waits a whole
+   * threshold again. Both times come from the caller's clock, so the claim and
+   * the cutoff it is compared against agree.
+   */
+  claimStuckForRequeue(
+    id: Uuid,
+    updatedBefore: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { updatedAt: claimedAt, processingRequeues: { increment: 1 } },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "claimStuckForRequeue",
+      },
+    );
+  }
+
+  /**
+   * Rejects a stuck item only while it is still unmoved since `updatedBefore`.
+   * A job that claimed the row, or reported progress, after the cleanup read
+   * it moves `updatedAt`, so an item being processed right now is left alone.
+   */
+  rejectStuck(
+    id: Uuid,
+    updatedBefore: Date,
+    rejectionReason: string,
+    rejectedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "rejectStuck",
+      },
+    );
+  }
+
+  /**
+   * Rejects an upload that was never completed, only while it is still
+   * pending and was created before `createdBefore`. This is the cleanup's
+   * claim on the row: once it applies, completing the upload can no longer
+   * move it to `uploaded`, so its bytes can be deleted safely.
+   */
+  rejectAbandonedUpload(
+    id: Uuid,
+    createdBefore: Date,
+    rejectionReason: string,
+    rejectedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["pending_upload"],
+      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      {
+        where: { createdAt: { lt: createdBefore } },
+        operationName: "rejectAbandonedUpload",
+      },
+    );
+  }
+
+  /**
+   * Moves a rejected item the cleanup failed to purge to the back of the
+   * purge order, so one that keeps failing cannot hold up newer ones. It is
+   * tried again once its retention has passed a second time.
+   */
+  deferRejectedPurge(
+    id: Uuid,
+    updatedBefore: Date,
+    deferredAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["rejected"],
+      { updatedAt: deferredAt },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "deferRejectedPurge",
+      },
+    );
+  }
+
+  /**
+   * Records that a job is still working on an item, so the media cleanup does
+   * not take it for one whose job was lost. Called between processing stages.
+   */
+  recordProcessingProgress(id: Uuid): Promise<boolean> {
+    return this.transition(
+      id,
+      ["processing"],
+      { updatedAt: new Date() },
+      { operationName: "recordProcessingProgress" },
+    );
+  }
+
+  /**
+   * Deletes a row only while it is still in `status`, so an item that moved on
+   * after the caller read it, such as an upload completed meanwhile, is kept.
+   */
+  async deleteByIdIfStatus(id: Uuid, status: MediaStatus): Promise<boolean> {
+    const result = await this.executeAsync(
+      () => this.prisma.media.deleteMany({ where: { id, status } }),
+      { operationName: "deleteByIdIfStatus" },
+    );
+
+    return result.count > 0;
+  }
+
+  private async listForCleanup(
+    where: Prisma.MediaWhereInput,
+    orderBy: Prisma.MediaOrderByWithRelationInput,
+    limit: number,
+    operationName: string,
+  ): Promise<MediaRecord[]> {
+    const rows = await this.executeAsync(
+      () => this.prisma.media.findMany({ where, orderBy, take: limit }),
+      { operationName },
+    );
+
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  /**
+   * Applies `data` only while the row is in one of the `from` states and, when
+   * given, also matches `where`, and reports whether it applied.
+   */
   private async transition(
     id: Uuid,
     from: MediaStatus[],
     data: Prisma.MediaUpdateManyMutationInput,
+    options: { where?: Prisma.MediaWhereInput; operationName?: string } = {},
   ): Promise<boolean> {
     const result = await this.executeAsync(
       () =>
         this.prisma.media.updateMany({
-          where: { id, status: { in: from } },
+          where: { id, status: { in: from }, ...options.where },
           data,
         }),
-      { operationName: "transition" },
+      { operationName: options.operationName ?? "transition" },
     );
 
     return result.count > 0;
@@ -282,10 +468,21 @@ export class MediaRepository extends BaseRepository {
       height: row.height,
       variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
+      processingRequeues: row.processingRequeues,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
+}
+
+/** Every rejection, whoever records it, is stored the same way. */
+function rejection(
+  rejectionReason: string,
+): Pick<Prisma.MediaUpdateManyMutationInput, "status" | "rejectionReason"> {
+  return {
+    status: "rejected",
+    rejectionReason: rejectionReason.slice(0, 500),
+  };
 }
 
 function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {

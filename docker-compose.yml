@@ -36,6 +36,12 @@ x-backend-environment: &backend-environment
   POSTING_EXPIRY_POLL_INTERVAL_MS: ${POSTING_EXPIRY_POLL_INTERVAL_MS:-}
   POSTING_EXPIRY_BATCH_SIZE: ${POSTING_EXPIRY_BATCH_SIZE:-}
   POSTING_EXPIRY_REMINDER_LEAD_DAYS: ${POSTING_EXPIRY_REMINDER_LEAD_DAYS:-}
+  MEDIA_CLEANUP_POLL_INTERVAL_MS: ${MEDIA_CLEANUP_POLL_INTERVAL_MS:-}
+  MEDIA_CLEANUP_BATCH_SIZE: ${MEDIA_CLEANUP_BATCH_SIZE:-}
+  MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS: ${MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS:-}
+  MEDIA_CLEANUP_STUCK_THRESHOLD_MS: ${MEDIA_CLEANUP_STUCK_THRESHOLD_MS:-}
+  MEDIA_CLEANUP_MAX_REQUEUES: ${MEDIA_CLEANUP_MAX_REQUEUES:-}
+  MEDIA_CLEANUP_REJECTED_RETENTION_MS: ${MEDIA_CLEANUP_REJECTED_RETENTION_MS:-}
   SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-}
   TELNYX_API_KEY: ${TELNYX_API_KEY:-}
   TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
@@ -120,7 +126,8 @@ x-backend-log-volume: &backend-log-volume
 
 # For containers that read or write blobs. Only matters when Azure is not
 # configured: the development fallback keeps blobs on local disk, and the API,
-# the media processing worker, and the thumbnail worker must see the same disk.
+# the media processing and cleanup workers, and the thumbnail worker must see
+# the same disk.
 x-backend-blob-volumes: &backend-blob-volumes
   - backend_logs:/app/logs
   - backend_blob_storage:/app/tmp/blob-storage
@@ -433,6 +440,20 @@ services:
     environment: *worker-environment
     volumes: *backend-blob-volumes
     command: ["node", "dist/workers/media/media-processing.worker.js"]
+
+  # Deletes uploads that were never completed and old rejections, and
+  # re-enqueues items whose processing job was lost. Works from MySQL alone, so
+  # it cleans local-disk quarantine as well as Azure; RabbitMQ carries the
+  # re-enqueued jobs.
+  media-cleanup-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-media-cleanup-worker
+    restart: unless-stopped
+    depends_on: *recommendation-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-blob-volumes
+    command: ["node", "dist/workers/media/media-cleanup.worker.js"]
 
   email-worker:
     build: *backend-build

@@ -132,6 +132,9 @@ attach by mediaId            postings, logos, blog covers, avatars
   `resolveAttachableImage`, the one gate every feature uses to attach an image.
 - `MediaProcessingService`, run by `media-processing-worker`, validates and
   re-encodes. See the [media worker guide](../backend/src/app/workers/media/README.md).
+- `MediaCleanupService`, run by `media-cleanup-worker`, deletes uploads that
+  were never completed and old rejections, and re-queues items whose
+  processing job was lost.
 
 Posting thumbnail generation and the orphaned-blob cleanup script use
 `BlobService` directly. Both are trusted server-side storage work.
@@ -283,12 +286,70 @@ rule, `MediaService.resolveImageReference`: posting photos
 `DELETE /media/{id}` refuses, with 409, an item whose processed image is still
 attached. A replaced image is removed by the feature that replaced it.
 
-**Cleanup.** `blob-cleanup` treats quarantined uploads as candidates whatever
-their declared content type. With `--delete`, it also removes the media rows of
-blobs it deleted, and unfinished rows that have not moved in 24 hours. Every
-reference to a processed image, including one in a restorable audit snapshot,
-also keeps its medium and thumbnail renditions, so a live rendition is never a
-candidate. Deleting a media item or a replaced image deletes all three.
+**Cleanup.** Two jobs share the work, and neither ever deletes a `ready` item or
+a processed image that something references.
+
+- `media-cleanup-worker` runs all the time and works from the `media` table, so
+  it covers Azure and local-disk storage alike. It deletes an upload still
+  `pending_upload` after 24 hours with its quarantined bytes, and deletes a
+  rejection after 24 hours. It re-queues an item in `uploaded` or `processing`
+  that has not moved for 15 minutes, but only while no processing job is
+  waiting and a worker is consuming them, so a backlog or an outage is never
+  taken for a lost job. It rejects an item it has already re-queued 3 times. It is what guarantees an item reaches a final state; see the
+  [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup).
+- `blob-cleanup` is a manual, Azure-only backstop that lists the container and
+  looks for blobs no row accounts for. It treats quarantined uploads as
+  candidates whatever their declared content type. With `--delete`, it also
+  removes the media rows of blobs it deleted. Every reference to a processed
+  image, including one in a restorable audit snapshot, also keeps its medium
+  and thumbnail renditions, so a live rendition is never a candidate.
+
+Deleting a media item or a replaced image deletes all three renditions.
+
+**Azure lifecycle backstop.** Nothing legitimate stays in `quarantine/` for more
+than a day: an upload is processed within minutes, and the cleanup worker
+deletes an abandoned one after 24 hours. A storage lifecycle-management rule can
+therefore delete anything the application missed, without a process running.
+The repository has no infrastructure-as-code, so add the rule to each storage
+account by hand. In the Azure portal, open the storage account, then **Data
+management** > **Lifecycle management** > **Add a rule**. Limit it to block
+blobs with the prefix `<container>/quarantine/`, and delete base blobs 2 days
+after they were last modified. With the Azure CLI, save this as `policy.json`,
+replacing `<container>` with `AZURE_STORAGE_CONTAINER_NAME`:
+
+```json
+{
+  "rules": [
+    {
+      "enabled": true,
+      "name": "delete-stale-quarantine",
+      "type": "Lifecycle",
+      "definition": {
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["<container>/quarantine/"]
+        },
+        "actions": {
+          "baseBlob": {
+            "delete": { "daysAfterModificationGreaterThan": 2 }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Then apply it:
+
+```bash
+az storage account management-policy create   --account-name <storage-account>   --resource-group <resource-group>   --policy @policy.json
+```
+
+The command replaces the account's whole policy, so merge this rule into any
+existing one first (`az storage account management-policy show`). Azure runs
+lifecycle rules about once a day, so a blob can outlive the 2 days by up to a
+day.
 
 **Storage layout.** Quarantined and processed images currently share one Azure
 container. If that container allows anonymous blob reads, a quarantined upload

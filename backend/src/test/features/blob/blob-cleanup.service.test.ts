@@ -96,7 +96,7 @@ describe("BlobCleanupService", () => {
   it("refreshes references, continues after failures, and reports byte totals", async () => {
     const repository = {
       deleteAbandonedMedia: jest.fn(
-        async (_input: { deletedBlobNames: string[]; olderThan: Date }) => 2,
+        async (_input: { deletedBlobNames: string[] }) => 2,
       ),
       loadReferences: jest
         .fn()
@@ -147,7 +147,6 @@ describe("BlobCleanupService", () => {
     // Only blobs that were actually deleted take their media rows with them.
     expect(repository.deleteAbandonedMedia).toHaveBeenCalledWith({
       deletedBlobNames: ["deleted.png", "zero-size.png"],
-      olderThan: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
     });
     expect(storage.deleteBlob).not.toHaveBeenCalledWith("newly-referenced.png");
     expect(result).toMatchObject({

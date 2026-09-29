@@ -103,6 +103,12 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "POSTINGS_THUMBNAIL_MAX_ATTEMPTS",
   "MEDIA_PROCESSING_PREFETCH",
   "MEDIA_PROCESSING_MAX_ATTEMPTS",
+  "MEDIA_CLEANUP_POLL_INTERVAL_MS",
+  "MEDIA_CLEANUP_BATCH_SIZE",
+  "MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS",
+  "MEDIA_CLEANUP_STUCK_THRESHOLD_MS",
+  "MEDIA_CLEANUP_MAX_REQUEUES",
+  "MEDIA_CLEANUP_REJECTED_RETENTION_MS",
   "POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS",
   "POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS",
   "POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS",
@@ -186,6 +192,15 @@ export function isSupportedImageContentType(
     value as SupportedImageContentType,
   );
 }
+
+// How long a local-disk upload URL stays valid. Azure upload URLs use
+// blobStorage.uploadSasTtlSeconds instead. Lives here so the environment
+// parser can check the media cleanup's pending-upload TTL against it.
+export const LOCAL_BLOB_UPLOAD_TTL_SECONDS = 15 * 60;
+
+// Time the media cleanup allows after an upload URL expires, for a PUT that
+// started just before it to finish and for the client to complete the upload.
+export const PENDING_UPLOAD_COMPLETION_GRACE_MS = 15 * 60 * 1000;
 
 export const DEFAULT_FRONTEND_URL = "http://localhost:3040";
 export const DEFAULT_EMAIL_APP_BASE_URL = "http://localhost:3000";

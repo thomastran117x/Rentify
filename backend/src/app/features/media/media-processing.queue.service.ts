@@ -6,6 +6,13 @@ import type { MediaProcessingJobPayload } from "@/features/media/media.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
+
+export interface MediaProcessingBacklog {
+  /** Jobs ready in the main queue or delayed in a retry tier. */
+  waitingJobs: number;
+  /** Workers consuming the main queue. */
+  consumers: number;
+}
 const MEDIA_PROCESSING_QUEUE_PREFIX = "media.processing";
 const mediaProcessingQueueLogger = loggerFactory.forComponent(
   "media.processing.queue.service",
@@ -52,6 +59,32 @@ export class MediaProcessingQueueService {
     payload: MediaProcessingJobPayload,
   ): Promise<void> {
     await this.publishWithRoutingKey("dead-letter", payload);
+  }
+
+  /**
+   * How many jobs wait to be processed, in the main queue or a retry tier,
+   * and how many workers consume the main queue. The media cleanup reads this
+   * to tell a lost job from one that is only delayed: while jobs wait or no
+   * worker consumes them, an item that has not moved may still have its job.
+   * Jobs a worker holds unacknowledged are not counted; their items are in
+   * `processing` and report progress as they go.
+   */
+  async readBacklog(): Promise<MediaProcessingBacklog> {
+    const channel = await createRabbitMqChannel();
+
+    try {
+      await this.assertTopology(channel);
+      const main = await channel.checkQueue(this.mainQueueName);
+      let waitingJobs = main.messageCount;
+
+      for (const queueName of this.retryQueueNames) {
+        waitingJobs += (await channel.checkQueue(queueName)).messageCount;
+      }
+
+      return { waitingJobs, consumers: main.consumerCount };
+    } finally {
+      await channel.close();
+    }
   }
 
   async consumeMediaProcessingJobs(

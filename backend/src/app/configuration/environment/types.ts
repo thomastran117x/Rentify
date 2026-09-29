@@ -111,6 +111,12 @@ export type RawEnvironmentValues = {
   POSTINGS_THUMBNAIL_MAX_ATTEMPTS?: string;
   MEDIA_PROCESSING_PREFETCH?: string;
   MEDIA_PROCESSING_MAX_ATTEMPTS?: string;
+  MEDIA_CLEANUP_POLL_INTERVAL_MS?: string;
+  MEDIA_CLEANUP_BATCH_SIZE?: string;
+  MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS?: string;
+  MEDIA_CLEANUP_STUCK_THRESHOLD_MS?: string;
+  MEDIA_CLEANUP_MAX_REQUEUES?: string;
+  MEDIA_CLEANUP_REJECTED_RETENTION_MS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS?: string;
@@ -351,6 +357,14 @@ export interface AppEnvironment {
     mediaProcessing: {
       prefetch: number;
       maxAttempts: number;
+    };
+    mediaCleanup: {
+      pollIntervalMs: number;
+      batchSize: number;
+      pendingUploadTtlMs: number;
+      stuckThresholdMs: number;
+      maxRequeues: number;
+      rejectedRetentionMs: number;
     };
     bookingExpiry: {
       pollIntervalMs: number;

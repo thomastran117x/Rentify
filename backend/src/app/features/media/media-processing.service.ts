@@ -20,6 +20,7 @@ import {
 } from "@/features/media/image-policy";
 import {
   deleteQuarantinedUpload,
+  PROCESSING_FAILED_REASON,
   rejectMedia,
 } from "@/features/media/media-rejection";
 import {
@@ -34,7 +35,6 @@ import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names"
 
 const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
 const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
-const PROCESSING_FAILED_REASON = "The image could not be processed.";
 
 /**
  * Turns a quarantined upload into a displayable image, or rejects it.
@@ -105,6 +105,11 @@ export class MediaProcessingService {
       return;
     }
 
+    // Progress is recorded between stages, so the media cleanup, which takes
+    // an item that has not moved in a while for one whose job was lost, never
+    // mistakes a slow job for a lost one.
+    await this.mediaRepository.recordProcessingProgress(record.id);
+
     let detectedContentType: SupportedImageContentType;
 
     try {
@@ -132,6 +137,7 @@ export class MediaProcessingService {
       processed.data,
       processed.width,
     );
+    await this.mediaRepository.recordProcessingProgress(record.id);
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
       record.id,
