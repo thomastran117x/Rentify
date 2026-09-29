@@ -17,6 +17,7 @@ import {
   IMAGE_DECODE_FAIL_ON,
   isImagePolicyRejection,
   normalizeImageContentType,
+  rejectionCodeOf,
 } from "@/features/media/image-policy";
 import {
   deleteQuarantinedUpload,
@@ -29,12 +30,33 @@ import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
 } from "@/features/media/image-renditions";
-import type { MediaRecord } from "@/features/media/media.model";
+import type {
+  MediaRecord,
+  MediaRejectionCode,
+} from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
-const MISSING_UPLOAD_REASON = "The uploaded file could not be found.";
-const UPLOAD_CHANGED_REASON = "The upload changed after it was completed.";
+/** A final refusal: why, in words and as a code. */
+interface MediaRejection {
+  reason: string;
+  code: MediaRejectionCode;
+}
+
+const MISSING_UPLOAD: MediaRejection = {
+  reason: "The uploaded file could not be found.",
+  code: "missing_upload",
+};
+const UPLOAD_CHANGED: MediaRejection = {
+  reason: "The upload changed after it was completed.",
+  code: "upload_changed",
+};
+
+function policyRejection(
+  error: Parameters<typeof rejectionCodeOf>[0],
+): MediaRejection {
+  return { reason: error.message, code: rejectionCodeOf(error) };
+}
 
 /**
  * Turns a quarantined upload into a displayable image, or rejects it.
@@ -116,7 +138,7 @@ export class MediaProcessingService {
       detectedContentType = await this.inspect(record, original.body);
     } catch (error) {
       if (isImagePolicyRejection(error)) {
-        await this.reject(record, error.message);
+        await this.reject(record, policyRejection(error));
         return;
       }
 
@@ -203,7 +225,12 @@ export class MediaProcessingService {
       return;
     }
 
-    await rejectMedia(this.rejection, record, PROCESSING_FAILED_REASON);
+    await rejectMedia(
+      this.rejection,
+      record,
+      PROCESSING_FAILED_REASON,
+      "processing_failed",
+    );
   }
 
   private async inspect(
@@ -228,7 +255,7 @@ export class MediaProcessingService {
    */
   private async downloadOriginal(
     record: MediaRecord,
-  ): Promise<{ body: Buffer } | { rejection: string }> {
+  ): Promise<{ body: Buffer } | { rejection: MediaRejection }> {
     let properties: BlobProperties;
 
     try {
@@ -237,7 +264,7 @@ export class MediaProcessingService {
       );
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        return { rejection: MISSING_UPLOAD_REASON };
+        return { rejection: MISSING_UPLOAD };
       }
 
       throw error;
@@ -248,7 +275,7 @@ export class MediaProcessingService {
     // Rows completed before the ETag was recorded skip this; their size is
     // still held to the policy below and by the capped download.
     if (record.originalEtag && properties.etag !== record.originalEtag) {
-      return { rejection: UPLOAD_CHANGED_REASON };
+      return { rejection: UPLOAD_CHANGED };
     }
 
     const sizeBytes = properties.contentLength ?? 0;
@@ -258,7 +285,7 @@ export class MediaProcessingService {
       assertImageSizeWithinLimit(sizeBytes);
     } catch (error) {
       if (isImagePolicyRejection(error)) {
-        return { rejection: error.message };
+        return { rejection: policyRejection(error) };
       }
 
       throw error;
@@ -276,23 +303,28 @@ export class MediaProcessingService {
       return { body };
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        return { rejection: MISSING_UPLOAD_REASON };
+        return { rejection: MISSING_UPLOAD };
       }
 
       if (error instanceof BlobChangedError) {
-        return { rejection: UPLOAD_CHANGED_REASON };
+        return { rejection: UPLOAD_CHANGED };
       }
 
       if (error instanceof PayloadTooLargeError) {
-        return { rejection: describeImageSizeLimit() };
+        return {
+          rejection: { reason: describeImageSizeLimit(), code: "too_large" },
+        };
       }
 
       throw error;
     }
   }
 
-  private async reject(record: MediaRecord, reason: string): Promise<void> {
-    await rejectMedia(this.rejection, record, reason);
+  private async reject(
+    record: MediaRecord,
+    rejection: MediaRejection,
+  ): Promise<void> {
+    await rejectMedia(this.rejection, record, rejection.reason, rejection.code);
   }
 
   private async isReadyAs(

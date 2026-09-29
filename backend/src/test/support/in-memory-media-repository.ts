@@ -3,6 +3,7 @@ import type {
   CreateMediaRecordInput,
   MarkMediaReadyInput,
   MediaRecord,
+  MediaRejectionCode,
   MediaStatus,
   MediaVariantsMetadata,
 } from "@/features/media/media.model";
@@ -45,6 +46,7 @@ export class InMemoryMediaRepository {
       height: null,
       variants: null,
       rejectionReason: null,
+      rejectionCode: null,
       processingRequeues: 0,
       processingAttempts: 0,
       processingStartedAt: null,
@@ -96,6 +98,7 @@ export class InMemoryMediaRepository {
       status: "ready",
       ...input,
       rejectionReason: null,
+      rejectionCode: null,
       processingCompletedAt: new Date(),
     });
   }
@@ -109,11 +112,13 @@ export class InMemoryMediaRepository {
   async markRejected(
     id: Uuid,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
       status: "rejected",
       rejectionReason: rejectionReason.slice(0, 500),
+      rejectionCode,
       processingCompletedAt: new Date(),
       ...(detectedContentType ? { detectedContentType } : {}),
     });

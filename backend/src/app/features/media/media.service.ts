@@ -9,7 +9,9 @@ import { buildImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  isImagePolicyRejection,
   normalizeImageContentType,
+  rejectionCodeOf,
 } from "@/features/media/image-policy";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
@@ -23,6 +25,7 @@ import type {
   ImageReferenceInput,
   ImageReferenceOptions,
   MediaRecord,
+  MediaRejectionCode,
   MediaScope,
   MediaView,
 } from "@/features/media/media.model";
@@ -136,7 +139,10 @@ export class MediaService {
       assertImageNotEmpty(sizeBytes);
       assertImageSizeWithinLimit(sizeBytes);
     } catch (error) {
-      await this.reject(record, (error as Error).message);
+      if (isImagePolicyRejection(error)) {
+        await this.reject(record, error.message, rejectionCodeOf(error));
+      }
+
       throw error;
     }
 
@@ -392,6 +398,7 @@ export class MediaService {
           ? buildImageVariants(record.processedBlobName, url, record)
           : null,
       rejectionReason: record.rejectionReason,
+      rejectionCode: record.rejectionCode,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     };
@@ -433,7 +440,11 @@ export class MediaService {
     }
   }
 
-  private async reject(record: MediaRecord, reason: string): Promise<void> {
+  private async reject(
+    record: MediaRecord,
+    reason: string,
+    code: MediaRejectionCode,
+  ): Promise<void> {
     await rejectMedia(
       {
         mediaRepository: this.mediaRepository,
@@ -442,6 +453,7 @@ export class MediaService {
       },
       record,
       reason,
+      code,
     );
   }
 

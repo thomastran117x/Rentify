@@ -20,6 +20,24 @@ export type MediaStatus =
   | "ready"
   | "rejected";
 
+/**
+ * Why the API rejected an image, for branching or localizing without parsing
+ * `rejectionReason`. More codes may be added; treat an unknown one like
+ * `corrupt`. `processing_failed` is not the image's fault.
+ */
+export type MediaRejectionCode =
+  | "empty"
+  | "too_large"
+  | "unsupported_type"
+  | "type_mismatch"
+  | "dimensions"
+  | "corrupt"
+  | "animated"
+  | "upload_changed"
+  | "missing_upload"
+  | "processing_failed"
+  | "abandoned";
+
 /** One stored rendition of an image, with its real dimensions. */
 export interface ImageRendition {
   url: string;
@@ -57,6 +75,8 @@ export interface MediaView {
   /** Set with `url` once the image's renditions are recorded. */
   variants: ImageVariants | null;
   rejectionReason: string | null;
+  /** Set when `status` is `rejected`; null for older rejections. */
+  rejectionCode: MediaRejectionCode | null;
   createdAt: string;
   updatedAt: string;
 }

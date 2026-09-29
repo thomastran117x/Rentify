@@ -3,7 +3,11 @@ import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
-import type { MediaRecord, MediaStatus } from "@/features/media/media.model";
+import type {
+  MediaRecord,
+  MediaRejectionCode,
+  MediaStatus,
+} from "@/features/media/media.model";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import {
@@ -78,6 +82,7 @@ async function quarantine(
     height: null,
     variants: null,
     rejectionReason: null,
+    rejectionCode: null,
     processingRequeues: 0,
     processingAttempts: 0,
     processingStartedAt: null,
@@ -532,34 +537,39 @@ describe("MediaProcessingService", () => {
       async () => Buffer.from("not-an-image"),
       "image/png",
       "Uploaded file could not be read as an image.",
+      "corrupt",
     ],
     [
       "an image that is not the declared type",
       () => createJpegFixture(),
       "image/png",
       "Uploaded file contents do not match the declared image type.",
+      "type_mismatch",
     ],
     [
       "a format outside the policy",
       () => createGifFixture(),
       "image/png",
       "Uploaded file contents do not match the declared image type.",
+      "type_mismatch",
     ],
     [
       "an animated image",
       () => createAnimatedWebpFixture(),
       "image/webp",
       "Animated or multi-page images are not supported.",
+      "animated",
     ],
     [
       "truncated image data",
       async () => truncateImage(await createPngFixture(64, 64)),
       "image/png",
       null,
+      "corrupt",
     ],
   ])(
     "rejects %s and removes it from quarantine",
-    async (_label, body, declaredContentType, reason) => {
+    async (_label, body, declaredContentType, reason, code) => {
       const context = createContext();
       const record = await quarantine(context, await body(), {
         declaredContentType,
@@ -571,6 +581,7 @@ describe("MediaProcessingService", () => {
       const rejected = await context.mediaRepository.findById(record.id);
       expect(rejected?.status).toBe("rejected");
       expect(rejected?.processedBlobName).toBeNull();
+      expect(rejected?.rejectionCode).toBe(code);
       if (reason) {
         expect(rejected?.rejectionReason).toBe(reason);
       } else {
@@ -609,18 +620,21 @@ describe("MediaProcessingService", () => {
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: expect.stringMatching(/^Images must be/),
+      rejectionCode: "too_large",
     });
     await expect(
       context.mediaRepository.findById(tooWide.id),
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "Image dimensions exceed the allowed maximum.",
+      rejectionCode: "dimensions",
     });
     await expect(
       context.mediaRepository.findById(narrowedOut.id),
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "Only PNG images can be uploaded.",
+      rejectionCode: "unsupported_type",
     });
   });
 
@@ -635,6 +649,7 @@ describe("MediaProcessingService", () => {
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "The uploaded file could not be found.",
+      rejectionCode: "missing_upload",
     });
   });
 
@@ -654,10 +669,15 @@ describe("MediaProcessingService", () => {
       context: Context,
       record: MediaRecord,
       rejectionReason: string,
+      rejectionCode: MediaRejectionCode,
     ) {
       await expect(
         context.mediaRepository.findById(record.id),
-      ).resolves.toMatchObject({ status: "rejected", rejectionReason });
+      ).resolves.toMatchObject({
+        status: "rejected",
+        rejectionReason,
+        rejectionCode,
+      });
       await expectMissing(context, record.originalBlobName);
       await expectMissing(
         context,
@@ -693,15 +713,25 @@ describe("MediaProcessingService", () => {
       await expect(context.service.process(record.id)).resolves.toBeUndefined();
 
       expect(download).not.toHaveBeenCalled();
-      await expectRejected(context, record, UPLOAD_CHANGED_REASON);
+      await expectRejected(
+        context,
+        record,
+        UPLOAD_CHANGED_REASON,
+        "upload_changed",
+      );
     });
 
     it.each([
-      ["an empty upload", 0, "The uploaded file is empty."],
-      ["an oversized upload", 64, "Images must be 32 bytes or smaller."],
-    ])(
+      ["an empty upload", 0, "The uploaded file is empty.", "empty"],
+      [
+        "an oversized upload",
+        64,
+        "Images must be 32 bytes or smaller.",
+        "too_large",
+      ],
+    ] as const)(
       "rejects %s from its properties without downloading it",
-      async (_label, sizeBytes, reason) => {
+      async (_label, sizeBytes, reason, code) => {
         const context = createContext();
         const record = await quarantine(context, Buffer.alloc(sizeBytes));
         const download = jest.spyOn(context.blobService, "downloadBlob");
@@ -710,7 +740,7 @@ describe("MediaProcessingService", () => {
         await context.service.process(record.id);
 
         expect(download).not.toHaveBeenCalled();
-        await expectRejected(context, record, reason);
+        await expectRejected(context, record, reason, code);
       },
     );
 
@@ -719,20 +749,23 @@ describe("MediaProcessingService", () => {
         "changed during the download",
         new BlobChangedError(),
         UPLOAD_CHANGED_REASON,
+        "upload_changed",
       ],
       [
         "grew past the limit during the download",
         new PayloadTooLargeError("Blob is larger than the allowed maximum."),
         "Images must be 8 MB or smaller.",
+        "too_large",
       ],
       [
         "disappeared during the download",
         new ResourceNotFoundError("Blob not found."),
         "The uploaded file could not be found.",
+        "missing_upload",
       ],
-    ])(
+    ] as const)(
       "rejects an upload that %s, without a retry",
-      async (_label, error, reason) => {
+      async (_label, error, reason, code) => {
         const context = createContext();
         const record = await quarantine(context, await createPngFixture());
         process.env.MAX_IMAGE_SIZE_BYTES = String(8 * 1024 * 1024);
@@ -744,7 +777,7 @@ describe("MediaProcessingService", () => {
           context.service.process(record.id),
         ).resolves.toBeUndefined();
 
-        await expectRejected(context, record, reason);
+        await expectRejected(context, record, reason, code);
       },
     );
 
@@ -785,6 +818,7 @@ describe("MediaProcessingService", () => {
         context,
         record,
         "Images must be 32 bytes or smaller.",
+        "too_large",
       );
     });
 
@@ -941,6 +975,7 @@ describe("MediaProcessingService", () => {
       ).resolves.toMatchObject({
         status: "rejected",
         rejectionReason: "The image could not be processed.",
+        rejectionCode: "processing_failed",
       });
       await expectMissing(context, record.originalBlobName);
     });

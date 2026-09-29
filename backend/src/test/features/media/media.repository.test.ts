@@ -25,6 +25,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     width: null,
     height: null,
     rejectionReason: null,
+    rejectionCode: null,
     processingRequeues: 0,
     processingAttempts: 0,
     processingStartedAt: null,
@@ -205,9 +206,14 @@ describe("MediaRepository", () => {
       }),
     ).resolves.toBe(true);
     await expect(
-      repository.markRejected(MEDIA_1_ID, "x".repeat(600), "image/jpeg"),
+      repository.markRejected(
+        MEDIA_1_ID,
+        "x".repeat(600),
+        "type_mismatch",
+        "image/jpeg",
+      ),
     ).resolves.toBe(true);
-    await repository.markRejected(MEDIA_1_ID, "bad");
+    await repository.markRejected(MEDIA_1_ID, "bad", "corrupt");
 
     const calls: any[] = updateMany.mock.calls.map(([args]) => args);
 
@@ -233,6 +239,7 @@ describe("MediaRepository", () => {
         height: 3,
         variants: VARIANTS,
         rejectionReason: null,
+        rejectionCode: null,
         processingCompletedAt: expect.any(Date),
       },
     });
@@ -242,9 +249,11 @@ describe("MediaRepository", () => {
     });
     expect(calls[3].data.rejectionReason).toHaveLength(500);
     expect(calls[3].data.detectedContentType).toBe("image/jpeg");
+    expect(calls[3].data.rejectionCode).toBe("type_mismatch");
     expect(calls[4].data).toEqual({
       status: "rejected",
       rejectionReason: "bad",
+      rejectionCode: "corrupt",
       processingCompletedAt: expect.any(Date),
     });
   });
@@ -335,10 +344,22 @@ describe("MediaRepository", () => {
     const at = new Date("2026-09-20T12:15:00.000Z");
 
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "x".repeat(600), at),
+      repository.rejectStuck(
+        MEDIA_1_ID,
+        cutoff,
+        "x".repeat(600),
+        "processing_failed",
+        at,
+      ),
     ).resolves.toBe(true);
     await expect(
-      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned", at),
+      repository.rejectAbandonedUpload(
+        MEDIA_1_ID,
+        cutoff,
+        "abandoned",
+        "abandoned",
+        at,
+      ),
     ).resolves.toBe(true);
     await expect(
       repository.deferRejectedPurge(MEDIA_1_ID, cutoff, at),
@@ -359,6 +380,7 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "x".repeat(500),
+          rejectionCode: "processing_failed",
           processingCompletedAt: at,
           updatedAt: at,
         },
@@ -372,6 +394,7 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "abandoned",
+          rejectionCode: "abandoned",
           processingCompletedAt: at,
           updatedAt: at,
         },
@@ -393,7 +416,13 @@ describe("MediaRepository", () => {
 
     updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck", at),
+      repository.rejectStuck(
+        MEDIA_1_ID,
+        cutoff,
+        "stuck",
+        "processing_failed",
+        at,
+      ),
     ).resolves.toBe(false);
   });
 

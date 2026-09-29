@@ -1,6 +1,9 @@
 import type { Logger } from "@/configuration/logging/types";
 import type { BlobService } from "@/features/blob/blob.service";
-import type { MediaRecord } from "@/features/media/media.model";
+import type {
+  MediaRecord,
+  MediaRejectionCode,
+} from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 
 /**
@@ -18,7 +21,7 @@ export interface MediaRejectionDependencies {
 /**
  * The one way a media item is rejected, whether its upload was over the size
  * limit, its bytes failed the image policy, its upload vanished, or its
- * processing exhausted every retry.
+ * processing exhausted every retry. `code` is recorded beside `reason`.
  *
  * The row is marked first. Its quarantined upload is deleted only when this
  * call is the one that rejected it, so a racing or repeated rejection does not
@@ -28,8 +31,11 @@ export async function rejectMedia(
   dependencies: MediaRejectionDependencies,
   record: MediaRecord,
   reason: string,
+  code: MediaRejectionCode,
 ): Promise<boolean> {
-  if (!(await dependencies.mediaRepository.markRejected(record.id, reason))) {
+  if (
+    !(await dependencies.mediaRepository.markRejected(record.id, reason, code))
+  ) {
     return false;
   }
 

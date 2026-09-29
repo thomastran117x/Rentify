@@ -42,6 +42,7 @@ function record(
     height: null,
     variants: null,
     rejectionReason: null,
+    rejectionCode: null,
     processingRequeues: 0,
     processingAttempts: 0,
     processingStartedAt: null,
@@ -152,6 +153,7 @@ describe("MediaCleanupService", () => {
       abandoned.id,
       ago(24 * HOUR_MS),
       "The upload was never completed.",
+      "abandoned",
       NOW,
     );
     expect(blobService.deleteBlob).toHaveBeenCalledWith(
@@ -272,6 +274,7 @@ describe("MediaCleanupService", () => {
       exhausted.id,
       ago(STUCK_THRESHOLD_MS),
       "The image could not be processed.",
+      "processing_failed",
       NOW,
     );
     expect(blobService.deleteBlob).toHaveBeenCalledWith(
@@ -412,6 +415,7 @@ describe("MediaCleanupService", () => {
       failingUpload.id,
       expect.any(Date),
       expect.any(String),
+      "abandoned",
       NOW,
     );
     expect(mediaRepository.deleteByIdIfStatus).not.toHaveBeenCalledWith(

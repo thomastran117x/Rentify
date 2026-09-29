@@ -144,6 +144,7 @@ export class MediaCleanupService {
             record.id,
             createdBefore,
             ABANDONED_UPLOAD_REASON,
+            "abandoned",
             now,
           ))
         ) {
@@ -204,6 +205,7 @@ export class MediaCleanupService {
             record.id,
             updatedBefore,
             PROCESSING_FAILED_REASON,
+            "processing_failed",
             now,
           )
         ) {

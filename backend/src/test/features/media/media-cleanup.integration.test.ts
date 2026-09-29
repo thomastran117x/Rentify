@@ -266,6 +266,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(completed.id),
         pendingCutoff,
         "abandoned",
+        "abandoned",
         new Date(),
       ),
     ).resolves.toBe(false);
@@ -284,6 +285,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(reclaimed.id),
         stuckCutoff,
         "stuck",
+        "processing_failed",
         new Date(),
       ),
     ).resolves.toBe(false);
@@ -300,6 +302,7 @@ describe("Media cleanup persistence integration", () => {
       repository.rejectAbandonedUpload(
         asUuid(abandoned.id),
         pendingCutoff,
+        "abandoned",
         "abandoned",
         new Date(),
       ),

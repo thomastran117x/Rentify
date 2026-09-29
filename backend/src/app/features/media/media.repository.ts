@@ -6,6 +6,7 @@ import type {
   ImageRenditionInfo,
   MarkMediaReadyInput,
   MediaRecord,
+  MediaRejectionCode,
   MediaStatus,
   MediaVariantsMetadata,
   RecordedRenditions,
@@ -107,6 +108,7 @@ export class MediaRepository extends BaseRepository {
       height: input.height,
       variants: input.variants as unknown as Prisma.InputJsonValue,
       rejectionReason: null,
+      rejectionCode: null,
       processingCompletedAt: new Date(),
     });
   }
@@ -128,10 +130,11 @@ export class MediaRepository extends BaseRepository {
   markRejected(
     id: Uuid,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
-      ...rejection(rejectionReason),
+      ...rejection(rejectionReason, rejectionCode),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
   }
@@ -350,12 +353,16 @@ export class MediaRepository extends BaseRepository {
     id: Uuid,
     updatedBefore: Date,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     rejectedAt: Date,
   ): Promise<boolean> {
     return this.transition(
       id,
       STUCK_STATUSES,
-      { ...rejection(rejectionReason, rejectedAt), updatedAt: rejectedAt },
+      {
+        ...rejection(rejectionReason, rejectionCode, rejectedAt),
+        updatedAt: rejectedAt,
+      },
       {
         where: { updatedAt: { lt: updatedBefore } },
         operationName: "rejectStuck",
@@ -373,12 +380,16 @@ export class MediaRepository extends BaseRepository {
     id: Uuid,
     createdBefore: Date,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     rejectedAt: Date,
   ): Promise<boolean> {
     return this.transition(
       id,
       ["pending_upload"],
-      { ...rejection(rejectionReason, rejectedAt), updatedAt: rejectedAt },
+      {
+        ...rejection(rejectionReason, rejectionCode, rejectedAt),
+        updatedAt: rejectedAt,
+      },
       {
         where: { createdAt: { lt: createdBefore } },
         operationName: "rejectAbandonedUpload",
@@ -486,6 +497,7 @@ export class MediaRepository extends BaseRepository {
       height: row.height,
       variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
+      rejectionCode: row.rejectionCode,
       processingRequeues: row.processingRequeues,
       processingAttempts: row.processingAttempts,
       processingStartedAt: row.processingStartedAt,
@@ -500,14 +512,16 @@ export class MediaRepository extends BaseRepository {
 /** Every rejection, whoever records it, is stored the same way. */
 function rejection(
   rejectionReason: string,
+  rejectionCode: MediaRejectionCode,
   rejectedAt: Date = new Date(),
 ): Pick<
   Prisma.MediaUpdateManyMutationInput,
-  "status" | "rejectionReason" | "processingCompletedAt"
+  "status" | "rejectionReason" | "rejectionCode" | "processingCompletedAt"
 > {
   return {
     status: "rejected",
     rejectionReason: rejectionReason.slice(0, 500),
+    rejectionCode,
     processingCompletedAt: rejectedAt,
   };
 }
