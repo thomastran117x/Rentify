@@ -419,6 +419,29 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
+   * Returns an item rejected because processing kept failing to `uploaded`,
+   * so a replayed job can claim it. Applies only while it is still rejected
+   * with `processing_failed`: an item deleted, purged, or rejected for any
+   * other reason meanwhile is left alone, and the caller learns it lost.
+   */
+  reopenForReplay(id: Uuid): Promise<boolean> {
+    return this.transition(
+      id,
+      ["rejected"],
+      {
+        status: "uploaded",
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: null,
+      },
+      {
+        where: { rejectionCode: "processing_failed" },
+        operationName: "reopenForReplay",
+      },
+    );
+  }
+
+  /**
    * Records that a job is still working on an item, so the media cleanup does
    * not take it for one whose job was lost. Called between processing stages.
    */

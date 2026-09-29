@@ -356,6 +356,31 @@ services:
     entrypoint: ["node", "dist/scripts/backfill-media-variants.js"]
     command: []
 
+  # Replays media processing jobs from the dead-letter queue once the outage
+  # that exhausted their retries is over. See the dead-letter runbook in
+  # backend/src/app/workers/media/README.md.
+  media-dead-letter-replay:
+    build: *backend-build
+    image: rent-backend:local
+    profiles: ["maintenance"]
+    restart: "no"
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *backend-environment
+      DATABASE_POOL_CONNECTION_LIMIT: 2
+      DATABASE_POOL_MINIMUM_IDLE: 1
+    # Checks that a failed item's upload is still kept, so it needs the local
+    # blob disk when Azure is not configured.
+    volumes: *backend-blob-volumes
+    entrypoint: ["node", "dist/scripts/replay-media-dead-letters.js"]
+    command: []
+
   analytics-worker:
     build: *backend-build
     image: rent-backend:local

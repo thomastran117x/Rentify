@@ -124,6 +124,19 @@ export class InMemoryMediaRepository {
     });
   }
 
+  async reopenForReplay(id: Uuid): Promise<boolean> {
+    if (this.rows.get(id)?.rejectionCode !== "processing_failed") {
+      return false;
+    }
+
+    return this.transition(id, ["rejected"], {
+      status: "uploaded",
+      rejectionReason: null,
+      rejectionCode: null,
+      processingCompletedAt: null,
+    });
+  }
+
   async recordProcessingProgress(id: Uuid): Promise<boolean> {
     this.progressRecorded.push(id);
     return this.transition(id, ["processing"], {});

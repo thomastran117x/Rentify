@@ -450,6 +450,29 @@ describe("MediaRepository", () => {
     });
   });
 
+  it("reopens only a row rejected because processing kept failing", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+
+    await expect(repository.reopenForReplay(MEDIA_1_ID)).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["rejected"] },
+        rejectionCode: "processing_failed",
+      },
+      data: {
+        status: "uploaded",
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: null,
+      },
+    });
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repository.reopenForReplay(MEDIA_1_ID)).resolves.toBe(false);
+  });
+
   it("deletes a row only while it is still in the expected status", async () => {
     const deleteMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ deleteMany });

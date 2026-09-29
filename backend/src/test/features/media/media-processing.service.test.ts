@@ -964,7 +964,7 @@ describe("MediaProcessingService", () => {
   });
 
   describe("markProcessingFailed", () => {
-    it("rejects an unfinished item and clears its quarantine", async () => {
+    it("rejects an unfinished item and keeps its upload for a replay", async () => {
       const context = createContext();
       const record = await quarantine(context, await createPngFixture());
 
@@ -977,7 +977,9 @@ describe("MediaProcessingService", () => {
         rejectionReason: "The image could not be processed.",
         rejectionCode: "processing_failed",
       });
-      await expectMissing(context, record.originalBlobName);
+      await expect(
+        context.blobService.readLocalBlob(record.originalBlobName),
+      ).resolves.toBeDefined();
     });
 
     it("leaves finished and missing items alone", async () => {

@@ -137,6 +137,16 @@ docker compose run --rm --build media-variants-backfill
 
 See [the backfill runbook](./docs/media-variants-backfill.md).
 
+Media processing dead-letter replay (writes unless given `--dry-run`; run it
+once the outage that dead-lettered jobs is over):
+
+```bash
+docker compose run --rm --build media-dead-letter-replay --dry-run
+docker compose run --rm --build media-dead-letter-replay
+```
+
+See [the dead-letter runbook](backend/src/app/workers/media/README.md#dead-letter-runbook).
+
 ## API Contract
 
 The backend returns a shared JSON envelope:

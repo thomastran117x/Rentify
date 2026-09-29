@@ -247,4 +247,75 @@ describe("MediaProcessingQueueService", () => {
     await expect(service.readBacklog()).rejects.toThrow("channel closed");
     expect(channel.close).toHaveBeenCalledTimes(1);
   });
+
+  describe("the dead-letter reader", () => {
+    function getMessage(body: unknown) {
+      return {
+        content: Buffer.from(
+          typeof body === "string" ? body : JSON.stringify(body),
+          "utf8",
+        ),
+      };
+    }
+
+    const job = {
+      jobId: "job-1",
+      mediaId: MEDIA_1_ID,
+      attempt: 5,
+      occurredAt: "2026-05-20T15:00:00.000Z",
+    };
+
+    it("takes messages one at a time, unacknowledged, until the queue is empty", async () => {
+      const messages = [
+        getMessage(job),
+        getMessage("not json"),
+        getMessage({ ...job, mediaId: "not-a-uuid" }),
+        getMessage(null),
+      ];
+      const channel = Object.assign(createChannel(), {
+        get: jest.fn(async () => messages.shift() ?? false),
+        ack: jest.fn(),
+      });
+      mockCreateRabbitMqChannel.mockResolvedValue(channel);
+      const service = new MediaProcessingQueueService();
+
+      const reader = await service.openDeadLetterQueue();
+      const first = await reader.take();
+
+      expect(channel.assertQueue).toHaveBeenCalledWith(
+        "media.processing.dead-letter",
+        { durable: true },
+      );
+      expect(channel.get).toHaveBeenCalledWith("media.processing.dead-letter", {
+        noAck: false,
+      });
+      expect(first?.payload).toEqual(job);
+      expect(channel.ack).not.toHaveBeenCalled();
+      first!.ack();
+      expect(channel.ack).toHaveBeenCalledTimes(1);
+
+      // Bodies that are not jobs come back without a payload.
+      await expect(reader.take()).resolves.toMatchObject({ payload: null });
+      await expect(reader.take()).resolves.toMatchObject({ payload: null });
+      await expect(reader.take()).resolves.toMatchObject({ payload: null });
+      await expect(reader.take()).resolves.toBeNull();
+
+      await reader.close();
+      expect(channel.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes the channel when the topology cannot be asserted", async () => {
+      const channel = createChannel();
+      (channel.assertExchange as jest.Mock).mockRejectedValueOnce(
+        new Error("channel closed"),
+      );
+      mockCreateRabbitMqChannel.mockResolvedValue(channel);
+      const service = new MediaProcessingQueueService();
+
+      await expect(service.openDeadLetterQueue()).rejects.toThrow(
+        "channel closed",
+      );
+      expect(channel.close).toHaveBeenCalledTimes(1);
+    });
+  });
 });

@@ -260,7 +260,7 @@ describe("MediaCleanupService", () => {
     expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
   });
 
-  it("rejects a stuck item once it has used its re-queues, and deletes its upload", async () => {
+  it("rejects a stuck item once it has used its re-queues, and keeps its upload for a replay", async () => {
     const exhausted = record("processing", { processingRequeues: 3 });
     const { mediaRepository, blobService, queue, service } = createContext({
       stuck: [exhausted],
@@ -277,9 +277,8 @@ describe("MediaCleanupService", () => {
       "processing_failed",
       NOW,
     );
-    expect(blobService.deleteBlob).toHaveBeenCalledWith(
-      exhausted.originalBlobName,
-    );
+    // Purged with the row once the rejected retention has passed.
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
     expect(mediaRepository.claimStuckForRequeue).not.toHaveBeenCalled();
     expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
   });

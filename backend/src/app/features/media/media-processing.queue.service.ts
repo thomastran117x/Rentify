@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { Channel, ConsumeMessage } from "amqplib";
+import type { Channel, ConsumeMessage, GetMessage } from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
 import type { MediaProcessingJobPayload } from "@/features/media/media.model";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { isUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 
@@ -13,6 +13,25 @@ export interface MediaProcessingBacklog {
   /** Workers consuming the main queue. */
   consumers: number;
 }
+
+/**
+ * One message taken from the dead-letter queue and held unacknowledged: a job,
+ * or `null` when its body is not one. `ack` removes it from the queue for
+ * good; a message not acknowledged goes back when the reader closes.
+ */
+export interface MediaDeadLetterMessage {
+  payload: MediaProcessingJobPayload | null;
+  ack(): void;
+}
+
+/** Reads `media.processing.dead-letter` one message at a time. */
+export interface MediaDeadLetterReader {
+  /** The next message, or null once the queue is empty. */
+  take(): Promise<MediaDeadLetterMessage | null>;
+  /** Closes the channel; every message not acknowledged is requeued. */
+  close(): Promise<void>;
+}
+
 const MEDIA_PROCESSING_QUEUE_PREFIX = "media.processing";
 const mediaProcessingQueueLogger = loggerFactory.forComponent(
   "media.processing.queue.service",
@@ -85,6 +104,42 @@ export class MediaProcessingQueueService {
     } finally {
       await channel.close();
     }
+  }
+
+  /**
+   * Opens the dead-letter queue for an operator's replay. Messages are taken
+   * with `get`, not consumed, so the replay decides one at a time and stops
+   * when the queue is empty; each stays unacknowledged until it is settled.
+   */
+  async openDeadLetterQueue(): Promise<MediaDeadLetterReader> {
+    const channel = await createRabbitMqChannel();
+
+    try {
+      await this.assertTopology(channel);
+    } catch (error) {
+      await channel.close();
+      throw error;
+    }
+
+    return {
+      take: async () => {
+        const message = await channel.get(this.deadLetterQueueName, {
+          noAck: false,
+        });
+
+        if (!message) {
+          return null;
+        }
+
+        return {
+          payload: parseJobPayload(message),
+          ack: () => channel.ack(message),
+        };
+      },
+      close: async () => {
+        await channel.close();
+      },
+    };
   }
 
   async consumeMediaProcessingJobs(
@@ -187,4 +242,38 @@ export class MediaProcessingQueueService {
       "dead-letter",
     );
   }
+}
+
+/** A job payload, or null when the message body is not one. */
+function parseJobPayload(
+  message: GetMessage,
+): MediaProcessingJobPayload | null {
+  let body: unknown;
+
+  try {
+    body = JSON.parse(message.content.toString("utf8"));
+  } catch {
+    return null;
+  }
+
+  if (!body || typeof body !== "object") {
+    return null;
+  }
+
+  const { jobId, mediaId, attempt, occurredAt } = body as Record<
+    string,
+    unknown
+  >;
+
+  if (
+    typeof jobId !== "string" ||
+    typeof mediaId !== "string" ||
+    !isUuid(mediaId) ||
+    typeof attempt !== "number" ||
+    typeof occurredAt !== "string"
+  ) {
+    return null;
+  }
+
+  return { jobId, mediaId, attempt, occurredAt };
 }
