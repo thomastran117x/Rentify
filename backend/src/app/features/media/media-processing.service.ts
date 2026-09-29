@@ -185,6 +185,14 @@ export class MediaProcessingService {
   }
 
   /**
+   * Keeps the failure a job hit on an unfinished item, for operators. Called
+   * before the job is retried or dead-lettered.
+   */
+  async recordProcessingFailure(mediaId: Uuid, error: unknown): Promise<void> {
+    await this.mediaRepository.recordProcessingFailure(mediaId, error);
+  }
+
+  /**
    * Called when a job has exhausted its retries, so the client stops waiting
    * on an item that will never become ready. A no-op if it already finished.
    */

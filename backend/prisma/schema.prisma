@@ -85,6 +85,10 @@ model Media {
   variants            Json?
   rejectionReason     String?     @map("rejection_reason") @db.VarChar(500)
   processingRequeues  Int         @default(0) @map("processing_requeues")
+  processingAttempts  Int         @default(0) @map("processing_attempts")
+  processingStartedAt DateTime?   @map("processing_started_at") @db.DateTime(6)
+  processingCompletedAt DateTime? @map("processing_completed_at") @db.DateTime(6)
+  processingError     String?     @map("processing_error") @db.VarChar(1000)
   createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt           DateTime    @updatedAt @map("updated_at") @db.DateTime(6)
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)

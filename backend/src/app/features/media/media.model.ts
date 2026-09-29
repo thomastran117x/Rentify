@@ -133,6 +133,21 @@ export interface MediaRecord {
    * its limit.
    */
   processingRequeues: number;
+  /**
+   * How many times a processing job has claimed the item, redeliveries
+   * included. Not the `attempt` a job's payload carries, which counts the
+   * retry tiers that one job has been through.
+   */
+  processingAttempts: number;
+  /** When a processing job last claimed the item. */
+  processingStartedAt: Date | null;
+  /** When the item became ready or rejected. */
+  processingCompletedAt: Date | null;
+  /**
+   * The last failure a processing job hit, for operators. Internal: it is
+   * never part of MediaView or any other response.
+   */
+  processingError: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -6,7 +6,10 @@ import type {
   MediaStatus,
   MediaVariantsMetadata,
 } from "@/features/media/media.model";
-import type { MediaRepository } from "@/features/media/media.repository";
+import {
+  describeProcessingError,
+  type MediaRepository,
+} from "@/features/media/media.repository";
 
 /**
  * A MediaRepository with the same status-guarded transitions, held in memory,
@@ -43,6 +46,10 @@ export class InMemoryMediaRepository {
       variants: null,
       rejectionReason: null,
       processingRequeues: 0,
+      processingAttempts: 0,
+      processingStartedAt: null,
+      processingCompletedAt: null,
+      processingError: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -79,6 +86,8 @@ export class InMemoryMediaRepository {
   async claimForProcessing(id: Uuid): Promise<boolean> {
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
+      processingAttempts: (this.rows.get(id)?.processingAttempts ?? 0) + 1,
+      processingStartedAt: new Date(),
     });
   }
 
@@ -87,6 +96,13 @@ export class InMemoryMediaRepository {
       status: "ready",
       ...input,
       rejectionReason: null,
+      processingCompletedAt: new Date(),
+    });
+  }
+
+  async recordProcessingFailure(id: Uuid, error: unknown): Promise<boolean> {
+    return this.transition(id, ["uploaded", "processing"], {
+      processingError: describeProcessingError(error),
     });
   }
 
@@ -98,6 +114,7 @@ export class InMemoryMediaRepository {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
       status: "rejected",
       rejectionReason: rejectionReason.slice(0, 500),
+      processingCompletedAt: new Date(),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
   }

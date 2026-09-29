@@ -9,7 +9,10 @@ export interface MediaProcessingJobHandlerDependencies {
     MediaProcessingQueueService,
     "publishRetryJob" | "publishDeadLetterJob"
   >;
-  processing: Pick<MediaProcessingService, "process" | "markProcessingFailed">;
+  processing: Pick<
+    MediaProcessingService,
+    "process" | "recordProcessingFailure" | "markProcessingFailed"
+  >;
   maxAttempts: number;
   logger: Pick<Logger, "error">;
 }
@@ -48,6 +51,19 @@ export function createMediaProcessingJobHandler(
       };
 
       logger.error("Failed to process media processing job.", context, error);
+
+      // Best effort, like marking a dead-lettered item rejected below: the
+      // failure being recorded is often a database outage, and failing to
+      // record it must not stop the job from being handed on.
+      try {
+        await processing.recordProcessingFailure(payload.mediaId, error);
+      } catch (recordError) {
+        logger.error(
+          "Failed to record a media processing failure.",
+          context,
+          recordError,
+        );
+      }
 
       if (attempt < maxAttempts) {
         await queue.publishRetryJob(payload, attempt);

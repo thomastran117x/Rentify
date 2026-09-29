@@ -26,6 +26,10 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     height: null,
     rejectionReason: null,
     processingRequeues: 0,
+    processingAttempts: 0,
+    processingStartedAt: null,
+    processingCompletedAt: null,
+    processingError: null,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -212,6 +216,12 @@ describe("MediaRepository", () => {
       data: { status: "uploaded", sizeBytes: 42, originalEtag: '"0x8DD"' },
     });
     expect(calls[1].where.status).toEqual({ in: ["uploaded", "processing"] });
+    // Every claim is counted and timed in the same guarded update.
+    expect(calls[1].data).toEqual({
+      status: "processing",
+      processingAttempts: { increment: 1 },
+      processingStartedAt: expect.any(Date),
+    });
     expect(calls[2]).toEqual({
       where: { id: MEDIA_1_ID, status: { in: ["processing"] } },
       data: {
@@ -223,6 +233,7 @@ describe("MediaRepository", () => {
         height: 3,
         variants: VARIANTS,
         rejectionReason: null,
+        processingCompletedAt: expect.any(Date),
       },
     });
     // A ready row can never be rejected after the fact.
@@ -234,6 +245,7 @@ describe("MediaRepository", () => {
     expect(calls[4].data).toEqual({
       status: "rejected",
       rejectionReason: "bad",
+      processingCompletedAt: expect.any(Date),
     });
   });
 
@@ -347,6 +359,7 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "x".repeat(500),
+          processingCompletedAt: at,
           updatedAt: at,
         },
       },
@@ -359,6 +372,7 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "abandoned",
+          processingCompletedAt: at,
           updatedAt: at,
         },
       },
@@ -381,6 +395,30 @@ describe("MediaRepository", () => {
     await expect(
       repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck", at),
     ).resolves.toBe(false);
+  });
+
+  it("records a processing failure only on an unfinished row, cut to fit", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+
+    await expect(
+      repository.recordProcessingFailure(
+        MEDIA_1_ID,
+        new TypeError("x".repeat(2000)),
+      ),
+    ).resolves.toBe(true);
+    await repository.recordProcessingFailure(MEDIA_1_ID, "plain string");
+
+    const calls: any[] = updateMany.mock.calls.map(([args]) => args);
+    expect(calls[0].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["uploaded", "processing"] },
+    });
+    expect(calls[0].data.processingError).toHaveLength(1000);
+    expect(calls[0].data.processingError).toMatch(/^TypeError: x+$/);
+    expect(calls[1].data).toEqual({
+      processingError: "Non-error thrown: plain string",
+    });
   });
 
   it("deletes a row only while it is still in the expected status", async () => {

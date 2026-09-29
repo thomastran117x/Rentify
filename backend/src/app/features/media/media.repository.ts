@@ -86,11 +86,14 @@ export class MediaRepository extends BaseRepository {
 
   /**
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
-   * there, and the redelivered job must be able to pick it back up.
+   * there, and the redelivered job must be able to pick it back up. Every
+   * claim is counted, redeliveries included.
    */
   claimForProcessing(id: Uuid): Promise<boolean> {
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
+      processingAttempts: { increment: 1 },
+      processingStartedAt: new Date(),
     });
   }
 
@@ -104,7 +107,22 @@ export class MediaRepository extends BaseRepository {
       height: input.height,
       variants: input.variants as unknown as Prisma.InputJsonValue,
       rejectionReason: null,
+      processingCompletedAt: new Date(),
     });
+  }
+
+  /**
+   * Keeps the failure a processing job hit, for operators, while the item is
+   * still unfinished. It is overwritten by the next failure and never leaves
+   * the database through an API.
+   */
+  recordProcessingFailure(id: Uuid, error: unknown): Promise<boolean> {
+    return this.transition(
+      id,
+      ["uploaded", "processing"],
+      { processingError: describeProcessingError(error) },
+      { operationName: "recordProcessingFailure" },
+    );
   }
 
   markRejected(
@@ -337,7 +355,7 @@ export class MediaRepository extends BaseRepository {
     return this.transition(
       id,
       STUCK_STATUSES,
-      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      { ...rejection(rejectionReason, rejectedAt), updatedAt: rejectedAt },
       {
         where: { updatedAt: { lt: updatedBefore } },
         operationName: "rejectStuck",
@@ -360,7 +378,7 @@ export class MediaRepository extends BaseRepository {
     return this.transition(
       id,
       ["pending_upload"],
-      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      { ...rejection(rejectionReason, rejectedAt), updatedAt: rejectedAt },
       {
         where: { createdAt: { lt: createdBefore } },
         operationName: "rejectAbandonedUpload",
@@ -469,6 +487,10 @@ export class MediaRepository extends BaseRepository {
       variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
       processingRequeues: row.processingRequeues,
+      processingAttempts: row.processingAttempts,
+      processingStartedAt: row.processingStartedAt,
+      processingCompletedAt: row.processingCompletedAt,
+      processingError: row.processingError,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -478,11 +500,29 @@ export class MediaRepository extends BaseRepository {
 /** Every rejection, whoever records it, is stored the same way. */
 function rejection(
   rejectionReason: string,
-): Pick<Prisma.MediaUpdateManyMutationInput, "status" | "rejectionReason"> {
+  rejectedAt: Date = new Date(),
+): Pick<
+  Prisma.MediaUpdateManyMutationInput,
+  "status" | "rejectionReason" | "processingCompletedAt"
+> {
   return {
     status: "rejected",
     rejectionReason: rejectionReason.slice(0, 500),
+    processingCompletedAt: rejectedAt,
   };
+}
+
+// The processing_error column's length.
+const PROCESSING_ERROR_MAX_LENGTH = 1000;
+
+/** The error's class and message, cut to fit the column. */
+export function describeProcessingError(error: unknown): string {
+  const description =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : `Non-error thrown: ${String(error)}`;
+
+  return description.slice(0, PROCESSING_ERROR_MAX_LENGTH);
 }
 
 function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {

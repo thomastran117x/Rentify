@@ -227,6 +227,17 @@ describe("Media persistence integration", () => {
       height: 600,
       rejectionReason: null,
     });
+    // The processing record is kept on the row and never leaves it.
+    expect(ready).not.toHaveProperty("processingError");
+    expect(ready).not.toHaveProperty("processingAttempts");
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      processingAttempts: 1,
+      processingStartedAt: expect.any(Date),
+      processingCompletedAt: expect.any(Date),
+      processingError: null,
+    });
     expect(new URL(ready.url!).searchParams.get("blobName")).toBe(
       processedName,
     );

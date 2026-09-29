@@ -97,6 +97,10 @@ async function addLegacyReadyMedia(
     variants: null,
     rejectionReason: null,
     processingRequeues: 0,
+    processingAttempts: 0,
+    processingStartedAt: null,
+    processingCompletedAt: null,
+    processingError: null,
     createdAt: now,
     updatedAt: now,
   };

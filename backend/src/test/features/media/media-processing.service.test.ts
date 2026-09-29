@@ -79,6 +79,10 @@ async function quarantine(
     variants: null,
     rejectionReason: null,
     processingRequeues: 0,
+    processingAttempts: 0,
+    processingStartedAt: null,
+    processingCompletedAt: null,
+    processingError: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -848,11 +852,28 @@ describe("MediaProcessingService", () => {
     expect((await context.mediaRepository.findById(record.id))?.status).toBe(
       "processing",
     );
+    await context.service.recordProcessingFailure(
+      record.id,
+      new Error("storage unavailable"),
+    );
+    await expect(
+      context.mediaRepository.findById(record.id),
+    ).resolves.toMatchObject({
+      processingAttempts: 1,
+      processingCompletedAt: null,
+      processingError: "Error: storage unavailable",
+    });
 
     await context.service.process(record.id);
-    expect((await context.mediaRepository.findById(record.id))?.status).toBe(
-      "ready",
-    );
+    // Each claim is counted; the retry is the second.
+    await expect(
+      context.mediaRepository.findById(record.id),
+    ).resolves.toMatchObject({
+      status: "ready",
+      processingAttempts: 2,
+      processingStartedAt: expect.any(Date),
+      processingCompletedAt: expect.any(Date),
+    });
   });
 
   it("discards its output when the item was deleted mid-run", async () => {
