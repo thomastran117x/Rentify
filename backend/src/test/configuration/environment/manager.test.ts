@@ -64,6 +64,14 @@ describe("EnvironmentManager", () => {
     const environment = manager.load();
 
     expect(environment.database.url).toBe(process.env.DATABASE_URL);
+    expect(environment.cors.allowedOrigins).toEqual([
+      "http://localhost:3040",
+      "http://127.0.0.1:3040",
+    ]);
+    expect(environment.csrf.allowedOrigins).toEqual([
+      "http://localhost:3040",
+      "http://127.0.0.1:3040",
+    ]);
   });
 
   it("loads values from an optional local env file when present", () => {
