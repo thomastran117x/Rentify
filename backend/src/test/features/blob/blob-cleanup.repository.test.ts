@@ -44,6 +44,7 @@ describe("BlobCleanupRepository", () => {
           },
         ]),
       },
+      media: { findMany: jest.fn(async () => []) },
     };
     const repository = new BlobCleanupRepository(database as never);
 
@@ -127,6 +128,12 @@ describe("BlobCleanupRepository", () => {
           },
         ]),
       },
+      media: {
+        findMany: jest.fn(async () => [
+          { originalBlobName: "quarantine/images/user/waiting" },
+          { originalBlobName: "quarantine/images/user/failed" },
+        ]),
+      },
     };
     const repository = new BlobCleanupRepository(database as never);
 
@@ -143,6 +150,8 @@ describe("BlobCleanupRepository", () => {
         "postings/user/former-photo.jpg",
         "postings/user/thumbnails/former-photo.webp",
         "postings/user/replacement-photo.jpg",
+        "quarantine/images/user/waiting",
+        "quarantine/images/user/failed",
       ]),
     );
     expect(result.sourceCounts).toEqual({
@@ -151,6 +160,18 @@ describe("BlobCleanupRepository", () => {
       blogPosts: 1,
       postingPhotos: 2,
       auditSnapshots: 3,
+      mediaUploads: 2,
+    });
+    // An upload still waiting on processing, or kept by a processing failure
+    // for a replay, is the media cleanup worker's to delete, whatever its age.
+    expect(database.media.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { status: { in: ["uploaded", "processing"] } },
+          { status: "rejected", rejectionCode: "processing_failed" },
+        ],
+      },
+      select: { originalBlobName: true },
     });
     expect(database.organizationAuditLog.findMany).toHaveBeenCalledWith({
       where: {

@@ -7,10 +7,7 @@ import type {
   MediaProcessingQueueService,
 } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
-import {
-  deleteQuarantinedUpload,
-  PROCESSING_FAILED_REASON,
-} from "@/features/media/media-rejection";
+import { PROCESSING_FAILED_REASON } from "@/features/media/media-rejection";
 
 // Recorded on an abandoned upload while the cleanup deletes it. A client only
 // sees it if deleting the bytes fails and the row is kept for a later retry.
@@ -45,7 +42,8 @@ export interface MediaCleanupSummary {
  *
  * 1. an upload that was requested and never completed is deleted;
  * 2. an item waiting on a processing job that has not moved in a while is
- *    queued again, or rejected once it has been queued again too many times;
+ *    queued again, or rejected once it has been queued again too many times,
+ *    keeping its upload for a replay until step 3;
  * 3. a rejected item is deleted once its retention has passed.
  *
  * A ready item is never selected. Every change is conditional on the item
@@ -144,6 +142,7 @@ export class MediaCleanupService {
             record.id,
             createdBefore,
             ABANDONED_UPLOAD_REASON,
+            "abandoned",
             now,
           ))
         ) {
@@ -173,7 +172,9 @@ export class MediaCleanupService {
    * A lost job is replaced by claiming the row, which counts the re-queue, and
    * then publishing a new one, so only one sweep queues it. An item already
    * queued again `maxRequeues` times is rejected instead, so one that keeps
-   * failing is bounded by attempts rather than by how long it has waited.
+   * failing is bounded by attempts rather than by how long it has waited. Its
+   * upload is kept, like that of any processing failure, so it can be
+   * replayed once the cause is fixed.
    * Both are conditional on the item still being unmoved, so one a job has
    * just claimed is left to finish.
    */
@@ -204,14 +205,13 @@ export class MediaCleanupService {
             record.id,
             updatedBefore,
             PROCESSING_FAILED_REASON,
+            "processing_failed",
             now,
           )
         ) {
+          // The upload is kept, as for any processing failure, so the item
+          // can still be replayed; the purge of old rejections deletes it.
           summary.rejected += 1;
-          await deleteQuarantinedUpload(
-            { blobService: this.blobService, logger: this.logger },
-            record,
-          );
         }
         return;
       }
@@ -230,8 +230,9 @@ export class MediaCleanupService {
   }
 
   /**
-   * Rejection already deletes the upload, but only on a best-effort basis, so
-   * any leftover goes before the row does. An item whose upload cannot be
+   * Rejection deletes the upload, but only on a best-effort basis, and keeps
+   * it on purpose for a processing failure, so any leftover goes before the
+   * row does. An item whose upload cannot be
    * deleted is moved to the back of the purge order, so it cannot hold up
    * newer ones by staying the oldest.
    */

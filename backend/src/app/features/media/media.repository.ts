@@ -6,6 +6,7 @@ import type {
   ImageRenditionInfo,
   MarkMediaReadyInput,
   MediaRecord,
+  MediaRejectionCode,
   MediaStatus,
   MediaVariantsMetadata,
   RecordedRenditions,
@@ -86,11 +87,14 @@ export class MediaRepository extends BaseRepository {
 
   /**
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
-   * there, and the redelivered job must be able to pick it back up.
+   * there, and the redelivered job must be able to pick it back up. Every
+   * claim is counted, redeliveries included.
    */
   claimForProcessing(id: Uuid): Promise<boolean> {
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
+      processingAttempts: { increment: 1 },
+      processingStartedAt: new Date(),
     });
   }
 
@@ -104,16 +108,33 @@ export class MediaRepository extends BaseRepository {
       height: input.height,
       variants: input.variants as unknown as Prisma.InputJsonValue,
       rejectionReason: null,
+      rejectionCode: null,
+      processingCompletedAt: new Date(),
     });
+  }
+
+  /**
+   * Keeps the failure a processing job hit, for operators, while the item is
+   * still unfinished. It is overwritten by the next failure and never leaves
+   * the database through an API.
+   */
+  recordProcessingFailure(id: Uuid, error: unknown): Promise<boolean> {
+    return this.transition(
+      id,
+      ["uploaded", "processing"],
+      { processingError: describeProcessingError(error) },
+      { operationName: "recordProcessingFailure" },
+    );
   }
 
   markRejected(
     id: Uuid,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
-      ...rejection(rejectionReason),
+      ...rejection(rejectionReason, rejectionCode),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
   }
@@ -332,12 +353,16 @@ export class MediaRepository extends BaseRepository {
     id: Uuid,
     updatedBefore: Date,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     rejectedAt: Date,
   ): Promise<boolean> {
     return this.transition(
       id,
       STUCK_STATUSES,
-      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      {
+        ...rejection(rejectionReason, rejectionCode, rejectedAt),
+        updatedAt: rejectedAt,
+      },
       {
         where: { updatedAt: { lt: updatedBefore } },
         operationName: "rejectStuck",
@@ -355,12 +380,16 @@ export class MediaRepository extends BaseRepository {
     id: Uuid,
     createdBefore: Date,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     rejectedAt: Date,
   ): Promise<boolean> {
     return this.transition(
       id,
       ["pending_upload"],
-      { ...rejection(rejectionReason), updatedAt: rejectedAt },
+      {
+        ...rejection(rejectionReason, rejectionCode, rejectedAt),
+        updatedAt: rejectedAt,
+      },
       {
         where: { createdAt: { lt: createdBefore } },
         operationName: "rejectAbandonedUpload",
@@ -385,6 +414,87 @@ export class MediaRepository extends BaseRepository {
       {
         where: { updatedAt: { lt: updatedBefore } },
         operationName: "deferRejectedPurge",
+      },
+    );
+  }
+
+  /**
+   * Returns an item rejected because processing kept failing to `uploaded`,
+   * so a replayed job can claim it, with a fresh re-queue budget for the media
+   * cleanup. Applies only while it is still rejected with `processing_failed`
+   * and was rejected after `rejectedAfter`. The caller passes the start of the
+   * rejected retention, so an item the cleanup may be purging right now is
+   * never reopened. An item deleted, purged, or rejected for any other reason
+   * meanwhile is left alone, and the caller learns it lost.
+   */
+  reopenForReplay(id: Uuid, rejectedAfter: Date): Promise<boolean> {
+    return this.transition(
+      id,
+      ["rejected"],
+      {
+        status: "uploaded",
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: null,
+        processingRequeues: 0,
+      },
+      {
+        where: {
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+        },
+        operationName: "reopenForReplay",
+      },
+    );
+  }
+
+  /**
+   * Items rejected as `processing_failed` after `rejectedAfter`, in id order
+   * after `afterId`, for a replay driven by the database rather than the
+   * dead-letter queue.
+   */
+  async listReplayableRejections(
+    rejectedAfter: Date,
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    const rows = await this.executeAsync(
+      () =>
+        this.prisma.media.findMany({
+          where: {
+            status: "rejected",
+            rejectionCode: "processing_failed",
+            updatedAt: { gt: rejectedAfter },
+            ...(afterId ? { id: { gt: afterId } } : {}),
+          },
+          orderBy: { id: "asc" },
+          take: limit,
+        }),
+      { operationName: "listReplayableRejections" },
+    );
+
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  /**
+   * Claims an unfinished item for a dead-letter replay: moves its `updatedAt`
+   * to `claimedAt`, only while it has not moved since `deadLetteredAt`. The
+   * first replay of the item's job wins. A second replay, a duplicate message,
+   * a job the media cleanup queued again, or a worker that picked it up
+   * meanwhile has moved it, and is left to finish.
+   */
+  claimForReplay(
+    id: Uuid,
+    deadLetteredAt: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { updatedAt: claimedAt },
+      {
+        where: { updatedAt: { lte: deadLetteredAt } },
+        operationName: "claimForReplay",
       },
     );
   }
@@ -468,7 +578,12 @@ export class MediaRepository extends BaseRepository {
       height: row.height,
       variants: parseMediaVariants(row.variants),
       rejectionReason: row.rejectionReason,
+      rejectionCode: row.rejectionCode,
       processingRequeues: row.processingRequeues,
+      processingAttempts: row.processingAttempts,
+      processingStartedAt: row.processingStartedAt,
+      processingCompletedAt: row.processingCompletedAt,
+      processingError: row.processingError,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -478,11 +593,31 @@ export class MediaRepository extends BaseRepository {
 /** Every rejection, whoever records it, is stored the same way. */
 function rejection(
   rejectionReason: string,
-): Pick<Prisma.MediaUpdateManyMutationInput, "status" | "rejectionReason"> {
+  rejectionCode: MediaRejectionCode,
+  rejectedAt: Date = new Date(),
+): Pick<
+  Prisma.MediaUpdateManyMutationInput,
+  "status" | "rejectionReason" | "rejectionCode" | "processingCompletedAt"
+> {
   return {
     status: "rejected",
     rejectionReason: rejectionReason.slice(0, 500),
+    rejectionCode,
+    processingCompletedAt: rejectedAt,
   };
+}
+
+// The processing_error column's length.
+const PROCESSING_ERROR_MAX_LENGTH = 1000;
+
+/** The error's class and message, cut to fit the column. */
+export function describeProcessingError(error: unknown): string {
+  const description =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : `Non-error thrown: ${String(error)}`;
+
+  return description.slice(0, PROCESSING_ERROR_MAX_LENGTH);
 }
 
 function parseRenditionInfo(value: unknown): ImageRenditionInfo | null {

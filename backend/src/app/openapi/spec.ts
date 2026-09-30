@@ -513,6 +513,7 @@ const mediaViewPendingExample = {
   height: null,
   variants: null,
   rejectionReason: null,
+  rejectionCode: null,
   createdAt: "2026-05-25T18:15:00.000Z",
   updatedAt: "2026-05-25T18:15:00.000Z",
 };
@@ -4458,7 +4459,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createMediaUpload",
       summary: "Start an image upload",
       description:
-        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413.",
+        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413. Those refusals carry the matching `MediaRejectionCode` in `error.details.rejectionCode`.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4499,7 +4500,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeMediaUpload",
       summary: "Report an image upload as finished",
       description:
-        "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. The blob's ETag is recorded with its length, and processing only accepts those exact bytes: writing the upload again after this call, even with identical content, gets the media rejected. Returns 409 when no bytes have been uploaded yet, 413 when the upload is over the limit, and 422 when it is empty (in both of those cases the media is then rejected). Calling it again after the first success returns the current state.",
+        "Confirms the uploaded bytes exist, checks their stored length against the size limit, moves the media to `uploaded`, and queues it for processing. Processing decodes and validates the image and re-encodes it to WebP; poll `GET /media/{id}` until the status is `ready` or `rejected`. The blob's ETag is recorded with its length, and processing only accepts those exact bytes: writing the upload again after this call, even with identical content, gets the media rejected. Returns 409 when no bytes have been uploaded yet, 413 when the upload is over the limit, and 422 when it is empty (in both of those cases the media is then rejected, and `error.details.rejectionCode` is `too_large` or `empty`, as the media's `rejectionCode` then is). Calling it again after the first success returns the current state.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4524,7 +4525,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getMedia",
       summary: "Get an uploaded image's processing state",
       description:
-        "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`. Media belonging to anyone else is reported as 404.",
+        "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`, in words, and `rejectionCode`, for clients to branch on. Media belonging to anyone else is reported as 404.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -10728,7 +10729,25 @@ function buildComponents(): Record<string, unknown> {
         type: "string",
         enum: ["pending_upload", "uploaded", "processing", "ready", "rejected"],
         description:
-          "pending_upload: awaiting the client's PUT. uploaded: queued for processing. processing: being validated and re-encoded. ready: `url` addresses the processed image. rejected: see `rejectionReason`.",
+          "pending_upload: awaiting the client's PUT. uploaded: queued for processing. processing: being validated and re-encoded. ready: `url` addresses the processed image. rejected: see `rejectionReason` and `rejectionCode`.",
+      },
+      MediaRejectionCode: {
+        type: "string",
+        enum: [
+          "empty",
+          "too_large",
+          "unsupported_type",
+          "type_mismatch",
+          "dimensions",
+          "corrupt",
+          "animated",
+          "upload_changed",
+          "missing_upload",
+          "processing_failed",
+          "abandoned",
+        ],
+        description:
+          "Why a media item was rejected. empty, too_large: the upload's length is outside the policy. unsupported_type: the declared type is not accepted. type_mismatch: the bytes are not the declared image format. dimensions: the image is too large, or its size cannot be read. corrupt: the bytes do not decode as an image. animated: the image has more than one frame or page. upload_changed: the upload was written again after it was completed. missing_upload: the upload was gone when it was processed. processing_failed: processing kept failing, which is not the image's fault; an operator may replay it. abandoned: the upload was never completed. More codes may be added; treat an unknown one like `corrupt`.",
       },
       MediaView: {
         type: "object",
@@ -10743,6 +10762,7 @@ function buildComponents(): Record<string, unknown> {
           "height",
           "variants",
           "rejectionReason",
+          "rejectionCode",
           "createdAt",
           "updatedAt",
         ],
@@ -10770,6 +10790,11 @@ function buildComponents(): Record<string, unknown> {
             "The processed image's renditions, once they are recorded. Null until then, including for an image processed before renditions existed that the backfill has not reached yet; `url` still serves it.",
           ),
           rejectionReason: { type: "string", nullable: true },
+          rejectionCode: {
+            oneOf: [schemaRef("MediaRejectionCode"), { type: "null" }],
+            description:
+              "Set when the status is `rejected`. Null for items rejected before codes were recorded.",
+          },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },

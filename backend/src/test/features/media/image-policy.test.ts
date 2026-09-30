@@ -6,6 +6,7 @@ import {
   formatByteLimit,
   isImagePolicyRejection,
   normalizeImageContentType,
+  rejectionCodeOf,
 } from "@/features/media/image-policy";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
@@ -114,6 +115,7 @@ describe("normalizeImageContentType", () => {
     expect(error?.details).toEqual({
       allowedContentTypes: ["image/png", "image/webp"],
       received: "application/pdf",
+      rejectionCode: "unsupported_type",
     });
   });
 });
@@ -281,7 +283,10 @@ describe("assertImageBytes", () => {
     expect((error as UnprocessableEntityError).message).toBe(
       "Animated or multi-page images are not supported.",
     );
-    expect((error as UnprocessableEntityError).details).toEqual({ pages: 3 });
+    expect((error as UnprocessableEntityError).details).toEqual({
+      pages: 3,
+      rejectionCode: "animated",
+    });
     expect(isImagePolicyRejection(error)).toBe(true);
   });
 
@@ -387,5 +392,72 @@ describe("isImagePolicyRejection", () => {
       false,
     );
     expect(isImagePolicyRejection("nope")).toBe(false);
+  });
+});
+
+describe("rejection codes", () => {
+  async function codeOf(check: () => unknown): Promise<string> {
+    try {
+      await check();
+    } catch (error) {
+      expect(isImagePolicyRejection(error)).toBe(true);
+      return rejectionCodeOf(error as UnprocessableEntityError);
+    }
+
+    throw new Error("The check did not refuse.");
+  }
+
+  it("names one on every refusal", async () => {
+    process.env.ALLOWED_IMAGE_TYPES = "image/png,image/webp";
+    process.env.MAX_IMAGE_SIZE_BYTES = "1024";
+    process.env.MAX_IMAGE_WIDTH = "16";
+
+    await expect(
+      codeOf(() => normalizeImageContentType("image/jpeg")),
+    ).resolves.toBe("unsupported_type");
+    await expect(codeOf(() => assertImageSizeWithinLimit(2048))).resolves.toBe(
+      "too_large",
+    );
+    await expect(codeOf(() => assertImageSizeWithinLimit(-1))).resolves.toBe(
+      "corrupt",
+    );
+    await expect(codeOf(() => assertImageNotEmpty(0))).resolves.toBe("empty");
+    await expect(
+      codeOf(() => assertImageBytes(Buffer.from("nope"), "image/png")),
+    ).resolves.toBe("corrupt");
+    await expect(
+      codeOf(async () =>
+        assertImageBytes(await createWebpFixture(), "image/png"),
+      ),
+    ).resolves.toBe("type_mismatch");
+    await expect(
+      codeOf(async () =>
+        assertImageBytes(await createAnimatedWebpFixture(2), "image/webp"),
+      ),
+    ).resolves.toBe("animated");
+    await expect(
+      codeOf(async () =>
+        assertImageBytes(await createPngFixture(32, 8), "image/png"),
+      ),
+    ).resolves.toBe("dimensions");
+    await expect(
+      codeOf(async () =>
+        assertImageBytes(
+          truncateImage(await createPngFixture(12, 12)),
+          "image/png",
+        ),
+      ),
+    ).resolves.toBe("corrupt");
+  });
+
+  it("counts a refusal without a recognised code as undecodable", () => {
+    expect(rejectionCodeOf(new UnprocessableEntityError("Bare."))).toBe(
+      "corrupt",
+    );
+    expect(
+      rejectionCodeOf(
+        new PayloadTooLargeError("Unknown.", { rejectionCode: "unheard_of" }),
+      ),
+    ).toBe("corrupt");
   });
 });

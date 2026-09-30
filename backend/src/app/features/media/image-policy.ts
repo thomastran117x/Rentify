@@ -9,6 +9,10 @@ import { environment } from "@/configuration/environment/index";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import UnprocessableEntityError from "@/errors/http/unprocessable-entity.error";
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
+import {
+  MEDIA_REJECTION_CODES,
+  type MediaRejectionCode,
+} from "@/features/media/media.model";
 
 // Duplicated from blob.service.ts rather than shared: that module still needs
 // the pattern to sanitize stored metadata, and a two-line regex is cheaper to
@@ -76,15 +80,27 @@ export function formatByteLimit(bytes: number): string {
   return `${bytes} bytes`;
 }
 
+/**
+ * Every refusal names its rejection code in `details.rejectionCode`, so a
+ * rejected media row can record it and a client given the error directly can
+ * branch on it without parsing the message.
+ */
+function withRejectionCode(
+  rejectionCode: MediaRejectionCode,
+  details: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return { ...details, rejectionCode };
+}
+
 function unsupportedMediaType(received: string): UnsupportedMediaTypeError {
   const { allowedContentTypes } = environment.getImageUploadsConfig();
 
   return new UnsupportedMediaTypeError(
     `Only ${describeAllowedFormats(allowedContentTypes)} images can be uploaded.`,
-    {
+    withRejectionCode("unsupported_type", {
       allowedContentTypes,
       received,
-    },
+    }),
   );
 }
 
@@ -138,14 +154,19 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
   const { maxSizeBytes } = environment.getImageUploadsConfig();
 
   if (!Number.isFinite(sizeBytes) || sizeBytes < 0) {
-    throw new UnprocessableEntityError("Image size is invalid.");
+    // Only reachable from a size a client declares; a stored blob's length is
+    // always a valid count.
+    throw new UnprocessableEntityError(
+      "Image size is invalid.",
+      withRejectionCode("corrupt"),
+    );
   }
 
   if (sizeBytes > maxSizeBytes) {
-    throw new PayloadTooLargeError(describeImageSizeLimit(), {
-      sizeBytes,
-      maxSizeBytes,
-    });
+    throw new PayloadTooLargeError(
+      describeImageSizeLimit(),
+      withRejectionCode("too_large", { sizeBytes, maxSizeBytes }),
+    );
   }
 }
 
@@ -157,7 +178,10 @@ export function assertImageSizeWithinLimit(sizeBytes: number): void {
  */
 export function assertImageNotEmpty(sizeBytes: number): void {
   if (sizeBytes === 0) {
-    throw new UnprocessableEntityError("The uploaded file is empty.");
+    throw new UnprocessableEntityError(
+      "The uploaded file is empty.",
+      withRejectionCode("empty"),
+    );
   }
 }
 
@@ -207,6 +231,7 @@ export async function assertImageBytes(
   } catch {
     throw new UnsupportedMediaTypeError(
       "Uploaded file could not be read as an image.",
+      withRejectionCode("corrupt"),
     );
   }
 
@@ -217,11 +242,11 @@ export async function assertImageBytes(
   if (!detected || detected !== declaredContentType) {
     throw new UnsupportedMediaTypeError(
       "Uploaded file contents do not match the declared image type.",
-      {
+      withRejectionCode("type_mismatch", {
         declared: declaredContentType,
         detected: metadata.format ?? "unknown",
         supportedContentTypes: [...SUPPORTED_IMAGE_CONTENT_TYPES],
-      },
+      }),
     );
   }
 
@@ -232,7 +257,7 @@ export async function assertImageBytes(
   if (pages > 1) {
     throw new UnprocessableEntityError(
       "Animated or multi-page images are not supported.",
-      { pages },
+      withRejectionCode("animated", { pages }),
     );
   }
 
@@ -242,6 +267,7 @@ export async function assertImageBytes(
   if (width < 1 || height < 1) {
     throw new UnprocessableEntityError(
       "Image dimensions could not be determined.",
+      withRejectionCode("dimensions"),
     );
   }
 
@@ -252,13 +278,13 @@ export async function assertImageBytes(
   ) {
     throw new UnprocessableEntityError(
       "Image dimensions exceed the allowed maximum.",
-      {
+      withRejectionCode("dimensions", {
         width,
         height,
         maxWidth: policy.maxWidth,
         maxHeight: policy.maxHeight,
         maxPixels: policy.maxPixels,
-      },
+      }),
     );
   }
 
@@ -272,6 +298,7 @@ export async function assertImageBytes(
   } catch {
     throw new UnsupportedMediaTypeError(
       "Uploaded image data is truncated or corrupt.",
+      withRejectionCode("corrupt"),
     );
   }
 
@@ -295,4 +322,30 @@ export function isImagePolicyRejection(
     error instanceof UnprocessableEntityError ||
     error instanceof PayloadTooLargeError
   );
+}
+
+/**
+ * The rejection code an image policy refusal names. A refusal without one
+ * cannot come from this module, so it counts as undecodable.
+ */
+export function rejectionCodeOf(
+  error:
+    | UnsupportedMediaTypeError
+    | UnprocessableEntityError
+    | PayloadTooLargeError,
+): MediaRejectionCode {
+  const details = error.details;
+
+  if (details && typeof details === "object" && "rejectionCode" in details) {
+    const { rejectionCode } = details as { rejectionCode: unknown };
+
+    if (
+      typeof rejectionCode === "string" &&
+      (MEDIA_REJECTION_CODES as readonly string[]).includes(rejectionCode)
+    ) {
+      return rejectionCode as MediaRejectionCode;
+    }
+  }
+
+  return "corrupt";
 }

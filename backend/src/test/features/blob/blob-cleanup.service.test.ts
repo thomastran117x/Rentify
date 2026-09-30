@@ -15,6 +15,7 @@ const EMPTY_SOURCE_COUNTS = {
   blogPosts: 0,
   postingPhotos: 0,
   auditSnapshots: 0,
+  mediaUploads: 0,
 };
 
 function createStorage(
@@ -47,6 +48,7 @@ describe("BlobCleanupService", () => {
           blogPosts: 0,
           postingPhotos: 0,
           auditSnapshots: 0,
+          mediaUploads: 0,
         },
       })),
     };
@@ -182,6 +184,7 @@ describe("BlobCleanupService", () => {
       organizationBlogPost: emptyTable,
       postingPhoto: emptyTable,
       organizationAuditLog: emptyTable,
+      media: emptyTable,
     } as never);
     const inventory = [live, orphan].flatMap((base) =>
       [".webp", ".medium.webp", ".thumbnail.webp"].map((suffix) => ({
@@ -204,6 +207,39 @@ describe("BlobCleanupService", () => {
       `${orphan}.webp`,
       `${orphan}.medium.webp`,
       `${orphan}.thumbnail.webp`,
+    ]);
+  });
+
+  it("never offers an old upload that media processing may still need", async () => {
+    const kept = "quarantine/images/owner-1/failed";
+    const abandoned = "quarantine/images/owner-1/abandoned";
+    const emptyTable = { findMany: jest.fn(async () => []) };
+    const repository = new BlobCleanupRepository({
+      profile: emptyTable,
+      organization: emptyTable,
+      organizationBlogPost: emptyTable,
+      postingPhoto: emptyTable,
+      organizationAuditLog: emptyTable,
+      // A processing failure keeps its upload for a replay.
+      media: { findMany: jest.fn(async () => [{ originalBlobName: kept }]) },
+    } as never);
+    const service = new BlobCleanupService(
+      repository,
+      createStorage(
+        [kept, abandoned].map((name) => ({
+          name,
+          contentType: "image/png",
+          lastModified: OLD,
+          contentLength: 1,
+        })),
+      ),
+      () => NOW,
+    );
+
+    const result = await service.run(false);
+
+    expect(result.candidates.map((candidate) => candidate.blobName)).toEqual([
+      abandoned,
     ]);
   });
 

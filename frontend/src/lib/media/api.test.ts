@@ -29,6 +29,7 @@ function mediaView(overrides: Partial<MediaView> = {}): MediaView {
     height: null,
     variants: null,
     rejectionReason: null,
+    rejectionCode: null,
     createdAt: "2026-09-19T12:00:00.000Z",
     updatedAt: "2026-09-19T12:00:00.000Z",
     ...overrides,
@@ -222,6 +223,7 @@ describe("uploadImage", () => {
       mediaView({
         status: "rejected",
         rejectionReason: "Uploaded file could not be read as an image.",
+        rejectionCode: "corrupt",
       }),
     ]);
 

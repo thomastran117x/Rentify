@@ -226,6 +226,18 @@ describe("Media persistence integration", () => {
       width: 1000,
       height: 600,
       rejectionReason: null,
+      rejectionCode: null,
+    });
+    // The processing record is kept on the row and never leaves it.
+    expect(ready).not.toHaveProperty("processingError");
+    expect(ready).not.toHaveProperty("processingAttempts");
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      processingAttempts: 1,
+      processingStartedAt: expect.any(Date),
+      processingCompletedAt: expect.any(Date),
+      processingError: null,
     });
     expect(new URL(ready.url!).searchParams.get("blobName")).toBe(
       processedName,
@@ -289,6 +301,7 @@ describe("Media persistence integration", () => {
         status: "rejected",
         url: null,
         rejectionReason: "Uploaded file could not be read as an image.",
+        rejectionCode: "corrupt",
       },
     });
   });
@@ -329,6 +342,7 @@ describe("Media persistence integration", () => {
         status: "rejected",
         url: null,
         rejectionReason: "The upload changed after it was completed.",
+        rejectionCode: "upload_changed",
       },
     });
     expect(
@@ -358,12 +372,14 @@ describe("Media persistence integration", () => {
     await expect(completed.json()).resolves.toMatchObject({
       success: false,
       message: "The uploaded file is empty.",
+      error: { details: { rejectionCode: "empty" } },
     });
     await expect(
       persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
     ).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "The uploaded file is empty.",
+      rejectionCode: "empty",
       originalEtag: null,
     });
     expect(persistenceApp.stubs.blobService.storage.has(quarantinedName)).toBe(

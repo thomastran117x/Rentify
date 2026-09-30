@@ -3,10 +3,14 @@ import type {
   CreateMediaRecordInput,
   MarkMediaReadyInput,
   MediaRecord,
+  MediaRejectionCode,
   MediaStatus,
   MediaVariantsMetadata,
 } from "@/features/media/media.model";
-import type { MediaRepository } from "@/features/media/media.repository";
+import {
+  describeProcessingError,
+  type MediaRepository,
+} from "@/features/media/media.repository";
 
 /**
  * A MediaRepository with the same status-guarded transitions, held in memory,
@@ -42,7 +46,12 @@ export class InMemoryMediaRepository {
       height: null,
       variants: null,
       rejectionReason: null,
+      rejectionCode: null,
       processingRequeues: 0,
+      processingAttempts: 0,
+      processingStartedAt: null,
+      processingCompletedAt: null,
+      processingError: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -79,6 +88,8 @@ export class InMemoryMediaRepository {
   async claimForProcessing(id: Uuid): Promise<boolean> {
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
+      processingAttempts: (this.rows.get(id)?.processingAttempts ?? 0) + 1,
+      processingStartedAt: new Date(),
     });
   }
 
@@ -87,19 +98,86 @@ export class InMemoryMediaRepository {
       status: "ready",
       ...input,
       rejectionReason: null,
+      rejectionCode: null,
+      processingCompletedAt: new Date(),
+    });
+  }
+
+  async recordProcessingFailure(id: Uuid, error: unknown): Promise<boolean> {
+    return this.transition(id, ["uploaded", "processing"], {
+      processingError: describeProcessingError(error),
     });
   }
 
   async markRejected(
     id: Uuid,
     rejectionReason: string,
+    rejectionCode: MediaRejectionCode,
     detectedContentType?: string,
   ): Promise<boolean> {
     return this.transition(id, ["pending_upload", "uploaded", "processing"], {
       status: "rejected",
       rejectionReason: rejectionReason.slice(0, 500),
+      rejectionCode,
+      processingCompletedAt: new Date(),
       ...(detectedContentType ? { detectedContentType } : {}),
     });
+  }
+
+  async reopenForReplay(id: Uuid, rejectedAfter: Date): Promise<boolean> {
+    const record = this.rows.get(id);
+
+    if (
+      record?.rejectionCode !== "processing_failed" ||
+      record.updatedAt.getTime() <= rejectedAfter.getTime()
+    ) {
+      return false;
+    }
+
+    return this.transition(id, ["rejected"], {
+      status: "uploaded",
+      rejectionReason: null,
+      rejectionCode: null,
+      processingCompletedAt: null,
+      processingRequeues: 0,
+    });
+  }
+
+  async listReplayableRejections(
+    rejectedAfter: Date,
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    return [...this.rows.values()]
+      .filter(
+        (record) =>
+          record.status === "rejected" &&
+          record.rejectionCode === "processing_failed" &&
+          record.updatedAt.getTime() > rejectedAfter.getTime() &&
+          (afterId === null || record.id > afterId),
+      )
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .slice(0, limit)
+      .map((record) => ({ ...record }));
+  }
+
+  async claimForReplay(
+    id: Uuid,
+    deadLetteredAt: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    const record = this.rows.get(id);
+
+    if (
+      !record ||
+      !["uploaded", "processing"].includes(record.status) ||
+      record.updatedAt.getTime() > deadLetteredAt.getTime()
+    ) {
+      return false;
+    }
+
+    this.rows.set(id, { ...record, updatedAt: claimedAt });
+    return true;
   }
 
   async recordProcessingProgress(id: Uuid): Promise<boolean> {

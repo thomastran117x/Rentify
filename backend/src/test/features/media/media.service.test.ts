@@ -409,6 +409,7 @@ describe("MediaService", () => {
       expect(await mediaRepository.findById(mediaId)).toMatchObject({
         status: "rejected",
         rejectionReason: "Images must be 32 bytes or smaller.",
+        rejectionCode: "too_large",
       });
       await expect(
         blobService.readLocalBlob(record.originalBlobName),
@@ -468,6 +469,7 @@ describe("MediaService", () => {
       expect(await mediaRepository.findById(mediaId)).toMatchObject({
         status: "rejected",
         rejectionReason: "The uploaded file is empty.",
+        rejectionCode: "empty",
       });
       await expect(
         blobService.readLocalBlob(record.originalBlobName),
@@ -540,6 +542,44 @@ describe("MediaService", () => {
       await expect(
         mediaService.getMediaView(USER_1_ID, mediaId),
       ).resolves.toMatchObject({ id: mediaId });
+    });
+
+    it("exposes the rejection code but never the internal processing record", async () => {
+      const { mediaService, mediaRepository } = createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      mediaRepository.put({
+        ...record,
+        status: "rejected",
+        rejectionReason: "The image could not be processed.",
+        rejectionCode: "processing_failed",
+        processingAttempts: 5,
+        processingError: "Error: connect ECONNREFUSED 10.0.0.4:3306",
+      });
+
+      const view = await mediaService.getMediaView(USER_1_ID, mediaId);
+
+      expect(view).toMatchObject({
+        status: "rejected",
+        rejectionReason: "The image could not be processed.",
+        rejectionCode: "processing_failed",
+      });
+      expect(Object.keys(view).sort()).toEqual([
+        "contentType",
+        "createdAt",
+        "height",
+        "id",
+        "rejectionCode",
+        "rejectionReason",
+        "scope",
+        "sizeBytes",
+        "status",
+        "updatedAt",
+        "url",
+        "variants",
+        "width",
+      ]);
+      expect(JSON.stringify(view)).not.toContain("ECONNREFUSED");
     });
 
     it("exposes a URL only for the processed image of a ready media", async () => {

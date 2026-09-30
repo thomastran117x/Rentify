@@ -119,7 +119,9 @@ docker compose run --rm --build blob-cleanup --delete
 The cleanup keeps images referenced by the current MySQL database, including
 restorable organization-logo and posting-photo history. Only unreferenced
 `image/*` blobs and quarantined uploads that have been unchanged for at least
-24 hours are eligible. With `--delete`, the media records of deleted blobs are
+24 hours are eligible. An upload still waiting on processing, or one a
+processing failure keeps for a dead-letter replay, is never eligible: the
+`media-cleanup-worker` decides when it goes. With `--delete`, the media records of deleted blobs are
 removed too. Always review the preview before using `--delete`.
 
 Unfinished media uploads and old rejections do not need this command: the
@@ -136,6 +138,19 @@ docker compose run --rm --build media-variants-backfill
 ```
 
 See [the backfill runbook](./docs/media-variants-backfill.md).
+
+Media processing dead-letter replay (writes unless given `--dry-run`; run it
+once the outage that dead-lettered jobs is over):
+
+```bash
+docker compose run --rm --build media-dead-letter-replay --dry-run
+docker compose run --rm --build media-dead-letter-replay
+```
+
+Add `--from-database` to also replay processing failures that never reached the
+dead-letter queue.
+
+See [the dead-letter runbook](backend/src/app/workers/media/README.md#dead-letter-runbook).
 
 ## API Contract
 

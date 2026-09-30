@@ -17,6 +17,7 @@ function payload(attempt: number): MediaProcessingJobPayload {
 
 function createHarness(options: {
   process?: () => Promise<void>;
+  recordProcessingFailure?: () => Promise<void>;
   markProcessingFailed?: () => Promise<void>;
   publishDeadLetterJob?: () => Promise<void>;
 }) {
@@ -32,6 +33,10 @@ function createHarness(options: {
   };
   const processing = {
     process: jest.fn(options.process ?? (async () => undefined)),
+    recordProcessingFailure: jest.fn(
+      async (_mediaId: string, _error: unknown): Promise<void> =>
+        options.recordProcessingFailure?.(),
+    ),
     markProcessingFailed: jest.fn(
       options.markProcessingFailed ?? (async () => undefined),
     ),
@@ -77,6 +82,47 @@ describe("createMediaProcessingJobHandler", () => {
     expect(queue.publishDeadLetterJob).not.toHaveBeenCalled();
     expect(processing.markProcessingFailed).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledTimes(1);
+  });
+
+  it("records the failure before the job is retried", async () => {
+    const { handle, channel, message, queue, processing } = createHarness({
+      process: failing,
+    });
+
+    await handle(payload(0), message, channel);
+
+    expect(processing.recordProcessingFailure).toHaveBeenCalledWith(
+      MEDIA_ID,
+      expect.objectContaining({ message: "database unavailable" }),
+    );
+    expect(
+      processing.recordProcessingFailure.mock.invocationCallOrder[0],
+    ).toBeLessThan(queue.publishRetryJob.mock.invocationCallOrder[0]!);
+  });
+
+  it("still retries and dead-letters when the failure cannot be recorded", async () => {
+    const { handle, channel, message, queue, processing, logger } =
+      createHarness({
+        process: failing,
+        recordProcessingFailure: async () => {
+          throw new Error("record failed");
+        },
+      });
+
+    await handle(payload(0), message, channel);
+    await handle(payload(MAX_ATTEMPTS - 1), message, channel);
+
+    expect(queue.publishRetryJob).toHaveBeenCalledWith(payload(0), 1);
+    expect(queue.publishDeadLetterJob).toHaveBeenCalledWith(
+      payload(MAX_ATTEMPTS),
+    );
+    expect(processing.markProcessingFailed).toHaveBeenCalledWith(MEDIA_ID);
+    expect(channel.ack).toHaveBeenCalledTimes(2);
+    expect(logger.error).toHaveBeenCalledWith(
+      "Failed to record a media processing failure.",
+      { jobId: "job-1", mediaId: MEDIA_ID, attempt: 1 },
+      expect.objectContaining({ message: "record failed" }),
+    );
   });
 
   it("dead-letters the last attempt and rejects the item", async () => {

@@ -242,6 +242,11 @@ for what each step does.
 | `maxRequeues`         | `3`        | `MEDIA_CLEANUP_MAX_REQUEUES`          | Re-queues after which a stuck item is rejected instead          |
 | `rejectedRetentionMs` | `86400000` | `MEDIA_CLEANUP_REJECTED_RETENTION_MS` | Time a rejected item is kept, so its client can read the reason |
 
+A `processing_failed` item keeps its quarantined upload for the whole
+`rejectedRetentionMs`, which bounds how late its dead-lettered job can be
+replayed; see the
+[dead-letter runbook](../backend/src/app/workers/media/README.md#dead-letter-runbook).
+
 Every value must be a positive integer, except `maxRequeues`, which may be `0`
 to reject a stuck item without queuing it again. A sweep that did work is followed by
 another at once, so a backlog drains without waiting for the poll interval.

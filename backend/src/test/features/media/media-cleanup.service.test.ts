@@ -42,7 +42,12 @@ function record(
     height: null,
     variants: null,
     rejectionReason: null,
+    rejectionCode: null,
     processingRequeues: 0,
+    processingAttempts: 0,
+    processingStartedAt: null,
+    processingCompletedAt: null,
+    processingError: null,
     createdAt: new Date(NOW.getTime() - HOUR_MS),
     updatedAt: new Date(NOW.getTime() - HOUR_MS),
     ...overrides,
@@ -148,6 +153,7 @@ describe("MediaCleanupService", () => {
       abandoned.id,
       ago(24 * HOUR_MS),
       "The upload was never completed.",
+      "abandoned",
       NOW,
     );
     expect(blobService.deleteBlob).toHaveBeenCalledWith(
@@ -254,7 +260,7 @@ describe("MediaCleanupService", () => {
     expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
   });
 
-  it("rejects a stuck item once it has used its re-queues, and deletes its upload", async () => {
+  it("rejects a stuck item once it has used its re-queues, and keeps its upload for a replay", async () => {
     const exhausted = record("processing", { processingRequeues: 3 });
     const { mediaRepository, blobService, queue, service } = createContext({
       stuck: [exhausted],
@@ -268,11 +274,11 @@ describe("MediaCleanupService", () => {
       exhausted.id,
       ago(STUCK_THRESHOLD_MS),
       "The image could not be processed.",
+      "processing_failed",
       NOW,
     );
-    expect(blobService.deleteBlob).toHaveBeenCalledWith(
-      exhausted.originalBlobName,
-    );
+    // Purged with the row once the rejected retention has passed.
+    expect(blobService.deleteBlob).not.toHaveBeenCalled();
     expect(mediaRepository.claimStuckForRequeue).not.toHaveBeenCalled();
     expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
   });
@@ -408,6 +414,7 @@ describe("MediaCleanupService", () => {
       failingUpload.id,
       expect.any(Date),
       expect.any(String),
+      "abandoned",
       NOW,
     );
     expect(mediaRepository.deleteByIdIfStatus).not.toHaveBeenCalledWith(

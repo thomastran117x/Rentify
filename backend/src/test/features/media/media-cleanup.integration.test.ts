@@ -190,8 +190,10 @@ describe("Media cleanup persistence integration", () => {
     await expect(findMedia(exhausted.id)).resolves.toMatchObject({
       status: "rejected",
       rejectionReason: "The image could not be processed.",
+      rejectionCode: "processing_failed",
     });
-    expect(storage.has(exhausted.originalBlobName)).toBe(false);
+    // Kept for a replay until the rejected retention has passed.
+    expect(storage.has(exhausted.originalBlobName)).toBe(true);
 
     await expect(findMedia(oldRejected.id)).resolves.toBeNull();
     expect(storage.has(oldRejected.originalBlobName)).toBe(false);
@@ -266,6 +268,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(completed.id),
         pendingCutoff,
         "abandoned",
+        "abandoned",
         new Date(),
       ),
     ).resolves.toBe(false);
@@ -284,6 +287,7 @@ describe("Media cleanup persistence integration", () => {
         asUuid(reclaimed.id),
         stuckCutoff,
         "stuck",
+        "processing_failed",
         new Date(),
       ),
     ).resolves.toBe(false);
@@ -300,6 +304,7 @@ describe("Media cleanup persistence integration", () => {
       repository.rejectAbandonedUpload(
         asUuid(abandoned.id),
         pendingCutoff,
+        "abandoned",
         "abandoned",
         new Date(),
       ),

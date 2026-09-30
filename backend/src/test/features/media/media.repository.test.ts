@@ -25,7 +25,12 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     width: null,
     height: null,
     rejectionReason: null,
+    rejectionCode: null,
     processingRequeues: 0,
+    processingAttempts: 0,
+    processingStartedAt: null,
+    processingCompletedAt: null,
+    processingError: null,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -201,9 +206,14 @@ describe("MediaRepository", () => {
       }),
     ).resolves.toBe(true);
     await expect(
-      repository.markRejected(MEDIA_1_ID, "x".repeat(600), "image/jpeg"),
+      repository.markRejected(
+        MEDIA_1_ID,
+        "x".repeat(600),
+        "type_mismatch",
+        "image/jpeg",
+      ),
     ).resolves.toBe(true);
-    await repository.markRejected(MEDIA_1_ID, "bad");
+    await repository.markRejected(MEDIA_1_ID, "bad", "corrupt");
 
     const calls: any[] = updateMany.mock.calls.map(([args]) => args);
 
@@ -212,6 +222,12 @@ describe("MediaRepository", () => {
       data: { status: "uploaded", sizeBytes: 42, originalEtag: '"0x8DD"' },
     });
     expect(calls[1].where.status).toEqual({ in: ["uploaded", "processing"] });
+    // Every claim is counted and timed in the same guarded update.
+    expect(calls[1].data).toEqual({
+      status: "processing",
+      processingAttempts: { increment: 1 },
+      processingStartedAt: expect.any(Date),
+    });
     expect(calls[2]).toEqual({
       where: { id: MEDIA_1_ID, status: { in: ["processing"] } },
       data: {
@@ -223,6 +239,8 @@ describe("MediaRepository", () => {
         height: 3,
         variants: VARIANTS,
         rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: expect.any(Date),
       },
     });
     // A ready row can never be rejected after the fact.
@@ -231,9 +249,12 @@ describe("MediaRepository", () => {
     });
     expect(calls[3].data.rejectionReason).toHaveLength(500);
     expect(calls[3].data.detectedContentType).toBe("image/jpeg");
+    expect(calls[3].data.rejectionCode).toBe("type_mismatch");
     expect(calls[4].data).toEqual({
       status: "rejected",
       rejectionReason: "bad",
+      rejectionCode: "corrupt",
+      processingCompletedAt: expect.any(Date),
     });
   });
 
@@ -323,10 +344,22 @@ describe("MediaRepository", () => {
     const at = new Date("2026-09-20T12:15:00.000Z");
 
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "x".repeat(600), at),
+      repository.rejectStuck(
+        MEDIA_1_ID,
+        cutoff,
+        "x".repeat(600),
+        "processing_failed",
+        at,
+      ),
     ).resolves.toBe(true);
     await expect(
-      repository.rejectAbandonedUpload(MEDIA_1_ID, cutoff, "abandoned", at),
+      repository.rejectAbandonedUpload(
+        MEDIA_1_ID,
+        cutoff,
+        "abandoned",
+        "abandoned",
+        at,
+      ),
     ).resolves.toBe(true);
     await expect(
       repository.deferRejectedPurge(MEDIA_1_ID, cutoff, at),
@@ -347,6 +380,8 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "x".repeat(500),
+          rejectionCode: "processing_failed",
+          processingCompletedAt: at,
           updatedAt: at,
         },
       },
@@ -359,6 +394,8 @@ describe("MediaRepository", () => {
         data: {
           status: "rejected",
           rejectionReason: "abandoned",
+          rejectionCode: "abandoned",
+          processingCompletedAt: at,
           updatedAt: at,
         },
       },
@@ -379,7 +416,130 @@ describe("MediaRepository", () => {
 
     updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
-      repository.rejectStuck(MEDIA_1_ID, cutoff, "stuck", at),
+      repository.rejectStuck(
+        MEDIA_1_ID,
+        cutoff,
+        "stuck",
+        "processing_failed",
+        at,
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("records a processing failure only on an unfinished row, cut to fit", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+
+    await expect(
+      repository.recordProcessingFailure(
+        MEDIA_1_ID,
+        new TypeError("x".repeat(2000)),
+      ),
+    ).resolves.toBe(true);
+    await repository.recordProcessingFailure(MEDIA_1_ID, "plain string");
+
+    const calls: any[] = updateMany.mock.calls.map(([args]) => args);
+    expect(calls[0].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["uploaded", "processing"] },
+    });
+    expect(calls[0].data.processingError).toHaveLength(1000);
+    expect(calls[0].data.processingError).toMatch(/^TypeError: x+$/);
+    expect(calls[1].data).toEqual({
+      processingError: "Non-error thrown: plain string",
+    });
+  });
+
+  it("reopens only a row rejected because processing kept failing, within its retention", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const rejectedAfter = new Date("2026-09-28T12:00:00.000Z");
+
+    await expect(
+      repository.reopenForReplay(MEDIA_1_ID, rejectedAfter),
+    ).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["rejected"] },
+        rejectionCode: "processing_failed",
+        updatedAt: { gt: rejectedAfter },
+      },
+      // A fresh re-queue budget, so the media cleanup does not reject the
+      // replayed item at its first stuck sweep.
+      data: {
+        status: "uploaded",
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: null,
+        processingRequeues: 0,
+      },
+    });
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.reopenForReplay(MEDIA_1_ID, rejectedAfter),
+    ).resolves.toBe(false);
+  });
+
+  it("lists processing failures within their retention, paged by id", async () => {
+    const findMany = jest.fn(async (_args: any) => [
+      mediaRow({ status: "rejected", rejectionCode: "processing_failed" }),
+    ]);
+    const repository = createRepository({ findMany });
+    const rejectedAfter = new Date("2026-09-28T12:00:00.000Z");
+
+    await expect(
+      repository.listReplayableRejections(rejectedAfter, null, 50),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: MEDIA_1_ID, status: "rejected" }),
+    ]);
+    await repository.listReplayableRejections(rejectedAfter, MEDIA_1_ID, 50);
+
+    expect(findMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: {
+          status: "rejected",
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+        },
+        orderBy: { id: "asc" },
+        take: 50,
+      },
+      {
+        where: {
+          status: "rejected",
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+          id: { gt: MEDIA_1_ID },
+        },
+        orderBy: { id: "asc" },
+        take: 50,
+      },
+    ]);
+  });
+
+  it("claims an unfinished row for a replay only while it has not moved since its job was dead-lettered", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const deadLetteredAt = new Date("2026-09-29T12:00:00.000Z");
+    const claimedAt = new Date("2026-09-29T12:30:00.000Z");
+
+    await expect(
+      repository.claimForReplay(MEDIA_1_ID, deadLetteredAt, claimedAt),
+    ).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["uploaded", "processing"] },
+        updatedAt: { lte: deadLetteredAt },
+      },
+      data: { updatedAt: claimedAt },
+    });
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repository.claimForReplay(MEDIA_1_ID, deadLetteredAt, claimedAt),
     ).resolves.toBe(false);
   });
 

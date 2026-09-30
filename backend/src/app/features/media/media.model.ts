@@ -43,6 +43,38 @@ export const MEDIA_STATUSES = [
  */
 export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 
+export const MEDIA_REJECTION_CODES = [
+  "empty",
+  "too_large",
+  "unsupported_type",
+  "type_mismatch",
+  "dimensions",
+  "corrupt",
+  "animated",
+  "upload_changed",
+  "missing_upload",
+  "processing_failed",
+  "abandoned",
+] as const;
+
+/**
+ * Why an item was rejected, for metrics and clients to branch on;
+ * `rejectionReason` says the same in words.
+ *
+ * empty, too_large: the upload's length is outside the policy.
+ * unsupported_type: the declared type is not on today's allow-list.
+ * type_mismatch: the bytes are not the declared image format.
+ * dimensions: the image is too large, or its size cannot be read.
+ * corrupt: the bytes do not decode as an image.
+ * animated: the image has more than one frame or page.
+ * upload_changed: the upload was written again after it was completed.
+ * missing_upload: the upload was gone when it was processed.
+ * processing_failed: processing kept failing, as in an outage. Not the
+ *   image's fault; the upload is kept for a while so it can be replayed.
+ * abandoned: the upload was never completed.
+ */
+export type MediaRejectionCode = (typeof MEDIA_REJECTION_CODES)[number];
+
 /** A rendition as it was written: what it measures and how large it is. */
 export interface ImageRenditionInfo {
   width: number;
@@ -127,12 +159,29 @@ export interface MediaRecord {
    */
   variants: MediaVariantsMetadata | null;
   rejectionReason: string | null;
+  /** Null unless rejected, and for rows rejected before codes existed. */
+  rejectionCode: MediaRejectionCode | null;
   /**
    * How many times the media cleanup has queued a new processing job because
    * the item's job was lost. The cleanup rejects the item once this reaches
    * its limit.
    */
   processingRequeues: number;
+  /**
+   * How many times a processing job has claimed the item, redeliveries
+   * included. Not the `attempt` a job's payload carries, which counts the
+   * retry tiers that one job has been through.
+   */
+  processingAttempts: number;
+  /** When a processing job last claimed the item. */
+  processingStartedAt: Date | null;
+  /** When the item became ready or rejected. */
+  processingCompletedAt: Date | null;
+  /**
+   * The last failure a processing job hit, for operators. Internal: it is
+   * never part of MediaView or any other response.
+   */
+  processingError: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -176,6 +225,7 @@ export interface MediaView {
    */
   variants: ImageVariants | null;
   rejectionReason: string | null;
+  rejectionCode: MediaRejectionCode | null;
   createdAt: string;
   updatedAt: string;
 }

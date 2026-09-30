@@ -8,6 +8,8 @@ export interface BlobReferenceSourceCounts {
   blogPosts: number;
   postingPhotos: number;
   auditSnapshots: number;
+  /** Quarantined uploads that media processing may still need. */
+  mediaUploads: number;
 }
 
 export interface BlobReferenceSnapshot {
@@ -19,35 +21,55 @@ export class BlobCleanupRepository extends BaseRepository {
   async loadReferences(): Promise<BlobReferenceSnapshot> {
     return this.executeAsync(
       async () => {
-        const [profiles, organizations, blogPosts, postingPhotos, auditLogs] =
-          await Promise.all([
-            this.prisma.profile.findMany({
-              where: { avatarBlobName: { not: null } },
-              select: { avatarBlobName: true },
-            }),
-            this.prisma.organization.findMany({
-              where: { logoBlobName: { not: null } },
-              select: { logoBlobName: true },
-            }),
-            this.prisma.organizationBlogPost.findMany({
-              where: { coverImageBlobName: { not: null } },
-              select: { coverImageBlobName: true },
-            }),
-            this.prisma.postingPhoto.findMany({
-              select: { blobName: true, thumbnailBlobName: true },
-            }),
-            this.prisma.organizationAuditLog.findMany({
-              where: {
-                resourceType: { in: ["organization", "posting"] },
-                restorable: true,
-              },
-              select: {
-                resourceType: true,
-                beforeSnapshot: true,
-                afterSnapshot: true,
-              },
-            }),
-          ]);
+        const [
+          profiles,
+          organizations,
+          blogPosts,
+          postingPhotos,
+          auditLogs,
+          mediaUploads,
+        ] = await Promise.all([
+          this.prisma.profile.findMany({
+            where: { avatarBlobName: { not: null } },
+            select: { avatarBlobName: true },
+          }),
+          this.prisma.organization.findMany({
+            where: { logoBlobName: { not: null } },
+            select: { logoBlobName: true },
+          }),
+          this.prisma.organizationBlogPost.findMany({
+            where: { coverImageBlobName: { not: null } },
+            select: { coverImageBlobName: true },
+          }),
+          this.prisma.postingPhoto.findMany({
+            select: { blobName: true, thumbnailBlobName: true },
+          }),
+          this.prisma.organizationAuditLog.findMany({
+            where: {
+              resourceType: { in: ["organization", "posting"] },
+              restorable: true,
+            },
+            select: {
+              resourceType: true,
+              beforeSnapshot: true,
+              afterSnapshot: true,
+            },
+          }),
+          // An upload still waiting on processing, or one a processing
+          // failure keeps for a dead-letter replay. The media cleanup worker
+          // decides when these go, whatever their age: an item can wait
+          // longer than the grace period, and a replay needs its upload for
+          // the whole rejected retention.
+          this.prisma.media.findMany({
+            where: {
+              OR: [
+                { status: { in: ["uploaded", "processing"] } },
+                { status: "rejected", rejectionCode: "processing_failed" },
+              ],
+            },
+            select: { originalBlobName: true },
+          }),
+        ]);
 
         const blobNames = new Set<string>();
         const add = (value: unknown): void => {
@@ -74,6 +96,7 @@ export class BlobCleanupRepository extends BaseRepository {
           add(row.blobName);
           add(row.thumbnailBlobName);
         });
+        mediaUploads.forEach((row) => add(row.originalBlobName));
         auditLogs.forEach((row) => {
           const snapshots = [row.beforeSnapshot, row.afterSnapshot];
 
@@ -106,6 +129,7 @@ export class BlobCleanupRepository extends BaseRepository {
             blogPosts: blogPosts.length,
             postingPhotos: postingPhotos.length,
             auditSnapshots: auditLogs.length,
+            mediaUploads: mediaUploads.length,
           },
         };
       },
