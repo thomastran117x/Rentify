@@ -74,7 +74,7 @@ Each is recorded exactly once per occurrence. A counter's value is 1. A metric t
 
 `stage` is `completion` (the size check in `POST /media/{id}/complete`), `processing` (the worker's policy, missing-upload, and changed-upload rejections), `dead_letter` (a job that exhausted its attempts), or `cleanup` (the media cleanup rejecting an item still stuck after its last re-queue). One `media.rejected{code}` metric replaces separate metrics per reason, so a new rejection code needs no new metric. An abandoned upload is not counted: it was never completed, and counting it would skew the rejection rate below.
 
-`outcome` is `ready`, `rejected`, `discarded` for an item deleted or rejected while the attempt ran or a duplicate of a finished job, or `failed` for an attempt that threw and is retried or dead-lettered.
+`outcome` is `ready` or `rejected` when this attempt finished the item, `discarded` when something else did first (the item was deleted, or a duplicate job made it ready or rejected it while the attempt ran), or `failed` for an attempt that threw and is retried or dead-lettered. An item deleted between its claim and being read back is recorded under the `scope` `unknown`, since its row is gone.
 
 Alert on:
 

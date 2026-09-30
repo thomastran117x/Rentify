@@ -1002,6 +1002,41 @@ describe("MediaProcessingService", () => {
     ]);
   });
 
+  it("records a discarded attempt when the item is deleted right after its claim", async () => {
+    const context = createContext();
+    const record = await quarantine(context, await createPngFixture());
+    jest.spyOn(context.mediaRepository, "findById").mockResolvedValueOnce(null);
+
+    await context.service.process(record.id);
+
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "unknown", outcome: "discarded" },
+    ]);
+    expect(context.metrics.count("media.processing.success")).toBe(0);
+  });
+
+  it("records a discarded attempt when a duplicate job rejected the item first", async () => {
+    const context = createContext();
+    const record = await quarantine(context, Buffer.from("not an image"));
+    const repository = context.mediaRepository;
+    const markRejected = repository.markRejected.bind(repository);
+    jest
+      .spyOn(repository, "markRejected")
+      .mockImplementationOnce(async (...args) => {
+        await markRejected(...args);
+        return false;
+      });
+
+    await context.service.process(record.id);
+
+    expect((await repository.findById(record.id))?.status).toBe("rejected");
+    // The duplicate that rejected it counts the rejection; this one does not.
+    expect(context.metrics.count("media.rejected")).toBe(0);
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "discarded" },
+    ]);
+  });
+
   it("keeps the output when a duplicate job already finished the item", async () => {
     const context = createContext();
     const record = await quarantine(context, await createPngFixture(1000, 750));
