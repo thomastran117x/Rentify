@@ -39,6 +39,7 @@ export async function bootstrapMediaProcessingWorker(): Promise<void> {
           processing: processingService,
           maxAttempts,
           logger: workerLogger,
+          metrics: scope.resolve(containerTokens.mediaMetrics),
         }),
       );
 

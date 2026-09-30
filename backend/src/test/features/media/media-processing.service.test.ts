@@ -8,7 +8,15 @@ import type {
   MediaRejectionCode,
   MediaStatus,
 } from "@/features/media/media.model";
+import {
+  BestEffortMediaMetrics,
+  type MediaMetrics,
+} from "@/features/media/media-metrics";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
+import {
+  RecordingMediaMetrics,
+  ThrowingMediaMetrics,
+} from "../../support/recording-media-metrics";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import {
   restoreBlobEnvironmentAfterEach,
@@ -30,17 +38,20 @@ let nextMediaIndex = 994300;
 
 restoreBlobEnvironmentAfterEach();
 
-function createContext() {
+function createContext(options: { metrics?: MediaMetrics } = {}) {
   useLocalBlobStorage();
   const blobService = new BlobService();
   const mediaRepository = new InMemoryMediaRepository();
+  const metrics = new RecordingMediaMetrics();
 
   return {
     blobService,
     mediaRepository,
+    metrics,
     service: new MediaProcessingService(
       mediaRepository.asRepository(),
       blobService,
+      options.metrics ?? metrics,
     ),
   };
 }
@@ -169,6 +180,38 @@ describe("MediaProcessingService", () => {
       format: "webp",
     });
     await expectMissing(context, record.originalBlobName);
+    expect(context.metrics.tagsOf("media.processing.success")).toEqual([
+      { scope: "postings" },
+    ]);
+    expect(context.metrics.calls("media.bytes.processed")).toEqual([
+      expect.objectContaining({
+        value: stored.body.byteLength,
+        tags: { scope: "postings" },
+      }),
+    ]);
+    expect(context.metrics.calls("media.processing.duration")).toEqual([
+      expect.objectContaining({
+        value: expect.any(Number),
+        tags: { scope: "postings", outcome: "ready" },
+      }),
+    ]);
+    expect(
+      context.metrics.calls("media.processing.duration")[0]!.value,
+    ).toBeGreaterThanOrEqual(0);
+    expect(context.metrics.count("media.rejected")).toBe(0);
+    context.metrics.assertNoIdentifiers();
+  });
+
+  it("processes an image even when every metric call fails", async () => {
+    const context = createContext({
+      metrics: new BestEffortMediaMetrics(new ThrowingMediaMetrics()),
+    });
+    const record = await quarantine(context, await createPngFixture());
+
+    await expect(context.service.process(record.id)).resolves.toBeUndefined();
+    expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+      "ready",
+    );
   });
 
   describe("renditions", () => {
@@ -636,6 +679,18 @@ describe("MediaProcessingService", () => {
       rejectionReason: "Only PNG images can be uploaded.",
       rejectionCode: "unsupported_type",
     });
+    expect(context.metrics.tagsOf("media.rejected")).toEqual([
+      { code: "too_large", stage: "processing" },
+      { code: "dimensions", stage: "processing" },
+      { code: "unsupported_type", stage: "processing" },
+    ]);
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "rejected" },
+      { scope: "postings", outcome: "rejected" },
+      { scope: "postings", outcome: "rejected" },
+    ]);
+    expect(context.metrics.count("media.processing.success")).toBe(0);
+    context.metrics.assertNoIdentifiers();
   });
 
   it("rejects an item whose upload has disappeared", async () => {
@@ -651,6 +706,9 @@ describe("MediaProcessingService", () => {
       rejectionReason: "The uploaded file could not be found.",
       rejectionCode: "missing_upload",
     });
+    expect(context.metrics.tagsOf("media.rejected")).toEqual([
+      { code: "missing_upload", stage: "processing" },
+    ]);
   });
 
   describe("the pinned upload", () => {
@@ -858,6 +916,8 @@ describe("MediaProcessingService", () => {
     await context.service.process(testUuid(9000, 994399));
 
     expect(download).not.toHaveBeenCalled();
+    // Nothing was claimed, so nothing was timed or counted.
+    expect(context.metrics.recorded).toEqual([]);
   });
 
   it("resumes an item left in processing by an interrupted run", async () => {
@@ -886,6 +946,10 @@ describe("MediaProcessingService", () => {
     expect((await context.mediaRepository.findById(record.id))?.status).toBe(
       "processing",
     );
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "failed" },
+    ]);
+    expect(context.metrics.count("media.processing.success")).toBe(0);
     await context.service.recordProcessingFailure(
       record.id,
       new Error("storage unavailable"),
@@ -908,6 +972,11 @@ describe("MediaProcessingService", () => {
       processingStartedAt: expect.any(Date),
       processingCompletedAt: expect.any(Date),
     });
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "failed" },
+      { scope: "postings", outcome: "ready" },
+    ]);
+    expect(context.metrics.count("media.processing.success")).toBe(1);
   });
 
   it("discards its output when the item was deleted mid-run", async () => {
@@ -927,6 +996,10 @@ describe("MediaProcessingService", () => {
     for (const blobName of renditionNames(context, record.id)) {
       await expectMissing(context, blobName);
     }
+    expect(context.metrics.count("media.processing.success")).toBe(0);
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "discarded" },
+    ]);
   });
 
   it("keeps the output when a duplicate job already finished the item", async () => {
@@ -948,6 +1021,13 @@ describe("MediaProcessingService", () => {
         context.blobService.readLocalBlob(blobName),
       ).resolves.toMatchObject({ contentType: "image/webp" });
     }
+    // The job that marked it ready counted it; this one does not.
+    expect(context.metrics.count("media.processing.success")).toBe(0);
+    expect(context.metrics.count("media.bytes.processed")).toBe(0);
+    expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+      { scope: "postings", outcome: "discarded" },
+    ]);
+    await expectMissing(context, record.originalBlobName);
   });
 
   it("treats a failed quarantine cleanup as non-fatal", async () => {
@@ -980,6 +1060,12 @@ describe("MediaProcessingService", () => {
       await expect(
         context.blobService.readLocalBlob(record.originalBlobName),
       ).resolves.toBeDefined();
+
+      // A repeat finds it already rejected and is not counted again.
+      await context.service.markProcessingFailed(record.id);
+      expect(context.metrics.tagsOf("media.rejected")).toEqual([
+        { code: "processing_failed", stage: "dead_letter" },
+      ]);
     });
 
     it("leaves finished and missing items alone", async () => {
@@ -994,6 +1080,7 @@ describe("MediaProcessingService", () => {
       expect((await context.mediaRepository.findById(record.id))?.status).toBe(
         "ready",
       );
+      expect(context.metrics.count("media.rejected")).toBe(0);
       await expect(
         context.blobService.readLocalBlob(record.originalBlobName),
       ).resolves.toBeDefined();

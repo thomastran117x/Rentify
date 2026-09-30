@@ -49,12 +49,14 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.mediaRepository,
         containerTokens.mediaProcessingQueueService,
+        containerTokens.mediaMetrics,
       ],
       resolve: ({ resolve }) =>
         new MediaService(
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.mediaProcessingQueueService),
+          resolve(containerTokens.mediaMetrics),
         ),
     });
     container.register({
@@ -63,11 +65,13 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.mediaRepository,
         containerTokens.blobService,
+        containerTokens.mediaMetrics,
       ],
       resolve: ({ resolve }) =>
         new MediaProcessingService(
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.blobService),
+          resolve(containerTokens.mediaMetrics),
         ),
     });
     container.register({
@@ -77,12 +81,14 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mediaRepository,
         containerTokens.blobService,
         containerTokens.mediaProcessingQueueService,
+        containerTokens.mediaMetrics,
       ],
       resolve: ({ resolve }) =>
         new MediaCleanupService(
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaProcessingQueueService),
+          resolve(containerTokens.mediaMetrics),
         ),
     });
     container.register({

@@ -94,6 +94,7 @@ describe("Media cleanup persistence integration", () => {
           ? () => queue.readBacklog()
           : async () => ({ waitingJobs: 0, consumers: 1 }),
       },
+      container.resolve(containerTokens.mediaMetrics),
     ).sweep(OPTIONS);
   }
 

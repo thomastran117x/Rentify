@@ -388,6 +388,14 @@ chosen over prom-client for two reasons. Prometheus scraping would need a
 metrics listener in every worker, which today runs no HTTP server, whereas OTLP
 pushes. OpenTelemetry also carries traces across the API, queue, and worker hop.
 
+The metrics cover uploads created and completed, processing time, successes,
+failures, and dead letters, bytes in and out, and rejections by `code` and by
+the `stage` that decided them. The
+[media worker guide](../backend/src/app/workers/media/README.md#metrics-and-alerts)
+lists each one with its tags, and the alerts to set: any dead-lettered job, a
+rejection rate above 20 % of completed uploads over 15 minutes, a p95 processing
+time above 10 s, and any item still `processing` 15 minutes after it last moved.
+
 ## Realtime Transport
 
 There are two realtime surfaces, both on **Socket.IO** with the **Redis

@@ -1,5 +1,6 @@
 import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaScope } from "@/features/media/media.model";
+import { NoopMediaMetrics } from "@/features/media/media-metrics";
 import { MediaService } from "@/features/media/media.service";
 import { asUuid } from "@/configuration/validation/uuid";
 import { InMemoryMediaRepository } from "./in-memory-media-repository";
@@ -29,6 +30,7 @@ export function createMediaRule(
     blobService as unknown as BlobService,
     repository.asRepository(),
     { enqueueMediaProcessingJob: jest.fn() },
+    new NoopMediaMetrics(),
   );
 
   return {

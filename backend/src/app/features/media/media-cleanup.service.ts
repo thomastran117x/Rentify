@@ -2,6 +2,7 @@ import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory } from "@/configuration/logging";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord } from "@/features/media/media.model";
+import type { MediaMetrics } from "@/features/media/media-metrics";
 import type {
   MediaProcessingBacklog,
   MediaProcessingQueueService,
@@ -75,6 +76,7 @@ export class MediaCleanupService {
       MediaProcessingQueueService,
       "enqueueMediaProcessingJob" | "readBacklog"
     >,
+    private readonly metrics: Pick<MediaMetrics, "increment">,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -212,6 +214,10 @@ export class MediaCleanupService {
           // The upload is kept, as for any processing failure, so the item
           // can still be replayed; the purge of old rejections deletes it.
           summary.rejected += 1;
+          this.metrics.increment("media.rejected", {
+            code: "processing_failed",
+            stage: "cleanup",
+          });
         }
         return;
       }
