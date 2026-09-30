@@ -299,17 +299,24 @@ a processed image that something references.
   [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup).
 - `blob-cleanup` is a manual, Azure-only backstop that lists the container and
   looks for blobs no row accounts for. It treats quarantined uploads as
-  candidates whatever their declared content type. With `--delete`, it also
+  candidates whatever their declared content type, except the upload of an item
+  still waiting on processing or rejected as `processing_failed`, which a
+  dead-letter replay still needs. With `--delete`, it also
   removes the media rows of blobs it deleted. Every reference to a processed
   image, including one in a restorable audit snapshot, also keeps its medium
   and thumbnail renditions, so a live rendition is never a candidate.
 
 Deleting a media item or a replaced image deletes all three renditions.
 
-**Azure lifecycle backstop.** Nothing legitimate stays in `quarantine/` for more
-than a day: an upload is processed within minutes, and the cleanup worker
-deletes an abandoned one after 24 hours. A storage lifecycle-management rule can
-therefore delete anything the application missed, without a process running.
+**Azure lifecycle backstop.** Almost nothing legitimate stays in `quarantine/`
+for more than a day: an upload is processed within minutes, and the cleanup
+worker deletes an abandoned one after 24 hours. The exception is an item
+rejected as `processing_failed`, whose upload is kept for the rejected retention
+(24 hours by default) after its rejection, so its dead-lettered job can be
+replayed. A storage lifecycle-management rule can therefore delete anything the
+application missed, without a process running. A rule shorter than the time an
+item takes to be rejected plus that retention shortens the replay window: the
+replay then reports the item as `not_replayable` (`upload_deleted`).
 The repository has no infrastructure-as-code, so add the rule to each storage
 account by hand. In the Azure portal, open the storage account, then **Data
 management** > **Lifecycle management** > **Add a rule**. Limit it to block

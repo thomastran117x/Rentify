@@ -119,7 +119,9 @@ docker compose run --rm --build blob-cleanup --delete
 The cleanup keeps images referenced by the current MySQL database, including
 restorable organization-logo and posting-photo history. Only unreferenced
 `image/*` blobs and quarantined uploads that have been unchanged for at least
-24 hours are eligible. With `--delete`, the media records of deleted blobs are
+24 hours are eligible. An upload still waiting on processing, or one a
+processing failure keeps for a dead-letter replay, is never eligible: the
+`media-cleanup-worker` decides when it goes. With `--delete`, the media records of deleted blobs are
 removed too. Always review the preview before using `--delete`.
 
 Unfinished media uploads and old rejections do not need this command: the

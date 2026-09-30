@@ -6,6 +6,7 @@ import type {
   MediaRejectionCode,
   MediaStatus,
 } from "@/features/media/media.model";
+import { BlobCleanupRepository } from "@/features/blob/blob-cleanup.repository";
 import { MediaDeadLetterReplayService } from "@/features/media/media-dead-letter-replay.service";
 import { createPngFixture } from "../../support/image-fixtures";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
@@ -165,6 +166,22 @@ describe("Media dead-letter replay persistence integration", () => {
     await expect(
       repository.reopenForReplay(asUuid(randomUUID())),
     ).resolves.toBe(false);
+  });
+
+  it("keeps the uploads a replay may need out of the blob cleanup", async () => {
+    const failed = await seedMedia("rejected", "processing_failed");
+    const waiting = await seedMedia("uploaded");
+    const corrupt = await seedMedia("rejected", "corrupt");
+    const ready = await seedMedia("ready");
+
+    const { blobNames, sourceCounts } =
+      await new BlobCleanupRepository().loadReferences();
+
+    expect(blobNames.has(failed.originalBlobName)).toBe(true);
+    expect(blobNames.has(waiting.originalBlobName)).toBe(true);
+    expect(blobNames.has(corrupt.originalBlobName)).toBe(false);
+    expect(blobNames.has(ready.originalBlobName)).toBe(false);
+    expect(sourceCounts.mediaUploads).toBe(2);
   });
 
   it("replays what can still be processed and drains the dead-letter queue", async () => {

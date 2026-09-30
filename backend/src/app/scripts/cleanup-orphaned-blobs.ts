@@ -37,6 +37,7 @@ function printHelp(): void {
       "",
       "Compares Azure Blob Storage with the current MySQL database.",
       "Only unreferenced image/* blobs, and quarantined uploads, at least 24 hours old are candidates.",
+      "An upload still waiting on processing, or kept by a processing failure for a replay, never is.",
       "With --delete, the media records of deleted blobs are removed too; media-cleanup-worker handles unfinished media.",
       "",
       "Options:",
