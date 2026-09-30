@@ -276,6 +276,7 @@ describe("MediaProcessingQueueService", () => {
         getMessage(null),
       ];
       const channel = Object.assign(createChannel(), {
+        checkQueue: jest.fn(async () => ({ messageCount: 5 })),
         get: jest.fn(async () => messages.shift() ?? false),
         ack: jest.fn(),
       });
@@ -284,6 +285,12 @@ describe("MediaProcessingQueueService", () => {
 
       const reader = await service.openDeadLetterQueue();
       const first = await reader.take();
+
+      // The depth is read once, so the run knows where the queue ended.
+      expect(reader.depth).toBe(5);
+      expect(channel.checkQueue).toHaveBeenCalledWith(
+        "media.processing.dead-letter",
+      );
 
       expect(channel.assertQueue).toHaveBeenCalledWith(
         "media.processing.dead-letter",
@@ -311,6 +318,52 @@ describe("MediaProcessingQueueService", () => {
 
       await reader.close();
       expect(channel.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("republishes on its own channel, with a fresh attempt count", async () => {
+      const channel = Object.assign(createChannel(), {
+        checkQueue: jest.fn(async () => ({ messageCount: 0 })),
+      });
+      mockCreateRabbitMqChannel.mockResolvedValue(channel);
+      const service = new MediaProcessingQueueService();
+
+      const reader = await service.openDeadLetterQueue();
+      await reader.republish(MEDIA_1_ID);
+      await reader.republish(MEDIA_1_ID);
+
+      // One channel, one topology assertion, for the whole run.
+      expect(mockCreateRabbitMqChannel).toHaveBeenCalledTimes(1);
+      expect(channel.assertExchange).toHaveBeenCalledTimes(1);
+      expect(channel.publish).toHaveBeenCalledTimes(2);
+      const [exchange, routingKey, body] = (channel.publish as jest.Mock).mock
+        .calls[0]!;
+      expect([exchange, routingKey]).toEqual([
+        "media.processing.exchange",
+        "main",
+      ]);
+      expect(JSON.parse((body as Buffer).toString("utf8"))).toMatchObject({
+        mediaId: MEDIA_1_ID,
+        attempt: 0,
+      });
+      expect(
+        (channel as unknown as { waitForConfirms: jest.Mock }).waitForConfirms,
+      ).toHaveBeenCalledTimes(2);
+      expect(channel.close).not.toHaveBeenCalled();
+    });
+
+    it("closes quietly when the broker has already closed the channel", async () => {
+      const channel = Object.assign(createChannel(), {
+        checkQueue: jest.fn(async () => ({ messageCount: 0 })),
+      });
+      (channel.close as jest.Mock).mockRejectedValueOnce(
+        new Error("Channel closed"),
+      );
+      mockCreateRabbitMqChannel.mockResolvedValue(channel);
+      const service = new MediaProcessingQueueService();
+
+      const reader = await service.openDeadLetterQueue();
+
+      await expect(reader.close()).resolves.toBeUndefined();
     });
 
     it("closes the channel when the topology cannot be asserted", async () => {

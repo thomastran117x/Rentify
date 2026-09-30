@@ -147,6 +147,9 @@ docker compose run --rm --build media-dead-letter-replay --dry-run
 docker compose run --rm --build media-dead-letter-replay
 ```
 
+Add `--from-database` to also replay processing failures that never reached the
+dead-letter queue.
+
 See [the dead-letter runbook](backend/src/app/workers/media/README.md#dead-letter-runbook).
 
 ## API Contract

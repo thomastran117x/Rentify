@@ -4,7 +4,10 @@ import type {
   MediaRecord,
   MediaStatus,
 } from "@/features/media/media.model";
-import type { MediaDeadLetterMessage } from "@/features/media/media-processing.queue.service";
+import type {
+  MediaDeadLetterMessage,
+  MediaDeadLetterReader,
+} from "@/features/media/media-processing.queue.service";
 import {
   mediaDeadLetterReplayExitCode,
   MediaDeadLetterReplayService,
@@ -14,11 +17,13 @@ import { testUuid } from "../../support/uuid";
 
 const USER_ID = testUuid(9000, 994700);
 const HOUR_MS = 60 * 60 * 1000;
+const RETENTION_MS = 24 * HOUR_MS;
 let nextMediaIndex = 994701;
 
 /**
  * A dead-letter queue as the reader sees it: `take` hands out each message
- * once, and closing puts back every message not acknowledged. Each message is
+ * once, `depth` is what was queued when it opened, and closing puts back every
+ * message not acknowledged. Each message is
  * dead-lettered a minute before it is pushed, as a real one precedes the
  * replay that reads it, unless a time is given.
  */
@@ -44,11 +49,13 @@ class FakeDeadLetterQueue {
     this.queued.push(payload);
   }
 
-  open() {
+  open(republish: (mediaId: string) => Promise<void>): MediaDeadLetterReader {
     const taken: (MediaProcessingJobPayload | null)[] = [];
     const acked = new Set<number>();
 
     return {
+      depth: this.queued.length,
+      republish,
       take: async (): Promise<MediaDeadLetterMessage | null> => {
         if (this.queued.length === 0) {
           return null;
@@ -84,14 +91,15 @@ function createContext() {
       return { contentLength: 1 };
     }),
   };
+  const republish = jest.fn(async (_mediaId: string) => undefined);
   const queue = {
-    openDeadLetterQueue: jest.fn(async () => deadLetters.open()),
-    enqueueMediaProcessingJob: jest.fn(async (_mediaId: string) => undefined),
+    openDeadLetterQueue: jest.fn(async () => deadLetters.open(republish)),
   };
   const service = new MediaDeadLetterReplayService(
     repository,
     blobService as never,
     queue,
+    { rejectedRetentionMs: RETENTION_MS },
   );
 
   function addMedia(
@@ -154,6 +162,7 @@ function createContext() {
     deadLetters,
     blobService,
     queue,
+    republish,
     service,
     addMedia,
     processingFailed,
@@ -194,9 +203,7 @@ describe("MediaDeadLetterReplayService", () => {
         processingError: "Error: storage unavailable",
       },
     );
-    expect(context.queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(
-      failed.id,
-    );
+    expect(context.republish).toHaveBeenCalledWith(failed.id);
     expect(context.deadLetters.queued).toEqual([]);
     expect(context.deadLetters.closed).toBe(1);
   });
@@ -210,7 +217,7 @@ describe("MediaDeadLetterReplayService", () => {
     const result = await context.service.run({ dryRun: false });
 
     expect(result).toMatchObject({ requeued: 2, replayed: 0 });
-    expect(context.queue.enqueueMediaProcessingJob.mock.calls).toEqual([
+    expect(context.republish.mock.calls).toEqual([
       [uploaded.id],
       [processing.id],
     ]);
@@ -243,7 +250,7 @@ describe("MediaDeadLetterReplayService", () => {
         reason: "in_flight",
       }),
     ]);
-    expect(context.queue.enqueueMediaProcessingJob).toHaveBeenCalledTimes(1);
+    expect(context.republish).toHaveBeenCalledTimes(1);
     expect(context.deadLetters.queued).toEqual([]);
   });
 
@@ -260,7 +267,7 @@ describe("MediaDeadLetterReplayService", () => {
     expect(result.items).toEqual([
       expect.objectContaining({ outcome: "skipped", reason: "in_flight" }),
     ]);
-    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.republish).not.toHaveBeenCalled();
   });
 
   it("does not queue an unfinished item another replay claimed first", async () => {
@@ -277,7 +284,7 @@ describe("MediaDeadLetterReplayService", () => {
     expect(result.items).toEqual([
       expect.objectContaining({ outcome: "skipped", reason: "changed" }),
     ]);
-    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.republish).not.toHaveBeenCalled();
     expect(context.deadLetters.queued).toEqual([]);
   });
 
@@ -364,7 +371,7 @@ describe("MediaDeadLetterReplayService", () => {
       }),
       { mediaId: null, jobId: null, outcome: "invalid" },
     ]);
-    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.republish).not.toHaveBeenCalled();
     expect(context.deadLetters.queued).toEqual([]);
     expect((await context.repository.findById(uploadGone.id))?.status).toBe(
       "rejected",
@@ -384,7 +391,7 @@ describe("MediaDeadLetterReplayService", () => {
       jobId: "second",
       outcome: "duplicate",
     });
-    expect(context.queue.enqueueMediaProcessingJob).toHaveBeenCalledTimes(1);
+    expect(context.republish).toHaveBeenCalledTimes(1);
     expect(context.deadLetters.queued).toEqual([]);
   });
 
@@ -402,7 +409,7 @@ describe("MediaDeadLetterReplayService", () => {
     expect(result.items).toEqual([
       expect.objectContaining({ outcome: "skipped", reason: "changed" }),
     ]);
-    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.republish).not.toHaveBeenCalled();
     expect(context.deadLetters.queued).toEqual([]);
   });
 
@@ -430,7 +437,7 @@ describe("MediaDeadLetterReplayService", () => {
       duplicate: 1,
       invalid: 1,
     });
-    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.republish).not.toHaveBeenCalled();
     expect((await context.repository.findById(failed.id))?.status).toBe(
       "rejected",
     );
@@ -450,9 +457,7 @@ describe("MediaDeadLetterReplayService", () => {
     context.blobService.getProperties.mockRejectedValueOnce(
       new Error("storage unavailable"),
     );
-    context.queue.enqueueMediaProcessingJob.mockRejectedValueOnce(
-      new Error("broker unavailable"),
-    );
+    context.republish.mockRejectedValueOnce(new Error("broker unavailable"));
 
     const result = await context.service.run({ dryRun: false });
 
@@ -491,19 +496,181 @@ describe("MediaDeadLetterReplayService", () => {
     expect(mediaDeadLetterReplayExitCode(result)).toBe(0);
   });
 
-  it("closes the queue even when reading it fails", async () => {
+  it("reports what it settled, and why it stopped, when the channel fails mid-run", async () => {
     const context = createContext();
-    const close = jest.fn(async () => undefined);
+    const failed = context.processingFailed();
+    context.deadLetters.push(job(failed.id), job(context.addMedia("ready").id));
+    const reader = context.deadLetters.open(context.republish);
+    const take = reader.take;
+    let taken = 0;
+    const close = jest.fn(reader.close);
     context.queue.openDeadLetterQueue.mockResolvedValueOnce({
+      ...reader,
       take: async () => {
-        throw new Error("channel closed");
+        taken += 1;
+        if (taken > 1) {
+          throw new Error("Channel closed");
+        }
+        return take();
       },
       close,
     });
 
-    await expect(context.service.run({ dryRun: false })).rejects.toThrow(
-      "channel closed",
-    );
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result).toMatchObject({
+      scanned: 1,
+      replayed: 1,
+      error: "Channel closed",
+      items: [expect.objectContaining({ mediaId: failed.id })],
+    });
     expect(close).toHaveBeenCalledTimes(1);
+    expect(mediaDeadLetterReplayExitCode(result)).toBe(1);
+  });
+
+  it("leaves a job dead-lettered again during the run for the next run", async () => {
+    const context = createContext();
+    const failed = context.processingFailed();
+    context.deadLetters.push(job(failed.id, "before"));
+    // The replayed job fails at once and is dead-lettered again mid-run.
+    context.republish.mockImplementationOnce(async (mediaId: string) => {
+      context.deadLetters.push(job(mediaId, "again"));
+    });
+
+    const result = await context.service.run({ dryRun: false });
+
+    // Taken for a duplicate and acknowledged, it would leave the item with
+    // no message to replay it from.
+    expect(result).toMatchObject({ scanned: 1, replayed: 1, duplicate: 0 });
+    expect(context.deadLetters.queued).toEqual([job(failed.id, "again")]);
+  });
+
+  it("does not reopen a rejection past its retention, which the cleanup may be purging", async () => {
+    const context = createContext();
+    const expired = context.addMedia("rejected", {
+      rejectionCode: "processing_failed",
+      updatedAt: new Date(Date.now() - RETENTION_MS - HOUR_MS),
+    });
+    context.deadLetters.push(job(expired.id));
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({ outcome: "not_replayable", reason: "expired" }),
+    ]);
+    expect((await context.repository.findById(expired.id))?.status).toBe(
+      "rejected",
+    );
+    expect(context.republish).not.toHaveBeenCalled();
+  });
+
+  it("gives a reopened item a fresh re-queue budget for the media cleanup", async () => {
+    const context = createContext();
+    const failed = context.addMedia("rejected", {
+      rejectionCode: "processing_failed",
+      processingRequeues: 3,
+    });
+    context.deadLetters.push(job(failed.id));
+
+    await context.service.run({ dryRun: false });
+
+    await expect(context.repository.findById(failed.id)).resolves.toMatchObject(
+      { status: "uploaded", processingRequeues: 0 },
+    );
+  });
+
+  describe("from the database", () => {
+    it("replays every processing failure still kept, with or without a dead letter", async () => {
+      const context = createContext();
+      // Rejected by the media cleanup after its jobs were lost: never
+      // dead-lettered.
+      const stuck = context.processingFailed();
+      const gone = context.processingFailed({ uploadKept: false });
+      const expired = context.addMedia("rejected", {
+        rejectionCode: "processing_failed",
+        updatedAt: new Date(Date.now() - RETENTION_MS - HOUR_MS),
+      });
+      context.addMedia("rejected", { rejectionCode: "corrupt" });
+      context.addMedia("uploaded");
+
+      const result = await context.service.run({
+        dryRun: false,
+        source: "database",
+      });
+
+      expect(result).toMatchObject({
+        source: "database",
+        scanned: 2,
+        replayed: 1,
+        notReplayable: 1,
+        failed: 0,
+        error: null,
+      });
+      expect(result.items).toEqual(
+        expect.arrayContaining([
+          { mediaId: stuck.id, jobId: null, outcome: "replayed" },
+          {
+            mediaId: gone.id,
+            jobId: null,
+            outcome: "not_replayable",
+            reason: "upload_deleted",
+          },
+        ]),
+      );
+      expect(context.republish.mock.calls).toEqual([[stuck.id]]);
+      await expect(
+        context.repository.findById(stuck.id),
+      ).resolves.toMatchObject({ status: "uploaded", rejectionCode: null });
+      expect((await context.repository.findById(expired.id))?.status).toBe(
+        "rejected",
+      );
+    });
+
+    it("pages through the rejections, up to the limit, and only reports in a dry run", async () => {
+      const context = createContext();
+      const items = Array.from({ length: 3 }, () => context.processingFailed());
+
+      const preview = await context.service.run({
+        dryRun: true,
+        source: "database",
+        limit: 2,
+      });
+
+      expect(preview).toMatchObject({ scanned: 2, replayed: 2 });
+      expect(context.republish).not.toHaveBeenCalled();
+      for (const item of items) {
+        expect((await context.repository.findById(item.id))?.status).toBe(
+          "rejected",
+        );
+      }
+    });
+
+    it("reports an item another actor took first, and one it failed on", async () => {
+      const context = createContext();
+      const taken = context.processingFailed();
+      const failing = context.processingFailed();
+      jest
+        .spyOn(context.repository, "reopenForReplay")
+        .mockResolvedValueOnce(false);
+      context.republish.mockRejectedValueOnce(new Error("broker unavailable"));
+
+      const result = await context.service.run({
+        dryRun: false,
+        source: "database",
+      });
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          mediaId: taken.id,
+          outcome: "skipped",
+          reason: "changed",
+        }),
+        expect.objectContaining({
+          mediaId: failing.id,
+          outcome: "failed",
+          reason: "broker unavailable",
+        }),
+      ]);
+    });
   });
 });

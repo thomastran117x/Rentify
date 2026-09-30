@@ -450,27 +450,73 @@ describe("MediaRepository", () => {
     });
   });
 
-  it("reopens only a row rejected because processing kept failing", async () => {
+  it("reopens only a row rejected because processing kept failing, within its retention", async () => {
     const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ updateMany });
+    const rejectedAfter = new Date("2026-09-28T12:00:00.000Z");
 
-    await expect(repository.reopenForReplay(MEDIA_1_ID)).resolves.toBe(true);
+    await expect(
+      repository.reopenForReplay(MEDIA_1_ID, rejectedAfter),
+    ).resolves.toBe(true);
     expect(updateMany).toHaveBeenCalledWith({
       where: {
         id: MEDIA_1_ID,
         status: { in: ["rejected"] },
         rejectionCode: "processing_failed",
+        updatedAt: { gt: rejectedAfter },
       },
+      // A fresh re-queue budget, so the media cleanup does not reject the
+      // replayed item at its first stuck sweep.
       data: {
         status: "uploaded",
         rejectionReason: null,
         rejectionCode: null,
         processingCompletedAt: null,
+        processingRequeues: 0,
       },
     });
 
     updateMany.mockResolvedValueOnce({ count: 0 });
-    await expect(repository.reopenForReplay(MEDIA_1_ID)).resolves.toBe(false);
+    await expect(
+      repository.reopenForReplay(MEDIA_1_ID, rejectedAfter),
+    ).resolves.toBe(false);
+  });
+
+  it("lists processing failures within their retention, paged by id", async () => {
+    const findMany = jest.fn(async (_args: any) => [
+      mediaRow({ status: "rejected", rejectionCode: "processing_failed" }),
+    ]);
+    const repository = createRepository({ findMany });
+    const rejectedAfter = new Date("2026-09-28T12:00:00.000Z");
+
+    await expect(
+      repository.listReplayableRejections(rejectedAfter, null, 50),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: MEDIA_1_ID, status: "rejected" }),
+    ]);
+    await repository.listReplayableRejections(rejectedAfter, MEDIA_1_ID, 50);
+
+    expect(findMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: {
+          status: "rejected",
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+        },
+        orderBy: { id: "asc" },
+        take: 50,
+      },
+      {
+        where: {
+          status: "rejected",
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+          id: { gt: MEDIA_1_ID },
+        },
+        orderBy: { id: "asc" },
+        take: 50,
+      },
+    ]);
   });
 
   it("claims an unfinished row for a replay only while it has not moved since its job was dead-lettered", async () => {

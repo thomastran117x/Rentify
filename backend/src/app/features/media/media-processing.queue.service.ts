@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { Channel, ConsumeMessage, GetMessage } from "amqplib";
+import type {
+  Channel,
+  ConfirmChannel,
+  ConsumeMessage,
+  GetMessage,
+} from "amqplib";
 import { loggerFactory } from "@/configuration/logging";
 import { createRabbitMqChannel } from "@/configuration/resources/rabbitmq";
 import type { MediaProcessingJobPayload } from "@/features/media/media.model";
@@ -31,9 +36,23 @@ export interface MediaDeadLetterMessage {
 
 /** Reads `media.processing.dead-letter` one message at a time. */
 export interface MediaDeadLetterReader {
+  /**
+   * How many messages were ready when the queue was opened. A job
+   * dead-lettered after that, such as a replayed one that failed again, is
+   * left for the next run.
+   */
+  readonly depth: number;
   /** The next message, or null once the queue is empty. */
   take(): Promise<MediaDeadLetterMessage | null>;
-  /** Closes the channel; every message not acknowledged is requeued. */
+  /**
+   * Queues a new processing job for an item, with attempt 0, on this
+   * reader's channel.
+   */
+  republish(mediaId: Uuid): Promise<void>;
+  /**
+   * Closes the channel; every message not acknowledged is requeued. Never
+   * throws: a channel the broker already closed has requeued them too.
+   */
   close(): Promise<void>;
 }
 
@@ -57,12 +76,7 @@ export class MediaProcessingQueueService {
   private readonly deadLetterQueueName = `${MEDIA_PROCESSING_QUEUE_PREFIX}.dead-letter`;
 
   async enqueueMediaProcessingJob(mediaId: Uuid): Promise<void> {
-    await this.publishWithRoutingKey("main", {
-      jobId: randomUUID(),
-      mediaId,
-      attempt: 0,
-      occurredAt: new Date().toISOString(),
-    });
+    await this.publishWithRoutingKey("main", newJob(mediaId));
   }
 
   async publishRetryJob(
@@ -118,15 +132,18 @@ export class MediaProcessingQueueService {
    */
   async openDeadLetterQueue(): Promise<MediaDeadLetterReader> {
     const channel = await createRabbitMqChannel();
+    let depth: number;
 
     try {
       await this.assertTopology(channel);
+      depth = (await channel.checkQueue(this.deadLetterQueueName)).messageCount;
     } catch (error) {
       await channel.close();
       throw error;
     }
 
     return {
+      depth,
       take: async () => {
         const message = await channel.get(this.deadLetterQueueName, {
           noAck: false,
@@ -142,8 +159,17 @@ export class MediaProcessingQueueService {
           ack: () => channel.ack(message),
         };
       },
+      republish: (mediaId) => this.publishOn(channel, "main", newJob(mediaId)),
       close: async () => {
-        await channel.close();
+        try {
+          await channel.close();
+        } catch (error) {
+          mediaProcessingQueueLogger.warn(
+            "Closing the media dead-letter channel failed; it was already closed.",
+            undefined,
+            error,
+          );
+        }
       },
     };
   }
@@ -197,21 +223,30 @@ export class MediaProcessingQueueService {
 
     try {
       await this.assertTopology(channel);
-      channel.publish(
-        this.exchangeName,
-        routingKey,
-        Buffer.from(JSON.stringify(payload), "utf8"),
-        {
-          persistent: true,
-          contentType: "application/json",
-          messageId: payload.jobId,
-          timestamp: Date.now(),
-        },
-      );
-      await channel.waitForConfirms();
+      await this.publishOn(channel, routingKey, payload);
     } finally {
       await channel.close();
     }
+  }
+
+  /** Publishes on a channel whose topology is already asserted. */
+  private async publishOn(
+    channel: ConfirmChannel,
+    routingKey: string,
+    payload: MediaProcessingJobPayload,
+  ): Promise<void> {
+    channel.publish(
+      this.exchangeName,
+      routingKey,
+      Buffer.from(JSON.stringify(payload), "utf8"),
+      {
+        persistent: true,
+        contentType: "application/json",
+        messageId: payload.jobId,
+        timestamp: Date.now(),
+      },
+    );
+    await channel.waitForConfirms();
   }
 
   private async assertTopology(channel: Channel): Promise<void> {
@@ -248,6 +283,16 @@ export class MediaProcessingQueueService {
       "dead-letter",
     );
   }
+}
+
+/** A new job for an item, as every processing job starts. */
+function newJob(mediaId: Uuid): MediaProcessingJobPayload {
+  return {
+    jobId: randomUUID(),
+    mediaId,
+    attempt: 0,
+    occurredAt: new Date().toISOString(),
+  };
 }
 
 /**

@@ -420,11 +420,14 @@ export class MediaRepository extends BaseRepository {
 
   /**
    * Returns an item rejected because processing kept failing to `uploaded`,
-   * so a replayed job can claim it. Applies only while it is still rejected
-   * with `processing_failed`: an item deleted, purged, or rejected for any
-   * other reason meanwhile is left alone, and the caller learns it lost.
+   * so a replayed job can claim it, with a fresh re-queue budget for the media
+   * cleanup. Applies only while it is still rejected with `processing_failed`
+   * and was rejected after `rejectedAfter`. The caller passes the start of the
+   * rejected retention, so an item the cleanup may be purging right now is
+   * never reopened. An item deleted, purged, or rejected for any other reason
+   * meanwhile is left alone, and the caller learns it lost.
    */
-  reopenForReplay(id: Uuid): Promise<boolean> {
+  reopenForReplay(id: Uuid, rejectedAfter: Date): Promise<boolean> {
     return this.transition(
       id,
       ["rejected"],
@@ -433,12 +436,44 @@ export class MediaRepository extends BaseRepository {
         rejectionReason: null,
         rejectionCode: null,
         processingCompletedAt: null,
+        processingRequeues: 0,
       },
       {
-        where: { rejectionCode: "processing_failed" },
+        where: {
+          rejectionCode: "processing_failed",
+          updatedAt: { gt: rejectedAfter },
+        },
         operationName: "reopenForReplay",
       },
     );
+  }
+
+  /**
+   * Items rejected as `processing_failed` after `rejectedAfter`, in id order
+   * after `afterId`, for a replay driven by the database rather than the
+   * dead-letter queue.
+   */
+  async listReplayableRejections(
+    rejectedAfter: Date,
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    const rows = await this.executeAsync(
+      () =>
+        this.prisma.media.findMany({
+          where: {
+            status: "rejected",
+            rejectionCode: "processing_failed",
+            updatedAt: { gt: rejectedAfter },
+            ...(afterId ? { id: { gt: afterId } } : {}),
+          },
+          orderBy: { id: "asc" },
+          take: limit,
+        }),
+      { operationName: "listReplayableRejections" },
+    );
+
+    return rows.map((row) => this.toRecord(row));
   }
 
   /**

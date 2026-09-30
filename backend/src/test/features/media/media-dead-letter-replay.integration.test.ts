@@ -21,6 +21,7 @@ import {
 
 const MAIN_QUEUE_NAME = "media.processing.main";
 const DEAD_LETTER_QUEUE_NAME = "media.processing.dead-letter";
+const RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Replays dead-lettered media processing jobs against MySQL and RabbitMQ, with
@@ -68,6 +69,10 @@ describe("Media dead-letter replay persistence integration", () => {
     return persistenceApp.prisma.media.findUnique({ where: { id } });
   }
 
+  function retentionStart(): Date {
+    return new Date(Date.now() - RETENTION_MS);
+  }
+
   function queue() {
     return persistenceApp.container.resolve(
       containerTokens.mediaProcessingQueueService,
@@ -103,14 +108,19 @@ describe("Media dead-letter replay persistence integration", () => {
     expect(await queueDepth(name)).toBe(expected);
   }
 
-  function replay(dryRun: boolean, limit?: number) {
+  function replay(
+    dryRun: boolean,
+    limit?: number,
+    source: "queue" | "database" = "queue",
+  ) {
     const container = persistenceApp.container;
 
     return new MediaDeadLetterReplayService(
       container.resolve(containerTokens.mediaRepository),
       container.resolve(containerTokens.blobService),
       queue(),
-    ).run({ dryRun, limit });
+      { rejectedRetentionMs: RETENTION_MS },
+    ).run({ dryRun, limit, source });
   }
 
   beforeAll(async () => {
@@ -138,9 +148,9 @@ describe("Media dead-letter replay persistence integration", () => {
     const legacy = await seedMedia("rejected");
     const ready = await seedMedia("ready");
 
-    await expect(repository.reopenForReplay(asUuid(failed.id))).resolves.toBe(
-      true,
-    );
+    await expect(
+      repository.reopenForReplay(asUuid(failed.id), retentionStart()),
+    ).resolves.toBe(true);
     await expect(findMedia(failed.id)).resolves.toMatchObject({
       status: "uploaded",
       rejectionReason: null,
@@ -150,23 +160,88 @@ describe("Media dead-letter replay persistence integration", () => {
       processingError: "Error: storage unavailable",
     });
     // Once reopened it is no longer a rejection to reopen.
-    await expect(repository.reopenForReplay(asUuid(failed.id))).resolves.toBe(
-      false,
-    );
+    await expect(
+      repository.reopenForReplay(asUuid(failed.id), retentionStart()),
+    ).resolves.toBe(false);
 
     for (const other of [corrupt, legacy, ready]) {
-      await expect(repository.reopenForReplay(asUuid(other.id))).resolves.toBe(
-        false,
-      );
+      await expect(
+        repository.reopenForReplay(asUuid(other.id), retentionStart()),
+      ).resolves.toBe(false);
     }
     await expect(findMedia(corrupt.id)).resolves.toMatchObject({
       status: "rejected",
       rejectionCode: "corrupt",
     });
     await expect(
-      repository.reopenForReplay(asUuid(randomUUID())),
+      repository.reopenForReplay(asUuid(randomUUID()), retentionStart()),
     ).resolves.toBe(false);
   });
+
+  it("does not reopen a rejection past its retention, and resets the re-queue budget", async () => {
+    const repository = persistenceApp.container.resolve(
+      containerTokens.mediaRepository,
+    );
+    const expired = await seedMedia("rejected", "processing_failed");
+    const fresh = await seedMedia("rejected", "processing_failed");
+    await persistenceApp.prisma.$executeRaw`
+      UPDATE media SET updated_at = NOW(6) - INTERVAL 2 DAY WHERE id = ${expired.id}`;
+    await persistenceApp.prisma.media.update({
+      where: { id: fresh.id },
+      data: { processingRequeues: 3 },
+    });
+
+    await expect(
+      repository.reopenForReplay(asUuid(expired.id), retentionStart()),
+    ).resolves.toBe(false);
+    await expect(
+      repository.reopenForReplay(asUuid(fresh.id), retentionStart()),
+    ).resolves.toBe(true);
+    await expect(findMedia(fresh.id)).resolves.toMatchObject({
+      status: "uploaded",
+      processingRequeues: 0,
+    });
+  });
+
+  it("replays processing failures from the database, whether or not they were dead-lettered", async () => {
+    const stuck = await seedMedia("rejected", "processing_failed");
+    const gone = await seedMedia("rejected", "processing_failed", {
+      uploadKept: false,
+    });
+    const corrupt = await seedMedia("rejected", "corrupt");
+
+    await expect(replay(true, undefined, "database")).resolves.toMatchObject({
+      scanned: 2,
+      replayed: 1,
+      notReplayable: 1,
+    });
+    await expect(findMedia(stuck.id)).resolves.toMatchObject({
+      status: "rejected",
+    });
+
+    await expect(replay(false, undefined, "database")).resolves.toMatchObject({
+      source: "database",
+      replayed: 1,
+      notReplayable: 1,
+      error: null,
+    });
+    await expect(findMedia(stuck.id)).resolves.toMatchObject({
+      status: "uploaded",
+    });
+    await expect(findMedia(gone.id)).resolves.toMatchObject({
+      status: "rejected",
+    });
+    await expect(findMedia(corrupt.id)).resolves.toMatchObject({
+      status: "rejected",
+    });
+    await expect(
+      waitForRabbitMqPayload<MediaProcessingJobPayload>(
+        persistenceApp.infra.rabbitMq,
+        MAIN_QUEUE_NAME,
+        (payload) => payload.mediaId === stuck.id,
+      ),
+    ).resolves.toMatchObject({ attempt: 0 });
+  }, 30_000);
 
   it("keeps the uploads a replay may need out of the blob cleanup", async () => {
     const failed = await seedMedia("rejected", "processing_failed");

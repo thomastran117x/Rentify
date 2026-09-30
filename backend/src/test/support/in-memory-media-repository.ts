@@ -124,8 +124,13 @@ export class InMemoryMediaRepository {
     });
   }
 
-  async reopenForReplay(id: Uuid): Promise<boolean> {
-    if (this.rows.get(id)?.rejectionCode !== "processing_failed") {
+  async reopenForReplay(id: Uuid, rejectedAfter: Date): Promise<boolean> {
+    const record = this.rows.get(id);
+
+    if (
+      record?.rejectionCode !== "processing_failed" ||
+      record.updatedAt.getTime() <= rejectedAfter.getTime()
+    ) {
       return false;
     }
 
@@ -134,7 +139,26 @@ export class InMemoryMediaRepository {
       rejectionReason: null,
       rejectionCode: null,
       processingCompletedAt: null,
+      processingRequeues: 0,
     });
+  }
+
+  async listReplayableRejections(
+    rejectedAfter: Date,
+    afterId: string | null,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    return [...this.rows.values()]
+      .filter(
+        (record) =>
+          record.status === "rejected" &&
+          record.rejectionCode === "processing_failed" &&
+          record.updatedAt.getTime() > rejectedAfter.getTime() &&
+          (afterId === null || record.id > afterId),
+      )
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .slice(0, limit)
+      .map((record) => ({ ...record }));
   }
 
   async claimForReplay(
