@@ -1,6 +1,7 @@
 import type { Channel, ConsumeMessage } from "amqplib";
 import type { Logger } from "@/configuration/logging/types";
 import type { MediaProcessingJobPayload } from "@/features/media/media.model";
+import type { MediaMetrics } from "@/features/media/media-metrics";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaProcessingService } from "@/features/media/media-processing.service";
 
@@ -15,6 +16,7 @@ export interface MediaProcessingJobHandlerDependencies {
   >;
   maxAttempts: number;
   logger: Pick<Logger, "error">;
+  metrics: Pick<MediaMetrics, "increment">;
 }
 
 /**
@@ -35,7 +37,7 @@ export function createMediaProcessingJobHandler(
   message: ConsumeMessage,
   channel: Channel,
 ) => Promise<void> {
-  const { queue, processing, maxAttempts, logger } = dependencies;
+  const { queue, processing, maxAttempts, logger, metrics } = dependencies;
 
   return async (payload, message, channel) => {
     try {
@@ -51,6 +53,10 @@ export function createMediaProcessingJobHandler(
       };
 
       logger.error("Failed to process media processing job.", context, error);
+      metrics.increment("media.processing.failure", {
+        attempt,
+        retrying: attempt < maxAttempts,
+      });
 
       // Best effort, like marking a dead-lettered item rejected below: the
       // failure being recorded is often a database outage, and failing to
@@ -72,6 +78,7 @@ export function createMediaProcessingJobHandler(
       }
 
       await queue.publishDeadLetterJob({ ...payload, attempt });
+      metrics.increment("media.dlq.published", {});
       logger.error("Media processing job moved to dead-letter queue.", {
         ...context,
         error: error instanceof Error ? error.message : String(error),
