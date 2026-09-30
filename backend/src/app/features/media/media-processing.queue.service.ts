@@ -21,6 +21,11 @@ export interface MediaProcessingBacklog {
  */
 export interface MediaDeadLetterMessage {
   payload: MediaProcessingJobPayload | null;
+  /**
+   * When the job was published to the dead-letter queue, from the message's
+   * timestamp, or null when it carries none.
+   */
+  deadLetteredAt: Date | null;
   ack(): void;
 }
 
@@ -133,6 +138,7 @@ export class MediaProcessingQueueService {
 
         return {
           payload: parseJobPayload(message),
+          deadLetteredAt: readTimestamp(message),
           ack: () => channel.ack(message),
         };
       },
@@ -244,6 +250,18 @@ export class MediaProcessingQueueService {
   }
 }
 
+/**
+ * The message's publish time. Every job this service publishes carries it, in
+ * milliseconds.
+ */
+function readTimestamp(message: GetMessage): Date | null {
+  const timestamp: unknown = message.properties?.timestamp;
+
+  return typeof timestamp === "number" && Number.isFinite(timestamp)
+    ? new Date(timestamp)
+    : null;
+}
+
 /** A job payload, or null when the message body is not one. */
 function parseJobPayload(
   message: GetMessage,
@@ -270,7 +288,8 @@ function parseJobPayload(
     typeof mediaId !== "string" ||
     !isUuid(mediaId) ||
     typeof attempt !== "number" ||
-    typeof occurredAt !== "string"
+    typeof occurredAt !== "string" ||
+    !Number.isFinite(Date.parse(occurredAt))
   ) {
     return null;
   }

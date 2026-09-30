@@ -15,9 +15,10 @@ export const DEFAULT_REPLAY_LIMIT = 1000;
  * replayed: its item was rejected as `processing_failed` with its upload still
  *   kept, and was reopened and queued again.
  * requeued: its item never got marked rejected (the outage that exhausted the
- *   retries stopped that too) and is still waiting, so it was queued again.
- * skipped: nothing is left to do: the item is gone, ready, or changed while
- *   this ran.
+ *   retries stopped that too) and had not moved since, so it was claimed and
+ *   queued again.
+ * skipped: nothing is left to do: the item is gone, ready, already being
+ *   handled (`in_flight`), or changed while this ran.
  * not_replayable: the item cannot be processed from what is kept: its
  *   rejection is final, or its upload has already been deleted.
  * invalid: the message is not a processing job.
@@ -87,6 +88,10 @@ type Decision =
  *
  * Every change is guarded on the row's status, so a user deleting the item,
  * the cleanup purging it, or a concurrent run replaying it cannot be undone.
+ * An unfinished item is only queued again after claiming it, while it has not
+ * moved since its job was dead-lettered, so of several replays of one item,
+ * whether duplicate messages, separate runs, or concurrent ones, only the
+ * first queues a job.
  * A replayed item that fails again goes through the retry tiers from the
  * start and is dead-lettered again.
  */
@@ -94,13 +99,14 @@ export class MediaDeadLetterReplayService {
   constructor(
     private readonly repository: Pick<
       MediaRepository,
-      "findById" | "reopenForReplay"
+      "findById" | "reopenForReplay" | "claimForReplay"
     >,
     private readonly blobService: Pick<BlobService, "getProperties">,
     private readonly queue: Pick<
       MediaProcessingQueueService,
       "openDeadLetterQueue" | "enqueueMediaProcessingJob"
     >,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   async run(options: {
@@ -170,7 +176,11 @@ export class MediaDeadLetterReplayService {
 
     try {
       const record = await this.repository.findById(payload.mediaId);
-      const decision = await this.decide(record);
+      // A message published by this service always carries its time. Without
+      // one, the original enqueue time is an earlier, safe stand-in.
+      const deadLetteredAt =
+        message.deadLetteredAt ?? new Date(payload.occurredAt);
+      const decision = await this.decide(record, deadLetteredAt);
 
       if ("reason" in decision) {
         settle(message, dryRun);
@@ -184,10 +194,16 @@ export class MediaDeadLetterReplayService {
         };
       }
 
-      if (
-        decision.outcome === "replay" &&
-        !(await this.repository.reopenForReplay(payload.mediaId))
-      ) {
+      const claimed =
+        decision.outcome === "replay"
+          ? await this.repository.reopenForReplay(payload.mediaId)
+          : await this.repository.claimForReplay(
+              payload.mediaId,
+              deadLetteredAt,
+              this.now(),
+            );
+
+      if (!claimed) {
         message.ack();
         return { ...item, outcome: "skipped", reason: "changed" };
       }
@@ -211,7 +227,10 @@ export class MediaDeadLetterReplayService {
     }
   }
 
-  private async decide(record: MediaRecord | null): Promise<Decision> {
+  private async decide(
+    record: MediaRecord | null,
+    deadLetteredAt: Date,
+  ): Promise<Decision> {
     if (!record) {
       return { outcome: "skipped", reason: "missing" };
     }
@@ -221,9 +240,13 @@ export class MediaDeadLetterReplayService {
         return { outcome: "skipped", reason: "ready" };
       case "uploaded":
       case "processing":
-        // Rejecting it failed along with processing. A job that reaches it
-        // claims it as usual; a duplicate of one the cleanup queued is a no-op.
-        return { outcome: "requeue" };
+        // Rejecting it failed along with processing. Once it has moved since,
+        // something else already has it: a replay of a duplicate message, a
+        // job the media cleanup queued again, or a worker. Another job would
+        // only process it twice at once.
+        return record.updatedAt.getTime() > deadLetteredAt.getTime()
+          ? { outcome: "skipped", reason: "in_flight" }
+          : { outcome: "requeue" };
       case "pending_upload":
         return { outcome: "not_replayable", reason: "not_uploaded" };
       case "rejected":

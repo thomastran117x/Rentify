@@ -13,18 +13,35 @@ import { InMemoryMediaRepository } from "../../support/in-memory-media-repositor
 import { testUuid } from "../../support/uuid";
 
 const USER_ID = testUuid(9000, 994700);
+const HOUR_MS = 60 * 60 * 1000;
 let nextMediaIndex = 994701;
 
 /**
  * A dead-letter queue as the reader sees it: `take` hands out each message
- * once, and closing puts back every message not acknowledged.
+ * once, and closing puts back every message not acknowledged. Each message is
+ * dead-lettered a minute before it is pushed, as a real one precedes the
+ * replay that reads it, unless a time is given.
  */
 class FakeDeadLetterQueue {
   readonly queued: (MediaProcessingJobPayload | null)[] = [];
+  private readonly deadLetteredAt = new Map<
+    MediaProcessingJobPayload | null,
+    Date | null
+  >();
   closed = 0;
 
   push(...payloads: (MediaProcessingJobPayload | null)[]): void {
-    this.queued.push(...payloads);
+    for (const payload of payloads) {
+      this.pushAt(new Date(Date.now() - 60_000), payload);
+    }
+  }
+
+  pushAt(
+    deadLetteredAt: Date | null,
+    payload: MediaProcessingJobPayload | null,
+  ): void {
+    this.deadLetteredAt.set(payload, deadLetteredAt);
+    this.queued.push(payload);
   }
 
   open() {
@@ -40,7 +57,11 @@ class FakeDeadLetterQueue {
         const payload = this.queued.shift()!;
         const index = taken.push(payload) - 1;
 
-        return { payload, ack: () => acked.add(index) };
+        return {
+          payload,
+          deadLetteredAt: this.deadLetteredAt.get(payload) ?? null,
+          ack: () => acked.add(index),
+        };
       },
       close: async () => {
         this.closed += 1;
@@ -79,7 +100,8 @@ function createContext() {
     options: { uploadKept?: boolean } = {},
   ): MediaRecord {
     const id = testUuid(9000, nextMediaIndex++);
-    const now = new Date();
+    // Last moved before its job was dead-lettered, as a real item would be.
+    const now = new Date(Date.now() - HOUR_MS);
     const record: MediaRecord = {
       id,
       userId: USER_ID,
@@ -196,6 +218,93 @@ describe("MediaDeadLetterReplayService", () => {
       "processing",
     );
     expect(context.deadLetters.queued).toEqual([]);
+  });
+
+  it("queues an unfinished item once, however its duplicates are split across runs", async () => {
+    const context = createContext();
+    const uploaded = context.addMedia("uploaded");
+    context.deadLetters.push(
+      job(uploaded.id, "first"),
+      job(uploaded.id, "second"),
+    );
+
+    const first = await context.service.run({ dryRun: false, limit: 1 });
+    const second = await context.service.run({ dryRun: false, limit: 1 });
+
+    expect(first.items).toEqual([
+      expect.objectContaining({ jobId: "first", outcome: "requeued" }),
+    ]);
+    // The first run's claim moved the item after the second message was
+    // dead-lettered, so the second run leaves it to the job already queued.
+    expect(second.items).toEqual([
+      expect.objectContaining({
+        jobId: "second",
+        outcome: "skipped",
+        reason: "in_flight",
+      }),
+    ]);
+    expect(context.queue.enqueueMediaProcessingJob).toHaveBeenCalledTimes(1);
+    expect(context.deadLetters.queued).toEqual([]);
+  });
+
+  it("leaves an unfinished item that moved after its job was dead-lettered", async () => {
+    const context = createContext();
+    const moved = context.addMedia("processing", { updatedAt: new Date() });
+    context.deadLetters.pushAt(
+      new Date(Date.now() - HOUR_MS / 2),
+      job(moved.id),
+    );
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({ outcome: "skipped", reason: "in_flight" }),
+    ]);
+    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+  });
+
+  it("does not queue an unfinished item another replay claimed first", async () => {
+    const context = createContext();
+    const uploaded = context.addMedia("uploaded");
+    context.deadLetters.push(job(uploaded.id));
+    // As if a concurrent run claimed it between the read and the claim.
+    jest
+      .spyOn(context.repository, "claimForReplay")
+      .mockResolvedValueOnce(false);
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({ outcome: "skipped", reason: "changed" }),
+    ]);
+    expect(context.queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(context.deadLetters.queued).toEqual([]);
+  });
+
+  it("claims an unfinished item as of the job's own time when the message has none", async () => {
+    const context = createContext();
+    const unmoved = context.addMedia("uploaded", {
+      updatedAt: new Date("2026-09-29T11:00:00.000Z"),
+    });
+    const moved = context.addMedia("uploaded", {
+      updatedAt: new Date("2026-09-29T13:00:00.000Z"),
+    });
+    // job() stamps occurredAt 2026-09-29T12:00:00.000Z.
+    context.deadLetters.pushAt(null, job(unmoved.id));
+    context.deadLetters.pushAt(null, job(moved.id));
+    const claim = jest.spyOn(context.repository, "claimForReplay");
+
+    const result = await context.service.run({ dryRun: false });
+
+    expect(result.items.map((item) => item.outcome)).toEqual([
+      "requeued",
+      "skipped",
+    ]);
+    expect(claim).toHaveBeenCalledWith(
+      unmoved.id,
+      new Date("2026-09-29T12:00:00.000Z"),
+      expect.any(Date),
+    );
   });
 
   it("removes and reports every message it cannot replay", async () => {

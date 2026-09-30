@@ -137,6 +137,25 @@ export class InMemoryMediaRepository {
     });
   }
 
+  async claimForReplay(
+    id: Uuid,
+    deadLetteredAt: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    const record = this.rows.get(id);
+
+    if (
+      !record ||
+      !["uploaded", "processing"].includes(record.status) ||
+      record.updatedAt.getTime() > deadLetteredAt.getTime()
+    ) {
+      return false;
+    }
+
+    this.rows.set(id, { ...record, updatedAt: claimedAt });
+    return true;
+  }
+
   async recordProcessingProgress(id: Uuid): Promise<boolean> {
     this.progressRecorded.push(id);
     return this.transition(id, ["processing"], {});

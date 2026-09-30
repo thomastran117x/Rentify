@@ -103,14 +103,14 @@ describe("Media dead-letter replay persistence integration", () => {
     expect(await queueDepth(name)).toBe(expected);
   }
 
-  function replay(dryRun: boolean) {
+  function replay(dryRun: boolean, limit?: number) {
     const container = persistenceApp.container;
 
     return new MediaDeadLetterReplayService(
       container.resolve(containerTokens.mediaRepository),
       container.resolve(containerTokens.blobService),
       queue(),
-    ).run({ dryRun });
+    ).run({ dryRun, limit });
   }
 
   beforeAll(async () => {
@@ -237,6 +237,23 @@ describe("Media dead-letter replay persistence integration", () => {
       ).resolves.toMatchObject({ attempt: 0 });
     }
     await waitForQueueDepth(DEAD_LETTER_QUEUE_NAME, 0);
+  }, 30_000);
+
+  it("queues an unfinished item once when its duplicates are replayed in separate runs", async () => {
+    const waiting = await seedMedia("uploaded");
+    await deadLetter(waiting.id);
+    await deadLetter(waiting.id);
+    await waitForQueueDepth(DEAD_LETTER_QUEUE_NAME, 2);
+
+    await expect(replay(false, 1)).resolves.toMatchObject({ requeued: 1 });
+    await expect(replay(false, 1)).resolves.toMatchObject({
+      requeued: 0,
+      skipped: 1,
+      items: [expect.objectContaining({ reason: "in_flight" })],
+    });
+
+    await waitForQueueDepth(DEAD_LETTER_QUEUE_NAME, 0);
+    await waitForQueueDepth(MAIN_QUEUE_NAME, 1);
   }, 30_000);
 
   it("processes a replayed item to ready", async () => {

@@ -442,6 +442,29 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
+   * Claims an unfinished item for a dead-letter replay: moves its `updatedAt`
+   * to `claimedAt`, only while it has not moved since `deadLetteredAt`. The
+   * first replay of the item's job wins. A second replay, a duplicate message,
+   * a job the media cleanup queued again, or a worker that picked it up
+   * meanwhile has moved it, and is left to finish.
+   */
+  claimForReplay(
+    id: Uuid,
+    deadLetteredAt: Date,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      STUCK_STATUSES,
+      { updatedAt: claimedAt },
+      {
+        where: { updatedAt: { lte: deadLetteredAt } },
+        operationName: "claimForReplay",
+      },
+    );
+  }
+
+  /**
    * Records that a job is still working on an item, so the media cleanup does
    * not take it for one whose job was lost. Called between processing stages.
    */

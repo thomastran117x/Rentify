@@ -249,12 +249,13 @@ describe("MediaProcessingQueueService", () => {
   });
 
   describe("the dead-letter reader", () => {
-    function getMessage(body: unknown) {
+    function getMessage(body: unknown, timestamp?: unknown) {
       return {
         content: Buffer.from(
           typeof body === "string" ? body : JSON.stringify(body),
           "utf8",
         ),
+        properties: { timestamp },
       };
     }
 
@@ -266,10 +267,12 @@ describe("MediaProcessingQueueService", () => {
     };
 
     it("takes messages one at a time, unacknowledged, until the queue is empty", async () => {
+      const deadLetteredAt = Date.parse("2026-05-20T15:05:00.000Z");
       const messages = [
-        getMessage(job),
+        getMessage(job, deadLetteredAt),
         getMessage("not json"),
         getMessage({ ...job, mediaId: "not-a-uuid" }),
+        getMessage({ ...job, occurredAt: "yesterday-ish" }),
         getMessage(null),
       ];
       const channel = Object.assign(createChannel(), {
@@ -290,11 +293,17 @@ describe("MediaProcessingQueueService", () => {
         noAck: false,
       });
       expect(first?.payload).toEqual(job);
+      expect(first?.deadLetteredAt).toEqual(new Date(deadLetteredAt));
       expect(channel.ack).not.toHaveBeenCalled();
       first!.ack();
       expect(channel.ack).toHaveBeenCalledTimes(1);
 
-      // Bodies that are not jobs come back without a payload.
+      // Bodies that are not jobs come back without a payload, and a message
+      // without a timestamp without a time.
+      await expect(reader.take()).resolves.toMatchObject({
+        payload: null,
+        deadLetteredAt: null,
+      });
       await expect(reader.take()).resolves.toMatchObject({ payload: null });
       await expect(reader.take()).resolves.toMatchObject({ payload: null });
       await expect(reader.take()).resolves.toMatchObject({ payload: null });
