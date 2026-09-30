@@ -52,10 +52,10 @@ Check the ready, unacknowledged, retry, and dead-letter counts for the `media.pr
 
 ### Metrics and alerts
 
-The pipeline records the metrics below through the `MediaMetrics` port in [media-metrics.ts](../../features/media/media-metrics.ts). Today each one is a structured `media.metric` log event, `{ metric, value, tags }`, emitted at `info`. Follow them with:
+The pipeline records the metrics below through the `MediaMetrics` port in [media-metrics.ts](../../features/media/media-metrics.ts). Today each one is a structured `media.metric` log event, `{ metric, value, tags }`, emitted at `info` by the service that records it: `backend` for uploads and completion rejections, `media-processing-worker` for processing and dead letters, and `media-cleanup-worker` for cleanup rejections. Outside production the logger writes to each service's own output; in production it publishes to the application log queue, and the events come out of `log-consumer-worker`. Follow them with:
 
 ```bash
-docker compose logs -f log-consumer-worker | grep media.metric
+docker compose logs -f backend media-processing-worker media-cleanup-worker log-consumer-worker | grep media.metric
 ```
 
 Each is recorded exactly once per occurrence. A counter's value is 1. A metric that fails to record is dropped, and never fails the request or job. Tags never carry a user id, media id, or filename; those stay in the log context. See [Image Upload Validation](../../../../../docs/architecture-overview.md#image-upload-validation) for the port and the planned OpenTelemetry backend.

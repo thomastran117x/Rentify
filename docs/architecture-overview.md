@@ -376,8 +376,9 @@ The container always wraps the adapter in `BestEffortMediaMetrics`, which drops
 a failed call rather than throwing it, so recording a metric can never fail a
 request or a job. The only adapter today is `LogMediaMetrics`. It emits each
 call as one `media.metric` log event, `{ metric, value, tags }`, through the
-application log queue, so the events appear in
-`docker compose logs log-consumer-worker` with no new infrastructure. Tests use
+application logger, so it needs no new infrastructure. The events appear in the
+output of the service that recorded them, or of `log-consumer-worker` in
+production, where logs go through the application log queue. Tests use
 `NoopMediaMetrics`, or the `RecordingMediaMetrics` fake to assert on what was
 recorded.
 
