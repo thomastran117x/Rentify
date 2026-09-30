@@ -11,6 +11,7 @@ import { MediaController } from "@/features/media/media.controller";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
+import { BestEffortMediaMetrics } from "@/features/media/media-metrics";
 import { MediaRepository } from "@/features/media/media.repository";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
@@ -118,6 +119,9 @@ describe("targeted container registration modules", () => {
     );
     expect(resolve(containerTokens.mediaCleanupService)).toBeInstanceOf(
       MediaCleanupService,
+    );
+    expect(resolve(containerTokens.mediaMetrics)).toBeInstanceOf(
+      BestEffortMediaMetrics,
     );
     expect(resolve(containerTokens.mediaController)).toBeInstanceOf(
       MediaController,

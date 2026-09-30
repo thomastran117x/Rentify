@@ -364,6 +364,30 @@ is reachable by anyone who knows its full name. The name holds two random
 UUIDs, and the API never discloses it, but that obscurity is not access control.
 Moving `quarantine/` to a private container is the intended next step.
 
+**Metrics.** The pipeline records counts and timings through the `MediaMetrics`
+port (`features/media/media-metrics.ts`), which the container registers as
+`mediaMetrics`. The upload, processing, and rejection paths call
+`increment(name, tags)` and `observe(name, value, tags)` on it, and never an
+adapter directly. Each metric's tags are typed, and none can hold a user id,
+media id, or filename: those would give every upload its own series and put
+personal data in the metrics store. Ids stay in the log context.
+
+The container always wraps the adapter in `BestEffortMediaMetrics`, which drops
+a failed call rather than throwing it, so recording a metric can never fail a
+request or a job. The only adapter today is `LogMediaMetrics`. It emits each
+call as one `media.metric` log event, `{ metric, value, tags }`, through the
+application log queue, so the events appear in
+`docker compose logs log-consumer-worker` with no new infrastructure. Tests use
+`NoopMediaMetrics`, or the `RecordingMediaMetrics` fake to assert on what was
+recorded.
+
+The long-term backend is **OpenTelemetry**: the OTel SDK with an OTLP exporter,
+sending to a collector service in Compose. It plugs in as a second
+`MediaMetrics` adapter, with no change to where metrics are recorded. It was
+chosen over prom-client for two reasons. Prometheus scraping would need a
+metrics listener in every worker, which today runs no HTTP server, whereas OTLP
+pushes. OpenTelemetry also carries traces across the API, queue, and worker hop.
+
 ## Realtime Transport
 
 There are two realtime surfaces, both on **Socket.IO** with the **Redis

@@ -2,6 +2,10 @@ import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { MediaController } from "@/features/media/media.controller";
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
+import {
+  BestEffortMediaMetrics,
+  LogMediaMetrics,
+} from "@/features/media/media-metrics";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
@@ -16,6 +20,14 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [],
       resolve: () => new MediaRepository(),
+    });
+    // Every adapter goes behind BestEffortMediaMetrics, so recording a metric
+    // can never fail the request or job being measured.
+    container.register({
+      token: containerTokens.mediaMetrics,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new BestEffortMediaMetrics(new LogMediaMetrics()),
     });
     container.register({
       token: containerTokens.imageVariantsResolver,
