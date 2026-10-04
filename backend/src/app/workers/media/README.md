@@ -58,34 +58,39 @@ The pipeline records the metrics below through the `MediaMetrics` port in [media
 docker compose logs -f backend media-processing-worker media-cleanup-worker log-consumer-worker | grep media.metric
 ```
 
-Each is recorded exactly once per occurrence. A counter's value is 1. A metric that fails to record is dropped, and never fails the request or job. Tags never carry a user id, media id, or filename; those stay in the log context. See [Image Upload Validation](../../../../../docs/architecture-overview.md#image-upload-validation) for the port and the planned OpenTelemetry backend.
+Each is recorded exactly once per occurrence. A counter's value is 1. A metric that fails to record is dropped, and never fails the request or job. Tags never carry a user id, media id, or filename; those stay in the log context. Each tag is typed as a closed set of values, and a row's `scope` that is not a known scope is recorded as `unknown`. See [Image Upload Validation](../../../../../docs/architecture-overview.md#image-upload-validation) for the port and the planned OpenTelemetry backend.
 
-| Metric                      | Kind             | Recorded                                                                                                            | Tags                                                |
-| --------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `media.upload.created`      | counter          | `POST /media/uploads` recorded the item.                                                                            | `scope`, `declaredType`                             |
-| `media.upload.completed`    | counter          | `POST /media/{id}/complete` moved the item to `uploaded`. A repeated or re-queuing completion is not counted again. | `scope`                                             |
-| `media.bytes.original`      | observation (B)  | With `media.upload.completed`: the upload's stored length.                                                          | `scope`                                             |
-| `media.processing.duration` | observation (ms) | Every claimed processing attempt, from the claim to its end.                                                        | `scope`, `outcome`                                  |
-| `media.processing.success`  | counter          | The attempt that marked the item `ready`. A duplicate job that finds it already ready is not counted.               | `scope`                                             |
-| `media.bytes.processed`     | observation (B)  | With `media.processing.success`: the processed image's size, as recorded in `size_bytes`.                           | `scope`                                             |
-| `media.processing.failure`  | counter          | A processing attempt threw.                                                                                         | `attempt`, `retrying` (`false` on the last attempt) |
-| `media.dlq.published`       | counter          | A job was published to `media.processing.dead-letter`.                                                              | none                                                |
-| `media.rejected`            | counter          | The item was marked `rejected` by this actor; a racing or repeated rejection is not counted again.                  | `code` (the `rejection_code`), `stage`              |
+The events obey the log level, because they are logs. With `LOG_LEVEL` above `info` (or `logging.level` in YAML) every `media.metric` event is dropped, and so is everything the alerts below are built on. Each service that records metrics logs `Media metrics are disabled` at startup when that happens. Keep the level at `info` or lower wherever these alerts are used, until the OpenTelemetry adapter, which does not go through the logger, replaces this one.
 
-`stage` is `completion` (the size check in `POST /media/{id}/complete`), `processing` (the worker's policy, missing-upload, and changed-upload rejections), `dead_letter` (a job that exhausted its attempts), or `cleanup` (the media cleanup rejecting an item still stuck after its last re-queue). One `media.rejected{code}` metric replaces separate metrics per reason, so a new rejection code needs no new metric. An abandoned upload is not counted: it was never completed, and counting it would skew the rejection rate below.
+| Metric                      | Kind             | Recorded                                                                                                               | Tags                                                |
+| --------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `media.upload.created`      | counter          | `POST /media/uploads` recorded the item.                                                                               | `scope`, `declaredType`                             |
+| `media.upload.completed`    | counter          | `POST /media/{id}/complete` moved the item to `uploaded`. A repeated or re-queuing completion is not counted again.    | `scope`                                             |
+| `media.bytes.original`      | observation (B)  | With `media.upload.completed`: the upload's stored length.                                                             | `scope`                                             |
+| `media.processing.duration` | observation (ms) | Every claimed processing attempt, from the claim to its end.                                                           | `scope`, `outcome`                                  |
+| `media.processing.success`  | counter          | The attempt that marked the item `ready`. A duplicate job that finds it already ready is not counted.                  | `scope`                                             |
+| `media.bytes.processed`     | observation (B)  | With `media.processing.success`: the processed image's size, as recorded in `size_bytes`.                              | `scope`                                             |
+| `media.processing.failure`  | counter          | A processing attempt threw, counted once its job has been handed on to a retry tier or the dead-letter queue.          | `attempt`, `retrying` (`false` on the last attempt) |
+| `media.dlq.published`       | counter          | A job was published to `media.processing.dead-letter`.                                                                 | none                                                |
+| `media.rejected`            | counter          | The item was marked `rejected` by this actor; a racing rejection, or a repeat of one already recorded, is not counted. | `code` (the `rejection_code`), `stage`              |
+
+`stage` is `completion` (the size check in `POST /media/{id}/complete`), `processing` (the worker's policy, missing-upload, and changed-upload rejections), `dead_letter` (a job that exhausted its attempts), or `cleanup` (the media cleanup rejecting an item still stuck after its last re-queue). One `media.rejected{code}` metric replaces separate metrics per reason, so a new rejection code needs no new metric. An abandoned upload is not counted: it was never completed, and counting it would skew the rejection rate below. A `processing_failed` item that is [replayed](#dead-letter-runbook) and fails again is a new rejection, with no new completion, so replaying many items while an outage is still partly in effect raises the rejection rate; those rejections are `processing_failed` under `dead_letter` or `cleanup`.
+
+A failed publish leaves the job unacknowledged and the consumer requeues it with the same attempt, so `media.processing.failure` is counted only after the hand-off succeeds; the redelivery counts it otherwise. The counters `media.upload.completed`, `media.processing.success`, and `media.dlq.published` repeat what `media.bytes.original`, `media.bytes.processed`, and `media.processing.failure{retrying=false}` already imply. They are kept, as #348 specified, so that each dashboard and alert reads one metric by name, at the cost of a few extra log events per upload.
 
 `outcome` is `ready` or `rejected` when this attempt finished the item, `discarded` when something else did first (the item was deleted, or a duplicate job made it ready or rejected it while the attempt ran), or `failed` for an attempt that threw and is retried or dead-lettered. An item deleted between its claim and being read back is recorded under the `scope` `unknown`, since its row is gone.
 
 Alert on:
 
 - **Dead letters:** `media.processing.dead-letter` depth above 0. Follow the [dead-letter runbook](#dead-letter-runbook).
-- **Rejection rate:** `media.rejected` above 20 % of `media.upload.completed` over 15 minutes. Group by `code` to see why, and by `stage` to see where.
+- **Rejection rate:** `media.rejected` above 20 % of `media.upload.completed + media.rejected{stage="completion"}` over 15 minutes. A completion-stage rejection, an empty or oversized upload refused by `POST /media/{id}/complete`, never reaches `uploaded`, so it is added to the denominator as well; otherwise a burst of oversized uploads could push the ratio past 100 % while processing is healthy. Group by `code` to see why, and by `stage` to see where.
 - **Slow processing:** p95 of `media.processing.duration` above 10 s. Image processing is the backend's most CPU-intensive job, so a rising p95 is an early capacity signal.
-- **Stuck items:** any row still `processing` 15 minutes after it last moved. The media cleanup takes such an item for one whose job was lost after `stuckThresholdMs` (15 minutes by default), so a count that stays above 0 means the cleanup is deferring it or failing:
+- **Stuck items:** any row still `uploaded` or `processing` 15 minutes after it last moved, the same statuses the media cleanup treats as stuck. A job lost when it was published leaves its row in `uploaded`. The cleanup takes such an item for one whose job was lost after `stuckThresholdMs` (15 minutes by default) and moves it on, so a count that stays above 0 means the cleanup is deferring it or failing. `updated_at` is stored in UTC, so compare it with `UTC_TIMESTAMP()` rather than `NOW()`, which follows the session time zone:
 
   ```sql
   SELECT COUNT(*) FROM media
-  WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 15 MINUTE;
+  WHERE status IN ('uploaded', 'processing')
+    AND updated_at < UTC_TIMESTAMP() - INTERVAL 15 MINUTE;
   ```
 
 ### Dead-letter runbook
