@@ -19,7 +19,7 @@ Each check covers a different failure mode. They are complementary, not redundan
 Every workspace exposes the same three scripts:
 
 ```bash
-npm run audit              # npm audit --audit-level=high
+npm run audit              # npm audit at --audit-level=high, minus reviewed exceptions
 npm run audit:signatures   # npm audit signatures
 npm run audit:all          # both, in order
 ```
@@ -27,6 +27,8 @@ npm run audit:all          # both, in order
 Run them from `backend/`, `frontend/`, or `mcp/`. CI invokes the two granular scripts through `scripts/npm-security-check.mjs` so an advisory failure and a signature failure show up as distinct steps; `audit:all` exists for local one-shot use.
 
 Because the threshold lives in the npm script rather than the workflow wrapper, `npm run audit` locally applies the same severity gate as CI. The wrapper only adds retry and event-specific handling for registry availability failures.
+
+`npm run audit` runs [`scripts/npm-audit-gate.mjs`](../scripts/npm-audit-gate.mjs) rather than `npm audit` directly. The script reads `npm audit --json` and traces each finding at or above the level back to the advisories behind it. It fails on any advisory that is not listed for that workspace in [`scripts/audit-exceptions.json`](../scripts/audit-exceptions.json), and on any listed exception whose review date has passed. An accepted advisory is still printed on every run, and an exception that no longer matches anything is reported for removal. When npm produces no report, as in a registry outage, the script passes npm's own output and exit code through, so the wrapper still recognises and retries the outage. For dependency paths and suggested fixes, run plain `npm audit`.
 
 ## The CI Gate
 
@@ -66,7 +68,7 @@ Two operational notes:
 
 ### Severity Policy
 
-The gate is `--audit-level=high`, so **high** and **critical** advisories block a merge. Low and moderate advisories are reported but do not fail the build.
+The gate is `--audit-level=high`, so **high** and **critical** advisories block a merge. Low and moderate advisories are reported but do not fail the build. The only way past a high or critical advisory without fixing it is a [gate exception](#gate-exceptions).
 
 This is a deliberate tradeoff. A hard gate at `moderate` fails on transitive advisories that frequently have no fix available, which trains people to bypass the gate. Tightening later is cheap — change the `audit` script in all three `package.json` files.
 
@@ -79,6 +81,14 @@ Findings below the gate threshold that we have consciously chosen not to fix. Ke
 | `backend`, `mcp` | [GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr) — `esbuild` arbitrary file read via the dev server | Low      | Fixed in esbuild 0.28.1. `tsx` has since moved to it, but `tsup@8.5.1` — still the latest — requires `esbuild@^0.27.0`, so the backend resolves both 0.28.1 (via tsx) and 0.27.7 (via tsup) and no in-range fix exists for the latter. An `overrides` entry would cross a breaking esbuild minor for tsup's plugin API. The advisory only affects esbuild's dev server, which this repo never runs — esbuild is used solely as a build-time bundler. | `tsup` ships esbuild 0.28 support; then drop the pin and re-audit. |
 
 Consider an unfiltered `npm audit` review each quarter so the low/moderate backlog does not silently grow.
+
+### Gate Exceptions
+
+A high or critical advisory blocks a merge until it is fixed, with one way out: an entry in [`scripts/audit-exceptions.json`](../scripts/audit-exceptions.json). Use it only when no fix exists anywhere in the dependency chain, after working through the [remediation runbook](#remediation-runbook), and only when the vulnerable code cannot be reached in a way that matters. An exception names one advisory in one package in one workspace, so a different advisory, or the same one appearing in another workspace or package, still fails. Each entry needs a `reason`, an `exitCriterion`, and a `reviewBy` date no more than three months out. After that date the gate fails until someone checks the advisory again and either renews or removes the entry. Every exception needs a matching row below.
+
+| Workspace  | Advisory                                                                                                                                              | Severity | Why accepted                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Exit criterion                                                                                                                                | Review by  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `frontend` | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) — `braces` stack-exhaustion denial of service through deeply nested patterns | High     | No patched `braces` exists: every version through 3.0.3, the latest, is affected, and every `micromatch` and `fast-glob` release depends on it. It reaches the frontend only through `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob@3.3.1` → `micromatch`, which expands this repository's own glob patterns while linting. It is never in the Next build output or the running app, and the stack exhaustion needs an attacker-controlled pattern. `npm audit fix --force` would move `eslint-config-next` back to 14, which does not support Next 16. | A patched `braces` is published, or `@next/eslint-plugin-next` stops depending on `fast-glob`/`micromatch`; then update and remove the entry. | 2027-01-04 |
 
 ### Version Overrides
 
@@ -173,6 +183,8 @@ Work from lowest risk to highest so a failure is easy to attribute. Never use `n
 4. **Apply majors explicitly**, one package at a time (`npm install <pkg>@^<version>`), and read the upstream release notes for each. Type-checking is not sufficient — a major can keep its API and change its behavior.
 
 5. **Refresh `allowScripts`** in every workspace touched, per the section above.
+
+   If no step above clears a high or critical advisory because no fix exists anywhere in the chain, consider a [gate exception](#gate-exceptions) instead.
 
 6. **Verify.** Run the workspace's own checks, then `npm run audit:all`:
 

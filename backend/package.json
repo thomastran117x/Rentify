@@ -54,7 +54,7 @@
     "check:all": "npm run check && npm run check:test",
     "check:openapi-operation-coverage": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts",
     "check:openapi-operation-coverage:json": "tsx src/app/scripts/run-openapi-operation-coverage-check.ts --json",
-    "audit": "npm audit --audit-level=high",
+    "audit": "node ../scripts/npm-audit-gate.mjs --audit-level=high",
     "audit:signatures": "npm audit signatures",
     "audit:all": "npm run audit && npm run audit:signatures",
     "test": "jest --config jest.config.cjs --runInBand",
