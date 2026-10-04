@@ -1,0 +1,12 @@
+{
+  "exceptions": [
+    {
+      "workspace": "frontend",
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "No patched braces exists (every version through 3.0.3, the latest, is affected), and every micromatch and fast-glob release depends on it. It reaches the frontend only through eslint-config-next -> @next/eslint-plugin-next -> fast-glob@3.3.1 -> micromatch, which expands this repository's own glob patterns while linting. It is never part of the Next build output or the running app, and the stack exhaustion needs an attacker-controlled pattern.",
+      "exitCriterion": "A patched braces is published, or @next/eslint-plugin-next stops depending on fast-glob/micromatch; then update and remove this entry.",
+      "reviewBy": "2027-01-04"
+    }
+  ]
+}

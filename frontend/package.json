@@ -10,7 +10,7 @@
     "format:diff": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/format-diff.ps1 frontend",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "audit": "npm audit --audit-level=high",
+    "audit": "node ../scripts/npm-audit-gate.mjs --audit-level=high",
     "audit:signatures": "npm audit signatures",
     "audit:all": "npm run audit && npm run audit:signatures",
     "test:unit": "vitest run",

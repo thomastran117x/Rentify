@@ -51,9 +51,9 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
 
-      - name: Test npm security check failure handling
+      - name: Test npm security check and audit gate
         if: matrix.workspace == 'backend'
-        run: node --test --test-isolation=none ../scripts/npm-security-check.test.mjs
+        run: node --test --test-isolation=none ../scripts/npm-security-check.test.mjs ../scripts/npm-audit-gate.test.mjs
 
       - name: Install dependencies
         run: npm ci
