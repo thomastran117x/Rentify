@@ -18,6 +18,18 @@ For each job the service:
 
 To verify it, upload an image through `POST /media/uploads`, PUT the bytes, and complete it. `GET /media/{id}` should reach `ready` with a `url` under `media/images/` and, for an image wider than 800 px, `variants` giving the `.thumbnail.webp`, `.medium.webp`, and processed blobs with their widths, and the quarantine blob should be gone. Repeat with a non-image renamed to `.png`: the item should become `rejected` with a reason, and no `media/images/` blob should exist. On Azure, complete a valid image and then immediately PUT a different file to the same `upload.url`: the item should become `rejected` with "The upload changed after it was completed.", and no `media/images/` blob should exist.
 
+### Malware scanning locally
+
+By default the stack runs no scanner (`MEDIA_SCANNER` is `none`), and every item is recorded with `scan_status` `skipped`. To scan with ClamAV, start the opt-in `clamav` service under the `scanning` profile and point the worker at it:
+
+```bash
+MEDIA_SCANNER=clamav docker compose --profile scanning up --build
+```
+
+On PowerShell, set `$env:MEDIA_SCANNER = "clamav"` first, or put `MEDIA_SCANNER=clamav` in `.env`. clamd needs about 1.2 GB of RAM, and its first start downloads the signature database, which takes several minutes. The signatures are kept in the `clamav_data` volume, so later starts are quick. The processing worker waits for `clamav` to be healthy before it starts. Without the profile it starts as before, and with `MEDIA_SCANNER=clamav` but no clamd, every job retries and then dead-letters rather than publishing an unscanned image.
+
+To verify it, upload the [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) declared as `image/png`: the item should become `rejected` with `rejection_code` `malware` and "This file can't be used.", with no `media/images/` blob and the quarantine blob gone. In MySQL, `scan_status` is `infected` and `threat_name` holds the signature, which no API response carries. A real photo should reach `ready` with `scan_status` `clean` and a `scan_engine` such as `ClamAV 1.5.4/28137`. A desktop antivirus such as Microsoft Defender quarantines an EICAR file the moment it is written to disk, so build it in memory, for example in the browser's developer tools, rather than saving it. To see the failure path, run `docker compose stop clamav` and upload a photo: the worker logs retries, the item ends `rejected` with `processing_failed` and keeps its upload, and once clamd is back the [dead-letter runbook](#dead-letter-runbook) replays it to `ready`.
+
 ## Media Cleanup
 
 [media-cleanup.worker.ts](./media-cleanup.worker.ts) runs as `media-cleanup-worker` and explicitly connects MySQL and RabbitMQ. It finishes off media items that will not finish by themselves, through the [cleanup service](../../features/media/media-cleanup.service.ts). It works from the `media` table alone, with no listing of blob storage, so it cleans Azure and the local-disk fallback alike. Compose gives it the `backend_blob_storage` volume for that reason.

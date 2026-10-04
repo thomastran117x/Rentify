@@ -256,7 +256,10 @@ production deployment chooses one or the other explicitly.
 stream longer than its own `StreamMaxLength` (25M by default), so keep that at
 least as large as `maxStreamBytes`. When clamd refuses or cannot be reached,
 the job is retried and then dead-lettered like any other processing failure;
-the item is never marked ready unscanned. See
+the item is never marked ready unscanned. Locally, clamd runs in the opt-in
+`scanning` Compose profile; see the
+[media worker guide](../backend/src/app/workers/media/README.md#malware-scanning-locally).
+See
 [architecture-overview.md](./architecture-overview.md#image-upload-validation)
 for where the scan runs and what each verdict does.
 
