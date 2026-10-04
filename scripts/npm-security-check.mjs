@@ -33,7 +33,7 @@ export function isRetryableRegistryFailure(output) {
   return RETRYABLE_REGISTRY_PATTERNS.some((pattern) => pattern.test(output));
 }
 
-function executeNpm(args, { logLevel } = {}) {
+export function executeNpm(args, { logLevel } = {}) {
   const npmCli =
     process.env.npm_execpath ?? join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
   const executable = process.platform === "win32" ? process.execPath : "npm";

@@ -268,7 +268,10 @@ describe("Recently viewed postings", () => {
     // the prune drops is then decided by its `id` tiebreak -- deterministic in
     // production, where nobody opens 50 postings inside a millisecond, but
     // arbitrary here. Explicit timestamps make "the oldest went" assertable.
-    const base = Date.parse("2026-09-01T00:00:00.000Z");
+    // They end a minute ago, so all of them stay in the past and inside the
+    // sync's 30-day window: a timestamp older than that is clamped to the
+    // window's floor, and the oldest entries would tie again.
+    const base = Date.now() - (postingIds.length + 1) * 60_000;
     const entries = postingIds.map((postingId, index) => ({
       postingId,
       viewedAt: new Date(base + index * 60_000).toISOString(),
