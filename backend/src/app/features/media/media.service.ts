@@ -13,7 +13,10 @@ import {
   normalizeImageContentType,
   rejectionCodeOf,
 } from "@/features/media/image-policy";
-import type { MediaMetrics } from "@/features/media/media-metrics";
+import {
+  mediaMetricScope,
+  type MediaMetrics,
+} from "@/features/media/media-metrics";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
 import { rejectMedia } from "@/features/media/media-rejection";
@@ -95,14 +98,16 @@ export class MediaService {
       declaredContentType: contentType,
       originalFilename: input.filename.trim().slice(0, 255) || null,
     });
-    this.metrics.increment("media.upload.created", {
-      scope: record.scope,
-      declaredType: contentType,
-    });
     const target = this.blobService.createUploadUrl({
       blobName: record.originalBlobName,
       contentType,
       requestOrigin: input.requestOrigin,
+    });
+    // Counted once the client has a credential, so a failure to sign one is
+    // not mistaken for an upload the client abandoned.
+    this.metrics.increment("media.upload.created", {
+      scope: input.scope,
+      declaredType: contentType,
     });
 
     // Deliberately not the whole target: its blobName and blobUrl point into
@@ -155,12 +160,9 @@ export class MediaService {
     // Counted on the transition only, so a repeated completion is not counted
     // again.
     if (await this.mediaRepository.markUploaded(record.id, sizeBytes, etag)) {
-      this.metrics.increment("media.upload.completed", {
-        scope: record.scope,
-      });
-      this.metrics.observe("media.bytes.original", sizeBytes, {
-        scope: record.scope,
-      });
+      const scope = mediaMetricScope(record.scope);
+      this.metrics.increment("media.upload.completed", { scope });
+      this.metrics.observe("media.bytes.original", sizeBytes, { scope });
       await this.mediaProcessingQueue.enqueueMediaProcessingJob(record.id);
     }
 

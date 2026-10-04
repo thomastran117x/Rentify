@@ -31,9 +31,11 @@ import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
 } from "@/features/media/image-renditions";
-import type {
-  MediaMetrics,
-  MediaProcessingOutcome,
+import {
+  mediaMetricScope,
+  type MediaMetricScope,
+  type MediaMetrics,
+  type MediaProcessingOutcome,
 } from "@/features/media/media-metrics";
 import type {
   MediaRecord,
@@ -56,10 +58,6 @@ const UPLOAD_CHANGED: MediaRejection = {
   reason: "The upload changed after it was completed.",
   code: "upload_changed",
 };
-
-// The scope a duration is recorded under when the row was deleted between the
-// claim and reading it back, so its scope can no longer be known.
-const UNKNOWN_SCOPE = "unknown";
 
 function policyRejection(
   error: Parameters<typeof rejectionCodeOf>[0],
@@ -127,9 +125,9 @@ export class MediaProcessingService {
 
     // Timed from the claim, so every claimed attempt records one duration,
     // including one that throws and is retried, and one whose row is deleted
-    // before it can be read back.
+    // before it can be read back, whose scope stays unknown.
     const startedAt = performance.now();
-    let scope = UNKNOWN_SCOPE;
+    let scope: MediaMetricScope = "unknown";
     let outcome: MediaProcessingOutcome = "failed";
 
     try {
@@ -140,7 +138,7 @@ export class MediaProcessingService {
         return;
       }
 
-      scope = record.scope;
+      scope = mediaMetricScope(record.scope);
       outcome = await this.processClaimed(record);
     } finally {
       this.metrics.observe(
@@ -242,9 +240,10 @@ export class MediaProcessingService {
       return "discarded";
     }
 
-    this.metrics.increment("media.processing.success", { scope: record.scope });
+    const scope = mediaMetricScope(record.scope);
+    this.metrics.increment("media.processing.success", { scope });
     this.metrics.observe("media.bytes.processed", processed.data.byteLength, {
-      scope: record.scope,
+      scope,
     });
     await deleteQuarantinedUpload(this.rejection, record);
     return "ready";

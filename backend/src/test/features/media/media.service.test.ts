@@ -339,6 +339,16 @@ describe("MediaService", () => {
       expect(metrics.count("media.upload.created")).toBe(1);
     });
 
+    it("does not count an upload whose credential could not be signed", async () => {
+      const { mediaService, blobService, metrics } = createLocalMediaService();
+      jest.spyOn(blobService, "createUploadUrl").mockImplementationOnce(() => {
+        throw new Error("signing failed");
+      });
+
+      await expect(startUpload(mediaService)).rejects.toThrow("signing failed");
+      expect(metrics.count("media.upload.created")).toBe(0);
+    });
+
     it("refuses uploads when no storage is configured", async () => {
       process.env.NODE_ENV = "test";
       delete process.env.AZURE_STORAGE_CONNECTION_STRING;

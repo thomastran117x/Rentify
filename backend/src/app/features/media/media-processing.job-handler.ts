@@ -52,11 +52,9 @@ export function createMediaProcessingJobHandler(
         attempt,
       };
 
+      const retrying = attempt < maxAttempts;
+
       logger.error("Failed to process media processing job.", context, error);
-      metrics.increment("media.processing.failure", {
-        attempt,
-        retrying: attempt < maxAttempts,
-      });
 
       // Best effort, like marking a dead-lettered item rejected below: the
       // failure being recorded is often a database outage, and failing to
@@ -71,13 +69,18 @@ export function createMediaProcessingJobHandler(
         );
       }
 
-      if (attempt < maxAttempts) {
+      // The failure is counted only once the job has been handed on. If the
+      // publish throws, the message is requeued with the same attempt, and the
+      // redelivery is what counts it.
+      if (retrying) {
         await queue.publishRetryJob(payload, attempt);
+        metrics.increment("media.processing.failure", { attempt, retrying });
         channel.ack(message);
         return;
       }
 
       await queue.publishDeadLetterJob({ ...payload, attempt });
+      metrics.increment("media.processing.failure", { attempt, retrying });
       metrics.increment("media.dlq.published", {});
       logger.error("Media processing job moved to dead-letter queue.", {
         ...context,

@@ -1,6 +1,11 @@
+import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import { loggerFactory } from "@/configuration/logging";
-import type { Logger } from "@/configuration/logging/types";
-import type { MediaRejectionCode } from "@/features/media/media.model";
+import type { Logger, LogLevel } from "@/configuration/logging/types";
+import {
+  MEDIA_SCOPES,
+  type MediaRejectionCode,
+  type MediaScope,
+} from "@/features/media/media.model";
 
 /**
  * Where a rejection was decided: when the upload was completed, while it was
@@ -25,26 +30,46 @@ export type MediaProcessingOutcome =
   | "failed";
 
 /**
- * The tags each metric carries. Tags are for aggregation, so none of these
- * holds a user id, media id, or filename: those would give every upload its
- * own series and put personal data in the metrics store. Ids stay in the log
- * context instead.
+ * A scope as a metric tag: one of the known scopes, or `unknown` when it cannot
+ * be told, such as for a row deleted before it was read.
+ */
+export type MediaMetricScope = MediaScope | "unknown";
+
+/**
+ * Narrows a row's stored scope, which the database holds as free text, to a
+ * tag value. Anything that is not a known scope becomes `unknown`, so a bad
+ * row can never add a series.
+ */
+export function mediaMetricScope(scope: string): MediaMetricScope {
+  return (MEDIA_SCOPES as readonly string[]).includes(scope)
+    ? (scope as MediaScope)
+    : "unknown";
+}
+
+/**
+ * The tags each metric carries. Tags are for aggregation, so every one is
+ * typed as a closed set of values, and none holds a user id, media id, or
+ * filename: those would give every upload its own series and put personal
+ * data in the metrics store. Ids stay in the log context instead.
  */
 export interface MediaCounterTags {
-  "media.upload.created": { scope: string; declaredType: string };
-  "media.upload.completed": { scope: string };
-  "media.processing.success": { scope: string };
+  "media.upload.created": {
+    scope: MediaMetricScope;
+    declaredType: SupportedImageContentType;
+  };
+  "media.upload.completed": { scope: MediaMetricScope };
+  "media.processing.success": { scope: MediaMetricScope };
   "media.processing.failure": { attempt: number; retrying: boolean };
   "media.rejected": { code: MediaRejectionCode; stage: MediaRejectionStage };
   "media.dlq.published": Record<string, never>;
 }
 
 export interface MediaObservationTags {
-  "media.bytes.original": { scope: string };
-  "media.bytes.processed": { scope: string };
+  "media.bytes.original": { scope: MediaMetricScope };
+  "media.bytes.processed": { scope: MediaMetricScope };
   /** Milliseconds from claiming the item to the attempt's end. */
   "media.processing.duration": {
-    scope: string;
+    scope: MediaMetricScope;
     outcome: MediaProcessingOutcome;
   };
 }
@@ -79,11 +104,13 @@ export class NoopMediaMetrics implements MediaMetrics {
 }
 
 /**
- * Emits each metric as one structured `media.metric` log event, which reaches
- * `log-consumer-worker` through the application log queue like any other log.
- * A counter's value is 1. It needs no infrastructure of its own; a metrics
- * backend is added as another adapter, with no change to where metrics are
- * recorded.
+ * Emits each metric as one structured `media.metric` log event at `info`,
+ * which goes wherever the application's logs go. A counter's value is 1. It
+ * needs no infrastructure of its own; a metrics backend is added as another
+ * adapter, with no change to where metrics are recorded.
+ *
+ * Being logs, the events obey the log level: above `info`, every one is
+ * dropped. warnIfLogMetricsSuppressed says so at startup.
  */
 export class LogMediaMetrics implements MediaMetrics {
   constructor(
@@ -115,6 +142,31 @@ export class LogMediaMetrics implements MediaMetrics {
   ): void {
     this.logger.info("media.metric", { metric, value, tags });
   }
+}
+
+/**
+ * Warns once when the log level drops every LogMediaMetrics event, so turning
+ * down log volume does not silently turn off the media metrics and the alerts
+ * built on them. Returns whether the metrics are suppressed. The warning
+ * itself is only seen at `warn`; at `error` or above it is dropped too, as is
+ * any other warning.
+ */
+export function warnIfLogMetricsSuppressed(
+  level: LogLevel,
+  logger: Pick<Logger, "warn"> = loggerFactory.forComponent(
+    "media-metrics",
+    "service",
+  ),
+): boolean {
+  if (level === "debug" || level === "info") {
+    return false;
+  }
+
+  logger.warn(
+    "Media metrics are disabled: they are logged at info, below the configured log level.",
+    { logLevel: level },
+  );
+  return true;
 }
 
 /**

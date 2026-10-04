@@ -59,13 +59,27 @@ export async function rejectMedia(
     return false;
   }
 
-  dependencies.metrics.increment("media.rejected", { code, stage });
+  recordMediaRejection(dependencies.metrics, code, stage);
 
   if (!keepsQuarantinedUpload(code)) {
     await deleteQuarantinedUpload(dependencies, record);
   }
 
   return true;
+}
+
+/**
+ * Counts one rejection. Called only by the actor whose guarded update rejected
+ * the item, with the code it stored, so the tag always matches the row's
+ * `rejection_code`. rejectMedia calls it; so does the media cleanup, which
+ * rejects stuck items through its own guarded update.
+ */
+export function recordMediaRejection(
+  metrics: Pick<MediaMetrics, "increment">,
+  code: MediaRejectionCode,
+  stage: MediaRejectionStage,
+): void {
+  metrics.increment("media.rejected", { code, stage });
 }
 
 /**

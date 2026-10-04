@@ -1,7 +1,9 @@
 import {
   BestEffortMediaMetrics,
   LogMediaMetrics,
+  mediaMetricScope,
   NoopMediaMetrics,
+  warnIfLogMetricsSuppressed,
 } from "@/features/media/media-metrics";
 import {
   RecordingMediaMetrics,
@@ -83,6 +85,46 @@ describe("BestEffortMediaMetrics", () => {
     expect(() =>
       metrics.observe("media.bytes.processed", 10, { scope: "postings" }),
     ).not.toThrow();
+  });
+});
+
+describe("mediaMetricScope", () => {
+  it("keeps a known scope", () => {
+    expect(mediaMetricScope("postings")).toBe("postings");
+    expect(mediaMetricScope("organizations")).toBe("organizations");
+    expect(mediaMetricScope("avatars")).toBe("avatars");
+  });
+
+  it("turns anything else into unknown, so a bad row adds no series", () => {
+    expect(mediaMetricScope("00000000-0000-0000-9000-000000000001")).toBe(
+      "unknown",
+    );
+    expect(mediaMetricScope("photo.png")).toBe("unknown");
+    expect(mediaMetricScope("")).toBe("unknown");
+  });
+});
+
+describe("warnIfLogMetricsSuppressed", () => {
+  it("stays quiet at a level that keeps info events", () => {
+    const logger = { warn: jest.fn() };
+
+    expect(warnIfLogMetricsSuppressed("info", logger)).toBe(false);
+    expect(warnIfLogMetricsSuppressed("debug", logger)).toBe(false);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("warns when the log level drops every metric", () => {
+    const logger = { warn: jest.fn() };
+
+    expect(warnIfLogMetricsSuppressed("warn", logger)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Media metrics are disabled"),
+      { logLevel: "warn" },
+    );
+  });
+
+  it("uses the application logger by default", () => {
+    expect(warnIfLogMetricsSuppressed("error")).toBe(true);
   });
 });
 

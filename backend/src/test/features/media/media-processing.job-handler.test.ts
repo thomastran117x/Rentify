@@ -210,7 +210,31 @@ describe("createMediaProcessingJobHandler", () => {
     ).rejects.toThrow("broker unavailable");
     expect(channel.ack).not.toHaveBeenCalled();
     expect(processing.markProcessingFailed).not.toHaveBeenCalled();
-    // Counted only once the job is in the dead-letter queue.
+    // Counted only once the job is in the dead-letter queue; the requeued
+    // redelivery counts the failure, so it is not counted twice.
     expect(metrics.count("media.dlq.published")).toBe(0);
+    expect(metrics.count("media.processing.failure")).toBe(0);
+  });
+
+  it("does not count a failure whose retry could not be published", async () => {
+    const { handle, channel, message, queue, metrics } = createHarness({
+      process: failing,
+    });
+    queue.publishRetryJob.mockRejectedValueOnce(
+      new Error("broker unavailable"),
+    );
+
+    await expect(handle(payload(0), message, channel)).rejects.toThrow(
+      "broker unavailable",
+    );
+    expect(channel.ack).not.toHaveBeenCalled();
+    expect(metrics.count("media.processing.failure")).toBe(0);
+
+    // The requeued message is redelivered with the same attempt and counted
+    // once, when it is handed on.
+    await handle(payload(0), message, channel);
+    expect(metrics.tagsOf("media.processing.failure")).toEqual([
+      { attempt: 1, retrying: true },
+    ]);
   });
 });

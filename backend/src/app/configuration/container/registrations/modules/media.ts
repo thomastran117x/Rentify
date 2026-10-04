@@ -1,10 +1,12 @@
 import { containerTokens } from "@/configuration/container/tokens";
+import { environment } from "@/configuration/environment";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { MediaController } from "@/features/media/media.controller";
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import {
   BestEffortMediaMetrics,
   LogMediaMetrics,
+  warnIfLogMetricsSuppressed,
 } from "@/features/media/media-metrics";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
@@ -27,7 +29,10 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.mediaMetrics,
       lifetime: "singleton",
       dependencies: [],
-      resolve: () => new BestEffortMediaMetrics(new LogMediaMetrics()),
+      resolve: () => {
+        warnIfLogMetricsSuppressed(environment.getLoggingConfig().level);
+        return new BestEffortMediaMetrics(new LogMediaMetrics());
+      },
     });
     container.register({
       token: containerTokens.imageVariantsResolver,
