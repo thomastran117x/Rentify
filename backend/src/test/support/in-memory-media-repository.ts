@@ -4,6 +4,7 @@ import type {
   MarkMediaReadyInput,
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
   MediaStatus,
   MediaVariantsMetadata,
 } from "@/features/media/media.model";
@@ -52,6 +53,10 @@ export class InMemoryMediaRepository {
       processingStartedAt: null,
       processingCompletedAt: null,
       processingError: null,
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -90,10 +95,29 @@ export class InMemoryMediaRepository {
       status: "processing",
       processingAttempts: (this.rows.get(id)?.processingAttempts ?? 0) + 1,
       processingStartedAt: new Date(),
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
+    });
+  }
+
+  async recordScanResult(id: Uuid, scan: MediaScanRecord): Promise<boolean> {
+    return this.transition(id, ["processing"], {
+      scanStatus: scan.status,
+      scanEngine: scan.engine,
+      scannedAt: new Date(),
+      threatName: scan.threatName,
     });
   }
 
   async markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
+    const scanStatus = this.rows.get(id)?.scanStatus;
+
+    if (scanStatus !== "clean" && scanStatus !== "skipped") {
+      return false;
+    }
+
     return this.transition(id, ["processing"], {
       status: "ready",
       ...input,

@@ -130,8 +130,8 @@ attach by mediaId            postings, logos, blog covers, avatars
 - `MediaService` (`features/media`) owns those decisions: the image allow-list
   (`image-policy.ts`), the media lifecycle, ownership, and
   `resolveAttachableImage`, the one gate every feature uses to attach an image.
-- `MediaProcessingService`, run by `media-processing-worker`, validates and
-  re-encodes. See the [media worker guide](../backend/src/app/workers/media/README.md).
+- `MediaProcessingService`, run by `media-processing-worker`, scans,
+  validates, and re-encodes. See the [media worker guide](../backend/src/app/workers/media/README.md).
 - `MediaCleanupService`, run by `media-cleanup-worker`, deletes uploads that
   were never completed and old rejections, and re-queues items whose
   processing job was lost.
@@ -190,6 +190,47 @@ being buffered. A 412 during the download is the same final rejection. Rows
 completed before the ETag was recorded skip the comparison but keep both size
 checks. The local stand-in derives an ETag from the file's modification time
 and size and checks the same conditions before reading the file.
+
+**Malware scanning.** The downloaded bytes are scanned before any decoder reads
+them. The original upload is never served, only the WebP the worker produces,
+so the scan's job is narrower than it sounds: it keeps known-malicious input
+away from the libvips decoders, which are what a crafted image would attack,
+and it gives an auditable record that every upload was scanned. The scanner
+sits behind a `MalwareScanner` port (`features/media/scanning`) with two
+adapters:
+
+- `ClamAvScanner` streams the bytes to a clamd daemon over TCP with its
+  `INSTREAM` command, so nothing is written to disk. It reads `stream: OK` as
+  clean and `stream: <signature> FOUND` as infected.
+- `NoopScanner` passes everything and is used when `mediaScanning.scanner` is
+  `none`, the default outside production.
+
+Each processing attempt clears the row's scan and records its own in
+`media.scan_status`: `clean` or `infected`, or `skipped` from the noop
+scanner. `scan_engine` names the engine and signature version, such as
+`ClamAV 1.5.4/28137`, and `scanned_at` records when. Then:
+
+- **Infected:** the item is rejected with code `malware` and the reason "This
+  file can't be used." The signature goes to `media.threat_name` and a warning
+  log with the media and user ids, but never into the reason or any response.
+  The quarantined upload is deleted and the job is not retried.
+- **Scanner unavailable:** a clamd that is unreachable, times out, or answers
+  with an error throws. The job goes through the usual retry tiers and then
+  the dead-letter queue, like a storage outage.
+- **Either way:** `MediaRepository.markReady` only applies while `scan_status`
+  is `clean` or `skipped`, so the database itself refuses to publish an item
+  whose current attempt has not passed a scan.
+
+Rows that were `ready` before scanning existed keep `not_scanned`.
+Configuration and the production guard are in
+[backend-configuration.md](./backend-configuration.md#media-malware-scanning).
+
+Scanning is synchronous, inside the processing job. Microsoft Defender for
+Storage is the natural managed replacement, but it is event-driven: its
+verdict arrives later, through Event Grid or blob index tags. Supporting it
+would need an `awaiting_scan` state between download and decode. The port
+leaves room for that as a follow-up. Non-image files are out of scope, since
+the pipeline accepts only images.
 
 The worker decodes the bytes with sharp and matches the real format against the declared
 type and today's allow-list. It holds the length and dimensions to the policy

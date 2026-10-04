@@ -7,6 +7,8 @@ import type {
   MarkMediaReadyInput,
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
+  MediaScanStatus,
   MediaStatus,
   MediaVariantsMetadata,
   RecordedRenditions,
@@ -14,6 +16,14 @@ import type {
 
 // Completed uploads that still wait on their processing job.
 const STUCK_STATUSES: MediaStatus[] = ["uploaded", "processing"];
+
+// The scan verdicts an item may become ready from: clean, or skipped because
+// no scanner is configured.
+const READY_SCAN_STATUSES: MediaScanStatus[] = ["clean", "skipped"];
+
+// The scan_engine and threat_name columns' lengths.
+const SCAN_ENGINE_MAX_LENGTH = 50;
+const THREAT_NAME_MAX_LENGTH = 255;
 
 /**
  * Every state change is a conditional update guarded on the current status, so
@@ -88,29 +98,62 @@ export class MediaRepository extends BaseRepository {
   /**
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
    * there, and the redelivered job must be able to pick it back up. Every
-   * claim is counted, redeliveries included.
+   * claim is counted, redeliveries included. The scan is cleared, so each
+   * attempt must scan the bytes it downloaded before it can mark the item
+   * ready.
    */
   claimForProcessing(id: Uuid): Promise<boolean> {
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
       processingAttempts: { increment: 1 },
       processingStartedAt: new Date(),
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
     });
   }
 
+  /** Records the malware scan of the item being processed. */
+  recordScanResult(id: Uuid, scan: MediaScanRecord): Promise<boolean> {
+    return this.transition(
+      id,
+      ["processing"],
+      {
+        scanStatus: scan.status,
+        scanEngine: scan.engine.slice(0, SCAN_ENGINE_MAX_LENGTH),
+        scannedAt: new Date(),
+        threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
+      },
+      { operationName: "recordScanResult" },
+    );
+  }
+
+  /**
+   * Applies only once the scan has passed, so no path can publish an
+   * unscanned or infected upload, whatever the caller does.
+   */
   markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
-    return this.transition(id, ["processing"], {
-      status: "ready",
-      processedBlobName: input.processedBlobName,
-      detectedContentType: input.detectedContentType,
-      sizeBytes: input.sizeBytes,
-      width: input.width,
-      height: input.height,
-      variants: input.variants as unknown as Prisma.InputJsonValue,
-      rejectionReason: null,
-      rejectionCode: null,
-      processingCompletedAt: new Date(),
-    });
+    return this.transition(
+      id,
+      ["processing"],
+      {
+        status: "ready",
+        processedBlobName: input.processedBlobName,
+        detectedContentType: input.detectedContentType,
+        sizeBytes: input.sizeBytes,
+        width: input.width,
+        height: input.height,
+        variants: input.variants as unknown as Prisma.InputJsonValue,
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: new Date(),
+      },
+      {
+        where: { scanStatus: { in: READY_SCAN_STATUSES } },
+        operationName: "markReady",
+      },
+    );
   }
 
   /**
@@ -584,6 +627,10 @@ export class MediaRepository extends BaseRepository {
       processingStartedAt: row.processingStartedAt,
       processingCompletedAt: row.processingCompletedAt,
       processingError: row.processingError,
+      scanStatus: row.scanStatus,
+      scanEngine: row.scanEngine,
+      scannedAt: row.scannedAt,
+      threatName: row.threatName,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

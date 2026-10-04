@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { buildApiPath } from "@/configuration/http/api-path";
 import type {
@@ -7,6 +8,8 @@ import type {
 } from "@/features/media/media.model";
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaVariantsBackfillService } from "@/features/media/media-variants-backfill.service";
+import { MediaProcessingService } from "@/features/media/media-processing.service";
+import { asUuid } from "@/configuration/validation/uuid";
 import type { BlobService } from "@/features/blob/blob.service";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 import {
@@ -197,6 +200,136 @@ describe("Media persistence integration", () => {
     });
   });
 
+  it("rejects an upload the scanner finds infected, without naming the signature", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { mediaId, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
+    await putBytes(upload.url, await createPngFixture(40, 30));
+    await request(`/media/${mediaId}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+
+    const container = persistenceApp.container;
+    await new MediaProcessingService(
+      container.resolve(containerTokens.mediaRepository),
+      container.resolve(containerTokens.blobService),
+      container.resolve(containerTokens.mediaMetrics),
+      {
+        scan: async () => ({
+          verdict: "infected",
+          threat: "Eicar-Test-Signature",
+          engine: "ClamAV 1.5.4/28137",
+        }),
+      },
+    ).process(mediaId);
+
+    const read = await request(`/media/${mediaId}`, {
+      headers: owner.headers(),
+    });
+    const { media } = await readData<{ media: MediaView }>(read);
+
+    expect(media).toMatchObject({
+      status: "rejected",
+      rejectionCode: "malware",
+      rejectionReason: "This file can't be used.",
+      url: null,
+    });
+    expect(JSON.stringify(media)).not.toMatch(/Eicar|ClamAV|threat|scan/i);
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      rejectionCode: "malware",
+      processedBlobName: null,
+      scanStatus: "infected",
+      scanEngine: "ClamAV 1.5.4/28137",
+      scannedAt: expect.any(Date),
+      threatName: "Eicar-Test-Signature",
+    });
+    expect(persistenceApp.stubs.blobService.storage.has(quarantinedName)).toBe(
+      false,
+    );
+    expect(
+      persistenceApp.stubs.blobService.storage.has(
+        `media/images/${owner.userId}/${mediaId}.webp`,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses to mark an item ready until a scan of this attempt has passed", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const repository = persistenceApp.container.resolve(
+      containerTokens.mediaRepository,
+    );
+    const mediaId = asUuid(randomUUID());
+    await persistenceApp.prisma.media.create({
+      data: {
+        id: mediaId,
+        userId: owner.userId,
+        status: "uploaded",
+        scope: "postings",
+        originalBlobName: `quarantine/images/${owner.userId}/${mediaId}`,
+        declaredContentType: "image/png",
+        // Left by an earlier attempt; the claim must clear it.
+        scanStatus: "clean",
+        scanEngine: "ClamAV 1.5.4/28137",
+        scannedAt: new Date(),
+      },
+    });
+    const ready = {
+      processedBlobName: `media/images/${owner.userId}/${mediaId}.webp`,
+      detectedContentType: "image/png",
+      sizeBytes: 10,
+      width: 4,
+      height: 3,
+      variants: { medium: null, thumbnail: null },
+    };
+    const findRow = () =>
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } });
+
+    await expect(repository.claimForProcessing(mediaId)).resolves.toBe(true);
+    await expect(findRow()).resolves.toMatchObject({
+      status: "processing",
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
+    });
+    await expect(repository.markReady(mediaId, ready)).resolves.toBe(false);
+
+    await repository.recordScanResult(mediaId, {
+      status: "infected",
+      engine: "ClamAV 1.5.4/28137",
+      threatName: "Eicar-Test-Signature",
+    });
+    await expect(repository.markReady(mediaId, ready)).resolves.toBe(false);
+    await expect(findRow()).resolves.toMatchObject({ status: "processing" });
+
+    await repository.recordScanResult(mediaId, {
+      status: "clean",
+      engine: "ClamAV 1.5.4/28137",
+      threatName: null,
+    });
+    await expect(repository.markReady(mediaId, ready)).resolves.toBe(true);
+    await expect(findRow()).resolves.toMatchObject({
+      status: "ready",
+      scanStatus: "clean",
+    });
+    // A finished item takes no further scan result.
+    await expect(
+      repository.recordScanResult(mediaId, {
+        status: "infected",
+        engine: "ClamAV 1.5.4/28137",
+        threatName: "Late",
+      }),
+    ).resolves.toBe(false);
+  });
+
   it("processes a completed upload into a displayable image", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
@@ -238,7 +371,13 @@ describe("Media persistence integration", () => {
       processingStartedAt: expect.any(Date),
       processingCompletedAt: expect.any(Date),
       processingError: null,
+      // The test configuration runs no scanner.
+      scanStatus: "skipped",
+      scanEngine: "none",
+      scannedAt: expect.any(Date),
+      threatName: null,
     });
+    expect(ready).not.toHaveProperty("scanStatus");
     expect(new URL(ready.url!).searchParams.get("blobName")).toBe(
       processedName,
     );

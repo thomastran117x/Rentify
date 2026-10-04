@@ -40,8 +40,13 @@ import {
 import type {
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import {
+  NOOP_SCANNER_ENGINE,
+  type MalwareScanner,
+} from "@/features/media/scanning/malware-scanner";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /** A final refusal: why, in words and as a code. */
@@ -57,6 +62,12 @@ const MISSING_UPLOAD: MediaRejection = {
 const UPLOAD_CHANGED: MediaRejection = {
   reason: "The upload changed after it was completed.",
   code: "upload_changed",
+};
+// Deliberately vague: naming the signature would tell an uploader which of
+// their files tripped which rule.
+const MALWARE: MediaRejection = {
+  reason: "This file can't be used.",
+  code: "malware",
 };
 
 function policyRejection(
@@ -88,6 +99,13 @@ function policyRejection(
  * within policy. The download is then conditional on that ETag and capped at
  * one byte past the limit, so a replaced or oversized blob is refused without
  * being buffered.
+ *
+ * The downloaded bytes are then malware-scanned before any decoder reads
+ * them, since the image decoders are what a crafted file would attack. An
+ * infected upload is rejected and deleted. A scanner that cannot answer
+ * throws, so the job is retried and eventually dead-lettered; the repository
+ * refuses to mark an item ready without a passing scan of the current
+ * attempt.
  */
 export class MediaProcessingService {
   private readonly logger = loggerFactory.forClass(
@@ -99,6 +117,7 @@ export class MediaProcessingService {
     private readonly mediaRepository: MediaRepository,
     private readonly blobService: BlobService,
     private readonly metrics: MediaMetrics,
+    private readonly scanner: MalwareScanner,
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -161,6 +180,14 @@ export class MediaProcessingService {
     // Progress is recorded between stages, so the media cleanup, which takes
     // an item that has not moved in a while for one whose job was lost, never
     // mistakes a slow job for a lost one.
+    await this.mediaRepository.recordProcessingProgress(record.id);
+
+    const scanned = await this.scan(record, original.body);
+
+    if (scanned !== "passed") {
+      return scanned;
+    }
+
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     let detectedContentType: SupportedImageContentType;
@@ -275,6 +302,45 @@ export class MediaProcessingService {
       "processing_failed",
       "dead_letter",
     );
+  }
+
+  /**
+   * Scans the upload and records the verdict. `passed` lets processing go on;
+   * an infected upload is rejected here. A scanner failure is thrown, for the
+   * job to retry.
+   */
+  private async scan(
+    record: MediaRecord,
+    body: Buffer,
+  ): Promise<"passed" | "rejected" | "discarded"> {
+    const result = await this.scanner.scan(body);
+    const scan: MediaScanRecord = {
+      status:
+        result.verdict === "infected"
+          ? "infected"
+          : result.engine === NOOP_SCANNER_ENGINE
+            ? "skipped"
+            : "clean",
+      engine: result.engine,
+      threatName:
+        result.verdict === "infected" ? (result.threat ?? null) : null,
+    };
+
+    // The row was deleted, or finished by another actor, while this ran.
+    if (!(await this.mediaRepository.recordScanResult(record.id, scan))) {
+      return "discarded";
+    }
+
+    if (scan.status !== "infected") {
+      return "passed";
+    }
+
+    this.logger.warn("Rejected an upload that failed the malware scan.", {
+      mediaId: record.id,
+      userId: record.userId,
+      threat: scan.threatName,
+    });
+    return this.reject(record, MALWARE);
   }
 
   private async inspect(

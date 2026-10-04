@@ -31,6 +31,10 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     processingStartedAt: null,
     processingCompletedAt: null,
     processingError: null,
+    scanStatus: "not_scanned",
+    scanEngine: null,
+    scannedAt: null,
+    threatName: null,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -222,14 +226,24 @@ describe("MediaRepository", () => {
       data: { status: "uploaded", sizeBytes: 42, originalEtag: '"0x8DD"' },
     });
     expect(calls[1].where.status).toEqual({ in: ["uploaded", "processing"] });
-    // Every claim is counted and timed in the same guarded update.
+    // Every claim is counted and timed in the same guarded update, and
+    // clears the previous attempt's scan.
     expect(calls[1].data).toEqual({
       status: "processing",
       processingAttempts: { increment: 1 },
       processingStartedAt: expect.any(Date),
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
     });
+    // Only a scanned item can become ready.
     expect(calls[2]).toEqual({
-      where: { id: MEDIA_1_ID, status: { in: ["processing"] } },
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["processing"] },
+        scanStatus: { in: ["clean", "skipped"] },
+      },
       data: {
         status: "ready",
         processedBlobName: "media/images/u/m.webp",
@@ -255,6 +269,66 @@ describe("MediaRepository", () => {
       rejectionReason: "bad",
       rejectionCode: "corrupt",
       processingCompletedAt: expect.any(Date),
+    });
+  });
+
+  it("records a scan only while the item is processing", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+
+    await expect(
+      repository.recordScanResult(MEDIA_1_ID, {
+        status: "infected",
+        engine: `ClamAV ${"1".repeat(60)}`,
+        threatName: "T".repeat(300),
+      }),
+    ).resolves.toBe(true);
+    await repository.recordScanResult(MEDIA_1_ID, {
+      status: "skipped",
+      engine: "none",
+      threatName: null,
+    });
+
+    const calls: any[] = updateMany.mock.calls.map(([args]) => args);
+
+    expect(calls[0].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["processing"] },
+    });
+    // Cut to fit their columns.
+    expect(calls[0].data).toEqual({
+      scanStatus: "infected",
+      scanEngine: expect.stringMatching(/^ClamAV 1+$/),
+      scannedAt: expect.any(Date),
+      threatName: "T".repeat(255),
+    });
+    expect(calls[0].data.scanEngine).toHaveLength(50);
+    expect(calls[1].data).toMatchObject({
+      scanStatus: "skipped",
+      scanEngine: "none",
+      threatName: null,
+    });
+  });
+
+  it("reads the scan columns back", async () => {
+    const scannedAt = new Date("2026-10-04T12:00:00.000Z");
+    const repository = createRepository({
+      findUnique: jest.fn(async () =>
+        mediaRow({
+          status: "rejected",
+          scanStatus: "infected",
+          scanEngine: "ClamAV 1.5.4/28137",
+          scannedAt,
+          threatName: "Eicar-Test-Signature",
+        }),
+      ),
+    });
+
+    await expect(repository.findById(MEDIA_1_ID)).resolves.toMatchObject({
+      scanStatus: "infected",
+      scanEngine: "ClamAV 1.5.4/28137",
+      scannedAt,
+      threatName: "Eicar-Test-Signature",
     });
   });
 

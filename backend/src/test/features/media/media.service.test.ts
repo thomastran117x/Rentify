@@ -643,6 +643,33 @@ describe("MediaService", () => {
       expect(JSON.stringify(view)).not.toContain("ECONNREFUSED");
     });
 
+    it("never exposes the malware scan or the signature it matched", async () => {
+      const { mediaService, mediaRepository } = createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      mediaRepository.put({
+        ...record,
+        status: "rejected",
+        rejectionReason: "This file can't be used.",
+        rejectionCode: "malware",
+        scanStatus: "infected",
+        scanEngine: "ClamAV 1.5.4/28137",
+        scannedAt: new Date(),
+        threatName: "Eicar-Test-Signature",
+      });
+
+      const view = await mediaService.getMediaView(USER_1_ID, mediaId);
+
+      expect(view).toMatchObject({
+        status: "rejected",
+        rejectionReason: "This file can't be used.",
+        rejectionCode: "malware",
+      });
+      expect(view).not.toHaveProperty("scanStatus");
+      expect(view).not.toHaveProperty("threatName");
+      expect(JSON.stringify(view)).not.toMatch(/Eicar|ClamAV/);
+    });
+
     it("exposes a URL only for the processed image of a ready media", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();

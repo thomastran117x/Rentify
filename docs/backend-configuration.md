@@ -232,6 +232,34 @@ passes through the backend.
 See [architecture-overview.md](./architecture-overview.md) for where each part
 of the policy is enforced, and what is not enforced on the Azure path.
 
+## Media malware scanning
+
+`mediaScanning` selects the malware scanner that the media processing worker
+runs on each upload before any image decoder reads it.
+
+| Key              | Default    | Override                          | Meaning                                                       |
+| ---------------- | ---------- | --------------------------------- | ------------------------------------------------------------- |
+| `scanner`        | `none`     | `MEDIA_SCANNER`                   | `clamav` scans with a clamd daemon; `none` scans nothing      |
+| `clamavHost`     | `clamav`   | `MEDIA_SCANNING_CLAMAV_HOST`      | clamd host                                                    |
+| `clamavPort`     | `3310`     | `MEDIA_SCANNING_CLAMAV_PORT`      | clamd TCP port                                                |
+| `timeoutMs`      | `30000`    | `MEDIA_SCANNING_TIMEOUT_MS`       | Limit for each request to clamd, from connecting to its reply |
+| `maxStreamBytes` | `26214400` | `MEDIA_SCANNING_MAX_STREAM_BYTES` | Largest body sent to clamd                                    |
+| `allowNone`      | `false`    | `MEDIA_SCANNING_ALLOW_NONE`       | Lets production start with `scanner: none`                    |
+
+With `none`, each item is recorded as `skipped` rather than `clean`, so an audit
+can tell the two apart. Production refuses to start with `none` unless
+`MEDIA_SCANNING_ALLOW_NONE=true`, and no production default is set, so every
+production deployment chooses one or the other explicitly.
+
+`maxStreamBytes` must be at least `imageUploads.maxSizeBytes`
+(`MAX_IMAGE_SIZE_BYTES`); a smaller value is a startup error. clamd refuses a
+stream longer than its own `StreamMaxLength` (25M by default), so keep that at
+least as large as `maxStreamBytes`. When clamd refuses or cannot be reached,
+the job is retried and then dead-lettered like any other processing failure;
+the item is never marked ready unscanned. See
+[architecture-overview.md](./architecture-overview.md#image-upload-validation)
+for where the scan runs and what each verdict does.
+
 ## Media cleanup worker
 
 `workers.mediaCleanup` controls the sweep that deletes abandoned uploads,
