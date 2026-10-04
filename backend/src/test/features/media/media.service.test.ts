@@ -6,7 +6,16 @@ import ServiceNotImplementedError from "@/errors/http/service-not-implemented.er
 import UnsupportedMediaTypeError from "@/errors/http/unsupported-media-type.error";
 import { BlobService } from "@/features/blob/blob.service";
 import type { MediaScope, MediaStatus } from "@/features/media/media.model";
+import {
+  BestEffortMediaMetrics,
+  NoopMediaMetrics,
+  type MediaMetrics,
+} from "@/features/media/media-metrics";
 import { MediaService } from "@/features/media/media.service";
+import {
+  RecordingMediaMetrics,
+  ThrowingMediaMetrics,
+} from "../../support/recording-media-metrics";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import { testUuid } from "../../support/uuid";
 import {
@@ -22,11 +31,12 @@ const USER_2_ID = testUuid(9000, 994260);
 
 restoreBlobEnvironmentAfterEach();
 
-function createLocalMediaService(): {
+function createLocalMediaService(options: { metrics?: MediaMetrics } = {}): {
   mediaService: MediaService;
   blobService: BlobService;
   mediaRepository: InMemoryMediaRepository;
   queue: { enqueueMediaProcessingJob: jest.Mock<Promise<void>, [string]> };
+  metrics: RecordingMediaMetrics;
 } {
   useLocalBlobStorage();
   const blobService = new BlobService();
@@ -34,16 +44,19 @@ function createLocalMediaService(): {
   const queue = {
     enqueueMediaProcessingJob: jest.fn(async (_mediaId: string) => undefined),
   };
+  const metrics = new RecordingMediaMetrics();
 
   return {
     mediaService: new MediaService(
       blobService,
       mediaRepository.asRepository(),
       queue,
+      options.metrics ?? metrics,
     ),
     blobService,
     mediaRepository,
     queue,
+    metrics,
   };
 }
 
@@ -249,7 +262,8 @@ describe("MediaService", () => {
     }
 
     it("records the upload in quarantine before signing a credential", async () => {
-      const { mediaService, mediaRepository } = createLocalMediaService();
+      const { mediaService, mediaRepository, metrics } =
+        createLocalMediaService();
 
       const result = await startUpload(mediaService, {
         scope: "organizations",
@@ -287,10 +301,15 @@ describe("MediaService", () => {
       await expect(
         mediaService.getMediaView(USER_1_ID, result.mediaId),
       ).resolves.toMatchObject({ status: "pending_upload", url: null });
+      expect(metrics.tagsOf("media.upload.created")).toEqual([
+        { scope: "organizations", declaredType: "image/png" },
+      ]);
+      metrics.assertNoIdentifiers();
     });
 
     it("records nothing for a refused upload", async () => {
-      const { mediaService, mediaRepository } = createLocalMediaService();
+      const { mediaService, mediaRepository, metrics } =
+        createLocalMediaService();
 
       const result = await mediaService.createMediaUpload({
         userId: USER_1_ID,
@@ -317,6 +336,17 @@ describe("MediaService", () => {
         }),
       ).rejects.toThrow(PayloadTooLargeError);
       expect(mediaRepository.rows.size).toBe(1);
+      expect(metrics.count("media.upload.created")).toBe(1);
+    });
+
+    it("does not count an upload whose credential could not be signed", async () => {
+      const { mediaService, blobService, metrics } = createLocalMediaService();
+      jest.spyOn(blobService, "createUploadUrl").mockImplementationOnce(() => {
+        throw new Error("signing failed");
+      });
+
+      await expect(startUpload(mediaService)).rejects.toThrow("signing failed");
+      expect(metrics.count("media.upload.created")).toBe(0);
     });
 
     it("refuses uploads when no storage is configured", async () => {
@@ -328,6 +358,7 @@ describe("MediaService", () => {
         new BlobService(),
         mediaRepository.asRepository(),
         { enqueueMediaProcessingJob: jest.fn() },
+        new NoopMediaMetrics(),
       );
 
       await expect(startUpload(mediaService)).rejects.toThrow(
@@ -337,7 +368,7 @@ describe("MediaService", () => {
     });
 
     it("queues processing once the bytes have arrived", async () => {
-      const { mediaService, mediaRepository, queue } =
+      const { mediaService, mediaRepository, queue, metrics } =
         createLocalMediaService();
       const { mediaId, upload } = await startUpload(mediaService);
 
@@ -371,10 +402,21 @@ describe("MediaService", () => {
       expect((await mediaRepository.findById(mediaId))?.status).toBe(
         "uploaded",
       );
+      // Counted once, on the transition, however often it is repeated.
+      expect(metrics.tagsOf("media.upload.completed")).toEqual([
+        { scope: "postings" },
+      ]);
+      expect(metrics.calls("media.bytes.original")).toEqual([
+        expect.objectContaining({
+          value: body.byteLength,
+          tags: { scope: "postings" },
+        }),
+      ]);
+      metrics.assertNoIdentifiers();
     });
 
     it("re-queues an upload whose processing job was lost", async () => {
-      const { mediaService, mediaRepository, queue } =
+      const { mediaService, mediaRepository, queue, metrics } =
         createLocalMediaService();
       const { mediaId } = await startUpload(mediaService);
       const record = (await mediaRepository.findById(mediaId))!;
@@ -387,10 +429,12 @@ describe("MediaService", () => {
       await mediaService.completeMediaUpload(USER_1_ID, mediaId);
 
       expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(mediaId);
+      // Already counted when it was first completed.
+      expect(metrics.count("media.upload.completed")).toBe(0);
     });
 
     it("rejects an upload whose stored bytes are over the limit", async () => {
-      const { mediaService, mediaRepository, blobService, queue } =
+      const { mediaService, mediaRepository, blobService, queue, metrics } =
         createLocalMediaService();
       const { mediaId } = await startUpload(mediaService);
       const record = (await mediaRepository.findById(mediaId))!;
@@ -415,6 +459,23 @@ describe("MediaService", () => {
         blobService.readLocalBlob(record.originalBlobName),
       ).rejects.toThrow(ResourceNotFoundError);
       expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+      expect(metrics.tagsOf("media.rejected")).toEqual([
+        { code: "too_large", stage: "completion" },
+      ]);
+      expect(metrics.count("media.upload.completed")).toBe(0);
+    });
+
+    it("uploads and completes even when every metric call fails", async () => {
+      const { mediaService, queue } = createLocalMediaService({
+        metrics: new BestEffortMediaMetrics(new ThrowingMediaMetrics()),
+      });
+      const { mediaId, upload } = await startUpload(mediaService);
+      await uploadBytes(mediaService, upload.url, Buffer.from("bytes"));
+
+      await expect(
+        mediaService.completeMediaUpload(USER_1_ID, mediaId),
+      ).resolves.toMatchObject({ status: "uploaded" });
+      expect(queue.enqueueMediaProcessingJob).toHaveBeenCalledWith(mediaId);
     });
 
     it("pins the completed bytes by their ETag", async () => {

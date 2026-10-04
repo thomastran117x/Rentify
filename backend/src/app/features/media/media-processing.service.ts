@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
@@ -30,6 +31,12 @@ import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
 } from "@/features/media/image-renditions";
+import {
+  mediaMetricScope,
+  type MediaMetricScope,
+  type MediaMetrics,
+  type MediaProcessingOutcome,
+} from "@/features/media/media-metrics";
 import type {
   MediaRecord,
   MediaRejectionCode,
@@ -91,6 +98,7 @@ export class MediaProcessingService {
   constructor(
     private readonly mediaRepository: MediaRepository,
     private readonly blobService: BlobService,
+    private readonly metrics: MediaMetrics,
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -99,6 +107,7 @@ export class MediaProcessingService {
       mediaRepository: this.mediaRepository,
       blobService: this.blobService,
       logger: this.logger,
+      metrics: this.metrics,
     };
   }
 
@@ -114,17 +123,39 @@ export class MediaProcessingService {
       return;
     }
 
-    const record = await this.mediaRepository.findById(mediaId);
+    // Timed from the claim, so every claimed attempt records one duration,
+    // including one that throws and is retried, and one whose row is deleted
+    // before it can be read back, whose scope stays unknown.
+    const startedAt = performance.now();
+    let scope: MediaMetricScope = "unknown";
+    let outcome: MediaProcessingOutcome = "failed";
 
-    if (!record) {
-      return;
+    try {
+      const record = await this.mediaRepository.findById(mediaId);
+
+      if (!record) {
+        outcome = "discarded";
+        return;
+      }
+
+      scope = mediaMetricScope(record.scope);
+      outcome = await this.processClaimed(record);
+    } finally {
+      this.metrics.observe(
+        "media.processing.duration",
+        performance.now() - startedAt,
+        { scope, outcome },
+      );
     }
+  }
 
+  private async processClaimed(
+    record: MediaRecord,
+  ): Promise<MediaProcessingOutcome> {
     const original = await this.downloadOriginal(record);
 
     if ("rejection" in original) {
-      await this.reject(record, original.rejection);
-      return;
+      return this.reject(record, original.rejection);
     }
 
     // Progress is recorded between stages, so the media cleanup, which takes
@@ -138,8 +169,7 @@ export class MediaProcessingService {
       detectedContentType = await this.inspect(record, original.body);
     } catch (error) {
       if (isImagePolicyRejection(error)) {
-        await this.reject(record, policyRejection(error));
-        return;
+        return this.reject(record, policyRejection(error));
       }
 
       throw error;
@@ -200,10 +230,23 @@ export class MediaProcessingService {
           this.blobService.deleteBlob(blobName),
         ),
       );
-      return;
+      return "discarded";
     }
 
+    // Only the job that marked the item ready counts it; a duplicate that
+    // finds it already ready does not.
+    if (!marked) {
+      await deleteQuarantinedUpload(this.rejection, record);
+      return "discarded";
+    }
+
+    const scope = mediaMetricScope(record.scope);
+    this.metrics.increment("media.processing.success", { scope });
+    this.metrics.observe("media.bytes.processed", processed.data.byteLength, {
+      scope,
+    });
     await deleteQuarantinedUpload(this.rejection, record);
+    return "ready";
   }
 
   /**
@@ -230,6 +273,7 @@ export class MediaProcessingService {
       record,
       PROCESSING_FAILED_REASON,
       "processing_failed",
+      "dead_letter",
     );
   }
 
@@ -320,11 +364,23 @@ export class MediaProcessingService {
     }
   }
 
+  /**
+   * `rejected` when this attempt rejected the item; `discarded` when another
+   * actor, such as a duplicate job, finished it first.
+   */
   private async reject(
     record: MediaRecord,
     rejection: MediaRejection,
-  ): Promise<void> {
-    await rejectMedia(this.rejection, record, rejection.reason, rejection.code);
+  ): Promise<"rejected" | "discarded"> {
+    const rejected = await rejectMedia(
+      this.rejection,
+      record,
+      rejection.reason,
+      rejection.code,
+      "processing",
+    );
+
+    return rejected ? "rejected" : "discarded";
   }
 
   private async isReadyAs(

@@ -1,6 +1,7 @@
 import type { Channel, ConsumeMessage } from "amqplib";
 import type { Logger } from "@/configuration/logging/types";
 import type { MediaProcessingJobPayload } from "@/features/media/media.model";
+import type { MediaMetrics } from "@/features/media/media-metrics";
 import type { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import type { MediaProcessingService } from "@/features/media/media-processing.service";
 
@@ -15,6 +16,7 @@ export interface MediaProcessingJobHandlerDependencies {
   >;
   maxAttempts: number;
   logger: Pick<Logger, "error">;
+  metrics: Pick<MediaMetrics, "increment">;
 }
 
 /**
@@ -35,7 +37,7 @@ export function createMediaProcessingJobHandler(
   message: ConsumeMessage,
   channel: Channel,
 ) => Promise<void> {
-  const { queue, processing, maxAttempts, logger } = dependencies;
+  const { queue, processing, maxAttempts, logger, metrics } = dependencies;
 
   return async (payload, message, channel) => {
     try {
@@ -49,6 +51,8 @@ export function createMediaProcessingJobHandler(
         mediaId: payload.mediaId,
         attempt,
       };
+
+      const retrying = attempt < maxAttempts;
 
       logger.error("Failed to process media processing job.", context, error);
 
@@ -65,13 +69,19 @@ export function createMediaProcessingJobHandler(
         );
       }
 
-      if (attempt < maxAttempts) {
+      // The failure is counted only once the job has been handed on. If the
+      // publish throws, the message is requeued with the same attempt, and the
+      // redelivery is what counts it.
+      if (retrying) {
         await queue.publishRetryJob(payload, attempt);
+        metrics.increment("media.processing.failure", { attempt, retrying });
         channel.ack(message);
         return;
       }
 
       await queue.publishDeadLetterJob({ ...payload, attempt });
+      metrics.increment("media.processing.failure", { attempt, retrying });
+      metrics.increment("media.dlq.published", {});
       logger.error("Media processing job moved to dead-letter queue.", {
         ...context,
         error: error instanceof Error ? error.message : String(error),

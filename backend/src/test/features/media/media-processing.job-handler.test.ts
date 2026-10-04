@@ -1,6 +1,14 @@
 import type { Channel, ConsumeMessage } from "amqplib";
 import type { MediaProcessingJobPayload } from "@/features/media/media.model";
+import {
+  BestEffortMediaMetrics,
+  type MediaMetrics,
+} from "@/features/media/media-metrics";
 import { createMediaProcessingJobHandler } from "@/features/media/media-processing.job-handler";
+import {
+  RecordingMediaMetrics,
+  ThrowingMediaMetrics,
+} from "../../support/recording-media-metrics";
 import { testUuid } from "../../support/uuid";
 
 const MEDIA_ID = testUuid(9000, 994380);
@@ -20,6 +28,7 @@ function createHarness(options: {
   recordProcessingFailure?: () => Promise<void>;
   markProcessingFailed?: () => Promise<void>;
   publishDeadLetterJob?: () => Promise<void>;
+  metrics?: MediaMetrics;
 }) {
   const queue = {
     publishRetryJob: jest.fn(
@@ -46,14 +55,16 @@ function createHarness(options: {
     ack: jest.Mock;
   };
   const message = {} as ConsumeMessage;
+  const metrics = new RecordingMediaMetrics();
   const handle = createMediaProcessingJobHandler({
     queue,
     processing,
     maxAttempts: MAX_ATTEMPTS,
     logger,
+    metrics: options.metrics ?? metrics,
   });
 
-  return { queue, processing, logger, channel, message, handle };
+  return { queue, processing, logger, metrics, channel, message, handle };
 }
 
 const failing = async () => {
@@ -62,19 +73,21 @@ const failing = async () => {
 
 describe("createMediaProcessingJobHandler", () => {
   it("acks a processed job", async () => {
-    const { handle, channel, message, queue } = createHarness({});
+    const { handle, channel, message, queue, metrics } = createHarness({});
 
     await handle(payload(0), message, channel);
 
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(queue.publishRetryJob).not.toHaveBeenCalled();
     expect(queue.publishDeadLetterJob).not.toHaveBeenCalled();
+    expect(metrics.recorded).toEqual([]);
   });
 
   it("sends a failed job through the retry queues until its last attempt", async () => {
-    const { handle, channel, message, queue, processing } = createHarness({
-      process: failing,
-    });
+    const { handle, channel, message, queue, processing, metrics } =
+      createHarness({
+        process: failing,
+      });
 
     await handle(payload(0), message, channel);
 
@@ -82,6 +95,25 @@ describe("createMediaProcessingJobHandler", () => {
     expect(queue.publishDeadLetterJob).not.toHaveBeenCalled();
     expect(processing.markProcessingFailed).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledTimes(1);
+    expect(metrics.tagsOf("media.processing.failure")).toEqual([
+      { attempt: 1, retrying: true },
+    ]);
+    expect(metrics.count("media.dlq.published")).toBe(0);
+    metrics.assertNoIdentifiers();
+  });
+
+  it("retries and dead-letters even when every metric call fails", async () => {
+    const { handle, channel, message, queue } = createHarness({
+      process: failing,
+      metrics: new BestEffortMediaMetrics(new ThrowingMediaMetrics()),
+    });
+
+    await handle(payload(0), message, channel);
+    await handle(payload(MAX_ATTEMPTS - 1), message, channel);
+
+    expect(queue.publishRetryJob).toHaveBeenCalledTimes(1);
+    expect(queue.publishDeadLetterJob).toHaveBeenCalledTimes(1);
+    expect(channel.ack).toHaveBeenCalledTimes(2);
   });
 
   it("records the failure before the job is retried", async () => {
@@ -126,9 +158,10 @@ describe("createMediaProcessingJobHandler", () => {
   });
 
   it("dead-letters the last attempt and rejects the item", async () => {
-    const { handle, channel, message, queue, processing } = createHarness({
-      process: failing,
-    });
+    const { handle, channel, message, queue, processing, metrics } =
+      createHarness({
+        process: failing,
+      });
 
     await handle(payload(MAX_ATTEMPTS - 1), message, channel);
 
@@ -137,6 +170,11 @@ describe("createMediaProcessingJobHandler", () => {
     );
     expect(processing.markProcessingFailed).toHaveBeenCalledWith(MEDIA_ID);
     expect(channel.ack).toHaveBeenCalledTimes(1);
+    expect(metrics.tagsOf("media.processing.failure")).toEqual([
+      { attempt: MAX_ATTEMPTS, retrying: false },
+    ]);
+    expect(metrics.tagsOf("media.dlq.published")).toEqual([{}]);
+    metrics.assertNoIdentifiers();
   });
 
   it("still acks, with one dead-letter copy, when rejecting the item fails", async () => {
@@ -159,7 +197,7 @@ describe("createMediaProcessingJobHandler", () => {
   });
 
   it("leaves the job unacked when it cannot be published onward", async () => {
-    const { handle, channel, message, processing } = createHarness({
+    const { handle, channel, message, processing, metrics } = createHarness({
       process: failing,
       publishDeadLetterJob: async () => {
         throw new Error("broker unavailable");
@@ -172,5 +210,31 @@ describe("createMediaProcessingJobHandler", () => {
     ).rejects.toThrow("broker unavailable");
     expect(channel.ack).not.toHaveBeenCalled();
     expect(processing.markProcessingFailed).not.toHaveBeenCalled();
+    // Counted only once the job is in the dead-letter queue; the requeued
+    // redelivery counts the failure, so it is not counted twice.
+    expect(metrics.count("media.dlq.published")).toBe(0);
+    expect(metrics.count("media.processing.failure")).toBe(0);
+  });
+
+  it("does not count a failure whose retry could not be published", async () => {
+    const { handle, channel, message, queue, metrics } = createHarness({
+      process: failing,
+    });
+    queue.publishRetryJob.mockRejectedValueOnce(
+      new Error("broker unavailable"),
+    );
+
+    await expect(handle(payload(0), message, channel)).rejects.toThrow(
+      "broker unavailable",
+    );
+    expect(channel.ack).not.toHaveBeenCalled();
+    expect(metrics.count("media.processing.failure")).toBe(0);
+
+    // The requeued message is redelivered with the same attempt and counted
+    // once, when it is handed on.
+    await handle(payload(0), message, channel);
+    expect(metrics.tagsOf("media.processing.failure")).toEqual([
+      { attempt: 1, retrying: true },
+    ]);
   });
 });

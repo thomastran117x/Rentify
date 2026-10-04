@@ -1,6 +1,10 @@
 import type { Logger } from "@/configuration/logging/types";
 import type { BlobService } from "@/features/blob/blob.service";
 import type {
+  MediaMetrics,
+  MediaRejectionStage,
+} from "@/features/media/media-metrics";
+import type {
   MediaRecord,
   MediaRejectionCode,
 } from "@/features/media/media.model";
@@ -27,23 +31,27 @@ export interface MediaRejectionDependencies {
   mediaRepository: Pick<MediaRepository, "markRejected">;
   blobService: Pick<BlobService, "deleteBlob">;
   logger: Pick<Logger, "warn">;
+  metrics: Pick<MediaMetrics, "increment">;
 }
 
 /**
  * The one way a media item is rejected, whether its upload was over the size
  * limit, its bytes failed the image policy, its upload vanished, or its
- * processing exhausted every retry. `code` is recorded beside `reason`.
+ * processing exhausted every retry. `code` is recorded beside `reason`, and
+ * `stage` says which step decided it, for the `media.rejected` metric.
  *
  * The row is marked first. Its quarantined upload is deleted only when this
  * call is the one that rejected it, so a racing or repeated rejection does not
  * touch the upload again, and never for a processing failure, which is kept
- * for a replay. Returns whether this call rejected the item.
+ * for a replay. The metric is counted on the same condition, so each rejected
+ * item is counted once. Returns whether this call rejected the item.
  */
 export async function rejectMedia(
   dependencies: MediaRejectionDependencies,
   record: MediaRecord,
   reason: string,
   code: MediaRejectionCode,
+  stage: MediaRejectionStage,
 ): Promise<boolean> {
   if (
     !(await dependencies.mediaRepository.markRejected(record.id, reason, code))
@@ -51,11 +59,27 @@ export async function rejectMedia(
     return false;
   }
 
+  recordMediaRejection(dependencies.metrics, code, stage);
+
   if (!keepsQuarantinedUpload(code)) {
     await deleteQuarantinedUpload(dependencies, record);
   }
 
   return true;
+}
+
+/**
+ * Counts one rejection. Called only by the actor whose guarded update rejected
+ * the item, with the code it stored, so the tag always matches the row's
+ * `rejection_code`. rejectMedia calls it; so does the media cleanup, which
+ * rejects stuck items through its own guarded update.
+ */
+export function recordMediaRejection(
+  metrics: Pick<MediaMetrics, "increment">,
+  code: MediaRejectionCode,
+  stage: MediaRejectionStage,
+): void {
+  metrics.increment("media.rejected", { code, stage });
 }
 
 /**

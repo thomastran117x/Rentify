@@ -4,6 +4,8 @@ import {
   MediaCleanupService,
   type MediaCleanupOptions,
 } from "@/features/media/media-cleanup.service";
+import { NoopMediaMetrics } from "@/features/media/media-metrics";
+import { RecordingMediaMetrics } from "../../support/recording-media-metrics";
 import { testUuid } from "../../support/uuid";
 
 const USER_1_ID = testUuid(9000, 994500);
@@ -97,14 +99,16 @@ function createContext(
     enqueueMediaProcessingJob: jest.fn(async (_mediaId: string) => undefined),
     readBacklog: jest.fn(async (): Promise<MediaProcessingBacklog> => IDLE),
   };
+  const metrics = new RecordingMediaMetrics();
   const service = new MediaCleanupService(
     mediaRepository as never,
     blobService,
     queue as never,
+    metrics,
     () => NOW,
   );
 
-  return { mediaRepository, blobService, queue, service };
+  return { mediaRepository, blobService, queue, metrics, service };
 }
 
 function ago(ms: number): Date {
@@ -142,7 +146,7 @@ describe("MediaCleanupService", () => {
 
   it("claims an abandoned upload, then deletes its bytes, then its row", async () => {
     const abandoned = record("pending_upload");
-    const { mediaRepository, blobService, service } = createContext({
+    const { mediaRepository, blobService, metrics, service } = createContext({
       abandoned: [abandoned],
     });
 
@@ -170,6 +174,8 @@ describe("MediaCleanupService", () => {
       mediaRepository.deleteByIdIfStatus.mock.invocationCallOrder;
     expect(claimed).toBeLessThan(bytesDeleted!);
     expect(bytesDeleted).toBeLessThan(rowDeleted!);
+    // Never completed, so it is not counted against completed uploads.
+    expect(metrics.recorded).toEqual([]);
   });
 
   it("leaves an upload completed before the claim, bytes and all", async () => {
@@ -262,9 +268,10 @@ describe("MediaCleanupService", () => {
 
   it("rejects a stuck item once it has used its re-queues, and keeps its upload for a replay", async () => {
     const exhausted = record("processing", { processingRequeues: 3 });
-    const { mediaRepository, blobService, queue, service } = createContext({
-      stuck: [exhausted],
-    });
+    const { mediaRepository, blobService, queue, metrics, service } =
+      createContext({
+        stuck: [exhausted],
+      });
 
     await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
       requeued: 0,
@@ -281,6 +288,10 @@ describe("MediaCleanupService", () => {
     expect(blobService.deleteBlob).not.toHaveBeenCalled();
     expect(mediaRepository.claimStuckForRequeue).not.toHaveBeenCalled();
     expect(queue.enqueueMediaProcessingJob).not.toHaveBeenCalled();
+    expect(metrics.tagsOf("media.rejected")).toEqual([
+      { code: "processing_failed", stage: "cleanup" },
+    ]);
+    metrics.assertNoIdentifiers();
   });
 
   it("does not reject an item for its age alone", async () => {
@@ -308,7 +319,7 @@ describe("MediaCleanupService", () => {
   });
 
   it("leaves an exhausted item alone once a job has claimed it", async () => {
-    const { mediaRepository, blobService, service } = createContext({
+    const { mediaRepository, blobService, metrics, service } = createContext({
       stuck: [record("processing", { processingRequeues: 3 })],
     });
     // The job moved updatedAt, or another sweep rejected it first.
@@ -319,6 +330,7 @@ describe("MediaCleanupService", () => {
       failed: 0,
     });
     expect(blobService.deleteBlob).not.toHaveBeenCalled();
+    expect(metrics.count("media.rejected")).toBe(0);
   });
 
   it("counts a rejection even when deleting its upload fails", async () => {
@@ -434,6 +446,7 @@ describe("MediaCleanupService", () => {
       mediaRepository as never,
       { deleteBlob: jest.fn() },
       { enqueueMediaProcessingJob: jest.fn(), readBacklog: jest.fn() },
+      new NoopMediaMetrics(),
     );
     const before = Date.now();
 

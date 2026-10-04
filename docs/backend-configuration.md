@@ -81,6 +81,12 @@ file:
 LOG_LEVEL=warn
 ```
 
+A level above `info` also drops the media pipeline's metrics, which are logged
+at `info` as `media.metric` events, and with them the alerts in the
+[media worker guide](../backend/src/app/workers/media/README.md#metrics-and-alerts).
+The API and the media workers log `Media metrics are disabled` at startup when
+the level suppresses them.
+
 Legacy derived defaults remain intact: a singular `GOOGLE_OAUTH_CLIENT_ID`,
 `MICROSOFT_OAUTH_CLIENT_ID`, or `APPLE_OAUTH_CLIENT_ID` is used when no plural
 YAML list is configured,

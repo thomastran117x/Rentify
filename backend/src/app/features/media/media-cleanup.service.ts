@@ -2,12 +2,16 @@ import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory } from "@/configuration/logging";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaRecord } from "@/features/media/media.model";
+import type { MediaMetrics } from "@/features/media/media-metrics";
 import type {
   MediaProcessingBacklog,
   MediaProcessingQueueService,
 } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
-import { PROCESSING_FAILED_REASON } from "@/features/media/media-rejection";
+import {
+  PROCESSING_FAILED_REASON,
+  recordMediaRejection,
+} from "@/features/media/media-rejection";
 
 // Recorded on an abandoned upload while the cleanup deletes it. A client only
 // sees it if deleting the bytes fails and the row is kept for a later retry.
@@ -75,6 +79,7 @@ export class MediaCleanupService {
       MediaProcessingQueueService,
       "enqueueMediaProcessingJob" | "readBacklog"
     >,
+    private readonly metrics: Pick<MediaMetrics, "increment">,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -200,18 +205,21 @@ export class MediaCleanupService {
 
     await this.forEachItem(records, "stuck", summary, async (record) => {
       if (record.processingRequeues >= options.maxRequeues) {
+        const code = "processing_failed";
+
         if (
           await this.mediaRepository.rejectStuck(
             record.id,
             updatedBefore,
             PROCESSING_FAILED_REASON,
-            "processing_failed",
+            code,
             now,
           )
         ) {
           // The upload is kept, as for any processing failure, so the item
           // can still be replayed; the purge of old rejections deletes it.
           summary.rejected += 1;
+          recordMediaRejection(this.metrics, code, "cleanup");
         }
         return;
       }
