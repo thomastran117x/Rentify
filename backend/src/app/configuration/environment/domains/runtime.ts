@@ -763,10 +763,24 @@ function validateIdentityBloomConfig(
 export function validateRuntimeConfig(
   config: Pick<
     AppEnvironment,
-    "postingsCache" | "usernameBloom" | "emailBloom" | "workers" | "blobStorage"
+    | "postingsCache"
+    | "usernameBloom"
+    | "emailBloom"
+    | "workers"
+    | "blobStorage"
+    | "imageUploads"
+    | "mediaScanning"
   >,
   errors: string[],
 ): void {
+  // The scanner must accept any upload the image policy accepts. clamd refuses
+  // a stream past its StreamMaxLength, which would fail every such job.
+  if (config.mediaScanning.maxStreamBytes < config.imageUploads.maxSizeBytes) {
+    errors.push(
+      `MEDIA_SCANNING_MAX_STREAM_BYTES must be at least MAX_IMAGE_SIZE_BYTES (${config.imageUploads.maxSizeBytes}), and clamd's StreamMaxLength at least as large.`,
+    );
+  }
+
   // The media cleanup must not delete an upload its client may still send or
   // complete. Whichever storage path is active, its upload URL lives no longer
   // than the longer of the two lifetimes.

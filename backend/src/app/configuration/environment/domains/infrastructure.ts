@@ -10,8 +10,10 @@ import {
   parseNumber,
 } from "@/configuration/environment/shared";
 import {
+  MEDIA_SCANNER_KINDS,
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
+  type MediaScannerKind,
   type NodeEnvironment,
   type PayPalCheckoutMethod,
   type RawEnvironmentValues,
@@ -231,6 +233,62 @@ export function buildImageUploadsConfig(
       },
     ),
   };
+}
+
+/**
+ * The malware scanner the media worker runs on each upload before decoding it.
+ * `none` scans nothing and records the item as skipped, so production refuses
+ * it unless MEDIA_SCANNING_ALLOW_NONE says that is intended.
+ */
+export function buildMediaScanningConfig(
+  raw: RawEnvironmentValues,
+  nodeEnv: NodeEnvironment,
+  errors: string[],
+): AppEnvironment["mediaScanning"] {
+  const scannerValue = raw.MEDIA_SCANNER?.toLowerCase() ?? "none";
+  let scanner: MediaScannerKind = "none";
+
+  if (isMediaScannerKind(scannerValue)) {
+    scanner = scannerValue;
+  } else {
+    errors.push(
+      `MEDIA_SCANNER must be one of: ${MEDIA_SCANNER_KINDS.join(", ")}.`,
+    );
+  }
+
+  const allowNone = parseBoolean(raw.MEDIA_SCANNING_ALLOW_NONE, false);
+
+  if (nodeEnv === "production" && scanner === "none" && !allowNone) {
+    errors.push(
+      "MEDIA_SCANNER is none, so uploads would not be malware-scanned. Set MEDIA_SCANNER=clamav, or MEDIA_SCANNING_ALLOW_NONE=true to run production without scanning.",
+    );
+  }
+
+  return {
+    scanner,
+    clamavHost: raw.MEDIA_SCANNING_CLAMAV_HOST ?? "clamav",
+    clamavPort: parseNumber(raw, "MEDIA_SCANNING_CLAMAV_PORT", 3_310, errors, {
+      integer: true,
+      min: 1,
+      max: 65_535,
+    }),
+    timeoutMs: parseNumber(raw, "MEDIA_SCANNING_TIMEOUT_MS", 30_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    maxStreamBytes: parseNumber(
+      raw,
+      "MEDIA_SCANNING_MAX_STREAM_BYTES",
+      25 * 1024 * 1024,
+      errors,
+      { integer: true, min: 1 },
+    ),
+    allowNone,
+  };
+}
+
+function isMediaScannerKind(value: string): value is MediaScannerKind {
+  return (MEDIA_SCANNER_KINDS as readonly string[]).includes(value);
 }
 
 export function buildRabbitMqConfig(

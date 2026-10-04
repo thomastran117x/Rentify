@@ -6,6 +6,8 @@ export type AccessTokenAlgorithm = "HS256" | "RS256";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
+export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
+export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
 export const PAYPAL_CHECKOUT_METHODS = [
   "paypal",
   "paypal_guest",
@@ -117,6 +119,12 @@ export type RawEnvironmentValues = {
   MEDIA_CLEANUP_STUCK_THRESHOLD_MS?: string;
   MEDIA_CLEANUP_MAX_REQUEUES?: string;
   MEDIA_CLEANUP_REJECTED_RETENTION_MS?: string;
+  MEDIA_SCANNER?: string;
+  MEDIA_SCANNING_ALLOW_NONE?: string;
+  MEDIA_SCANNING_CLAMAV_HOST?: string;
+  MEDIA_SCANNING_CLAMAV_PORT?: string;
+  MEDIA_SCANNING_MAX_STREAM_BYTES?: string;
+  MEDIA_SCANNING_TIMEOUT_MS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS?: string;
@@ -421,6 +429,14 @@ export interface AppEnvironment {
     maxHeight: number;
     maxPixels: number;
     maxProcessedEdge: number;
+  };
+  mediaScanning: {
+    scanner: MediaScannerKind;
+    clamavHost: string;
+    clamavPort: number;
+    timeoutMs: number;
+    maxStreamBytes: number;
+    allowNone: boolean;
   };
   logging: {
     fallbackDirectory: string;

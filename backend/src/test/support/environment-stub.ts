@@ -235,6 +235,15 @@ const imageUploadsConfig = {
   maxProcessedEdge: 2_560,
 };
 
+const mediaScanningConfig = {
+  scanner: "none" as const,
+  clamavHost: "clamav",
+  clamavPort: 3_310,
+  timeoutMs: 30_000,
+  maxStreamBytes: 25 * 1024 * 1024,
+  allowNone: false,
+};
+
 const identityBloomConfig = {
   enabled: true,
   capacity: 200_000,
@@ -415,6 +424,9 @@ export const environment = {
   getImageUploadsConfig() {
     return readImageUploadsConfig();
   },
+  getMediaScanningConfig() {
+    return mediaScanningConfig;
+  },
   getCorsAllowedOrigins() {
     return readOriginList(
       process.env.CORS_ALLOWED_ORIGINS,
@@ -480,6 +492,7 @@ export const environment = {
       email: emailConfig,
       blobStorage: blobStorageConfig,
       imageUploads: imageUploadsConfig,
+      mediaScanning: mediaScanningConfig,
       captcha: captchaConfig,
       database: readDatabaseConfig(),
       elasticsearch: elasticsearchConfig,
