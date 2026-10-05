@@ -43,10 +43,7 @@ import type {
   MediaScanRecord,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
-import {
-  NOOP_SCANNER_ENGINE,
-  type MalwareScanner,
-} from "@/features/media/scanning/malware-scanner";
+import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /** A final refusal: why, in words and as a code. */
@@ -315,12 +312,7 @@ export class MediaProcessingService {
   ): Promise<"passed" | "rejected" | "discarded"> {
     const result = await this.scanner.scan(body);
     const scan: MediaScanRecord = {
-      status:
-        result.verdict === "infected"
-          ? "infected"
-          : result.engine === NOOP_SCANNER_ENGINE
-            ? "skipped"
-            : "clean",
+      status: result.verdict,
       engine: result.engine,
       threatName:
         result.verdict === "infected" ? (result.threat ?? null) : null,
