@@ -255,6 +255,7 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv({
       NODE_ENV: "production",
       RABBITMQ_URL: "amqp://localhost:5672",
+      MEDIA_SCANNER: "clamav",
     });
 
     productionManager.load();
@@ -556,6 +557,121 @@ describe("EnvironmentManager", () => {
     expect(narrowedManager.getImageUploadsConfig().allowedContentTypes).toEqual(
       ["image/png", "image/webp"],
     );
+  });
+
+  it("defaults media scanning to none and allows configuring clamav", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getMediaScanningConfig()).toEqual({
+      scanner: "none",
+      clamavHost: "clamav",
+      clamavPort: 3_310,
+      timeoutMs: 30_000,
+      maxStreamBytes: 25 * 1024 * 1024,
+      allowNone: false,
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_SCANNER: "ClamAV",
+      MEDIA_SCANNING_CLAMAV_HOST: "scanner.internal",
+      MEDIA_SCANNING_CLAMAV_PORT: "3320",
+      MEDIA_SCANNING_TIMEOUT_MS: "5000",
+      MEDIA_SCANNING_MAX_STREAM_BYTES: "10485760",
+    });
+    const clamavManager = new EnvironmentManager();
+    clamavManager.load();
+
+    expect(clamavManager.getMediaScanningConfig()).toEqual({
+      scanner: "clamav",
+      clamavHost: "scanner.internal",
+      clamavPort: 3_320,
+      timeoutMs: 5_000,
+      maxStreamBytes: 10_485_760,
+      allowNone: false,
+    });
+  });
+
+  it("rejects invalid media scanning settings", () => {
+    process.env = buildRequiredEnv({ MEDIA_SCANNER: "defender" });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_SCANNER must be one of: clamav, none.",
+    );
+
+    process.env = buildRequiredEnv({ MEDIA_SCANNING_CLAMAV_PORT: "70000" });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_SCANNING_CLAMAV_PORT must be less than or equal to 65535.",
+    );
+
+    process.env = buildRequiredEnv({ MEDIA_SCANNING_TIMEOUT_MS: "0" });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_SCANNING_TIMEOUT_MS must be greater than or equal to 1.",
+    );
+  });
+
+  it("requires clamd to accept any upload the image policy accepts", () => {
+    process.env = buildRequiredEnv({
+      MEDIA_SCANNER: "clamav",
+      MAX_IMAGE_SIZE_BYTES: "5242880",
+      MEDIA_SCANNING_MAX_STREAM_BYTES: "5242879",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MEDIA_SCANNING_MAX_STREAM_BYTES must be at least MAX_IMAGE_SIZE_BYTES (5242880)",
+    );
+
+    process.env = buildRequiredEnv({
+      MEDIA_SCANNER: "clamav",
+      MAX_IMAGE_SIZE_BYTES: "5242880",
+      MEDIA_SCANNING_MAX_STREAM_BYTES: "5242880",
+    });
+    const equalManager = new EnvironmentManager();
+    equalManager.load();
+
+    expect(equalManager.getMediaScanningConfig().maxStreamBytes).toBe(
+      5_242_880,
+    );
+
+    // With no scanner nothing is streamed, so a larger image limit is fine.
+    process.env = buildRequiredEnv({
+      MAX_IMAGE_SIZE_BYTES: "30000000",
+    });
+    const noScannerManager = new EnvironmentManager();
+    noScannerManager.load();
+
+    expect(noScannerManager.getImageUploadsConfig().maxSizeBytes).toBe(
+      30_000_000,
+    );
+  });
+
+  it("starts every process in production without a scanner", () => {
+    // The media processing worker refuses to start without one; see
+    // createMalwareScanner. Nothing else scans, so nothing else is held up.
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+    });
+    const productionManager = new EnvironmentManager();
+    productionManager.load();
+
+    expect(productionManager.getMediaScanningConfig()).toMatchObject({
+      scanner: "none",
+      allowNone: false,
+    });
+
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+      MEDIA_SCANNING_ALLOW_NONE: "true",
+    });
+    const allowedManager = new EnvironmentManager();
+    allowedManager.load();
+
+    expect(allowedManager.getMediaScanningConfig().allowNone).toBe(true);
   });
 
   it("defaults the media cleanup worker and allows overriding it", () => {

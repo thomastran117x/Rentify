@@ -315,6 +315,10 @@ export class EnvironmentManager {
     return this.get().imageUploads;
   }
 
+  getMediaScanningConfig(): AppEnvironment["mediaScanning"] {
+    return this.get().mediaScanning;
+  }
+
   getLoggingConfig(): AppEnvironment["logging"] {
     return this.get().logging;
   }

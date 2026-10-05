@@ -117,6 +117,21 @@ imageUploads:
   # enlarged. An integer from 256 to 8000.
   maxProcessedEdge: 2560
 
+# Malware scanning of each upload, before the worker decodes it. scanner is
+# clamav (a clamd daemon reached over TCP) or none, which scans nothing and
+# records the item as skipped. In production the media processing worker
+# refuses to start with none unless allowNone is true; other processes do not
+# scan and ignore it. With clamav, maxStreamBytes must be at least
+# imageUploads.maxSizeBytes, and clamd's StreamMaxLength (25M by default) at
+# least maxStreamBytes.
+mediaScanning:
+  scanner: none
+  clamavHost: clamav
+  clamavPort: 3310
+  timeoutMs: 30000
+  maxStreamBytes: 26214400
+  allowNone: false
+
 paypal:
   environment: sandbox
   clientId: change-me-paypal-client-id

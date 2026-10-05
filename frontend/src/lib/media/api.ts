@@ -23,7 +23,8 @@ export type MediaStatus =
 /**
  * Why the API rejected an image, for branching or localizing without parsing
  * `rejectionReason`. More codes may be added; treat an unknown one like
- * `corrupt`. `processing_failed` is not the image's fault.
+ * `corrupt`. `processing_failed` is not the image's fault. `malware` means the
+ * malware scan flagged the file; the reason deliberately says no more.
  */
 export type MediaRejectionCode =
   | "empty"
@@ -36,7 +37,8 @@ export type MediaRejectionCode =
   | "upload_changed"
   | "missing_upload"
   | "processing_failed"
-  | "abandoned";
+  | "abandoned"
+  | "malware";
 
 /** One stored rendition of an image, with its real dimensions. */
 export interface ImageRendition {

@@ -42,6 +42,12 @@ x-backend-environment: &backend-environment
   MEDIA_CLEANUP_STUCK_THRESHOLD_MS: ${MEDIA_CLEANUP_STUCK_THRESHOLD_MS:-}
   MEDIA_CLEANUP_MAX_REQUEUES: ${MEDIA_CLEANUP_MAX_REQUEUES:-}
   MEDIA_CLEANUP_REJECTED_RETENTION_MS: ${MEDIA_CLEANUP_REJECTED_RETENTION_MS:-}
+  MEDIA_SCANNER: ${MEDIA_SCANNER:-}
+  MEDIA_SCANNING_ALLOW_NONE: ${MEDIA_SCANNING_ALLOW_NONE:-}
+  MEDIA_SCANNING_CLAMAV_HOST: ${MEDIA_SCANNING_CLAMAV_HOST:-}
+  MEDIA_SCANNING_CLAMAV_PORT: ${MEDIA_SCANNING_CLAMAV_PORT:-}
+  MEDIA_SCANNING_TIMEOUT_MS: ${MEDIA_SCANNING_TIMEOUT_MS:-}
+  MEDIA_SCANNING_MAX_STREAM_BYTES: ${MEDIA_SCANNING_MAX_STREAM_BYTES:-}
   SMS_MAX_ATTEMPTS: ${SMS_MAX_ATTEMPTS:-}
   TELNYX_API_KEY: ${TELNYX_API_KEY:-}
   TELNYX_PUBLIC_KEY: ${TELNYX_PUBLIC_KEY:-}
@@ -288,6 +294,41 @@ services:
       retries: 20
       start_period: 20s
 
+  # Malware scanner for the media processing worker. Opt-in: it needs about
+  # 1.2 GB of RAM and downloads its signatures on first start, which takes
+  # several minutes. Start it with
+  #   MEDIA_SCANNER=clamav docker compose --profile scanning up --build
+  # The Debian-based image is used because, unlike clamav/clamav, it is
+  # published for arm64 as well as amd64.
+  #
+  # clamd's size limits follow MEDIA_SCANNING_MAX_STREAM_BYTES, so set the
+  # app's limit through that variable rather than a YAML overlay, which this
+  # file cannot see:
+  # - StreamMaxLength, or clamd refuses every stream between the two limits;
+  # - MaxFileSize, or clamd answers OK for content past it without scanning it.
+  # AlertExceedsMax reports anything clamd could not scan in full, for any of
+  # its limits, as Heuristics.Limits.Exceeded, which the worker rejects
+  # rather than records as clean.
+  clamav:
+    image: clamav/clamav-debian:stable
+    container_name: rent-clamav
+    restart: unless-stopped
+    profiles: ["scanning"]
+    environment:
+      CLAMD_CONF_StreamMaxLength: ${MEDIA_SCANNING_MAX_STREAM_BYTES:-26214400}
+      CLAMD_CONF_MaxFileSize: ${MEDIA_SCANNING_MAX_STREAM_BYTES:-26214400}
+      CLAMD_CONF_AlertExceedsMax: "yes"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # The first start downloads the signature database before clamd
+      # listens.
+      start_period: 15m
+
   backend-migrate:
     build: *backend-build
     image: rent-backend:local
@@ -453,15 +494,22 @@ services:
     volumes: *backend-blob-volumes
     command: ["node", "dist/workers/postings/posting-thumbnail.worker.js"]
 
-  # Validates and re-encodes quarantined image uploads. Reads the media row
-  # from MySQL, consumes media.processing jobs from RabbitMQ, and reads and
-  # writes blob storage.
+  # Scans, validates, and re-encodes quarantined image uploads. Reads the
+  # media row from MySQL, consumes media.processing jobs from RabbitMQ, reads
+  # and writes blob storage, and, with MEDIA_SCANNER=clamav, streams each
+  # upload to clamd. With the scanning profile on it waits for clamd to be
+  # healthy rather than retrying jobs while signatures download; without the
+  # profile, clamav is not required.
   media-processing-worker:
     build: *backend-build
     image: rent-backend:local
     container_name: rent-media-processing-worker
     restart: unless-stopped
-    depends_on: *recommendation-worker-depends-on
+    depends_on:
+      <<: *recommendation-worker-depends-on
+      clamav:
+        condition: service_healthy
+        required: false
     environment: *worker-environment
     volumes: *backend-blob-volumes
     command: ["node", "dist/workers/media/media-processing.worker.js"]
@@ -676,3 +724,4 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
+  clamav_data:

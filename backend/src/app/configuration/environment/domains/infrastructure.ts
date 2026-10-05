@@ -10,8 +10,10 @@ import {
   parseNumber,
 } from "@/configuration/environment/shared";
 import {
+  MEDIA_SCANNER_KINDS,
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
+  type MediaScannerKind,
   type NodeEnvironment,
   type PayPalCheckoutMethod,
   type RawEnvironmentValues,
@@ -231,6 +233,55 @@ export function buildImageUploadsConfig(
       },
     ),
   };
+}
+
+/**
+ * The malware scanner the media worker runs on each upload before decoding it.
+ * `none` scans nothing and records the item as skipped. Whether production may
+ * run with `none` is decided where the scanner is built
+ * (createMalwareScanner), so only the media processing worker, the one
+ * process that scans, refuses to start; every other process ignores this.
+ */
+export function buildMediaScanningConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["mediaScanning"] {
+  const scannerValue = raw.MEDIA_SCANNER?.toLowerCase() ?? "none";
+  let scanner: MediaScannerKind = "none";
+
+  if (isMediaScannerKind(scannerValue)) {
+    scanner = scannerValue;
+  } else {
+    errors.push(
+      `MEDIA_SCANNER must be one of: ${MEDIA_SCANNER_KINDS.join(", ")}.`,
+    );
+  }
+
+  return {
+    scanner,
+    clamavHost: raw.MEDIA_SCANNING_CLAMAV_HOST ?? "clamav",
+    clamavPort: parseNumber(raw, "MEDIA_SCANNING_CLAMAV_PORT", 3_310, errors, {
+      integer: true,
+      min: 1,
+      max: 65_535,
+    }),
+    timeoutMs: parseNumber(raw, "MEDIA_SCANNING_TIMEOUT_MS", 30_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    maxStreamBytes: parseNumber(
+      raw,
+      "MEDIA_SCANNING_MAX_STREAM_BYTES",
+      25 * 1024 * 1024,
+      errors,
+      { integer: true, min: 1 },
+    ),
+    allowNone: parseBoolean(raw.MEDIA_SCANNING_ALLOW_NONE, false),
+  };
+}
+
+function isMediaScannerKind(value: string): value is MediaScannerKind {
+  return (MEDIA_SCANNER_KINDS as readonly string[]).includes(value);
 }
 
 export function buildRabbitMqConfig(

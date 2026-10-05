@@ -55,6 +55,7 @@ export const MEDIA_REJECTION_CODES = [
   "missing_upload",
   "processing_failed",
   "abandoned",
+  "malware",
 ] as const;
 
 /**
@@ -72,8 +73,24 @@ export const MEDIA_REJECTION_CODES = [
  * processing_failed: processing kept failing, as in an outage. Not the
  *   image's fault; the upload is kept for a while so it can be replayed.
  * abandoned: the upload was never completed.
+ * malware: the malware scanner matched a signature. The reason does not name
+ *   it; the row's `threatName` does, for operators.
  */
 export type MediaRejectionCode = (typeof MEDIA_REJECTION_CODES)[number];
+
+export const MEDIA_SCAN_STATUSES = [
+  "not_scanned",
+  "clean",
+  "infected",
+  "skipped",
+] as const;
+
+/**
+ * What the malware scan of the current processing attempt found. Each attempt
+ * starts again from not_scanned, and an item becomes ready only from clean or
+ * skipped (no scanner configured).
+ */
+export type MediaScanStatus = (typeof MEDIA_SCAN_STATUSES)[number];
 
 /** A rendition as it was written: what it measures and how large it is. */
 export interface ImageRenditionInfo {
@@ -182,8 +199,25 @@ export interface MediaRecord {
    * never part of MediaView or any other response.
    */
   processingError: string | null;
+  scanStatus: MediaScanStatus;
+  /** What scanned the upload, such as "ClamAV 1.5.4/28137", or "none". */
+  scanEngine: string | null;
+  scannedAt: Date | null;
+  /**
+   * The signature an infected upload matched. Internal: it is never part of
+   * MediaView or any other response, and the rejection reason does not name
+   * it.
+   */
+  threatName: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** One scan's outcome, as the processing attempt records it. */
+export interface MediaScanRecord {
+  status: Exclude<MediaScanStatus, "not_scanned">;
+  engine: string;
+  threatName: string | null;
 }
 
 export interface CreateMediaRecordInput {

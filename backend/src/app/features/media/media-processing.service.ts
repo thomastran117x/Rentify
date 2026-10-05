@@ -40,8 +40,11 @@ import {
 import type {
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
+  MediaStatus,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /** A final refusal: why, in words and as a code. */
@@ -58,6 +61,17 @@ const UPLOAD_CHANGED: MediaRejection = {
   reason: "The upload changed after it was completed.",
   code: "upload_changed",
 };
+// Deliberately vague: naming the signature would tell an uploader which of
+// their files tripped which rule.
+const MALWARE: MediaRejection = {
+  reason: "This file can't be used.",
+  code: "malware",
+};
+
+// A row in any other state is finished, or not yet uploaded, so a duplicate or
+// late job for it does nothing. `processing` is claimable because a worker
+// that died mid-job leaves the row there.
+const CLAIMABLE_STATUSES: readonly MediaStatus[] = ["uploaded", "processing"];
 
 function policyRejection(
   error: Parameters<typeof rejectionCodeOf>[0],
@@ -88,6 +102,13 @@ function policyRejection(
  * within policy. The download is then conditional on that ETag and capped at
  * one byte past the limit, so a replaced or oversized blob is refused without
  * being buffered.
+ *
+ * The downloaded bytes are then malware-scanned before any decoder reads
+ * them, since the image decoders are what a crafted file would attack. An
+ * infected upload is rejected and deleted. A scanner that cannot answer
+ * throws, so the job is retried and eventually dead-lettered; the repository
+ * refuses to mark an item ready without a passing scan of the current
+ * attempt.
  */
 export class MediaProcessingService {
   private readonly logger = loggerFactory.forClass(
@@ -99,6 +120,7 @@ export class MediaProcessingService {
     private readonly mediaRepository: MediaRepository,
     private readonly blobService: BlobService,
     private readonly metrics: MediaMetrics,
+    private readonly scanner: MalwareScanner,
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -117,29 +139,36 @@ export class MediaProcessingService {
    * that a retry could fix, such as storage being unavailable.
    */
   async process(mediaId: Uuid): Promise<void> {
-    // A missing, pending, ready, or rejected row cannot be claimed, which makes
-    // a duplicate or late job a no-op.
-    if (!(await this.mediaRepository.claimForProcessing(mediaId))) {
+    const record = await this.mediaRepository.findById(mediaId);
+
+    if (!record || !CLAIMABLE_STATUSES.includes(record.status)) {
       return;
     }
 
+    // The claim applies only while no other attempt has claimed the row since
+    // it was read, so this attempt knows its own number. Its scan and its
+    // markReady apply only while that is still the row's latest attempt, so an
+    // attempt that a later one has overtaken can neither overwrite the later
+    // one's verdict nor publish on the strength of its own. Losing the claim
+    // means another job has just taken the item, and this one does nothing.
+    if (
+      !(await this.mediaRepository.claimForProcessing(
+        mediaId,
+        record.processingAttempts,
+      ))
+    ) {
+      return;
+    }
+
+    const attempt = record.processingAttempts + 1;
     // Timed from the claim, so every claimed attempt records one duration,
-    // including one that throws and is retried, and one whose row is deleted
-    // before it can be read back, whose scope stays unknown.
+    // including one that throws and is retried.
     const startedAt = performance.now();
-    let scope: MediaMetricScope = "unknown";
+    const scope: MediaMetricScope = mediaMetricScope(record.scope);
     let outcome: MediaProcessingOutcome = "failed";
 
     try {
-      const record = await this.mediaRepository.findById(mediaId);
-
-      if (!record) {
-        outcome = "discarded";
-        return;
-      }
-
-      scope = mediaMetricScope(record.scope);
-      outcome = await this.processClaimed(record);
+      outcome = await this.processClaimed(record, attempt);
     } finally {
       this.metrics.observe(
         "media.processing.duration",
@@ -151,6 +180,7 @@ export class MediaProcessingService {
 
   private async processClaimed(
     record: MediaRecord,
+    attempt: number,
   ): Promise<MediaProcessingOutcome> {
     const original = await this.downloadOriginal(record);
 
@@ -161,6 +191,14 @@ export class MediaProcessingService {
     // Progress is recorded between stages, so the media cleanup, which takes
     // an item that has not moved in a while for one whose job was lost, never
     // mistakes a slow job for a lost one.
+    await this.mediaRepository.recordProcessingProgress(record.id);
+
+    const scanned = await this.scan(record, attempt, original.body);
+
+    if (scanned !== "passed") {
+      return scanned;
+    }
+
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     let detectedContentType: SupportedImageContentType;
@@ -213,7 +251,7 @@ export class MediaProcessingService {
 
     // sizeBytes, width, and height now describe what is served, not what was
     // uploaded; detectedContentType records what the upload really was.
-    const marked = await this.mediaRepository.markReady(record.id, {
+    const marked = await this.mediaRepository.markReady(record.id, attempt, {
       processedBlobName,
       detectedContentType,
       sizeBytes: processed.data.byteLength,
@@ -222,21 +260,9 @@ export class MediaProcessingService {
       variants,
     });
 
-    if (!marked && !(await this.isReadyAs(record.id, processedBlobName))) {
-      // The row was deleted, or rejected by a dead-lettered duplicate, while
-      // this ran. Nothing references the renditions just written.
-      await Promise.all(
-        listImageVariantBlobNames(processedBlobName).map((blobName) =>
-          this.blobService.deleteBlob(blobName),
-        ),
-      );
-      return "discarded";
-    }
-
-    // Only the job that marked the item ready counts it; a duplicate that
-    // finds it already ready does not.
+    // Only the attempt that marked the item ready counts it.
     if (!marked) {
-      await deleteQuarantinedUpload(this.rejection, record);
+      await this.discardOutput(record, processedBlobName);
       return "discarded";
     }
 
@@ -275,6 +301,81 @@ export class MediaProcessingService {
       "processing_failed",
       "dead_letter",
     );
+  }
+
+  /**
+   * Called when this attempt could not mark the item ready after writing its
+   * renditions. Every attempt writes the same names, so what happens to them
+   * depends on who has the item now:
+   *
+   * - gone or rejected: nothing references the renditions, so they are
+   *   deleted;
+   * - ready under these names: a later attempt finished it, and only the
+   *   quarantined upload may be left;
+   * - otherwise a later attempt is still working and will write the same
+   *   names, so everything is left to it. Its download still needs the
+   *   upload, and deleting renditions it may already have written would leave
+   *   it ready with missing images.
+   */
+  private async discardOutput(
+    record: MediaRecord,
+    processedBlobName: string,
+  ): Promise<void> {
+    const current = await this.mediaRepository.findById(record.id);
+
+    if (!current || current.status === "rejected") {
+      await Promise.all(
+        listImageVariantBlobNames(processedBlobName).map((blobName) =>
+          this.blobService.deleteBlob(blobName),
+        ),
+      );
+      return;
+    }
+
+    if (
+      current.status === "ready" &&
+      current.processedBlobName === processedBlobName
+    ) {
+      await deleteQuarantinedUpload(this.rejection, record);
+    }
+  }
+
+  /**
+   * Scans the upload and records the verdict. `passed` lets processing go on;
+   * an infected upload is rejected here. A scanner failure is thrown, for the
+   * job to retry.
+   */
+  private async scan(
+    record: MediaRecord,
+    attempt: number,
+    body: Buffer,
+  ): Promise<"passed" | "rejected" | "discarded"> {
+    const result = await this.scanner.scan(body);
+    const scan: MediaScanRecord = {
+      status: result.verdict,
+      engine: result.engine,
+      threatName:
+        result.verdict === "infected" ? (result.threat ?? null) : null,
+    };
+
+    // The row was deleted, finished, or claimed by a later attempt while this
+    // ran. That attempt scans for itself, so this one leaves everything to it.
+    if (
+      !(await this.mediaRepository.recordScanResult(record.id, attempt, scan))
+    ) {
+      return "discarded";
+    }
+
+    if (scan.status !== "infected") {
+      return "passed";
+    }
+
+    this.logger.warn("Rejected an upload that failed the malware scan.", {
+      mediaId: record.id,
+      userId: record.userId,
+      threat: scan.threatName,
+    });
+    return this.reject(record, MALWARE);
   }
 
   private async inspect(
@@ -381,17 +482,5 @@ export class MediaProcessingService {
     );
 
     return rejected ? "rejected" : "discarded";
-  }
-
-  private async isReadyAs(
-    mediaId: Uuid,
-    processedBlobName: string,
-  ): Promise<boolean> {
-    const current = await this.mediaRepository.findById(mediaId);
-
-    return (
-      current?.status === "ready" &&
-      current.processedBlobName === processedBlobName
-    );
   }
 }

@@ -4,11 +4,13 @@ import type {
   MarkMediaReadyInput,
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
   MediaStatus,
   MediaVariantsMetadata,
 } from "@/features/media/media.model";
 import {
   describeProcessingError,
+  scanResultColumns,
   type MediaRepository,
 } from "@/features/media/media.repository";
 
@@ -52,6 +54,10 @@ export class InMemoryMediaRepository {
       processingStartedAt: null,
       processingCompletedAt: null,
       processingError: null,
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -85,15 +91,51 @@ export class InMemoryMediaRepository {
     });
   }
 
-  async claimForProcessing(id: Uuid): Promise<boolean> {
+  async claimForProcessing(
+    id: Uuid,
+    expectedAttempts: number,
+  ): Promise<boolean> {
+    if (this.rows.get(id)?.processingAttempts !== expectedAttempts) {
+      return false;
+    }
+
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
       processingAttempts: (this.rows.get(id)?.processingAttempts ?? 0) + 1,
       processingStartedAt: new Date(),
+      scanStatus: "not_scanned",
+      scanEngine: null,
+      scannedAt: null,
+      threatName: null,
     });
   }
 
-  async markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
+  async recordScanResult(
+    id: Uuid,
+    attempt: number,
+    scan: MediaScanRecord,
+  ): Promise<boolean> {
+    if (this.rows.get(id)?.processingAttempts !== attempt) {
+      return false;
+    }
+
+    return this.transition(id, ["processing"], scanResultColumns(scan));
+  }
+
+  async markReady(
+    id: Uuid,
+    attempt: number,
+    input: MarkMediaReadyInput,
+  ): Promise<boolean> {
+    const row = this.rows.get(id);
+
+    if (
+      row?.processingAttempts !== attempt ||
+      (row.scanStatus !== "clean" && row.scanStatus !== "skipped")
+    ) {
+      return false;
+    }
+
     return this.transition(id, ["processing"], {
       status: "ready",
       ...input,

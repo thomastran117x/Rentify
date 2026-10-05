@@ -7,6 +7,8 @@ import type {
   MarkMediaReadyInput,
   MediaRecord,
   MediaRejectionCode,
+  MediaScanRecord,
+  MediaScanStatus,
   MediaStatus,
   MediaVariantsMetadata,
   RecordedRenditions,
@@ -14,6 +16,14 @@ import type {
 
 // Completed uploads that still wait on their processing job.
 const STUCK_STATUSES: MediaStatus[] = ["uploaded", "processing"];
+
+// The scan verdicts an item may become ready from: clean, or skipped because
+// no scanner is configured.
+const READY_SCAN_STATUSES: MediaScanStatus[] = ["clean", "skipped"];
+
+// The scan_engine and threat_name columns' lengths.
+const SCAN_ENGINE_MAX_LENGTH = 50;
+const THREAT_NAME_MAX_LENGTH = 255;
 
 /**
  * Every state change is a conditional update guarded on the current status, so
@@ -86,31 +96,87 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
+   * Claims the item as attempt `expectedAttempts + 1`, only while
+   * `processing_attempts` is still `expectedAttempts`, as the caller read it.
+   * So of two jobs that read the same row only one claims it, and the winner
+   * knows its attempt number, which its scan and markReady are then held to.
+   *
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
    * there, and the redelivered job must be able to pick it back up. Every
-   * claim is counted, redeliveries included.
+   * claim is counted, redeliveries included. The scan is cleared, so each
+   * attempt must scan the bytes it downloaded before it can mark the item
+   * ready.
    */
-  claimForProcessing(id: Uuid): Promise<boolean> {
-    return this.transition(id, ["uploaded", "processing"], {
-      status: "processing",
-      processingAttempts: { increment: 1 },
-      processingStartedAt: new Date(),
+  claimForProcessing(id: Uuid, expectedAttempts: number): Promise<boolean> {
+    return this.transition(
+      id,
+      ["uploaded", "processing"],
+      {
+        status: "processing",
+        processingAttempts: { increment: 1 },
+        processingStartedAt: new Date(),
+        scanStatus: "not_scanned",
+        scanEngine: null,
+        scannedAt: null,
+        threatName: null,
+      },
+      {
+        where: { processingAttempts: expectedAttempts },
+        operationName: "claimForProcessing",
+      },
+    );
+  }
+
+  /**
+   * Records attempt `attempt`'s malware scan, only while that is still the
+   * item's latest attempt, so an overtaken attempt cannot replace a later
+   * one's verdict.
+   */
+  recordScanResult(
+    id: Uuid,
+    attempt: number,
+    scan: MediaScanRecord,
+  ): Promise<boolean> {
+    return this.transition(id, ["processing"], scanResultColumns(scan), {
+      where: { processingAttempts: attempt },
+      operationName: "recordScanResult",
     });
   }
 
-  markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
-    return this.transition(id, ["processing"], {
-      status: "ready",
-      processedBlobName: input.processedBlobName,
-      detectedContentType: input.detectedContentType,
-      sizeBytes: input.sizeBytes,
-      width: input.width,
-      height: input.height,
-      variants: input.variants as unknown as Prisma.InputJsonValue,
-      rejectionReason: null,
-      rejectionCode: null,
-      processingCompletedAt: new Date(),
-    });
+  /**
+   * Applies only while `attempt` is still the item's latest attempt and its
+   * scan passed, so no path can publish an unscanned or infected upload, or
+   * publish on the strength of another attempt's scan, whatever the caller
+   * does.
+   */
+  markReady(
+    id: Uuid,
+    attempt: number,
+    input: MarkMediaReadyInput,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["processing"],
+      {
+        status: "ready",
+        processedBlobName: input.processedBlobName,
+        detectedContentType: input.detectedContentType,
+        sizeBytes: input.sizeBytes,
+        width: input.width,
+        height: input.height,
+        variants: input.variants as unknown as Prisma.InputJsonValue,
+        rejectionReason: null,
+        rejectionCode: null,
+        processingCompletedAt: new Date(),
+      },
+      {
+        where: {
+          processingAttempts: attempt,
+          scanStatus: { in: READY_SCAN_STATUSES },
+        },
+        operationName: "markReady",
+      },
+    );
   }
 
   /**
@@ -584,10 +650,31 @@ export class MediaRepository extends BaseRepository {
       processingStartedAt: row.processingStartedAt,
       processingCompletedAt: row.processingCompletedAt,
       processingError: row.processingError,
+      scanStatus: row.scanStatus,
+      scanEngine: row.scanEngine,
+      scannedAt: row.scannedAt,
+      threatName: row.threatName,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
+}
+
+/**
+ * A scan as it is stored: the engine and signature are cut to fit their
+ * columns. Exported for the in-memory repository, so tests store what MySQL
+ * would.
+ */
+export function scanResultColumns(
+  scan: MediaScanRecord,
+  scannedAt: Date = new Date(),
+): Pick<MediaRecord, "scanStatus" | "scanEngine" | "scannedAt" | "threatName"> {
+  return {
+    scanStatus: scan.status,
+    scanEngine: scan.engine.slice(0, SCAN_ENGINE_MAX_LENGTH),
+    scannedAt,
+    threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
+  };
 }
 
 /** Every rejection, whoever records it, is stored the same way. */

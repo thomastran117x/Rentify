@@ -14,6 +14,13 @@ import {
 } from "@/features/media/media-metrics";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import {
+  MalwareScannerUnavailableError,
+  type MalwareScanner,
+  type MalwareScanResult,
+} from "@/features/media/scanning/malware-scanner";
+import { NoopScanner } from "@/features/media/scanning/noop-scanner";
+import type { Logger } from "@/configuration/logging/types";
+import {
   RecordingMediaMetrics,
   ThrowingMediaMetrics,
 } from "../../support/recording-media-metrics";
@@ -36,22 +43,52 @@ import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names"
 const USER_1_ID = testUuid(9000, 994290);
 let nextMediaIndex = 994300;
 
+const SCAN_ENGINE = "ClamAV 1.5.4/28137";
+// Not the EICAR test file: a desktop antivirus quarantines that the moment
+// local blob storage writes it, and the fake scanner needs no real signature.
+const INFECTED_MARKER = Buffer.from("fake-scanner: flag this as malware");
+
 restoreBlobEnvironmentAfterEach();
 
-function createContext(options: { metrics?: MediaMetrics } = {}) {
+/**
+ * Answers like clamd: infected for a body that carries INFECTED_MARKER, clean
+ * otherwise. Records what it was given.
+ */
+class FakeScanner implements MalwareScanner {
+  readonly scanned: Buffer[] = [];
+
+  async scan(body: Buffer): Promise<MalwareScanResult> {
+    this.scanned.push(body);
+
+    return body.includes(INFECTED_MARKER)
+      ? {
+          verdict: "infected",
+          threat: "Eicar-Test-Signature",
+          engine: SCAN_ENGINE,
+        }
+      : { verdict: "clean", engine: SCAN_ENGINE };
+  }
+}
+
+function createContext(
+  options: { metrics?: MediaMetrics; scanner?: MalwareScanner } = {},
+) {
   useLocalBlobStorage();
   const blobService = new BlobService();
   const mediaRepository = new InMemoryMediaRepository();
   const metrics = new RecordingMediaMetrics();
+  const scanner = options.scanner ?? new FakeScanner();
 
   return {
     blobService,
     mediaRepository,
     metrics,
+    scanner,
     service: new MediaProcessingService(
       mediaRepository.asRepository(),
       blobService,
       options.metrics ?? metrics,
+      scanner,
     ),
   };
 }
@@ -99,6 +136,10 @@ async function quarantine(
     processingStartedAt: null,
     processingCompletedAt: null,
     processingError: null,
+    scanStatus: "not_scanned",
+    scanEngine: null,
+    scannedAt: null,
+    threatName: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -153,9 +194,10 @@ describe("MediaProcessingService", () => {
 
     await context.service.process(record.id);
 
-    // Progress is reported after the download and after rendering, so the
-    // media cleanup never takes a slow job for a lost one.
+    // Progress is reported after the download, the scan, and rendering, so
+    // the media cleanup never takes a slow job for a lost one.
     expect(context.mediaRepository.progressRecorded).toEqual([
+      record.id,
       record.id,
       record.id,
     ]);
@@ -1002,17 +1044,76 @@ describe("MediaProcessingService", () => {
     ]);
   });
 
-  it("records a discarded attempt when the item is deleted right after its claim", async () => {
+  it("does nothing when another job claims the item between its read and its claim", async () => {
     const context = createContext();
     const record = await quarantine(context, await createPngFixture());
-    jest.spyOn(context.mediaRepository, "findById").mockResolvedValueOnce(null);
+    const repository = context.mediaRepository;
+    const claim = repository.claimForProcessing.bind(repository);
+    jest
+      .spyOn(repository, "claimForProcessing")
+      .mockImplementationOnce(async (id, expectedAttempts) => {
+        // The other job's claim lands first.
+        await claim(id, expectedAttempts);
+        return claim(id, expectedAttempts);
+      });
 
     await context.service.process(record.id);
 
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "processing",
+      processingAttempts: 1,
+    });
+    expect((context.scanner as FakeScanner).scanned).toHaveLength(0);
+    expect(context.metrics.count("media.processing.duration")).toBe(0);
+  });
+
+  it("leaves its output to a later attempt that overtook it", async () => {
+    const context = createContext();
+    const record = await quarantine(context, await createPngFixture(1000, 600));
+    const repository = context.mediaRepository;
+    const markReady = repository.markReady.bind(repository);
+    jest
+      .spyOn(repository, "markReady")
+      .mockImplementationOnce(async (id, attempt, input) => {
+        // A later job, such as one the media cleanup queued again, claims the
+        // item while this attempt is uploading its renditions.
+        await repository.claimForProcessing(id, attempt);
+        return markReady(id, attempt, input);
+      });
+
+    await context.service.process(record.id);
+
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "processing",
+      processingAttempts: 2,
+    });
+    // The later attempt writes the same names and still has to download the
+    // upload, so nothing is deleted from under it.
+    for (const blobName of renditionNames(context, record.id)) {
+      await expect(
+        context.blobService.readLocalBlob(blobName),
+      ).resolves.toBeDefined();
+    }
+    await expect(
+      context.blobService.readLocalBlob(record.originalBlobName),
+    ).resolves.toBeDefined();
     expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
-      { scope: "unknown", outcome: "discarded" },
+      { scope: "postings", outcome: "discarded" },
     ]);
-    expect(context.metrics.count("media.processing.success")).toBe(0);
+
+    // The later attempt then finishes the item.
+    await context.service.process(record.id);
+
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "ready",
+      processingAttempts: 3,
+      scanStatus: "clean",
+    });
+    for (const blobName of renditionNames(context, record.id)) {
+      await expect(
+        context.blobService.readLocalBlob(blobName),
+      ).resolves.toBeDefined();
+    }
   });
 
   it("records a discarded attempt when a duplicate job rejected the item first", async () => {
@@ -1076,6 +1177,198 @@ describe("MediaProcessingService", () => {
     expect((await context.mediaRepository.findById(record.id))?.status).toBe(
       "ready",
     );
+  });
+
+  describe("malware scanning", () => {
+    function warnSpy(context: Context) {
+      return jest.spyOn(
+        (context.service as unknown as { logger: Logger }).logger,
+        "warn",
+      );
+    }
+
+    it("scans the downloaded bytes and records a clean verdict", async () => {
+      const context = createContext();
+      const body = await createPngFixture(12, 8);
+      const record = await quarantine(context, body);
+
+      await context.service.process(record.id);
+
+      expect((context.scanner as FakeScanner).scanned).toEqual([body]);
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "ready",
+        scanStatus: "clean",
+        scanEngine: SCAN_ENGINE,
+        scannedAt: expect.any(Date),
+        threatName: null,
+      });
+    });
+
+    it("records a skipped scan when no scanner is configured", async () => {
+      const context = createContext({ scanner: new NoopScanner() });
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(record.id);
+
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "ready",
+        scanStatus: "skipped",
+        scanEngine: "none",
+      });
+    });
+
+    it("rejects an infected upload before any decoder reads it", async () => {
+      const context = createContext();
+      const warn = warnSpy(context);
+      // Not an image at all: had it been decoded first, it would have been
+      // rejected as a type mismatch instead.
+      const record = await quarantine(context, INFECTED_MARKER);
+
+      await context.service.process(record.id);
+
+      const rejected = await context.mediaRepository.findById(record.id);
+
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        rejectionCode: "malware",
+        rejectionReason: "This file can't be used.",
+        detectedContentType: null,
+        processedBlobName: null,
+        scanStatus: "infected",
+        scanEngine: SCAN_ENGINE,
+        threatName: "Eicar-Test-Signature",
+      });
+      expect(rejected?.rejectionReason).not.toContain("Eicar");
+      await expectMissing(context, record.originalBlobName);
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      expect(warn).toHaveBeenCalledWith(
+        "Rejected an upload that failed the malware scan.",
+        {
+          mediaId: record.id,
+          userId: USER_1_ID,
+          threat: "Eicar-Test-Signature",
+        },
+      );
+      expect(context.metrics.tagsOf("media.rejected")).toEqual([
+        { code: "malware", stage: "processing" },
+      ]);
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "rejected" },
+      ]);
+    });
+
+    it("rethrows when the scanner is unavailable, leaving the item unscanned", async () => {
+      const context = createContext({
+        scanner: {
+          scan: () =>
+            Promise.reject(
+              new MalwareScannerUnavailableError("clamd is unavailable."),
+            ),
+        },
+      });
+      const record = await quarantine(context, await createPngFixture());
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        MalwareScannerUnavailableError,
+      );
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "processing",
+        scanStatus: "not_scanned",
+        processedBlobName: null,
+      });
+      // Nothing was rendered, and the upload is kept for the retry.
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      await expect(
+        context.blobService.readLocalBlob(record.originalBlobName),
+      ).resolves.toBeDefined();
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "failed" },
+      ]);
+    });
+
+    it("makes each attempt scan again, so an earlier verdict cannot carry over", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      context.mediaRepository.put({
+        ...record,
+        status: "processing",
+        scanStatus: "clean",
+        scanEngine: SCAN_ENGINE,
+        scannedAt: new Date(),
+      });
+      jest
+        .spyOn(context.scanner, "scan")
+        .mockRejectedValueOnce(
+          new MalwareScannerUnavailableError("clamd is unavailable."),
+        );
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        MalwareScannerUnavailableError,
+      );
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "processing",
+        scanStatus: "not_scanned",
+      });
+    });
+
+    it("cannot record its verdict once a later attempt has claimed the item", async () => {
+      const context = createContext();
+      const record = await quarantine(context, INFECTED_MARKER);
+      const repository = context.mediaRepository;
+      const scanner = context.scanner as FakeScanner;
+      const scan = scanner.scan.bind(scanner);
+      jest.spyOn(scanner, "scan").mockImplementationOnce(async (body) => {
+        // A later attempt claims the item while this one is scanning.
+        await repository.claimForProcessing(record.id, 1);
+        return scan(body);
+      });
+
+      await context.service.process(record.id);
+
+      // The overtaken attempt neither recorded its verdict nor rejected the
+      // item; the later attempt scans for itself.
+      await expect(repository.findById(record.id)).resolves.toMatchObject({
+        status: "processing",
+        processingAttempts: 2,
+        scanStatus: "not_scanned",
+        threatName: null,
+      });
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "discarded" },
+      ]);
+    });
+
+    it("discards the attempt when the item is finished elsewhere during the scan", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      const scanner = context.scanner as FakeScanner;
+      const scan = scanner.scan.bind(scanner);
+      jest.spyOn(scanner, "scan").mockImplementationOnce(async (body) => {
+        await context.mediaRepository.deleteById(record.id);
+        return scan(body);
+      });
+
+      await context.service.process(record.id);
+
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "discarded" },
+      ]);
+    });
   });
 
   describe("markProcessingFailed", () => {

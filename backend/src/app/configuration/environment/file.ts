@@ -125,6 +125,12 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "logging.level": "LOG_LEVEL",
   "logging.serviceName": "LOG_SERVICE_NAME",
   "logging.silent": "LOG_SILENT",
+  "mediaScanning.allowNone": "MEDIA_SCANNING_ALLOW_NONE",
+  "mediaScanning.clamavHost": "MEDIA_SCANNING_CLAMAV_HOST",
+  "mediaScanning.clamavPort": "MEDIA_SCANNING_CLAMAV_PORT",
+  "mediaScanning.maxStreamBytes": "MEDIA_SCANNING_MAX_STREAM_BYTES",
+  "mediaScanning.scanner": "MEDIA_SCANNER",
+  "mediaScanning.timeoutMs": "MEDIA_SCANNING_TIMEOUT_MS",
   "oauth.apple.clientIds": "APPLE_OAUTH_CLIENT_IDS",
   "oauth.apple.keyId": "APPLE_OAUTH_KEY_ID",
   "oauth.apple.teamId": "APPLE_OAUTH_TEAM_ID",
@@ -273,6 +279,8 @@ const STRING_FILE_KEYS = new Set([
   "logging.fallbackDirectory",
   "logging.level",
   "logging.serviceName",
+  "mediaScanning.clamavHost",
+  "mediaScanning.scanner",
   "oauth.apple.keyId",
   "oauth.apple.teamId",
   "oauth.microsoft.tenant",
@@ -461,6 +469,7 @@ function validateConfigurationValueType(
     variableName.endsWith("_ENABLED") ||
     variableName === "DATABASE_AUTO_SEED_REFRESH" ||
     variableName === "LOG_SILENT" ||
+    variableName === "MEDIA_SCANNING_ALLOW_NONE" ||
     variableName === "TRUST_PROXY_HEADERS";
   if (isBoolean && typeof value !== "boolean") {
     throw new Error(

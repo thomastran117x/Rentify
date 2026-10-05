@@ -102,6 +102,10 @@ async function addLegacyReadyMedia(
     processingStartedAt: null,
     processingCompletedAt: null,
     processingError: null,
+    scanStatus: "clean",
+    scanEngine: "ClamAV 1.5.4/28137",
+    scannedAt: new Date(),
+    threatName: null,
     createdAt: now,
     updatedAt: now,
   };

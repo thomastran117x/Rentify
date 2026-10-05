@@ -12,6 +12,7 @@ import { MediaProcessingQueueService } from "@/features/media/media-processing.q
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaService } from "@/features/media/media.service";
+import { createMalwareScanner } from "@/features/media/scanning/create-malware-scanner";
 import { ImageVariantsResolver } from "@/features/media/image-variants";
 
 export const mediaRegistrationModule: ContainerRegistrationModule = {
@@ -33,6 +34,16 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         warnIfLogMetricsSuppressed(environment.getLoggingConfig().level);
         return new BestEffortMediaMetrics(new LogMediaMetrics());
       },
+    });
+    container.register({
+      token: containerTokens.malwareScanner,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () =>
+        createMalwareScanner(
+          environment.getMediaScanningConfig(),
+          environment.isProduction(),
+        ),
     });
     container.register({
       token: containerTokens.imageVariantsResolver,
@@ -71,12 +82,14 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mediaRepository,
         containerTokens.blobService,
         containerTokens.mediaMetrics,
+        containerTokens.malwareScanner,
       ],
       resolve: ({ resolve }) =>
         new MediaProcessingService(
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaMetrics),
+          resolve(containerTokens.malwareScanner),
         ),
     });
     container.register({
