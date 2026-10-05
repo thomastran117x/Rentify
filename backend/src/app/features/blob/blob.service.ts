@@ -305,15 +305,22 @@ export class BlobService {
     }
   }
 
-  async deleteBlob(blobName: string): Promise<void> {
+  /**
+   * Deletes a blob from the container its name routes to. Only blob-cleanup
+   * names the container, to remove what it found somewhere else.
+   */
+  async deleteBlob(blobName: string, container?: BlobContainer): Promise<void> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
     if (this.config) {
-      await this.createBlobClient(normalizedBlobName).deleteIfExists();
+      await this.createBlobClient(
+        normalizedBlobName,
+        container,
+      ).deleteIfExists();
       return;
     }
 
-    await this.deleteLocalBlob(normalizedBlobName);
+    await this.deleteLocalBlob(normalizedBlobName, container);
   }
 
   /** Every blob in both containers, each tagged with where it was found. */
@@ -852,8 +859,14 @@ export class BlobService {
     }
   }
 
-  private async deleteLocalBlob(blobName: string): Promise<void> {
-    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
+  private async deleteLocalBlob(
+    blobName: string,
+    container?: BlobContainer,
+  ): Promise<void> {
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
+      blobName,
+      container,
+    );
 
     const results = await Promise.allSettled([
       unlink(blobPath),

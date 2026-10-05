@@ -96,6 +96,7 @@ describe("BlobCleanupService", () => {
     expect(result.candidates).toEqual([
       {
         blobName: "orphan.jpg",
+        container: "public",
         contentLength: 10,
         lastModified: OLD.toISOString(),
       },
@@ -175,6 +176,7 @@ describe("BlobCleanupService", () => {
       failures: [
         {
           blobName: "failed.png",
+          container: "public",
           message: "Could not delete failed.png",
         },
       ],
@@ -309,6 +311,54 @@ describe("BlobCleanupService", () => {
 
     const result = await service.run(true);
     expect(result).toMatchObject({ deleted: 1, mediaRecordsDeleted: 1 });
+    expect(storage.deleteBlob).toHaveBeenCalledWith(
+      "quarantine/images/user-1/abandoned",
+      "quarantine",
+    );
+  });
+
+  it("deletes a pre-split upload left in the public container from there", async () => {
+    const repository = {
+      loadReferences: jest.fn(async () => ({
+        blobNames: new Set<string>(["quarantine/images/user-1/pending"]),
+        sourceCounts: EMPTY_SOURCE_COUNTS,
+      })),
+      deleteAbandonedMedia: jest.fn(async () => 0),
+    };
+    const storage = createStorage([
+      {
+        name: "quarantine/images/user-1/leftover",
+        container: "public",
+        contentType: "application/octet-stream",
+        lastModified: OLD,
+        contentLength: 3,
+      },
+      // Still waiting on processing under the legacy fallback: referenced.
+      {
+        name: "quarantine/images/user-1/pending",
+        container: "public",
+        contentType: "image/png",
+        lastModified: OLD,
+      },
+    ]);
+    const service = new BlobCleanupService(repository, storage, () => NOW);
+
+    const result = await service.run(true);
+
+    expect(result).toMatchObject({ scanned: 2, referenced: 1, deleted: 1 });
+    expect(result.candidates).toEqual([
+      {
+        blobName: "quarantine/images/user-1/leftover",
+        container: "public",
+        contentLength: 3,
+        lastModified: OLD.toISOString(),
+      },
+    ]);
+    expect(storage.deleteBlob).toHaveBeenCalledTimes(1);
+    expect(storage.deleteBlob).toHaveBeenCalledWith(
+      "quarantine/images/user-1/leftover",
+      "public",
+    );
   });
 
   it("returns a successful exit code when every candidate succeeds", () => {

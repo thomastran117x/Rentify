@@ -228,6 +228,48 @@ describe("BlobService", () => {
     ]);
   });
 
+  it("deletes from a named container when blob-cleanup asks for one", async () => {
+    useAzureBlobStorage();
+    const service = new BlobService();
+    const clients = recordAzureContainers(service);
+    const leftover = `quarantine/images/${USER_1_ID}/leftover`;
+
+    await service.deleteBlob(leftover, "public");
+
+    expect(clients).toHaveLength(1);
+    expect(clients[0]).toMatchObject({
+      container: "public",
+      blobName: leftover,
+    });
+    expect(clients[0]!.deleteIfExists).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes a local blob from a named root", async () => {
+    useLocalBlobStorage();
+    const service = new BlobService();
+    const leftover = `quarantine/images/${USER_1_ID}/local-leftover`;
+    const helper = service as unknown as {
+      resolveLocalBlobPaths(
+        blobName: string,
+        container: string,
+      ): { blobPath: string };
+    };
+    // Plant a quarantine name in the public root, as an old flat layout would.
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { blobPath } = helper.resolveLocalBlobPaths(leftover, "public");
+    await mkdir(path.dirname(blobPath), { recursive: true });
+    await writeFile(blobPath, "old");
+    await writeFile(`${blobPath}.meta.json`, "{}");
+
+    // The public read still refuses it by name.
+    await expect(service.readPublicLocalBlob(leftover)).rejects.toThrow(
+      ResourceNotFoundError,
+    );
+    await service.deleteBlob(leftover, "public");
+
+    await expect(access(blobPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("names the real containers behind each route", () => {
     useAzureBlobStorage();
     const service = new BlobService();

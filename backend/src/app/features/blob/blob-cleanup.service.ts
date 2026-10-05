@@ -1,24 +1,31 @@
-import type { ManagedBlobItem } from "@/features/blob/blob.model";
+import type {
+  BlobContainer,
+  ManagedBlobItem,
+} from "@/features/blob/blob.model";
 import type { BlobCleanupRepository } from "@/features/blob/blob-cleanup.repository";
 
 export const ORPHANED_IMAGE_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
 // Client uploads, never referenced by anything and never served. Their stored
 // content type is whatever the client sent, so it cannot be trusted to say
-// whether they are images.
+// whether they are images. Most sit in the quarantine container; the prefix
+// also catches uploads left in the public container from before the split.
 const QUARANTINE_PREFIX = "quarantine/";
 
 export interface BlobCleanupStorage {
   listAzureBlobs(): AsyncIterable<ManagedBlobItem>;
-  deleteBlob(blobName: string): Promise<void>;
+  /** Deletes from the container named, not the one the name routes to. */
+  deleteBlob(blobName: string, container: BlobContainer): Promise<void>;
 }
 
 export interface BlobCleanupFailure {
   blobName: string;
+  container: BlobContainer;
   message: string;
 }
 
 export interface BlobCleanupCandidate {
   blobName: string;
+  container: BlobContainer;
   contentLength: number;
   lastModified: string;
 }
@@ -81,7 +88,9 @@ export class BlobCleanupService {
 
       const isImage =
         blob.contentType?.trim().toLowerCase().startsWith("image/") === true;
-      const isQuarantined = blob.name.startsWith(QUARANTINE_PREFIX);
+      const isQuarantined =
+        blob.container === "quarantine" ||
+        blob.name.startsWith(QUARANTINE_PREFIX);
       const lastModifiedMs = blob.lastModified?.getTime();
       const isOldEnough =
         lastModifiedMs !== undefined &&
@@ -95,6 +104,7 @@ export class BlobCleanupService {
 
       candidates.push({
         blobName: blob.name,
+        container: blob.container,
         contentLength: this.normalizeContentLength(blob.contentLength),
         lastModified: blob.lastModified.toISOString(),
       });
@@ -127,7 +137,9 @@ export class BlobCleanupService {
 
     for (const candidate of candidates) {
       try {
-        await this.storage.deleteBlob(candidate.blobName);
+        // A leftover upload in the public container must go from there, not
+        // from the quarantine container its name routes to.
+        await this.storage.deleteBlob(candidate.blobName, candidate.container);
         deletedBlobNames.push(candidate.blobName);
         result.deleted += 1;
         result.deletedBytes += candidate.contentLength;
@@ -136,6 +148,7 @@ export class BlobCleanupService {
         result.failedBytes += candidate.contentLength;
         result.failures.push({
           blobName: candidate.blobName,
+          container: candidate.container,
           message: this.readErrorMessage(error),
         });
       }
