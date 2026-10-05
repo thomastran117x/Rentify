@@ -192,6 +192,14 @@ export function parseInstreamReply(
     return { verdict: "infected", threat: found[1] };
   }
 
+  // A configuration error, not an outage: retrying will not help, so the
+  // message says what to change, for the item's processing_error.
+  if (reply.includes("size limit exceeded")) {
+    throw new MalwareScannerUnavailableError(
+      "clamd refused the upload as longer than its StreamMaxLength. Set clamd's StreamMaxLength to at least MEDIA_SCANNING_MAX_STREAM_BYTES.",
+    );
+  }
+
   throw new MalwareScannerUnavailableError(
     `clamd could not scan the upload: ${reply.slice(0, 200)}`,
   );

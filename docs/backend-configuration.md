@@ -255,12 +255,28 @@ start either way.
 
 With `scanner: clamav`, `maxStreamBytes` must be at least
 `imageUploads.maxSizeBytes` (`MAX_IMAGE_SIZE_BYTES`); a smaller value is a
-startup error. With `none` nothing is streamed and the limit is not checked. clamd refuses a
-stream longer than its own `StreamMaxLength` (25M by default), so keep that at
-least as large as `maxStreamBytes`; the Compose `clamav` service sets it from
-`MEDIA_SCANNING_MAX_STREAM_BYTES` for you. When clamd refuses or cannot be reached,
-the job is retried and then dead-lettered like any other processing failure;
-the item is never marked ready unscanned. Locally, clamd runs in the opt-in
+startup error. With `none` nothing is streamed and the limit is not checked.
+
+clamd has size limits of its own, and each must cover `maxStreamBytes`:
+
+- `StreamMaxLength` (25M by default). clamd refuses a longer stream with
+  `INSTREAM size limit exceeded`, and every such job is retried and then
+  dead-lettered. Its `processing_error` says to raise `StreamMaxLength`.
+- `MaxFileSize` (100M by default). clamd answers `OK` for content past it
+  without scanning it.
+- `AlertExceedsMax yes` makes clamd report anything it could not scan in full,
+  for any of its limits, as `Heuristics.Limits.Exceeded.*`. The worker
+  rejects that as `malware` instead of recording it as clean.
+
+The Compose `clamav` service sets the first two from
+`MEDIA_SCANNING_MAX_STREAM_BYTES` and turns on `AlertExceedsMax`. Compose
+cannot read a YAML overlay, so set the stream limit with that variable, not
+`mediaScanning.maxStreamBytes`, or clamd keeps its 25M. For a clamd outside
+Compose, set all three in its `clamd.conf`.
+
+When clamd refuses or cannot be reached, the job is retried and then
+dead-lettered like any other processing failure; the item is never marked
+ready unscanned. Locally, clamd runs in the opt-in
 `scanning` Compose profile; see the
 [media worker guide](../backend/src/app/workers/media/README.md#malware-scanning-locally).
 See

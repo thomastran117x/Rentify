@@ -299,9 +299,16 @@ services:
   # several minutes. Start it with
   #   MEDIA_SCANNER=clamav docker compose --profile scanning up --build
   # The Debian-based image is used because, unlike clamav/clamav, it is
-  # published for arm64 as well as amd64. clamd's StreamMaxLength is set from
-  # MEDIA_SCANNING_MAX_STREAM_BYTES, so raising the app's limit raises clamd's
-  # with it; otherwise clamd would refuse every stream between the two.
+  # published for arm64 as well as amd64.
+  #
+  # clamd's size limits follow MEDIA_SCANNING_MAX_STREAM_BYTES, so set the
+  # app's limit through that variable rather than a YAML overlay, which this
+  # file cannot see:
+  # - StreamMaxLength, or clamd refuses every stream between the two limits;
+  # - MaxFileSize, or clamd answers OK for content past it without scanning it.
+  # AlertExceedsMax reports anything clamd could not scan in full, for any of
+  # its limits, as Heuristics.Limits.Exceeded, which the worker rejects
+  # rather than records as clean.
   clamav:
     image: clamav/clamav-debian:stable
     container_name: rent-clamav
@@ -309,6 +316,8 @@ services:
     profiles: ["scanning"]
     environment:
       CLAMD_CONF_StreamMaxLength: ${MEDIA_SCANNING_MAX_STREAM_BYTES:-26214400}
+      CLAMD_CONF_MaxFileSize: ${MEDIA_SCANNING_MAX_STREAM_BYTES:-26214400}
+      CLAMD_CONF_AlertExceedsMax: "yes"
     volumes:
       - clamav_data:/var/lib/clamav
     healthcheck:

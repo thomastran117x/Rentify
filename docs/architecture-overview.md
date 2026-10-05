@@ -202,8 +202,8 @@ adapters:
 - `ClamAvScanner` streams the bytes to a clamd daemon over TCP with its
   `INSTREAM` command, so nothing is written to disk. It reads `stream: OK` as
   clean and `stream: <signature> FOUND` as infected.
-- `NoopScanner` passes everything and is used when `mediaScanning.scanner` is
-  `none`, the default outside production.
+- `NoopScanner` reports every upload as `skipped` and is used when
+  `mediaScanning.scanner` is `none`, the default outside production.
 
 Each processing attempt clears the row's scan and records its own in
 `media.scan_status`: `clean` or `infected`, or `skipped` from the noop
@@ -213,7 +213,10 @@ scanner. `scan_engine` names the engine and signature version, such as
 - **Infected:** the item is rejected with code `malware` and the reason "This
   file can't be used." The signature goes to `media.threat_name` and a warning
   log with the media and user ids, but never into the reason or any response.
-  The quarantined upload is deleted and the job is not retried.
+  The quarantined upload is deleted and the job is not retried. Content that
+  clamd could not scan in full because of one of its size limits is reported
+  this way too (`Heuristics.Limits.Exceeded.*`, with clamd's
+  `AlertExceedsMax`), so a limit never turns into an unscanned `clean`.
 - **Scanner unavailable:** a clamd that is unreachable, times out, or answers
   with an error throws. The job goes through the usual retry tiers and then
   the dead-letter queue, like a storage outage.
