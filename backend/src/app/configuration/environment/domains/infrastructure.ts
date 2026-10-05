@@ -37,12 +37,37 @@ export function validateInfrastructureConfig(
     errors.push("RABBITMQ_URL is required when NODE_ENV is production.");
   }
 
-  const hasBlobConnectionString = Boolean(raw.AZURE_STORAGE_CONNECTION_STRING);
-  const hasBlobContainerName = Boolean(raw.AZURE_STORAGE_CONTAINER_NAME);
+  validateBlobStorageConfig(raw, errors);
+}
 
-  if (hasBlobConnectionString !== hasBlobContainerName) {
+// Client uploads go to their own private container, so whenever Azure is used
+// both containers must be named, and they must not be the same container.
+function validateBlobStorageConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): void {
+  const publicContainer = raw.AZURE_STORAGE_CONTAINER_NAME?.trim();
+  const quarantineContainer =
+    raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?.trim();
+  const configured = [
+    Boolean(raw.AZURE_STORAGE_CONNECTION_STRING),
+    Boolean(publicContainer),
+    Boolean(quarantineContainer),
+  ];
+
+  if (configured.some(Boolean) && !configured.every(Boolean)) {
     errors.push(
-      "AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME must be configured together.",
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+    );
+  }
+
+  if (
+    publicContainer &&
+    quarantineContainer &&
+    publicContainer.toLowerCase() === quarantineContainer.toLowerCase()
+  ) {
+    errors.push(
+      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
     );
   }
 }
@@ -161,6 +186,11 @@ export function buildBlobStorageConfig(
   return {
     connectionString: raw.AZURE_STORAGE_CONNECTION_STRING,
     containerName: raw.AZURE_STORAGE_CONTAINER_NAME,
+    quarantineContainerName: raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+    quarantineLegacyFallback: parseBoolean(
+      raw.MEDIA_QUARANTINE_LEGACY_FALLBACK,
+      false,
+    ),
     uploadSasTtlSeconds: parseNumber(
       raw,
       "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",

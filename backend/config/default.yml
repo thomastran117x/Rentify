@@ -96,6 +96,11 @@ oauth:
 
 blobStorage:
   containerName: null
+  quarantineContainerName: null
+  # For one release after the container split: also look for quarantined
+  # uploads where they were stored before it (the public container). Turn it
+  # off once uploads made before the split have been processed.
+  quarantineLegacyFallback: false
   uploadSasTtlSeconds: 900
 
 # Upload policy for image blobs. allowedContentTypes may only narrow the

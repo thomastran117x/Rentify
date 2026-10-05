@@ -116,8 +116,9 @@ docker compose run --rm --build blob-cleanup
 docker compose run --rm --build blob-cleanup --delete
 ```
 
-The cleanup keeps images referenced by the current MySQL database, including
-restorable organization-logo and posting-photo history. Only unreferenced
+The cleanup lists both the public and the quarantine container and keeps
+images referenced by the current MySQL database, including restorable
+organization-logo and posting-photo history. Only unreferenced
 `image/*` blobs and quarantined uploads that have been unchanged for at least
 24 hours are eligible. An upload still waiting on processing, or one a
 processing failure keeps for a dead-letter replay, is never eligible: the

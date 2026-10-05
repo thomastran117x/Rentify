@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import BadRequestError from "@/errors/http/bad-request.error";
-import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { getQuery } from "@/configuration/http/request";
 import type { BlobService } from "@/features/blob/blob.service";
 import type { MediaService } from "@/features/media/media.service";
@@ -50,15 +49,11 @@ export class BlobController {
       throw new BadRequestError("Blob name is required.");
     }
 
-    // Quarantined uploads are unvalidated bytes and are never served, so to a
-    // reader they do not exist.
-    if (this.blobService.isQuarantineBlobName(blobName)) {
-      throw new ResourceNotFoundError("Blob not found.");
-    }
-
-    // The local stand-in for Azure's public blob endpoint, which serves stored
-    // bytes without involving the backend, so this is a plain storage read.
-    const blob = await this.blobService.readLocalBlob(blobName);
+    // The local stand-in for an anonymous read of the public container, which
+    // serves stored bytes without involving the backend, so this is a plain
+    // storage read. Quarantined uploads live in the other container, so to a
+    // reader here they do not exist.
+    const blob = await this.blobService.readPublicLocalBlob(blobName);
 
     response.status(200);
     response.setHeader("content-type", blob.contentType);

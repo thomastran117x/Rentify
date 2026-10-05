@@ -35,8 +35,9 @@ function printHelp(): void {
     [
       "Usage: docker compose run --rm --build blob-cleanup [--delete]",
       "",
-      "Compares Azure Blob Storage with the current MySQL database.",
+      "Compares both Azure Blob Storage containers (public and quarantine) with the current MySQL database.",
       "Only unreferenced image/* blobs, and quarantined uploads, at least 24 hours old are candidates.",
+      "Each candidate is deleted from the container it was found in, so quarantine/ leftovers in the public container are removed too.",
       "An upload still waiting on processing, or kept by a processing failure for a replay, never is.",
       "With --delete, the media records of deleted blobs are removed too; media-cleanup-worker handles unfinished media.",
       "",

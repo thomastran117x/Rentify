@@ -511,14 +511,50 @@ describe("EnvironmentManager", () => {
     const manager = new EnvironmentManager();
 
     expect(() => manager.load()).toThrow(
-      "AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME must be configured together.",
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
     );
 
+    // Naming only the public container still leaves uploads with nowhere to go.
     process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+    );
+
+    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " Uploads ";
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
+    );
+
+    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = "uploads-quarantine";
     const boundedManager = new EnvironmentManager();
     expect(() => boundedManager.load()).toThrow(
       "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS must be greater than or equal to 60.",
     );
+  });
+
+  it("reads both blob containers and leaves the legacy fallback off by default", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getBlobStorageConfig()).toMatchObject({
+      containerName: "uploads",
+      quarantineContainerName: "uploads-quarantine",
+      quarantineLegacyFallback: false,
+    });
+
+    process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
+    const fallbackManager = new EnvironmentManager();
+    fallbackManager.load();
+
+    expect(
+      fallbackManager.getBlobStorageConfig().quarantineLegacyFallback,
+    ).toBe(true);
   });
 
   it("defaults the image upload policy and allows narrowing it", () => {

@@ -176,6 +176,12 @@ function readBlobStorageConfig() {
   return {
     connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     containerName: process.env.AZURE_STORAGE_CONTAINER_NAME,
+    quarantineContainerName:
+      process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+    quarantineLegacyFallback: readBoolean(
+      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK,
+      false,
+    ),
     uploadSasTtlSeconds: readNumber(
       process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS,
       15 * 60,

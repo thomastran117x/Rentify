@@ -182,6 +182,87 @@ must allow the PayPal SDK's scripts, frames, and API calls:
 `https://www.paypal.com`, `https://www.sandbox.paypal.com`,
 `https://*.paypal.com`, and `https://*.paypalobjects.com`.
 
+## Blob storage
+
+Images live in Azure Blob Storage, in two containers of one account. Client
+uploads go to a private quarantine container, and everything that may be
+served goes to the public container. The
+[architecture overview](./architecture-overview.md#storage-layout) explains
+the split.
+
+```yaml
+blobStorage:
+  containerName: images # AZURE_STORAGE_CONTAINER_NAME
+  quarantineContainerName: images-quarantine # AZURE_STORAGE_QUARANTINE_CONTAINER_NAME
+  quarantineLegacyFallback: false # MEDIA_QUARANTINE_LEGACY_FALLBACK
+  uploadSasTtlSeconds: 900 # AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS
+```
+
+The connection string stays in `AZURE_STORAGE_CONNECTION_STRING`. Setting it
+or either container name selects Azure, and then all three are required and
+the two container names must differ, ignoring case. Breaking either rule is a
+startup error. With none of them set, development stores blobs on local disk
+under `backend/tmp/blob-storage/` (`/app/tmp/blob-storage` in Compose), in a
+`quarantine/` and a `public/` directory, and `GET /blob/file` serves only from
+`public/`.
+
+### Creating the quarantine container
+
+The repository has no infrastructure-as-code, so create the container in each
+storage account by hand, with anonymous access off:
+
+```bash
+az storage container create --account-name <storage-account> \
+  --name <quarantine-container> --public-access off --auth-mode login
+```
+
+The public container keeps its current access level.
+
+Browsers PUT uploads straight to Azure, so the account's Blob service CORS
+rules must allow `PUT` from the frontend origin with the `x-ms-blob-type` and
+`Content-Type` headers; without that, every upload fails in the browser. CORS
+rules belong to the account, not to a container, so a rule that already covers
+uploads covers the new container. Check with
+`az storage cors list --services b --account-name <storage-account>`, and add
+one if needed:
+
+```bash
+az storage cors add --services b --account-name <storage-account> \
+  --methods PUT --origins <frontend-origin> \
+  --allowed-headers x-ms-blob-type content-type --max-age 3600
+```
+
+Move the quarantine lifecycle rule to the new container as well; see the
+[lifecycle backstop](./architecture-overview.md).
+
+### Rolling out the split
+
+Uploads requested before the deploy still land in the public container under
+`quarantine/`. `MEDIA_QUARANTINE_LEGACY_FALLBACK=true` lets
+`POST /media/{id}/complete`, the media processing worker, and the dead-letter
+replay find them there: a `quarantine/` name missing from the quarantine
+container is read from the public container, and deleting one removes both
+copies. Without it, those few items are rejected as `missing_upload`.
+
+1. Create the quarantine container and check CORS, as above.
+2. Set `AZURE_STORAGE_QUARANTINE_CONTAINER_NAME` and
+   `MEDIA_QUARANTINE_LEGACY_FALLBACK=true` for the API, every worker, and the
+   maintenance commands, then deploy.
+3. Once no item from before the deploy can still be completed or replayed —
+   after the 24-hour pending-upload TTL and rejected retention have passed —
+   turn the flag off. A follow-up release removes it.
+4. Run `blob-cleanup`, preview first, then `--delete`, to remove the
+   `quarantine/` leftovers from the public container.
+
+A local `backend_blob_storage` volume from before the split keeps its files
+directly under `/app/tmp/blob-storage`, where only the fallback looks, and only
+for `quarantine/` names. Move the rest into `public/`:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh backend -c \
+  'cd /app/tmp/blob-storage && mkdir -p public && for entry in *; do case "$entry" in public|quarantine) ;; *) mv "$entry" public/ ;; esac; done'
+```
+
 ## Image upload policy
 
 `imageUploads` in `backend/config/default.yml` controls what the blob upload

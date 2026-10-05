@@ -19,6 +19,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type {
+  BlobContainer,
   BlobProperties,
   BlobUploadTarget,
   CreateBlobUploadUrlInput,
@@ -33,11 +34,15 @@ interface AzureBlobConfiguration {
   accountName: string;
   accountKey: string;
   serviceUrl: string;
+  /** The trusted container: worker output and blobs that may be served. */
   containerName: string;
+  /** The private container client uploads land in. */
+  quarantineContainerName: string;
   sasTtlSeconds: number;
 }
 
 interface LocalBlobConfiguration {
+  /** Holds one directory per container, named like BlobContainer. */
   storageRoot: string;
   uploadTtlSeconds: number;
   signingSecret: string;
@@ -53,6 +58,14 @@ const THUMBNAIL_DIRECTORY = "thumbnails";
 // Client uploads land here and are never served; see MediaService.
 const QUARANTINE_ROOT = "quarantine";
 const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
+const BLOB_CONTAINERS: readonly BlobContainer[] = ["public", "quarantine"];
+
+/**
+ * Where a blob is read or written. "legacy" is where a quarantine name was
+ * stored before the container split: the public container on Azure, the flat
+ * storage root locally. Only MEDIA_QUARANTINE_LEGACY_FALLBACK looks there.
+ */
+type StorageLocation = BlobContainer | "legacy";
 
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(
@@ -119,19 +132,34 @@ function blobTooLarge(maxBytes: number): PayloadTooLargeError {
  * development. It signs upload URLs, moves bytes, and owns the blob naming
  * convention, but decides nothing about what may be stored or who may attach
  * it - that is MediaService's job.
+ *
+ * Blobs are split across two containers by name: quarantine/... lives in a
+ * private quarantine container, which is the only one an upload URL can write
+ * to, and everything else lives in the public container. Callers keep passing
+ * plain blob names; the container is never part of a stored name.
  */
 export class BlobService {
   private readonly config: AzureBlobConfiguration | null;
   private readonly localConfig: LocalBlobConfiguration | null;
+  private readonly quarantineLegacyFallback: boolean;
 
   constructor() {
     this.config = this.readConfiguration();
     this.localConfig = this.readLocalConfiguration();
+    this.quarantineLegacyFallback =
+      environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
 
   createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
     const blobName = this.normalizeBlobName(input.blobName);
     const contentType = this.normalizeContentType(input.contentType);
+
+    // A client may only ever write to the quarantine container, and a blob
+    // there under any other name would be one the rest of this class looks for
+    // in the public container.
+    if (!this.isQuarantineBlobName(blobName)) {
+      throw new BadRequestError("Uploads may only target quarantine blobs.");
+    }
 
     if (this.config) {
       return this.createAzureUploadUrl(blobName, contentType);
@@ -223,13 +251,41 @@ export class BlobService {
     return this.readLocalBlobData(blobName);
   }
 
+  /**
+   * The local stand-in for an anonymous read of the public container. It only
+   * looks in the public root, and a quarantine name does not exist there.
+   */
+  async readPublicLocalBlob(blobName: string): Promise<{
+    body: Buffer;
+    contentType: string;
+  }> {
+    this.requireLocalConfiguration();
+
+    if (this.isQuarantineBlobName(blobName)) {
+      throw new ResourceNotFoundError("Blob not found.");
+    }
+
+    return this.readLocalBlobData(blobName, "public");
+  }
+
   async getProperties(blobName: string): Promise<BlobProperties> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
+    return this.withLegacyFallback(normalizedBlobName, (location) =>
+      this.readProperties(normalizedBlobName, location),
+    );
+  }
+
+  private async readProperties(
+    normalizedBlobName: string,
+    location?: StorageLocation,
+  ): Promise<BlobProperties> {
     if (this.config) {
       try {
-        const properties =
-          await this.createBlobClient(normalizedBlobName).getProperties();
+        const properties = await this.createBlobClient(
+          normalizedBlobName,
+          location,
+        ).getProperties();
 
         return {
           contentType: properties.contentType,
@@ -246,8 +302,10 @@ export class BlobService {
       }
     }
 
-    const { blobPath, metadataPath } =
-      this.resolveLocalBlobPaths(normalizedBlobName);
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
+      normalizedBlobName,
+      location,
+    );
 
     try {
       const [stats, metadataRaw] = await Promise.all([
@@ -270,27 +328,51 @@ export class BlobService {
     }
   }
 
-  async deleteBlob(blobName: string): Promise<void> {
+  /**
+   * Deletes a blob from the container its name routes to, and from its legacy
+   * location while the fallback is on, so an upload made before the split is
+   * cleaned up like any other. Only blob-cleanup names the container, to
+   * remove what it found somewhere else.
+   */
+  async deleteBlob(blobName: string, container?: BlobContainer): Promise<void> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
+    await this.deleteBlobAt(normalizedBlobName, container);
+
+    if (!container && this.usesLegacyFallback(normalizedBlobName)) {
+      await this.deleteBlobAt(normalizedBlobName, "legacy");
+    }
+  }
+
+  private async deleteBlobAt(
+    normalizedBlobName: string,
+    location?: StorageLocation,
+  ): Promise<void> {
     if (this.config) {
-      await this.createBlobClient(normalizedBlobName).deleteIfExists();
+      await this.createBlobClient(
+        normalizedBlobName,
+        location,
+      ).deleteIfExists();
       return;
     }
 
-    await this.deleteLocalBlob(normalizedBlobName);
+    await this.deleteLocalBlob(normalizedBlobName, location);
   }
 
+  /** Every blob in both containers, each tagged with where it was found. */
   async *listAzureBlobs(): AsyncGenerator<ManagedBlobItem> {
-    const containerClient = this.createContainerClient();
+    for (const container of BLOB_CONTAINERS) {
+      const containerClient = this.createContainerClient(container);
 
-    for await (const blob of containerClient.listBlobsFlat()) {
-      yield {
-        name: blob.name,
-        contentType: blob.properties.contentType,
-        lastModified: blob.properties.lastModified,
-        contentLength: blob.properties.contentLength,
-      };
+      for await (const blob of containerClient.listBlobsFlat()) {
+        yield {
+          name: blob.name,
+          container,
+          contentType: blob.properties.contentType,
+          lastModified: blob.properties.lastModified,
+          contentLength: blob.properties.contentLength,
+        };
+      }
     }
   }
 
@@ -308,6 +390,22 @@ export class BlobService {
     contentType?: string;
   }> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
+
+    // Both reads of a fallback blob - the properties MediaService recorded
+    // and this download - land on the same legacy blob, so its ETag holds.
+    return this.withLegacyFallback(normalizedBlobName, (location) =>
+      this.readBlob(normalizedBlobName, options, location),
+    );
+  }
+
+  private async readBlob(
+    normalizedBlobName: string,
+    options: DownloadBlobOptions,
+    location?: StorageLocation,
+  ): Promise<{
+    body: Buffer;
+    contentType?: string;
+  }> {
     const { ifMatch, maxBytes } = options;
 
     if (this.config) {
@@ -316,6 +414,7 @@ export class BlobService {
         // fails when the blob is shorter, so it cannot express "up to".
         const response = await this.createBlobClient(
           normalizedBlobName,
+          location,
         ).download(0, maxBytes === undefined ? undefined : maxBytes + 1, {
           conditions: ifMatch ? { ifMatch } : undefined,
         });
@@ -347,7 +446,10 @@ export class BlobService {
     // Checked before reading, so an oversized or replaced file is never
     // loaded. The same conditions as Azure, so both paths behave alike.
     if (ifMatch !== undefined || maxBytes !== undefined) {
-      const properties = await this.getProperties(normalizedBlobName);
+      const properties = await this.readProperties(
+        normalizedBlobName,
+        location,
+      );
 
       if (ifMatch !== undefined && properties.etag !== ifMatch) {
         throw new BlobChangedError();
@@ -361,11 +463,45 @@ export class BlobService {
       }
     }
 
-    const localBlob = await this.readLocalBlob(normalizedBlobName);
+    const localBlob = await this.readLocalBlobData(
+      normalizedBlobName,
+      location,
+    );
     return {
       body: localBlob.body,
       contentType: localBlob.contentType,
     };
+  }
+
+  /**
+   * Runs a read against the blob's container and, while
+   * MEDIA_QUARANTINE_LEGACY_FALLBACK is on, retries a quarantine name that is
+   * not there at its legacy location: an upload made before the split, which
+   * completeMediaUpload and the media worker still have to find.
+   */
+  private async withLegacyFallback<T>(
+    normalizedBlobName: string,
+    read: (location?: StorageLocation) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await read();
+    } catch (error) {
+      if (
+        !(error instanceof ResourceNotFoundError) ||
+        !this.usesLegacyFallback(normalizedBlobName)
+      ) {
+        throw error;
+      }
+
+      return read("legacy");
+    }
+  }
+
+  private usesLegacyFallback(normalizedBlobName: string): boolean {
+    return (
+      this.quarantineLegacyFallback &&
+      this.isQuarantineBlobName(normalizedBlobName)
+    );
   }
 
   async uploadBuffer(input: {
@@ -406,7 +542,16 @@ export class BlobService {
     };
   }
 
+  /**
+   * The public URL of a blob. Quarantined uploads have none: refusing them
+   * here backs up MediaService.isManagedUrl, so a quarantine name can never
+   * turn into something stored and rendered.
+   */
   getBlobUrl(blobName: string): string {
+    if (this.isQuarantineBlobName(blobName)) {
+      throw new BadRequestError("Quarantined blobs have no public URL.");
+    }
+
     if (this.config) {
       return this.createBlobClient(blobName).url;
     }
@@ -415,7 +560,7 @@ export class BlobService {
   }
 
   isManagedBlobUrl(blobUrl: string, blobName: string): boolean {
-    if (!this.isConfigured()) {
+    if (!this.isConfigured() || this.isQuarantineBlobName(blobName)) {
       return false;
     }
 
@@ -450,14 +595,14 @@ export class BlobService {
     );
     const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
     const blobClient = serviceClient
-      .getContainerClient(config.containerName)
+      .getContainerClient(config.quarantineContainerName)
       .getBlockBlobClient(blobName);
 
     const startsOn = new Date(Date.now() - 5 * 60 * 1000);
     const expiresOn = new Date(Date.now() + config.sasTtlSeconds * 1000);
     const sasToken = generateBlobSASQueryParameters(
       {
-        containerName: config.containerName,
+        containerName: config.quarantineContainerName,
         blobName,
         permissions: BlobSASPermissions.parse("cw"),
         protocol: SASProtocol.Https,
@@ -480,7 +625,7 @@ export class BlobService {
       expiresAt: expiresOn.toISOString(),
       blobName,
       blobUrl: blobClient.url,
-      container: config.containerName,
+      container: config.quarantineContainerName,
       headers: {
         "x-ms-blob-type": "BlockBlob",
         "Content-Type": contentType,
@@ -491,7 +636,7 @@ export class BlobService {
   private requireConfiguration(): AzureBlobConfiguration {
     if (!this.config) {
       throw new ServiceNotImplementedError(
-        "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME.",
+        "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
       );
     }
 
@@ -508,32 +653,52 @@ export class BlobService {
     return this.localConfig;
   }
 
-  private createBlobClient(blobName: string) {
-    return this.createContainerClient().getBlockBlobClient(blobName);
+  private createBlobClient(
+    blobName: string,
+    location: StorageLocation = this.containerFor(blobName),
+  ) {
+    return this.createContainerClient(
+      location === "legacy" ? "public" : location,
+    ).getBlockBlobClient(blobName);
   }
 
-  private createContainerClient() {
+  private createContainerClient(container: BlobContainer) {
     const config = this.requireConfiguration();
     const credential = new StorageSharedKeyCredential(
       config.accountName,
       config.accountKey,
     );
     const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    return serviceClient.getContainerClient(config.containerName);
+    return serviceClient.getContainerClient(
+      container === "quarantine"
+        ? config.quarantineContainerName
+        : config.containerName,
+    );
+  }
+
+  private containerFor(blobName: string): BlobContainer {
+    return this.isQuarantineBlobName(blobName) ? "quarantine" : "public";
   }
 
   private readConfiguration(): AzureBlobConfiguration | null {
     const blobConfig = environment.getBlobStorageConfig();
     const connectionString = blobConfig.connectionString;
-    const containerName = blobConfig.containerName;
+    const containerName = blobConfig.containerName?.trim();
+    const quarantineContainerName = blobConfig.quarantineContainerName?.trim();
 
-    if (!connectionString && !containerName) {
+    if (!connectionString && !containerName && !quarantineContainerName) {
       return null;
     }
 
-    if (!connectionString || !containerName) {
+    if (!connectionString || !containerName || !quarantineContainerName) {
       throw new ServiceNotImplementedError(
-        "Azure Blob Storage requires both AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME.",
+        "Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
+      );
+    }
+
+    if (containerName.toLowerCase() === quarantineContainerName.toLowerCase()) {
+      throw new ServiceNotImplementedError(
+        "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
       );
     }
 
@@ -544,7 +709,8 @@ export class BlobService {
       accountName: parsedConnectionString.accountName,
       accountKey: parsedConnectionString.accountKey,
       serviceUrl: parsedConnectionString.serviceUrl,
-      containerName: containerName.trim(),
+      containerName,
+      quarantineContainerName,
       sasTtlSeconds,
     };
   }
@@ -754,11 +920,17 @@ export class BlobService {
     return normalized;
   }
 
-  private async readLocalBlobData(blobName: string): Promise<{
+  private async readLocalBlobData(
+    blobName: string,
+    location?: StorageLocation,
+  ): Promise<{
     body: Buffer;
     contentType: string;
   }> {
-    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
+      blobName,
+      location,
+    );
 
     try {
       const [body, metadataRaw] = await Promise.all([
@@ -779,8 +951,14 @@ export class BlobService {
     }
   }
 
-  private async deleteLocalBlob(blobName: string): Promise<void> {
-    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(blobName);
+  private async deleteLocalBlob(
+    blobName: string,
+    location?: StorageLocation,
+  ): Promise<void> {
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
+      blobName,
+      location,
+    );
 
     const results = await Promise.allSettled([
       unlink(blobPath),
@@ -805,13 +983,20 @@ export class BlobService {
     return `"${Math.trunc(stats.mtimeMs * 1000).toString(16)}-${stats.size.toString(16)}"`;
   }
 
-  private resolveLocalBlobPaths(blobName: string): {
+  // Mirrors Azure: <root>/<container>/<blob name>, the container picked by
+  // name unless the caller says where to look. Before the split every blob
+  // sat directly under <root>, which is the legacy location.
+  private resolveLocalBlobPaths(
+    blobName: string,
+    location: StorageLocation = this.containerFor(blobName),
+  ): {
     blobPath: string;
     metadataPath: string;
   } {
     const localConfig = this.requireLocalConfiguration();
     const blobPath = path.join(
       localConfig.storageRoot,
+      location === "legacy" ? "" : location,
       this.normalizeBlobName(blobName).replace(/\//g, path.sep),
     );
 

@@ -18,14 +18,23 @@ const EMPTY_SOURCE_COUNTS = {
   mediaUploads: 0,
 };
 
+type BlobFixture = Omit<ManagedBlobItem, "container"> &
+  Partial<Pick<ManagedBlobItem, "container">>;
+
+// Fixtures sit in the container their name routes to unless they say otherwise.
 function createStorage(
-  blobs: ManagedBlobItem[],
+  blobs: BlobFixture[],
   failures: Set<string> = new Set(),
 ): BlobCleanupStorage & { deleteBlob: jest.Mock } {
   return {
     async *listAzureBlobs() {
       for (const blob of blobs) {
-        yield blob;
+        yield {
+          container: blob.name.startsWith("quarantine/")
+            ? "quarantine"
+            : "public",
+          ...blob,
+        };
       }
     },
     deleteBlob: jest.fn(async (blobName: string) => {
@@ -87,6 +96,7 @@ describe("BlobCleanupService", () => {
     expect(result.candidates).toEqual([
       {
         blobName: "orphan.jpg",
+        container: "public",
         contentLength: 10,
         lastModified: OLD.toISOString(),
       },
@@ -166,6 +176,7 @@ describe("BlobCleanupService", () => {
       failures: [
         {
           blobName: "failed.png",
+          container: "public",
           message: "Could not delete failed.png",
         },
       ],
@@ -255,6 +266,7 @@ describe("BlobCleanupService", () => {
     storage.listAzureBlobs = async function* () {
       yield {
         name: "failure.png",
+        container: "public",
         contentType: "image/png",
         lastModified: OLD,
       };
@@ -299,6 +311,54 @@ describe("BlobCleanupService", () => {
 
     const result = await service.run(true);
     expect(result).toMatchObject({ deleted: 1, mediaRecordsDeleted: 1 });
+    expect(storage.deleteBlob).toHaveBeenCalledWith(
+      "quarantine/images/user-1/abandoned",
+      "quarantine",
+    );
+  });
+
+  it("deletes a pre-split upload left in the public container from there", async () => {
+    const repository = {
+      loadReferences: jest.fn(async () => ({
+        blobNames: new Set<string>(["quarantine/images/user-1/pending"]),
+        sourceCounts: EMPTY_SOURCE_COUNTS,
+      })),
+      deleteAbandonedMedia: jest.fn(async () => 0),
+    };
+    const storage = createStorage([
+      {
+        name: "quarantine/images/user-1/leftover",
+        container: "public",
+        contentType: "application/octet-stream",
+        lastModified: OLD,
+        contentLength: 3,
+      },
+      // Still waiting on processing under the legacy fallback: referenced.
+      {
+        name: "quarantine/images/user-1/pending",
+        container: "public",
+        contentType: "image/png",
+        lastModified: OLD,
+      },
+    ]);
+    const service = new BlobCleanupService(repository, storage, () => NOW);
+
+    const result = await service.run(true);
+
+    expect(result).toMatchObject({ scanned: 2, referenced: 1, deleted: 1 });
+    expect(result.candidates).toEqual([
+      {
+        blobName: "quarantine/images/user-1/leftover",
+        container: "public",
+        contentLength: 3,
+        lastModified: OLD.toISOString(),
+      },
+    ]);
+    expect(storage.deleteBlob).toHaveBeenCalledTimes(1);
+    expect(storage.deleteBlob).toHaveBeenCalledWith(
+      "quarantine/images/user-1/leftover",
+      "public",
+    );
   });
 
   it("returns a successful exit code when every candidate succeeds", () => {

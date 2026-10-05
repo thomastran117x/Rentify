@@ -83,7 +83,9 @@ tests covering it can still use arbitrary buffers.
 
 ### Blob storage in integration tests
 
-The harness replaces only `BlobService`, with an in-memory store. Naming is
+The harness replaces only `BlobService`, with an in-memory store. One map
+stands in for both containers, and the fake's `readPublicLocalBlob` keeps the
+real rule that a quarantine name is never found by a public read. Naming is
 delegated to the real `BlobService`, and the real `MediaService` runs on top of
 the fake. The upload policy, the byte checks, and ownership are therefore
 enforced over HTTP exactly as in production.
