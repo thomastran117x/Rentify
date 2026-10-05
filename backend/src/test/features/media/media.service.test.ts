@@ -341,9 +341,9 @@ describe("MediaService", () => {
 
     it("does not count an upload whose credential could not be signed", async () => {
       const { mediaService, blobService, metrics } = createLocalMediaService();
-      jest.spyOn(blobService, "createUploadUrl").mockImplementationOnce(() => {
-        throw new Error("signing failed");
-      });
+      jest
+        .spyOn(blobService, "createUploadUrl")
+        .mockRejectedValueOnce(new Error("signing failed"));
 
       await expect(startUpload(mediaService)).rejects.toThrow("signing failed");
       expect(metrics.count("media.upload.created")).toBe(0);

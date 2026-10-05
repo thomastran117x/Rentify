@@ -142,6 +142,9 @@ export class BlobService {
   private readonly config: AzureBlobConfiguration | null;
   private readonly localConfig: LocalBlobConfiguration | null;
   private readonly quarantineLegacyFallback: boolean;
+  // Built on first use and kept, so every request shares one pipeline.
+  private sharedKeyCredential: StorageSharedKeyCredential | null = null;
+  private serviceClient: BlobServiceClient | null = null;
 
   constructor() {
     this.config = this.readConfiguration();
@@ -150,7 +153,9 @@ export class BlobService {
       environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
 
-  createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
+  async createUploadUrl(
+    input: CreateBlobUploadUrlInput,
+  ): Promise<BlobUploadTarget> {
     const blobName = this.normalizeBlobName(input.blobName);
     const contentType = this.normalizeContentType(input.contentType);
 
@@ -589,14 +594,8 @@ export class BlobService {
     contentType: string,
   ): BlobUploadTarget {
     const config = this.requireConfiguration();
-    const credential = new StorageSharedKeyCredential(
-      config.accountName,
-      config.accountKey,
-    );
-    const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    const blobClient = serviceClient
-      .getContainerClient(config.quarantineContainerName)
-      .getBlockBlobClient(blobName);
+    const blobClient =
+      this.createContainerClient("quarantine").getBlockBlobClient(blobName);
 
     const startsOn = new Date(Date.now() - 5 * 60 * 1000);
     const expiresOn = new Date(Date.now() + config.sasTtlSeconds * 1000);
@@ -616,7 +615,7 @@ export class BlobService {
         // for, not what it can store.
         contentType,
       },
-      credential,
+      this.getSharedKeyCredential(),
     ).toString();
 
     return {
@@ -664,16 +663,28 @@ export class BlobService {
 
   private createContainerClient(container: BlobContainer) {
     const config = this.requireConfiguration();
-    const credential = new StorageSharedKeyCredential(
-      config.accountName,
-      config.accountKey,
-    );
-    const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    return serviceClient.getContainerClient(
+    return this.getServiceClient().getContainerClient(
       container === "quarantine"
         ? config.quarantineContainerName
         : config.containerName,
     );
+  }
+
+  private getServiceClient(): BlobServiceClient {
+    this.serviceClient ??= new BlobServiceClient(
+      this.requireConfiguration().serviceUrl,
+      this.getSharedKeyCredential(),
+    );
+    return this.serviceClient;
+  }
+
+  private getSharedKeyCredential(): StorageSharedKeyCredential {
+    const config = this.requireConfiguration();
+    this.sharedKeyCredential ??= new StorageSharedKeyCredential(
+      config.accountName,
+      config.accountKey,
+    );
+    return this.sharedKeyCredential;
   }
 
   private containerFor(blobName: string): BlobContainer {

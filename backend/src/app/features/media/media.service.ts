@@ -98,7 +98,7 @@ export class MediaService {
       declaredContentType: contentType,
       originalFilename: input.filename.trim().slice(0, 255) || null,
     });
-    const target = this.blobService.createUploadUrl({
+    const target = await this.blobService.createUploadUrl({
       blobName: record.originalBlobName,
       contentType,
       requestOrigin: input.requestOrigin,

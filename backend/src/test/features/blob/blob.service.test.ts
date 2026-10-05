@@ -101,7 +101,7 @@ describe("BlobService", () => {
       USER_1_ID,
       testUuid(9000, 994264),
     );
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName,
       contentType: "image/png",
       requestOrigin: "http://localhost:8040",
@@ -138,52 +138,56 @@ describe("BlobService", () => {
     );
   });
 
-  it("only signs uploads for quarantine names", () => {
+  it("only signs uploads for quarantine names", async () => {
     useLocalBlobStorage();
     const local = new BlobService();
     useAzureBlobStorage();
     const azure = new BlobService();
 
     for (const service of [local, azure]) {
-      expect(() =>
+      await expect(
         service.createUploadUrl({
           blobName: `media/images/${USER_1_ID}/x.webp`,
           contentType: "image/webp",
         }),
-      ).toThrow("Uploads may only target quarantine blobs.");
+      ).rejects.toThrow("Uploads may only target quarantine blobs.");
     }
   });
 
   // Storage is policy-free: which types may be uploaded is MediaService's call.
-  it("applies only a generic content-type shape check when signing", () => {
+  it("applies only a generic content-type shape check when signing", async () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/file`;
 
     expect(
-      service.createUploadUrl({ blobName, contentType: " Application/PDF " })
-        .headers["Content-Type"],
+      (
+        await service.createUploadUrl({
+          blobName,
+          contentType: " Application/PDF ",
+        })
+      ).headers["Content-Type"],
     ).toBe("application/pdf");
-    expect(() =>
+    await expect(
       service.createUploadUrl({
         blobName,
         contentType: "text/plain\r\nx-test: bad",
       }),
-    ).toThrow(BadRequestError);
-    expect(() =>
+    ).rejects.toThrow(BadRequestError);
+    await expect(
       service.createUploadUrl({
         blobName: "../escape.png",
         contentType: "a/b",
       }),
-    ).toThrow(BadRequestError);
+    ).rejects.toThrow(BadRequestError);
   });
 
-  it("uses the local fallback origin when the request origin is invalid", () => {
+  it("uses the local fallback origin when the request origin is invalid", async () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName: `quarantine/images/${USER_1_ID}/photo`,
       contentType: "image/jpeg",
       requestOrigin: "not-a-valid-origin",
@@ -192,12 +196,12 @@ describe("BlobService", () => {
     expect(uploadTarget.uploadUrl).toContain("http://localhost:8040/");
   });
 
-  it("signs Azure upload URLs against the quarantine container only", () => {
+  it("signs Azure upload URLs against the quarantine container only", async () => {
     useAzureBlobStorage();
 
     const service = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/photo`;
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName,
       contentType: "image/webp",
     });
