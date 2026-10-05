@@ -57,10 +57,12 @@ preserving the configured scheme and port.
 Environment variables remain mandatory for secrets and secret-bearing
 connection strings:
 
-- `DATABASE_URL`, `REDIS_URL`, `REDIS_PASSWORD`, `RABBITMQ_URL`,
-  `ELASTICSEARCH_PASSWORD`, and `AZURE_STORAGE_CONNECTION_STRING`
-- `AZURE_CLIENT_SECRET`, when a service authenticates to blob storage as a
-  [Microsoft Entra ID](#microsoft-entra-id-authentication) service principal
+- `DATABASE_URL`, `REDIS_URL`, `REDIS_PASSWORD`, `RABBITMQ_URL`, and
+  `ELASTICSEARCH_PASSWORD`
+- `AZURE_CLIENT_SECRET`, for each service that authenticates to blob storage as
+  a [Microsoft Entra ID](#microsoft-entra-id-authentication) service principal,
+  and `AZURE_STORAGE_CONNECTION_STRING` in the
+  [deprecated connection-string mode](#deprecated-connection-string-mode)
 - access-token signing credentials: `ACCESS_TOKEN_SECRET` for the default
   `HS256` algorithm, or `ACCESS_TOKEN_PRIVATE_KEY` and
   `ACCESS_TOKEN_PUBLIC_KEY` for `RS256`
@@ -194,20 +196,20 @@ the split.
 
 ```yaml
 blobStorage:
-  auth: connection-string # AZURE_STORAGE_AUTH
-  accountUrl: null # AZURE_STORAGE_ACCOUNT_URL, entra mode only
+  auth: entra # AZURE_STORAGE_AUTH
+  accountUrl: https://<account>.blob.core.windows.net # AZURE_STORAGE_ACCOUNT_URL
   containerName: images # AZURE_STORAGE_CONTAINER_NAME
   quarantineContainerName: images-quarantine # AZURE_STORAGE_QUARANTINE_CONTAINER_NAME
   quarantineLegacyFallback: false # MEDIA_QUARANTINE_LEGACY_FALLBACK
   uploadSasTtlSeconds: 900 # AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS
 ```
 
-The connection string stays in `AZURE_STORAGE_CONNECTION_STRING`. Setting it
-or either container name selects Azure, and then all three are required and
-the two container names must differ, ignoring case.
-[Entra ID mode](#microsoft-entra-id-authentication) takes the account URL in
-place of the connection string. Breaking either rule is a
-startup error. With none of them set, development stores blobs on local disk
+Every process reaches the account as its own Microsoft Entra ID identity; see
+[Microsoft Entra ID authentication](#microsoft-entra-id-authentication).
+Setting the account URL or either container name selects Azure, and then all
+three are required and the two container names must differ, ignoring case.
+Breaking either rule is a startup error. With none of them set, development
+stores blobs on local disk
 under `backend/tmp/blob-storage/` (`/app/tmp/blob-storage` in Compose), in a
 `quarantine/` and a `public/` directory, and `GET /blob/file` serves only from
 `public/`.
@@ -271,19 +273,12 @@ docker compose run --rm --no-deps --entrypoint sh backend -c \
 
 ### Microsoft Entra ID authentication
 
-By default every process signs requests with the account key in
-`AZURE_STORAGE_CONNECTION_STRING`, which can do anything to any blob. With
-`AZURE_STORAGE_AUTH=entra`, each process authenticates as its own Microsoft
-Entra ID identity through `DefaultAzureCredential`. The roles assigned to that
-identity on each container decide what the process may do there. The API
-signs upload URLs as user delegation SAS tokens, so issuing a client
-credential no longer needs the key.
-
-```yaml
-blobStorage:
-  auth: entra # AZURE_STORAGE_AUTH, default connection-string
-  accountUrl: https://<account>.blob.core.windows.net # AZURE_STORAGE_ACCOUNT_URL
-```
+Each process authenticates to the storage account as its own Microsoft Entra
+ID identity through `DefaultAzureCredential`; this is `AZURE_STORAGE_AUTH=entra`,
+the default. The roles assigned to that identity on each container decide what
+the process may do there. The API signs upload URLs as user delegation SAS
+tokens, so no process needs the account key, which can do anything to any
+blob.
 
 Entra mode has these rules, and breaking one is a startup error:
 
@@ -295,7 +290,10 @@ Entra mode has these rules, and breaking one is a startup error:
 - `AZURE_STORAGE_CONNECTION_STRING` must not be set.
 
 The last rule applies to every backend process, including the ones that
-never touch blobs, so no process configuration can carry the key.
+never touch blobs, so no process configuration can carry the key. A
+deployment that still sets the connection string fails at startup until it
+moves to Entra ID or opts in to the
+[deprecated connection-string mode](#deprecated-connection-string-mode).
 
 Each process finds its identity through `DefaultAzureCredential`, which reads
 Azure's standard environment variables rather than backend configuration:
@@ -411,11 +409,9 @@ PUBLIC_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<public-container>
 1. Turn `MEDIA_QUARANTINE_LEGACY_FALLBACK` off, as in
    [rolling out the split](#rolling-out-the-split).
 2. Create the roles, identities and assignments, as above.
-3. Deploy every backend process with these settings, and remove
-   `AZURE_STORAGE_CONNECTION_STRING` from each one:
-   - `AZURE_STORAGE_AUTH=entra`;
-   - `AZURE_STORAGE_ACCOUNT_URL`;
-   - its own identity variables.
+3. Deploy every backend process with `AZURE_STORAGE_ACCOUNT_URL` and its own
+   identity variables, and remove `AZURE_STORAGE_CONNECTION_STRING` and any
+   `AZURE_STORAGE_AUTH=connection-string` from each one.
 
    Upload URLs issued before the deploy are signed with the key and keep
    working until they expire.
@@ -432,8 +428,8 @@ PUBLIC_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<public-container>
 
 5. Optionally, turn off shared-key access to the account with
    `az storage account update --resource-group $RESOURCE_GROUP --name $ACCOUNT --allow-shared-key-access false`.
-   That breaks anything still on the key, including a developer's local stack
-   pointed at this account.
+   That breaks anything still on the deprecated connection-string mode,
+   including a developer's local stack pointed at this account.
 
 **Revoking upload URLs.** To invalidate every outstanding upload URL at once,
 revoke the account's user delegation keys:
@@ -447,35 +443,46 @@ Then restart the API. It reuses one delegation key for up to two hours, and
 without a restart it keeps signing URLs with the revoked key until that key
 is due for renewal.
 
+#### Deprecated: connection-string mode
+
+`AZURE_STORAGE_AUTH=connection-string` signs every request, and every upload
+URL, with the account key in `AZURE_STORAGE_CONNECTION_STRING`. It is
+deprecated and will be removed in a later release: the key can do anything to
+any blob, and every process that uses it logs a deprecation warning when it
+starts. The mode has to be named explicitly, and it needs the connection
+string and both container names. Move off it with the
+[rollout steps](#rolling-it-out).
+
 #### Entra ID in the local stack
 
-The local stack keeps using the account key. To run it with Entra ID
-instead:
+`docker-compose.yml` gives each service that touches blobs its own service
+principal. To run the stack against an Azure account:
 
-1. Create a service principal for each service you run, with the roles from
-   the table.
-2. In `.env`:
-   - set `AZURE_STORAGE_AUTH=entra`, `AZURE_STORAGE_ACCOUNT_URL` and
-     `AZURE_TENANT_ID`;
-   - clear `AZURE_STORAGE_CONNECTION_STRING`;
-   - add one `<PREFIX>_AZURE_CLIENT_ID` and `<PREFIX>_AZURE_CLIENT_SECRET`
-     pair per service. The prefixes are listed in
-     [`docker-compose.entra.yml`](../docker-compose.entra.yml).
-3. Start the stack with the override:
-
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.entra.yml up --build
-   ```
+1. Create a service principal for each service, with the roles from the
+   table: `az ad sp create-for-rbac --name <name>`, then
+   `az role assignment create` as above.
+2. In `.env`, set `AZURE_STORAGE_ACCOUNT_URL`, `AZURE_TENANT_ID` and one
+   `<PREFIX>_AZURE_CLIENT_ID` and `<PREFIX>_AZURE_CLIENT_SECRET` pair per
+   service. The prefixes are `API`, `MEDIA_PROCESSING`, `MEDIA_CLEANUP`,
+   `POSTING_THUMBNAIL`, `BLOB_CLEANUP`, `MEDIA_BACKFILL` and `MEDIA_REPLAY`;
+   `.env.example` lists them all.
+3. Name both containers, with `AZURE_STORAGE_CONTAINER_NAME` and
+   `AZURE_STORAGE_QUARANTINE_CONTAINER_NAME` or a
+   [YAML overlay](#overrides), then run `docker compose up --build`.
 
 A service without a pair starts normally, but fails on its first blob
-operation.
+operation. Without an account URL or container names, development keeps
+blobs on local disk and needs none of this.
 
-If a service fails with `EnvironmentCredential authentication failed` and
-`network_error`, and `login.microsoftonline.com` is unreachable from the
-container (`ENETUNREACH`), Docker Desktop's DNS is handing the Alpine image
-IPv6 addresses only, which the Docker VM cannot route. Give the affected
-services a public upstream resolver, such as `dns: [1.1.1.1]`, in an
-uncommitted override file. Compose service names still resolve.
+Those services resolve external names through a public DNS server,
+`BLOB_SERVICES_DNS` (default `1.1.1.1`). Docker Desktop's DNS hands the Alpine
+image only IPv6 addresses for `login.microsoftonline.com`, which the Docker VM
+cannot route, so token requests fail with `ENETUNREACH`. Compose service names
+still resolve. Point it at another resolver if your network blocks public DNS.
+
+To keep signing with the account key locally, set
+`AZURE_STORAGE_AUTH=connection-string` and `AZURE_STORAGE_CONNECTION_STRING`
+in `.env` instead. That mode is deprecated.
 
 ## Image upload policy
 
