@@ -29,6 +29,7 @@ export interface StartupDependencies {
   connectRabbitMq(): Promise<unknown>;
   createApplication(): ReturnType<typeof createApplication>;
   initializeContainer(): ReturnType<typeof initializeContainer>;
+  initializeBlobStorage(): unknown;
   isRabbitMqEnabled(): boolean;
   loadEnvironment(): ReturnType<typeof loadEnvironment>;
   runAutoSeedsIfNeeded(): Promise<unknown>;
@@ -65,6 +66,15 @@ async function warmIdentityBloomFilters(): Promise<void> {
   }
 }
 
+/**
+ * Builds the blob storage adapter before the server takes traffic, rather than
+ * on the first upload: a bad blob configuration then stops boot, and the
+ * deprecated connection-string mode logs its warning at startup.
+ */
+function initializeBlobStorage(): void {
+  getContainer().resolve(containerTokens.blobService);
+}
+
 const defaultDependencies: StartupDependencies = {
   connectDatabase,
   connectElasticsearch,
@@ -72,6 +82,7 @@ const defaultDependencies: StartupDependencies = {
   connectRabbitMq,
   createApplication,
   initializeContainer,
+  initializeBlobStorage,
   isRabbitMqEnabled,
   loadEnvironment,
   runAutoSeedsIfNeeded,
@@ -101,6 +112,7 @@ export async function initializeServerApplication(
   }
 
   dependencies.initializeContainer();
+  dependencies.initializeBlobStorage();
   await dependencies.warmIdentityBloomFilters();
   const app = dependencies.createApplication();
 

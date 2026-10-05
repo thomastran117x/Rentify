@@ -1,4 +1,6 @@
+import * as containerModule from "@/configuration/bootstrap/container";
 import { initializeServerApplication } from "@/configuration/bootstrap/startup";
+import { containerTokens } from "@/configuration/container/tokens";
 
 describe("initializeServerApplication", () => {
   it("runs auto-seeds after the database connects and before the container initializes", async () => {
@@ -26,6 +28,9 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
+      initializeBlobStorage: () => {
+        calls.push("initializeBlobStorage");
+      },
       warmIdentityBloomFilters: async () => {
         calls.push("warmIdentityBloomFilters");
       },
@@ -47,6 +52,7 @@ describe("initializeServerApplication", () => {
       "connectElasticsearch",
       "connectRabbitMq",
       "initializeContainer",
+      "initializeBlobStorage",
       "warmIdentityBloomFilters",
       "createApplication",
     ]);
@@ -80,6 +86,9 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
+      initializeBlobStorage: () => {
+        calls.push("initializeBlobStorage");
+      },
       warmIdentityBloomFilters: async () => {
         calls.push("warmIdentityBloomFilters");
       },
@@ -100,6 +109,7 @@ describe("initializeServerApplication", () => {
       "connectRedis",
       "connectElasticsearch",
       "initializeContainer",
+      "initializeBlobStorage",
       "warmIdentityBloomFilters",
       "createApplication",
     ]);
@@ -119,6 +129,7 @@ describe("initializeServerApplication", () => {
       isRabbitMqEnabled: () => false,
       connectRabbitMq: async () => undefined,
       initializeContainer: () => ({}) as any,
+      initializeBlobStorage: () => undefined,
       createApplication: () => app as any,
       loadEnvironment: () => ({}) as any,
       // The real implementation swallows its own failures; this asserts the
@@ -126,5 +137,33 @@ describe("initializeServerApplication", () => {
     });
 
     expect(result.app).toBe(app);
+  });
+
+  it("builds the blob storage adapter at boot, so its configuration is checked before traffic", async () => {
+    const resolve = jest.fn();
+    const getContainer = jest
+      .spyOn(containerModule, "getContainer")
+      .mockReturnValue({ resolve } as unknown as ReturnType<
+        typeof containerModule.getContainer
+      >);
+
+    try {
+      await initializeServerApplication({
+        connectDatabase: async () => undefined,
+        runAutoSeedsIfNeeded: async () => undefined,
+        connectRedis: async () => undefined,
+        connectElasticsearch: async () => undefined,
+        isRabbitMqEnabled: () => false,
+        connectRabbitMq: async () => undefined,
+        initializeContainer: () => ({}) as any,
+        warmIdentityBloomFilters: async () => undefined,
+        createApplication: () => ({ fetch: jest.fn() }) as any,
+        loadEnvironment: () => ({}) as any,
+      });
+
+      expect(resolve).toHaveBeenCalledWith(containerTokens.blobService);
+    } finally {
+      getContainer.mockRestore();
+    }
   });
 });
