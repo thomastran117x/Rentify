@@ -557,6 +557,88 @@ describe("EnvironmentManager", () => {
     ).toBe(true);
   });
 
+  it("authenticates blob storage with the connection string unless entra is chosen", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getBlobStorageConfig().auth).toBe(
+      "connection-string",
+    );
+
+    process.env = buildRequiredEnv({ AZURE_STORAGE_AUTH: "managed-identity" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_AUTH must be one of: connection-string, entra.",
+    );
+  });
+
+  it("requires an account URL and refuses the account key in entra mode", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "Entra",
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together when AZURE_STORAGE_AUTH is entra.",
+    );
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+    );
+
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+    for (const accountUrl of [
+      "http://rent.blob.core.windows.net",
+      "https://127.0.0.1:10000/devstoreaccount1",
+      "https://rent.blob.core.windows.net/?sv=2025-01-05",
+      "not a url",
+    ]) {
+      process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+      expect(() => new EnvironmentManager().load()).toThrow(
+        "AZURE_STORAGE_ACCOUNT_URL must be an https blob endpoint such as https://<account>.blob.core.windows.net.",
+      );
+    }
+
+    process.env.AZURE_STORAGE_ACCOUNT_URL =
+      "https://rent.blob.core.windows.net/";
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getBlobStorageConfig()).toMatchObject({
+      auth: "entra",
+      accountUrl: "https://rent.blob.core.windows.net/",
+      connectionString: undefined,
+    });
+  });
+
+  it("reads the blob authentication mode and account URL from YAML", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      [
+        "blobStorage:",
+        "  auth: entra",
+        "  accountUrl: https://rent.blob.core.windows.net",
+        "  containerName: uploads",
+        "  quarantineContainerName: uploads-quarantine",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(join(tempDirectory, "test.yml"), "server:\n  port: 8100\n");
+    process.env = buildRequiredEnv({ NODE_ENV: "test" });
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+    });
+    manager.load();
+
+    expect(manager.getBlobStorageConfig()).toMatchObject({
+      auth: "entra",
+      accountUrl: "https://rent.blob.core.windows.net",
+    });
+  });
+
   it("defaults the image upload policy and allows narrowing it", () => {
     process.env = buildRequiredEnv({});
     const defaultManager = new EnvironmentManager();

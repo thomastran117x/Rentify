@@ -62,6 +62,8 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.refreshTokenTtlSeconds": "REFRESH_TOKEN_TTL_SECONDS",
   "auth.rememberMeRefreshTokenTtlSeconds":
     "REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS",
+  "blobStorage.auth": "AZURE_STORAGE_AUTH",
+  "blobStorage.accountUrl": "AZURE_STORAGE_ACCOUNT_URL",
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",
   "blobStorage.quarantineContainerName":
     "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
@@ -251,6 +253,7 @@ const ARRAY_FILE_KEYS = new Set([
 const OPTIONAL_FILE_KEYS = new Set([
   "auth.audience",
   "auth.issuer",
+  "blobStorage.accountUrl",
   "blobStorage.containerName",
   "blobStorage.quarantineContainerName",
   "elasticsearch.url",
@@ -270,6 +273,8 @@ const STRING_FILE_KEYS = new Set([
   "auth.issuer",
   "auth.refreshTokenCachePrefix",
   "auth.refreshTokenMode",
+  "blobStorage.accountUrl",
+  "blobStorage.auth",
   "blobStorage.containerName",
   "blobStorage.quarantineContainerName",
   "elasticsearch.indices.organizationBlogs",

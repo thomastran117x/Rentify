@@ -8,11 +8,14 @@ import {
   normalizeDelimitedList,
   parseBoolean,
   parseNumber,
+  parseStorageAccountUrl,
 } from "@/configuration/environment/shared";
 import {
+  BLOB_STORAGE_AUTH_MODES,
   MEDIA_SCANNER_KINDS,
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
+  type BlobStorageAuthMode,
   type MediaScannerKind,
   type NodeEnvironment,
   type PayPalCheckoutMethod,
@@ -42,22 +45,45 @@ export function validateInfrastructureConfig(
 
 // Client uploads go to their own private container, so whenever Azure is used
 // both containers must be named, and they must not be the same container.
+// Entra mode names the account by URL instead of a connection string, and
+// refuses the connection string outright: the point of the mode is that no
+// process holds the account key.
 function validateBlobStorageConfig(
   raw: RawEnvironmentValues,
   errors: string[],
 ): void {
+  const entra = readBlobStorageAuthMode(raw) === "entra";
+  const accountVariable = entra
+    ? "AZURE_STORAGE_ACCOUNT_URL"
+    : "AZURE_STORAGE_CONNECTION_STRING";
   const publicContainer = raw.AZURE_STORAGE_CONTAINER_NAME?.trim();
   const quarantineContainer =
     raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?.trim();
   const configured = [
-    Boolean(raw.AZURE_STORAGE_CONNECTION_STRING),
+    Boolean(raw[accountVariable]),
     Boolean(publicContainer),
     Boolean(quarantineContainer),
   ];
 
   if (configured.some(Boolean) && !configured.every(Boolean)) {
     errors.push(
-      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+      `${accountVariable}, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together${entra ? " when AZURE_STORAGE_AUTH is entra" : ""}.`,
+    );
+  }
+
+  if (entra && raw.AZURE_STORAGE_CONNECTION_STRING) {
+    errors.push(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+    );
+  }
+
+  if (
+    entra &&
+    raw.AZURE_STORAGE_ACCOUNT_URL &&
+    !parseStorageAccountUrl(raw.AZURE_STORAGE_ACCOUNT_URL)
+  ) {
+    errors.push(
+      "AZURE_STORAGE_ACCOUNT_URL must be an https blob endpoint such as https://<account>.blob.core.windows.net.",
     );
   }
 
@@ -183,7 +209,17 @@ export function buildBlobStorageConfig(
   raw: RawEnvironmentValues,
   errors: string[],
 ): AppEnvironment["blobStorage"] {
+  const auth = readBlobStorageAuthMode(raw);
+
+  if (!auth) {
+    errors.push(
+      `AZURE_STORAGE_AUTH must be one of: ${BLOB_STORAGE_AUTH_MODES.join(", ")}.`,
+    );
+  }
+
   return {
+    auth: auth ?? "connection-string",
+    accountUrl: raw.AZURE_STORAGE_ACCOUNT_URL,
     connectionString: raw.AZURE_STORAGE_CONNECTION_STRING,
     containerName: raw.AZURE_STORAGE_CONTAINER_NAME,
     quarantineContainerName: raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
@@ -312,6 +348,17 @@ export function buildMediaScanningConfig(
 
 function isMediaScannerKind(value: string): value is MediaScannerKind {
   return (MEDIA_SCANNER_KINDS as readonly string[]).includes(value);
+}
+
+/** The configured mode, connection-string when unset, or null when invalid. */
+function readBlobStorageAuthMode(
+  raw: RawEnvironmentValues,
+): BlobStorageAuthMode | null {
+  const value = raw.AZURE_STORAGE_AUTH?.toLowerCase() ?? "connection-string";
+
+  return (BLOB_STORAGE_AUTH_MODES as readonly string[]).includes(value)
+    ? (value as BlobStorageAuthMode)
+    : null;
 }
 
 export function buildRabbitMqConfig(

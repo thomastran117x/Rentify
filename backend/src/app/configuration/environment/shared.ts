@@ -8,6 +8,39 @@ import type {
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
 
+/**
+ * Reads an Azure Blob service endpoint, https://<account>.blob.core.windows.net,
+ * into the account name and the URL clients are built on. Returns null for
+ * anything but an https URL naming a host alone: the account name is the
+ * host's first label, which a path-style endpoint would not give.
+ */
+export function parseStorageAccountUrl(
+  value: string,
+): { accountName: string; serviceUrl: string } | null {
+  let url: URL;
+
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  const accountName = url.hostname.split(".")[0];
+
+  if (
+    url.protocol !== "https:" ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    !accountName
+  ) {
+    return null;
+  }
+
+  return { accountName, serviceUrl: url.origin };
+}
+
 export function normalizeOptionalString(
   value: string | undefined,
 ): string | undefined {

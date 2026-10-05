@@ -1,0 +1,62 @@
+# Opt-in: every service that touches blob storage signs in to Azure as its own
+# Microsoft Entra ID service principal, and the roles assigned to each one
+# decide what it may do in each container. Use it with a .env that sets
+# AZURE_STORAGE_AUTH=entra and AZURE_STORAGE_ACCOUNT_URL and leaves
+# AZURE_STORAGE_CONNECTION_STRING empty, so no service holds the account key:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.entra.yml up --build
+#
+# Each <PREFIX>_AZURE_CLIENT_ID and <PREFIX>_AZURE_CLIENT_SECRET pair in .env
+# is one service principal, all in AZURE_TENANT_ID. Creating them and their
+# role assignments is described in the "Microsoft Entra ID authentication"
+# section of docs/backend-configuration.md. A service whose pair is unset
+# fails on its first blob operation.
+
+x-entra-identity: &entra-identity
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+  # Only the client-secret credential: a container has no managed identity or
+  # developer sign-in to fall back to.
+  AZURE_TOKEN_CREDENTIALS: EnvironmentCredential
+
+services:
+  backend:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${API_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${API_AZURE_CLIENT_SECRET:-}
+
+  media-processing-worker:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${MEDIA_PROCESSING_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_PROCESSING_AZURE_CLIENT_SECRET:-}
+
+  media-cleanup-worker:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${MEDIA_CLEANUP_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_CLEANUP_AZURE_CLIENT_SECRET:-}
+
+  posting-thumbnail-worker:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${POSTING_THUMBNAIL_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${POSTING_THUMBNAIL_AZURE_CLIENT_SECRET:-}
+
+  blob-cleanup:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${BLOB_CLEANUP_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${BLOB_CLEANUP_AZURE_CLIENT_SECRET:-}
+
+  media-variants-backfill:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${MEDIA_BACKFILL_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_BACKFILL_AZURE_CLIENT_SECRET:-}
+
+  media-dead-letter-replay:
+    environment:
+      <<: *entra-identity
+      AZURE_CLIENT_ID: ${MEDIA_REPLAY_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_REPLAY_AZURE_CLIENT_SECRET:-}

@@ -2,6 +2,8 @@ const BLOB_ENVIRONMENT_VARIABLES = [
   "NODE_ENV",
   "ACCESS_TOKEN_SECRET",
   "PORT",
+  "AZURE_STORAGE_AUTH",
+  "AZURE_STORAGE_ACCOUNT_URL",
   "AZURE_STORAGE_CONNECTION_STRING",
   "AZURE_STORAGE_CONTAINER_NAME",
   "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
@@ -46,6 +48,8 @@ export function useLocalBlobStorage(): void {
   process.env.NODE_ENV = "development";
   process.env.ACCESS_TOKEN_SECRET = "blob-test-secret";
   process.env.PORT = "8040";
+  delete process.env.AZURE_STORAGE_AUTH;
+  delete process.env.AZURE_STORAGE_ACCOUNT_URL;
   delete process.env.AZURE_STORAGE_CONNECTION_STRING;
   delete process.env.AZURE_STORAGE_CONTAINER_NAME;
   delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
@@ -53,11 +57,21 @@ export function useLocalBlobStorage(): void {
 
 export function useAzureBlobStorage(): void {
   process.env.NODE_ENV = "test";
+  delete process.env.AZURE_STORAGE_AUTH;
+  delete process.env.AZURE_STORAGE_ACCOUNT_URL;
   process.env.AZURE_STORAGE_CONNECTION_STRING =
     "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
   process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
   process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = "uploads-quarantine";
   delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
+}
+
+/** Azure through Microsoft Entra ID: an account URL and no account key. */
+export function useEntraBlobStorage(): void {
+  useAzureBlobStorage();
+  process.env.AZURE_STORAGE_AUTH = "entra";
+  process.env.AZURE_STORAGE_ACCOUNT_URL = "https://rent.blob.core.windows.net";
+  delete process.env.AZURE_STORAGE_CONNECTION_STRING;
 }
 
 /** Reads the signed parameters back out of a local upload URL. */

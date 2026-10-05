@@ -174,6 +174,11 @@ function readAppleOAuthConfig() {
 
 function readBlobStorageConfig() {
   return {
+    auth:
+      process.env.AZURE_STORAGE_AUTH === "entra"
+        ? ("entra" as const)
+        : ("connection-string" as const),
+    accountUrl: process.env.AZURE_STORAGE_ACCOUNT_URL,
     connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     containerName: process.env.AZURE_STORAGE_CONTAINER_NAME,
     quarantineContainerName:
