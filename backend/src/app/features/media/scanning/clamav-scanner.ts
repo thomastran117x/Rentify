@@ -23,6 +23,11 @@ const MAX_REPLY_BYTES = 4 * 1024;
 // The signature database updates a few times a day, so the recorded engine
 // follows it within the hour.
 const ENGINE_TTL_MS = 60 * 60 * 1000;
+// After a failed read, scans record the fallback for this long before one of
+// them asks again, so a broken VERSION is not retried on every scan.
+const ENGINE_RETRY_MS = 5 * 60 * 1000;
+// The engine is only a label, so it waits less than a scan would.
+const ENGINE_TIMEOUT_MS = 5_000;
 const FALLBACK_ENGINE = "clamav";
 
 /**
@@ -32,7 +37,9 @@ const FALLBACK_ENGINE = "clamav";
  * share one.
  */
 export class ClamAvScanner implements MalwareScanner {
-  private engine: { name: string; readAt: number } | null = null;
+  private engine: { name: string; expiresAt: number } | null = null;
+  // The read in flight, shared by every scan that needs the engine meanwhile.
+  private engineRead: Promise<string> | null = null;
   private readonly now: () => number;
 
   constructor(private readonly options: ClamAvScannerOptions) {
@@ -46,37 +53,50 @@ export class ClamAvScanner implements MalwareScanner {
       );
     }
 
-    const verdict = parseInstreamReply(
-      await this.request(buildInstreamFrames(body)),
-    );
+    // The engine is read alongside the scan, so it adds no round trip.
+    const [reply, engine] = await Promise.all([
+      this.request(buildInstreamFrames(body), this.options.timeoutMs),
+      this.readEngine(),
+    ]);
 
-    return { ...verdict, engine: await this.readEngine() };
+    return { ...parseInstreamReply(reply), engine };
   }
 
   /**
    * clamd's version and signature database, such as "ClamAV 1.5.4/28137".
-   * Best effort: the scan already has its verdict, so a failure here falls
-   * back to a generic name and is retried on the next scan.
+   * Never rejects: the engine only labels a verdict, so a failed read falls
+   * back to a generic name, which is kept for a few minutes before the next
+   * read. Concurrent scans share one read.
    */
-  private async readEngine(): Promise<string> {
-    if (this.engine && this.now() - this.engine.readAt < ENGINE_TTL_MS) {
-      return this.engine.name;
+  private readEngine(): Promise<string> {
+    if (this.engine && this.now() < this.engine.expiresAt) {
+      return Promise.resolve(this.engine.name);
     }
 
-    try {
-      const name = parseVersionReply(
-        await this.request([Buffer.from("zVERSION\0")]),
-      );
-      this.engine = { name, readAt: this.now() };
-      return name;
-    } catch {
-      return FALLBACK_ENGINE;
-    }
+    this.engineRead ??= this.request(
+      [Buffer.from("zVERSION\0")],
+      Math.min(this.options.timeoutMs, ENGINE_TIMEOUT_MS),
+    )
+      .then(parseVersionReply)
+      .then(
+        (name) => this.cacheEngine(name, ENGINE_TTL_MS),
+        () => this.cacheEngine(FALLBACK_ENGINE, ENGINE_RETRY_MS),
+      )
+      .finally(() => {
+        this.engineRead = null;
+      });
+
+    return this.engineRead;
+  }
+
+  private cacheEngine(name: string, ttlMs: number): string {
+    this.engine = { name, expiresAt: this.now() + ttlMs };
+    return name;
   }
 
   /** Sends one command and resolves with clamd's null-terminated reply. */
-  private request(frames: Buffer[]): Promise<string> {
-    const { host, port, timeoutMs } = this.options;
+  private request(frames: Buffer[], timeoutMs: number): Promise<string> {
+    const { host, port } = this.options;
 
     return new Promise((resolve, reject) => {
       const socket = connect({ host, port });
