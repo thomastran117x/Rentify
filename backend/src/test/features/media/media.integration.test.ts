@@ -259,7 +259,7 @@ describe("Media persistence integration", () => {
     ).toBe(false);
   });
 
-  it("refuses to mark an item ready until a scan of this attempt has passed", async () => {
+  it("holds the scan and readiness to the item's latest attempt", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
     });
@@ -275,6 +275,7 @@ describe("Media persistence integration", () => {
         scope: "postings",
         originalBlobName: `quarantine/images/${owner.userId}/${mediaId}`,
         declaredContentType: "image/png",
+        processingAttempts: 2,
         // Left by an earlier attempt; the claim must clear it.
         scanStatus: "clean",
         scanEngine: "ClamAV 1.5.4/28137",
@@ -289,40 +290,63 @@ describe("Media persistence integration", () => {
       height: 3,
       variants: { medium: null, thumbnail: null },
     };
+    const clean = {
+      status: "clean" as const,
+      engine: "ClamAV 1.5.4/28137",
+      threatName: null,
+    };
     const findRow = () =>
       persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } });
 
-    await expect(repository.claimForProcessing(mediaId)).resolves.toBe(true);
+    // A job that read the row before another claimed it loses the claim.
+    await expect(repository.claimForProcessing(mediaId, 1)).resolves.toBe(
+      false,
+    );
+    // Attempt 3.
+    await expect(repository.claimForProcessing(mediaId, 2)).resolves.toBe(true);
     await expect(findRow()).resolves.toMatchObject({
       status: "processing",
+      processingAttempts: 3,
       scanStatus: "not_scanned",
       scanEngine: null,
       scannedAt: null,
       threatName: null,
     });
-    await expect(repository.markReady(mediaId, ready)).resolves.toBe(false);
+    // Not scanned yet, then infected: neither can be published.
+    await expect(repository.markReady(mediaId, 3, ready)).resolves.toBe(false);
+    await expect(
+      repository.recordScanResult(mediaId, 3, {
+        status: "infected",
+        engine: "ClamAV 1.5.4/28137",
+        threatName: "Eicar-Test-Signature",
+      }),
+    ).resolves.toBe(true);
+    await expect(repository.markReady(mediaId, 3, ready)).resolves.toBe(false);
 
-    await repository.recordScanResult(mediaId, {
-      status: "infected",
-      engine: "ClamAV 1.5.4/28137",
-      threatName: "Eicar-Test-Signature",
+    // Attempt 4 overtakes it. Attempt 3 can no longer record a verdict or
+    // publish, even with a clean scan.
+    await expect(repository.claimForProcessing(mediaId, 3)).resolves.toBe(true);
+    await expect(repository.recordScanResult(mediaId, 3, clean)).resolves.toBe(
+      false,
+    );
+    await expect(findRow()).resolves.toMatchObject({
+      scanStatus: "not_scanned",
     });
-    await expect(repository.markReady(mediaId, ready)).resolves.toBe(false);
+    await expect(repository.recordScanResult(mediaId, 4, clean)).resolves.toBe(
+      true,
+    );
+    await expect(repository.markReady(mediaId, 3, ready)).resolves.toBe(false);
     await expect(findRow()).resolves.toMatchObject({ status: "processing" });
 
-    await repository.recordScanResult(mediaId, {
-      status: "clean",
-      engine: "ClamAV 1.5.4/28137",
-      threatName: null,
-    });
-    await expect(repository.markReady(mediaId, ready)).resolves.toBe(true);
+    await expect(repository.markReady(mediaId, 4, ready)).resolves.toBe(true);
     await expect(findRow()).resolves.toMatchObject({
       status: "ready",
+      processingAttempts: 4,
       scanStatus: "clean",
     });
     // A finished item takes no further scan result.
     await expect(
-      repository.recordScanResult(mediaId, {
+      repository.recordScanResult(mediaId, 4, {
         status: "infected",
         engine: "ClamAV 1.5.4/28137",
         threatName: "Late",

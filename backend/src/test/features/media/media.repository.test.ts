@@ -198,9 +198,11 @@ describe("MediaRepository", () => {
     await expect(
       repository.markUploaded(MEDIA_1_ID, 42, '"0x8DD"'),
     ).resolves.toBe(true);
-    await expect(repository.claimForProcessing(MEDIA_1_ID)).resolves.toBe(true);
+    await expect(repository.claimForProcessing(MEDIA_1_ID, 0)).resolves.toBe(
+      true,
+    );
     await expect(
-      repository.markReady(MEDIA_1_ID, {
+      repository.markReady(MEDIA_1_ID, 1, {
         processedBlobName: "media/images/u/m.webp",
         detectedContentType: "image/png",
         sizeBytes: 10,
@@ -225,7 +227,13 @@ describe("MediaRepository", () => {
       where: { id: MEDIA_1_ID, status: { in: ["pending_upload"] } },
       data: { status: "uploaded", sizeBytes: 42, originalEtag: '"0x8DD"' },
     });
-    expect(calls[1].where.status).toEqual({ in: ["uploaded", "processing"] });
+    // A claim applies only while no other attempt has claimed the row since
+    // the caller read it.
+    expect(calls[1].where).toEqual({
+      id: MEDIA_1_ID,
+      status: { in: ["uploaded", "processing"] },
+      processingAttempts: 0,
+    });
     // Every claim is counted and timed in the same guarded update, and
     // clears the previous attempt's scan.
     expect(calls[1].data).toEqual({
@@ -237,11 +245,13 @@ describe("MediaRepository", () => {
       scannedAt: null,
       threatName: null,
     });
-    // Only a scanned item can become ready.
+    // Only the latest attempt, and only once its scan passed, can make the
+    // item ready.
     expect(calls[2]).toEqual({
       where: {
         id: MEDIA_1_ID,
         status: { in: ["processing"] },
+        processingAttempts: 1,
         scanStatus: { in: ["clean", "skipped"] },
       },
       data: {
@@ -272,18 +282,18 @@ describe("MediaRepository", () => {
     });
   });
 
-  it("records a scan only while the item is processing", async () => {
+  it("records a scan only for the item's latest attempt", async () => {
     const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
     const repository = createRepository({ updateMany });
 
     await expect(
-      repository.recordScanResult(MEDIA_1_ID, {
+      repository.recordScanResult(MEDIA_1_ID, 2, {
         status: "infected",
         engine: `ClamAV ${"1".repeat(60)}`,
         threatName: "T".repeat(300),
       }),
     ).resolves.toBe(true);
-    await repository.recordScanResult(MEDIA_1_ID, {
+    await repository.recordScanResult(MEDIA_1_ID, 2, {
       status: "skipped",
       engine: "none",
       threatName: null,
@@ -294,6 +304,7 @@ describe("MediaRepository", () => {
     expect(calls[0].where).toEqual({
       id: MEDIA_1_ID,
       status: { in: ["processing"] },
+      processingAttempts: 2,
     });
     // Cut to fit their columns.
     expect(calls[0].data).toEqual({

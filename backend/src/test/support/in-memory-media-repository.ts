@@ -10,6 +10,7 @@ import type {
 } from "@/features/media/media.model";
 import {
   describeProcessingError,
+  scanResultColumns,
   type MediaRepository,
 } from "@/features/media/media.repository";
 
@@ -90,7 +91,14 @@ export class InMemoryMediaRepository {
     });
   }
 
-  async claimForProcessing(id: Uuid): Promise<boolean> {
+  async claimForProcessing(
+    id: Uuid,
+    expectedAttempts: number,
+  ): Promise<boolean> {
+    if (this.rows.get(id)?.processingAttempts !== expectedAttempts) {
+      return false;
+    }
+
     return this.transition(id, ["uploaded", "processing"], {
       status: "processing",
       processingAttempts: (this.rows.get(id)?.processingAttempts ?? 0) + 1,
@@ -102,19 +110,29 @@ export class InMemoryMediaRepository {
     });
   }
 
-  async recordScanResult(id: Uuid, scan: MediaScanRecord): Promise<boolean> {
-    return this.transition(id, ["processing"], {
-      scanStatus: scan.status,
-      scanEngine: scan.engine,
-      scannedAt: new Date(),
-      threatName: scan.threatName,
-    });
+  async recordScanResult(
+    id: Uuid,
+    attempt: number,
+    scan: MediaScanRecord,
+  ): Promise<boolean> {
+    if (this.rows.get(id)?.processingAttempts !== attempt) {
+      return false;
+    }
+
+    return this.transition(id, ["processing"], scanResultColumns(scan));
   }
 
-  async markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
-    const scanStatus = this.rows.get(id)?.scanStatus;
+  async markReady(
+    id: Uuid,
+    attempt: number,
+    input: MarkMediaReadyInput,
+  ): Promise<boolean> {
+    const row = this.rows.get(id);
 
-    if (scanStatus !== "clean" && scanStatus !== "skipped") {
+    if (
+      row?.processingAttempts !== attempt ||
+      (row.scanStatus !== "clean" && row.scanStatus !== "skipped")
+    ) {
       return false;
     }
 

@@ -96,44 +96,64 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
+   * Claims the item as attempt `expectedAttempts + 1`, only while
+   * `processing_attempts` is still `expectedAttempts`, as the caller read it.
+   * So of two jobs that read the same row only one claims it, and the winner
+   * knows its attempt number, which its scan and markReady are then held to.
+   *
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
    * there, and the redelivered job must be able to pick it back up. Every
    * claim is counted, redeliveries included. The scan is cleared, so each
    * attempt must scan the bytes it downloaded before it can mark the item
    * ready.
    */
-  claimForProcessing(id: Uuid): Promise<boolean> {
-    return this.transition(id, ["uploaded", "processing"], {
-      status: "processing",
-      processingAttempts: { increment: 1 },
-      processingStartedAt: new Date(),
-      scanStatus: "not_scanned",
-      scanEngine: null,
-      scannedAt: null,
-      threatName: null,
-    });
-  }
-
-  /** Records the malware scan of the item being processed. */
-  recordScanResult(id: Uuid, scan: MediaScanRecord): Promise<boolean> {
+  claimForProcessing(id: Uuid, expectedAttempts: number): Promise<boolean> {
     return this.transition(
       id,
-      ["processing"],
+      ["uploaded", "processing"],
       {
-        scanStatus: scan.status,
-        scanEngine: scan.engine.slice(0, SCAN_ENGINE_MAX_LENGTH),
-        scannedAt: new Date(),
-        threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
+        status: "processing",
+        processingAttempts: { increment: 1 },
+        processingStartedAt: new Date(),
+        scanStatus: "not_scanned",
+        scanEngine: null,
+        scannedAt: null,
+        threatName: null,
       },
-      { operationName: "recordScanResult" },
+      {
+        where: { processingAttempts: expectedAttempts },
+        operationName: "claimForProcessing",
+      },
     );
   }
 
   /**
-   * Applies only once the scan has passed, so no path can publish an
-   * unscanned or infected upload, whatever the caller does.
+   * Records attempt `attempt`'s malware scan, only while that is still the
+   * item's latest attempt, so an overtaken attempt cannot replace a later
+   * one's verdict.
    */
-  markReady(id: Uuid, input: MarkMediaReadyInput): Promise<boolean> {
+  recordScanResult(
+    id: Uuid,
+    attempt: number,
+    scan: MediaScanRecord,
+  ): Promise<boolean> {
+    return this.transition(id, ["processing"], scanResultColumns(scan), {
+      where: { processingAttempts: attempt },
+      operationName: "recordScanResult",
+    });
+  }
+
+  /**
+   * Applies only while `attempt` is still the item's latest attempt and its
+   * scan passed, so no path can publish an unscanned or infected upload, or
+   * publish on the strength of another attempt's scan, whatever the caller
+   * does.
+   */
+  markReady(
+    id: Uuid,
+    attempt: number,
+    input: MarkMediaReadyInput,
+  ): Promise<boolean> {
     return this.transition(
       id,
       ["processing"],
@@ -150,7 +170,10 @@ export class MediaRepository extends BaseRepository {
         processingCompletedAt: new Date(),
       },
       {
-        where: { scanStatus: { in: READY_SCAN_STATUSES } },
+        where: {
+          processingAttempts: attempt,
+          scanStatus: { in: READY_SCAN_STATUSES },
+        },
         operationName: "markReady",
       },
     );
@@ -635,6 +658,23 @@ export class MediaRepository extends BaseRepository {
       updatedAt: row.updatedAt,
     };
   }
+}
+
+/**
+ * A scan as it is stored: the engine and signature are cut to fit their
+ * columns. Exported for the in-memory repository, so tests store what MySQL
+ * would.
+ */
+export function scanResultColumns(
+  scan: MediaScanRecord,
+  scannedAt: Date = new Date(),
+): Pick<MediaRecord, "scanStatus" | "scanEngine" | "scannedAt" | "threatName"> {
+  return {
+    scanStatus: scan.status,
+    scanEngine: scan.engine.slice(0, SCAN_ENGINE_MAX_LENGTH),
+    scannedAt,
+    threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
+  };
 }
 
 /** Every rejection, whoever records it, is stored the same way. */

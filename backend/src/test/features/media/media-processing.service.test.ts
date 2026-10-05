@@ -1044,17 +1044,76 @@ describe("MediaProcessingService", () => {
     ]);
   });
 
-  it("records a discarded attempt when the item is deleted right after its claim", async () => {
+  it("does nothing when another job claims the item between its read and its claim", async () => {
     const context = createContext();
     const record = await quarantine(context, await createPngFixture());
-    jest.spyOn(context.mediaRepository, "findById").mockResolvedValueOnce(null);
+    const repository = context.mediaRepository;
+    const claim = repository.claimForProcessing.bind(repository);
+    jest
+      .spyOn(repository, "claimForProcessing")
+      .mockImplementationOnce(async (id, expectedAttempts) => {
+        // The other job's claim lands first.
+        await claim(id, expectedAttempts);
+        return claim(id, expectedAttempts);
+      });
 
     await context.service.process(record.id);
 
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "processing",
+      processingAttempts: 1,
+    });
+    expect((context.scanner as FakeScanner).scanned).toHaveLength(0);
+    expect(context.metrics.count("media.processing.duration")).toBe(0);
+  });
+
+  it("leaves its output to a later attempt that overtook it", async () => {
+    const context = createContext();
+    const record = await quarantine(context, await createPngFixture(1000, 600));
+    const repository = context.mediaRepository;
+    const markReady = repository.markReady.bind(repository);
+    jest
+      .spyOn(repository, "markReady")
+      .mockImplementationOnce(async (id, attempt, input) => {
+        // A later job, such as one the media cleanup queued again, claims the
+        // item while this attempt is uploading its renditions.
+        await repository.claimForProcessing(id, attempt);
+        return markReady(id, attempt, input);
+      });
+
+    await context.service.process(record.id);
+
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "processing",
+      processingAttempts: 2,
+    });
+    // The later attempt writes the same names and still has to download the
+    // upload, so nothing is deleted from under it.
+    for (const blobName of renditionNames(context, record.id)) {
+      await expect(
+        context.blobService.readLocalBlob(blobName),
+      ).resolves.toBeDefined();
+    }
+    await expect(
+      context.blobService.readLocalBlob(record.originalBlobName),
+    ).resolves.toBeDefined();
     expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
-      { scope: "unknown", outcome: "discarded" },
+      { scope: "postings", outcome: "discarded" },
     ]);
-    expect(context.metrics.count("media.processing.success")).toBe(0);
+
+    // The later attempt then finishes the item.
+    await context.service.process(record.id);
+
+    await expect(repository.findById(record.id)).resolves.toMatchObject({
+      status: "ready",
+      processingAttempts: 3,
+      scanStatus: "clean",
+    });
+    for (const blobName of renditionNames(context, record.id)) {
+      await expect(
+        context.blobService.readLocalBlob(blobName),
+      ).resolves.toBeDefined();
+    }
   });
 
   it("records a discarded attempt when a duplicate job rejected the item first", async () => {
@@ -1262,6 +1321,33 @@ describe("MediaProcessingService", () => {
         status: "processing",
         scanStatus: "not_scanned",
       });
+    });
+
+    it("cannot record its verdict once a later attempt has claimed the item", async () => {
+      const context = createContext();
+      const record = await quarantine(context, INFECTED_MARKER);
+      const repository = context.mediaRepository;
+      const scanner = context.scanner as FakeScanner;
+      const scan = scanner.scan.bind(scanner);
+      jest.spyOn(scanner, "scan").mockImplementationOnce(async (body) => {
+        // A later attempt claims the item while this one is scanning.
+        await repository.claimForProcessing(record.id, 1);
+        return scan(body);
+      });
+
+      await context.service.process(record.id);
+
+      // The overtaken attempt neither recorded its verdict nor rejected the
+      // item; the later attempt scans for itself.
+      await expect(repository.findById(record.id)).resolves.toMatchObject({
+        status: "processing",
+        processingAttempts: 2,
+        scanStatus: "not_scanned",
+        threatName: null,
+      });
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "discarded" },
+      ]);
     });
 
     it("discards the attempt when the item is finished elsewhere during the scan", async () => {
