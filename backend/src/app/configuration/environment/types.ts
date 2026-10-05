@@ -27,6 +27,7 @@ export type RawEnvironmentValues = {
   APP_NAME?: string;
   AZURE_STORAGE_CONNECTION_STRING?: string;
   AZURE_STORAGE_CONTAINER_NAME?: string;
+  AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?: string;
   AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS?: string;
   BOOKING_REQUEST_EXPIRY_BATCH_SIZE?: string;
   BOOKING_REQUEST_EXPIRY_POLL_INTERVAL_MS?: string;
@@ -420,6 +421,7 @@ export interface AppEnvironment {
   blobStorage: {
     connectionString?: string;
     containerName?: string;
+    quarantineContainerName?: string;
     uploadSasTtlSeconds: number;
   };
   imageUploads: {

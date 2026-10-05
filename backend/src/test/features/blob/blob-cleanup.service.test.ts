@@ -18,14 +18,23 @@ const EMPTY_SOURCE_COUNTS = {
   mediaUploads: 0,
 };
 
+type BlobFixture = Omit<ManagedBlobItem, "container"> &
+  Partial<Pick<ManagedBlobItem, "container">>;
+
+// Fixtures sit in the container their name routes to unless they say otherwise.
 function createStorage(
-  blobs: ManagedBlobItem[],
+  blobs: BlobFixture[],
   failures: Set<string> = new Set(),
 ): BlobCleanupStorage & { deleteBlob: jest.Mock } {
   return {
     async *listAzureBlobs() {
       for (const blob of blobs) {
-        yield blob;
+        yield {
+          container: blob.name.startsWith("quarantine/")
+            ? "quarantine"
+            : "public",
+          ...blob,
+        };
       }
     },
     deleteBlob: jest.fn(async (blobName: string) => {
@@ -255,6 +264,7 @@ describe("BlobCleanupService", () => {
     storage.listAzureBlobs = async function* () {
       yield {
         name: "failure.png",
+        container: "public",
         contentType: "image/png",
         lastModified: OLD,
       };

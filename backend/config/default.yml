@@ -96,6 +96,7 @@ oauth:
 
 blobStorage:
   containerName: null
+  quarantineContainerName: null
   uploadSasTtlSeconds: 900
 
 # Upload policy for image blobs. allowedContentTypes may only narrow the

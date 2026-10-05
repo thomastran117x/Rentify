@@ -4,6 +4,7 @@ const BLOB_ENVIRONMENT_VARIABLES = [
   "PORT",
   "AZURE_STORAGE_CONNECTION_STRING",
   "AZURE_STORAGE_CONTAINER_NAME",
+  "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
   "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
   "ALLOWED_IMAGE_TYPES",
   "MAX_IMAGE_SIZE_BYTES",
@@ -46,6 +47,7 @@ export function useLocalBlobStorage(): void {
   process.env.PORT = "8040";
   delete process.env.AZURE_STORAGE_CONNECTION_STRING;
   delete process.env.AZURE_STORAGE_CONTAINER_NAME;
+  delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
 }
 
 export function useAzureBlobStorage(): void {
@@ -53,6 +55,7 @@ export function useAzureBlobStorage(): void {
   process.env.AZURE_STORAGE_CONNECTION_STRING =
     "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
   process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+  process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = "uploads-quarantine";
   delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
 }
 

@@ -1028,9 +1028,12 @@ describe("MediaService", () => {
       testUuid(9000, 994262),
     );
 
-    expect(
-      mediaService.isManagedUrl(blobService.getBlobUrl(blobName), blobName),
-    ).toBe(false);
+    // getBlobUrl refuses quarantine names, so spell out the URL a public read
+    // of it would use.
+    const blobUrl = `http://localhost:8040/api/v1/blob/file?blobName=${encodeURIComponent(blobName)}`;
+
+    expect(() => blobService.getBlobUrl(blobName)).toThrow(BadRequestError);
+    expect(mediaService.isManagedUrl(blobUrl, blobName)).toBe(false);
     expect(mediaService.isOwnedBy(USER_1_ID, blobName)).toBe(true);
   });
 });

@@ -63,6 +63,8 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.rememberMeRefreshTokenTtlSeconds":
     "REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS",
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",
+  "blobStorage.quarantineContainerName":
+    "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
   "blobStorage.uploadSasTtlSeconds": "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
   "captcha.allowedHosts": "CAPTCHA_ALLOWED_HOSTS",
   "cors.allowedOrigins": "CORS_ALLOWED_ORIGINS",
@@ -249,6 +251,7 @@ const OPTIONAL_FILE_KEYS = new Set([
   "auth.audience",
   "auth.issuer",
   "blobStorage.containerName",
+  "blobStorage.quarantineContainerName",
   "elasticsearch.url",
   "elasticsearch.username",
   "sms.fromNumber",
@@ -267,6 +270,7 @@ const STRING_FILE_KEYS = new Set([
   "auth.refreshTokenCachePrefix",
   "auth.refreshTokenMode",
   "blobStorage.containerName",
+  "blobStorage.quarantineContainerName",
   "elasticsearch.indices.organizationBlogs",
   "elasticsearch.indices.organizations",
   "elasticsearch.indices.postings",

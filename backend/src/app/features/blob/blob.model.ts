@@ -25,8 +25,16 @@ export interface BlobProperties {
   etag?: string;
 }
 
+/**
+ * Which container a blob lives in. Client uploads (quarantine/...) go to a
+ * private container of their own; everything the backend writes or serves goes
+ * to the public one.
+ */
+export type BlobContainer = "quarantine" | "public";
+
 export interface ManagedBlobItem {
   name: string;
+  container: BlobContainer;
   contentType?: string;
   lastModified?: Date;
   contentLength?: number;

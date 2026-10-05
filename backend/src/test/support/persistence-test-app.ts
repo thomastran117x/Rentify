@@ -124,6 +124,10 @@ export interface PersistenceTestStubs {
       Promise<{ contentType: string; body: Buffer }>,
       [string]
     >;
+    readPublicLocalBlob: jest.Mock<
+      Promise<{ contentType: string; body: Buffer }>,
+      [string]
+    >;
     deleteBlob: jest.Mock<Promise<void>, [string]>;
     buildQuarantineImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
     buildProcessedImageBlobName: jest.Mock<string, [Uuid, Uuid]>;
@@ -941,6 +945,17 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
         const stored = blobStorage.get(blobName);
         if (!stored) {
           throw new ResourceNotFoundError("Blob could not be found.");
+        }
+        return stored;
+      }),
+      // One map stands in for both containers, so the public read keeps the
+      // real service's rule that a quarantine name is never found there.
+      readPublicLocalBlob: jest.fn(async (blobName: string) => {
+        const stored = realBlobNaming().isQuarantineBlobName(blobName)
+          ? undefined
+          : blobStorage.get(blobName);
+        if (!stored) {
+          throw new ResourceNotFoundError("Blob not found.");
         }
         return stored;
       }),

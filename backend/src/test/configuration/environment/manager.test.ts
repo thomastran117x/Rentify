@@ -511,10 +511,21 @@ describe("EnvironmentManager", () => {
     const manager = new EnvironmentManager();
 
     expect(() => manager.load()).toThrow(
-      "AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER_NAME must be configured together.",
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
     );
 
+    // Naming only the public container still leaves uploads with nowhere to go.
     process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+    );
+
+    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " Uploads ";
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
+    );
+
+    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = "uploads-quarantine";
     const boundedManager = new EnvironmentManager();
     expect(() => boundedManager.load()).toThrow(
       "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS must be greater than or equal to 60.",
