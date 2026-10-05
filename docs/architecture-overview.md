@@ -113,10 +113,12 @@ from blob names and are never trusted as input.
 POST /media/uploads          row: pending_upload   (credential signed after the row exists)
                              returns { mediaId, upload: { method, url, expiresAt, headers } }
 PUT  <upload.url>            bytes -> quarantine/images/<userId>/<mediaId>
+                                      (private quarantine container)
 POST /media/{id}/complete    row: uploaded, media.processing job queued
 media-processing-worker      row: processing -> ready | rejected
                              ready: media/images/<userId>/<mediaId>.webp
                                     + .medium.webp, .thumbnail.webp
+                                    (public container)
 GET  /media/{id}             poll until ready (url set) or rejected (reason set)
 attach by mediaId            postings, logos, blog covers, avatars
 ```
@@ -125,8 +127,9 @@ attach by mediaId            postings, logos, blog covers, avatars
 
 - `BlobService` (`features/blob`) is the storage adapter. It signs Azure SAS and
   local upload URLs, reads, writes, and deletes bytes, reports blob properties,
-  and owns the naming convention in both directions. It makes no decision about
-  what may be stored or who may use it.
+  and owns the naming convention in both directions. It picks the container
+  from the blob name (see [Storage layout](#storage-layout)). It makes no
+  decision about what may be stored or who may use it.
 - `MediaService` (`features/media`) owns those decisions: the image allow-list
   (`image-policy.ts`), the media lifecycle, ownership, and
   `resolveAttachableImage`, the one gate every feature uses to attach an image.
@@ -145,18 +148,22 @@ declared `sizeBytes` over the limit with 413, before any row or URL exists. The
 client's filename is kept for display only and never contributes to a blob
 name.
 
-**Quarantine.** The client uploads to `quarantine/images/<userId>/<mediaId>`.
-Nothing under `quarantine/` is ever displayed:
+**Quarantine.** The client uploads to `quarantine/images/<userId>/<mediaId>` in
+the private quarantine container. Nothing under `quarantine/` is ever
+displayed:
 
+- the upload URL can only create and write (`cw`) one blob in the quarantine
+  container, and that container allows no anonymous reads;
 - the upload response carries only the media id and a write-only upload
   target: no media view, blob name, or readable URL;
 - `GET /media/{id}` sets `url` only once the item is `ready`, and then to the
   processed image, so only a `ready` item can ever be rendered;
 - a media id resolves for attachment only once it is `ready` (see below), so a
   pending upload cannot be attached to a posting or anything else;
-- the local `GET /blob/file` stand-in answers 404 for any quarantine name; and
+- the local `GET /blob/file` stand-in reads only the public root, and answers
+  404 for any quarantine name; and
 - `MediaService.isManagedUrl` refuses a quarantine name as an attachment
-  reference.
+  reference, and `BlobService` will not build a public URL for one either.
 
 **At completion.** `POST /media/{id}/complete` checks that the bytes arrived
 (409 if not) and holds their stored length to the size limit (413, and the item
@@ -341,8 +348,10 @@ a processed image that something references.
   waiting and a worker is consuming them, so a backlog or an outage is never
   taken for a lost job. It rejects an item it has already re-queued 3 times. It is what guarantees an item reaches a final state; see the
   [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup).
-- `blob-cleanup` is a manual, Azure-only backstop that lists the container and
-  looks for blobs no row accounts for. It treats quarantined uploads as
+- `blob-cleanup` is a manual, Azure-only backstop that lists both containers
+  and looks for blobs no row accounts for. It deletes each candidate from the
+  container it was found in, so it also removes `quarantine/` uploads left in
+  the public container from before the split. It treats quarantined uploads as
   candidates whatever their declared content type, except the upload of an item
   still waiting on processing or rejected as `processing_failed`, which a
   dead-letter replay still needs. With `--delete`, it also
@@ -366,7 +375,9 @@ account by hand. In the Azure portal, open the storage account, then **Data
 management** > **Lifecycle management** > **Add a rule**. Limit it to block
 blobs with the prefix `<container>/quarantine/`, and delete base blobs 2 days
 after they were last modified. With the Azure CLI, save this as `policy.json`,
-replacing `<container>` with `AZURE_STORAGE_CONTAINER_NAME`:
+replacing `<container>` with `AZURE_STORAGE_QUARANTINE_CONTAINER_NAME`. A rule
+written before the split names the public container instead; point it at the
+quarantine container once `blob-cleanup` has removed the leftovers there.
 
 ```json
 {
@@ -402,11 +413,28 @@ existing one first (`az storage account management-policy show`). Azure runs
 lifecycle rules about once a day, so a blob can outlive the 2 days by up to a
 day.
 
-**Storage layout.** Quarantined and processed images currently share one Azure
-container. If that container allows anonymous blob reads, a quarantined upload
-is reachable by anyone who knows its full name. The name holds two random
-UUIDs, and the API never discloses it, but that obscurity is not access control.
-Moving `quarantine/` to a private container is the intended next step.
+<a id="storage-layout"></a>
+
+**Storage layout.** Blobs live in two containers of one storage account, and
+`BlobService` picks the container from the blob name:
+
+| Container  | Setting                                   | Holds                                                                                        | Access                               |
+| ---------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------ |
+| quarantine | `AZURE_STORAGE_QUARANTINE_CONTAINER_NAME` | every name under `quarantine/`: client uploads                                               | private                              |
+| public     | `AZURE_STORAGE_CONTAINER_NAME`            | everything else: processed images, posting thumbnails, and blobs stored before media existed | as configured; images render from it |
+
+Blob names, and so every database row and stored URL, are the same as before
+the split; only where a `quarantine/` name lives changed. Upload URLs are
+signed for the quarantine container alone, so a client credential cannot write
+to the public container, and a quarantined upload cannot be read anonymously
+however its name leaks. The local stand-in mirrors this with one directory per
+container, `tmp/blob-storage/quarantine/` and `tmp/blob-storage/public/`.
+
+What the split does not cover: the API and workers still sign with the
+account key, which can read and write both containers. Moving to managed
+identities and user-delegation SAS is tracked separately.
+Setup, CORS, and the rollout steps are in the
+[backend configuration guide](./backend-configuration.md#blob-storage).
 
 **Metrics.** The pipeline records counts and timings through the `MediaMetrics`
 port (`features/media/media-metrics.ts`), which the container registers as

@@ -4459,7 +4459,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createMediaUpload",
       summary: "Start an image upload",
       description:
-        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in quarantine and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413. Those refusals carry the matching `MediaRejectionCode` in `error.details.rejectionCode`.",
+        "Records a media item in `pending_upload` and returns a short-lived, write-only upload target for it. The record is created before the credential is signed. The response carries only the new `mediaId` and the upload target. The client PUTs the image bytes to `upload.url` with `upload.headers`, then calls `POST /media/{id}/complete`. The bytes land in a private quarantine container that `upload.url` can only write to, and are never served: the response carries no media view, blob name, or readable URL. Poll `GET /media/{id}` for status; the image can only be rendered once it is `ready`, from the processed image's `url`. Credentials are only issued for supported image types (415 otherwise), and a declared `sizeBytes` over the limit is rejected with 413. Those refusals carry the matching `MediaRejectionCode` in `error.details.rejectionCode`.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4482,7 +4482,7 @@ function buildOperations(): OperationDefinition[] {
             mediaId: mediaIdExample,
             upload: {
               method: "PUT",
-              url: `https://storage.example.net/rentify/quarantine/images/user-1/${mediaIdExample}?sig=abc123`,
+              url: `https://storage.example.net/rentify-quarantine/quarantine/images/user-1/${mediaIdExample}?sig=abc123`,
               expiresAt: "2026-05-25T18:30:00.000Z",
               headers: {
                 "x-ms-blob-type": "BlockBlob",
@@ -4641,7 +4641,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getLocalBlob",
       summary: "Read a locally stored development blob",
       description:
-        "Returns a blob payload from the local development fallback store, standing in for Azure's public blob endpoint. Quarantined uploads are never served: any `quarantine/` name answers 404. This route is only used when Azure Blob Storage is not configured in development.",
+        "Returns a blob payload from the local development fallback store, standing in for an anonymous read of the public Azure container. It reads only the local public root, and quarantined uploads are never served: any `quarantine/` name answers 404. This route is only used when Azure Blob Storage is not configured in development.",
       tags: ["blob"],
       permissions: {
         authMode: "public",
