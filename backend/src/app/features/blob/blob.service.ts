@@ -868,7 +868,7 @@ export class BlobService {
 
     if (!account) {
       throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_ACCOUNT_URL must be an https blob endpoint such as https://<account>.blob.core.windows.net.",
+        "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
       );
     }
 

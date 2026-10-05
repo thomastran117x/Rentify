@@ -8,11 +8,21 @@ import type {
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
 
+// Blob endpoints of the Azure public, China and US Government clouds, and the
+// Azure DNS zone endpoints (<account>.z<nn>.blob.storage.azure.net). Account
+// names are 3 to 24 lowercase letters and digits. A private endpoint is still
+// addressed by one of these names; DNS sends it to the private address.
+const STORAGE_ACCOUNT_HOST_PATTERNS = [
+  /^([a-z0-9]{3,24})\.blob\.core\.(?:windows\.net|chinacloudapi\.cn|usgovcloudapi\.net)$/,
+  /^([a-z0-9]{3,24})\.z[0-9]{2}\.blob\.storage\.azure\.net$/,
+];
+
 /**
  * Reads an Azure Blob service endpoint, https://<account>.blob.core.windows.net,
  * into the account name and the URL clients are built on. Returns null for
- * anything but an https URL naming a host alone: the account name is the
- * host's first label, which a path-style endpoint would not give.
+ * anything else. The host must be an Azure Blob endpoint, because in entra mode
+ * every request to it carries the process's Azure Storage bearer token, which
+ * another host could replay against the real account.
  */
 export function parseStorageAccountUrl(
   value: string,
@@ -25,20 +35,27 @@ export function parseStorageAccountUrl(
     return null;
   }
 
-  const accountName = url.hostname.split(".")[0];
-
   if (
     url.protocol !== "https:" ||
+    url.port ||
     url.pathname !== "/" ||
     url.search ||
     url.hash ||
     url.username ||
-    !accountName
+    url.password
   ) {
     return null;
   }
 
-  return { accountName, serviceUrl: url.origin };
+  for (const pattern of STORAGE_ACCOUNT_HOST_PATTERNS) {
+    const accountName = pattern.exec(url.hostname)?.[1];
+
+    if (accountName) {
+      return { accountName, serviceUrl: url.origin };
+    }
+  }
+
+  return null;
 }
 
 export function normalizeOptionalString(

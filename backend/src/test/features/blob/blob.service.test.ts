@@ -423,12 +423,16 @@ describe("BlobService", () => {
         "http://rent.blob.core.windows.net",
         "https://127.0.0.1:10000/devstoreaccount1",
         "https://user@rent.blob.core.windows.net",
+        "https://attacker.example",
+        "https://rent.blob.core.windows.net.attacker.example",
+        "https://rent.blob.core.windows.net:8443",
+        "https://ab.blob.core.windows.net",
         "not a url",
       ]) {
         useEntraBlobStorage();
         process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
         expect(() => new BlobService()).toThrow(
-          "AZURE_STORAGE_ACCOUNT_URL must be an https blob endpoint such as https://<account>.blob.core.windows.net.",
+          "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
         );
       }
 
@@ -438,6 +442,34 @@ describe("BlobService", () => {
       delete process.env.AZURE_STORAGE_CONTAINER_NAME;
       delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
       expect(new BlobService().isConfigured()).toBe(false);
+    });
+
+    it("accepts the blob endpoints of every Azure cloud and DNS zone endpoints", () => {
+      for (const [accountUrl, origin] of [
+        [
+          "https://rentprod.blob.core.windows.net/",
+          "https://rentprod.blob.core.windows.net",
+        ],
+        [
+          " https://RENTPROD.blob.core.chinacloudapi.cn ",
+          "https://rentprod.blob.core.chinacloudapi.cn",
+        ],
+        [
+          "https://rentprod.blob.core.usgovcloudapi.net",
+          "https://rentprod.blob.core.usgovcloudapi.net",
+        ],
+        [
+          "https://rentprod.z17.blob.storage.azure.net",
+          "https://rentprod.z17.blob.storage.azure.net",
+        ],
+      ]) {
+        useEntraBlobStorage();
+        process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+
+        expect(new BlobService().getBlobUrl("media/x.webp")).toBe(
+          `${origin}/uploads/media/x.webp`,
+        );
+      }
     });
 
     it("ignores the account URL in connection-string mode", () => {

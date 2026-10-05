@@ -288,7 +288,10 @@ blobStorage:
 Entra mode has these rules, and breaking one is a startup error:
 
 - it needs `AZURE_STORAGE_ACCOUNT_URL` and both container names;
-- the account URL must be an https blob endpoint with no path;
+- the account URL must be an Azure Blob endpoint with no path or port:
+  `https://<account>.blob.core.windows.net`, its China or US Government
+  cloud equivalent, or an Azure DNS zone endpoint. Any other host would
+  receive the process's storage bearer token;
 - `AZURE_STORAGE_CONNECTION_STRING` must not be set.
 
 The last rule applies to every backend process, including the ones that

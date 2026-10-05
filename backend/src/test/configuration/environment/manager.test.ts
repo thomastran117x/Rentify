@@ -594,11 +594,15 @@ describe("EnvironmentManager", () => {
       "http://rent.blob.core.windows.net",
       "https://127.0.0.1:10000/devstoreaccount1",
       "https://rent.blob.core.windows.net/?sv=2025-01-05",
+      // Any other host would receive the identity's storage bearer token.
+      "https://attacker.example",
+      "https://rent.blob.core.windows.net.attacker.example",
+      "https://rent.blob.core.windows.net:8443",
       "not a url",
     ]) {
       process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
       expect(() => new EnvironmentManager().load()).toThrow(
-        "AZURE_STORAGE_ACCOUNT_URL must be an https blob endpoint such as https://<account>.blob.core.windows.net.",
+        "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
       );
     }
 
