@@ -65,6 +65,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",
   "blobStorage.quarantineContainerName":
     "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
+  "blobStorage.quarantineLegacyFallback": "MEDIA_QUARANTINE_LEGACY_FALLBACK",
   "blobStorage.uploadSasTtlSeconds": "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
   "captcha.allowedHosts": "CAPTCHA_ALLOWED_HOSTS",
   "cors.allowedOrigins": "CORS_ALLOWED_ORIGINS",
@@ -473,6 +474,7 @@ function validateConfigurationValueType(
     variableName.endsWith("_ENABLED") ||
     variableName === "DATABASE_AUTO_SEED_REFRESH" ||
     variableName === "LOG_SILENT" ||
+    variableName === "MEDIA_QUARANTINE_LEGACY_FALLBACK" ||
     variableName === "MEDIA_SCANNING_ALLOW_NONE" ||
     variableName === "TRUST_PROXY_HEADERS";
   if (isBoolean && typeof value !== "boolean") {

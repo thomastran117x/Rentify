@@ -60,6 +60,13 @@ const QUARANTINE_ROOT = "quarantine";
 const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
 const BLOB_CONTAINERS: readonly BlobContainer[] = ["public", "quarantine"];
 
+/**
+ * Where a blob is read or written. "legacy" is where a quarantine name was
+ * stored before the container split: the public container on Azure, the flat
+ * storage root locally. Only MEDIA_QUARANTINE_LEGACY_FALLBACK looks there.
+ */
+type StorageLocation = BlobContainer | "legacy";
+
 function hasErrorCode(error: unknown, key: "code", value: string): boolean;
 function hasErrorCode(
   error: unknown,
@@ -134,10 +141,13 @@ function blobTooLarge(maxBytes: number): PayloadTooLargeError {
 export class BlobService {
   private readonly config: AzureBlobConfiguration | null;
   private readonly localConfig: LocalBlobConfiguration | null;
+  private readonly quarantineLegacyFallback: boolean;
 
   constructor() {
     this.config = this.readConfiguration();
     this.localConfig = this.readLocalConfiguration();
+    this.quarantineLegacyFallback =
+      environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
 
   createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
@@ -261,10 +271,21 @@ export class BlobService {
   async getProperties(blobName: string): Promise<BlobProperties> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
+    return this.withLegacyFallback(normalizedBlobName, (location) =>
+      this.readProperties(normalizedBlobName, location),
+    );
+  }
+
+  private async readProperties(
+    normalizedBlobName: string,
+    location?: StorageLocation,
+  ): Promise<BlobProperties> {
     if (this.config) {
       try {
-        const properties =
-          await this.createBlobClient(normalizedBlobName).getProperties();
+        const properties = await this.createBlobClient(
+          normalizedBlobName,
+          location,
+        ).getProperties();
 
         return {
           contentType: properties.contentType,
@@ -281,8 +302,10 @@ export class BlobService {
       }
     }
 
-    const { blobPath, metadataPath } =
-      this.resolveLocalBlobPaths(normalizedBlobName);
+    const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
+      normalizedBlobName,
+      location,
+    );
 
     try {
       const [stats, metadataRaw] = await Promise.all([
@@ -306,21 +329,34 @@ export class BlobService {
   }
 
   /**
-   * Deletes a blob from the container its name routes to. Only blob-cleanup
-   * names the container, to remove what it found somewhere else.
+   * Deletes a blob from the container its name routes to, and from its legacy
+   * location while the fallback is on, so an upload made before the split is
+   * cleaned up like any other. Only blob-cleanup names the container, to
+   * remove what it found somewhere else.
    */
   async deleteBlob(blobName: string, container?: BlobContainer): Promise<void> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
 
+    await this.deleteBlobAt(normalizedBlobName, container);
+
+    if (!container && this.usesLegacyFallback(normalizedBlobName)) {
+      await this.deleteBlobAt(normalizedBlobName, "legacy");
+    }
+  }
+
+  private async deleteBlobAt(
+    normalizedBlobName: string,
+    location?: StorageLocation,
+  ): Promise<void> {
     if (this.config) {
       await this.createBlobClient(
         normalizedBlobName,
-        container,
+        location,
       ).deleteIfExists();
       return;
     }
 
-    await this.deleteLocalBlob(normalizedBlobName, container);
+    await this.deleteLocalBlob(normalizedBlobName, location);
   }
 
   /** Every blob in both containers, each tagged with where it was found. */
@@ -354,6 +390,22 @@ export class BlobService {
     contentType?: string;
   }> {
     const normalizedBlobName = this.normalizeBlobName(blobName);
+
+    // Both reads of a fallback blob - the properties MediaService recorded
+    // and this download - land on the same legacy blob, so its ETag holds.
+    return this.withLegacyFallback(normalizedBlobName, (location) =>
+      this.readBlob(normalizedBlobName, options, location),
+    );
+  }
+
+  private async readBlob(
+    normalizedBlobName: string,
+    options: DownloadBlobOptions,
+    location?: StorageLocation,
+  ): Promise<{
+    body: Buffer;
+    contentType?: string;
+  }> {
     const { ifMatch, maxBytes } = options;
 
     if (this.config) {
@@ -362,6 +414,7 @@ export class BlobService {
         // fails when the blob is shorter, so it cannot express "up to".
         const response = await this.createBlobClient(
           normalizedBlobName,
+          location,
         ).download(0, maxBytes === undefined ? undefined : maxBytes + 1, {
           conditions: ifMatch ? { ifMatch } : undefined,
         });
@@ -393,7 +446,10 @@ export class BlobService {
     // Checked before reading, so an oversized or replaced file is never
     // loaded. The same conditions as Azure, so both paths behave alike.
     if (ifMatch !== undefined || maxBytes !== undefined) {
-      const properties = await this.getProperties(normalizedBlobName);
+      const properties = await this.readProperties(
+        normalizedBlobName,
+        location,
+      );
 
       if (ifMatch !== undefined && properties.etag !== ifMatch) {
         throw new BlobChangedError();
@@ -407,11 +463,45 @@ export class BlobService {
       }
     }
 
-    const localBlob = await this.readLocalBlob(normalizedBlobName);
+    const localBlob = await this.readLocalBlobData(
+      normalizedBlobName,
+      location,
+    );
     return {
       body: localBlob.body,
       contentType: localBlob.contentType,
     };
+  }
+
+  /**
+   * Runs a read against the blob's container and, while
+   * MEDIA_QUARANTINE_LEGACY_FALLBACK is on, retries a quarantine name that is
+   * not there at its legacy location: an upload made before the split, which
+   * completeMediaUpload and the media worker still have to find.
+   */
+  private async withLegacyFallback<T>(
+    normalizedBlobName: string,
+    read: (location?: StorageLocation) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await read();
+    } catch (error) {
+      if (
+        !(error instanceof ResourceNotFoundError) ||
+        !this.usesLegacyFallback(normalizedBlobName)
+      ) {
+        throw error;
+      }
+
+      return read("legacy");
+    }
+  }
+
+  private usesLegacyFallback(normalizedBlobName: string): boolean {
+    return (
+      this.quarantineLegacyFallback &&
+      this.isQuarantineBlobName(normalizedBlobName)
+    );
   }
 
   async uploadBuffer(input: {
@@ -565,9 +655,11 @@ export class BlobService {
 
   private createBlobClient(
     blobName: string,
-    container: BlobContainer = this.containerFor(blobName),
+    location: StorageLocation = this.containerFor(blobName),
   ) {
-    return this.createContainerClient(container).getBlockBlobClient(blobName);
+    return this.createContainerClient(
+      location === "legacy" ? "public" : location,
+    ).getBlockBlobClient(blobName);
   }
 
   private createContainerClient(container: BlobContainer) {
@@ -830,14 +922,14 @@ export class BlobService {
 
   private async readLocalBlobData(
     blobName: string,
-    container?: BlobContainer,
+    location?: StorageLocation,
   ): Promise<{
     body: Buffer;
     contentType: string;
   }> {
     const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
       blobName,
-      container,
+      location,
     );
 
     try {
@@ -861,11 +953,11 @@ export class BlobService {
 
   private async deleteLocalBlob(
     blobName: string,
-    container?: BlobContainer,
+    location?: StorageLocation,
   ): Promise<void> {
     const { blobPath, metadataPath } = this.resolveLocalBlobPaths(
       blobName,
-      container,
+      location,
     );
 
     const results = await Promise.allSettled([
@@ -892,10 +984,11 @@ export class BlobService {
   }
 
   // Mirrors Azure: <root>/<container>/<blob name>, the container picked by
-  // name unless the caller says which one to look in.
+  // name unless the caller says where to look. Before the split every blob
+  // sat directly under <root>, which is the legacy location.
   private resolveLocalBlobPaths(
     blobName: string,
-    container: BlobContainer = this.containerFor(blobName),
+    location: StorageLocation = this.containerFor(blobName),
   ): {
     blobPath: string;
     metadataPath: string;
@@ -903,7 +996,7 @@ export class BlobService {
     const localConfig = this.requireLocalConfiguration();
     const blobPath = path.join(
       localConfig.storageRoot,
-      container,
+      location === "legacy" ? "" : location,
       this.normalizeBlobName(blobName).replace(/\//g, path.sep),
     );
 

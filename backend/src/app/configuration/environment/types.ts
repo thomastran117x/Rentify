@@ -28,6 +28,7 @@ export type RawEnvironmentValues = {
   AZURE_STORAGE_CONNECTION_STRING?: string;
   AZURE_STORAGE_CONTAINER_NAME?: string;
   AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?: string;
+  MEDIA_QUARANTINE_LEGACY_FALLBACK?: string;
   AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS?: string;
   BOOKING_REQUEST_EXPIRY_BATCH_SIZE?: string;
   BOOKING_REQUEST_EXPIRY_POLL_INTERVAL_MS?: string;
@@ -422,6 +423,8 @@ export interface AppEnvironment {
     connectionString?: string;
     containerName?: string;
     quarantineContainerName?: string;
+    /** Look for quarantine names in their pre-split location too. */
+    quarantineLegacyFallback: boolean;
     uploadSasTtlSeconds: number;
   };
   imageUploads: {

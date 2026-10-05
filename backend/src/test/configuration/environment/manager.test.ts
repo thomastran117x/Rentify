@@ -532,6 +532,31 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it("reads both blob containers and leaves the legacy fallback off by default", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getBlobStorageConfig()).toMatchObject({
+      containerName: "uploads",
+      quarantineContainerName: "uploads-quarantine",
+      quarantineLegacyFallback: false,
+    });
+
+    process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
+    const fallbackManager = new EnvironmentManager();
+    fallbackManager.load();
+
+    expect(
+      fallbackManager.getBlobStorageConfig().quarantineLegacyFallback,
+    ).toBe(true);
+  });
+
   it("defaults the image upload policy and allows narrowing it", () => {
     process.env = buildRequiredEnv({});
     const defaultManager = new EnvironmentManager();

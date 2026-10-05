@@ -187,6 +187,10 @@ export function buildBlobStorageConfig(
     connectionString: raw.AZURE_STORAGE_CONNECTION_STRING,
     containerName: raw.AZURE_STORAGE_CONTAINER_NAME,
     quarantineContainerName: raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+    quarantineLegacyFallback: parseBoolean(
+      raw.MEDIA_QUARANTINE_LEGACY_FALLBACK,
+      false,
+    ),
     uploadSasTtlSeconds: parseNumber(
       raw,
       "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",

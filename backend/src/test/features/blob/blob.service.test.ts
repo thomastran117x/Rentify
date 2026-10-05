@@ -36,23 +36,38 @@ interface FakeBlockBlobClient {
  * Swaps the container factory for one that records which container each
  * operation reached, so routing can be checked without a storage account.
  */
-function recordAzureContainers(service: BlobService): FakeBlockBlobClient[] {
+function recordAzureContainers(
+  service: BlobService,
+  // Containers that answer 404 to every read.
+  emptyContainers: string[] = [],
+): FakeBlockBlobClient[] {
   const clients: FakeBlockBlobClient[] = [];
   const helper = service as unknown as {
     createContainerClient(container: string): unknown;
   };
   helper.createContainerClient = (container: string) => ({
     getBlockBlobClient: (blobName: string) => {
+      const isEmpty = emptyContainers.includes(container);
+      const notFound = () =>
+        Promise.reject(
+          Object.assign(new Error("BlobNotFound"), { statusCode: 404 }),
+        );
       const client: FakeBlockBlobClient = {
         container,
         blobName,
         url: `https://fake/${container}/${blobName}`,
-        getProperties: jest.fn(async () => ({ etag: '"0x1"' })),
+        getProperties: jest.fn(async () =>
+          isEmpty ? notFound() : { etag: `"${container}"` },
+        ),
         deleteIfExists: jest.fn(async () => undefined),
-        download: jest.fn(async () => ({
-          readableStreamBody: Readable.from([Buffer.from("bytes")]),
-          contentType: "image/png",
-        })),
+        download: jest.fn(async () =>
+          isEmpty
+            ? notFound()
+            : {
+                readableStreamBody: Readable.from([Buffer.from(container)]),
+                contentType: "image/png",
+              },
+        ),
         uploadData: jest.fn(async () => undefined),
       };
       clients.push(client);
@@ -268,6 +283,159 @@ describe("BlobService", () => {
     await service.deleteBlob(leftover, "public");
 
     await expect(access(blobPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  describe("legacy quarantine fallback", () => {
+    const upload = `quarantine/images/${USER_1_ID}/pre-split`;
+
+    function azureService(fallback: boolean) {
+      useAzureBlobStorage();
+      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = String(fallback);
+      const service = new BlobService();
+      const clients = recordAzureContainers(service, ["quarantine"]);
+      return { service, clients };
+    }
+
+    it("reads a pre-split upload from the public container when enabled", async () => {
+      const { service, clients } = azureService(true);
+
+      const properties = await service.getProperties(upload);
+      const download = await service.downloadBlob(upload, {
+        ifMatch: properties.etag,
+        maxBytes: 64,
+      });
+
+      expect(properties.etag).toBe('"public"');
+      expect(download.body.toString()).toBe("public");
+      expect(clients.map((client) => client.container)).toEqual([
+        "quarantine",
+        "public",
+        "quarantine",
+        "public",
+      ]);
+      // The conditional read goes to the same blob the properties came from.
+      expect(clients[3]!.download).toHaveBeenCalledWith(0, 65, {
+        conditions: { ifMatch: '"public"' },
+      });
+    });
+
+    it("deletes a quarantine name from both locations when enabled", async () => {
+      const { service, clients } = azureService(true);
+
+      await service.deleteBlob(upload);
+      // blob-cleanup names its container, so it never fans out.
+      await service.deleteBlob(upload, "quarantine");
+
+      expect(clients.map((client) => client.container)).toEqual([
+        "quarantine",
+        "public",
+        "quarantine",
+      ]);
+    });
+
+    it("looks only in the quarantine container when disabled", async () => {
+      const { service, clients } = azureService(false);
+
+      await expect(service.getProperties(upload)).rejects.toThrow(
+        ResourceNotFoundError,
+      );
+      await expect(service.downloadBlob(upload)).rejects.toThrow(
+        ResourceNotFoundError,
+      );
+      await service.deleteBlob(upload);
+
+      expect(clients.map((client) => client.container)).toEqual([
+        "quarantine",
+        "quarantine",
+        "quarantine",
+      ]);
+    });
+
+    it("never falls back for public names or for other errors", async () => {
+      useAzureBlobStorage();
+      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
+      const service = new BlobService();
+      const clients = recordAzureContainers(service, ["public"]);
+
+      await expect(
+        service.getProperties(`media/images/${USER_1_ID}/gone.webp`),
+      ).rejects.toThrow(ResourceNotFoundError);
+      expect(clients).toHaveLength(1);
+
+      const helper = service as unknown as {
+        createContainerClient(container: string): unknown;
+      };
+      const getProperties = jest.fn(async () =>
+        Promise.reject(
+          Object.assign(new Error("ServerBusy"), { statusCode: 503 }),
+        ),
+      );
+      helper.createContainerClient = () => ({
+        getBlockBlobClient: () => ({ getProperties }),
+      });
+
+      await expect(service.getProperties(upload)).rejects.toThrow("ServerBusy");
+      expect(getProperties).toHaveBeenCalledTimes(1);
+    });
+
+    it("reads and deletes a pre-split local upload from the flat root", async () => {
+      useLocalBlobStorage();
+      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
+      const service = new BlobService();
+      const name = `quarantine/images/${USER_1_ID}/local-pre-split`;
+      const legacyPath = path.join(LOCAL_STORAGE_ROOT, ...name.split("/"));
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      await mkdir(path.dirname(legacyPath), { recursive: true });
+      await writeFile(legacyPath, "legacy");
+      await writeFile(
+        `${legacyPath}.meta.json`,
+        JSON.stringify({ contentType: "image/png" }),
+      );
+
+      const properties = await service.getProperties(name);
+      const download = await service.downloadBlob(name, {
+        ifMatch: properties.etag,
+        maxBytes: 64,
+      });
+
+      expect(properties.contentLength).toBe(6);
+      expect(download).toEqual({
+        body: Buffer.from("legacy"),
+        contentType: "image/png",
+      });
+
+      await service.deleteBlob(name);
+      await expect(access(legacyPath)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(service.getProperties(name)).rejects.toThrow(
+        ResourceNotFoundError,
+      );
+    });
+
+    it("ignores the flat root when disabled", async () => {
+      useLocalBlobStorage();
+      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "false";
+      const service = new BlobService();
+      const name = `quarantine/images/${USER_1_ID}/local-ignored`;
+      const legacyPath = path.join(LOCAL_STORAGE_ROOT, ...name.split("/"));
+      const { mkdir, rm, writeFile } = await import("node:fs/promises");
+      await mkdir(path.dirname(legacyPath), { recursive: true });
+      await writeFile(legacyPath, "legacy");
+      await writeFile(`${legacyPath}.meta.json`, "{}");
+
+      try {
+        await expect(service.getProperties(name)).rejects.toThrow(
+          ResourceNotFoundError,
+        );
+        await expect(service.downloadBlob(name)).rejects.toThrow(
+          ResourceNotFoundError,
+        );
+      } finally {
+        await rm(legacyPath, { force: true });
+        await rm(`${legacyPath}.meta.json`, { force: true });
+      }
+    });
   });
 
   it("names the real containers behind each route", () => {
