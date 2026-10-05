@@ -160,9 +160,10 @@ function blobTooLarge(maxBytes: number): PayloadTooLargeError {
  * to, and everything else lives in the public container. Callers keep passing
  * plain blob names; the container is never part of a stored name.
  *
- * Azure is reached with the account key (AZURE_STORAGE_AUTH=connection-string)
- * or with the process's own Microsoft Entra ID identity (entra), whose roles
- * then decide what this process may do in each container.
+ * Azure is reached with the process's own Microsoft Entra ID identity
+ * (AZURE_STORAGE_AUTH=entra, the default), whose roles decide what this
+ * process may do in each container, or with the account key
+ * (connection-string), which is deprecated.
  */
 export class BlobService {
   private readonly logger = loggerFactory.forClass(BlobService, "service");
@@ -181,6 +182,12 @@ export class BlobService {
   constructor() {
     this.config = this.readConfiguration();
     this.localConfig = this.readLocalConfiguration();
+
+    if (this.config?.auth === "connection-string") {
+      this.logger.warn(
+        "AZURE_STORAGE_AUTH=connection-string is deprecated and will be removed. The account key it signs with can do anything to any blob; move this process to AZURE_STORAGE_AUTH=entra (see docs/backend-configuration.md).",
+      );
+    }
     this.quarantineLegacyFallback =
       environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
@@ -735,7 +742,7 @@ export class BlobService {
   private requireConfiguration(): AzureBlobConfiguration {
     if (!this.config) {
       throw new ServiceNotImplementedError(
-        "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONTAINER_NAME, AZURE_STORAGE_QUARANTINE_CONTAINER_NAME, and AZURE_STORAGE_CONNECTION_STRING, or AZURE_STORAGE_ACCOUNT_URL with AZURE_STORAGE_AUTH=entra.",
+        "Azure Blob Storage is not configured. Set AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
       );
     }
 
@@ -820,7 +827,7 @@ export class BlobService {
 
     if (entra && connectionString) {
       throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
       );
     }
 
@@ -831,8 +838,8 @@ export class BlobService {
     if (!accountSetting || !containerName || !quarantineContainerName) {
       throw new ServiceNotImplementedError(
         entra
-          ? "Azure Blob Storage with AZURE_STORAGE_AUTH=entra requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME."
-          : "Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
+          ? "Azure Blob Storage requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME."
+          : "Azure Blob Storage with AZURE_STORAGE_AUTH=connection-string requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
       );
     }
 

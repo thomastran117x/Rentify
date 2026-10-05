@@ -5,6 +5,7 @@ import { DefaultAzureCredential } from "@azure/identity";
 import { BlobServiceClient, type UserDelegationKey } from "@azure/storage-blob";
 import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
+import { loggerFactory } from "@/configuration/logging";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
@@ -13,7 +14,7 @@ import { testUuid } from "../../support/uuid";
 import {
   readLocalUploadUrl,
   restoreBlobEnvironmentAfterEach,
-  useAzureBlobStorage,
+  useConnectionStringBlobStorage,
   useEntraBlobStorage,
   useLocalBlobStorage,
 } from "../../support/blob-environment";
@@ -184,7 +185,7 @@ describe("BlobService", () => {
   it("only signs uploads for quarantine names", async () => {
     useLocalBlobStorage();
     const local = new BlobService();
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const azure = new BlobService();
 
     for (const service of [local, azure]) {
@@ -240,7 +241,7 @@ describe("BlobService", () => {
   });
 
   it("signs Azure upload URLs against the quarantine container only", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
 
     const service = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/photo`;
@@ -409,14 +410,14 @@ describe("BlobService", () => {
       useEntraBlobStorage();
       delete process.env.AZURE_STORAGE_ACCOUNT_URL;
       expect(() => new BlobService()).toThrow(
-        "Azure Blob Storage with AZURE_STORAGE_AUTH=entra requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
+        "Azure Blob Storage requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
       );
 
       useEntraBlobStorage();
       process.env.AZURE_STORAGE_CONNECTION_STRING =
         "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
       expect(() => new BlobService()).toThrow(
-        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
       );
 
       for (const accountUrl of [
@@ -473,7 +474,7 @@ describe("BlobService", () => {
     });
 
     it("ignores the account URL in connection-string mode", () => {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       process.env.AZURE_STORAGE_ACCOUNT_URL = "not a url";
 
       expect(new BlobService().getBlobUrl("media/x.webp")).toBe(
@@ -483,7 +484,7 @@ describe("BlobService", () => {
   });
 
   it("routes Azure operations to a container by blob name", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const clients = recordAzureContainers(service);
     const quarantined = `quarantine/images/${USER_1_ID}/upload`;
@@ -514,7 +515,7 @@ describe("BlobService", () => {
   });
 
   it("deletes from a named container when blob-cleanup asks for one", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const clients = recordAzureContainers(service);
     const leftover = `quarantine/images/${USER_1_ID}/leftover`;
@@ -559,7 +560,7 @@ describe("BlobService", () => {
     const upload = `quarantine/images/${USER_1_ID}/pre-split`;
 
     function azureService(fallback: boolean) {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = String(fallback);
       const service = new BlobService();
       const clients = recordAzureContainers(service, ["quarantine"]);
@@ -622,7 +623,7 @@ describe("BlobService", () => {
     });
 
     it("never falls back for public names or for other errors", async () => {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
       const service = new BlobService();
       const clients = recordAzureContainers(service, ["public"]);
@@ -709,7 +710,7 @@ describe("BlobService", () => {
   });
 
   it("names the real containers behind each route", () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const helper = service as unknown as {
       createContainerClient(container: string): { containerName: string };
@@ -729,7 +730,7 @@ describe("BlobService", () => {
   it("never gives a quarantined blob a public URL", () => {
     useLocalBlobStorage();
     const local = new BlobService();
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const azure = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/upload`;
     const azureUrl = `https://rent.blob.core.windows.net/uploads/${blobName}`;
@@ -948,7 +949,7 @@ describe("BlobService", () => {
   });
 
   it("reads Azure blob properties and maps a 404 to not found", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
 
     const service = new BlobService();
     const lastModified = new Date("2026-09-01T00:00:00.000Z");
@@ -993,7 +994,7 @@ describe("BlobService", () => {
     }
 
     function useAzureClient(download: jest.Mock) {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       const service = new BlobService();
       const getProperties = jest.fn();
       const downloadToBuffer = jest.fn();
@@ -1111,21 +1112,46 @@ describe("BlobService", () => {
   });
 
   it("requires complete Azure configuration", () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     delete process.env.AZURE_STORAGE_CONTAINER_NAME;
 
     expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
 
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
 
     expect(() => new BlobService()).toThrow(
-      "Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
+      "Azure Blob Storage with AZURE_STORAGE_AUTH=connection-string requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
     );
   });
 
+  it("warns that the connection-string mode is deprecated, and only for it", () => {
+    const warn = jest.fn();
+    const forClass = jest
+      .spyOn(loggerFactory, "forClass")
+      .mockReturnValue({ warn } as unknown as ReturnType<
+        typeof loggerFactory.forClass
+      >);
+
+    try {
+      useEntraBlobStorage();
+      new BlobService();
+      expect(warn).not.toHaveBeenCalled();
+
+      useConnectionStringBlobStorage();
+      new BlobService();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "AZURE_STORAGE_AUTH=connection-string is deprecated",
+        ),
+      );
+    } finally {
+      forClass.mockRestore();
+    }
+  });
+
   it("refuses a quarantine container that is the public container", () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " UPLOADS ";
 
     expect(() => new BlobService()).toThrow(
@@ -1134,7 +1160,7 @@ describe("BlobService", () => {
   });
 
   it("lists both Azure containers with the metadata needed by maintenance tools", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const lastModified = new Date("2026-09-01T00:00:00.000Z");
     const helper = service as unknown as {

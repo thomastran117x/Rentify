@@ -55,9 +55,10 @@ export function useLocalBlobStorage(): void {
   delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
 }
 
-export function useAzureBlobStorage(): void {
+/** Azure through the deprecated account-key connection string. */
+export function useConnectionStringBlobStorage(): void {
   process.env.NODE_ENV = "test";
-  delete process.env.AZURE_STORAGE_AUTH;
+  process.env.AZURE_STORAGE_AUTH = "connection-string";
   delete process.env.AZURE_STORAGE_ACCOUNT_URL;
   process.env.AZURE_STORAGE_CONNECTION_STRING =
     "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
@@ -66,12 +67,18 @@ export function useAzureBlobStorage(): void {
   delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
 }
 
-/** Azure through Microsoft Entra ID: an account URL and no account key. */
+/**
+ * Azure through Microsoft Entra ID, the default mode: an account URL and no
+ * account key.
+ */
 export function useEntraBlobStorage(): void {
-  useAzureBlobStorage();
-  process.env.AZURE_STORAGE_AUTH = "entra";
-  process.env.AZURE_STORAGE_ACCOUNT_URL = "https://rent.blob.core.windows.net";
+  process.env.NODE_ENV = "test";
+  delete process.env.AZURE_STORAGE_AUTH;
   delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+  process.env.AZURE_STORAGE_ACCOUNT_URL = "https://rent.blob.core.windows.net";
+  process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
+  process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = "uploads-quarantine";
+  delete process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS;
 }
 
 /** Reads the signed parameters back out of a local upload URL. */

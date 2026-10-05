@@ -95,10 +95,10 @@ oauth:
     tenant: consumers
 
 blobStorage:
-  # connection-string signs with the account key in
-  # AZURE_STORAGE_CONNECTION_STRING. entra authenticates each process with its
-  # own Microsoft Entra ID identity and needs accountUrl, not the key.
-  auth: connection-string
+  # entra authenticates each process with its own Microsoft Entra ID identity
+  # and needs accountUrl. connection-string signs with the account key in
+  # AZURE_STORAGE_CONNECTION_STRING; it is deprecated and will be removed.
+  auth: entra
   accountUrl: null
   containerName: null
   quarantineContainerName: null

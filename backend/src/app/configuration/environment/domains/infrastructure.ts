@@ -45,9 +45,10 @@ export function validateInfrastructureConfig(
 
 // Client uploads go to their own private container, so whenever Azure is used
 // both containers must be named, and they must not be the same container.
-// Entra mode names the account by URL instead of a connection string, and
-// refuses the connection string outright: the point of the mode is that no
-// process holds the account key.
+// Entra mode, the default, names the account by URL instead of a connection
+// string, and refuses the connection string outright: the point of the mode
+// is that no process holds the account key. A deployment that still sets one
+// has to opt in to the deprecated connection-string mode by name.
 function validateBlobStorageConfig(
   raw: RawEnvironmentValues,
   errors: string[],
@@ -73,7 +74,7 @@ function validateBlobStorageConfig(
 
   if (entra && raw.AZURE_STORAGE_CONNECTION_STRING) {
     errors.push(
-      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
     );
   }
 
@@ -218,7 +219,7 @@ export function buildBlobStorageConfig(
   }
 
   return {
-    auth: auth ?? "connection-string",
+    auth: auth ?? "entra",
     accountUrl: raw.AZURE_STORAGE_ACCOUNT_URL,
     connectionString: raw.AZURE_STORAGE_CONNECTION_STRING,
     containerName: raw.AZURE_STORAGE_CONTAINER_NAME,
@@ -350,11 +351,11 @@ function isMediaScannerKind(value: string): value is MediaScannerKind {
   return (MEDIA_SCANNER_KINDS as readonly string[]).includes(value);
 }
 
-/** The configured mode, connection-string when unset, or null when invalid. */
+/** The configured mode, entra when unset, or null when invalid. */
 function readBlobStorageAuthMode(
   raw: RawEnvironmentValues,
 ): BlobStorageAuthMode | null {
-  const value = raw.AZURE_STORAGE_AUTH?.toLowerCase() ?? "connection-string";
+  const value = raw.AZURE_STORAGE_AUTH?.toLowerCase() ?? "entra";
 
   return (BLOB_STORAGE_AUTH_MODES as readonly string[]).includes(value)
     ? (value as BlobStorageAuthMode)

@@ -425,9 +425,10 @@ export interface AppEnvironment {
   emailBloom: IdentityBloomEnvironment;
   blobStorage: {
     /**
-     * connection-string signs everything with the account key. entra gives
-     * each process its own Microsoft Entra ID identity, through
-     * DefaultAzureCredential, and signs uploads with a user delegation key.
+     * entra, the default, gives each process its own Microsoft Entra ID
+     * identity through DefaultAzureCredential and signs uploads with a user
+     * delegation key. connection-string signs everything with the account key
+     * and is deprecated.
      */
     auth: BlobStorageAuthMode;
     /** The account's blob endpoint, which entra mode uses instead of a key. */

@@ -9,7 +9,7 @@ import {
 import type { RecordedRenditions } from "@/features/media/media.model";
 import {
   restoreBlobEnvironmentAfterEach,
-  useAzureBlobStorage,
+  useConnectionStringBlobStorage,
   useLocalBlobStorage,
 } from "../../support/blob-environment";
 import { testUuid } from "../../support/uuid";
@@ -76,7 +76,7 @@ describe("referenceImageVariants", () => {
 
 describe("buildImageVariants", () => {
   it.each([
-    ["Azure", useAzureBlobStorage],
+    ["Azure", useConnectionStringBlobStorage],
     ["local development", useLocalBlobStorage],
   ])(
     "addresses each rendition where storage serves it on %s",

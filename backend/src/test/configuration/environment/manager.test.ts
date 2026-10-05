@@ -504,6 +504,7 @@ describe("EnvironmentManager", () => {
 
   it("validates cross-field and bounded values after layering", () => {
     process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "connection-string",
       AZURE_STORAGE_CONNECTION_STRING:
         "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
       AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "59",
@@ -534,6 +535,7 @@ describe("EnvironmentManager", () => {
 
   it("reads both blob containers and leaves the legacy fallback off by default", () => {
     process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "connection-string",
       AZURE_STORAGE_CONNECTION_STRING:
         "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
       AZURE_STORAGE_CONTAINER_NAME: "uploads",
@@ -557,19 +559,38 @@ describe("EnvironmentManager", () => {
     ).toBe(true);
   });
 
-  it("authenticates blob storage with the connection string unless entra is chosen", () => {
+  it("authenticates blob storage with Entra ID unless connection-string is chosen", () => {
     process.env = buildRequiredEnv({});
     const defaultManager = new EnvironmentManager();
     defaultManager.load();
 
-    expect(defaultManager.getBlobStorageConfig().auth).toBe(
-      "connection-string",
-    );
+    expect(defaultManager.getBlobStorageConfig().auth).toBe("entra");
 
     process.env = buildRequiredEnv({ AZURE_STORAGE_AUTH: "managed-identity" });
     expect(() => new EnvironmentManager().load()).toThrow(
       "AZURE_STORAGE_AUTH must be one of: connection-string, entra.",
     );
+  });
+
+  it("refuses a connection string left over from before entra became the default", () => {
+    // An upgraded deployment that never set AZURE_STORAGE_AUTH.
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
+    );
+
+    // Naming the deprecated mode keeps it running.
+    process.env.AZURE_STORAGE_AUTH = "connection-string";
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getBlobStorageConfig().auth).toBe("connection-string");
   });
 
   it("requires an account URL and refuses the account key in entra mode", () => {
@@ -585,7 +606,7 @@ describe("EnvironmentManager", () => {
       "AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together when AZURE_STORAGE_AUTH is entra.",
     );
     expect(() => new EnvironmentManager().load()).toThrow(
-      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra.",
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
     );
 
     delete process.env.AZURE_STORAGE_CONNECTION_STRING;
