@@ -59,6 +59,8 @@ connection strings:
 
 - `DATABASE_URL`, `REDIS_URL`, `REDIS_PASSWORD`, `RABBITMQ_URL`,
   `ELASTICSEARCH_PASSWORD`, and `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_CLIENT_SECRET`, when a service authenticates to blob storage as a
+  [Microsoft Entra ID](#microsoft-entra-id-authentication) service principal
 - access-token signing credentials: `ACCESS_TOKEN_SECRET` for the default
   `HS256` algorithm, or `ACCESS_TOKEN_PRIVATE_KEY` and
   `ACCESS_TOKEN_PUBLIC_KEY` for `RS256`
@@ -192,6 +194,8 @@ the split.
 
 ```yaml
 blobStorage:
+  auth: connection-string # AZURE_STORAGE_AUTH
+  accountUrl: null # AZURE_STORAGE_ACCOUNT_URL, entra mode only
   containerName: images # AZURE_STORAGE_CONTAINER_NAME
   quarantineContainerName: images-quarantine # AZURE_STORAGE_QUARANTINE_CONTAINER_NAME
   quarantineLegacyFallback: false # MEDIA_QUARANTINE_LEGACY_FALLBACK
@@ -200,7 +204,9 @@ blobStorage:
 
 The connection string stays in `AZURE_STORAGE_CONNECTION_STRING`. Setting it
 or either container name selects Azure, and then all three are required and
-the two container names must differ, ignoring case. Breaking either rule is a
+the two container names must differ, ignoring case.
+[Entra ID mode](#microsoft-entra-id-authentication) takes the account URL in
+place of the connection string. Breaking either rule is a
 startup error. With none of them set, development stores blobs on local disk
 under `backend/tmp/blob-storage/` (`/app/tmp/blob-storage` in Compose), in a
 `quarantine/` and a `public/` directory, and `GET /blob/file` serves only from
@@ -262,6 +268,204 @@ for `quarantine/` names. Move the rest into `public/`:
 docker compose run --rm --no-deps --entrypoint sh backend -c \
   'cd /app/tmp/blob-storage && mkdir -p public && for entry in *; do case "$entry" in public|quarantine) ;; *) mv "$entry" public/ ;; esac; done'
 ```
+
+### Microsoft Entra ID authentication
+
+By default every process signs requests with the account key in
+`AZURE_STORAGE_CONNECTION_STRING`, which can do anything to any blob. With
+`AZURE_STORAGE_AUTH=entra`, each process authenticates as its own Microsoft
+Entra ID identity through `DefaultAzureCredential`. The roles assigned to that
+identity on each container decide what the process may do there. The API
+signs upload URLs as user delegation SAS tokens, so issuing a client
+credential no longer needs the key.
+
+```yaml
+blobStorage:
+  auth: entra # AZURE_STORAGE_AUTH, default connection-string
+  accountUrl: https://<account>.blob.core.windows.net # AZURE_STORAGE_ACCOUNT_URL
+```
+
+Entra mode has these rules, and breaking one is a startup error:
+
+- it needs `AZURE_STORAGE_ACCOUNT_URL` and both container names;
+- the account URL must be an https blob endpoint with no path;
+- `AZURE_STORAGE_CONNECTION_STRING` must not be set.
+
+The last rule applies to every backend process, including the ones that
+never touch blobs, so no process configuration can carry the key.
+
+Each process finds its identity through `DefaultAzureCredential`, which reads
+Azure's standard environment variables rather than backend configuration:
+
+- **Managed identity** (Container Apps, App Service, AKS and other Azure
+  hosts):
+  - give each service its own user-assigned identity;
+  - set `AZURE_CLIENT_ID` to that identity's client ID;
+  - `AZURE_TOKEN_CREDENTIALS=ManagedIdentityCredential` skips the other
+    credential types.
+- **Service principal** (any other host, including the local stack):
+  - set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET`;
+  - set `AZURE_TOKEN_CREDENTIALS=EnvironmentCredential`.
+  - `AZURE_CLIENT_SECRET` is a secret, so keep it in the environment.
+
+#### Roles
+
+Each identity gets only what its process does. The two custom roles are
+defined in [`docs/azure/roles/`](./azure/roles/):
+
+- **Rentify Blob Reader-Deleter**: read, list and delete.
+- **Rentify Blob Writer-Deleter**: write and delete.
+
+| Identity                   | Storage account        | Quarantine container          | Public container              |
+| -------------------------- | ---------------------- | ----------------------------- | ----------------------------- |
+| `backend` (API)            | Storage Blob Delegator | Storage Blob Data Contributor | Rentify Blob Writer-Deleter   |
+| `media-processing-worker`  | —                      | Rentify Blob Reader-Deleter   | Rentify Blob Writer-Deleter   |
+| `media-cleanup-worker`     | —                      | Rentify Blob Reader-Deleter   | —                             |
+| `posting-thumbnail-worker` | —                      | —                             | Storage Blob Data Contributor |
+| `blob-cleanup`             | —                      | Rentify Blob Reader-Deleter   | Rentify Blob Reader-Deleter   |
+| `media-variants-backfill`  | —                      | —                             | Storage Blob Data Contributor |
+| `media-dead-letter-replay` | —                      | Storage Blob Data Reader      | —                             |
+
+- **Upload SAS.** A user delegation SAS can grant no more than the identity
+  that signed it, so the API needs write access to the quarantine container
+  for a browser's `PUT` to succeed. Storage Blob Delegator only lets it ask
+  for the signing key.
+- **Known limit: the API can read quarantined bytes.** RBAC cannot separate
+  reading a blob's properties from reading its content: both are the
+  `blobs/read` data action. `POST /media/{id}/complete` reads an upload's
+  properties to check its size and ETag, so the API has that action. The
+  media processing worker reads and deletes quarantined uploads, but it
+  cannot write to the quarantine container. Neither can `blob-cleanup` or
+  the media cleanup worker.
+- **No legacy fallback.** These roles do not cover
+  `MEDIA_QUARANTINE_LEGACY_FALLBACK`, which reads and deletes `quarantine/`
+  names in the public container. Turn it off before switching.
+
+#### Creating the roles and identities
+
+The repository has no infrastructure-as-code. Run these once per
+environment, with the Azure CLI signed in as someone who can create role
+definitions and assignments (Owner or User Access Administrator on the
+resource group).
+
+```bash
+SUBSCRIPTION=<subscription-id>
+RESOURCE_GROUP=<resource-group>
+ACCOUNT=<storage-account>
+ACCOUNT_SCOPE=/subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Storage/storageAccounts/$ACCOUNT
+QUARANTINE_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<quarantine-container>
+PUBLIC_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<public-container>
+```
+
+1. **Create the custom roles.** Replace the placeholders in each file's
+   `AssignableScopes` with the subscription and resource group first.
+
+   ```bash
+   az role definition create --role-definition @docs/azure/roles/rentify-blob-reader-deleter.json
+   az role definition create --role-definition @docs/azure/roles/rentify-blob-writer-deleter.json
+   ```
+
+2. **Create one identity per service** in the table. Each assignment needs
+   the identity's principal (object) ID.
+   - A user-assigned managed identity:
+
+     ```bash
+     az identity create --resource-group $RESOURCE_GROUP --name rentify-backend
+     az identity show --resource-group $RESOURCE_GROUP --name rentify-backend \
+       --query principalId --output tsv
+     ```
+
+   - A service principal. `create-for-rbac` prints the client secret once,
+     so store it straight into the secret store.
+
+     ```bash
+     az ad sp create-for-rbac --name rentify-backend
+     az ad sp show --id <appId> --query id --output tsv
+     ```
+
+3. **Assign the roles from the table**, one command per cell. For the API:
+
+   ```bash
+   BACKEND=<backend-principal-id>
+   az role assignment create --assignee-object-id $BACKEND \
+     --assignee-principal-type ServicePrincipal \
+     --role "Storage Blob Delegator" --scope $ACCOUNT_SCOPE
+   az role assignment create --assignee-object-id $BACKEND \
+     --assignee-principal-type ServicePrincipal \
+     --role "Storage Blob Data Contributor" --scope $QUARANTINE_SCOPE
+   az role assignment create --assignee-object-id $BACKEND \
+     --assignee-principal-type ServicePrincipal \
+     --role "Rentify Blob Writer-Deleter" --scope $PUBLIC_SCOPE
+   ```
+
+   - New assignments can take several minutes to apply. Until they do,
+     requests fail with `403 AuthorizationPermissionMismatch`.
+   - Check an identity's assignments with
+     `az role assignment list --assignee <principal-id> --all --output table`.
+
+#### Rolling it out
+
+1. Turn `MEDIA_QUARANTINE_LEGACY_FALLBACK` off, as in
+   [rolling out the split](#rolling-out-the-split).
+2. Create the roles, identities and assignments, as above.
+3. Deploy every backend process with these settings, and remove
+   `AZURE_STORAGE_CONNECTION_STRING` from each one:
+   - `AZURE_STORAGE_AUTH=entra`;
+   - `AZURE_STORAGE_ACCOUNT_URL`;
+   - its own identity variables.
+
+   Upload URLs issued before the deploy are signed with the key and keep
+   working until they expire.
+
+4. Rotate both account keys, which also invalidates every SAS signed with
+   them:
+
+   ```bash
+   az storage account keys renew --resource-group $RESOURCE_GROUP \
+     --account-name $ACCOUNT --key primary
+   az storage account keys renew --resource-group $RESOURCE_GROUP \
+     --account-name $ACCOUNT --key secondary
+   ```
+
+5. Optionally, turn off shared-key access to the account with
+   `az storage account update --resource-group $RESOURCE_GROUP --name $ACCOUNT --allow-shared-key-access false`.
+   That breaks anything still on the key, including a developer's local stack
+   pointed at this account.
+
+**Revoking upload URLs.** To invalidate every outstanding upload URL at once,
+revoke the account's user delegation keys:
+
+```bash
+az storage account revoke-delegation-keys --resource-group $RESOURCE_GROUP \
+  --name $ACCOUNT
+```
+
+Then restart the API. It reuses one delegation key for up to two hours, and
+without a restart it keeps signing URLs with the revoked key until that key
+is due for renewal.
+
+#### Entra ID in the local stack
+
+The local stack keeps using the account key. To run it with Entra ID
+instead:
+
+1. Create a service principal for each service you run, with the roles from
+   the table.
+2. In `.env`:
+   - set `AZURE_STORAGE_AUTH=entra`, `AZURE_STORAGE_ACCOUNT_URL` and
+     `AZURE_TENANT_ID`;
+   - clear `AZURE_STORAGE_CONNECTION_STRING`;
+   - add one `<PREFIX>_AZURE_CLIENT_ID` and `<PREFIX>_AZURE_CLIENT_SECRET`
+     pair per service. The prefixes are listed in
+     [`docker-compose.entra.yml`](../docker-compose.entra.yml).
+3. Start the stack with the override:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.entra.yml up --build
+   ```
+
+A service without a pair starts normally, but fails on its first blob
+operation.
 
 ## Image upload policy
 

@@ -1,0 +1,15 @@
+{
+  "Name": "Rentify Blob Reader-Deleter",
+  "IsCustom": true,
+  "Description": "Read, list, and delete blobs, but not write them. Assigned on a container: the media workers on the quarantine container, blob-cleanup on both.",
+  "Actions": [],
+  "NotActions": [],
+  "DataActions": [
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete"
+  ],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>"
+  ]
+}
