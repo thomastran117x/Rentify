@@ -467,6 +467,13 @@ instead:
 A service without a pair starts normally, but fails on its first blob
 operation.
 
+If a service fails with `EnvironmentCredential authentication failed` and
+`network_error`, and `login.microsoftonline.com` is unreachable from the
+container (`ENETUNREACH`), Docker Desktop's DNS is handing the Alpine image
+IPv6 addresses only, which the Docker VM cannot route. Give the affected
+services a public upstream resolver, such as `dns: [1.1.1.1]`, in an
+uncommitted override file. Compose service names still resolve.
+
 ## Image upload policy
 
 `imageUploads` in `backend/config/default.yml` controls what the blob upload
