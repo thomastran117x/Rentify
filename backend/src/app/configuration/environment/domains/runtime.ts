@@ -774,8 +774,12 @@ export function validateRuntimeConfig(
   errors: string[],
 ): void {
   // The scanner must accept any upload the image policy accepts. clamd refuses
-  // a stream past its StreamMaxLength, which would fail every such job.
-  if (config.mediaScanning.maxStreamBytes < config.imageUploads.maxSizeBytes) {
+  // a stream past its StreamMaxLength, which would fail every such job. With
+  // no scanner nothing is streamed, so the limit does not matter.
+  if (
+    config.mediaScanning.scanner === "clamav" &&
+    config.mediaScanning.maxStreamBytes < config.imageUploads.maxSizeBytes
+  ) {
     errors.push(
       `MEDIA_SCANNING_MAX_STREAM_BYTES must be at least MAX_IMAGE_SIZE_BYTES (${config.imageUploads.maxSizeBytes}), and clamd's StreamMaxLength at least as large.`,
     );

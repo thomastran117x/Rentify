@@ -237,12 +237,13 @@ export function buildImageUploadsConfig(
 
 /**
  * The malware scanner the media worker runs on each upload before decoding it.
- * `none` scans nothing and records the item as skipped, so production refuses
- * it unless MEDIA_SCANNING_ALLOW_NONE says that is intended.
+ * `none` scans nothing and records the item as skipped. Whether production may
+ * run with `none` is decided where the scanner is built
+ * (createMalwareScanner), so only the media processing worker, the one
+ * process that scans, refuses to start; every other process ignores this.
  */
 export function buildMediaScanningConfig(
   raw: RawEnvironmentValues,
-  nodeEnv: NodeEnvironment,
   errors: string[],
 ): AppEnvironment["mediaScanning"] {
   const scannerValue = raw.MEDIA_SCANNER?.toLowerCase() ?? "none";
@@ -253,14 +254,6 @@ export function buildMediaScanningConfig(
   } else {
     errors.push(
       `MEDIA_SCANNER must be one of: ${MEDIA_SCANNER_KINDS.join(", ")}.`,
-    );
-  }
-
-  const allowNone = parseBoolean(raw.MEDIA_SCANNING_ALLOW_NONE, false);
-
-  if (nodeEnv === "production" && scanner === "none" && !allowNone) {
-    errors.push(
-      "MEDIA_SCANNER is none, so uploads would not be malware-scanned. Set MEDIA_SCANNER=clamav, or MEDIA_SCANNING_ALLOW_NONE=true to run production without scanning.",
     );
   }
 
@@ -283,7 +276,7 @@ export function buildMediaScanningConfig(
       errors,
       { integer: true, min: 1 },
     ),
-    allowNone,
+    allowNone: parseBoolean(raw.MEDIA_SCANNING_ALLOW_NONE, false),
   };
 }
 

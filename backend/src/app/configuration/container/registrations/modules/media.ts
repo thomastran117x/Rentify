@@ -39,7 +39,11 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.malwareScanner,
       lifetime: "singleton",
       dependencies: [],
-      resolve: () => createMalwareScanner(environment.getMediaScanningConfig()),
+      resolve: () =>
+        createMalwareScanner(
+          environment.getMediaScanningConfig(),
+          environment.isProduction(),
+        ),
     });
     container.register({
       token: containerTokens.imageVariantsResolver,

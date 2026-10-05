@@ -119,9 +119,11 @@ imageUploads:
 
 # Malware scanning of each upload, before the worker decodes it. scanner is
 # clamav (a clamd daemon reached over TCP) or none, which scans nothing and
-# records the item as skipped. Production refuses to start with none unless
-# allowNone is true. maxStreamBytes must be at least imageUploads.maxSizeBytes,
-# and clamd's StreamMaxLength (25M by default) at least maxStreamBytes.
+# records the item as skipped. In production the media processing worker
+# refuses to start with none unless allowNone is true; other processes do not
+# scan and ignore it. With clamav, maxStreamBytes must be at least
+# imageUploads.maxSizeBytes, and clamd's StreamMaxLength (25M by default) at
+# least maxStreamBytes.
 mediaScanning:
   scanner: none
   clamavHost: clamav

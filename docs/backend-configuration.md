@@ -244,15 +244,18 @@ runs on each upload before any image decoder reads it.
 | `clamavPort`     | `3310`     | `MEDIA_SCANNING_CLAMAV_PORT`      | clamd TCP port                                                |
 | `timeoutMs`      | `30000`    | `MEDIA_SCANNING_TIMEOUT_MS`       | Limit for each request to clamd, from connecting to its reply |
 | `maxStreamBytes` | `26214400` | `MEDIA_SCANNING_MAX_STREAM_BYTES` | Largest body sent to clamd                                    |
-| `allowNone`      | `false`    | `MEDIA_SCANNING_ALLOW_NONE`       | Lets production start with `scanner: none`                    |
+| `allowNone`      | `false`    | `MEDIA_SCANNING_ALLOW_NONE`       | Lets the production media worker start with `scanner: none`   |
 
 With `none`, each item is recorded as `skipped` rather than `clean`, so an audit
-can tell the two apart. Production refuses to start with `none` unless
-`MEDIA_SCANNING_ALLOW_NONE=true`, and no production default is set, so every
-production deployment chooses one or the other explicitly.
+can tell the two apart. In production, the media processing worker refuses to
+start with `none` unless `MEDIA_SCANNING_ALLOW_NONE=true`, and logs why. No
+production default is set, so every production deployment chooses one or the
+other explicitly. Only that worker scans, so the API and the other workers
+start either way.
 
-`maxStreamBytes` must be at least `imageUploads.maxSizeBytes`
-(`MAX_IMAGE_SIZE_BYTES`); a smaller value is a startup error. clamd refuses a
+With `scanner: clamav`, `maxStreamBytes` must be at least
+`imageUploads.maxSizeBytes` (`MAX_IMAGE_SIZE_BYTES`); a smaller value is a
+startup error. With `none` nothing is streamed and the limit is not checked. clamd refuses a
 stream longer than its own `StreamMaxLength` (25M by default), so keep that at
 least as large as `maxStreamBytes`; the Compose `clamav` service sets it from
 `MEDIA_SCANNING_MAX_STREAM_BYTES` for you. When clamd refuses or cannot be reached,

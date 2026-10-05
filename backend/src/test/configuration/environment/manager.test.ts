@@ -613,8 +613,9 @@ describe("EnvironmentManager", () => {
     );
   });
 
-  it("requires the scanner to accept any upload the image policy accepts", () => {
+  it("requires clamd to accept any upload the image policy accepts", () => {
     process.env = buildRequiredEnv({
+      MEDIA_SCANNER: "clamav",
       MAX_IMAGE_SIZE_BYTES: "5242880",
       MEDIA_SCANNING_MAX_STREAM_BYTES: "5242879",
     });
@@ -624,6 +625,7 @@ describe("EnvironmentManager", () => {
     );
 
     process.env = buildRequiredEnv({
+      MEDIA_SCANNER: "clamav",
       MAX_IMAGE_SIZE_BYTES: "5242880",
       MEDIA_SCANNING_MAX_STREAM_BYTES: "5242880",
     });
@@ -633,38 +635,43 @@ describe("EnvironmentManager", () => {
     expect(equalManager.getMediaScanningConfig().maxStreamBytes).toBe(
       5_242_880,
     );
+
+    // With no scanner nothing is streamed, so a larger image limit is fine.
+    process.env = buildRequiredEnv({
+      MAX_IMAGE_SIZE_BYTES: "30000000",
+    });
+    const noScannerManager = new EnvironmentManager();
+    noScannerManager.load();
+
+    expect(noScannerManager.getImageUploadsConfig().maxSizeBytes).toBe(
+      30_000_000,
+    );
   });
 
-  it("refuses to run production without a scanner unless told to", () => {
-    const production = {
+  it("starts every process in production without a scanner", () => {
+    // The media processing worker refuses to start without one; see
+    // createMalwareScanner. Nothing else scans, so nothing else is held up.
+    process.env = buildRequiredEnv({
       NODE_ENV: "production",
       RABBITMQ_URL: "amqp://localhost:5672",
-    };
+    });
+    const productionManager = new EnvironmentManager();
+    productionManager.load();
 
-    process.env = buildRequiredEnv(production);
-
-    expect(() => new EnvironmentManager().load()).toThrow(
-      "MEDIA_SCANNER is none, so uploads would not be malware-scanned.",
-    );
+    expect(productionManager.getMediaScanningConfig()).toMatchObject({
+      scanner: "none",
+      allowNone: false,
+    });
 
     process.env = buildRequiredEnv({
-      ...production,
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
       MEDIA_SCANNING_ALLOW_NONE: "true",
     });
     const allowedManager = new EnvironmentManager();
     allowedManager.load();
 
-    expect(allowedManager.getMediaScanningConfig()).toMatchObject({
-      scanner: "none",
-      allowNone: true,
-    });
-
-    // Outside production, none needs no override.
-    process.env = buildRequiredEnv({ NODE_ENV: "test" });
-    const testManager = new EnvironmentManager();
-    testManager.load();
-
-    expect(testManager.getMediaScanningConfig().scanner).toBe("none");
+    expect(allowedManager.getMediaScanningConfig().allowNone).toBe(true);
   });
 
   it("defaults the media cleanup worker and allows overriding it", () => {
