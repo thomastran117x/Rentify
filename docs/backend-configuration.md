@@ -254,7 +254,8 @@ production deployment chooses one or the other explicitly.
 `maxStreamBytes` must be at least `imageUploads.maxSizeBytes`
 (`MAX_IMAGE_SIZE_BYTES`); a smaller value is a startup error. clamd refuses a
 stream longer than its own `StreamMaxLength` (25M by default), so keep that at
-least as large as `maxStreamBytes`. When clamd refuses or cannot be reached,
+least as large as `maxStreamBytes`; the Compose `clamav` service sets it from
+`MEDIA_SCANNING_MAX_STREAM_BYTES` for you. When clamd refuses or cannot be reached,
 the job is retried and then dead-lettered like any other processing failure;
 the item is never marked ready unscanned. Locally, clamd runs in the opt-in
 `scanning` Compose profile; see the
