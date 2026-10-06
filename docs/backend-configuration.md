@@ -446,9 +446,10 @@ az storage account revoke-delegation-keys --resource-group $RESOURCE_GROUP \
   --name $ACCOUNT
 ```
 
-Then restart the API. It reuses one delegation key for up to two hours, and
-without a restart it keeps signing URLs with the revoked key until that key
-is due for renewal.
+The API reuses one delegation key for at most ten minutes, so for up to ten
+minutes it can still hand out URLs signed with the revoked key, and their
+uploads fail. The same applies after removing one of the API identity's roles.
+Restart the API to stop at once.
 
 #### Deprecated: connection-string mode
 

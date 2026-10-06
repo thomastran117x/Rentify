@@ -298,7 +298,8 @@ describe("BlobService", () => {
       expect(params.get("sig")).toBeTruthy();
       expect(uploadTarget.headers["Content-Type"]).toBe("image/webp");
 
-      // The key is asked for from a little in the past, for two hours.
+      // The key is asked for from a little in the past, to cover its 10-minute
+      // reuse window plus the 15-minute SAS and a 5-minute margin.
       expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
       const [startsOn, expiresOn] = getUserDelegationKey.mock.calls[0] as [
         Date,
@@ -306,7 +307,30 @@ describe("BlobService", () => {
       ];
       expect(startsOn.getTime()).toBeLessThan(before);
       expect(expiresOn.getTime() - before).toBeGreaterThanOrEqual(
-        2 * 60 * 60 * 1000 - 1000,
+        30 * 60 * 1000 - 1000,
+      );
+      expect(expiresOn.getTime() - before).toBeLessThanOrEqual(
+        30 * 60 * 1000 + 1000,
+      );
+    });
+
+    it("never starts a SAS before the key that signs it", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+      // A key whose start is later than the SAS start the service computed.
+      const keyStartsOn = new Date(Date.now() + 60_000);
+      getUserDelegationKey.mockImplementation((async (
+        _startsOn: Date,
+        expiresOn: Date,
+      ) => fakeUserDelegationKey(keyStartsOn, expiresOn)) as never);
+
+      const uploadTarget = await service.createUploadUrl({
+        blobName,
+        contentType: "image/png",
+      });
+      const st = new URL(uploadTarget.uploadUrl).searchParams.get("st")!;
+
+      expect(Date.parse(st)).toBe(
+        Math.floor(keyStartsOn.getTime() / 1000) * 1000,
       );
     });
 
@@ -322,7 +346,7 @@ describe("BlobService", () => {
       expect(getUserDelegationKey).not.toHaveBeenCalled();
     });
 
-    it("reuses one user delegation key until a new SAS would outlive it", async () => {
+    it("reuses one user delegation key for at most ten minutes", async () => {
       const start = new Date("2026-10-05T12:00:00.000Z");
       jest.useFakeTimers({
         now: start,
@@ -336,13 +360,13 @@ describe("BlobService", () => {
       await sign();
       expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
 
-      // The key lasts two hours; with the default 15-minute SAS and a 5-minute
-      // margin, it stops being used after 100 minutes.
-      jest.setSystemTime(start.getTime() + 100 * 60 * 1000);
+      // So a revoked key or a removed role stops breaking new upload URLs
+      // within ten minutes, without a restart.
+      jest.setSystemTime(start.getTime() + 10 * 60 * 1000 - 1);
       await sign();
       expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
 
-      jest.setSystemTime(start.getTime() + 100 * 60 * 1000 + 1);
+      jest.setSystemTime(start.getTime() + 10 * 60 * 1000);
       await sign();
       await sign();
       expect(getUserDelegationKey).toHaveBeenCalledTimes(2);

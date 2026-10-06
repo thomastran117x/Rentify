@@ -66,11 +66,12 @@ const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
 const BLOB_CONTAINERS: readonly BlobContainer[] = ["public", "quarantine"];
 // SAS start times are backdated so a client clock a little behind still works.
 const SAS_CLOCK_SKEW_MS = 5 * 60 * 1000;
-// One user delegation key signs every upload SAS issued while it lasts. Two
-// hours keeps a key in use for most of an hour even at the longest SAS TTL.
-const USER_DELEGATION_KEY_LIFETIME_MS = 2 * 60 * 60 * 1000;
-// A key is replaced once a new SAS would end this close to the key's expiry.
-const USER_DELEGATION_KEY_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+// A user delegation key signs upload URLs for at most this long. Azure has no
+// way to tell this process a key was revoked or a role removed, so the window
+// bounds how long new upload URLs keep failing after either.
+const USER_DELEGATION_KEY_REUSE_MS = 10 * 60 * 1000;
+// A key outlives its reuse window by the longest SAS it signs plus this much.
+const USER_DELEGATION_KEY_EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 /**
  * Where a blob is read or written. "legacy" is where a quarantine name was
@@ -165,6 +166,7 @@ export class BlobService {
   private sharedKeyCredential: StorageSharedKeyCredential | null = null;
   private serviceClient: BlobServiceClient | null = null;
   private userDelegationKey: {
+    requestedAt: number;
     expiresOn: Date;
     key: Promise<UserDelegationKey>;
   } | null = null;
@@ -671,33 +673,48 @@ export class BlobService {
     const userDelegationKey = await this.getUserDelegationKey(
       values.expiresOn ?? new Date(),
     );
+    // The SAS must not start before its key does. A fresh key is requested a
+    // moment after the SAS start time was computed, so its start can be later.
+    const keyStartsOn = userDelegationKey.signedStartsOn;
+    const startsOn =
+      values.startsOn && values.startsOn.getTime() < keyStartsOn.getTime()
+        ? keyStartsOn
+        : values.startsOn;
 
     return generateBlobSASQueryParameters(
-      values,
+      { ...values, startsOn },
       userDelegationKey,
       config.accountName,
     ).toString();
   }
 
   /**
-   * One key signs every upload SAS until a new SAS would outlive it, so Azure
-   * is asked for a key every hour or two rather than for every upload.
-   * Concurrent callers share one request, and a failed request is not kept.
+   * One key signs every upload SAS for up to ten minutes, so Azure is asked
+   * for a key a few times an hour rather than for every upload, and a revoked
+   * key stops being used soon after. Concurrent callers share one request, and
+   * a failed request is not kept.
    */
   private getUserDelegationKey(sasExpiresOn: Date): Promise<UserDelegationKey> {
+    const now = Date.now();
     const cached = this.userDelegationKey;
 
     if (
       cached &&
-      cached.expiresOn.getTime() - USER_DELEGATION_KEY_REFRESH_MARGIN_MS >=
+      now - cached.requestedAt < USER_DELEGATION_KEY_REUSE_MS &&
+      cached.expiresOn.getTime() - USER_DELEGATION_KEY_EXPIRY_MARGIN_MS >=
         sasExpiresOn.getTime()
     ) {
       return cached.key;
     }
 
-    const now = Date.now();
-    const expiresOn = new Date(now + USER_DELEGATION_KEY_LIFETIME_MS);
+    const expiresOn = new Date(
+      now +
+        USER_DELEGATION_KEY_REUSE_MS +
+        this.requireConfiguration().sasTtlSeconds * 1000 +
+        USER_DELEGATION_KEY_EXPIRY_MARGIN_MS,
+    );
     const entry = {
+      requestedAt: now,
       expiresOn,
       key: this.getServiceClient().getUserDelegationKey(
         new Date(now - SAS_CLOCK_SKEW_MS),
