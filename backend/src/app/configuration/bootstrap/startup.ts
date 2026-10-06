@@ -21,8 +21,10 @@ import {
   isRabbitMqEnabled,
 } from "@/configuration/resources/rabbitmq";
 import { runAutoSeedsIfNeeded } from "@/seeds/orchestrator";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 
 export interface StartupDependencies {
+  checkBlobStorageAccess(): Promise<unknown>;
   connectDatabase(): Promise<unknown>;
   connectElasticsearch(): Promise<unknown>;
   connectRedis(): Promise<unknown>;
@@ -66,6 +68,7 @@ async function warmIdentityBloomFilters(): Promise<void> {
 }
 
 const defaultDependencies: StartupDependencies = {
+  checkBlobStorageAccess,
   connectDatabase,
   connectElasticsearch,
   connectRedis,
@@ -91,6 +94,9 @@ export async function initializeServerApplication(
 
   dependencies.loadEnvironment();
   const port = environment.getServerPort();
+  // Before any I/O with side effects: a process that cannot reach blob
+  // storage should not have seeded the database or opened connections.
+  await dependencies.checkBlobStorageAccess();
 
   await dependencies.connectDatabase();
   await dependencies.runAutoSeedsIfNeeded();

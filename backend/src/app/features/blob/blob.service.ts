@@ -2,16 +2,22 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Stats } from "node:fs";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { TokenCredential } from "@azure/identity";
 import {
   BlobSASPermissions,
   BlobServiceClient,
   SASProtocol,
   StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
+  type BlobSASSignatureValues,
+  type UserDelegationKey,
 } from "@azure/storage-blob";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
+import type { BlobStorageAccount } from "@/configuration/environment/types";
+import { createBlobStorageCredential } from "@/features/blob/blob-storage-access";
 import { LOCAL_BLOB_UPLOAD_TTL_SECONDS } from "@/configuration/environment/constants";
+import { loggerFactory } from "@/configuration/logging";
 import BlobChangedError from "@/errors/blob-changed.error";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -30,16 +36,15 @@ import {
   PROCESSED_IMAGE_EXTENSION,
 } from "@/features/blob/image-variant-names";
 
-interface AzureBlobConfiguration {
-  accountName: string;
-  accountKey: string;
-  serviceUrl: string;
+// The account as the environment layer parsed and validated it, plus the
+// containers and SAS lifetime this class signs for.
+type AzureBlobConfiguration = BlobStorageAccount & {
   /** The trusted container: worker output and blobs that may be served. */
   containerName: string;
   /** The private container client uploads land in. */
   quarantineContainerName: string;
   sasTtlSeconds: number;
-}
+};
 
 interface LocalBlobConfiguration {
   /** Holds one directory per container, named like BlobContainer. */
@@ -59,6 +64,14 @@ const THUMBNAIL_DIRECTORY = "thumbnails";
 const QUARANTINE_ROOT = "quarantine";
 const QUARANTINE_IMAGE_DIRECTORY = `${QUARANTINE_ROOT}/images`;
 const BLOB_CONTAINERS: readonly BlobContainer[] = ["public", "quarantine"];
+// SAS start times are backdated so a client clock a little behind still works.
+const SAS_CLOCK_SKEW_MS = 5 * 60 * 1000;
+// A user delegation key signs upload URLs for at most this long. Azure has no
+// way to tell this process a key was revoked or a role removed, so the window
+// bounds how long new upload URLs keep failing after either.
+const USER_DELEGATION_KEY_REUSE_MS = 10 * 60 * 1000;
+// A key outlives its reuse window by the longest SAS it signs plus this much.
+const USER_DELEGATION_KEY_EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 /**
  * Where a blob is read or written. "legacy" is where a quarantine name was
@@ -137,11 +150,26 @@ function blobTooLarge(maxBytes: number): PayloadTooLargeError {
  * private quarantine container, which is the only one an upload URL can write
  * to, and everything else lives in the public container. Callers keep passing
  * plain blob names; the container is never part of a stored name.
+ *
+ * Azure is reached with the process's own Microsoft Entra ID identity
+ * (AZURE_STORAGE_AUTH=entra, the default), whose roles decide what this
+ * process may do in each container, or with the account key
+ * (connection-string), which is deprecated.
  */
 export class BlobService {
+  private readonly logger = loggerFactory.forClass(BlobService, "service");
   private readonly config: AzureBlobConfiguration | null;
   private readonly localConfig: LocalBlobConfiguration | null;
   private readonly quarantineLegacyFallback: boolean;
+  // Built on first use and kept, so every request shares one pipeline and,
+  // in entra mode, one token cache.
+  private sharedKeyCredential: StorageSharedKeyCredential | null = null;
+  private serviceClient: BlobServiceClient | null = null;
+  private userDelegationKey: {
+    requestedAt: number;
+    expiresOn: Date;
+    key: Promise<UserDelegationKey>;
+  } | null = null;
 
   constructor() {
     this.config = this.readConfiguration();
@@ -150,7 +178,9 @@ export class BlobService {
       environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
 
-  createUploadUrl(input: CreateBlobUploadUrlInput): BlobUploadTarget {
+  async createUploadUrl(
+    input: CreateBlobUploadUrlInput,
+  ): Promise<BlobUploadTarget> {
     const blobName = this.normalizeBlobName(input.blobName);
     const contentType = this.normalizeContentType(input.contentType);
 
@@ -584,40 +614,31 @@ export class BlobService {
     return `${directory === "." ? "" : `${directory}/`}${THUMBNAIL_DIRECTORY}/${baseName}.webp`;
   }
 
-  private createAzureUploadUrl(
+  private async createAzureUploadUrl(
     blobName: string,
     contentType: string,
-  ): BlobUploadTarget {
+  ): Promise<BlobUploadTarget> {
     const config = this.requireConfiguration();
-    const credential = new StorageSharedKeyCredential(
-      config.accountName,
-      config.accountKey,
-    );
-    const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    const blobClient = serviceClient
-      .getContainerClient(config.quarantineContainerName)
-      .getBlockBlobClient(blobName);
+    const blobClient =
+      this.createContainerClient("quarantine").getBlockBlobClient(blobName);
 
-    const startsOn = new Date(Date.now() - 5 * 60 * 1000);
+    const startsOn = new Date(Date.now() - SAS_CLOCK_SKEW_MS);
     const expiresOn = new Date(Date.now() + config.sasTtlSeconds * 1000);
-    const sasToken = generateBlobSASQueryParameters(
-      {
-        containerName: config.quarantineContainerName,
-        blobName,
-        permissions: BlobSASPermissions.parse("cw"),
-        protocol: SASProtocol.Https,
-        startsOn,
-        expiresOn,
-        // Not an upload constraint. This is the SAS `rsct` field, which only
-        // overrides the Content-Type returned when the blob is read with this
-        // token - and this token cannot read. Azure accepts a PUT with any
-        // Content-Type and any bytes, which was verified against a real
-        // account, so MediaService's allow-list governs what a client may ask
-        // for, not what it can store.
-        contentType,
-      },
-      credential,
-    ).toString();
+    const sasToken = await this.signSas({
+      containerName: config.quarantineContainerName,
+      blobName,
+      permissions: BlobSASPermissions.parse("cw"),
+      protocol: SASProtocol.Https,
+      startsOn,
+      expiresOn,
+      // Not an upload constraint. This is the SAS `rsct` field, which only
+      // overrides the Content-Type returned when the blob is read with this
+      // token - and this token cannot read. Azure accepts a PUT with any
+      // Content-Type and any bytes, which was verified against a real
+      // account, so MediaService's allow-list governs what a client may ask
+      // for, not what it can store.
+      contentType,
+    });
 
     return {
       method: "PUT",
@@ -633,10 +654,96 @@ export class BlobService {
     };
   }
 
+  /**
+   * Signs with the account key, or, in entra mode, as a user delegation SAS.
+   * A user delegation SAS can grant no more than the signing identity's own
+   * roles allow, so the API's identity needs write access to the quarantine
+   * container for a client's PUT to succeed.
+   */
+  private async signSas(values: BlobSASSignatureValues): Promise<string> {
+    const config = this.requireConfiguration();
+
+    if (config.auth === "connection-string") {
+      return generateBlobSASQueryParameters(
+        values,
+        this.getSharedKeyCredential(config),
+      ).toString();
+    }
+
+    const userDelegationKey = await this.getUserDelegationKey(
+      values.expiresOn ?? new Date(),
+    );
+    // The SAS must not start before its key does. A fresh key is requested a
+    // moment after the SAS start time was computed, so its start can be later.
+    const keyStartsOn = userDelegationKey.signedStartsOn;
+    const startsOn =
+      values.startsOn && values.startsOn.getTime() < keyStartsOn.getTime()
+        ? keyStartsOn
+        : values.startsOn;
+
+    return generateBlobSASQueryParameters(
+      { ...values, startsOn },
+      userDelegationKey,
+      config.accountName,
+    ).toString();
+  }
+
+  /**
+   * One key signs every upload SAS for up to ten minutes, so Azure is asked
+   * for a key a few times an hour rather than for every upload, and a revoked
+   * key stops being used soon after. Concurrent callers share one request, and
+   * a failed request is not kept.
+   */
+  private getUserDelegationKey(sasExpiresOn: Date): Promise<UserDelegationKey> {
+    const now = Date.now();
+    const cached = this.userDelegationKey;
+
+    if (
+      cached &&
+      now - cached.requestedAt < USER_DELEGATION_KEY_REUSE_MS &&
+      cached.expiresOn.getTime() - USER_DELEGATION_KEY_EXPIRY_MARGIN_MS >=
+        sasExpiresOn.getTime()
+    ) {
+      return cached.key;
+    }
+
+    const expiresOn = new Date(
+      now +
+        USER_DELEGATION_KEY_REUSE_MS +
+        this.requireConfiguration().sasTtlSeconds * 1000 +
+        USER_DELEGATION_KEY_EXPIRY_MARGIN_MS,
+    );
+    const entry = {
+      requestedAt: now,
+      expiresOn,
+      key: this.getServiceClient().getUserDelegationKey(
+        new Date(now - SAS_CLOCK_SKEW_MS),
+        expiresOn,
+      ),
+    };
+
+    this.userDelegationKey = entry;
+    entry.key.catch((error: unknown) => {
+      if (this.userDelegationKey === entry) {
+        this.userDelegationKey = null;
+      }
+
+      this.logger.error(
+        "Could not get a user delegation key to sign upload URLs. A 403 means the API's identity lacks the Storage Blob Delegator role on the storage account.",
+        {
+          statusCode: (error as { statusCode?: unknown } | null)?.statusCode,
+          code: (error as { code?: unknown } | null)?.code,
+        },
+      );
+    });
+
+    return entry.key;
+  }
+
   private requireConfiguration(): AzureBlobConfiguration {
     if (!this.config) {
       throw new ServiceNotImplementedError(
-        "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
+        "Azure Blob Storage is not configured. Set AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
       );
     }
 
@@ -664,54 +771,61 @@ export class BlobService {
 
   private createContainerClient(container: BlobContainer) {
     const config = this.requireConfiguration();
-    const credential = new StorageSharedKeyCredential(
-      config.accountName,
-      config.accountKey,
-    );
-    const serviceClient = new BlobServiceClient(config.serviceUrl, credential);
-    return serviceClient.getContainerClient(
+    return this.getServiceClient().getContainerClient(
       container === "quarantine"
         ? config.quarantineContainerName
         : config.containerName,
     );
   }
 
+  private getServiceClient(): BlobServiceClient {
+    const config = this.requireConfiguration();
+    this.serviceClient ??= new BlobServiceClient(
+      config.serviceUrl,
+      config.auth === "entra"
+        ? this.createTokenCredential()
+        : this.getSharedKeyCredential(config),
+    );
+    return this.serviceClient;
+  }
+
+  private getSharedKeyCredential(config: {
+    accountName: string;
+    accountKey: string;
+  }): StorageSharedKeyCredential {
+    this.sharedKeyCredential ??= new StorageSharedKeyCredential(
+      config.accountName,
+      config.accountKey,
+    );
+    return this.sharedKeyCredential;
+  }
+
+  // The process's identity in entra mode; startup has already proven it can
+  // sign in (checkBlobStorageAccess).
+  private createTokenCredential(): TokenCredential {
+    return createBlobStorageCredential();
+  }
+
   private containerFor(blobName: string): BlobContainer {
     return this.isQuarantineBlobName(blobName) ? "quarantine" : "public";
   }
 
+  // Everything here was validated when the environment loaded, so a partial
+  // or invalid configuration never reaches this class: no account means Azure
+  // is simply not configured.
   private readConfiguration(): AzureBlobConfiguration | null {
-    const blobConfig = environment.getBlobStorageConfig();
-    const connectionString = blobConfig.connectionString;
-    const containerName = blobConfig.containerName?.trim();
-    const quarantineContainerName = blobConfig.quarantineContainerName?.trim();
+    const { account, containerName, quarantineContainerName } =
+      environment.getBlobStorageConfig();
 
-    if (!connectionString && !containerName && !quarantineContainerName) {
+    if (!account || !containerName || !quarantineContainerName) {
       return null;
     }
 
-    if (!connectionString || !containerName || !quarantineContainerName) {
-      throw new ServiceNotImplementedError(
-        "Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
-      );
-    }
-
-    if (containerName.toLowerCase() === quarantineContainerName.toLowerCase()) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
-      );
-    }
-
-    const parsedConnectionString = this.parseConnectionString(connectionString);
-    const sasTtlSeconds = this.readSasTtlSeconds();
-
     return {
-      accountName: parsedConnectionString.accountName,
-      accountKey: parsedConnectionString.accountKey,
-      serviceUrl: parsedConnectionString.serviceUrl,
+      ...account,
       containerName,
       quarantineContainerName,
-      sasTtlSeconds,
+      sasTtlSeconds: this.readSasTtlSeconds(),
     };
   }
 
@@ -736,53 +850,6 @@ export class BlobService {
       uploadTtlSeconds: LOCAL_BLOB_UPLOAD_TTL_SECONDS,
       signingSecret,
       defaultPublicOrigin: `http://localhost:${port}`,
-    };
-  }
-
-  private parseConnectionString(connectionString: string): {
-    accountName: string;
-    accountKey: string;
-    serviceUrl: string;
-  } {
-    const segments = Object.fromEntries(
-      connectionString
-        .split(";")
-        .map((segment) => segment.trim())
-        .filter((segment) => segment.length > 0)
-        .map((segment) => {
-          const separatorIndex = segment.indexOf("=");
-
-          if (separatorIndex <= 0) {
-            throw new ServiceNotImplementedError(
-              "AZURE_STORAGE_CONNECTION_STRING is invalid.",
-            );
-          }
-
-          const key = segment.slice(0, separatorIndex);
-          const value = segment.slice(separatorIndex + 1);
-          return [key, value];
-        }),
-    );
-
-    const accountName = segments.AccountName;
-    const accountKey = segments.AccountKey;
-
-    if (!accountName || !accountKey) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_CONNECTION_STRING must include AccountName and AccountKey for SAS generation.",
-      );
-    }
-
-    const protocol = segments.DefaultEndpointsProtocol ?? "https";
-    const endpointSuffix = segments.EndpointSuffix ?? "core.windows.net";
-    const serviceUrl =
-      segments.BlobEndpoint ??
-      `${protocol}://${accountName}.blob.${endpointSuffix}`;
-
-    return {
-      accountName,
-      accountKey,
-      serviceUrl: serviceUrl.replace(/\/+$/, ""),
     };
   }
 

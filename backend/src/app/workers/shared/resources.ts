@@ -11,7 +11,17 @@ import {
   disconnectRabbitMq,
 } from "@/configuration/resources/rabbitmq";
 import { connectRedis, disconnectRedis } from "@/configuration/resources/redis";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 import type { WorkerResource } from "@/workers/shared/worker-runtime";
+
+/**
+ * For workers that touch blobs; list it first, so a worker that cannot reach
+ * blob storage stops before connecting to anything else.
+ */
+export const blobStorageWorkerResource: WorkerResource = {
+  connect: () => checkBlobStorageAccess(),
+  disconnect: async () => undefined,
+};
 
 export const databaseWorkerResource: WorkerResource = {
   connect: connectDatabase,

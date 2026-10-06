@@ -10,6 +10,7 @@ import {
   BlobCleanupService,
 } from "@/features/blob/blob-cleanup.service";
 import { BlobService } from "@/features/blob/blob.service";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 
 type CliOptions = {
   deleteCandidates: boolean;
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
   }
 
   loadEnvironment();
+  await checkBlobStorageAccess();
   await connectDatabase();
 
   try {

@@ -430,10 +430,18 @@ to the public container, and a quarantined upload cannot be read anonymously
 however its name leaks. The local stand-in mirrors this with one directory per
 container, `tmp/blob-storage/quarantine/` and `tmp/blob-storage/public/`.
 
-What the split does not cover: the API and workers still sign with the
-account key, which can read and write both containers. Moving to managed
-identities and user-delegation SAS is tracked separately.
-Setup, CORS, and the rollout steps are in the
+Each process signs in as its own Microsoft Entra ID identity, whose roles are
+scoped per container:
+
+- only the API can issue upload credentials, as user delegation SAS tokens;
+- the media processing worker can read and delete quarantined uploads, but
+  cannot write to the quarantine container.
+
+The API can still read quarantined bytes, because Azure grants reading a
+blob's properties and reading its content as one permission. The deprecated
+`AZURE_STORAGE_AUTH=connection-string` mode signs everything with the account
+key instead, which can read and write both containers.
+Setup, CORS, roles, and the rollout steps are in the
 [backend configuration guide](./backend-configuration.md#blob-storage).
 
 **Metrics.** The pipeline records counts and timings through the `MediaMetrics`

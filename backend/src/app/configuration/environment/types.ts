@@ -8,6 +8,17 @@ export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
 export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
 export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
+export const BLOB_STORAGE_AUTH_MODES = ["connection-string", "entra"] as const;
+export type BlobStorageAuthMode = (typeof BLOB_STORAGE_AUTH_MODES)[number];
+/** A storage account as the environment layer parsed and validated it. */
+export type BlobStorageAccount =
+  | { auth: "entra"; accountName: string; serviceUrl: string }
+  | {
+      auth: "connection-string";
+      accountName: string;
+      accountKey: string;
+      serviceUrl: string;
+    };
 export const PAYPAL_CHECKOUT_METHODS = [
   "paypal",
   "paypal_guest",
@@ -25,6 +36,8 @@ export type RawEnvironmentValues = {
   ALLOWED_IMAGE_TYPES?: string;
   APP_BASE_URL?: string;
   APP_NAME?: string;
+  AZURE_STORAGE_ACCOUNT_URL?: string;
+  AZURE_STORAGE_AUTH?: string;
   AZURE_STORAGE_CONNECTION_STRING?: string;
   AZURE_STORAGE_CONTAINER_NAME?: string;
   AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?: string;
@@ -420,7 +433,19 @@ export interface AppEnvironment {
   usernameBloom: IdentityBloomEnvironment;
   emailBloom: IdentityBloomEnvironment;
   blobStorage: {
-    connectionString?: string;
+    /**
+     * entra, the default, gives each process its own Microsoft Entra ID
+     * identity through DefaultAzureCredential and signs uploads with a user
+     * delegation key. connection-string signs everything with the account key
+     * and is deprecated.
+     */
+    auth: BlobStorageAuthMode;
+    /**
+     * The account to reach, present only when the account setting and both
+     * container names are configured and valid. Absent means Azure is not
+     * configured; startup has already rejected anything in between.
+     */
+    account?: BlobStorageAccount;
     containerName?: string;
     quarantineContainerName?: string;
     /** Look for quarantine names in their pre-split location too. */

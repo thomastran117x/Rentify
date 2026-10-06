@@ -37,10 +37,14 @@ describe("initializeServerApplication", () => {
         calls.push("loadEnvironment");
         return {} as any;
       },
+      checkBlobStorageAccess: async () => {
+        calls.push("checkBlobStorageAccess");
+      },
     });
 
     expect(calls).toEqual([
       "loadEnvironment",
+      "checkBlobStorageAccess",
       "connectDatabase",
       "runAutoSeedsIfNeeded",
       "connectRedis",
@@ -91,10 +95,14 @@ describe("initializeServerApplication", () => {
         calls.push("loadEnvironment");
         return {} as any;
       },
+      checkBlobStorageAccess: async () => {
+        calls.push("checkBlobStorageAccess");
+      },
     });
 
     expect(calls).toEqual([
       "loadEnvironment",
+      "checkBlobStorageAccess",
       "connectDatabase",
       "runAutoSeedsIfNeeded",
       "connectRedis",
@@ -119,6 +127,7 @@ describe("initializeServerApplication", () => {
       isRabbitMqEnabled: () => false,
       connectRabbitMq: async () => undefined,
       initializeContainer: () => ({}) as any,
+      checkBlobStorageAccess: async () => undefined,
       createApplication: () => app as any,
       loadEnvironment: () => ({}) as any,
       // The real implementation swallows its own failures; this asserts the
@@ -126,5 +135,23 @@ describe("initializeServerApplication", () => {
     });
 
     expect(result.app).toBe(app);
+  });
+
+  it("stops before any I/O when blob storage cannot be reached", async () => {
+    const connectDatabase = jest.fn();
+    const runAutoSeedsIfNeeded = jest.fn();
+
+    await expect(
+      initializeServerApplication({
+        loadEnvironment: () => ({}) as any,
+        checkBlobStorageAccess: async () => {
+          throw new Error("Could not sign in to Azure Storage.");
+        },
+        connectDatabase,
+        runAutoSeedsIfNeeded,
+      }),
+    ).rejects.toThrow("Could not sign in to Azure Storage.");
+    expect(connectDatabase).not.toHaveBeenCalled();
+    expect(runAutoSeedsIfNeeded).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import {
 } from "@/configuration/resources/rabbitmq";
 import { disconnectLogging } from "@/configuration/logging";
 import { BlobService } from "@/features/blob/blob.service";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import {
@@ -103,6 +104,7 @@ async function main(): Promise<void> {
   }
 
   loadEnvironment();
+  await checkBlobStorageAccess();
   await connectDatabase();
   await connectRabbitMq();
 

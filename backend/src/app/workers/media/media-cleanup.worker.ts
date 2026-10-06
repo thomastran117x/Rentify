@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import {
+  blobStorageWorkerResource,
   databaseWorkerResource,
   disconnectResources,
   rabbitMqWorkerResource,
@@ -15,7 +16,11 @@ const workerName = "Media cleanup worker";
 // RabbitMQ is required because the sweep re-enqueues items whose processing
 // job was lost. Blob storage is reached through BlobService, which needs no
 // connection of its own.
-const workerResources = [databaseWorkerResource, rabbitMqWorkerResource];
+const workerResources = [
+  blobStorageWorkerResource,
+  databaseWorkerResource,
+  rabbitMqWorkerResource,
+];
 const workerLogger = loggerFactory
   .forComponent("media-cleanup.worker", "worker")
   .child({

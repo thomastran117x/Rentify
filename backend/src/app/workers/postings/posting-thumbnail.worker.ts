@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import {
+  blobStorageWorkerResource,
   databaseWorkerResource,
   disconnectResources,
   rabbitMqWorkerResource,
@@ -9,7 +10,11 @@ import {
 import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
 
 const workerName = "Posting thumbnail worker";
-const workerResources = [databaseWorkerResource, rabbitMqWorkerResource];
+const workerResources = [
+  blobStorageWorkerResource,
+  databaseWorkerResource,
+  rabbitMqWorkerResource,
+];
 const workerLogger = loggerFactory
   .forComponent("posting-thumbnail.worker", "worker")
   .child({

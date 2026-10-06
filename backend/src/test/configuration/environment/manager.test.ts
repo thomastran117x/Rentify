@@ -504,6 +504,7 @@ describe("EnvironmentManager", () => {
 
   it("validates cross-field and bounded values after layering", () => {
     process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "connection-string",
       AZURE_STORAGE_CONNECTION_STRING:
         "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
       AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS: "59",
@@ -511,13 +512,13 @@ describe("EnvironmentManager", () => {
     const manager = new EnvironmentManager();
 
     expect(() => manager.load()).toThrow(
-      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together when AZURE_STORAGE_AUTH is connection-string.",
     );
 
     // Naming only the public container still leaves uploads with nowhere to go.
     process.env.AZURE_STORAGE_CONTAINER_NAME = "uploads";
     expect(() => new EnvironmentManager().load()).toThrow(
-      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+      "AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together when AZURE_STORAGE_AUTH is connection-string.",
     );
 
     process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " Uploads ";
@@ -534,6 +535,7 @@ describe("EnvironmentManager", () => {
 
   it("reads both blob containers and leaves the legacy fallback off by default", () => {
     process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "connection-string",
       AZURE_STORAGE_CONNECTION_STRING:
         "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
       AZURE_STORAGE_CONTAINER_NAME: "uploads",
@@ -555,6 +557,169 @@ describe("EnvironmentManager", () => {
     expect(
       fallbackManager.getBlobStorageConfig().quarantineLegacyFallback,
     ).toBe(true);
+  });
+
+  it("authenticates blob storage with Entra ID unless connection-string is chosen", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getBlobStorageConfig().auth).toBe("entra");
+
+    process.env = buildRequiredEnv({ AZURE_STORAGE_AUTH: "managed-identity" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_AUTH must be one of: connection-string, entra.",
+    );
+  });
+
+  it("reports an unknown blob authentication mode without judging the account by either mode", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "entra-id",
+      AZURE_STORAGE_ACCOUNT_URL: "https://rent.blob.core.windows.net",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+
+    let message = "";
+    try {
+      new EnvironmentManager().load();
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain(
+      "AZURE_STORAGE_AUTH must be one of: connection-string, entra.",
+    );
+    expect(message).not.toContain("configured together");
+  });
+
+  it("parses the connection string when the environment loads, before any I/O", () => {
+    for (const connectionString of [
+      "DefaultEndpointsProtocol=https;AccountName=rent",
+      "AccountName=rent;AccountKey=key;not-a-segment",
+    ]) {
+      process.env = buildRequiredEnv({
+        AZURE_STORAGE_AUTH: "connection-string",
+        AZURE_STORAGE_CONNECTION_STRING: connectionString,
+        AZURE_STORAGE_CONTAINER_NAME: "uploads",
+        AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+      });
+
+      expect(() => new EnvironmentManager().load()).toThrow(
+        "AZURE_STORAGE_CONNECTION_STRING must be a storage connection string that includes AccountName and AccountKey.",
+      );
+    }
+
+    process.env.AZURE_STORAGE_CONNECTION_STRING =
+      "AccountName=rent;AccountKey=key;BlobEndpoint=https://cdn.example/";
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getBlobStorageConfig().account).toEqual({
+      auth: "connection-string",
+      accountName: "rent",
+      accountKey: "key",
+      serviceUrl: "https://cdn.example",
+    });
+  });
+
+  it("refuses a connection string left over from before entra became the default", () => {
+    // An upgraded deployment that never set AZURE_STORAGE_AUTH.
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
+    );
+
+    // Naming the deprecated mode keeps it running.
+    process.env.AZURE_STORAGE_AUTH = "connection-string";
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getBlobStorageConfig().auth).toBe("connection-string");
+  });
+
+  it("requires an account URL and refuses the account key in entra mode", () => {
+    process.env = buildRequiredEnv({
+      AZURE_STORAGE_AUTH: "Entra",
+      AZURE_STORAGE_CONNECTION_STRING:
+        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key",
+      AZURE_STORAGE_CONTAINER_NAME: "uploads",
+      AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: "uploads-quarantine",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together.",
+    );
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
+    );
+
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+    for (const accountUrl of [
+      "http://rent.blob.core.windows.net",
+      "https://127.0.0.1:10000/devstoreaccount1",
+      "https://rent.blob.core.windows.net/?sv=2025-01-05",
+      // Any other host would receive the identity's storage bearer token.
+      "https://attacker.example",
+      "https://rent.blob.core.windows.net.attacker.example",
+      "https://rent.blob.core.windows.net:8443",
+      "https://user@rent.blob.core.windows.net",
+      "https://ab.blob.core.windows.net",
+      "not a url",
+    ]) {
+      process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+      expect(() => new EnvironmentManager().load()).toThrow(
+        "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
+      );
+    }
+
+    process.env.AZURE_STORAGE_ACCOUNT_URL =
+      "https://rent.blob.core.windows.net/";
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getBlobStorageConfig()).toMatchObject({
+      auth: "entra",
+      account: {
+        auth: "entra",
+        accountName: "rent",
+        serviceUrl: "https://rent.blob.core.windows.net",
+      },
+    });
+  });
+
+  it("reads the blob authentication mode and account URL from YAML", () => {
+    writeFileSync(
+      join(tempDirectory, "default.yml"),
+      [
+        "blobStorage:",
+        "  auth: entra",
+        "  accountUrl: https://rent.blob.core.windows.net",
+        "  containerName: uploads",
+        "  quarantineContainerName: uploads-quarantine",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(join(tempDirectory, "test.yml"), "server:\n  port: 8100\n");
+    process.env = buildRequiredEnv({ NODE_ENV: "test" });
+    const manager = new EnvironmentManager({
+      configurationDirectory: tempDirectory,
+    });
+    manager.load();
+
+    expect(manager.getBlobStorageConfig()).toMatchObject({
+      auth: "entra",
+      account: { auth: "entra", accountName: "rent" },
+      containerName: "uploads",
+      quarantineContainerName: "uploads-quarantine",
+    });
   });
 
   it("defaults the image upload policy and allows narrowing it", () => {

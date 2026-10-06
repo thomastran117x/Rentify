@@ -80,7 +80,9 @@ x-backend-environment: &backend-environment
   APPLE_OAUTH_KEY_ID: ${APPLE_OAUTH_KEY_ID:-}
   APPLE_OAUTH_PRIVATE_KEY: ${APPLE_OAUTH_PRIVATE_KEY:-}
   MFA_TOTP_ENCRYPTION_KEY: ${MFA_TOTP_ENCRYPTION_KEY}
-  AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+  AZURE_STORAGE_AUTH: ${AZURE_STORAGE_AUTH:-}
+  AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+  AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
   AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME:-}
   AZURE_STORAGE_QUARANTINE_CONTAINER_NAME: ${AZURE_STORAGE_QUARANTINE_CONTAINER_NAME:-}
   MEDIA_QUARANTINE_LEGACY_FALLBACK: ${MEDIA_QUARANTINE_LEGACY_FALLBACK:-}
@@ -128,6 +130,27 @@ x-mcp-environment: &mcp-environment
   RENTIFY_API_BASE_URL: http://backend:8040/api/v1
   RENTIFY_API_TIMEOUT_MS: 5000
   RENTIFY_PAT: ${RENTIFY_PAT:-}
+
+# Blob storage authenticates with Microsoft Entra ID: every service that
+# touches blobs signs in as its own service principal, and the roles assigned
+# to it decide what it may do in each container. Each service reads its own
+# <PREFIX>_AZURE_CLIENT_ID and <PREFIX>_AZURE_CLIENT_SECRET pair from .env;
+# creating them is described under "Microsoft Entra ID authentication" in
+# docs/backend-configuration.md.
+x-entra-identity: &entra-identity
+  AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+  # Only the client-secret credential: a container has no managed identity or
+  # developer sign-in to fall back to.
+  AZURE_TOKEN_CREDENTIALS: EnvironmentCredential
+
+# Optional upstream DNS for the blob services, off unless BLOB_SERVICES_DNS is
+# set (an empty value leaves Docker's default). Docker Desktop's DNS hands the
+# Alpine image only IPv6 addresses for login.microsoftonline.com, which the
+# Docker VM cannot route, so token requests fail; BLOB_SERVICES_DNS=1.1.1.1
+# fixes that. Compose service names still resolve through Docker's embedded
+# DNS either way.
+x-entra-dns: &entra-dns
+  - ${BLOB_SERVICES_DNS:-}
 
 x-backend-log-volume: &backend-log-volume
   - backend_logs:/app/logs
@@ -352,11 +375,14 @@ services:
     restart: unless-stopped
     depends_on: *api-depends-on
     environment:
-      <<: *backend-environment
+      <<: [*backend-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${API_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${API_AZURE_CLIENT_SECRET:-}
       PORT: 8040
       DATABASE_POOL_CONNECTION_LIMIT: 10
       DATABASE_POOL_MINIMUM_IDLE: 2
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     command: ["node", "dist/server.js"]
     ports:
       - "8040:8040"
@@ -372,10 +398,13 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      <<: *backend-environment
+      <<: [*backend-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${BLOB_CLEANUP_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${BLOB_CLEANUP_AZURE_CLIENT_SECRET:-}
       DATABASE_POOL_CONNECTION_LIMIT: 2
       DATABASE_POOL_MINIMUM_IDLE: 1
     volumes: *backend-log-volume
+    dns: *entra-dns
     entrypoint: ["node", "dist/scripts/cleanup-orphaned-blobs.js"]
     command: []
 
@@ -390,12 +419,15 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      <<: *backend-environment
+      <<: [*backend-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${MEDIA_BACKFILL_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_BACKFILL_AZURE_CLIENT_SECRET:-}
       DATABASE_POOL_CONNECTION_LIMIT: 2
       DATABASE_POOL_MINIMUM_IDLE: 1
     # Reads and writes blobs, so it shares the local blob disk with the API
     # when Azure is not configured.
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     entrypoint: ["node", "dist/scripts/backfill-media-variants.js"]
     command: []
 
@@ -415,12 +447,15 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      <<: *backend-environment
+      <<: [*backend-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${MEDIA_REPLAY_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_REPLAY_AZURE_CLIENT_SECRET:-}
       DATABASE_POOL_CONNECTION_LIMIT: 2
       DATABASE_POOL_MINIMUM_IDLE: 1
     # Checks that a failed item's upload is still kept, so it needs the local
     # blob disk when Azure is not configured.
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     entrypoint: ["node", "dist/scripts/replay-media-dead-letters.js"]
     command: []
 
@@ -492,8 +527,12 @@ services:
     container_name: rent-posting-thumbnail-worker
     restart: unless-stopped
     depends_on: *recommendation-worker-depends-on
-    environment: *worker-environment
+    environment:
+      <<: [*worker-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${POSTING_THUMBNAIL_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${POSTING_THUMBNAIL_AZURE_CLIENT_SECRET:-}
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     command: ["node", "dist/workers/postings/posting-thumbnail.worker.js"]
 
   # Scans, validates, and re-encodes quarantined image uploads. Reads the
@@ -512,8 +551,12 @@ services:
       clamav:
         condition: service_healthy
         required: false
-    environment: *worker-environment
+    environment:
+      <<: [*worker-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${MEDIA_PROCESSING_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_PROCESSING_AZURE_CLIENT_SECRET:-}
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     command: ["node", "dist/workers/media/media-processing.worker.js"]
 
   # Deletes uploads that were never completed and old rejections, and
@@ -526,8 +569,12 @@ services:
     container_name: rent-media-cleanup-worker
     restart: unless-stopped
     depends_on: *recommendation-worker-depends-on
-    environment: *worker-environment
+    environment:
+      <<: [*worker-environment, *entra-identity]
+      AZURE_CLIENT_ID: ${MEDIA_CLEANUP_AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${MEDIA_CLEANUP_AZURE_CLIENT_SECRET:-}
     volumes: *backend-blob-volumes
+    dns: *entra-dns
     command: ["node", "dist/workers/media/media-cleanup.worker.js"]
 
   email-worker:

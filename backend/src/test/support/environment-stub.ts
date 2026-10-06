@@ -1,4 +1,6 @@
 import { SUPPORTED_IMAGE_CONTENT_TYPES } from "@/configuration/environment/constants";
+import { buildBlobStorageConfig } from "@/configuration/environment/domains/infrastructure";
+import { normalizeRawEnvironment } from "@/configuration/environment/shared";
 
 const tokenConfig = {
   accessTokenAlgorithm: "HS256" as const,
@@ -172,21 +174,10 @@ function readAppleOAuthConfig() {
   };
 }
 
+// The real parser, so BlobService sees exactly what a loaded environment would
+// give it. Validation errors are dropped: EnvironmentManager tests cover them.
 function readBlobStorageConfig() {
-  return {
-    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-    containerName: process.env.AZURE_STORAGE_CONTAINER_NAME,
-    quarantineContainerName:
-      process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
-    quarantineLegacyFallback: readBoolean(
-      process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK,
-      false,
-    ),
-    uploadSasTtlSeconds: readNumber(
-      process.env.AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS,
-      15 * 60,
-    ),
-  };
+  return buildBlobStorageConfig(normalizeRawEnvironment(process.env), []);
 }
 
 function readImageUploadsConfig() {

@@ -1,6 +1,8 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { DefaultAzureCredential } from "@azure/identity";
+import { BlobServiceClient, type UserDelegationKey } from "@azure/storage-blob";
 import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -11,7 +13,8 @@ import { testUuid } from "../../support/uuid";
 import {
   readLocalUploadUrl,
   restoreBlobEnvironmentAfterEach,
-  useAzureBlobStorage,
+  useConnectionStringBlobStorage,
+  useEntraBlobStorage,
   useLocalBlobStorage,
 } from "../../support/blob-environment";
 
@@ -77,6 +80,46 @@ function recordAzureContainers(
   return clients;
 }
 
+const DELEGATION_OBJECT_ID = "6f0c3b1e-0000-4000-8000-0000000000a1";
+const DELEGATION_TENANT_ID = "6f0c3b1e-0000-4000-8000-0000000000b2";
+
+function fakeUserDelegationKey(
+  startsOn: Date,
+  expiresOn: Date,
+): UserDelegationKey {
+  return {
+    signedObjectId: DELEGATION_OBJECT_ID,
+    signedTenantId: DELEGATION_TENANT_ID,
+    signedStartsOn: startsOn,
+    signedExpiresOn: expiresOn,
+    signedService: "b",
+    signedVersion: "2025-01-05",
+    value: Buffer.from("fake-user-delegation-key").toString("base64"),
+  };
+}
+
+/**
+ * An entra-mode service whose identity never leaves the process, with Azure's
+ * user delegation key endpoint replaced by a recorder.
+ */
+function createEntraService(): {
+  service: BlobService;
+  getUserDelegationKey: jest.SpyInstance;
+} {
+  useEntraBlobStorage();
+  const service = new BlobService();
+  (
+    service as unknown as { createTokenCredential(): unknown }
+  ).createTokenCredential = () => ({ getToken: jest.fn() });
+  const getUserDelegationKey = jest
+    .spyOn(BlobServiceClient.prototype, "getUserDelegationKey")
+    // The (startsOn, expiresOn) overload; spyOn types the last one.
+    .mockImplementation((async (startsOn: Date, expiresOn: Date) =>
+      fakeUserDelegationKey(startsOn, expiresOn)) as never);
+
+  return { service, getUserDelegationKey };
+}
+
 restoreBlobEnvironmentAfterEach();
 
 describe("BlobService", () => {
@@ -101,7 +144,7 @@ describe("BlobService", () => {
       USER_1_ID,
       testUuid(9000, 994264),
     );
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName,
       contentType: "image/png",
       requestOrigin: "http://localhost:8040",
@@ -138,52 +181,56 @@ describe("BlobService", () => {
     );
   });
 
-  it("only signs uploads for quarantine names", () => {
+  it("only signs uploads for quarantine names", async () => {
     useLocalBlobStorage();
     const local = new BlobService();
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const azure = new BlobService();
 
     for (const service of [local, azure]) {
-      expect(() =>
+      await expect(
         service.createUploadUrl({
           blobName: `media/images/${USER_1_ID}/x.webp`,
           contentType: "image/webp",
         }),
-      ).toThrow("Uploads may only target quarantine blobs.");
+      ).rejects.toThrow("Uploads may only target quarantine blobs.");
     }
   });
 
   // Storage is policy-free: which types may be uploaded is MediaService's call.
-  it("applies only a generic content-type shape check when signing", () => {
+  it("applies only a generic content-type shape check when signing", async () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/file`;
 
     expect(
-      service.createUploadUrl({ blobName, contentType: " Application/PDF " })
-        .headers["Content-Type"],
+      (
+        await service.createUploadUrl({
+          blobName,
+          contentType: " Application/PDF ",
+        })
+      ).headers["Content-Type"],
     ).toBe("application/pdf");
-    expect(() =>
+    await expect(
       service.createUploadUrl({
         blobName,
         contentType: "text/plain\r\nx-test: bad",
       }),
-    ).toThrow(BadRequestError);
-    expect(() =>
+    ).rejects.toThrow(BadRequestError);
+    await expect(
       service.createUploadUrl({
         blobName: "../escape.png",
         contentType: "a/b",
       }),
-    ).toThrow(BadRequestError);
+    ).rejects.toThrow(BadRequestError);
   });
 
-  it("uses the local fallback origin when the request origin is invalid", () => {
+  it("uses the local fallback origin when the request origin is invalid", async () => {
     useLocalBlobStorage();
 
     const service = new BlobService();
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName: `quarantine/images/${USER_1_ID}/photo`,
       contentType: "image/jpeg",
       requestOrigin: "not-a-valid-origin",
@@ -192,12 +239,12 @@ describe("BlobService", () => {
     expect(uploadTarget.uploadUrl).toContain("http://localhost:8040/");
   });
 
-  it("signs Azure upload URLs against the quarantine container only", () => {
-    useAzureBlobStorage();
+  it("signs Azure upload URLs against the quarantine container only", async () => {
+    useConnectionStringBlobStorage();
 
     const service = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/photo`;
-    const uploadTarget = service.createUploadUrl({
+    const uploadTarget = await service.createUploadUrl({
       blobName,
       contentType: "image/webp",
     });
@@ -210,10 +257,242 @@ describe("BlobService", () => {
       true,
     );
     expect(new URL(uploadTarget.uploadUrl).searchParams.get("sp")).toBe("cw");
+    // A service SAS, signed with the account key.
+    expect(
+      new URL(uploadTarget.uploadUrl).searchParams.get("skoid"),
+    ).toBeNull();
+  });
+
+  describe("with Microsoft Entra ID", () => {
+    const blobName = `quarantine/images/${USER_1_ID}/photo`;
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+      jest.useRealTimers();
+    });
+
+    it("signs upload URLs as user delegation SAS for one quarantine blob", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+      const before = Date.now();
+
+      const uploadTarget = await service.createUploadUrl({
+        blobName,
+        contentType: "image/webp",
+      });
+      const params = new URL(uploadTarget.uploadUrl).searchParams;
+
+      expect(uploadTarget.container).toBe("uploads-quarantine");
+      expect(uploadTarget.blobUrl).toBe(
+        `https://rent.blob.core.windows.net/uploads-quarantine/${blobName}`,
+      );
+      expect(
+        uploadTarget.uploadUrl.startsWith(`${uploadTarget.blobUrl}?`),
+      ).toBe(true);
+      expect(params.get("sp")).toBe("cw");
+      expect(params.get("sr")).toBe("b");
+      expect(params.get("spr")).toBe("https");
+      expect(params.get("skoid")).toBe(DELEGATION_OBJECT_ID);
+      expect(params.get("sktid")).toBe(DELEGATION_TENANT_ID);
+      expect(params.get("sks")).toBe("b");
+      expect(params.get("skv")).toBe("2025-01-05");
+      expect(params.get("sig")).toBeTruthy();
+      expect(uploadTarget.headers["Content-Type"]).toBe("image/webp");
+
+      // The key is asked for from a little in the past, to cover its 10-minute
+      // reuse window plus the 15-minute SAS and a 5-minute margin.
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+      const [startsOn, expiresOn] = getUserDelegationKey.mock.calls[0] as [
+        Date,
+        Date,
+      ];
+      expect(startsOn.getTime()).toBeLessThan(before);
+      expect(expiresOn.getTime() - before).toBeGreaterThanOrEqual(
+        30 * 60 * 1000 - 1000,
+      );
+      expect(expiresOn.getTime() - before).toBeLessThanOrEqual(
+        30 * 60 * 1000 + 1000,
+      );
+    });
+
+    it("never starts a SAS before the key that signs it", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+      // A key whose start is later than the SAS start the service computed.
+      const keyStartsOn = new Date(Date.now() + 60_000);
+      getUserDelegationKey.mockImplementation((async (
+        _startsOn: Date,
+        expiresOn: Date,
+      ) => fakeUserDelegationKey(keyStartsOn, expiresOn)) as never);
+
+      const uploadTarget = await service.createUploadUrl({
+        blobName,
+        contentType: "image/png",
+      });
+      const st = new URL(uploadTarget.uploadUrl).searchParams.get("st")!;
+
+      expect(Date.parse(st)).toBe(
+        Math.floor(keyStartsOn.getTime() / 1000) * 1000,
+      );
+    });
+
+    it("still refuses to sign uploads outside quarantine", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+
+      await expect(
+        service.createUploadUrl({
+          blobName: `media/images/${USER_1_ID}/x.webp`,
+          contentType: "image/webp",
+        }),
+      ).rejects.toThrow("Uploads may only target quarantine blobs.");
+      expect(getUserDelegationKey).not.toHaveBeenCalled();
+    });
+
+    it("reuses one user delegation key for at most ten minutes", async () => {
+      const start = new Date("2026-10-05T12:00:00.000Z");
+      jest.useFakeTimers({
+        now: start,
+        doNotFake: ["nextTick", "setImmediate"],
+      });
+      const { service, getUserDelegationKey } = createEntraService();
+      const sign = () =>
+        service.createUploadUrl({ blobName, contentType: "image/png" });
+
+      await sign();
+      await sign();
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+
+      // So a revoked key or a removed role stops breaking new upload URLs
+      // within ten minutes, without a restart.
+      jest.setSystemTime(start.getTime() + 10 * 60 * 1000 - 1);
+      await sign();
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+
+      jest.setSystemTime(start.getTime() + 10 * 60 * 1000);
+      await sign();
+      await sign();
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(2);
+    });
+
+    it("shares one key request between concurrent uploads", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      getUserDelegationKey.mockImplementation(
+        async (startsOn: Date, expiresOn: Date) => {
+          await gate;
+          return fakeUserDelegationKey(startsOn, expiresOn);
+        },
+      );
+
+      const uploads = Promise.all([
+        service.createUploadUrl({ blobName, contentType: "image/png" }),
+        service.createUploadUrl({ blobName, contentType: "image/jpeg" }),
+      ]);
+      release();
+
+      await expect(uploads).resolves.toHaveLength(2);
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not keep a key request that failed", async () => {
+      const { service, getUserDelegationKey } = createEntraService();
+      getUserDelegationKey.mockRejectedValueOnce(
+        Object.assign(new Error("This request is not authorized."), {
+          statusCode: 403,
+          code: "AuthorizationPermissionMismatch",
+        }),
+      );
+
+      await expect(
+        service.createUploadUrl({ blobName, contentType: "image/png" }),
+      ).rejects.toThrow("This request is not authorized.");
+      await expect(
+        service.createUploadUrl({ blobName, contentType: "image/png" }),
+      ).resolves.toMatchObject({ container: "uploads-quarantine" });
+      expect(getUserDelegationKey).toHaveBeenCalledTimes(2);
+    });
+
+    it("reaches the account URL as the process's own identity", () => {
+      useEntraBlobStorage();
+      const service = new BlobService();
+      const helper = service as unknown as {
+        getServiceClient(): BlobServiceClient;
+      };
+
+      expect(helper.getServiceClient().credential).toBeInstanceOf(
+        DefaultAzureCredential,
+      );
+      expect(helper.getServiceClient()).toBe(helper.getServiceClient());
+      expect(service.getBlobUrl(`media/images/${USER_1_ID}/x.webp`)).toBe(
+        `https://rent.blob.core.windows.net/uploads/media/images/${USER_1_ID}/x.webp`,
+      );
+    });
+
+    // The environment rejects all of these at startup (see the
+    // EnvironmentManager tests); BlobService only ever sees a parsed account.
+    it("stays unconfigured for entra settings the environment rejects", () => {
+      const variants: Array<() => void> = [
+        () => delete process.env.AZURE_STORAGE_ACCOUNT_URL,
+        () => delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+        ...[
+          "http://rent.blob.core.windows.net",
+          "https://user@rent.blob.core.windows.net",
+          "https://attacker.example",
+          "https://ab.blob.core.windows.net",
+          "not a url",
+        ].map((accountUrl) => () => {
+          process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+        }),
+      ];
+
+      for (const vary of variants) {
+        useEntraBlobStorage();
+        vary();
+        expect(new BlobService().isConfigured()).toBe(false);
+      }
+    });
+
+    it("accepts the blob endpoints of every Azure cloud and DNS zone endpoints", () => {
+      for (const [accountUrl, origin] of [
+        [
+          "https://rentprod.blob.core.windows.net/",
+          "https://rentprod.blob.core.windows.net",
+        ],
+        [
+          " https://RENTPROD.blob.core.chinacloudapi.cn ",
+          "https://rentprod.blob.core.chinacloudapi.cn",
+        ],
+        [
+          "https://rentprod.blob.core.usgovcloudapi.net",
+          "https://rentprod.blob.core.usgovcloudapi.net",
+        ],
+        [
+          "https://rentprod.z17.blob.storage.azure.net",
+          "https://rentprod.z17.blob.storage.azure.net",
+        ],
+      ]) {
+        useEntraBlobStorage();
+        process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+
+        expect(new BlobService().getBlobUrl("media/x.webp")).toBe(
+          `${origin}/uploads/media/x.webp`,
+        );
+      }
+    });
+
+    it("ignores the account URL in connection-string mode", () => {
+      useConnectionStringBlobStorage();
+      process.env.AZURE_STORAGE_ACCOUNT_URL = "not a url";
+
+      expect(new BlobService().getBlobUrl("media/x.webp")).toBe(
+        "https://rent.blob.core.windows.net/uploads/media/x.webp",
+      );
+    });
   });
 
   it("routes Azure operations to a container by blob name", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const clients = recordAzureContainers(service);
     const quarantined = `quarantine/images/${USER_1_ID}/upload`;
@@ -244,7 +523,7 @@ describe("BlobService", () => {
   });
 
   it("deletes from a named container when blob-cleanup asks for one", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const clients = recordAzureContainers(service);
     const leftover = `quarantine/images/${USER_1_ID}/leftover`;
@@ -289,7 +568,7 @@ describe("BlobService", () => {
     const upload = `quarantine/images/${USER_1_ID}/pre-split`;
 
     function azureService(fallback: boolean) {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = String(fallback);
       const service = new BlobService();
       const clients = recordAzureContainers(service, ["quarantine"]);
@@ -352,7 +631,7 @@ describe("BlobService", () => {
     });
 
     it("never falls back for public names or for other errors", async () => {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       process.env.MEDIA_QUARANTINE_LEGACY_FALLBACK = "true";
       const service = new BlobService();
       const clients = recordAzureContainers(service, ["public"]);
@@ -439,7 +718,7 @@ describe("BlobService", () => {
   });
 
   it("names the real containers behind each route", () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const helper = service as unknown as {
       createContainerClient(container: string): { containerName: string };
@@ -459,7 +738,7 @@ describe("BlobService", () => {
   it("never gives a quarantined blob a public URL", () => {
     useLocalBlobStorage();
     const local = new BlobService();
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const azure = new BlobService();
     const blobName = `quarantine/images/${USER_1_ID}/upload`;
     const azureUrl = `https://rent.blob.core.windows.net/uploads/${blobName}`;
@@ -678,7 +957,7 @@ describe("BlobService", () => {
   });
 
   it("reads Azure blob properties and maps a 404 to not found", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
 
     const service = new BlobService();
     const lastModified = new Date("2026-09-01T00:00:00.000Z");
@@ -723,7 +1002,7 @@ describe("BlobService", () => {
     }
 
     function useAzureClient(download: jest.Mock) {
-      useAzureBlobStorage();
+      useConnectionStringBlobStorage();
       const service = new BlobService();
       const getProperties = jest.fn();
       const downloadToBuffer = jest.fn();
@@ -840,31 +1119,21 @@ describe("BlobService", () => {
     });
   });
 
-  it("requires complete Azure configuration", () => {
-    useAzureBlobStorage();
-    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
-
-    expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
-
-    useAzureBlobStorage();
-    delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
-
-    expect(() => new BlobService()).toThrow(
-      "Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
-    );
-  });
-
-  it("refuses a quarantine container that is the public container", () => {
-    useAzureBlobStorage();
-    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " UPLOADS ";
-
-    expect(() => new BlobService()).toThrow(
-      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
-    );
+  it("stays unconfigured for a connection string the environment rejects", () => {
+    for (const vary of [
+      () => delete process.env.AZURE_STORAGE_CONTAINER_NAME,
+      () => {
+        process.env.AZURE_STORAGE_CONNECTION_STRING = "AccountName=rent";
+      },
+    ]) {
+      useConnectionStringBlobStorage();
+      vary();
+      expect(new BlobService().isConfigured()).toBe(false);
+    }
   });
 
   it("lists both Azure containers with the metadata needed by maintenance tools", async () => {
-    useAzureBlobStorage();
+    useConnectionStringBlobStorage();
     const service = new BlobService();
     const lastModified = new Date("2026-09-01T00:00:00.000Z");
     const helper = service as unknown as {

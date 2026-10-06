@@ -3,6 +3,7 @@ import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import { createMediaProcessingJobHandler } from "@/features/media/media-processing.job-handler";
 import {
+  blobStorageWorkerResource,
   databaseWorkerResource,
   disconnectResources,
   rabbitMqWorkerResource,
@@ -10,7 +11,11 @@ import {
 import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
 
 const workerName = "Media processing worker";
-const workerResources = [databaseWorkerResource, rabbitMqWorkerResource];
+const workerResources = [
+  blobStorageWorkerResource,
+  databaseWorkerResource,
+  rabbitMqWorkerResource,
+];
 const workerLogger = loggerFactory
   .forComponent("media-processing.worker", "worker")
   .child({

@@ -115,7 +115,7 @@ export interface PersistenceTestStubs {
     getBlobUrl: jest.Mock<string, [string]>;
     getBlobOwnerId: jest.Mock<string | null, [string]>;
     createUploadUrl: jest.Mock<
-      Record<string, unknown>,
+      Promise<Record<string, unknown>>,
       [CreateBlobUploadUrlInput]
     >;
     assertLocalUploadToken: jest.Mock<void, [string, string, string]>;
@@ -917,7 +917,7 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
       getBlobOwnerId: jest.fn((blobName: string) =>
         realBlobNaming().getBlobOwnerId(blobName),
       ),
-      createUploadUrl: jest.fn((input: CreateBlobUploadUrlInput) => ({
+      createUploadUrl: jest.fn(async (input: CreateBlobUploadUrlInput) => ({
         method: "PUT" as const,
         uploadUrl: `http://rent.test/api/v1/blob/upload?blobName=${encodeURIComponent(input.blobName)}&expiresAt=2099-01-01T00:00:00.000Z&token=${TEST_UPLOAD_TOKEN}`,
         expiresAt: "2099-01-01T00:00:00.000Z",

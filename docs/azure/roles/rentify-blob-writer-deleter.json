@@ -1,0 +1,15 @@
+{
+  "Name": "Rentify Blob Writer-Deleter",
+  "IsCustom": true,
+  "Description": "Write and delete blobs, but not read or list them. Assigned on the public container to the API and the media processing worker.",
+  "Actions": [],
+  "NotActions": [],
+  "DataActions": [
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete"
+  ],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>"
+  ]
+}
