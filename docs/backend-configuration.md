@@ -605,6 +605,70 @@ See
 [architecture-overview.md](./architecture-overview.md#image-upload-validation)
 for where the scan runs and what each verdict does.
 
+## Media image moderation
+
+`mediaModeration` selects the visual content moderation that the media
+processing worker applies to each image after re-encoding it, before anything
+is published.
+
+| Key                        | Default | Override                              | Meaning                                                                       |
+| -------------------------- | ------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| `provider`                 | `none`  | `MEDIA_MODERATION_PROVIDER`           | `azure-content-safety`, or `none`, which allows every image                   |
+| `endpoint`                 | `null`  | `MEDIA_MODERATION_ENDPOINT`           | The Content Safety resource, `https://<resource>.cognitiveservices.azure.com` |
+| `auth`                     | `entra` | `MEDIA_MODERATION_AUTH`               | `entra` signs with the worker's identity; `api-key` sends the key             |
+| (environment only)         |         | `MEDIA_MODERATION_API_KEY`            | The resource key, required for `api-key` and refused for `entra`              |
+| `timeoutMs`                | `10000` | `MEDIA_MODERATION_TIMEOUT_MS`         | Limit for each request, from sending it to reading the reply                  |
+| `blockAtSeverity.hate`     | `4`     | `MEDIA_MODERATION_BLOCK_AT_HATE`      | Severity at or above which the category blocks the image                      |
+| `blockAtSeverity.sexual`   | `4`     | `MEDIA_MODERATION_BLOCK_AT_SEXUAL`    | As above                                                                      |
+| `blockAtSeverity.violence` | `4`     | `MEDIA_MODERATION_BLOCK_AT_VIOLENCE`  | As above                                                                      |
+| `blockAtSeverity.selfHarm` | `4`     | `MEDIA_MODERATION_BLOCK_AT_SELF_HARM` | As above                                                                      |
+
+Every scope is moderated: posting photos, organization logos, blog covers, and
+avatars. The worker sends the 800 px medium rendition, or the processed image
+when it is no wider than that, fitted inside 2048 x 2048 and padded to at least
+50 x 50, which are Content Safety's limits. The image is base64-encoded in the
+request body of `POST {endpoint}/contentsafety/image:analyze` (API version
+`2024-09-01`).
+
+Content Safety rates each of hate, sexual, violence, and self-harm as 0, 2, 4,
+or 6. An image is rejected with code `moderation` and the reason "This image
+doesn't meet our content guidelines." when any category reaches its
+`blockAtSeverity`, an integer from 0 to 7. The default of 4 blocks medium and
+high severity, which is content that is clearly harmful, and lets low severity
+through, so ordinary listing photos are not caught. 7 turns a category off. 0
+blocks every image, which is only useful to test the rejection path. Each
+attempt records the severities in `media.moderation_result`, for operators; no
+API response carries them.
+
+Moderation fails closed. A timeout, network failure, throttling (429), server
+error, refused credential, or unreadable answer is retried and then
+dead-lettered like any other processing failure, and the item ends as
+`processing_failed`. Nothing unscreened is published. After the provider
+recovers, replay those items with the
+[dead-letter runbook](../backend/src/app/workers/media/README.md#dead-letter-runbook).
+
+**Authentication.** `entra`, the default, uses the media processing worker's
+own identity (`MEDIA_PROCESSING_AZURE_CLIENT_ID` in Compose) with the scope
+`https://cognitiveservices.azure.com/.default`. Give that identity the
+built-in **Cognitive Services User** role on the Content Safety resource.
+Microsoft Entra ID only works against a resource with a custom subdomain,
+which is why the endpoint must be `<resource>.cognitiveservices.azure.com`
+(or the `.azure.us` and `.azure.cn` equivalents). `api-key` sends the
+resource key in `Ocp-Apim-Subscription-Key` instead. The key is a secret, so
+it can only be set in the environment, never in a YAML profile.
+
+**Cost.** Each image costs one Content Safety image analysis, billed per call,
+and a retried job calls it again. Images that are rejected earlier, for
+example for malware or their type, are never sent.
+
+**Data.** Only the processed image leaves the worker: no user ID, file name,
+or metadata, because re-encoding drops EXIF. Per Microsoft's
+[data, privacy, and security notes](https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/content-safety/data-privacy),
+Content Safety does not store the image, does not use it for training, keeps it
+in the resource's region, and does not make it available for human review. The
+[privacy policy](../frontend/src/app/privacy/page.tsx) discloses this
+screening.
+
 ## Media cleanup worker
 
 `workers.mediaCleanup` controls the sweep that deletes abandoned uploads,

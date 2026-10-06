@@ -19745,7 +19745,8 @@ components:
         - processing_failed
         - abandoned
         - malware
-      description: 'Why a media item was rejected. empty, too_large: the upload''s length is outside the policy. unsupported_type: the declared type is not accepted. type_mismatch: the bytes are not the declared image format. dimensions: the image is too large, or its size cannot be read. corrupt: the bytes do not decode as an image. animated: the image has more than one frame or page. upload_changed: the upload was written again after it was completed. missing_upload: the upload was gone when it was processed. processing_failed: processing kept failing, which is not the image''s fault; an operator may replay it. abandoned: the upload was never completed. malware: the malware scanner flagged the upload; the reason does not say what it found. More codes may be added; treat an unknown one like `corrupt`.'
+        - moderation
+      description: 'Why a media item was rejected. empty, too_large: the upload''s length is outside the policy. unsupported_type: the declared type is not accepted. type_mismatch: the bytes are not the declared image format. dimensions: the image is too large, or its size cannot be read. corrupt: the bytes do not decode as an image. animated: the image has more than one frame or page. upload_changed: the upload was written again after it was completed. missing_upload: the upload was gone when it was processed. processing_failed: processing kept failing, which is not the image''s fault; an operator may replay it. abandoned: the upload was never completed. malware: the malware scanner flagged the upload; the reason does not say what it found. moderation: content moderation found the image harmful; the reason does not say how. More codes may be added; treat an unknown one like `corrupt`.'
     MediaView:
       type: object
       required:

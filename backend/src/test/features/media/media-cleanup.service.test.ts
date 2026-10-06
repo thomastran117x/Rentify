@@ -54,6 +54,7 @@ function record(
     scanEngine: null,
     scannedAt: null,
     threatName: null,
+    moderationResult: null,
     createdAt: new Date(NOW.getTime() - HOUR_MS),
     updatedAt: new Date(NOW.getTime() - HOUR_MS),
     ...overrides,

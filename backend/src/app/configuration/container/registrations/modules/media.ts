@@ -91,6 +91,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.mediaMetrics,
         containerTokens.malwareScanner,
+        containerTokens.imageModeration,
       ],
       resolve: ({ resolve }) =>
         new MediaProcessingService(
@@ -98,6 +99,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaMetrics),
           resolve(containerTokens.malwareScanner),
+          resolve(containerTokens.imageModeration),
         ),
     });
     container.register({

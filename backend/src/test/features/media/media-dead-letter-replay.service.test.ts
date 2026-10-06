@@ -136,6 +136,7 @@ function createContext() {
       scanEngine: null,
       scannedAt: null,
       threatName: null,
+      moderationResult: null,
       createdAt: now,
       updatedAt: now,
       ...overrides,

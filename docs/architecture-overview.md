@@ -314,6 +314,51 @@ The frontend draws every image through `ResponsiveImage`
 there are none or one fails to load. Inline images in blog bodies are raw HTML
 and are not covered.
 
+**Content moderation.** Once the renditions are rendered, and before any of
+them is uploaded, the worker screens the image for harmful visual content. Only
+images that passed the malware scan and the image policy get this far, so
+moderation sees valid images only. It sits behind an `ImageModerationService`
+port (`features/media/moderation`) with two adapters:
+
+- `AzureContentSafetyModeration` sends the image to Azure AI Content Safety's
+  `image:analyze`. Content Safety rates hate, sexual, violence, and self-harm
+  as 0, 2, 4, or 6, and the image is blocked when any of them reaches its
+  configured `blockAtSeverity` (4 by default, which catches clearly harmful
+  content and lets low-severity content through).
+- `NoopModeration` allows every image and is used when
+  `mediaModeration.provider` is `none`, the default.
+
+The image sent is the medium rendition, or the processed image when there is
+none. It is fitted inside 2048 x 2048 and padded to at least 50 x 50, which
+are Content Safety's limits, so what is moderated is always the whole picture.
+Each processing attempt clears the row's previous result and records its own
+in `media.moderation_result` (the decision, the provider, and each category's
+severity). Then:
+
+- **Blocked:** the item is rejected with code `moderation` and the reason
+  "This image doesn't meet our content guidelines." The severities go only to
+  `moderation_result` and a warning log, never to the reason or a response.
+  Because nothing has been uploaded yet, no rendition of a blocked image ever
+  reaches the public container, even briefly. The quarantined upload is
+  deleted and the job is not retried.
+- **Provider unavailable:** a timeout, network failure, throttling, server
+  error, refused credential, or incomplete answer throws. The job goes through
+  the retry tiers and then the dead-letter queue, so moderation fails closed:
+  the item ends `processing_failed` and can be replayed once the provider is
+  back.
+- **Either way:** `MediaRepository.markReady` also requires the current
+  attempt to have recorded a moderation result, so the database itself refuses
+  to publish an unmoderated item.
+
+Every scope is moderated: posting photos, organization logos, blog covers, and
+avatars. Rows that were `ready` before moderation existed keep `NULL`, and the
+renditions backfill does not moderate them. A "needs human review" outcome
+would need a `pending_review` status and an admin queue, and spam or
+prohibited-listing detection (weapons, counterfeit goods) is outside what
+Content Safety covers; both are deferred. Configuration, authentication, cost,
+and what data leaves the worker are in
+[backend-configuration.md](./backend-configuration.md#media-image-moderation).
+
 **When an image is attached.** Every field that holds an image goes through one
 rule, `MediaService.resolveImageReference`: posting photos
 (`{ mediaId, position }`), `logoMediaId`, `coverImageMediaId`, and

@@ -19,6 +19,12 @@ import {
   type MalwareScanResult,
 } from "@/features/media/scanning/malware-scanner";
 import { NoopScanner } from "@/features/media/scanning/noop-scanner";
+import {
+  ImageModerationUnavailableError,
+  type ImageModerationService,
+  type ModerationResult,
+} from "@/features/media/moderation/image-moderation.service";
+import { NoopModeration } from "@/features/media/moderation/noop-moderation";
 import type { Logger } from "@/configuration/logging/types";
 import {
   RecordingMediaMetrics,
@@ -70,25 +76,67 @@ class FakeScanner implements MalwareScanner {
   }
 }
 
+const ALLOWED: ModerationResult = {
+  decision: "allow",
+  categories: { hate: 0, sexual: 0, violence: 2, selfHarm: 0 },
+  provider: "fake-moderation",
+};
+const BLOCKED: ModerationResult = {
+  decision: "block",
+  categories: { hate: 0, sexual: 0, violence: 6, selfHarm: 0 },
+  provider: "fake-moderation",
+};
+
+/**
+ * Answers with `result`, allow unless a test sets it. Records each image it
+ * was given.
+ */
+class FakeModeration implements ImageModerationService {
+  readonly moderated: Buffer[] = [];
+  result: ModerationResult = ALLOWED;
+
+  async moderate(image: Buffer): Promise<ModerationResult> {
+    this.moderated.push(image);
+    return this.result;
+  }
+
+  /** The size of each image it was given, as sharp reads it. */
+  async sizes(): Promise<Array<{ width?: number; height?: number }>> {
+    return Promise.all(
+      this.moderated.map(async (image) => {
+        const { width, height } = await sharp(image).metadata();
+        return { width, height };
+      }),
+    );
+  }
+}
+
 function createContext(
-  options: { metrics?: MediaMetrics; scanner?: MalwareScanner } = {},
+  options: {
+    metrics?: MediaMetrics;
+    scanner?: MalwareScanner;
+    moderation?: ImageModerationService;
+  } = {},
 ) {
   useLocalBlobStorage();
   const blobService = new BlobService();
   const mediaRepository = new InMemoryMediaRepository();
   const metrics = new RecordingMediaMetrics();
   const scanner = options.scanner ?? new FakeScanner();
+  const moderation = options.moderation ?? new FakeModeration();
 
   return {
     blobService,
     mediaRepository,
     metrics,
     scanner,
+    moderation,
     service: new MediaProcessingService(
       mediaRepository.asRepository(),
       blobService,
       options.metrics ?? metrics,
       scanner,
+      moderation,
     ),
   };
 }
@@ -140,6 +188,7 @@ async function quarantine(
     scanEngine: null,
     scannedAt: null,
     threatName: null,
+    moderationResult: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -194,9 +243,10 @@ describe("MediaProcessingService", () => {
 
     await context.service.process(record.id);
 
-    // Progress is reported after the download, the scan, and rendering, so
-    // the media cleanup never takes a slow job for a lost one.
+    // Progress is reported after the download, the scan, rendering, and
+    // moderation, so the media cleanup never takes a slow job for a lost one.
     expect(context.mediaRepository.progressRecorded).toEqual([
+      record.id,
       record.id,
       record.id,
       record.id,
@@ -1368,6 +1418,264 @@ describe("MediaProcessingService", () => {
       expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
         { scope: "postings", outcome: "discarded" },
       ]);
+    });
+  });
+
+  describe("content moderation", () => {
+    function warnSpy(context: Context) {
+      return jest.spyOn(
+        (context.service as unknown as { logger: Logger }).logger,
+        "warn",
+      );
+    }
+
+    function fake(context: Context): FakeModeration {
+      return context.moderation as FakeModeration;
+    }
+
+    it("moderates the medium rendition and records the result", async () => {
+      const context = createContext();
+      const record = await quarantine(
+        context,
+        await createPngFixture(1600, 1200),
+      );
+
+      await context.service.process(record.id);
+
+      expect(await fake(context).sizes()).toEqual([
+        { width: 800, height: 600 },
+      ]);
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "ready",
+        moderationResult: ALLOWED,
+      });
+      for (const blobName of renditionNames(context, record.id)) {
+        await expect(
+          context.blobService.readLocalBlob(blobName),
+        ).resolves.toBeDefined();
+      }
+    });
+
+    it("moderates the processed image when it has no medium rendition", async () => {
+      const context = createContext();
+      const record = await quarantine(
+        context,
+        await createPngFixture(640, 480),
+      );
+
+      await context.service.process(record.id);
+
+      expect(await fake(context).sizes()).toEqual([
+        { width: 640, height: 480 },
+      ]);
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "ready",
+      );
+    });
+
+    it("pads an image too small for the provider without enlarging it", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(12, 8));
+
+      await context.service.process(record.id);
+
+      expect(await fake(context).sizes()).toEqual([{ width: 50, height: 50 }]);
+      // Only what is moderated is padded; what is served is the image itself.
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({ status: "ready", width: 12, height: 8 });
+    });
+
+    it("fits an image too tall for the provider inside its limit", async () => {
+      const context = createContext();
+      const record = await quarantine(
+        context,
+        await createPngFixture(900, 2560),
+      );
+
+      await context.service.process(record.id);
+
+      // The medium rendition is 800 x 2276; the provider takes 2048 at most.
+      expect(await fake(context).sizes()).toEqual([
+        { width: 720, height: 2048 },
+      ]);
+    });
+
+    it("rejects a blocked image without writing any rendition", async () => {
+      const context = createContext();
+      fake(context).result = BLOCKED;
+      const warn = warnSpy(context);
+      const uploadBuffer = jest.spyOn(context.blobService, "uploadBuffer");
+      const record = await quarantine(
+        context,
+        await createPngFixture(1600, 1200),
+      );
+
+      await context.service.process(record.id);
+
+      const rejected = await context.mediaRepository.findById(record.id);
+
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        rejectionCode: "moderation",
+        rejectionReason: "This image doesn't meet our content guidelines.",
+        processedBlobName: null,
+        variants: null,
+        moderationResult: BLOCKED,
+      });
+      expect(rejected?.rejectionReason).not.toMatch(/violence/i);
+      expect(uploadBuffer).not.toHaveBeenCalled();
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      await expectMissing(context, record.originalBlobName);
+      expect(warn).toHaveBeenCalledWith(
+        "Rejected an image that failed content moderation.",
+        {
+          mediaId: record.id,
+          userId: USER_1_ID,
+          provider: "fake-moderation",
+          categories: BLOCKED.categories,
+        },
+      );
+      expect(context.metrics.tagsOf("media.rejected")).toEqual([
+        { code: "moderation", stage: "processing" },
+      ]);
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "rejected" },
+      ]);
+      expect(context.metrics.count("media.processing.success")).toBe(0);
+    });
+
+    it("never moderates an upload that fails an earlier check", async () => {
+      const context = createContext();
+      const record = await quarantine(context, INFECTED_MARKER);
+
+      await context.service.process(record.id);
+
+      expect(fake(context).moderated).toEqual([]);
+      expect(
+        (await context.mediaRepository.findById(record.id))?.rejectionCode,
+      ).toBe("malware");
+    });
+
+    it("rethrows when the provider is unavailable, publishing nothing", async () => {
+      const context = createContext({
+        moderation: {
+          moderate: () =>
+            Promise.reject(
+              new ImageModerationUnavailableError(
+                "Content Safety answered 503.",
+                503,
+              ),
+            ),
+        },
+      });
+      const record = await quarantine(
+        context,
+        await createPngFixture(1600, 1200),
+      );
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        ImageModerationUnavailableError,
+      );
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "processing",
+        moderationResult: null,
+        processedBlobName: null,
+      });
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      // The upload is kept for the retry.
+      await expect(
+        context.blobService.readLocalBlob(record.originalBlobName),
+      ).resolves.toBeDefined();
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "failed" },
+      ]);
+    });
+
+    it("makes each attempt moderate again, so an earlier result cannot carry over", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      context.mediaRepository.put({
+        ...record,
+        status: "processing",
+        moderationResult: ALLOWED,
+      });
+      jest
+        .spyOn(context.moderation, "moderate")
+        .mockRejectedValueOnce(
+          new ImageModerationUnavailableError("Content Safety answered 503."),
+        );
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        ImageModerationUnavailableError,
+      );
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "processing",
+        moderationResult: null,
+      });
+    });
+
+    it("cannot record its result once a later attempt has claimed the item", async () => {
+      const context = createContext();
+      const moderation = fake(context);
+      moderation.result = BLOCKED;
+      const record = await quarantine(context, await createPngFixture());
+      const repository = context.mediaRepository;
+      const moderate = moderation.moderate.bind(moderation);
+      jest
+        .spyOn(moderation, "moderate")
+        .mockImplementationOnce(async (image) => {
+          // A later attempt claims the item while this one is moderating.
+          await repository.claimForProcessing(record.id, 1);
+          return moderate(image);
+        });
+
+      await context.service.process(record.id);
+
+      // The overtaken attempt neither recorded its result nor rejected the
+      // item, and wrote nothing; the later attempt moderates for itself.
+      await expect(repository.findById(record.id)).resolves.toMatchObject({
+        status: "processing",
+        processingAttempts: 2,
+        moderationResult: null,
+      });
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
+        { scope: "postings", outcome: "discarded" },
+      ]);
+    });
+
+    it("allows every image unchanged when no provider is configured", async () => {
+      const context = createContext({ moderation: new NoopModeration() });
+      const record = await quarantine(
+        context,
+        await createPngFixture(1600, 1200),
+      );
+
+      await context.service.process(record.id);
+
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "ready",
+        moderationResult: {
+          decision: "allow",
+          categories: {},
+          provider: "none",
+        },
+      });
     });
   });
 
