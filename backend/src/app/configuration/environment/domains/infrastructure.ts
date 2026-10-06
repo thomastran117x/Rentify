@@ -9,12 +9,14 @@ import {
   parseBoolean,
   parseNumber,
   parseStorageAccountUrl,
+  parseStorageConnectionString,
 } from "@/configuration/environment/shared";
 import {
   BLOB_STORAGE_AUTH_MODES,
   MEDIA_SCANNER_KINDS,
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
+  type BlobStorageAccount,
   type BlobStorageAuthMode,
   type MediaScannerKind,
   type NodeEnvironment,
@@ -38,64 +40,6 @@ export function validateInfrastructureConfig(
 
   if (nodeEnv === "production" && !raw.RABBITMQ_URL) {
     errors.push("RABBITMQ_URL is required when NODE_ENV is production.");
-  }
-
-  validateBlobStorageConfig(raw, errors);
-}
-
-// Client uploads go to their own private container, so whenever Azure is used
-// both containers must be named, and they must not be the same container.
-// Entra mode, the default, names the account by URL instead of a connection
-// string, and refuses the connection string outright: the point of the mode
-// is that no process holds the account key. A deployment that still sets one
-// has to opt in to the deprecated connection-string mode by name.
-function validateBlobStorageConfig(
-  raw: RawEnvironmentValues,
-  errors: string[],
-): void {
-  const entra = readBlobStorageAuthMode(raw) === "entra";
-  const accountVariable = entra
-    ? "AZURE_STORAGE_ACCOUNT_URL"
-    : "AZURE_STORAGE_CONNECTION_STRING";
-  const publicContainer = raw.AZURE_STORAGE_CONTAINER_NAME?.trim();
-  const quarantineContainer =
-    raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?.trim();
-  const configured = [
-    Boolean(raw[accountVariable]),
-    Boolean(publicContainer),
-    Boolean(quarantineContainer),
-  ];
-
-  if (configured.some(Boolean) && !configured.every(Boolean)) {
-    errors.push(
-      `${accountVariable}, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together${entra ? " when AZURE_STORAGE_AUTH is entra" : ""}.`,
-    );
-  }
-
-  if (entra && raw.AZURE_STORAGE_CONNECTION_STRING) {
-    errors.push(
-      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
-    );
-  }
-
-  if (
-    entra &&
-    raw.AZURE_STORAGE_ACCOUNT_URL &&
-    !parseStorageAccountUrl(raw.AZURE_STORAGE_ACCOUNT_URL)
-  ) {
-    errors.push(
-      "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
-    );
-  }
-
-  if (
-    publicContainer &&
-    quarantineContainer &&
-    publicContainer.toLowerCase() === quarantineContainer.toLowerCase()
-  ) {
-    errors.push(
-      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
-    );
   }
 }
 
@@ -218,12 +162,25 @@ export function buildBlobStorageConfig(
     );
   }
 
+  const containerName = raw.AZURE_STORAGE_CONTAINER_NAME?.trim() || undefined;
+  const quarantineContainerName =
+    raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME?.trim() || undefined;
+
   return {
     auth: auth ?? "entra",
-    accountUrl: raw.AZURE_STORAGE_ACCOUNT_URL,
-    connectionString: raw.AZURE_STORAGE_CONNECTION_STRING,
-    containerName: raw.AZURE_STORAGE_CONTAINER_NAME,
-    quarantineContainerName: raw.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+    // An unknown mode has already been reported; checking the account against
+    // either mode's rules would only add a misleading second error.
+    account: auth
+      ? readBlobStorageAccount(
+          raw,
+          auth,
+          containerName,
+          quarantineContainerName,
+          errors,
+        )
+      : undefined,
+    containerName,
+    quarantineContainerName,
     quarantineLegacyFallback: parseBoolean(
       raw.MEDIA_QUARANTINE_LEGACY_FALLBACK,
       false,
@@ -240,6 +197,86 @@ export function buildBlobStorageConfig(
       },
     ),
   };
+}
+
+/**
+ * Validates and parses the account for the chosen mode, so every blob setting
+ * is checked when the environment loads, before any process does I/O.
+ *
+ * Client uploads go to their own private container, so whenever Azure is used
+ * both containers must be named, and they must not be the same container.
+ * Entra mode, the default, names the account by URL and refuses the connection
+ * string outright: the point of the mode is that no process holds the account
+ * key. A deployment that still sets one has to opt in to the deprecated
+ * connection-string mode by name.
+ */
+function readBlobStorageAccount(
+  raw: RawEnvironmentValues,
+  auth: BlobStorageAuthMode,
+  publicContainer: string | undefined,
+  quarantineContainer: string | undefined,
+  errors: string[],
+): BlobStorageAccount | undefined {
+  const entra = auth === "entra";
+  const accountVariable = entra
+    ? "AZURE_STORAGE_ACCOUNT_URL"
+    : "AZURE_STORAGE_CONNECTION_STRING";
+  const accountSetting = raw[accountVariable];
+  const configured = [
+    Boolean(accountSetting),
+    Boolean(publicContainer),
+    Boolean(quarantineContainer),
+  ];
+
+  if (entra && raw.AZURE_STORAGE_CONNECTION_STRING) {
+    errors.push(
+      "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
+    );
+  }
+
+  if (configured.some(Boolean) && !configured.every(Boolean)) {
+    errors.push(
+      `${accountVariable}, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must be configured together${entra ? "" : " when AZURE_STORAGE_AUTH is connection-string"}.`,
+    );
+  }
+
+  if (
+    publicContainer &&
+    quarantineContainer &&
+    publicContainer.toLowerCase() === quarantineContainer.toLowerCase()
+  ) {
+    errors.push(
+      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
+    );
+  }
+
+  if (!accountSetting) {
+    return undefined;
+  }
+
+  if (entra) {
+    const account = parseStorageAccountUrl(accountSetting);
+
+    if (!account) {
+      errors.push(
+        "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
+      );
+      return undefined;
+    }
+
+    return configured.every(Boolean) ? { auth, ...account } : undefined;
+  }
+
+  const account = parseStorageConnectionString(accountSetting);
+
+  if (!account) {
+    errors.push(
+      "AZURE_STORAGE_CONNECTION_STRING must be a storage connection string that includes AccountName and AccountKey.",
+    );
+    return undefined;
+  }
+
+  return configured.every(Boolean) ? { auth, ...account } : undefined;
 }
 
 // The allow-list is intentionally a narrowing-only knob. Operators can drop a

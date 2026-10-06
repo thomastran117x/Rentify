@@ -58,6 +58,54 @@ export function parseStorageAccountUrl(
   return null;
 }
 
+/**
+ * Reads a storage account connection string into the account name, its key,
+ * and the blob endpoint clients are built on. Returns null when the string is
+ * malformed or lacks AccountName or AccountKey.
+ */
+export function parseStorageConnectionString(
+  value: string,
+): { accountName: string; accountKey: string; serviceUrl: string } | null {
+  const segments: Record<string, string> = {};
+
+  for (const segment of value.split(";")) {
+    const trimmed = segment.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+
+    if (separatorIndex <= 0) {
+      return null;
+    }
+
+    segments[trimmed.slice(0, separatorIndex)] = trimmed.slice(
+      separatorIndex + 1,
+    );
+  }
+
+  const accountName = segments.AccountName;
+  const accountKey = segments.AccountKey;
+
+  if (!accountName || !accountKey) {
+    return null;
+  }
+
+  const protocol = segments.DefaultEndpointsProtocol ?? "https";
+  const endpointSuffix = segments.EndpointSuffix ?? "core.windows.net";
+  const serviceUrl =
+    segments.BlobEndpoint ??
+    `${protocol}://${accountName}.blob.${endpointSuffix}`;
+
+  return {
+    accountName,
+    accountKey,
+    serviceUrl: serviceUrl.replace(/\/+$/, ""),
+  };
+}
+
 export function normalizeOptionalString(
   value: string | undefined,
 ): string | undefined {

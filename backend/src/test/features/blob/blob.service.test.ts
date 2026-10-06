@@ -406,43 +406,28 @@ describe("BlobService", () => {
       );
     });
 
-    it("refuses entra configuration that is incomplete, keyed, or not a blob endpoint", () => {
-      useEntraBlobStorage();
-      delete process.env.AZURE_STORAGE_ACCOUNT_URL;
-      expect(() => new BlobService()).toThrow(
-        "Azure Blob Storage requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
-      );
+    // The environment rejects all of these at startup (see the
+    // EnvironmentManager tests); BlobService only ever sees a parsed account.
+    it("stays unconfigured for entra settings the environment rejects", () => {
+      const variants: Array<() => void> = [
+        () => delete process.env.AZURE_STORAGE_ACCOUNT_URL,
+        () => delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME,
+        ...[
+          "http://rent.blob.core.windows.net",
+          "https://user@rent.blob.core.windows.net",
+          "https://attacker.example",
+          "https://ab.blob.core.windows.net",
+          "not a url",
+        ].map((accountUrl) => () => {
+          process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
+        }),
+      ];
 
-      useEntraBlobStorage();
-      process.env.AZURE_STORAGE_CONNECTION_STRING =
-        "DefaultEndpointsProtocol=https;AccountName=rent;AccountKey=key";
-      expect(() => new BlobService()).toThrow(
-        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
-      );
-
-      for (const accountUrl of [
-        "http://rent.blob.core.windows.net",
-        "https://127.0.0.1:10000/devstoreaccount1",
-        "https://user@rent.blob.core.windows.net",
-        "https://attacker.example",
-        "https://rent.blob.core.windows.net.attacker.example",
-        "https://rent.blob.core.windows.net:8443",
-        "https://ab.blob.core.windows.net",
-        "not a url",
-      ]) {
+      for (const vary of variants) {
         useEntraBlobStorage();
-        process.env.AZURE_STORAGE_ACCOUNT_URL = accountUrl;
-        expect(() => new BlobService()).toThrow(
-          "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
-        );
+        vary();
+        expect(new BlobService().isConfigured()).toBe(false);
       }
-
-      // With nothing to reach, entra mode leaves storage unconfigured.
-      useEntraBlobStorage();
-      delete process.env.AZURE_STORAGE_ACCOUNT_URL;
-      delete process.env.AZURE_STORAGE_CONTAINER_NAME;
-      delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
-      expect(new BlobService().isConfigured()).toBe(false);
     });
 
     it("accepts the blob endpoints of every Azure cloud and DNS zone endpoints", () => {
@@ -1111,18 +1096,17 @@ describe("BlobService", () => {
     });
   });
 
-  it("requires complete Azure configuration", () => {
-    useConnectionStringBlobStorage();
-    delete process.env.AZURE_STORAGE_CONTAINER_NAME;
-
-    expect(() => new BlobService()).toThrow(ServiceNotImplementedError);
-
-    useConnectionStringBlobStorage();
-    delete process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME;
-
-    expect(() => new BlobService()).toThrow(
-      "Azure Blob Storage with AZURE_STORAGE_AUTH=connection-string requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
-    );
+  it("stays unconfigured for a connection string the environment rejects", () => {
+    for (const vary of [
+      () => delete process.env.AZURE_STORAGE_CONTAINER_NAME,
+      () => {
+        process.env.AZURE_STORAGE_CONNECTION_STRING = "AccountName=rent";
+      },
+    ]) {
+      useConnectionStringBlobStorage();
+      vary();
+      expect(new BlobService().isConfigured()).toBe(false);
+    }
   });
 
   it("warns that the connection-string mode is deprecated, and only for it", () => {
@@ -1148,15 +1132,6 @@ describe("BlobService", () => {
     } finally {
       forClass.mockRestore();
     }
-  });
-
-  it("refuses a quarantine container that is the public container", () => {
-    useConnectionStringBlobStorage();
-    process.env.AZURE_STORAGE_QUARANTINE_CONTAINER_NAME = " UPLOADS ";
-
-    expect(() => new BlobService()).toThrow(
-      "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
-    );
   });
 
   it("lists both Azure containers with the metadata needed by maintenance tools", async () => {

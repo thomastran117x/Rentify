@@ -10,6 +10,15 @@ export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
 export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
 export const BLOB_STORAGE_AUTH_MODES = ["connection-string", "entra"] as const;
 export type BlobStorageAuthMode = (typeof BLOB_STORAGE_AUTH_MODES)[number];
+/** A storage account as the environment layer parsed and validated it. */
+export type BlobStorageAccount =
+  | { auth: "entra"; accountName: string; serviceUrl: string }
+  | {
+      auth: "connection-string";
+      accountName: string;
+      accountKey: string;
+      serviceUrl: string;
+    };
 export const PAYPAL_CHECKOUT_METHODS = [
   "paypal",
   "paypal_guest",
@@ -431,9 +440,12 @@ export interface AppEnvironment {
      * and is deprecated.
      */
     auth: BlobStorageAuthMode;
-    /** The account's blob endpoint, which entra mode uses instead of a key. */
-    accountUrl?: string;
-    connectionString?: string;
+    /**
+     * The account to reach, present only when the account setting and both
+     * container names are configured and valid. Absent means Azure is not
+     * configured; startup has already rejected anything in between.
+     */
+    account?: BlobStorageAccount;
     containerName?: string;
     quarantineContainerName?: string;
     /** Look for quarantine names in their pre-split location too. */

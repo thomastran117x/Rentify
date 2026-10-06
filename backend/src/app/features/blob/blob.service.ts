@@ -14,8 +14,8 @@ import {
 } from "@azure/storage-blob";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
+import type { BlobStorageAccount } from "@/configuration/environment/types";
 import { LOCAL_BLOB_UPLOAD_TTL_SECONDS } from "@/configuration/environment/constants";
-import { parseStorageAccountUrl } from "@/configuration/environment/shared";
 import { loggerFactory } from "@/configuration/logging";
 import BlobChangedError from "@/errors/blob-changed.error";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -35,26 +35,15 @@ import {
   PROCESSED_IMAGE_EXTENSION,
 } from "@/features/blob/image-variant-names";
 
-interface AzureBlobContainers {
+// The account as the environment layer parsed and validated it, plus the
+// containers and SAS lifetime this class signs for.
+type AzureBlobConfiguration = BlobStorageAccount & {
   /** The trusted container: worker output and blobs that may be served. */
   containerName: string;
   /** The private container client uploads land in. */
   quarantineContainerName: string;
   sasTtlSeconds: number;
-}
-
-interface AzureAccount {
-  accountName: string;
-  serviceUrl: string;
-}
-
-type AzureBlobConfiguration = AzureBlobContainers &
-  AzureAccount &
-  (
-    | { auth: "connection-string"; accountKey: string }
-    // No secret: the process's identity comes from DefaultAzureCredential.
-    | { auth: "entra" }
-  );
+};
 
 interface LocalBlobConfiguration {
   /** Holds one directory per container, named like BlobContainer. */
@@ -813,73 +802,23 @@ export class BlobService {
     return this.isQuarantineBlobName(blobName) ? "quarantine" : "public";
   }
 
+  // Everything here was validated when the environment loaded, so a partial
+  // or invalid configuration never reaches this class: no account means Azure
+  // is simply not configured.
   private readConfiguration(): AzureBlobConfiguration | null {
-    const blobConfig = environment.getBlobStorageConfig();
-    const entra = blobConfig.auth === "entra";
-    const connectionString = blobConfig.connectionString;
-    // Each mode names the account its own way; the other mode's setting is
-    // ignored, except that entra mode refuses to run beside the account key.
-    const accountSetting = entra
-      ? blobConfig.accountUrl?.trim()
-      : connectionString;
-    const containerName = blobConfig.containerName?.trim();
-    const quarantineContainerName = blobConfig.quarantineContainerName?.trim();
+    const { account, containerName, quarantineContainerName } =
+      environment.getBlobStorageConfig();
 
-    if (entra && connectionString) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_CONNECTION_STRING must not be set when AZURE_STORAGE_AUTH is entra, the default. Move to Microsoft Entra ID with AZURE_STORAGE_ACCOUNT_URL, or set AZURE_STORAGE_AUTH=connection-string to keep the deprecated account-key mode.",
-      );
-    }
-
-    if (!accountSetting && !containerName && !quarantineContainerName) {
+    if (!account || !containerName || !quarantineContainerName) {
       return null;
     }
 
-    if (!accountSetting || !containerName || !quarantineContainerName) {
-      throw new ServiceNotImplementedError(
-        entra
-          ? "Azure Blob Storage requires AZURE_STORAGE_ACCOUNT_URL, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME."
-          : "Azure Blob Storage with AZURE_STORAGE_AUTH=connection-string requires AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER_NAME, and AZURE_STORAGE_QUARANTINE_CONTAINER_NAME.",
-      );
-    }
-
-    if (containerName.toLowerCase() === quarantineContainerName.toLowerCase()) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME must differ from AZURE_STORAGE_CONTAINER_NAME.",
-      );
-    }
-
-    const containers: AzureBlobContainers = {
+    return {
+      ...account,
       containerName,
       quarantineContainerName,
       sasTtlSeconds: this.readSasTtlSeconds(),
     };
-
-    if (entra) {
-      return {
-        auth: "entra",
-        ...this.parseAccountUrl(accountSetting),
-        ...containers,
-      };
-    }
-
-    return {
-      auth: "connection-string",
-      ...this.parseConnectionString(accountSetting),
-      ...containers,
-    };
-  }
-
-  private parseAccountUrl(accountUrl: string): AzureAccount {
-    const account = parseStorageAccountUrl(accountUrl);
-
-    if (!account) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_ACCOUNT_URL must be an Azure Blob endpoint such as https://<account>.blob.core.windows.net.",
-      );
-    }
-
-    return account;
   }
 
   private readLocalConfiguration(): LocalBlobConfiguration | null {
@@ -903,51 +842,6 @@ export class BlobService {
       uploadTtlSeconds: LOCAL_BLOB_UPLOAD_TTL_SECONDS,
       signingSecret,
       defaultPublicOrigin: `http://localhost:${port}`,
-    };
-  }
-
-  private parseConnectionString(
-    connectionString: string,
-  ): AzureAccount & { accountKey: string } {
-    const segments = Object.fromEntries(
-      connectionString
-        .split(";")
-        .map((segment) => segment.trim())
-        .filter((segment) => segment.length > 0)
-        .map((segment) => {
-          const separatorIndex = segment.indexOf("=");
-
-          if (separatorIndex <= 0) {
-            throw new ServiceNotImplementedError(
-              "AZURE_STORAGE_CONNECTION_STRING is invalid.",
-            );
-          }
-
-          const key = segment.slice(0, separatorIndex);
-          const value = segment.slice(separatorIndex + 1);
-          return [key, value];
-        }),
-    );
-
-    const accountName = segments.AccountName;
-    const accountKey = segments.AccountKey;
-
-    if (!accountName || !accountKey) {
-      throw new ServiceNotImplementedError(
-        "AZURE_STORAGE_CONNECTION_STRING must include AccountName and AccountKey for SAS generation.",
-      );
-    }
-
-    const protocol = segments.DefaultEndpointsProtocol ?? "https";
-    const endpointSuffix = segments.EndpointSuffix ?? "core.windows.net";
-    const serviceUrl =
-      segments.BlobEndpoint ??
-      `${protocol}://${accountName}.blob.${endpointSuffix}`;
-
-    return {
-      accountName,
-      accountKey,
-      serviceUrl: serviceUrl.replace(/\/+$/, ""),
     };
   }
 
