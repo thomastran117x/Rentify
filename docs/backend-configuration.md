@@ -649,7 +649,8 @@ recovers, replay those items with the
 
 **Authentication.** `entra`, the default, uses the media processing worker's
 own identity (`MEDIA_PROCESSING_AZURE_CLIENT_ID` in Compose) with the scope
-`https://cognitiveservices.azure.com/.default`. Give that identity the
+of the endpoint's cloud: `https://cognitiveservices.azure.com/.default`, or
+the `.azure.us` or `.azure.cn` equivalent. Give that identity the
 built-in **Cognitive Services User** role on the Content Safety resource.
 Microsoft Entra ID only works against a resource with a custom subdomain,
 which is why the endpoint must be `<resource>.cognitiveservices.azure.com`

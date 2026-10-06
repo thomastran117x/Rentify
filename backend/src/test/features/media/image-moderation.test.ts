@@ -2,6 +2,7 @@ import type { TokenCredential } from "@azure/identity";
 import {
   AzureContentSafetyModeration,
   COGNITIVE_SERVICES_SCOPE,
+  cognitiveServicesScope,
   CONTENT_SAFETY_API_VERSION,
   type AzureContentSafetyModerationOptions,
 } from "@/features/media/moderation/azure-content-safety-moderation";
@@ -165,6 +166,39 @@ describe("AzureContentSafetyModeration", () => {
       "Content-Type": "application/json",
       Authorization: "Bearer entra-token",
     });
+  });
+
+  it("asks for a token from the endpoint's own cloud", async () => {
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => respond(200, analysis()));
+
+    for (const [endpoint, scope] of [
+      [ENDPOINT, "https://cognitiveservices.azure.com/.default"],
+      [
+        "https://rentify-safety.cognitiveservices.azure.us",
+        "https://cognitiveservices.azure.us/.default",
+      ],
+      [
+        "https://rentify-safety.cognitiveservices.azure.cn",
+        "https://cognitiveservices.azure.cn/.default",
+      ],
+    ] as const) {
+      const credential = fakeCredential();
+
+      await createModeration({
+        endpoint,
+        auth: { kind: "entra", credential },
+      }).moderate(IMAGE);
+
+      expect(credential.getToken).toHaveBeenCalledWith(scope);
+    }
+  });
+
+  it("falls back to the public cloud's scope for any other host", () => {
+    expect(cognitiveServicesScope("https://example.com")).toBe(
+      COGNITIVE_SERVICES_SCOPE,
+    );
   });
 
   it("allows an image under every threshold and records its severities", async () => {

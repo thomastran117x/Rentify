@@ -14,6 +14,19 @@ export const CONTENT_SAFETY_API_VERSION = "2024-09-01";
 export const COGNITIVE_SERVICES_SCOPE =
   "https://cognitiveservices.azure.com/.default";
 
+/**
+ * The Entra ID scope for the cloud `endpoint` is in. A token is only accepted
+ * by its own cloud, so a US Government (`.azure.us`) or China (`.azure.cn`)
+ * resource needs that cloud's audience, not the public one.
+ */
+export function cognitiveServicesScope(endpoint: string): string {
+  const cloud = /\.(cognitiveservices\.azure\.(?:com|us|cn))$/.exec(
+    new URL(endpoint).hostname,
+  )?.[1];
+
+  return cloud ? `https://${cloud}/.default` : COGNITIVE_SERVICES_SCOPE;
+}
+
 const AZURE_CATEGORY_NAMES: Record<ModerationCategory, string> = {
   hate: "Hate",
   sexual: "Sexual",
@@ -43,9 +56,11 @@ export interface AzureContentSafetyModerationOptions {
  */
 export class AzureContentSafetyModeration implements ImageModerationService {
   private readonly url: string;
+  private readonly scope: string;
 
   constructor(private readonly options: AzureContentSafetyModerationOptions) {
     this.url = `${options.endpoint}/contentsafety/image:analyze?api-version=${CONTENT_SAFETY_API_VERSION}`;
+    this.scope = cognitiveServicesScope(options.endpoint);
   }
 
   async moderate(image: Buffer): Promise<ModerationResult> {
@@ -119,7 +134,7 @@ export class AzureContentSafetyModeration implements ImageModerationService {
 
     try {
       // The credential caches the token and renews it before it expires.
-      token = await auth.credential.getToken(COGNITIVE_SERVICES_SCOPE);
+      token = await auth.credential.getToken(this.scope);
     } catch (error) {
       throw new ImageModerationUnavailableError(
         "Could not sign in to Azure AI Content Safety.",
