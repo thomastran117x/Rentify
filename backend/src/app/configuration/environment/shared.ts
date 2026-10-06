@@ -17,6 +17,42 @@ const STORAGE_ACCOUNT_HOST_PATTERNS = [
   /^([a-z0-9]{3,24})\.z[0-9]{2}\.blob\.storage\.azure\.net$/,
 ];
 
+// Custom-subdomain endpoints of Azure AI services in the public, US Government
+// and China clouds. Microsoft Entra ID only works against a custom subdomain.
+const COGNITIVE_SERVICES_HOST_PATTERN =
+  /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.cognitiveservices\.azure\.(?:com|us|cn)$/;
+
+/**
+ * Reads an Azure AI services endpoint, such as
+ * https://<resource>.cognitiveservices.azure.com, into its origin. Returns
+ * null for anything else, because every request to it carries an image and
+ * either the API key or the process's bearer token.
+ */
+export function parseCognitiveServicesEndpoint(value: string): string | null {
+  let url: URL;
+
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+
+  if (
+    url.protocol !== "https:" ||
+    url.port ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password ||
+    !COGNITIVE_SERVICES_HOST_PATTERN.test(url.hostname)
+  ) {
+    return null;
+  }
+
+  return url.origin;
+}
+
 /**
  * Reads an Azure Blob service endpoint, https://<account>.blob.core.windows.net,
  * into the account name and the URL clients are built on. Returns null for

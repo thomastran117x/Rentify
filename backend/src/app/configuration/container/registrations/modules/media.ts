@@ -13,6 +13,7 @@ import { MediaProcessingService } from "@/features/media/media-processing.servic
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaService } from "@/features/media/media.service";
 import { createMalwareScanner } from "@/features/media/scanning/create-malware-scanner";
+import { createImageModeration } from "@/features/media/moderation/create-image-moderation";
 import { ImageVariantsResolver } from "@/features/media/image-variants";
 
 export const mediaRegistrationModule: ContainerRegistrationModule = {
@@ -44,6 +45,13 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           environment.getMediaScanningConfig(),
           environment.isProduction(),
         ),
+    });
+    container.register({
+      token: containerTokens.imageModeration,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () =>
+        createImageModeration(environment.getMediaModerationConfig()),
     });
     container.register({
       token: containerTokens.imageVariantsResolver,

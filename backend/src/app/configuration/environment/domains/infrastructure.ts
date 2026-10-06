@@ -7,17 +7,22 @@ import {
 import {
   normalizeDelimitedList,
   parseBoolean,
+  parseCognitiveServicesEndpoint,
   parseNumber,
   parseStorageAccountUrl,
   parseStorageConnectionString,
 } from "@/configuration/environment/shared";
 import {
   BLOB_STORAGE_AUTH_MODES,
+  MEDIA_MODERATION_AUTH_MODES,
+  MEDIA_MODERATION_PROVIDERS,
   MEDIA_SCANNER_KINDS,
   PAYPAL_CHECKOUT_METHODS,
   type AppEnvironment,
   type BlobStorageAccount,
   type BlobStorageAuthMode,
+  type MediaModerationAuthMode,
+  type MediaModerationProvider,
   type MediaScannerKind,
   type NodeEnvironment,
   type PayPalCheckoutMethod,
@@ -386,6 +391,107 @@ export function buildMediaScanningConfig(
 
 function isMediaScannerKind(value: string): value is MediaScannerKind {
   return (MEDIA_SCANNER_KINDS as readonly string[]).includes(value);
+}
+
+const DEFAULT_MODERATION_BLOCK_AT_SEVERITY = 4;
+
+/**
+ * Pre-publication moderation of each processed image. `none`, the default,
+ * allows everything, so turning moderation on is an explicit choice. The
+ * endpoint and credentials are checked here, when the environment loads, so a
+ * misconfigured deployment fails at startup rather than on its first upload.
+ * Like blob storage, entra mode refuses an API key outright.
+ */
+export function buildMediaModerationConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["mediaModeration"] {
+  const providerValue = raw.MEDIA_MODERATION_PROVIDER?.toLowerCase() ?? "none";
+  let provider: MediaModerationProvider = "none";
+
+  if (
+    (MEDIA_MODERATION_PROVIDERS as readonly string[]).includes(providerValue)
+  ) {
+    provider = providerValue as MediaModerationProvider;
+  } else {
+    errors.push(
+      `MEDIA_MODERATION_PROVIDER must be one of: ${MEDIA_MODERATION_PROVIDERS.join(", ")}.`,
+    );
+  }
+
+  const authValue = raw.MEDIA_MODERATION_AUTH?.toLowerCase() ?? "entra";
+  let auth: MediaModerationAuthMode = "entra";
+
+  if ((MEDIA_MODERATION_AUTH_MODES as readonly string[]).includes(authValue)) {
+    auth = authValue as MediaModerationAuthMode;
+  } else {
+    errors.push(
+      `MEDIA_MODERATION_AUTH must be one of: ${MEDIA_MODERATION_AUTH_MODES.join(", ")}.`,
+    );
+  }
+
+  const azure = provider === "azure-content-safety";
+  let endpoint: string | undefined;
+
+  if (raw.MEDIA_MODERATION_ENDPOINT) {
+    endpoint =
+      parseCognitiveServicesEndpoint(raw.MEDIA_MODERATION_ENDPOINT) ??
+      undefined;
+
+    if (!endpoint) {
+      errors.push(
+        "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint with a custom subdomain, such as https://<resource>.cognitiveservices.azure.com.",
+      );
+    }
+  } else if (azure) {
+    errors.push(
+      "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
+    );
+  }
+
+  if (auth === "entra" && raw.MEDIA_MODERATION_API_KEY) {
+    errors.push(
+      "MEDIA_MODERATION_API_KEY must not be set when MEDIA_MODERATION_AUTH is entra, the default. Remove it, or set MEDIA_MODERATION_AUTH=api-key.",
+    );
+  }
+
+  if (azure && auth === "api-key" && !raw.MEDIA_MODERATION_API_KEY) {
+    errors.push(
+      "MEDIA_MODERATION_API_KEY is required when MEDIA_MODERATION_AUTH is api-key.",
+    );
+  }
+
+  const severity = (
+    name:
+      | "MEDIA_MODERATION_BLOCK_AT_HATE"
+      | "MEDIA_MODERATION_BLOCK_AT_SEXUAL"
+      | "MEDIA_MODERATION_BLOCK_AT_VIOLENCE"
+      | "MEDIA_MODERATION_BLOCK_AT_SELF_HARM",
+  ) =>
+    parseNumber(raw, name, DEFAULT_MODERATION_BLOCK_AT_SEVERITY, errors, {
+      integer: true,
+      min: 0,
+      max: 7,
+    });
+
+  return {
+    provider,
+    ...(endpoint ? { endpoint } : {}),
+    auth,
+    ...(auth === "api-key" && raw.MEDIA_MODERATION_API_KEY
+      ? { apiKey: raw.MEDIA_MODERATION_API_KEY }
+      : {}),
+    timeoutMs: parseNumber(raw, "MEDIA_MODERATION_TIMEOUT_MS", 10_000, errors, {
+      integer: true,
+      min: 1,
+    }),
+    blockAtSeverity: {
+      hate: severity("MEDIA_MODERATION_BLOCK_AT_HATE"),
+      sexual: severity("MEDIA_MODERATION_BLOCK_AT_SEXUAL"),
+      violence: severity("MEDIA_MODERATION_BLOCK_AT_VIOLENCE"),
+      selfHarm: severity("MEDIA_MODERATION_BLOCK_AT_SELF_HARM"),
+    },
+  };
 }
 
 /** The configured mode, entra when unset, or null when invalid. */

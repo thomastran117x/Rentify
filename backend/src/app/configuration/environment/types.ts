@@ -8,6 +8,15 @@ export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
 export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
 export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
+export const MEDIA_MODERATION_PROVIDERS = [
+  "none",
+  "azure-content-safety",
+] as const;
+export type MediaModerationProvider =
+  (typeof MEDIA_MODERATION_PROVIDERS)[number];
+export const MEDIA_MODERATION_AUTH_MODES = ["entra", "api-key"] as const;
+export type MediaModerationAuthMode =
+  (typeof MEDIA_MODERATION_AUTH_MODES)[number];
 export const BLOB_STORAGE_AUTH_MODES = ["connection-string", "entra"] as const;
 export type BlobStorageAuthMode = (typeof BLOB_STORAGE_AUTH_MODES)[number];
 /** A storage account as the environment layer parsed and validated it. */
@@ -140,6 +149,15 @@ export type RawEnvironmentValues = {
   MEDIA_SCANNING_CLAMAV_PORT?: string;
   MEDIA_SCANNING_MAX_STREAM_BYTES?: string;
   MEDIA_SCANNING_TIMEOUT_MS?: string;
+  MEDIA_MODERATION_API_KEY?: string;
+  MEDIA_MODERATION_AUTH?: string;
+  MEDIA_MODERATION_BLOCK_AT_HATE?: string;
+  MEDIA_MODERATION_BLOCK_AT_SELF_HARM?: string;
+  MEDIA_MODERATION_BLOCK_AT_SEXUAL?: string;
+  MEDIA_MODERATION_BLOCK_AT_VIOLENCE?: string;
+  MEDIA_MODERATION_ENDPOINT?: string;
+  MEDIA_MODERATION_PROVIDER?: string;
+  MEDIA_MODERATION_TIMEOUT_MS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS?: string;
@@ -467,6 +485,35 @@ export interface AppEnvironment {
     timeoutMs: number;
     maxStreamBytes: number;
     allowNone: boolean;
+  };
+  mediaModeration: {
+    provider: MediaModerationProvider;
+    /**
+     * The Content Safety resource's origin, such as
+     * https://<resource>.cognitiveservices.azure.com. Present whenever it is
+     * configured and valid; startup has refused azure-content-safety without
+     * it.
+     */
+    endpoint?: string;
+    /**
+     * entra, the default, signs each request with the process's Microsoft
+     * Entra ID identity; api-key sends apiKey instead.
+     */
+    auth: MediaModerationAuthMode;
+    /** Present only in api-key mode. Environment-only, never in YAML. */
+    apiKey?: string;
+    timeoutMs: number;
+    /**
+     * The severity at or above which a category blocks an image. Content
+     * Safety reports images as 0, 2, 4, or 6, so 7 never blocks, and 0 blocks
+     * every image.
+     */
+    blockAtSeverity: {
+      hate: number;
+      sexual: number;
+      violence: number;
+      selfHarm: number;
+    };
   };
   logging: {
     fallbackDirectory: string;
