@@ -295,6 +295,13 @@ deployment that still sets the connection string fails at startup until it
 moves to Entra ID or opts in to the
 [deprecated connection-string mode](#deprecated-connection-string-mode).
 
+Every process that touches blobs also signs in when it starts, before it
+connects to anything else: the API, the media processing, cleanup and
+posting-thumbnail workers, and the maintenance commands. One without a usable
+identity fails to boot, rather than failing each blob operation later. The
+sign-in proves the identity only; whether its roles allow an operation is
+still decided by Azure on each request.
+
 Each process finds its identity through `DefaultAzureCredential`, which reads
 Azure's standard environment variables rather than backend configuration:
 
@@ -470,8 +477,8 @@ principal. To run the stack against an Azure account:
    `AZURE_STORAGE_QUARANTINE_CONTAINER_NAME` or a
    [YAML overlay](#overrides), then run `docker compose up --build`.
 
-A service without a pair starts normally, but fails on its first blob
-operation. Without an account URL or container names, development keeps
+A service without a pair fails to start, because it cannot sign in. Without
+an account URL or container names, development keeps
 blobs on local disk and needs none of this.
 
 Those services resolve external names through a public DNS server,

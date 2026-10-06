@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Stats } from "node:fs";
 import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DefaultAzureCredential, type TokenCredential } from "@azure/identity";
+import type { TokenCredential } from "@azure/identity";
 import {
   BlobSASPermissions,
   BlobServiceClient,
@@ -15,6 +15,7 @@ import {
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
 import type { BlobStorageAccount } from "@/configuration/environment/types";
+import { createBlobStorageCredential } from "@/features/blob/blob-storage-access";
 import { LOCAL_BLOB_UPLOAD_TTL_SECONDS } from "@/configuration/environment/constants";
 import { loggerFactory } from "@/configuration/logging";
 import BlobChangedError from "@/errors/blob-changed.error";
@@ -171,12 +172,6 @@ export class BlobService {
   constructor() {
     this.config = this.readConfiguration();
     this.localConfig = this.readLocalConfiguration();
-
-    if (this.config?.auth === "connection-string") {
-      this.logger.warn(
-        "AZURE_STORAGE_AUTH=connection-string is deprecated and will be removed. The account key it signs with can do anything to any blob; move this process to AZURE_STORAGE_AUTH=entra (see docs/backend-configuration.md).",
-      );
-    }
     this.quarantineLegacyFallback =
       environment.getBlobStorageConfig().quarantineLegacyFallback;
   }
@@ -788,14 +783,10 @@ export class BlobService {
     return this.sharedKeyCredential;
   }
 
-  /**
-   * The process's identity in entra mode. DefaultAzureCredential resolves a
-   * service principal from AZURE_CLIENT_ID, AZURE_TENANT_ID and
-   * AZURE_CLIENT_SECRET, or else a managed identity, user-assigned when
-   * AZURE_CLIENT_ID names one; see docs/backend-configuration.md.
-   */
+  // The process's identity in entra mode; startup has already proven it can
+  // sign in (checkBlobStorageAccess).
   private createTokenCredential(): TokenCredential {
-    return new DefaultAzureCredential();
+    return createBlobStorageCredential();
   }
 
   private containerFor(blobName: string): BlobContainer {

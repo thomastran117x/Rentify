@@ -5,6 +5,7 @@ import {
 } from "@/configuration/resources/database";
 import { disconnectLogging } from "@/configuration/logging";
 import { BlobService } from "@/features/blob/blob.service";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 import { MediaRepository } from "@/features/media/media.repository";
 import {
   DEFAULT_BACKFILL_BATCH_SIZE,
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
   }
 
   loadEnvironment();
+  await checkBlobStorageAccess();
   await connectDatabase();
 
   try {

@@ -21,15 +21,16 @@ import {
   isRabbitMqEnabled,
 } from "@/configuration/resources/rabbitmq";
 import { runAutoSeedsIfNeeded } from "@/seeds/orchestrator";
+import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 
 export interface StartupDependencies {
+  checkBlobStorageAccess(): Promise<unknown>;
   connectDatabase(): Promise<unknown>;
   connectElasticsearch(): Promise<unknown>;
   connectRedis(): Promise<unknown>;
   connectRabbitMq(): Promise<unknown>;
   createApplication(): ReturnType<typeof createApplication>;
   initializeContainer(): ReturnType<typeof initializeContainer>;
-  initializeBlobStorage(): unknown;
   isRabbitMqEnabled(): boolean;
   loadEnvironment(): ReturnType<typeof loadEnvironment>;
   runAutoSeedsIfNeeded(): Promise<unknown>;
@@ -66,23 +67,14 @@ async function warmIdentityBloomFilters(): Promise<void> {
   }
 }
 
-/**
- * Builds the blob storage adapter before the server takes traffic, rather than
- * on the first upload: a bad blob configuration then stops boot, and the
- * deprecated connection-string mode logs its warning at startup.
- */
-function initializeBlobStorage(): void {
-  getContainer().resolve(containerTokens.blobService);
-}
-
 const defaultDependencies: StartupDependencies = {
+  checkBlobStorageAccess,
   connectDatabase,
   connectElasticsearch,
   connectRedis,
   connectRabbitMq,
   createApplication,
   initializeContainer,
-  initializeBlobStorage,
   isRabbitMqEnabled,
   loadEnvironment,
   runAutoSeedsIfNeeded,
@@ -102,6 +94,9 @@ export async function initializeServerApplication(
 
   dependencies.loadEnvironment();
   const port = environment.getServerPort();
+  // Before any I/O with side effects: a process that cannot reach blob
+  // storage should not have seeded the database or opened connections.
+  await dependencies.checkBlobStorageAccess();
 
   await dependencies.connectDatabase();
   await dependencies.runAutoSeedsIfNeeded();
@@ -112,7 +107,6 @@ export async function initializeServerApplication(
   }
 
   dependencies.initializeContainer();
-  dependencies.initializeBlobStorage();
   await dependencies.warmIdentityBloomFilters();
   const app = dependencies.createApplication();
 

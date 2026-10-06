@@ -5,7 +5,6 @@ import { DefaultAzureCredential } from "@azure/identity";
 import { BlobServiceClient, type UserDelegationKey } from "@azure/storage-blob";
 import BlobChangedError from "@/errors/blob-changed.error";
 import { BlobService } from "@/features/blob/blob.service";
-import { loggerFactory } from "@/configuration/logging";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
@@ -1106,31 +1105,6 @@ describe("BlobService", () => {
       useConnectionStringBlobStorage();
       vary();
       expect(new BlobService().isConfigured()).toBe(false);
-    }
-  });
-
-  it("warns that the connection-string mode is deprecated, and only for it", () => {
-    const warn = jest.fn();
-    const forClass = jest
-      .spyOn(loggerFactory, "forClass")
-      .mockReturnValue({ warn } as unknown as ReturnType<
-        typeof loggerFactory.forClass
-      >);
-
-    try {
-      useEntraBlobStorage();
-      new BlobService();
-      expect(warn).not.toHaveBeenCalled();
-
-      useConnectionStringBlobStorage();
-      new BlobService();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "AZURE_STORAGE_AUTH=connection-string is deprecated",
-        ),
-      );
-    } finally {
-      forClass.mockRestore();
     }
   });
 
