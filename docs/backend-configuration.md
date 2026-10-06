@@ -415,15 +415,25 @@ PUBLIC_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<public-container>
 
 1. Turn `MEDIA_QUARANTINE_LEGACY_FALLBACK` off, as in
    [rolling out the split](#rolling-out-the-split).
-2. Create the roles, identities and assignments, as above.
-3. Deploy every backend process with `AZURE_STORAGE_ACCOUNT_URL` and its own
+2. Check how the connection string names the blob endpoint. Entra mode always
+   builds blob URLs on the account URL, such as
+   `https://<account>.blob.core.windows.net`. If the connection string sets
+   `BlobEndpoint` (a custom domain or CDN) or `DefaultEndpointsProtocol=http`,
+   the image URLs already stored in the database use that other origin. They
+   then stop counting as managed blobs, and saving a posting, organization or
+   profile with its existing images fails with 400. Rewrite the stored URLs to
+   the account URL first, or stay on the deprecated mode until you have. A
+   connection string with only `AccountName`, `AccountKey`, `https` and the
+   default `EndpointSuffix` produces the same URLs, so it needs nothing.
+3. Create the roles, identities and assignments, as above.
+4. Deploy every backend process with `AZURE_STORAGE_ACCOUNT_URL` and its own
    identity variables, and remove `AZURE_STORAGE_CONNECTION_STRING` and any
    `AZURE_STORAGE_AUTH=connection-string` from each one.
 
    Upload URLs issued before the deploy are signed with the key and keep
    working until they expire.
 
-4. Rotate both account keys, which also invalidates every SAS signed with
+5. Rotate both account keys, which also invalidates every SAS signed with
    them:
 
    ```bash
@@ -433,7 +443,7 @@ PUBLIC_SCOPE=$ACCOUNT_SCOPE/blobServices/default/containers/<public-container>
      --account-name $ACCOUNT --key secondary
    ```
 
-5. Optionally, turn off shared-key access to the account with
+6. Optionally, turn off shared-key access to the account with
    `az storage account update --resource-group $RESOURCE_GROUP --name $ACCOUNT --allow-shared-key-access false`.
    That breaks anything still on the deprecated connection-string mode,
    including a developer's local stack pointed at this account.
@@ -482,11 +492,13 @@ A service without a pair fails to start, because it cannot sign in. Without
 an account URL or container names, development keeps
 blobs on local disk and needs none of this.
 
-Those services resolve external names through a public DNS server,
-`BLOB_SERVICES_DNS` (default `1.1.1.1`). Docker Desktop's DNS hands the Alpine
-image only IPv6 addresses for `login.microsoftonline.com`, which the Docker VM
-cannot route, so token requests fail with `ENETUNREACH`. Compose service names
-still resolve. Point it at another resolver if your network blocks public DNS.
+On Docker Desktop, also set `BLOB_SERVICES_DNS=1.1.1.1`. Docker Desktop's DNS
+hands the Alpine image only IPv6 addresses for `login.microsoftonline.com`,
+which the Docker VM cannot route, so the services fail to start with
+`EnvironmentCredential authentication failed` (`ENETUNREACH`). The setting
+gives just the blob services a public upstream resolver; Compose service names
+still resolve. It is off by default, so networks that block public DNS and
+stacks that keep blobs on local disk are unaffected.
 
 To keep signing with the account key locally, set
 `AZURE_STORAGE_AUTH=connection-string` and `AZURE_STORAGE_CONNECTION_STRING`
