@@ -138,7 +138,10 @@ export class AzureContentSafetyModeration implements ImageModerationService {
   }
 }
 
-/** The service's error code, never its message, which may echo the request. */
+/**
+ * The service's error code, never its message, which may echo the request.
+ * Omitted when it only repeats the status, as an invalid key's "401" does.
+ */
 function describeErrorCode(response: Response, text: string): string {
   let code = response.headers.get("x-ms-error-code");
 
@@ -151,7 +154,7 @@ function describeErrorCode(response: Response, text: string): string {
     }
   }
 
-  return code ? ` (${code})` : "";
+  return code && code !== String(response.status) ? ` (${code})` : "";
 }
 
 /**

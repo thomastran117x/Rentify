@@ -238,6 +238,21 @@ describe("AzureContentSafetyModeration", () => {
     );
   });
 
+  it("leaves out an error code that only repeats the status", async () => {
+    // What Content Safety answers for an invalid subscription key.
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      respond(401, {
+        error: { code: "401", message: "Access denied due to invalid key." },
+      }),
+    );
+
+    await expectUnavailable(
+      createModeration().moderate(IMAGE),
+      /^Content Safety answered 401\.$/,
+      401,
+    );
+  });
+
   it("reports a refusal with no readable error code", async () => {
     jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(400, "<html>"));
 
