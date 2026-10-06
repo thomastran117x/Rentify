@@ -55,4 +55,15 @@ describe("marketing pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("hero-search")).toBeInTheDocument();
   });
+
+  it("discloses automated screening of uploaded images", () => {
+    render(<PrivacyPage />);
+
+    expect(
+      screen.getByText(
+        /screened by an automated content safety provider for harmful visual content before they are published/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("October 6, 2026")).toBeInTheDocument();
+  });
 });
