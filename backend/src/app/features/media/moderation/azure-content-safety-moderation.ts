@@ -1,4 +1,5 @@
 import type { TokenCredential } from "@azure/identity";
+import sharp from "sharp";
 import { renderModerationImage } from "@/features/media/image-renditions";
 import {
   ImageModerationConfigurationError,
@@ -121,6 +122,27 @@ export class AzureContentSafetyModeration implements ImageModerationService {
       categories,
       provider: AZURE_CONTENT_SAFETY_PROVIDER,
     };
+  }
+
+  /**
+   * Analyzes a small blank image. One call proves the endpoint, the key or
+   * the Entra ID identity, and that identity's role, which signing in alone
+   * cannot. It costs one image analysis each time the worker starts.
+   */
+  async checkAccess(): Promise<void> {
+    const edge = 64;
+    const data = await sharp({
+      create: {
+        width: edge,
+        height: edge,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await this.moderate({ data, width: edge, height: edge });
   }
 
   private async send(

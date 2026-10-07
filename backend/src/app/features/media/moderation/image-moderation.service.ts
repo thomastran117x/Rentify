@@ -38,6 +38,12 @@ export interface ModerationImage {
 export interface ImageModerationService {
   /** Throws when the provider is unavailable; that is retryable. */
   moderate(image: ModerationImage): Promise<ModerationResult>;
+  /**
+   * Checks, when the worker starts, that the provider accepts this worker.
+   * Throws ImageModerationConfigurationError when it does not; any other
+   * failure is an outage, which uploads ride out by retrying.
+   */
+  checkAccess(): Promise<void>;
 }
 
 /**

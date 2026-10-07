@@ -8,4 +8,6 @@ export class NoopModeration implements ImageModerationService {
   async moderate(): Promise<ModerationResult> {
     return { decision: "allow", categories: {}, provider: "none" };
   }
+
+  async checkAccess(): Promise<void> {}
 }

@@ -688,9 +688,18 @@ which is why the endpoint must be `<resource>.cognitiveservices.azure.com`
 resource key in `Ocp-Apim-Subscription-Key` instead. The key is a secret, so
 it can only be set in the environment, never in a YAML profile.
 
+**Startup check.** When the media processing worker starts, before it takes
+any job, it analyzes one small blank image. That single call proves the
+endpoint, the key or the identity, and the identity's role, which signing in
+alone cannot. If Content Safety refuses the worker (401, 403, 404, or no
+token), the worker does not start, and logs which setting to check. If Content
+Safety is only unreachable, the worker logs a warning and starts anyway, since
+uploads retry until it answers.
+
 **Cost.** Each image costs one Content Safety image analysis, billed per call,
-and a retried job calls it again. Images that are rejected earlier, for
-example for malware or their type, are never sent.
+and a retried job calls it again. The startup check costs one more each time
+the worker starts. Images that are rejected earlier, for example for malware
+or their type, are never sent.
 
 **Data.** Only the processed image leaves the worker: no user ID, file name,
 or metadata, because re-encoding drops EXIF. Per Microsoft's

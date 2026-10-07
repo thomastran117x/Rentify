@@ -102,6 +102,8 @@ class FakeModeration implements ImageModerationService {
     return this.result;
   }
 
+  async checkAccess(): Promise<void> {}
+
   /**
    * The size of each image it was given, as stated and as sharp reads it, so
    * a stated size that does not match its bytes fails the comparison.
@@ -1560,6 +1562,7 @@ describe("MediaProcessingService", () => {
     it("rethrows when the provider is unavailable, publishing nothing", async () => {
       const context = createContext({
         moderation: {
+          checkAccess: async () => undefined,
           moderate: () =>
             Promise.reject(
               new ImageModerationUnavailableError(
@@ -1599,6 +1602,7 @@ describe("MediaProcessingService", () => {
     it("rejects an image the provider refuses to analyze, rather than retrying it", async () => {
       const context = createContext({
         moderation: {
+          checkAccess: async () => undefined,
           moderate: () =>
             Promise.reject(
               new ImageModerationRefusedError(

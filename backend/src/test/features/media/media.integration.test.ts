@@ -283,7 +283,7 @@ describe("Media persistence integration", () => {
       container.resolve(containerTokens.blobService),
       container.resolve(containerTokens.mediaMetrics),
       container.resolve(containerTokens.malwareScanner),
-      { moderate: async () => blocked },
+      { moderate: async () => blocked, checkAccess: async () => undefined },
     ).process(mediaId);
 
     const read = await request(`/media/${mediaId}`, {

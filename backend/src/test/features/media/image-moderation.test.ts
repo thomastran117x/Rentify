@@ -129,6 +129,7 @@ describe("NoopModeration", () => {
       categories: {},
       provider: "none",
     });
+    await expect(new NoopModeration().checkAccess()).resolves.toBeUndefined();
   });
 });
 
@@ -186,6 +187,30 @@ describe("AzureContentSafetyModeration", () => {
       ).resolves.toMatchObject(sent);
     },
   );
+
+  it("checks access by analyzing a small blank image", async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(respond(200, analysis()));
+
+    await expect(createModeration().checkAccess()).resolves.toBeUndefined();
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const { image } = JSON.parse(init.body as string) as {
+      image: { content: string };
+    };
+    await expect(
+      sharp(Buffer.from(image.content, "base64")).metadata(),
+    ).resolves.toMatchObject({ width: 64, height: 64 });
+  });
+
+  it("fails the access check when the provider refuses the worker", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(403, {}));
+
+    await expect(createModeration().checkAccess()).rejects.toBeInstanceOf(
+      ImageModerationConfigurationError,
+    );
+  });
 
   it("signs the request with an Entra ID token in entra mode", async () => {
     const fetchMock = jest

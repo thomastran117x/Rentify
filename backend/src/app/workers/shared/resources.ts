@@ -12,6 +12,7 @@ import {
 } from "@/configuration/resources/rabbitmq";
 import { connectRedis, disconnectRedis } from "@/configuration/resources/redis";
 import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
+import { checkImageModerationAccess } from "@/features/media/moderation/check-image-moderation";
 import type { WorkerResource } from "@/workers/shared/worker-runtime";
 
 /**
@@ -20,6 +21,15 @@ import type { WorkerResource } from "@/workers/shared/worker-runtime";
  */
 export const blobStorageWorkerResource: WorkerResource = {
   connect: () => checkBlobStorageAccess(),
+  disconnect: async () => undefined,
+};
+
+/**
+ * For the media processing worker: refuses to start on invalid moderation
+ * settings, or a provider that refuses the worker, before it takes any job.
+ */
+export const imageModerationWorkerResource: WorkerResource = {
+  connect: () => checkImageModerationAccess(),
   disconnect: async () => undefined,
 };
 
