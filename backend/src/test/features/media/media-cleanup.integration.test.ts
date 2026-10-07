@@ -474,7 +474,10 @@ describe("Media cleanup persistence integration", () => {
 
     const photo = await createReadyMedia(ownerId);
     const created = await createPosting(owner, photo.mediaId);
-    expect(created.status).toBe(201);
+    expect({
+      status: created.status,
+      body: await created.text(),
+    }).toMatchObject({ status: 201 });
     await backdate(photo.mediaId, ago(48 * HOUR_MS));
 
     const avatar = await createUnattachedMedia({ scope: "avatars" });
