@@ -130,6 +130,17 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "logging.level": "LOG_LEVEL",
   "logging.serviceName": "LOG_SERVICE_NAME",
   "logging.silent": "LOG_SILENT",
+  "mediaModeration.allowNone": "MEDIA_MODERATION_ALLOW_NONE",
+  "mediaModeration.auth": "MEDIA_MODERATION_AUTH",
+  "mediaModeration.blockAtSeverity.hate": "MEDIA_MODERATION_BLOCK_AT_HATE",
+  "mediaModeration.blockAtSeverity.selfHarm":
+    "MEDIA_MODERATION_BLOCK_AT_SELF_HARM",
+  "mediaModeration.blockAtSeverity.sexual": "MEDIA_MODERATION_BLOCK_AT_SEXUAL",
+  "mediaModeration.blockAtSeverity.violence":
+    "MEDIA_MODERATION_BLOCK_AT_VIOLENCE",
+  "mediaModeration.endpoint": "MEDIA_MODERATION_ENDPOINT",
+  "mediaModeration.provider": "MEDIA_MODERATION_PROVIDER",
+  "mediaModeration.timeoutMs": "MEDIA_MODERATION_TIMEOUT_MS",
   "mediaScanning.allowNone": "MEDIA_SCANNING_ALLOW_NONE",
   "mediaScanning.clamavHost": "MEDIA_SCANNING_CLAMAV_HOST",
   "mediaScanning.clamavPort": "MEDIA_SCANNING_CLAMAV_PORT",
@@ -258,6 +269,7 @@ const OPTIONAL_FILE_KEYS = new Set([
   "blobStorage.quarantineContainerName",
   "elasticsearch.url",
   "elasticsearch.username",
+  "mediaModeration.endpoint",
   "sms.fromNumber",
   "sms.telnyx.messagingProfileId",
   "sms.telnyx.publicKey",
@@ -289,6 +301,9 @@ const STRING_FILE_KEYS = new Set([
   "logging.fallbackDirectory",
   "logging.level",
   "logging.serviceName",
+  "mediaModeration.auth",
+  "mediaModeration.endpoint",
+  "mediaModeration.provider",
   "mediaScanning.clamavHost",
   "mediaScanning.scanner",
   "oauth.apple.keyId",
@@ -481,6 +496,7 @@ function validateConfigurationValueType(
     variableName === "LOG_SILENT" ||
     variableName === "MEDIA_QUARANTINE_LEGACY_FALLBACK" ||
     variableName === "MEDIA_SCANNING_ALLOW_NONE" ||
+    variableName === "MEDIA_MODERATION_ALLOW_NONE" ||
     variableName === "TRUST_PROXY_HEADERS";
   if (isBoolean && typeof value !== "boolean") {
     throw new Error(

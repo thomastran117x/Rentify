@@ -319,6 +319,10 @@ export class EnvironmentManager {
     return this.get().mediaScanning;
   }
 
+  getMediaModerationConfig(): AppEnvironment["mediaModeration"] {
+    return this.get().mediaModeration;
+  }
+
   getLoggingConfig(): AppEnvironment["logging"] {
     return this.get().logging;
   }

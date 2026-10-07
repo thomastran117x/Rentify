@@ -540,7 +540,9 @@ services:
   # and writes blob storage, and, with MEDIA_SCANNER=clamav, streams each
   # upload to clamd. With the scanning profile on it waits for clamd to be
   # healthy rather than retrying jobs while signatures download; without the
-  # profile, clamav is not required.
+  # profile, clamav is not required. With
+  # MEDIA_MODERATION_PROVIDER=azure-content-safety it also sends each processed
+  # image to Azure AI Content Safety, signed with this identity.
   media-processing-worker:
     build: *backend-build
     image: rent-backend:local
@@ -555,6 +557,18 @@ services:
       <<: [*worker-environment, *entra-identity]
       AZURE_CLIENT_ID: ${MEDIA_PROCESSING_AZURE_CLIENT_ID:-}
       AZURE_CLIENT_SECRET: ${MEDIA_PROCESSING_AZURE_CLIENT_SECRET:-}
+      # Only this worker moderates, so only it gets the moderation settings,
+      # and the Content Safety key stays out of every other container.
+      MEDIA_MODERATION_PROVIDER: ${MEDIA_MODERATION_PROVIDER:-}
+      MEDIA_MODERATION_ALLOW_NONE: ${MEDIA_MODERATION_ALLOW_NONE:-}
+      MEDIA_MODERATION_ENDPOINT: ${MEDIA_MODERATION_ENDPOINT:-}
+      MEDIA_MODERATION_AUTH: ${MEDIA_MODERATION_AUTH:-}
+      MEDIA_MODERATION_API_KEY: ${MEDIA_MODERATION_API_KEY:-}
+      MEDIA_MODERATION_TIMEOUT_MS: ${MEDIA_MODERATION_TIMEOUT_MS:-}
+      MEDIA_MODERATION_BLOCK_AT_HATE: ${MEDIA_MODERATION_BLOCK_AT_HATE:-}
+      MEDIA_MODERATION_BLOCK_AT_SEXUAL: ${MEDIA_MODERATION_BLOCK_AT_SEXUAL:-}
+      MEDIA_MODERATION_BLOCK_AT_VIOLENCE: ${MEDIA_MODERATION_BLOCK_AT_VIOLENCE:-}
+      MEDIA_MODERATION_BLOCK_AT_SELF_HARM: ${MEDIA_MODERATION_BLOCK_AT_SELF_HARM:-}
     volumes: *backend-blob-volumes
     dns: *entra-dns
     command: ["node", "dist/workers/media/media-processing.worker.js"]

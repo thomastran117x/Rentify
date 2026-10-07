@@ -13,6 +13,10 @@ import type {
   MediaVariantsMetadata,
   RecordedRenditions,
 } from "@/features/media/media.model";
+import {
+  MODERATION_CATEGORIES,
+  type ModerationResult,
+} from "@/features/media/moderation/image-moderation.service";
 
 // Completed uploads that still wait on their processing job.
 const STUCK_STATUSES: MediaStatus[] = ["uploaded", "processing"];
@@ -103,9 +107,9 @@ export class MediaRepository extends BaseRepository {
    *
    * Accepts a row already in `processing`: a worker that died mid-job leaves it
    * there, and the redelivered job must be able to pick it back up. Every
-   * claim is counted, redeliveries included. The scan is cleared, so each
-   * attempt must scan the bytes it downloaded before it can mark the item
-   * ready.
+   * claim is counted, redeliveries included. The scan and the moderation
+   * result are cleared, so each attempt must scan the bytes it downloaded, and
+   * moderate the image it made from them, before it can mark the item ready.
    */
   claimForProcessing(id: Uuid, expectedAttempts: number): Promise<boolean> {
     return this.transition(
@@ -119,6 +123,7 @@ export class MediaRepository extends BaseRepository {
         scanEngine: null,
         scannedAt: null,
         threatName: null,
+        moderationResult: Prisma.DbNull,
       },
       {
         where: { processingAttempts: expectedAttempts },
@@ -144,10 +149,31 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Applies only while `attempt` is still the item's latest attempt and its
-   * scan passed, so no path can publish an unscanned or infected upload, or
-   * publish on the strength of another attempt's scan, whatever the caller
-   * does.
+   * Records attempt `attempt`'s content moderation, only while that is still
+   * the item's latest attempt, so an overtaken attempt cannot replace a later
+   * one's result.
+   */
+  recordModerationResult(
+    id: Uuid,
+    attempt: number,
+    result: ModerationResult,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["processing"],
+      { moderationResult: result as unknown as Prisma.InputJsonValue },
+      {
+        where: { processingAttempts: attempt },
+        operationName: "recordModerationResult",
+      },
+    );
+  }
+
+  /**
+   * Applies only while `attempt` is still the item's latest attempt, its scan
+   * passed, and its moderation allowed it, so no path can publish an
+   * unscanned, infected, unmoderated, or blocked upload, or publish on the
+   * strength of another attempt's checks, whatever the caller does.
    */
   markReady(
     id: Uuid,
@@ -173,6 +199,7 @@ export class MediaRepository extends BaseRepository {
         where: {
           processingAttempts: attempt,
           scanStatus: { in: READY_SCAN_STATUSES },
+          moderationResult: { path: "$.decision", equals: "allow" },
         },
         operationName: "markReady",
       },
@@ -654,6 +681,7 @@ export class MediaRepository extends BaseRepository {
       scanEngine: row.scanEngine,
       scannedAt: row.scannedAt,
       threatName: row.threatName,
+      moderationResult: parseModerationResult(row.moderationResult),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -757,4 +785,40 @@ export function parseMediaVariants(
   }
 
   return { medium, thumbnail };
+}
+
+/**
+ * Reads a stored moderation result back. Anything not in the shape the worker
+ * writes counts as none; it is only ever read by operators.
+ */
+export function parseModerationResult(
+  value: Prisma.JsonValue | null,
+): ModerationResult | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const { decision, provider, categories } = value;
+
+  if (
+    (decision !== "allow" && decision !== "block") ||
+    typeof provider !== "string" ||
+    !categories ||
+    typeof categories !== "object" ||
+    Array.isArray(categories)
+  ) {
+    return null;
+  }
+
+  const severities: ModerationResult["categories"] = {};
+
+  for (const category of MODERATION_CATEGORIES) {
+    const severity = categories[category];
+
+    if (typeof severity === "number") {
+      severities[category] = severity;
+    }
+  }
+
+  return { decision, provider, categories: severities };
 }

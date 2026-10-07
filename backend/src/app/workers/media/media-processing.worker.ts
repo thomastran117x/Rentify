@@ -6,6 +6,7 @@ import {
   blobStorageWorkerResource,
   databaseWorkerResource,
   disconnectResources,
+  imageModerationWorkerResource,
   rabbitMqWorkerResource,
 } from "@/workers/shared/resources";
 import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
@@ -13,6 +14,7 @@ import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
 const workerName = "Media processing worker";
 const workerResources = [
   blobStorageWorkerResource,
+  imageModerationWorkerResource,
   databaseWorkerResource,
   rabbitMqWorkerResource,
 ];

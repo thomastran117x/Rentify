@@ -241,6 +241,11 @@ const mediaScanningConfig = {
   allowNone: false,
 };
 
+const mediaModerationConfig = {
+  setup: { provider: "none" as const, allowNone: false },
+  problems: [] as string[],
+};
+
 const identityBloomConfig = {
   enabled: true,
   capacity: 200_000,
@@ -424,6 +429,9 @@ export const environment = {
   getMediaScanningConfig() {
     return mediaScanningConfig;
   },
+  getMediaModerationConfig() {
+    return mediaModerationConfig;
+  },
   getCorsAllowedOrigins() {
     return readOriginList(
       process.env.CORS_ALLOWED_ORIGINS,
@@ -490,6 +498,7 @@ export const environment = {
       blobStorage: blobStorageConfig,
       imageUploads: imageUploadsConfig,
       mediaScanning: mediaScanningConfig,
+      mediaModeration: mediaModerationConfig,
       captcha: captchaConfig,
       database: readDatabaseConfig(),
       elasticsearch: elasticsearchConfig,

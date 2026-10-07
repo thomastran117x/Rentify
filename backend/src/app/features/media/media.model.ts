@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { ModerationResult } from "@/features/media/moderation/image-moderation.service";
 
 /**
  * What an upload is for. Each attach target accepts only images uploaded for
@@ -56,6 +57,8 @@ export const MEDIA_REJECTION_CODES = [
   "processing_failed",
   "abandoned",
   "malware",
+  "moderation",
+  "unscreenable",
 ] as const;
 
 /**
@@ -75,6 +78,10 @@ export const MEDIA_REJECTION_CODES = [
  * abandoned: the upload was never completed.
  * malware: the malware scanner matched a signature. The reason does not name
  *   it; the row's `threatName` does, for operators.
+ * moderation: content moderation found the image harmful. The reason does not
+ *   say how; the row's `moderationResult` does, for operators.
+ * unscreenable: the moderation provider refused to analyze the image, so it
+ *   cannot be screened. Asking again would get the same refusal.
  */
 export type MediaRejectionCode = (typeof MEDIA_REJECTION_CODES)[number];
 
@@ -209,6 +216,13 @@ export interface MediaRecord {
    * it.
    */
   threatName: string | null;
+  /**
+   * The current attempt's content moderation, recorded before its renditions
+   * are written. Null until then, and for items that were ready before
+   * moderation existed. Internal: it is never part of MediaView or any other
+   * response.
+   */
+  moderationResult: ModerationResult | null;
   createdAt: Date;
   updatedAt: Date;
 }

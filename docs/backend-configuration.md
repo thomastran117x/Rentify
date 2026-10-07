@@ -605,6 +605,110 @@ See
 [architecture-overview.md](./architecture-overview.md#image-upload-validation)
 for where the scan runs and what each verdict does.
 
+## Media image moderation
+
+`mediaModeration` selects the visual content moderation that the media
+processing worker applies to each image after re-encoding it, before anything
+is published.
+
+| Key                        | Default | Override                              | Meaning                                                                       |
+| -------------------------- | ------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| `provider`                 | `none`  | `MEDIA_MODERATION_PROVIDER`           | `azure-content-safety`, or `none`, which allows every image                   |
+| `endpoint`                 | `null`  | `MEDIA_MODERATION_ENDPOINT`           | The Content Safety resource, `https://<resource>.cognitiveservices.azure.com` |
+| `auth`                     | `entra` | `MEDIA_MODERATION_AUTH`               | `entra` signs with the worker's identity; `api-key` sends the key             |
+| (environment only)         |         | `MEDIA_MODERATION_API_KEY`            | The resource key, required for `api-key` and refused for `entra`              |
+| `timeoutMs`                | `10000` | `MEDIA_MODERATION_TIMEOUT_MS`         | Limit for each image, from signing in to reading the reply                    |
+| `blockAtSeverity.hate`     | `4`     | `MEDIA_MODERATION_BLOCK_AT_HATE`      | Severity at or above which the category blocks the image                      |
+| `blockAtSeverity.sexual`   | `4`     | `MEDIA_MODERATION_BLOCK_AT_SEXUAL`    | As above                                                                      |
+| `blockAtSeverity.violence` | `4`     | `MEDIA_MODERATION_BLOCK_AT_VIOLENCE`  | As above                                                                      |
+| `blockAtSeverity.selfHarm` | `4`     | `MEDIA_MODERATION_BLOCK_AT_SELF_HARM` | As above                                                                      |
+| `allowNone`                | `false` | `MEDIA_MODERATION_ALLOW_NONE`         | Lets the production media worker start with `provider: none`                  |
+
+Only the media processing worker moderates, so only it checks these
+settings. A missing or invalid one (an unknown provider, a bad endpoint, a key
+in entra mode, a threshold out of range) stops that worker at startup with a
+message listing every problem, written to its log and to stderr. The API and
+the other workers start either way, as they do for the malware scanner.
+
+In production the media processing worker also refuses to start with
+`provider: none` unless `MEDIA_MODERATION_ALLOW_NONE=true`, because the
+privacy policy tells users their images are screened. No production default is
+set, so every production deployment either configures Content Safety or opts
+out explicitly.
+
+Every scope is moderated: posting photos, organization logos, blog covers, and
+avatars. The worker sends the 800 px medium rendition, or the processed image
+when it is no wider than that, fitted inside 2048 x 2048 and padded to at least
+50 x 50, which are Content Safety's limits. The image is base64-encoded in the
+request body of `POST {endpoint}/contentsafety/image:analyze` (API version
+`2024-09-01`).
+
+Content Safety rates each of hate, sexual, violence, and self-harm as 0, 2, 4,
+or 6. An image is rejected with code `moderation` and the reason "This image
+doesn't meet our content guidelines." when any category reaches its
+`blockAtSeverity`, an integer from 0 to 7. The default of 4 blocks medium and
+high severity, which is content that is clearly harmful, and lets low severity
+through, so ordinary listing photos are not caught. 7 turns a category off. 0
+blocks every image, which is only useful to test the rejection path. Each
+attempt records the severities in `media.moderation_result`, for operators; no
+API response carries them.
+
+Moderation fails closed. A failure is handled by what retrying it can
+achieve:
+
+- **Throttling.** A 429, or a 503 with `Retry-After`, that asks for a wait of
+  5 seconds or less is waited out once in the worker, within `timeoutMs`.
+- **Outage.** A timeout, network failure, longer throttling, 408, server
+  error, or unreadable answer is retried through the job's retry tiers and
+  then dead-lettered like any other processing failure, and the item ends as
+  `processing_failed`. The error records how long Content Safety asked to
+  wait, if it did.
+- **Configuration.** A 401, 403, or 404, or a failure to sign in, is retried
+  the same way, but its error says which setting to check
+  (`MEDIA_MODERATION_API_KEY`, the identity's role, or
+  `MEDIA_MODERATION_ENDPOINT`).
+- **Refusal.** Any other 4xx, such as a 400 for an image Content Safety cannot
+  analyze, is final for that image. Asking again would get the same answer, so
+  the item is rejected with code `unscreenable` and the reason "This image
+  couldn't be checked against our content guidelines. Try a different image."
+  rather than retried.
+
+Nothing unscreened is published. After an outage or a configuration fix,
+replay the `processing_failed` items with the
+[dead-letter runbook](../backend/src/app/workers/media/README.md#dead-letter-runbook).
+
+**Authentication.** `entra`, the default, uses the media processing worker's
+own identity (`MEDIA_PROCESSING_AZURE_CLIENT_ID` in Compose) with the scope
+of the endpoint's cloud: `https://cognitiveservices.azure.com/.default`, or
+the `.azure.us` or `.azure.cn` equivalent. Give that identity the
+built-in **Cognitive Services User** role on the Content Safety resource.
+Microsoft Entra ID only works against a resource with a custom subdomain,
+which is why the endpoint must be `<resource>.cognitiveservices.azure.com`
+(or the `.azure.us` and `.azure.cn` equivalents). `api-key` sends the
+resource key in `Ocp-Apim-Subscription-Key` instead. The key is a secret, so
+it can only be set in the environment, never in a YAML profile.
+
+**Startup check.** When the media processing worker starts, before it takes
+any job, it analyzes one small blank image. That single call proves the
+endpoint, the key or the identity, and the identity's role, which signing in
+alone cannot. If Content Safety refuses the worker (401, 403, 404, or no
+token), the worker does not start, and logs which setting to check. If Content
+Safety is only unreachable, the worker logs a warning and starts anyway, since
+uploads retry until it answers.
+
+**Cost.** Each image costs one Content Safety image analysis, billed per call,
+and a retried job calls it again. The startup check costs one more each time
+the worker starts. Images that are rejected earlier, for example for malware
+or their type, are never sent.
+
+**Data.** Only the processed image leaves the worker: no user ID, file name,
+or metadata, because re-encoding drops EXIF. Per Microsoft's
+[data, privacy, and security notes](https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/content-safety/data-privacy),
+Content Safety does not store the image, does not use it for training, keeps it
+in the resource's region, and does not make it available for human review. The
+[privacy policy](../frontend/src/app/privacy/page.tsx) discloses this
+screening.
+
 ## Media cleanup worker
 
 `workers.mediaCleanup` controls the sweep that deletes abandoned uploads,

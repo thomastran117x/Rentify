@@ -142,6 +142,30 @@ mediaScanning:
   maxStreamBytes: 26214400
   allowNone: false
 
+# Visual content moderation of each processed image, before it is published.
+# provider is none, which allows everything, or azure-content-safety, which
+# sends the 800 px rendition to Azure AI Content Safety and rejects the image
+# when any category's severity (0, 2, 4, or 6) reaches its blockAtSeverity, an
+# integer from 0 to 7. When Content Safety cannot answer, the job is retried and
+# then dead-lettered; nothing unscreened is published. endpoint is the
+# resource's custom subdomain. auth is entra, which uses the media processing
+# worker's identity (it needs the Cognitive Services User role on the
+# resource), or api-key, which reads MEDIA_MODERATION_API_KEY from the
+# environment only. In production the media processing worker refuses to start
+# with none unless allowNone is true; other processes do not moderate and
+# ignore it.
+mediaModeration:
+  provider: none
+  allowNone: false
+  endpoint: null
+  auth: entra
+  timeoutMs: 10000
+  blockAtSeverity:
+    hate: 4
+    sexual: 4
+    violence: 4
+    selfHarm: 4
+
 paypal:
   environment: sandbox
   clientId: change-me-paypal-client-id

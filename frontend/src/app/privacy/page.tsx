@@ -18,7 +18,7 @@ const privacySections = [
   },
   {
     title: "Sharing and processors",
-    body: "We may work with infrastructure, analytics, communication, and verification providers who process information on our behalf under appropriate contractual safeguards.",
+    body: "We may work with infrastructure, analytics, communication, and verification providers who process information on our behalf under appropriate contractual safeguards. Images you upload, such as listing photos, profile pictures, logos, and blog covers, may be screened by an automated content safety provider for harmful visual content before they are published. Only the image is sent for screening, and the provider does not keep it or use it for training.",
   },
   {
     title: "Retention and rights",
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
             Last updated
           </p>
           <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
-            September 22, 2026
+            October 6, 2026
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
             Review and adapt this content with counsel before using it as your

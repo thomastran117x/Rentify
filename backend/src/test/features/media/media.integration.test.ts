@@ -224,6 +224,7 @@ describe("Media persistence integration", () => {
           engine: "ClamAV 1.5.4/28137",
         }),
       },
+      container.resolve(containerTokens.imageModeration),
     ).process(mediaId);
 
     const read = await request(`/media/${mediaId}`, {
@@ -259,6 +260,64 @@ describe("Media persistence integration", () => {
     ).toBe(false);
   });
 
+  it("rejects an image moderation blocks, without publishing any rendition", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { mediaId, upload } = await startUpload(owner.headers());
+    const quarantinedName = new URL(upload.url).searchParams.get("blobName")!;
+    await putBytes(upload.url, await createPngFixture(1000, 600));
+    await request(`/media/${mediaId}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+    const blocked = {
+      decision: "block" as const,
+      categories: { hate: 0, sexual: 0, violence: 6, selfHarm: 0 },
+      provider: "azure-content-safety",
+    };
+
+    const container = persistenceApp.container;
+    await new MediaProcessingService(
+      container.resolve(containerTokens.mediaRepository),
+      container.resolve(containerTokens.blobService),
+      container.resolve(containerTokens.mediaMetrics),
+      container.resolve(containerTokens.malwareScanner),
+      { moderate: async () => blocked, checkAccess: async () => undefined },
+    ).process(mediaId);
+
+    const read = await request(`/media/${mediaId}`, {
+      headers: owner.headers(),
+    });
+    const { media } = await readData<{ media: MediaView }>(read);
+
+    expect(media).toMatchObject({
+      status: "rejected",
+      rejectionCode: "moderation",
+      rejectionReason: "This image doesn't meet our content guidelines.",
+      url: null,
+    });
+    // The severities stay on the row, for operators.
+    expect(JSON.stringify(media)).not.toMatch(
+      /violence|severity|moderationResult|content-safety/i,
+    );
+    await expect(
+      persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } }),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      rejectionCode: "moderation",
+      processedBlobName: null,
+      moderationResult: blocked,
+    });
+    const blobNames = [...persistenceApp.stubs.blobService.storage.keys()];
+    expect(blobNames).not.toContain(quarantinedName);
+    expect(
+      blobNames.filter((name) =>
+        name.startsWith(`media/images/${owner.userId}/${mediaId}`),
+      ),
+    ).toEqual([]);
+  });
+
   it("holds the scan and readiness to the item's latest attempt", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
@@ -276,10 +335,15 @@ describe("Media persistence integration", () => {
         originalBlobName: `quarantine/images/${owner.userId}/${mediaId}`,
         declaredContentType: "image/png",
         processingAttempts: 2,
-        // Left by an earlier attempt; the claim must clear it.
+        // Left by an earlier attempt; the claim must clear them.
         scanStatus: "clean",
         scanEngine: "ClamAV 1.5.4/28137",
         scannedAt: new Date(),
+        moderationResult: {
+          decision: "allow",
+          categories: {},
+          provider: "none",
+        },
       },
     });
     const ready = {
@@ -294,6 +358,11 @@ describe("Media persistence integration", () => {
       status: "clean" as const,
       engine: "ClamAV 1.5.4/28137",
       threatName: null,
+    };
+    const allowed = {
+      decision: "allow" as const,
+      categories: { hate: 0, sexual: 0, violence: 0, selfHarm: 0 },
+      provider: "azure-content-safety",
     };
     const findRow = () =>
       persistenceApp.prisma.media.findUniqueOrThrow({ where: { id: mediaId } });
@@ -311,6 +380,7 @@ describe("Media persistence integration", () => {
       scanEngine: null,
       scannedAt: null,
       threatName: null,
+      moderationResult: null,
     });
     // Not scanned yet, then infected: neither can be published.
     await expect(repository.markReady(mediaId, 3, ready)).resolves.toBe(false);
@@ -337,6 +407,27 @@ describe("Media persistence integration", () => {
     );
     await expect(repository.markReady(mediaId, 3, ready)).resolves.toBe(false);
     await expect(findRow()).resolves.toMatchObject({ status: "processing" });
+
+    // Scanned clean but not yet moderated: still not publishable. Attempt 3
+    // can no longer record a moderation result either.
+    await expect(repository.markReady(mediaId, 4, ready)).resolves.toBe(false);
+    await expect(
+      repository.recordModerationResult(mediaId, 3, allowed),
+    ).resolves.toBe(false);
+    // A recorded block is a result, but never a publishable one.
+    await expect(
+      repository.recordModerationResult(mediaId, 4, {
+        ...allowed,
+        decision: "block",
+      }),
+    ).resolves.toBe(true);
+    await expect(repository.markReady(mediaId, 4, ready)).resolves.toBe(false);
+    await expect(
+      repository.recordModerationResult(mediaId, 4, allowed),
+    ).resolves.toBe(true);
+    await expect(findRow()).resolves.toMatchObject({
+      moderationResult: allowed,
+    });
 
     await expect(repository.markReady(mediaId, 4, ready)).resolves.toBe(true);
     await expect(findRow()).resolves.toMatchObject({
@@ -395,11 +486,12 @@ describe("Media persistence integration", () => {
       processingStartedAt: expect.any(Date),
       processingCompletedAt: expect.any(Date),
       processingError: null,
-      // The test configuration runs no scanner.
+      // The test configuration runs no scanner and no moderation.
       scanStatus: "skipped",
       scanEngine: "none",
       scannedAt: expect.any(Date),
       threatName: null,
+      moderationResult: { decision: "allow", categories: {}, provider: "none" },
     });
     expect(ready).not.toHaveProperty("scanStatus");
     expect(new URL(ready.url!).searchParams.get("blobName")).toBe(

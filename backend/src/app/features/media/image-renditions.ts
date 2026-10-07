@@ -72,6 +72,51 @@ export async function renderSmallerRenditions(
   return renditions;
 }
 
+// Azure AI Content Safety analyzes images from 50 x 50 to 2048 x 2048 pixels.
+export const MODERATION_IMAGE_MIN_EDGE = 50;
+export const MODERATION_IMAGE_MAX_EDGE = 2048;
+
+/**
+ * The image sent for moderation: `source`, usually the medium rendition, as it
+ * is when it already fits the moderation provider's limits. Otherwise it is
+ * fitted inside the largest square the provider accepts, never enlarged, and
+ * any edge still under the smallest it accepts is padded with white, so the
+ * whole picture is analyzed and nothing in it is stretched.
+ */
+export async function renderModerationImage(
+  source: RenderedImage,
+): Promise<RenderedImage> {
+  const fits = (edge: number) =>
+    edge >= MODERATION_IMAGE_MIN_EDGE && edge <= MODERATION_IMAGE_MAX_EDGE;
+
+  if (fits(source.width) && fits(source.height)) {
+    return source;
+  }
+
+  const scale = Math.min(
+    1,
+    MODERATION_IMAGE_MAX_EDGE / source.width,
+    MODERATION_IMAGE_MAX_EDGE / source.height,
+  );
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const padWidth = Math.max(0, MODERATION_IMAGE_MIN_EDGE - width);
+  const padHeight = Math.max(0, MODERATION_IMAGE_MIN_EDGE - height);
+
+  // sharp always pads after it resizes, so one pass does both.
+  return encode(
+    sharp(source.data, { failOn: IMAGE_DECODE_FAIL_ON })
+      .resize({ width, height, fit: "fill" })
+      .extend({
+        left: Math.floor(padWidth / 2),
+        right: Math.ceil(padWidth / 2),
+        top: Math.floor(padHeight / 2),
+        bottom: Math.ceil(padHeight / 2),
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      }),
+  );
+}
+
 async function encode(pipeline: Sharp): Promise<RenderedImage> {
   const { data, info } = await pipeline
     .webp({ quality: PROCESSED_IMAGE_QUALITY })

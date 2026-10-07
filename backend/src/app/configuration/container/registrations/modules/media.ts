@@ -13,6 +13,7 @@ import { MediaProcessingService } from "@/features/media/media-processing.servic
 import { MediaRepository } from "@/features/media/media.repository";
 import { MediaService } from "@/features/media/media.service";
 import { createMalwareScanner } from "@/features/media/scanning/create-malware-scanner";
+import { createImageModeration } from "@/features/media/moderation/create-image-moderation";
 import { ImageVariantsResolver } from "@/features/media/image-variants";
 
 export const mediaRegistrationModule: ContainerRegistrationModule = {
@@ -42,6 +43,16 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       resolve: () =>
         createMalwareScanner(
           environment.getMediaScanningConfig(),
+          environment.isProduction(),
+        ),
+    });
+    container.register({
+      token: containerTokens.imageModeration,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () =>
+        createImageModeration(
+          environment.getMediaModerationConfig(),
           environment.isProduction(),
         ),
     });
@@ -83,6 +94,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.mediaMetrics,
         containerTokens.malwareScanner,
+        containerTokens.imageModeration,
       ],
       resolve: ({ resolve }) =>
         new MediaProcessingService(
@@ -90,6 +102,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaMetrics),
           resolve(containerTokens.malwareScanner),
+          resolve(containerTokens.imageModeration),
         ),
     });
     container.register({

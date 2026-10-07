@@ -875,6 +875,159 @@ describe("EnvironmentManager", () => {
     expect(allowedManager.getMediaScanningConfig().allowNone).toBe(true);
   });
 
+  it("defaults media moderation to none and allows configuring Azure", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getMediaModerationConfig()).toEqual({
+      setup: { provider: "none", allowNone: false },
+      problems: [],
+    });
+
+    process.env = buildRequiredEnv({ MEDIA_MODERATION_ALLOW_NONE: "true" });
+    const allowNoneManager = new EnvironmentManager();
+    allowNoneManager.load();
+
+    expect(allowNoneManager.getMediaModerationConfig().setup).toEqual({
+      provider: "none",
+      allowNone: true,
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_MODERATION_PROVIDER: "Azure-Content-Safety",
+      MEDIA_MODERATION_ENDPOINT:
+        "https://rentify-safety.cognitiveservices.azure.com/",
+      MEDIA_MODERATION_TIMEOUT_MS: "5000",
+      MEDIA_MODERATION_BLOCK_AT_HATE: "2",
+      MEDIA_MODERATION_BLOCK_AT_SEXUAL: "6",
+      MEDIA_MODERATION_BLOCK_AT_VIOLENCE: "0",
+      MEDIA_MODERATION_BLOCK_AT_SELF_HARM: "7",
+    });
+    const entraManager = new EnvironmentManager();
+    entraManager.load();
+
+    expect(entraManager.getMediaModerationConfig()).toEqual({
+      setup: {
+        provider: "azure-content-safety",
+        endpoint: "https://rentify-safety.cognitiveservices.azure.com",
+        scope: "https://cognitiveservices.azure.com/.default",
+        auth: { kind: "entra" },
+        timeoutMs: 5_000,
+        blockAtSeverity: { hate: 2, sexual: 6, violence: 0, selfHarm: 7 },
+      },
+      problems: [],
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_MODERATION_PROVIDER: "azure-content-safety",
+      MEDIA_MODERATION_ENDPOINT:
+        "https://rentify-safety.cognitiveservices.azure.us",
+      MEDIA_MODERATION_AUTH: "API-KEY",
+      MEDIA_MODERATION_API_KEY: "content-safety-key",
+    });
+    const keyManager = new EnvironmentManager();
+    keyManager.load();
+
+    expect(keyManager.getMediaModerationConfig()).toMatchObject({
+      setup: {
+        endpoint: "https://rentify-safety.cognitiveservices.azure.us",
+        // A token is only accepted by its own cloud.
+        scope: "https://cognitiveservices.azure.us/.default",
+        auth: { kind: "api-key", apiKey: "content-safety-key" },
+      },
+      problems: [],
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_MODERATION_PROVIDER: "azure-content-safety",
+      MEDIA_MODERATION_ENDPOINT:
+        "https://rentify-safety.cognitiveservices.azure.cn",
+    });
+    const chinaManager = new EnvironmentManager();
+    chinaManager.load();
+
+    expect(chinaManager.getMediaModerationConfig().setup).toMatchObject({
+      scope: "https://cognitiveservices.azure.cn/.default",
+    });
+  });
+
+  it.each([
+    [
+      { MEDIA_MODERATION_PROVIDER: "rekognition" },
+      "MEDIA_MODERATION_PROVIDER must be one of: none, azure-content-safety.",
+    ],
+    [
+      { MEDIA_MODERATION_AUTH: "managed-identity" },
+      "MEDIA_MODERATION_AUTH must be one of: entra, api-key.",
+    ],
+    [
+      { MEDIA_MODERATION_PROVIDER: "azure-content-safety" },
+      "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
+    ],
+    [
+      { MEDIA_MODERATION_ENDPOINT: "https://example.com" },
+      "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint",
+    ],
+    [
+      {
+        MEDIA_MODERATION_ENDPOINT:
+          "http://rentify-safety.cognitiveservices.azure.com",
+      },
+      "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint",
+    ],
+    [
+      {
+        MEDIA_MODERATION_ENDPOINT:
+          "https://rentify-safety.cognitiveservices.azure.com/contentsafety",
+      },
+      "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint",
+    ],
+    [
+      { MEDIA_MODERATION_ENDPOINT: "not a url" },
+      "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint",
+    ],
+    [
+      { MEDIA_MODERATION_API_KEY: "content-safety-key" },
+      "MEDIA_MODERATION_API_KEY must not be set when MEDIA_MODERATION_AUTH is entra",
+    ],
+    [
+      {
+        MEDIA_MODERATION_PROVIDER: "azure-content-safety",
+        MEDIA_MODERATION_ENDPOINT:
+          "https://rentify-safety.cognitiveservices.azure.com",
+        MEDIA_MODERATION_AUTH: "api-key",
+      },
+      "MEDIA_MODERATION_API_KEY is required when MEDIA_MODERATION_AUTH is api-key.",
+    ],
+    [
+      { MEDIA_MODERATION_BLOCK_AT_VIOLENCE: "8" },
+      "MEDIA_MODERATION_BLOCK_AT_VIOLENCE must be less than or equal to 7.",
+    ],
+    [
+      { MEDIA_MODERATION_BLOCK_AT_HATE: "-1" },
+      "MEDIA_MODERATION_BLOCK_AT_HATE must be greater than or equal to 0.",
+    ],
+    [
+      { MEDIA_MODERATION_TIMEOUT_MS: "0" },
+      "MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
+    ],
+  ])(
+    "records invalid media moderation settings without failing startup %#",
+    (overrides, message) => {
+      process.env = buildRequiredEnv(overrides);
+      const manager = new EnvironmentManager();
+
+      // Only the media processing worker moderates, so only it refuses them
+      // (createImageModeration); every other process starts.
+      expect(() => manager.load()).not.toThrow();
+      expect(manager.getMediaModerationConfig()).toEqual({
+        setup: { provider: "none", allowNone: false },
+        problems: [expect.stringContaining(message)],
+      });
+    },
+  );
+
   it("defaults the media cleanup worker and allows overriding it", () => {
     process.env = buildRequiredEnv({});
     const defaultManager = new EnvironmentManager();

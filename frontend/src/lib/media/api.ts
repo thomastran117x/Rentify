@@ -24,7 +24,9 @@ export type MediaStatus =
  * Why the API rejected an image, for branching or localizing without parsing
  * `rejectionReason`. More codes may be added; treat an unknown one like
  * `corrupt`. `processing_failed` is not the image's fault. `malware` means the
- * malware scan flagged the file; the reason deliberately says no more.
+ * malware scan flagged the file, and `moderation` that content moderation found
+ * the image harmful; in both cases the reason deliberately says no more.
+ * `unscreenable` means moderation could not analyze the image at all.
  */
 export type MediaRejectionCode =
   | "empty"
@@ -38,7 +40,9 @@ export type MediaRejectionCode =
   | "missing_upload"
   | "processing_failed"
   | "abandoned"
-  | "malware";
+  | "malware"
+  | "moderation"
+  | "unscreenable";
 
 /** One stored rendition of an image, with its real dimensions. */
 export interface ImageRendition {

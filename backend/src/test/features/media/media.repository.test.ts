@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { MediaRepository } from "@/features/media/media.repository";
 import { testUuid } from "../../support/uuid";
 
@@ -35,6 +36,7 @@ function mediaRow(overrides: Record<string, unknown> = {}) {
     scanEngine: null,
     scannedAt: null,
     threatName: null,
+    moderationResult: null,
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     ...overrides,
@@ -235,7 +237,7 @@ describe("MediaRepository", () => {
       processingAttempts: 0,
     });
     // Every claim is counted and timed in the same guarded update, and
-    // clears the previous attempt's scan.
+    // clears the previous attempt's scan and moderation result.
     expect(calls[1].data).toEqual({
       status: "processing",
       processingAttempts: { increment: 1 },
@@ -244,15 +246,17 @@ describe("MediaRepository", () => {
       scanEngine: null,
       scannedAt: null,
       threatName: null,
+      moderationResult: Prisma.DbNull,
     });
-    // Only the latest attempt, and only once its scan passed, can make the
-    // item ready.
+    // Only the latest attempt, and only once its scan passed and it recorded
+    // a moderation result, can make the item ready.
     expect(calls[2]).toEqual({
       where: {
         id: MEDIA_1_ID,
         status: { in: ["processing"] },
         processingAttempts: 1,
         scanStatus: { in: ["clean", "skipped"] },
+        moderationResult: { path: "$.decision", equals: "allow" },
       },
       data: {
         status: "ready",
@@ -341,6 +345,68 @@ describe("MediaRepository", () => {
       scannedAt,
       threatName: "Eicar-Test-Signature",
     });
+  });
+
+  it("records a moderation result only for the item's latest attempt", async () => {
+    const updateMany = jest.fn(async (_args: any) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const result = {
+      decision: "block" as const,
+      categories: { hate: 0, sexual: 0, violence: 6, selfHarm: 0 },
+      provider: "azure-content-safety",
+    };
+
+    await expect(
+      repository.recordModerationResult(MEDIA_1_ID, 3, result),
+    ).resolves.toBe(true);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: MEDIA_1_ID,
+        status: { in: ["processing"] },
+        processingAttempts: 3,
+      },
+      data: { moderationResult: result },
+    });
+  });
+
+  it("reads a moderation result back, and treats a malformed value as none", async () => {
+    const findUnique = jest.fn();
+    const repository = createRepository({ findUnique });
+    const result = {
+      decision: "allow",
+      categories: { hate: 0, sexual: 2, violence: 0, selfHarm: 0 },
+      provider: "azure-content-safety",
+    };
+
+    for (const [stored, expected] of [
+      [result, result],
+      // Unknown categories and non-numeric severities are dropped.
+      [
+        {
+          ...result,
+          categories: { hate: 2, sexual: "4", weapons: 6 },
+        },
+        { ...result, categories: { hate: 2 } },
+      ],
+      [
+        { decision: "allow", categories: {}, provider: "none" },
+        { decision: "allow", categories: {}, provider: "none" },
+      ],
+      [null, null],
+      [[], null],
+      ["allow", null],
+      [{ ...result, decision: "review" }, null],
+      [{ ...result, provider: 1 }, null],
+      [{ ...result, categories: null }, null],
+      [{ ...result, categories: [] }, null],
+    ] as const) {
+      findUnique.mockResolvedValueOnce(mediaRow({ moderationResult: stored }));
+
+      expect((await repository.findById(MEDIA_1_ID))?.moderationResult).toEqual(
+        expected,
+      );
+    }
   });
 
   it("reports a transition that lost the race", async () => {

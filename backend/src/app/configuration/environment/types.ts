@@ -8,6 +8,43 @@ export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
 export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
 export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
+export const MEDIA_MODERATION_PROVIDERS = [
+  "none",
+  "azure-content-safety",
+] as const;
+export type MediaModerationProvider =
+  (typeof MEDIA_MODERATION_PROVIDERS)[number];
+export const MEDIA_MODERATION_AUTH_MODES = ["entra", "api-key"] as const;
+export type MediaModerationAuthMode =
+  (typeof MEDIA_MODERATION_AUTH_MODES)[number];
+/** The severity at or above which each category blocks an image. */
+export interface MediaModerationThresholds {
+  hate: number;
+  sexual: number;
+  violence: number;
+  selfHarm: number;
+}
+/** A moderation setup as the environment layer parsed it. */
+export type MediaModerationSetup =
+  | {
+      provider: "none";
+      /** Lets the production media worker start without moderation. */
+      allowNone: boolean;
+    }
+  | {
+      provider: "azure-content-safety";
+      /** The resource's origin, such as https://<resource>.cognitiveservices.azure.com. */
+      endpoint: string;
+      /** The Entra ID scope of the endpoint's cloud. */
+      scope: string;
+      auth: { kind: "entra" } | { kind: "api-key"; apiKey: string };
+      timeoutMs: number;
+      /**
+       * Content Safety reports images as 0, 2, 4, or 6, so 7 never blocks,
+       * and 0 blocks every image.
+       */
+      blockAtSeverity: MediaModerationThresholds;
+    };
 export const BLOB_STORAGE_AUTH_MODES = ["connection-string", "entra"] as const;
 export type BlobStorageAuthMode = (typeof BLOB_STORAGE_AUTH_MODES)[number];
 /** A storage account as the environment layer parsed and validated it. */
@@ -140,6 +177,16 @@ export type RawEnvironmentValues = {
   MEDIA_SCANNING_CLAMAV_PORT?: string;
   MEDIA_SCANNING_MAX_STREAM_BYTES?: string;
   MEDIA_SCANNING_TIMEOUT_MS?: string;
+  MEDIA_MODERATION_ALLOW_NONE?: string;
+  MEDIA_MODERATION_API_KEY?: string;
+  MEDIA_MODERATION_AUTH?: string;
+  MEDIA_MODERATION_BLOCK_AT_HATE?: string;
+  MEDIA_MODERATION_BLOCK_AT_SELF_HARM?: string;
+  MEDIA_MODERATION_BLOCK_AT_SEXUAL?: string;
+  MEDIA_MODERATION_BLOCK_AT_VIOLENCE?: string;
+  MEDIA_MODERATION_ENDPOINT?: string;
+  MEDIA_MODERATION_PROVIDER?: string;
+  MEDIA_MODERATION_TIMEOUT_MS?: string;
   POSTINGS_PUBLIC_CACHE_FRESH_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_STALE_TTL_SECONDS?: string;
   POSTINGS_PUBLIC_CACHE_REBUILD_LOCK_TTL_MS?: string;
@@ -467,6 +514,16 @@ export interface AppEnvironment {
     timeoutMs: number;
     maxStreamBytes: number;
     allowNone: boolean;
+  };
+  mediaModeration: {
+    /** What the settings describe; `none` whenever there are problems. */
+    setup: MediaModerationSetup;
+    /**
+     * Settings that are missing or invalid. Only the media processing worker
+     * moderates, so only it refuses to start on them (createImageModeration);
+     * every other process ignores moderation and starts either way.
+     */
+    problems: string[];
   };
   logging: {
     fallbackDirectory: string;

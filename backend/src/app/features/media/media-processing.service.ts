@@ -30,6 +30,7 @@ import {
   renderImage,
   renderSmallerRenditions,
   uploadSmallerRenditions,
+  type RenderedImage,
 } from "@/features/media/image-renditions";
 import {
   mediaMetricScope,
@@ -45,6 +46,11 @@ import type {
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
+import {
+  ImageModerationRefusedError,
+  type ImageModerationService,
+  type ModerationResult,
+} from "@/features/media/moderation/image-moderation.service";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /** A final refusal: why, in words and as a code. */
@@ -66,6 +72,18 @@ const UPLOAD_CHANGED: MediaRejection = {
 const MALWARE: MediaRejection = {
   reason: "This file can't be used.",
   code: "malware",
+};
+// Names no category, for the same reason: the severities are recorded for
+// operators instead.
+const MODERATION: MediaRejection = {
+  reason: "This image doesn't meet our content guidelines.",
+  code: "moderation",
+};
+// The provider refused to analyze this image, so it cannot be screened.
+const UNSCREENABLE: MediaRejection = {
+  reason:
+    "This image couldn't be checked against our content guidelines. Try a different image.",
+  code: "unscreenable",
 };
 
 // A row in any other state is finished, or not yet uploaded, so a duplicate or
@@ -109,6 +127,14 @@ function policyRejection(
  * throws, so the job is retried and eventually dead-lettered; the repository
  * refuses to mark an item ready without a passing scan of the current
  * attempt.
+ *
+ * Once the renditions are rendered, and before any of them is written, the
+ * image is moderated for harmful visual content: the medium rendition, or the
+ * processed image when there is none, is sent to the configured provider. A
+ * blocked image is rejected as `moderation` and its upload deleted; nothing of
+ * it is ever published. A provider that cannot answer throws like a scanner,
+ * and the repository likewise refuses to mark an item ready until the current
+ * attempt's moderation has allowed the image.
  */
 export class MediaProcessingService {
   private readonly logger = loggerFactory.forClass(
@@ -121,6 +147,7 @@ export class MediaProcessingService {
     private readonly blobService: BlobService,
     private readonly metrics: MediaMetrics,
     private readonly scanner: MalwareScanner,
+    private readonly moderation: ImageModerationService,
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -227,6 +254,20 @@ export class MediaProcessingService {
       processed.data,
       processed.width,
     );
+    await this.mediaRepository.recordProcessingProgress(record.id);
+
+    // Moderated before anything is written, so a harmful image never reaches
+    // the public container, even under a name no one has been given.
+    const moderated = await this.moderate(
+      record,
+      attempt,
+      renditions.medium ?? processed,
+    );
+
+    if (moderated !== "passed") {
+      return moderated;
+    }
+
     await this.mediaRepository.recordProcessingProgress(record.id);
     const processedBlobName = this.blobService.buildProcessedImageBlobName(
       record.userId,
@@ -376,6 +417,60 @@ export class MediaProcessingService {
       threat: scan.threatName,
     });
     return this.reject(record, MALWARE);
+  }
+
+  /**
+   * Moderates the image and records the result. `passed` lets processing go
+   * on; a blocked image is rejected here, and so is one the provider refuses
+   * to analyze, since asking again would get the same refusal. Any other
+   * provider failure is thrown, for the job to retry and, if the provider
+   * stays down, dead-letter: nothing is published unmoderated.
+   */
+  private async moderate(
+    record: MediaRecord,
+    attempt: number,
+    image: RenderedImage,
+  ): Promise<"passed" | "rejected" | "discarded"> {
+    let result: ModerationResult;
+
+    try {
+      result = await this.moderation.moderate(image);
+    } catch (error) {
+      if (!(error instanceof ImageModerationRefusedError)) {
+        throw error;
+      }
+
+      this.logger.warn("Rejected an image the moderation provider refused.", {
+        mediaId: record.id,
+        userId: record.userId,
+        status: error.status,
+        error: error.message,
+      });
+      return this.reject(record, UNSCREENABLE);
+    }
+
+    // As with the scan: a later attempt has the item and moderates for itself.
+    if (
+      !(await this.mediaRepository.recordModerationResult(
+        record.id,
+        attempt,
+        result,
+      ))
+    ) {
+      return "discarded";
+    }
+
+    if (result.decision === "allow") {
+      return "passed";
+    }
+
+    this.logger.warn("Rejected an image that failed content moderation.", {
+      mediaId: record.id,
+      userId: record.userId,
+      provider: result.provider,
+      categories: result.categories,
+    });
+    return this.reject(record, MODERATION);
   }
 
   private async inspect(

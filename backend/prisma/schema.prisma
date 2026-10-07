@@ -94,6 +94,7 @@ model Media {
   scanEngine          String?     @map("scan_engine") @db.VarChar(50)
   scannedAt           DateTime?   @map("scanned_at") @db.DateTime(6)
   threatName          String?     @map("threat_name") @db.VarChar(255)
+  moderationResult    Json?       @map("moderation_result")
   createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt           DateTime    @updatedAt @map("updated_at") @db.DateTime(6)
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1430,6 +1431,8 @@ enum MediaRejectionCode {
   processing_failed
   abandoned
   malware
+  moderation
+  unscreenable
 }
 
 enum MediaScanStatus {

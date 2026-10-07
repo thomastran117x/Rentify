@@ -97,7 +97,14 @@ describe("rejectMedia", () => {
 
   it("keeps an upload for processing failures only", () => {
     expect(keepsQuarantinedUpload("processing_failed")).toBe(true);
-    for (const code of ["corrupt", "too_large", "abandoned"] as const) {
+    for (const code of [
+      "corrupt",
+      "too_large",
+      "abandoned",
+      "malware",
+      "moderation",
+      "unscreenable",
+    ] as const) {
       expect(keepsQuarantinedUpload(code)).toBe(false);
     }
   });

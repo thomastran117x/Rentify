@@ -13,6 +13,7 @@ import {
   scanResultColumns,
   type MediaRepository,
 } from "@/features/media/media.repository";
+import type { ModerationResult } from "@/features/media/moderation/image-moderation.service";
 
 /**
  * A MediaRepository with the same status-guarded transitions, held in memory,
@@ -58,6 +59,7 @@ export class InMemoryMediaRepository {
       scanEngine: null,
       scannedAt: null,
       threatName: null,
+      moderationResult: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -107,6 +109,7 @@ export class InMemoryMediaRepository {
       scanEngine: null,
       scannedAt: null,
       threatName: null,
+      moderationResult: null,
     });
   }
 
@@ -122,6 +125,20 @@ export class InMemoryMediaRepository {
     return this.transition(id, ["processing"], scanResultColumns(scan));
   }
 
+  async recordModerationResult(
+    id: Uuid,
+    attempt: number,
+    result: ModerationResult,
+  ): Promise<boolean> {
+    if (this.rows.get(id)?.processingAttempts !== attempt) {
+      return false;
+    }
+
+    return this.transition(id, ["processing"], {
+      moderationResult: structuredClone(result),
+    });
+  }
+
   async markReady(
     id: Uuid,
     attempt: number,
@@ -131,7 +148,8 @@ export class InMemoryMediaRepository {
 
     if (
       row?.processingAttempts !== attempt ||
-      (row.scanStatus !== "clean" && row.scanStatus !== "skipped")
+      (row.scanStatus !== "clean" && row.scanStatus !== "skipped") ||
+      row.moderationResult?.decision !== "allow"
     ) {
       return false;
     }
