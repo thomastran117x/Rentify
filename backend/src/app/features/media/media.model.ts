@@ -59,6 +59,7 @@ export const MEDIA_REJECTION_CODES = [
   "malware",
   "moderation",
   "unscreenable",
+  "unattached",
 ] as const;
 
 /**
@@ -82,6 +83,8 @@ export const MEDIA_REJECTION_CODES = [
  *   say how; the row's `moderationResult` does, for operators.
  * unscreenable: the moderation provider refused to analyze the image, so it
  *   cannot be screened. Asking again would get the same refusal.
+ * unattached: the image was ready but nothing attached it in time, so the
+ *   media cleanup deleted it. Upload it again to use it.
  */
 export type MediaRejectionCode = (typeof MEDIA_REJECTION_CODES)[number];
 

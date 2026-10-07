@@ -229,6 +229,7 @@ workers:
     stuckThresholdMs: 900000
     maxRequeues: 3
     rejectedRetentionMs: 86400000
+    unattachedReadyTtlMs: 86400000
   bookingExpiry:
     pollIntervalMs: 5000
     batchSize: 50

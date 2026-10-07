@@ -211,6 +211,8 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "workers.mediaCleanup.rejectedRetentionMs":
     "MEDIA_CLEANUP_REJECTED_RETENTION_MS",
   "workers.mediaCleanup.stuckThresholdMs": "MEDIA_CLEANUP_STUCK_THRESHOLD_MS",
+  "workers.mediaCleanup.unattachedReadyTtlMs":
+    "MEDIA_CLEANUP_UNATTACHED_READY_TTL_MS",
   "workers.payoutRelease.batchSize": "PAYOUT_RELEASE_BATCH_SIZE",
   "workers.payoutRelease.pollIntervalMs": "PAYOUT_RELEASE_POLL_INTERVAL_MS",
   "workers.recommendationsPrecompute.batchSize":

@@ -171,6 +171,7 @@ export type RawEnvironmentValues = {
   MEDIA_CLEANUP_STUCK_THRESHOLD_MS?: string;
   MEDIA_CLEANUP_MAX_REQUEUES?: string;
   MEDIA_CLEANUP_REJECTED_RETENTION_MS?: string;
+  MEDIA_CLEANUP_UNATTACHED_READY_TTL_MS?: string;
   MEDIA_SCANNER?: string;
   MEDIA_SCANNING_ALLOW_NONE?: string;
   MEDIA_SCANNING_CLAMAV_HOST?: string;
@@ -435,6 +436,7 @@ export interface AppEnvironment {
       stuckThresholdMs: number;
       maxRequeues: number;
       rejectedRetentionMs: number;
+      unattachedReadyTtlMs: number;
     };
     bookingExpiry: {
       pollIntervalMs: number;

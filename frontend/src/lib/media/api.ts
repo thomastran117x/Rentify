@@ -27,6 +27,7 @@ export type MediaStatus =
  * malware scan flagged the file, and `moderation` that content moderation found
  * the image harmful; in both cases the reason deliberately says no more.
  * `unscreenable` means moderation could not analyze the image at all.
+ * `unattached` means nothing saved the image in time and it was deleted.
  */
 export type MediaRejectionCode =
   | "empty"
@@ -42,7 +43,8 @@ export type MediaRejectionCode =
   | "abandoned"
   | "malware"
   | "moderation"
-  | "unscreenable";
+  | "unscreenable"
+  | "unattached";
 
 /** One stored rendition of an image, with its real dimensions. */
 export interface ImageRendition {

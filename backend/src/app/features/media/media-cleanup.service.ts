@@ -1,6 +1,7 @@
 import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory } from "@/configuration/logging";
 import type { BlobService } from "@/features/blob/blob.service";
+import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaMetrics } from "@/features/media/media-metrics";
 import type {
@@ -17,6 +18,10 @@ import {
 // sees it if deleting the bytes fails and the row is kept for a later retry.
 const ABANDONED_UPLOAD_REASON = "The upload was never completed.";
 
+// Recorded on a ready image nothing attached in time. A late save that sends
+// its media id is refused with it until the rejected retention purges the row.
+const UNATTACHED_REASON = "This image was not saved in time. Upload it again.";
+
 export type MediaCleanupOptions = Omit<
   AppEnvironment["workers"]["mediaCleanup"],
   "pollIntervalMs"
@@ -31,6 +36,13 @@ export interface MediaCleanupSummary {
   rejected: number;
   /** Rejected items past their retention, deleted. */
   rejectedPurged: number;
+  /** Ready items nothing attached within their TTL, deleted. */
+  unattachedDeleted: number;
+  /**
+   * Unattached ready items left alone because a restorable audit entry still
+   * references them, so restoring it would need them.
+   */
+  held: number;
   /**
    * Stuck items left alone because processing jobs are waiting or no worker
    * is consuming them, so their own job may simply be delayed.
@@ -48,13 +60,16 @@ export interface MediaCleanupSummary {
  * 2. an item waiting on a processing job that has not moved in a while is
  *    queued again, or rejected once it has been queued again too many times,
  *    keeping its upload for a replay until step 3;
- * 3. a rejected item is deleted once its retention has passed.
+ * 3. a rejected item is deleted once its retention has passed;
+ * 4. a ready item that nothing has attached, or that was released, for its
+ *    TTL has its image deleted, and is kept as an `unattached` rejection
+ *    until step 3 purges it.
  *
- * A ready item is never selected. Every change is conditional on the item
- * still being in the state it was selected in, so an item that moves on
- * during a sweep is left alone and several workers can sweep at once, given
- * clocks that agree to well within the stuck threshold. The orphaned-blob
- * cleanup remains the backstop for blobs that no row accounts for.
+ * Every change is conditional on the item still being in the state it was
+ * selected in, so an item that moves on during a sweep is left alone and
+ * several workers can sweep at once, given clocks that agree to well within
+ * the stuck threshold. The orphaned-blob cleanup remains the backstop for
+ * blobs that no row accounts for.
  */
 export class MediaCleanupService {
   private readonly logger = loggerFactory.forClass(
@@ -73,6 +88,10 @@ export class MediaCleanupService {
       | "rejectStuck"
       | "deferRejectedPurge"
       | "deleteByIdIfStatus"
+      | "listUnattachedReady"
+      | "listAuditHeldBlobNames"
+      | "deferUnattached"
+      | "claimUnattached"
     >,
     private readonly blobService: Pick<BlobService, "deleteBlob">,
     private readonly mediaProcessingQueue: Pick<
@@ -92,6 +111,8 @@ export class MediaCleanupService {
       requeued: 0,
       rejected: 0,
       rejectedPurged: 0,
+      unattachedDeleted: 0,
+      held: 0,
       deferred: 0,
       failed: 0,
     };
@@ -110,6 +131,12 @@ export class MediaCleanupService {
     );
     await this.purgeRejectedMedia(
       cutoff(options.rejectedRetentionMs),
+      now,
+      options.batchSize,
+      summary,
+    );
+    await this.deleteUnattachedMedia(
+      cutoff(options.unattachedReadyTtlMs),
       now,
       options.batchSize,
       summary,
@@ -240,9 +267,9 @@ export class MediaCleanupService {
   /**
    * Rejection deletes the upload, but only on a best-effort basis, and keeps
    * it on purpose for a processing failure, so any leftover goes before the
-   * row does. An item whose upload cannot be
-   * deleted is moved to the back of the purge order, so it cannot hold up
-   * newer ones by staying the oldest.
+   * row does, and so does the image of an `unattached` item whose deletion
+   * failed. An item whose blobs cannot be deleted is moved to the back of the
+   * purge order, so it cannot hold up newer ones by staying the oldest.
    */
   private async purgeRejectedMedia(
     updatedBefore: Date,
@@ -257,7 +284,7 @@ export class MediaCleanupService {
 
     await this.forEachItem(records, "rejected", summary, async (record) => {
       try {
-        await this.blobService.deleteBlob(record.originalBlobName);
+        await this.deleteRecordBlobs(record);
       } catch (error) {
         await this.mediaRepository.deferRejectedPurge(
           record.id,
@@ -273,6 +300,93 @@ export class MediaCleanupService {
         summary.rejectedPurged += 1;
       }
     });
+  }
+
+  /**
+   * The list leaves out every item a posting photo, avatar, organization logo,
+   * or blog cover references. An item a restorable audit entry references is
+   * kept too, because restoring the entry writes the reference back, and is
+   * moved to the back of the order.
+   *
+   * The row is claimed first, by rejecting it while it is still ready and
+   * unmoved. A save stores a reference only in a transaction that moves the
+   * row while it is still ready (guardImageAttachments), so a save racing the
+   * sweep either commits first, and the claim finds the row moved and keeps
+   * it, or comes after the claim and fails; no reference to a deleted image
+   * is ever stored. The image goes next. The row stays as the rejection, so a
+   * late save learns why, and the purge of old rejections deletes it, and
+   * retries any blob that could not be deleted here.
+   */
+  private async deleteUnattachedMedia(
+    updatedBefore: Date,
+    now: Date,
+    limit: number,
+    summary: MediaCleanupSummary,
+  ): Promise<void> {
+    const records = await this.mediaRepository.listUnattachedReady(
+      updatedBefore,
+      limit,
+    );
+
+    if (records.length === 0) {
+      return;
+    }
+
+    const held = await this.mediaRepository.listAuditHeldBlobNames(
+      records.flatMap((record) =>
+        record.processedBlobName ? [record.processedBlobName] : [],
+      ),
+    );
+
+    await this.forEachItem(records, "unattached", summary, async (record) => {
+      if (record.processedBlobName && held.has(record.processedBlobName)) {
+        if (
+          await this.mediaRepository.deferUnattached(
+            record.id,
+            updatedBefore,
+            now,
+          )
+        ) {
+          summary.held += 1;
+        }
+        return;
+      }
+
+      if (
+        !(await this.mediaRepository.claimUnattached(
+          record.id,
+          updatedBefore,
+          UNATTACHED_REASON,
+          now,
+        ))
+      ) {
+        return;
+      }
+
+      await this.deleteRecordBlobs(record);
+      summary.unattachedDeleted += 1;
+      this.metrics.increment("media.cleanup.deleted", {
+        reason: "unattached",
+      });
+    });
+  }
+
+  /**
+   * Deletes an item's upload and, once it was processed, its image with every
+   * rendition. Deleting a blob that is already gone succeeds.
+   */
+  private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
+    await this.blobService.deleteBlob(record.originalBlobName);
+
+    if (record.processedBlobName) {
+      const renditions = listImageVariantBlobNames(record.processedBlobName);
+
+      await Promise.all(
+        (renditions.length > 0 ? renditions : [record.processedBlobName]).map(
+          (name) => this.blobService.deleteBlob(name),
+        ),
+      );
+    }
   }
 
   /**

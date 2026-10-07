@@ -44,15 +44,21 @@ export async function bootstrapMediaCleanupWorker(): Promise<void> {
         summary.abandonedDeleted +
         summary.requeued +
         summary.rejected +
-        summary.rejectedPurged;
+        summary.rejectedPurged +
+        summary.unattachedDeleted;
 
-      if (processedCount > 0 || summary.failed > 0 || summary.deferred > 0) {
+      if (
+        processedCount > 0 ||
+        summary.failed > 0 ||
+        summary.deferred > 0 ||
+        summary.held > 0
+      ) {
         workerLogger.info("Media cleanup sweep completed.", { ...summary });
       }
 
-      // Failures and deferred items are left out, so a sweep that could not
-      // act waits out the poll interval instead of retrying at once; a backlog
-      // of items that were handled drains at full speed.
+      // Failures, deferred items, and held items are left out, so a sweep
+      // that could not act waits out the poll interval instead of retrying at
+      // once; a backlog of items that were handled drains at full speed.
       return processedCount;
     },
   });

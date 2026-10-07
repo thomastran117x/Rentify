@@ -1,7 +1,7 @@
 {
   "Name": "Rentify Blob Reader-Deleter",
   "IsCustom": true,
-  "Description": "Read, list, and delete blobs, but not write them. Assigned on a container: the media workers on the quarantine container, blob-cleanup on both.",
+  "Description": "Read, list, and delete blobs, but not write them. Assigned on a container: the media processing worker on the quarantine container, the media cleanup worker and blob-cleanup on both.",
   "Actions": [],
   "NotActions": [],
   "DataActions": [

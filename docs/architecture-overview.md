@@ -136,8 +136,8 @@ attach by mediaId            postings, logos, blog covers, avatars
 - `MediaProcessingService`, run by `media-processing-worker`, scans,
   validates, and re-encodes. See the [media worker guide](../backend/src/app/workers/media/README.md).
 - `MediaCleanupService`, run by `media-cleanup-worker`, deletes uploads that
-  were never completed and old rejections, and re-queues items whose
-  processing job was lost.
+  were never completed, old rejections, and ready images nothing attached in
+  time, and re-queues items whose processing job was lost.
 
 Posting thumbnail generation and the orphaned-blob cleanup script use
 `BlobService` directly. Both are trusted server-side storage work.
@@ -385,8 +385,16 @@ rule, `MediaService.resolveImageReference`: posting photos
 `DELETE /media/{id}` refuses, with 409, an item whose processed image is still
 attached. A replaced image is removed by the feature that replaced it.
 
-**Cleanup.** Two jobs share the work, and neither ever deletes a `ready` item or
-a processed image that something references.
+Every write that stores image references calls `guardImageAttachments`
+(`features/media/media-attachment-guard.ts`) inside its own transaction. It
+locks the media rows behind the names, refuses with 400 a write that stores an
+image the cleanup has claimed, and moves the others' `updated_at`, including
+images the write drops. The cleanup claims an unattached image only while its
+row is ready and unmoved, under the same lock, so a save racing it either keeps
+the image or fails cleanly.
+
+**Cleanup.** Two jobs share the work, and neither ever deletes a processed image
+that something references, including a restorable audit snapshot.
 
 - `media-cleanup-worker` runs all the time and works from the `media` table, so
   it covers Azure and local-disk storage alike. It deletes an upload still
@@ -394,7 +402,11 @@ a processed image that something references.
   rejection after 24 hours. It re-queues an item in `uploaded` or `processing`
   that has not moved for 15 minutes, but only while no processing job is
   waiting and a worker is consuming them, so a backlog or an outage is never
-  taken for a lost job. It rejects an item it has already re-queued 3 times. It is what guarantees an item reaches a final state; see the
+  taken for a lost job. It rejects an item it has already re-queued 3 times.
+  It deletes a `ready` image nothing has referenced for 24 hours with its
+  renditions, and keeps its row as an `unattached` rejection until the
+  rejected retention passes. It is what guarantees an item reaches a final
+  state; see the
   [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup).
 - `blob-cleanup` is a manual, Azure-only backstop that lists both containers
   and looks for blobs no row accounts for. It deletes each candidate from the

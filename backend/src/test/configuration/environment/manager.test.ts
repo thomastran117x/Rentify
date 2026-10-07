@@ -1040,6 +1040,7 @@ describe("EnvironmentManager", () => {
       stuckThresholdMs: 900_000,
       maxRequeues: 3,
       rejectedRetentionMs: 86_400_000,
+      unattachedReadyTtlMs: 86_400_000,
     });
 
     process.env = buildRequiredEnv({
@@ -1049,6 +1050,7 @@ describe("EnvironmentManager", () => {
       MEDIA_CLEANUP_STUCK_THRESHOLD_MS: "60000",
       MEDIA_CLEANUP_MAX_REQUEUES: "0",
       MEDIA_CLEANUP_REJECTED_RETENTION_MS: "172800000",
+      MEDIA_CLEANUP_UNATTACHED_READY_TTL_MS: "21600000",
     });
     const overriddenManager = new EnvironmentManager();
     overriddenManager.load();
@@ -1060,6 +1062,7 @@ describe("EnvironmentManager", () => {
       stuckThresholdMs: 60_000,
       maxRequeues: 0,
       rejectedRetentionMs: 172_800_000,
+      unattachedReadyTtlMs: 21_600_000,
     });
 
     process.env = buildRequiredEnv({ MEDIA_CLEANUP_BATCH_SIZE: "0" });
