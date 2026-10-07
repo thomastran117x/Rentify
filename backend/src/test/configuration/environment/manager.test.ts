@@ -881,10 +881,8 @@ describe("EnvironmentManager", () => {
     defaultManager.load();
 
     expect(defaultManager.getMediaModerationConfig()).toEqual({
-      provider: "none",
-      auth: "entra",
-      timeoutMs: 10_000,
-      blockAtSeverity: { hate: 4, sexual: 4, violence: 4, selfHarm: 4 },
+      setup: { provider: "none" },
+      problems: [],
     });
 
     process.env = buildRequiredEnv({
@@ -901,11 +899,15 @@ describe("EnvironmentManager", () => {
     entraManager.load();
 
     expect(entraManager.getMediaModerationConfig()).toEqual({
-      provider: "azure-content-safety",
-      endpoint: "https://rentify-safety.cognitiveservices.azure.com",
-      auth: "entra",
-      timeoutMs: 5_000,
-      blockAtSeverity: { hate: 2, sexual: 6, violence: 0, selfHarm: 7 },
+      setup: {
+        provider: "azure-content-safety",
+        endpoint: "https://rentify-safety.cognitiveservices.azure.com",
+        scope: "https://cognitiveservices.azure.com/.default",
+        auth: { kind: "entra" },
+        timeoutMs: 5_000,
+        blockAtSeverity: { hate: 2, sexual: 6, violence: 0, selfHarm: 7 },
+      },
+      problems: [],
     });
 
     process.env = buildRequiredEnv({
@@ -919,9 +921,25 @@ describe("EnvironmentManager", () => {
     keyManager.load();
 
     expect(keyManager.getMediaModerationConfig()).toMatchObject({
-      endpoint: "https://rentify-safety.cognitiveservices.azure.us",
-      auth: "api-key",
-      apiKey: "content-safety-key",
+      setup: {
+        endpoint: "https://rentify-safety.cognitiveservices.azure.us",
+        // A token is only accepted by its own cloud.
+        scope: "https://cognitiveservices.azure.us/.default",
+        auth: { kind: "api-key", apiKey: "content-safety-key" },
+      },
+      problems: [],
+    });
+
+    process.env = buildRequiredEnv({
+      MEDIA_MODERATION_PROVIDER: "azure-content-safety",
+      MEDIA_MODERATION_ENDPOINT:
+        "https://rentify-safety.cognitiveservices.azure.cn",
+    });
+    const chinaManager = new EnvironmentManager();
+    chinaManager.load();
+
+    expect(chinaManager.getMediaModerationConfig().setup).toMatchObject({
+      scope: "https://cognitiveservices.azure.cn/.default",
     });
   });
 
@@ -985,11 +1003,21 @@ describe("EnvironmentManager", () => {
       { MEDIA_MODERATION_TIMEOUT_MS: "0" },
       "MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
     ],
-  ])("rejects invalid media moderation settings %#", (overrides, message) => {
-    process.env = buildRequiredEnv(overrides);
+  ])(
+    "records invalid media moderation settings without failing startup %#",
+    (overrides, message) => {
+      process.env = buildRequiredEnv(overrides);
+      const manager = new EnvironmentManager();
 
-    expect(() => new EnvironmentManager().load()).toThrow(message);
-  });
+      // Only the media processing worker moderates, so only it refuses them
+      // (createImageModeration); every other process starts.
+      expect(() => manager.load()).not.toThrow();
+      expect(manager.getMediaModerationConfig()).toEqual({
+        setup: { provider: "none" },
+        problems: [expect.stringContaining(message)],
+      });
+    },
+  );
 
   it("defaults the media cleanup worker and allows overriding it", () => {
     process.env = buildRequiredEnv({});

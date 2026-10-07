@@ -19,16 +19,20 @@ const STORAGE_ACCOUNT_HOST_PATTERNS = [
 
 // Custom-subdomain endpoints of Azure AI services in the public, US Government
 // and China clouds. Microsoft Entra ID only works against a custom subdomain.
+// The captured suffix names the cloud, whose Entra ID audience it also is.
 const COGNITIVE_SERVICES_HOST_PATTERN =
-  /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.cognitiveservices\.azure\.(?:com|us|cn)$/;
+  /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.(cognitiveservices\.azure\.(?:com|us|cn))$/;
 
 /**
  * Reads an Azure AI services endpoint, such as
- * https://<resource>.cognitiveservices.azure.com, into its origin. Returns
- * null for anything else, because every request to it carries an image and
- * either the API key or the process's bearer token.
+ * https://<resource>.cognitiveservices.azure.com, into its origin and the
+ * Entra ID scope of its cloud: a token is only accepted by its own cloud.
+ * Returns null for anything else, because every request to it carries an
+ * image and either the API key or the process's bearer token.
  */
-export function parseCognitiveServicesEndpoint(value: string): string | null {
+export function parseCognitiveServicesEndpoint(
+  value: string,
+): { origin: string; scope: string } | null {
   let url: URL;
 
   try {
@@ -44,13 +48,16 @@ export function parseCognitiveServicesEndpoint(value: string): string | null {
     url.search ||
     url.hash ||
     url.username ||
-    url.password ||
-    !COGNITIVE_SERVICES_HOST_PATTERN.test(url.hostname)
+    url.password
   ) {
     return null;
   }
 
-  return url.origin;
+  const cloud = COGNITIVE_SERVICES_HOST_PATTERN.exec(url.hostname)?.[1];
+
+  return cloud
+    ? { origin: url.origin, scope: `https://${cloud}/.default` }
+    : null;
 }
 
 /**

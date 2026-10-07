@@ -11,21 +11,6 @@ import {
 
 export const AZURE_CONTENT_SAFETY_PROVIDER = "azure-content-safety";
 export const CONTENT_SAFETY_API_VERSION = "2024-09-01";
-export const COGNITIVE_SERVICES_SCOPE =
-  "https://cognitiveservices.azure.com/.default";
-
-/**
- * The Entra ID scope for the cloud `endpoint` is in. A token is only accepted
- * by its own cloud, so a US Government (`.azure.us`) or China (`.azure.cn`)
- * resource needs that cloud's audience, not the public one.
- */
-export function cognitiveServicesScope(endpoint: string): string {
-  const cloud = /\.(cognitiveservices\.azure\.(?:com|us|cn))$/.exec(
-    new URL(endpoint).hostname,
-  )?.[1];
-
-  return cloud ? `https://${cloud}/.default` : COGNITIVE_SERVICES_SCOPE;
-}
 
 const AZURE_CATEGORY_NAMES: Record<ModerationCategory, string> = {
   hate: "Hate",
@@ -41,6 +26,8 @@ export type AzureContentSafetyAuth =
 export interface AzureContentSafetyModerationOptions {
   /** The resource's origin, such as https://<resource>.cognitiveservices.azure.com. */
   endpoint: string;
+  /** The Entra ID scope of the endpoint's cloud, used in entra mode. */
+  scope: string;
   auth: AzureContentSafetyAuth;
   /** For each request, from sending it to reading the whole reply. */
   timeoutMs: number;
@@ -60,7 +47,7 @@ export class AzureContentSafetyModeration implements ImageModerationService {
 
   constructor(private readonly options: AzureContentSafetyModerationOptions) {
     this.url = `${options.endpoint}/contentsafety/image:analyze?api-version=${CONTENT_SAFETY_API_VERSION}`;
-    this.scope = cognitiveServicesScope(options.endpoint);
+    this.scope = options.scope;
   }
 
   async moderate(image: Buffer): Promise<ModerationResult> {

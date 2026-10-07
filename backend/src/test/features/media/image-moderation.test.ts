@@ -1,8 +1,6 @@
 import type { TokenCredential } from "@azure/identity";
 import {
   AzureContentSafetyModeration,
-  COGNITIVE_SERVICES_SCOPE,
-  cognitiveServicesScope,
   CONTENT_SAFETY_API_VERSION,
   type AzureContentSafetyModerationOptions,
 } from "@/features/media/moderation/azure-content-safety-moderation";
@@ -14,6 +12,7 @@ import {
 import { NoopModeration } from "@/features/media/moderation/noop-moderation";
 
 const ENDPOINT = "https://rentify-safety.cognitiveservices.azure.com";
+const SCOPE = "https://cognitiveservices.azure.com/.default";
 const THRESHOLDS = { hate: 4, sexual: 4, violence: 4, selfHarm: 4 };
 const IMAGE = Buffer.from("image bytes");
 
@@ -48,6 +47,7 @@ function createModeration(
 ) {
   return new AzureContentSafetyModeration({
     endpoint: ENDPOINT,
+    scope: SCOPE,
     auth: { kind: "api-key", apiKey: "test-key" },
     timeoutMs: 1_000,
     blockAtSeverity: THRESHOLDS,
@@ -160,7 +160,7 @@ describe("AzureContentSafetyModeration", () => {
       auth: { kind: "entra", credential },
     }).moderate(IMAGE);
 
-    expect(credential.getToken).toHaveBeenCalledWith(COGNITIVE_SERVICES_SCOPE);
+    expect(credential.getToken).toHaveBeenCalledWith(SCOPE);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.headers).toEqual({
       "Content-Type": "application/json",
@@ -168,36 +168,18 @@ describe("AzureContentSafetyModeration", () => {
     });
   });
 
-  it("asks for a token from the endpoint's own cloud", async () => {
-    jest
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async () => respond(200, analysis()));
+  it("asks for a token with the scope of the endpoint's cloud", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(200, analysis()));
+    const credential = fakeCredential();
 
-    for (const [endpoint, scope] of [
-      [ENDPOINT, "https://cognitiveservices.azure.com/.default"],
-      [
-        "https://rentify-safety.cognitiveservices.azure.us",
-        "https://cognitiveservices.azure.us/.default",
-      ],
-      [
-        "https://rentify-safety.cognitiveservices.azure.cn",
-        "https://cognitiveservices.azure.cn/.default",
-      ],
-    ] as const) {
-      const credential = fakeCredential();
+    await createModeration({
+      endpoint: "https://rentify-safety.cognitiveservices.azure.us",
+      scope: "https://cognitiveservices.azure.us/.default",
+      auth: { kind: "entra", credential },
+    }).moderate(IMAGE);
 
-      await createModeration({
-        endpoint,
-        auth: { kind: "entra", credential },
-      }).moderate(IMAGE);
-
-      expect(credential.getToken).toHaveBeenCalledWith(scope);
-    }
-  });
-
-  it("falls back to the public cloud's scope for any other host", () => {
-    expect(cognitiveServicesScope("https://example.com")).toBe(
-      COGNITIVE_SERVICES_SCOPE,
+    expect(credential.getToken).toHaveBeenCalledWith(
+      "https://cognitiveservices.azure.us/.default",
     );
   });
 
@@ -395,15 +377,19 @@ describe("AzureContentSafetyModeration", () => {
 });
 
 describe("createImageModeration", () => {
-  const config = {
-    provider: "none" as const,
-    auth: "entra" as const,
+  const azure = {
+    provider: "azure-content-safety" as const,
+    endpoint: ENDPOINT,
+    scope: SCOPE,
+    auth: { kind: "entra" as const },
     timeoutMs: 10_000,
     blockAtSeverity: THRESHOLDS,
   };
 
   it("allows everything when no provider is configured", () => {
-    expect(createImageModeration(config)).toBeInstanceOf(NoopModeration);
+    expect(
+      createImageModeration({ setup: { provider: "none" }, problems: [] }),
+    ).toBeInstanceOf(NoopModeration);
   });
 
   it("builds the Azure adapter with an API key", async () => {
@@ -411,11 +397,8 @@ describe("createImageModeration", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(respond(200, analysis()));
     const moderation = createImageModeration({
-      ...config,
-      provider: "azure-content-safety",
-      endpoint: ENDPOINT,
-      auth: "api-key",
-      apiKey: "configured-key",
+      setup: { ...azure, auth: { kind: "api-key", apiKey: "configured-key" } },
+      problems: [],
     });
 
     expect(moderation).toBeInstanceOf(AzureContentSafetyModeration);
@@ -431,37 +414,33 @@ describe("createImageModeration", () => {
     const credential = fakeCredential();
     const createCredential = jest.fn(() => credential);
     const moderation = createImageModeration(
-      { ...config, provider: "azure-content-safety", endpoint: ENDPOINT },
+      { setup: azure, problems: [] },
       createCredential,
     );
 
     await moderation.moderate(IMAGE);
 
     expect(createCredential).toHaveBeenCalledTimes(1);
-    expect(credential.getToken).toHaveBeenCalledWith(COGNITIVE_SERVICES_SCOPE);
+    expect(credential.getToken).toHaveBeenCalledWith(SCOPE);
   });
 
   it("uses DefaultAzureCredential by default", () => {
     expect(
-      createImageModeration({
-        ...config,
-        provider: "azure-content-safety",
-        endpoint: ENDPOINT,
-      }),
+      createImageModeration({ setup: azure, problems: [] }),
     ).toBeInstanceOf(AzureContentSafetyModeration);
   });
 
-  it("refuses an Azure provider the environment layer would have refused", () => {
-    expect(() =>
-      createImageModeration({ ...config, provider: "azure-content-safety" }),
-    ).toThrow("MEDIA_MODERATION_ENDPOINT is required");
+  it("refuses to start with the problems the environment layer found", () => {
     expect(() =>
       createImageModeration({
-        ...config,
-        provider: "azure-content-safety",
-        endpoint: ENDPOINT,
-        auth: "api-key",
+        setup: { provider: "none" },
+        problems: [
+          "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
+          "MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
+        ],
       }),
-    ).toThrow("MEDIA_MODERATION_API_KEY is required");
+    ).toThrow(
+      "Media moderation is misconfigured:\n- MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.\n- MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
+    );
   });
 });

@@ -17,6 +17,30 @@ export type MediaModerationProvider =
 export const MEDIA_MODERATION_AUTH_MODES = ["entra", "api-key"] as const;
 export type MediaModerationAuthMode =
   (typeof MEDIA_MODERATION_AUTH_MODES)[number];
+/** The severity at or above which each category blocks an image. */
+export interface MediaModerationThresholds {
+  hate: number;
+  sexual: number;
+  violence: number;
+  selfHarm: number;
+}
+/** A moderation setup as the environment layer parsed it. */
+export type MediaModerationSetup =
+  | { provider: "none" }
+  | {
+      provider: "azure-content-safety";
+      /** The resource's origin, such as https://<resource>.cognitiveservices.azure.com. */
+      endpoint: string;
+      /** The Entra ID scope of the endpoint's cloud. */
+      scope: string;
+      auth: { kind: "entra" } | { kind: "api-key"; apiKey: string };
+      timeoutMs: number;
+      /**
+       * Content Safety reports images as 0, 2, 4, or 6, so 7 never blocks,
+       * and 0 blocks every image.
+       */
+      blockAtSeverity: MediaModerationThresholds;
+    };
 export const BLOB_STORAGE_AUTH_MODES = ["connection-string", "entra"] as const;
 export type BlobStorageAuthMode = (typeof BLOB_STORAGE_AUTH_MODES)[number];
 /** A storage account as the environment layer parsed and validated it. */
@@ -487,33 +511,14 @@ export interface AppEnvironment {
     allowNone: boolean;
   };
   mediaModeration: {
-    provider: MediaModerationProvider;
+    /** What the settings describe; `none` whenever there are problems. */
+    setup: MediaModerationSetup;
     /**
-     * The Content Safety resource's origin, such as
-     * https://<resource>.cognitiveservices.azure.com. Present whenever it is
-     * configured and valid; startup has refused azure-content-safety without
-     * it.
+     * Settings that are missing or invalid. Only the media processing worker
+     * moderates, so only it refuses to start on them (createImageModeration);
+     * every other process ignores moderation and starts either way.
      */
-    endpoint?: string;
-    /**
-     * entra, the default, signs each request with the process's Microsoft
-     * Entra ID identity; api-key sends apiKey instead.
-     */
-    auth: MediaModerationAuthMode;
-    /** Present only in api-key mode. Environment-only, never in YAML. */
-    apiKey?: string;
-    timeoutMs: number;
-    /**
-     * The severity at or above which a category blocks an image. Content
-     * Safety reports images as 0, 2, 4, or 6, so 7 never blocks, and 0 blocks
-     * every image.
-     */
-    blockAtSeverity: {
-      hate: number;
-      sexual: number;
-      violence: number;
-      selfHarm: number;
-    };
+    problems: string[];
   };
   logging: {
     fallbackDirectory: string;

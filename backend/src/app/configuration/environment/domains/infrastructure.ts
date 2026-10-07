@@ -21,8 +21,6 @@ import {
   type AppEnvironment,
   type BlobStorageAccount,
   type BlobStorageAuthMode,
-  type MediaModerationAuthMode,
-  type MediaModerationProvider,
   type MediaScannerKind,
   type NodeEnvironment,
   type PayPalCheckoutMethod,
@@ -395,102 +393,105 @@ function isMediaScannerKind(value: string): value is MediaScannerKind {
 
 const DEFAULT_MODERATION_BLOCK_AT_SEVERITY = 4;
 
+type ModerationThresholdVariable =
+  | "MEDIA_MODERATION_BLOCK_AT_HATE"
+  | "MEDIA_MODERATION_BLOCK_AT_SEXUAL"
+  | "MEDIA_MODERATION_BLOCK_AT_VIOLENCE"
+  | "MEDIA_MODERATION_BLOCK_AT_SELF_HARM";
+
 /**
  * Pre-publication moderation of each processed image. `none`, the default,
- * allows everything, so turning moderation on is an explicit choice. The
- * endpoint and credentials are checked here, when the environment loads, so a
- * misconfigured deployment fails at startup rather than on its first upload.
- * Like blob storage, entra mode refuses an API key outright.
+ * allows everything, so turning moderation on is an explicit choice.
+ *
+ * Every setting is checked here, but a problem is recorded rather than added
+ * to `errors`: only the media processing worker moderates, so only it refuses
+ * to start on one (createImageModeration), and the API and every other worker
+ * start either way, as with the malware scanner. Like blob storage, entra mode
+ * refuses an API key outright.
  */
 export function buildMediaModerationConfig(
   raw: RawEnvironmentValues,
-  errors: string[],
 ): AppEnvironment["mediaModeration"] {
-  const providerValue = raw.MEDIA_MODERATION_PROVIDER?.toLowerCase() ?? "none";
-  let provider: MediaModerationProvider = "none";
+  const problems: string[] = [];
+  const provider = raw.MEDIA_MODERATION_PROVIDER?.toLowerCase() ?? "none";
+  const auth = raw.MEDIA_MODERATION_AUTH?.toLowerCase() ?? "entra";
+  const apiKey = raw.MEDIA_MODERATION_API_KEY;
 
-  if (
-    (MEDIA_MODERATION_PROVIDERS as readonly string[]).includes(providerValue)
-  ) {
-    provider = providerValue as MediaModerationProvider;
-  } else {
-    errors.push(
+  if (!(MEDIA_MODERATION_PROVIDERS as readonly string[]).includes(provider)) {
+    problems.push(
       `MEDIA_MODERATION_PROVIDER must be one of: ${MEDIA_MODERATION_PROVIDERS.join(", ")}.`,
     );
   }
 
-  const authValue = raw.MEDIA_MODERATION_AUTH?.toLowerCase() ?? "entra";
-  let auth: MediaModerationAuthMode = "entra";
-
-  if ((MEDIA_MODERATION_AUTH_MODES as readonly string[]).includes(authValue)) {
-    auth = authValue as MediaModerationAuthMode;
-  } else {
-    errors.push(
+  if (!(MEDIA_MODERATION_AUTH_MODES as readonly string[]).includes(auth)) {
+    problems.push(
       `MEDIA_MODERATION_AUTH must be one of: ${MEDIA_MODERATION_AUTH_MODES.join(", ")}.`,
     );
   }
 
-  const azure = provider === "azure-content-safety";
-  let endpoint: string | undefined;
+  const endpoint = raw.MEDIA_MODERATION_ENDPOINT
+    ? parseCognitiveServicesEndpoint(raw.MEDIA_MODERATION_ENDPOINT)
+    : null;
 
-  if (raw.MEDIA_MODERATION_ENDPOINT) {
-    endpoint =
-      parseCognitiveServicesEndpoint(raw.MEDIA_MODERATION_ENDPOINT) ??
-      undefined;
-
-    if (!endpoint) {
-      errors.push(
-        "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint with a custom subdomain, such as https://<resource>.cognitiveservices.azure.com.",
-      );
-    }
-  } else if (azure) {
-    errors.push(
+  if (raw.MEDIA_MODERATION_ENDPOINT && !endpoint) {
+    problems.push(
+      "MEDIA_MODERATION_ENDPOINT must be an Azure AI services endpoint with a custom subdomain, such as https://<resource>.cognitiveservices.azure.com.",
+    );
+  } else if (!endpoint && provider === "azure-content-safety") {
+    problems.push(
       "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
     );
   }
 
-  if (auth === "entra" && raw.MEDIA_MODERATION_API_KEY) {
-    errors.push(
+  if (auth === "entra" && apiKey) {
+    problems.push(
       "MEDIA_MODERATION_API_KEY must not be set when MEDIA_MODERATION_AUTH is entra, the default. Remove it, or set MEDIA_MODERATION_AUTH=api-key.",
     );
   }
 
-  if (azure && auth === "api-key" && !raw.MEDIA_MODERATION_API_KEY) {
-    errors.push(
+  if (auth === "api-key" && provider === "azure-content-safety" && !apiKey) {
+    problems.push(
       "MEDIA_MODERATION_API_KEY is required when MEDIA_MODERATION_AUTH is api-key.",
     );
   }
 
-  const severity = (
-    name:
-      | "MEDIA_MODERATION_BLOCK_AT_HATE"
-      | "MEDIA_MODERATION_BLOCK_AT_SEXUAL"
-      | "MEDIA_MODERATION_BLOCK_AT_VIOLENCE"
-      | "MEDIA_MODERATION_BLOCK_AT_SELF_HARM",
-  ) =>
-    parseNumber(raw, name, DEFAULT_MODERATION_BLOCK_AT_SEVERITY, errors, {
+  const threshold = (name: ModerationThresholdVariable) =>
+    parseNumber(raw, name, DEFAULT_MODERATION_BLOCK_AT_SEVERITY, problems, {
       integer: true,
       min: 0,
       max: 7,
     });
+  const timeoutMs = parseNumber(
+    raw,
+    "MEDIA_MODERATION_TIMEOUT_MS",
+    10_000,
+    problems,
+    { integer: true, min: 1 },
+  );
+  const blockAtSeverity = {
+    hate: threshold("MEDIA_MODERATION_BLOCK_AT_HATE"),
+    sexual: threshold("MEDIA_MODERATION_BLOCK_AT_SEXUAL"),
+    violence: threshold("MEDIA_MODERATION_BLOCK_AT_VIOLENCE"),
+    selfHarm: threshold("MEDIA_MODERATION_BLOCK_AT_SELF_HARM"),
+  };
+
+  if (problems.length > 0 || provider !== "azure-content-safety" || !endpoint) {
+    return { setup: { provider: "none" }, problems };
+  }
 
   return {
-    provider,
-    ...(endpoint ? { endpoint } : {}),
-    auth,
-    ...(auth === "api-key" && raw.MEDIA_MODERATION_API_KEY
-      ? { apiKey: raw.MEDIA_MODERATION_API_KEY }
-      : {}),
-    timeoutMs: parseNumber(raw, "MEDIA_MODERATION_TIMEOUT_MS", 10_000, errors, {
-      integer: true,
-      min: 1,
-    }),
-    blockAtSeverity: {
-      hate: severity("MEDIA_MODERATION_BLOCK_AT_HATE"),
-      sexual: severity("MEDIA_MODERATION_BLOCK_AT_SEXUAL"),
-      violence: severity("MEDIA_MODERATION_BLOCK_AT_VIOLENCE"),
-      selfHarm: severity("MEDIA_MODERATION_BLOCK_AT_SELF_HARM"),
+    setup: {
+      provider,
+      endpoint: endpoint.origin,
+      scope: endpoint.scope,
+      auth:
+        auth === "api-key" && apiKey
+          ? { kind: "api-key", apiKey }
+          : { kind: "entra" },
+      timeoutMs,
+      blockAtSeverity,
     },
+    problems,
   };
 }
 

@@ -623,6 +623,12 @@ is published.
 | `blockAtSeverity.violence` | `4`     | `MEDIA_MODERATION_BLOCK_AT_VIOLENCE`  | As above                                                                      |
 | `blockAtSeverity.selfHarm` | `4`     | `MEDIA_MODERATION_BLOCK_AT_SELF_HARM` | As above                                                                      |
 
+Only the media processing worker moderates, so only it checks these
+settings. A missing or invalid one (an unknown provider, a bad endpoint, a key
+in entra mode, a threshold out of range) stops that worker at startup with a
+message listing every problem, written to its log and to stderr. The API and
+the other workers start either way, as they do for the malware scanner.
+
 Every scope is moderated: posting photos, organization logos, blog covers, and
 avatars. The worker sends the 800 px medium rendition, or the processed image
 when it is no wider than that, fitted inside 2048 x 2048 and padded to at least

@@ -3,7 +3,10 @@ import {
   type RootServiceContainer,
   type ServiceContainer,
 } from "@/configuration/bootstrap/container";
-import { loadEnvironment } from "@/configuration/environment/index";
+import {
+  environment,
+  loadEnvironment,
+} from "@/configuration/environment/index";
 import { disconnectLogging, loggerFactory } from "@/configuration/logging";
 
 export interface WorkerResource {
@@ -100,9 +103,32 @@ export function startWorker(input: {
         workerName: input.name,
       })
       .critical("Failed to start worker.", undefined, error);
+    reportStartupFailure(input.name, error);
     await Promise.allSettled([input.cleanup(), disconnectLogging()]);
     process.exit(1);
   });
+}
+
+/**
+ * Outside console logging, logs travel through RabbitMQ, which a worker that
+ * failed to start may never have reached, so the reason it stopped would be
+ * lost. It is also written to stderr, which the container runtime keeps. With
+ * console logging the critical log above already went there.
+ */
+function reportStartupFailure(name: string, error: unknown): void {
+  let consoleLogging = false;
+
+  try {
+    consoleLogging = environment.getLoggingConfig().mode === "console";
+  } catch {
+    // The environment never loaded, which is itself the likely failure.
+  }
+
+  if (!consoleLogging) {
+    process.stderr.write(
+      `${name} failed to start: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+  }
 }
 
 export function sleep(delayMs: number): Promise<void> {

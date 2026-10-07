@@ -147,7 +147,7 @@ export function parseEnvironmentState(
     blobStorage: buildBlobStorageConfig(raw, errors),
     imageUploads: buildImageUploadsConfig(raw, errors),
     mediaScanning: buildMediaScanningConfig(raw, errors),
-    mediaModeration: buildMediaModerationConfig(raw, errors),
+    mediaModeration: buildMediaModerationConfig(raw),
     logging: buildLoggingConfig(raw, nodeEnv),
     routeModules: buildRouteModulesConfig(raw, errors),
     features: buildFeaturesConfig(source, configuredFeatures),

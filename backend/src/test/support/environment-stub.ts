@@ -242,10 +242,8 @@ const mediaScanningConfig = {
 };
 
 const mediaModerationConfig = {
-  provider: "none" as const,
-  auth: "entra" as const,
-  timeoutMs: 10_000,
-  blockAtSeverity: { hate: 4, sexual: 4, violence: 4, selfHarm: 4 },
+  setup: { provider: "none" as const },
+  problems: [] as string[],
 };
 
 const identityBloomConfig = {
