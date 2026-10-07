@@ -401,7 +401,8 @@ type ModerationThresholdVariable =
 
 /**
  * Pre-publication moderation of each processed image. `none`, the default,
- * allows everything, so turning moderation on is an explicit choice.
+ * allows everything. Whether production may run with `none` is decided where
+ * moderation is built (createImageModeration), as for the malware scanner.
  *
  * Every setting is checked here, but a problem is recorded rather than added
  * to `errors`: only the media processing worker moderates, so only it refuses
@@ -476,7 +477,13 @@ export function buildMediaModerationConfig(
   };
 
   if (problems.length > 0 || provider !== "azure-content-safety" || !endpoint) {
-    return { setup: { provider: "none" }, problems };
+    return {
+      setup: {
+        provider: "none",
+        allowNone: parseBoolean(raw.MEDIA_MODERATION_ALLOW_NONE, false),
+      },
+      problems,
+    };
   }
 
   return {

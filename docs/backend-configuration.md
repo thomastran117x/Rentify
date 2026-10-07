@@ -622,12 +622,19 @@ is published.
 | `blockAtSeverity.sexual`   | `4`     | `MEDIA_MODERATION_BLOCK_AT_SEXUAL`    | As above                                                                      |
 | `blockAtSeverity.violence` | `4`     | `MEDIA_MODERATION_BLOCK_AT_VIOLENCE`  | As above                                                                      |
 | `blockAtSeverity.selfHarm` | `4`     | `MEDIA_MODERATION_BLOCK_AT_SELF_HARM` | As above                                                                      |
+| `allowNone`                | `false` | `MEDIA_MODERATION_ALLOW_NONE`         | Lets the production media worker start with `provider: none`                  |
 
 Only the media processing worker moderates, so only it checks these
 settings. A missing or invalid one (an unknown provider, a bad endpoint, a key
 in entra mode, a threshold out of range) stops that worker at startup with a
 message listing every problem, written to its log and to stderr. The API and
 the other workers start either way, as they do for the malware scanner.
+
+In production the media processing worker also refuses to start with
+`provider: none` unless `MEDIA_MODERATION_ALLOW_NONE=true`, because the
+privacy policy tells users their images are screened. No production default is
+set, so every production deployment either configures Content Safety or opts
+out explicitly.
 
 Every scope is moderated: posting photos, organization logos, blog covers, and
 avatars. The worker sends the 800 px medium rendition, or the processed image

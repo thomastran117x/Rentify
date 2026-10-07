@@ -4,7 +4,10 @@ import {
   CONTENT_SAFETY_API_VERSION,
   type AzureContentSafetyModerationOptions,
 } from "@/features/media/moderation/azure-content-safety-moderation";
-import { createImageModeration } from "@/features/media/moderation/create-image-moderation";
+import {
+  createImageModeration,
+  PRODUCTION_WITHOUT_MODERATION_ERROR,
+} from "@/features/media/moderation/create-image-moderation";
 import {
   decideModeration,
   ImageModerationUnavailableError,
@@ -388,18 +391,45 @@ describe("createImageModeration", () => {
 
   it("allows everything when no provider is configured", () => {
     expect(
-      createImageModeration({ setup: { provider: "none" }, problems: [] }),
+      createImageModeration(
+        { setup: { provider: "none", allowNone: false }, problems: [] },
+        false,
+      ),
     ).toBeInstanceOf(NoopModeration);
+  });
+
+  it("refuses to moderate nothing in production unless told to", () => {
+    expect(() =>
+      createImageModeration(
+        { setup: { provider: "none", allowNone: false }, problems: [] },
+        true,
+      ),
+    ).toThrow(PRODUCTION_WITHOUT_MODERATION_ERROR);
+    expect(
+      createImageModeration(
+        { setup: { provider: "none", allowNone: true }, problems: [] },
+        true,
+      ),
+    ).toBeInstanceOf(NoopModeration);
+    expect(
+      createImageModeration({ setup: azure, problems: [] }, true),
+    ).toBeInstanceOf(AzureContentSafetyModeration);
   });
 
   it("builds the Azure adapter with an API key", async () => {
     const fetchMock = jest
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(respond(200, analysis()));
-    const moderation = createImageModeration({
-      setup: { ...azure, auth: { kind: "api-key", apiKey: "configured-key" } },
-      problems: [],
-    });
+    const moderation = createImageModeration(
+      {
+        setup: {
+          ...azure,
+          auth: { kind: "api-key", apiKey: "configured-key" },
+        },
+        problems: [],
+      },
+      false,
+    );
 
     expect(moderation).toBeInstanceOf(AzureContentSafetyModeration);
     await moderation.moderate(IMAGE);
@@ -415,6 +445,7 @@ describe("createImageModeration", () => {
     const createCredential = jest.fn(() => credential);
     const moderation = createImageModeration(
       { setup: azure, problems: [] },
+      false,
       createCredential,
     );
 
@@ -426,19 +457,22 @@ describe("createImageModeration", () => {
 
   it("uses DefaultAzureCredential by default", () => {
     expect(
-      createImageModeration({ setup: azure, problems: [] }),
+      createImageModeration({ setup: azure, problems: [] }, false),
     ).toBeInstanceOf(AzureContentSafetyModeration);
   });
 
   it("refuses to start with the problems the environment layer found", () => {
     expect(() =>
-      createImageModeration({
-        setup: { provider: "none" },
-        problems: [
-          "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
-          "MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
-        ],
-      }),
+      createImageModeration(
+        {
+          setup: { provider: "none", allowNone: true },
+          problems: [
+            "MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.",
+            "MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
+          ],
+        },
+        false,
+      ),
     ).toThrow(
       "Media moderation is misconfigured:\n- MEDIA_MODERATION_ENDPOINT is required when MEDIA_MODERATION_PROVIDER is azure-content-safety.\n- MEDIA_MODERATION_TIMEOUT_MS must be greater than or equal to 1.",
     );

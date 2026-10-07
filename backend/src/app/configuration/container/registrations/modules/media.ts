@@ -51,7 +51,10 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [],
       resolve: () =>
-        createImageModeration(environment.getMediaModerationConfig()),
+        createImageModeration(
+          environment.getMediaModerationConfig(),
+          environment.isProduction(),
+        ),
     });
     container.register({
       token: containerTokens.imageVariantsResolver,

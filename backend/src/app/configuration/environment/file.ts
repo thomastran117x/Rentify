@@ -130,6 +130,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "logging.level": "LOG_LEVEL",
   "logging.serviceName": "LOG_SERVICE_NAME",
   "logging.silent": "LOG_SILENT",
+  "mediaModeration.allowNone": "MEDIA_MODERATION_ALLOW_NONE",
   "mediaModeration.auth": "MEDIA_MODERATION_AUTH",
   "mediaModeration.blockAtSeverity.hate": "MEDIA_MODERATION_BLOCK_AT_HATE",
   "mediaModeration.blockAtSeverity.selfHarm":
@@ -495,6 +496,7 @@ function validateConfigurationValueType(
     variableName === "LOG_SILENT" ||
     variableName === "MEDIA_QUARANTINE_LEGACY_FALLBACK" ||
     variableName === "MEDIA_SCANNING_ALLOW_NONE" ||
+    variableName === "MEDIA_MODERATION_ALLOW_NONE" ||
     variableName === "TRUST_PROXY_HEADERS";
   if (isBoolean && typeof value !== "boolean") {
     throw new Error(

@@ -26,7 +26,11 @@ export interface MediaModerationThresholds {
 }
 /** A moderation setup as the environment layer parsed it. */
 export type MediaModerationSetup =
-  | { provider: "none" }
+  | {
+      provider: "none";
+      /** Lets the production media worker start without moderation. */
+      allowNone: boolean;
+    }
   | {
       provider: "azure-content-safety";
       /** The resource's origin, such as https://<resource>.cognitiveservices.azure.com. */
@@ -173,6 +177,7 @@ export type RawEnvironmentValues = {
   MEDIA_SCANNING_CLAMAV_PORT?: string;
   MEDIA_SCANNING_MAX_STREAM_BYTES?: string;
   MEDIA_SCANNING_TIMEOUT_MS?: string;
+  MEDIA_MODERATION_ALLOW_NONE?: string;
   MEDIA_MODERATION_API_KEY?: string;
   MEDIA_MODERATION_AUTH?: string;
   MEDIA_MODERATION_BLOCK_AT_HATE?: string;

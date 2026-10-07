@@ -881,8 +881,17 @@ describe("EnvironmentManager", () => {
     defaultManager.load();
 
     expect(defaultManager.getMediaModerationConfig()).toEqual({
-      setup: { provider: "none" },
+      setup: { provider: "none", allowNone: false },
       problems: [],
+    });
+
+    process.env = buildRequiredEnv({ MEDIA_MODERATION_ALLOW_NONE: "true" });
+    const allowNoneManager = new EnvironmentManager();
+    allowNoneManager.load();
+
+    expect(allowNoneManager.getMediaModerationConfig().setup).toEqual({
+      provider: "none",
+      allowNone: true,
     });
 
     process.env = buildRequiredEnv({
@@ -1013,7 +1022,7 @@ describe("EnvironmentManager", () => {
       // (createImageModeration); every other process starts.
       expect(() => manager.load()).not.toThrow();
       expect(manager.getMediaModerationConfig()).toEqual({
-        setup: { provider: "none" },
+        setup: { provider: "none", allowNone: false },
         problems: [expect.stringContaining(message)],
       });
     },

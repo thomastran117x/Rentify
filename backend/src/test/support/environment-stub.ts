@@ -242,7 +242,7 @@ const mediaScanningConfig = {
 };
 
 const mediaModerationConfig = {
-  setup: { provider: "none" as const },
+  setup: { provider: "none" as const, allowNone: false },
   problems: [] as string[],
 };
 

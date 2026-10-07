@@ -4,9 +4,13 @@ import { AzureContentSafetyModeration } from "@/features/media/moderation/azure-
 import type { ImageModerationService } from "@/features/media/moderation/image-moderation.service";
 import { NoopModeration } from "@/features/media/moderation/noop-moderation";
 
+export const PRODUCTION_WITHOUT_MODERATION_ERROR =
+  "MEDIA_MODERATION_PROVIDER is none, so uploaded images would be published without content moderation, which the privacy policy says they get. Set MEDIA_MODERATION_PROVIDER=azure-content-safety, or MEDIA_MODERATION_ALLOW_NONE=true to run production without moderation.";
+
 /**
  * The moderation `mediaModeration` describes. Refuses settings the
- * environment layer found problems with. Only the media processing worker
+ * environment layer found problems with, and refuses `none` in production
+ * unless `allowNone` says that is intended. Only the media processing worker
  * builds one, when it starts, so a misconfigured deployment stops that worker
  * with this message and leaves every other process running. In entra mode the
  * credential is built once, so its token is cached across every image the
@@ -14,6 +18,7 @@ import { NoopModeration } from "@/features/media/moderation/noop-moderation";
  */
 export function createImageModeration(
   config: AppEnvironment["mediaModeration"],
+  isProduction: boolean,
   createCredential: () => TokenCredential = () => new DefaultAzureCredential(),
 ): ImageModerationService {
   if (config.problems.length > 0) {
@@ -25,6 +30,10 @@ export function createImageModeration(
   const { setup } = config;
 
   if (setup.provider === "none") {
+    if (isProduction && !setup.allowNone) {
+      throw new Error(PRODUCTION_WITHOUT_MODERATION_ERROR);
+    }
+
     return new NoopModeration();
   }
 
