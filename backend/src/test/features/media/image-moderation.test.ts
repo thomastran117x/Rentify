@@ -1,4 +1,5 @@
 import type { TokenCredential } from "@azure/identity";
+import sharp from "sharp";
 import {
   AzureContentSafetyModeration,
   CONTENT_SAFETY_API_VERSION,
@@ -17,7 +18,8 @@ import { NoopModeration } from "@/features/media/moderation/noop-moderation";
 const ENDPOINT = "https://rentify-safety.cognitiveservices.azure.com";
 const SCOPE = "https://cognitiveservices.azure.com/.default";
 const THRESHOLDS = { hate: 4, sexual: 4, violence: 4, selfHarm: 4 };
-const IMAGE = Buffer.from("image bytes");
+// Within Content Safety's limits, so it is sent as it is, undecoded.
+const IMAGE = { data: Buffer.from("image bytes"), width: 100, height: 100 };
 
 function analysis(
   severities: Partial<
@@ -146,12 +148,41 @@ describe("AzureContentSafetyModeration", () => {
       "Ocp-Apim-Subscription-Key": "test-key",
     });
     expect(JSON.parse(init.body as string)).toEqual({
-      image: { content: IMAGE.toString("base64") },
+      image: { content: IMAGE.data.toString("base64") },
       categories: ["Hate", "Sexual", "Violence", "SelfHarm"],
       outputType: "FourSeverityLevels",
     });
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
+
+  it.each([
+    // Padded with white, never enlarged.
+    [12, 8, { width: 50, height: 50 }],
+    // Fitted inside 2048 x 2048.
+    [800, 2276, { width: 720, height: 2048 }],
+  ])(
+    "fits a %i x %i image to Content Safety's limits before sending it",
+    async (width, height, sent) => {
+      const fetchMock = jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(respond(200, analysis()));
+      const data = await sharp({
+        create: { width, height, channels: 3, background: "#336699" },
+      })
+        .webp()
+        .toBuffer();
+
+      await createModeration().moderate({ data, width, height });
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      const { image } = JSON.parse(init.body as string) as {
+        image: { content: string };
+      };
+      await expect(
+        sharp(Buffer.from(image.content, "base64")).metadata(),
+      ).resolves.toMatchObject(sent);
+    },
+  );
 
   it("signs the request with an Entra ID token in entra mode", async () => {
     const fetchMock = jest

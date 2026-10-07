@@ -21,14 +21,23 @@ export interface ModerationResult {
   provider: string;
 }
 
+/** An encoded image to moderate, with its size. */
+export interface ModerationImage {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
 /**
  * Screens a processed image for harmful visual content before it is
- * published. A provider that wants a human to look first would need an item
- * state that waits on that review; this port leaves room for that.
+ * published. Each provider prepares the image for its own limits, so one that
+ * never looks at it does no image work. A provider that wants a human to look
+ * first would need an item state that waits on that review; this port leaves
+ * room for that.
  */
 export interface ImageModerationService {
   /** Throws when the provider is unavailable; that is retryable. */
-  moderate(image: Buffer): Promise<ModerationResult>;
+  moderate(image: ModerationImage): Promise<ModerationResult>;
 }
 
 /**

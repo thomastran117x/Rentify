@@ -1,10 +1,12 @@
 import type { TokenCredential } from "@azure/identity";
+import { renderModerationImage } from "@/features/media/image-renditions";
 import {
   ImageModerationUnavailableError,
   MODERATION_CATEGORIES,
   decideModeration,
   type ImageModerationService,
   type ModerationCategory,
+  type ModerationImage,
   type ModerationResult,
   type ModerationThresholds,
 } from "@/features/media/moderation/image-moderation.service";
@@ -50,7 +52,9 @@ export class AzureContentSafetyModeration implements ImageModerationService {
     this.scope = options.scope;
   }
 
-  async moderate(image: Buffer): Promise<ModerationResult> {
+  async moderate(image: ModerationImage): Promise<ModerationResult> {
+    // Fitted to Content Safety's 50 to 2048 px; unchanged when it already is.
+    const { data } = await renderModerationImage(image);
     const headers = {
       "Content-Type": "application/json",
       ...(await this.authorizationHeader()),
@@ -68,7 +72,7 @@ export class AzureContentSafetyModeration implements ImageModerationService {
         method: "POST",
         headers,
         body: JSON.stringify({
-          image: { content: image.toString("base64") },
+          image: { content: data.toString("base64") },
           categories: MODERATION_CATEGORIES.map(
             (category) => AZURE_CATEGORY_NAMES[category],
           ),

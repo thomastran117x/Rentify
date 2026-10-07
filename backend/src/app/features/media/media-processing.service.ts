@@ -28,7 +28,6 @@ import {
 import {
   PROCESSED_IMAGE_CONTENT_TYPE,
   renderImage,
-  renderModerationImage,
   renderSmallerRenditions,
   uploadSmallerRenditions,
   type RenderedImage,
@@ -421,8 +420,7 @@ export class MediaProcessingService {
     attempt: number,
     image: RenderedImage,
   ): Promise<"passed" | "rejected" | "discarded"> {
-    const { data } = await renderModerationImage(image);
-    const result = await this.moderation.moderate(data);
+    const result = await this.moderation.moderate(image);
 
     // As with the scan: a later attempt has the item and moderates for itself.
     if (

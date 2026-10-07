@@ -22,6 +22,7 @@ import { NoopScanner } from "@/features/media/scanning/noop-scanner";
 import {
   ImageModerationUnavailableError,
   type ImageModerationService,
+  type ModerationImage,
   type ModerationResult,
 } from "@/features/media/moderation/image-moderation.service";
 import { NoopModeration } from "@/features/media/moderation/noop-moderation";
@@ -92,19 +93,26 @@ const BLOCKED: ModerationResult = {
  * was given.
  */
 class FakeModeration implements ImageModerationService {
-  readonly moderated: Buffer[] = [];
+  readonly moderated: ModerationImage[] = [];
   result: ModerationResult = ALLOWED;
 
-  async moderate(image: Buffer): Promise<ModerationResult> {
+  async moderate(image: ModerationImage): Promise<ModerationResult> {
     this.moderated.push(image);
     return this.result;
   }
 
-  /** The size of each image it was given, as sharp reads it. */
+  /**
+   * The size of each image it was given, as stated and as sharp reads it, so
+   * a stated size that does not match its bytes fails the comparison.
+   */
   async sizes(): Promise<Array<{ width?: number; height?: number }>> {
     return Promise.all(
       this.moderated.map(async (image) => {
-        const { width, height } = await sharp(image).metadata();
+        const { width, height } = await sharp(image.data).metadata();
+        expect({ width, height }).toEqual({
+          width: image.width,
+          height: image.height,
+        });
         return { width, height };
       }),
     );
@@ -1475,31 +1483,21 @@ describe("MediaProcessingService", () => {
       );
     });
 
-    it("pads an image too small for the provider without enlarging it", async () => {
+    it("hands the provider the rendition as it is, for it to fit to its own limits", async () => {
       const context = createContext();
-      const record = await quarantine(context, await createPngFixture(12, 8));
-
-      await context.service.process(record.id);
-
-      expect(await fake(context).sizes()).toEqual([{ width: 50, height: 50 }]);
-      // Only what is moderated is padded; what is served is the image itself.
-      await expect(
-        context.mediaRepository.findById(record.id),
-      ).resolves.toMatchObject({ status: "ready", width: 12, height: 8 });
-    });
-
-    it("fits an image too tall for the provider inside its limit", async () => {
-      const context = createContext();
-      const record = await quarantine(
+      const small = await quarantine(context, await createPngFixture(12, 8));
+      const tall = await quarantine(
         context,
         await createPngFixture(900, 2560),
       );
 
-      await context.service.process(record.id);
+      await context.service.process(small.id);
+      await context.service.process(tall.id);
 
-      // The medium rendition is 800 x 2276; the provider takes 2048 at most.
+      // The tall image's medium rendition is 800 x 2276.
       expect(await fake(context).sizes()).toEqual([
-        { width: 720, height: 2048 },
+        { width: 12, height: 8 },
+        { width: 800, height: 2276 },
       ]);
     });
 
