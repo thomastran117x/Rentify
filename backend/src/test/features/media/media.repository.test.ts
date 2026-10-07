@@ -256,7 +256,7 @@ describe("MediaRepository", () => {
         status: { in: ["processing"] },
         processingAttempts: 1,
         scanStatus: { in: ["clean", "skipped"] },
-        moderationResult: { not: Prisma.DbNull },
+        moderationResult: { path: "$.decision", equals: "allow" },
       },
       data: {
         status: "ready",

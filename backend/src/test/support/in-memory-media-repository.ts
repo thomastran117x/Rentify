@@ -149,7 +149,7 @@ export class InMemoryMediaRepository {
     if (
       row?.processingAttempts !== attempt ||
       (row.scanStatus !== "clean" && row.scanStatus !== "skipped") ||
-      row.moderationResult === null
+      row.moderationResult?.decision !== "allow"
     ) {
       return false;
     }

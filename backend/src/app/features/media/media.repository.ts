@@ -171,10 +171,9 @@ export class MediaRepository extends BaseRepository {
 
   /**
    * Applies only while `attempt` is still the item's latest attempt, its scan
-   * passed, and it recorded a moderation result, so no path can publish an
-   * unscanned, infected, or unmoderated upload, or publish on the strength of
-   * another attempt's checks, whatever the caller does. A blocked image is
-   * rejected before it gets here.
+   * passed, and its moderation allowed it, so no path can publish an
+   * unscanned, infected, unmoderated, or blocked upload, or publish on the
+   * strength of another attempt's checks, whatever the caller does.
    */
   markReady(
     id: Uuid,
@@ -200,7 +199,7 @@ export class MediaRepository extends BaseRepository {
         where: {
           processingAttempts: attempt,
           scanStatus: { in: READY_SCAN_STATUSES },
-          moderationResult: { not: Prisma.DbNull },
+          moderationResult: { path: "$.decision", equals: "allow" },
         },
         operationName: "markReady",
       },

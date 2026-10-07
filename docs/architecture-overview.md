@@ -347,8 +347,8 @@ severity). Then:
   the item ends `processing_failed` and can be replayed once the provider is
   back.
 - **Either way:** `MediaRepository.markReady` also requires the current
-  attempt to have recorded a moderation result, so the database itself refuses
-  to publish an unmoderated item.
+  attempt's moderation to have allowed the image, so the database itself
+  refuses to publish an unmoderated or blocked item.
 
 Every scope is moderated: posting photos, organization logos, blog covers, and
 avatars. Rows that were `ready` before moderation existed keep `NULL`, and the

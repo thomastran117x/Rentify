@@ -125,7 +125,7 @@ function policyRejection(
  * blocked image is rejected as `moderation` and its upload deleted; nothing of
  * it is ever published. A provider that cannot answer throws like a scanner,
  * and the repository likewise refuses to mark an item ready until the current
- * attempt has recorded a moderation result.
+ * attempt's moderation has allowed the image.
  */
 export class MediaProcessingService {
   private readonly logger = loggerFactory.forClass(

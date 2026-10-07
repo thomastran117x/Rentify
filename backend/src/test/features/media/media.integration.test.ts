@@ -414,6 +414,14 @@ describe("Media persistence integration", () => {
     await expect(
       repository.recordModerationResult(mediaId, 3, allowed),
     ).resolves.toBe(false);
+    // A recorded block is a result, but never a publishable one.
+    await expect(
+      repository.recordModerationResult(mediaId, 4, {
+        ...allowed,
+        decision: "block",
+      }),
+    ).resolves.toBe(true);
+    await expect(repository.markReady(mediaId, 4, ready)).resolves.toBe(false);
     await expect(
       repository.recordModerationResult(mediaId, 4, allowed),
     ).resolves.toBe(true);

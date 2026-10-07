@@ -1657,6 +1657,39 @@ describe("MediaProcessingService", () => {
       ]);
     });
 
+    it("refuses to publish an attempt whose recorded result is a block", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+      const ready = {
+        processedBlobName: "media/images/u/m.webp",
+        detectedContentType: "image/png",
+        sizeBytes: 10,
+        width: 4,
+        height: 3,
+        variants: { medium: null, thumbnail: null },
+      };
+      context.mediaRepository.put({
+        ...record,
+        status: "processing",
+        processingAttempts: 1,
+        scanStatus: "clean",
+        moderationResult: BLOCKED,
+      });
+
+      await expect(
+        context.mediaRepository.markReady(record.id, 1, ready),
+      ).resolves.toBe(false);
+
+      await context.mediaRepository.recordModerationResult(
+        record.id,
+        1,
+        ALLOWED,
+      );
+      await expect(
+        context.mediaRepository.markReady(record.id, 1, ready),
+      ).resolves.toBe(true);
+    });
+
     it("allows every image unchanged when no provider is configured", async () => {
       const context = createContext({ moderation: new NoopModeration() });
       const record = await quarantine(
