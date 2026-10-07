@@ -58,6 +58,7 @@ export const MEDIA_REJECTION_CODES = [
   "abandoned",
   "malware",
   "moderation",
+  "unscreenable",
 ] as const;
 
 /**
@@ -79,6 +80,8 @@ export const MEDIA_REJECTION_CODES = [
  *   it; the row's `threatName` does, for operators.
  * moderation: content moderation found the image harmful. The reason does not
  *   say how; the row's `moderationResult` does, for operators.
+ * unscreenable: the moderation provider refused to analyze the image, so it
+ *   cannot be screened. Asking again would get the same refusal.
  */
 export type MediaRejectionCode = (typeof MEDIA_REJECTION_CODES)[number];
 

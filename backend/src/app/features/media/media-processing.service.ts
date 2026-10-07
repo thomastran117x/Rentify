@@ -46,7 +46,11 @@ import type {
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
-import type { ImageModerationService } from "@/features/media/moderation/image-moderation.service";
+import {
+  ImageModerationRefusedError,
+  type ImageModerationService,
+  type ModerationResult,
+} from "@/features/media/moderation/image-moderation.service";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /** A final refusal: why, in words and as a code. */
@@ -74,6 +78,12 @@ const MALWARE: MediaRejection = {
 const MODERATION: MediaRejection = {
   reason: "This image doesn't meet our content guidelines.",
   code: "moderation",
+};
+// The provider refused to analyze this image, so it cannot be screened.
+const UNSCREENABLE: MediaRejection = {
+  reason:
+    "This image couldn't be checked against our content guidelines. Try a different image.",
+  code: "unscreenable",
 };
 
 // A row in any other state is finished, or not yet uploaded, so a duplicate or
@@ -411,16 +421,33 @@ export class MediaProcessingService {
 
   /**
    * Moderates the image and records the result. `passed` lets processing go
-   * on; a blocked image is rejected here. A provider failure is thrown, for the
-   * job to retry and, if the provider stays down, dead-letter: nothing is
-   * published unmoderated.
+   * on; a blocked image is rejected here, and so is one the provider refuses
+   * to analyze, since asking again would get the same refusal. Any other
+   * provider failure is thrown, for the job to retry and, if the provider
+   * stays down, dead-letter: nothing is published unmoderated.
    */
   private async moderate(
     record: MediaRecord,
     attempt: number,
     image: RenderedImage,
   ): Promise<"passed" | "rejected" | "discarded"> {
-    const result = await this.moderation.moderate(image);
+    let result: ModerationResult;
+
+    try {
+      result = await this.moderation.moderate(image);
+    } catch (error) {
+      if (!(error instanceof ImageModerationRefusedError)) {
+        throw error;
+      }
+
+      this.logger.warn("Rejected an image the moderation provider refused.", {
+        mediaId: record.id,
+        userId: record.userId,
+        status: error.status,
+        error: error.message,
+      });
+      return this.reject(record, UNSCREENABLE);
+    }
 
     // As with the scan: a later attempt has the item and moderates for itself.
     if (

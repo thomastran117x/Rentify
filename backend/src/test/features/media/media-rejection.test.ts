@@ -103,6 +103,7 @@ describe("rejectMedia", () => {
       "abandoned",
       "malware",
       "moderation",
+      "unscreenable",
     ] as const) {
       expect(keepsQuarantinedUpload(code)).toBe(false);
     }

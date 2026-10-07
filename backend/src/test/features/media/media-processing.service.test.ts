@@ -20,6 +20,7 @@ import {
 } from "@/features/media/scanning/malware-scanner";
 import { NoopScanner } from "@/features/media/scanning/noop-scanner";
 import {
+  ImageModerationRefusedError,
   ImageModerationUnavailableError,
   type ImageModerationService,
   type ModerationImage,
@@ -1592,6 +1593,57 @@ describe("MediaProcessingService", () => {
       ).resolves.toBeDefined();
       expect(context.metrics.tagsOf("media.processing.duration")).toEqual([
         { scope: "postings", outcome: "failed" },
+      ]);
+    });
+
+    it("rejects an image the provider refuses to analyze, rather than retrying it", async () => {
+      const context = createContext({
+        moderation: {
+          moderate: () =>
+            Promise.reject(
+              new ImageModerationRefusedError(
+                "Content Safety answered 400 (InvalidRequestBody).",
+                400,
+              ),
+            ),
+        },
+      });
+      const warn = jest.spyOn(
+        (context.service as unknown as { logger: Logger }).logger,
+        "warn",
+      );
+      const record = await quarantine(
+        context,
+        await createPngFixture(1600, 1200),
+      );
+
+      await context.service.process(record.id);
+
+      await expect(
+        context.mediaRepository.findById(record.id),
+      ).resolves.toMatchObject({
+        status: "rejected",
+        rejectionCode: "unscreenable",
+        rejectionReason:
+          "This image couldn't be checked against our content guidelines. Try a different image.",
+        processedBlobName: null,
+        moderationResult: null,
+      });
+      for (const blobName of renditionNames(context, record.id)) {
+        await expectMissing(context, blobName);
+      }
+      await expectMissing(context, record.originalBlobName);
+      expect(warn).toHaveBeenCalledWith(
+        "Rejected an image the moderation provider refused.",
+        {
+          mediaId: record.id,
+          userId: USER_1_ID,
+          status: 400,
+          error: "Content Safety answered 400 (InvalidRequestBody).",
+        },
+      );
+      expect(context.metrics.tagsOf("media.rejected")).toEqual([
+        { code: "unscreenable", stage: "processing" },
       ]);
     });
 

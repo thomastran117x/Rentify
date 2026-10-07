@@ -1432,6 +1432,7 @@ enum MediaRejectionCode {
   abandoned
   malware
   moderation
+  unscreenable
 }
 
 enum MediaScanStatus {

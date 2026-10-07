@@ -1,6 +1,8 @@
 import type { TokenCredential } from "@azure/identity";
 import { renderModerationImage } from "@/features/media/image-renditions";
 import {
+  ImageModerationConfigurationError,
+  ImageModerationRefusedError,
   ImageModerationUnavailableError,
   MODERATION_CATEGORIES,
   decideModeration,
@@ -39,9 +41,19 @@ export interface AzureContentSafetyModerationOptions {
 /**
  * Moderates with Azure AI Content Safety's synchronous image analysis. The
  * image travels base64-encoded in the request body, so nothing is shared by
- * URL. Every failure to get a complete answer throws
- * ImageModerationUnavailableError, so the job is retried and, if the provider
- * stays down, dead-lettered: moderation fails closed.
+ * URL. A failure is classified by what retrying it can achieve:
+ *
+ * - throttling (429, or 503 with Retry-After) asking for a wait of at most
+ *   MAX_INLINE_RETRY_AFTER_MS is waited out and asked once more, within the
+ *   same deadline;
+ * - an outage (5xx, 408, 429, a timeout, a network error, an unreadable
+ *   answer) throws ImageModerationUnavailableError, so the job is retried and,
+ *   if the provider stays down, dead-lettered: moderation fails closed;
+ * - refused credentials or a wrong endpoint (401, 403, 404, or no token)
+ *   throws ImageModerationConfigurationError, retried the same way so the
+ *   items can be replayed once it is fixed;
+ * - any other 4xx is a refusal of this image, which asking again would only
+ *   repeat, so it throws ImageModerationRefusedError and the item is rejected.
  */
 export class AzureContentSafetyModeration implements ImageModerationService {
   private readonly url: string;
@@ -55,39 +67,32 @@ export class AzureContentSafetyModeration implements ImageModerationService {
   async moderate(image: ModerationImage): Promise<ModerationResult> {
     // Fitted to Content Safety's 50 to 2048 px; unchanged when it already is.
     const { data } = await renderModerationImage(image);
-    const headers = {
-      "Content-Type": "application/json",
-      ...(await this.authorizationHeader()),
-    };
+    const body = JSON.stringify({
+      image: { content: data.toString("base64") },
+      categories: MODERATION_CATEGORIES.map(
+        (category) => AZURE_CATEGORY_NAMES[category],
+      ),
+      outputType: "FourSeverityLevels",
+    });
+    // One deadline for the whole call, signing in included.
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
       this.options.timeoutMs,
     );
-    let status: number;
-    let text: string;
+    let reply: Reply;
 
     try {
-      const response = await fetch(this.url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          image: { content: data.toString("base64") },
-          categories: MODERATION_CATEGORIES.map(
-            (category) => AZURE_CATEGORY_NAMES[category],
-          ),
-          outputType: "FourSeverityLevels",
-        }),
-        signal: controller.signal,
-      });
-      status = response.status;
-      text = await response.text();
+      const headers = {
+        "Content-Type": "application/json",
+        ...(await this.authorizationHeader(controller.signal)),
+      };
+      reply = await this.send(headers, body, controller.signal);
+      const waitMs = inlineRetryDelayMs(reply);
 
-      if (!response.ok) {
-        throw new ImageModerationUnavailableError(
-          `Content Safety answered ${status}${describeErrorCode(response, text)}.`,
-          status,
-        );
+      if (waitMs !== null) {
+        await delay(waitMs, controller.signal);
+        reply = await this.send(headers, body, controller.signal);
       }
     } catch (error) {
       if (error instanceof ImageModerationUnavailableError) {
@@ -105,7 +110,11 @@ export class AzureContentSafetyModeration implements ImageModerationService {
       clearTimeout(timeoutId);
     }
 
-    const categories = parseCategories(text, status);
+    if (!reply.ok) {
+      throw classifyFailure(reply);
+    }
+
+    const categories = parseCategories(reply.text, reply.status);
 
     return {
       decision: decideModeration(categories, this.options.blockAtSeverity),
@@ -114,7 +123,29 @@ export class AzureContentSafetyModeration implements ImageModerationService {
     };
   }
 
-  private async authorizationHeader(): Promise<Record<string, string>> {
+  private async send(
+    headers: Record<string, string>,
+    body: string,
+    signal: AbortSignal,
+  ): Promise<Reply> {
+    const response = await fetch(this.url, {
+      method: "POST",
+      headers,
+      body,
+      signal,
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      headers: response.headers,
+      text: await response.text(),
+    };
+  }
+
+  private async authorizationHeader(
+    abortSignal: AbortSignal,
+  ): Promise<Record<string, string>> {
     const { auth } = this.options;
 
     if (auth.kind === "api-key") {
@@ -125,42 +156,139 @@ export class AzureContentSafetyModeration implements ImageModerationService {
 
     try {
       // The credential caches the token and renews it before it expires.
-      token = await auth.credential.getToken(this.scope);
+      token = await auth.credential.getToken(this.scope, { abortSignal });
     } catch (error) {
-      throw new ImageModerationUnavailableError(
-        "Could not sign in to Azure AI Content Safety.",
-        undefined,
-        { cause: error },
-      );
+      if (abortSignal.aborted) {
+        throw error;
+      }
+
+      throw new ImageModerationConfigurationError(SIGN_IN_FAILED, undefined, {
+        cause: error,
+      });
     }
 
     if (!token) {
-      throw new ImageModerationUnavailableError(
-        "Could not sign in to Azure AI Content Safety.",
-      );
+      throw new ImageModerationConfigurationError(SIGN_IN_FAILED);
     }
 
     return { Authorization: `Bearer ${token.token}` };
   }
 }
 
+const SIGN_IN_FAILED =
+  "Could not sign in to Azure AI Content Safety. Check the worker's Microsoft Entra ID identity.";
+
+interface Reply {
+  ok: boolean;
+  status: number;
+  headers: Headers;
+  text: string;
+}
+
+/** The longest Retry-After the worker waits out itself, rather than retrying later. */
+export const MAX_INLINE_RETRY_AFTER_MS = 5_000;
+
+/**
+ * How long to wait before asking once more, when the service throttled the
+ * request (429, or 503) and asked for a wait short enough to hold the job for.
+ * Null otherwise: a longer wait is left to the queue's retry tiers.
+ */
+function inlineRetryDelayMs(reply: Reply): number | null {
+  if (reply.status !== 429 && reply.status !== 503) {
+    return null;
+  }
+
+  const waitMs = retryAfterMs(reply.headers);
+
+  return waitMs !== null && waitMs <= MAX_INLINE_RETRY_AFTER_MS ? waitMs : null;
+}
+
+/** Retry-After as delay seconds or an HTTP date, in milliseconds. */
+function retryAfterMs(headers: Headers): number | null {
+  const value = headers.get("retry-after")?.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  if (/^\d+$/.test(value)) {
+    return Number(value) * 1000;
+  }
+
+  const at = Date.parse(value);
+
+  return Number.isNaN(at) ? null : Math.max(0, at - Date.now());
+}
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      reject(signal.reason);
+    };
+    const timeoutId = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/** The error a non-2xx reply means, by what retrying it can achieve. */
+function classifyFailure(reply: Reply): Error {
+  const answered = `Content Safety answered ${reply.status}${describeErrorCode(reply)}`;
+
+  if (reply.status === 401 || reply.status === 403) {
+    return new ImageModerationConfigurationError(
+      `${answered}. It refused the worker's credentials: check MEDIA_MODERATION_API_KEY, or the Cognitive Services User role of the worker's identity.`,
+      reply.status,
+    );
+  }
+
+  if (reply.status === 404) {
+    return new ImageModerationConfigurationError(
+      `${answered}. Check MEDIA_MODERATION_ENDPOINT.`,
+      reply.status,
+    );
+  }
+
+  if (
+    reply.status >= 400 &&
+    reply.status < 500 &&
+    reply.status !== 408 &&
+    reply.status !== 429
+  ) {
+    return new ImageModerationRefusedError(`${answered}.`, reply.status);
+  }
+
+  const waitMs = retryAfterMs(reply.headers);
+
+  return new ImageModerationUnavailableError(
+    waitMs === null
+      ? `${answered}.`
+      : `${answered}; it asked to wait ${Math.ceil(waitMs / 1000)} s.`,
+    reply.status,
+  );
+}
+
 /**
  * The service's error code, never its message, which may echo the request.
  * Omitted when it only repeats the status, as an invalid key's "401" does.
  */
-function describeErrorCode(response: Response, text: string): string {
-  let code = response.headers.get("x-ms-error-code");
+function describeErrorCode(reply: Reply): string {
+  let code = reply.headers.get("x-ms-error-code");
 
   if (!code) {
     try {
-      const body = JSON.parse(text) as { error?: { code?: unknown } };
+      const body = JSON.parse(reply.text) as { error?: { code?: unknown } };
       code = typeof body.error?.code === "string" ? body.error.code : null;
     } catch {
       code = null;
     }
   }
 
-  return code && code !== String(response.status) ? ` (${code})` : "";
+  return code && code !== String(reply.status) ? ` (${code})` : "";
 }
 
 /**

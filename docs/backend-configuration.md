@@ -617,7 +617,7 @@ is published.
 | `endpoint`                 | `null`  | `MEDIA_MODERATION_ENDPOINT`           | The Content Safety resource, `https://<resource>.cognitiveservices.azure.com` |
 | `auth`                     | `entra` | `MEDIA_MODERATION_AUTH`               | `entra` signs with the worker's identity; `api-key` sends the key             |
 | (environment only)         |         | `MEDIA_MODERATION_API_KEY`            | The resource key, required for `api-key` and refused for `entra`              |
-| `timeoutMs`                | `10000` | `MEDIA_MODERATION_TIMEOUT_MS`         | Limit for each request, from sending it to reading the reply                  |
+| `timeoutMs`                | `10000` | `MEDIA_MODERATION_TIMEOUT_MS`         | Limit for each image, from signing in to reading the reply                    |
 | `blockAtSeverity.hate`     | `4`     | `MEDIA_MODERATION_BLOCK_AT_HATE`      | Severity at or above which the category blocks the image                      |
 | `blockAtSeverity.sexual`   | `4`     | `MEDIA_MODERATION_BLOCK_AT_SEXUAL`    | As above                                                                      |
 | `blockAtSeverity.violence` | `4`     | `MEDIA_MODERATION_BLOCK_AT_VIOLENCE`  | As above                                                                      |
@@ -653,11 +653,28 @@ blocks every image, which is only useful to test the rejection path. Each
 attempt records the severities in `media.moderation_result`, for operators; no
 API response carries them.
 
-Moderation fails closed. A timeout, network failure, throttling (429), server
-error, refused credential, or unreadable answer is retried and then
-dead-lettered like any other processing failure, and the item ends as
-`processing_failed`. Nothing unscreened is published. After the provider
-recovers, replay those items with the
+Moderation fails closed. A failure is handled by what retrying it can
+achieve:
+
+- **Throttling.** A 429, or a 503 with `Retry-After`, that asks for a wait of
+  5 seconds or less is waited out once in the worker, within `timeoutMs`.
+- **Outage.** A timeout, network failure, longer throttling, 408, server
+  error, or unreadable answer is retried through the job's retry tiers and
+  then dead-lettered like any other processing failure, and the item ends as
+  `processing_failed`. The error records how long Content Safety asked to
+  wait, if it did.
+- **Configuration.** A 401, 403, or 404, or a failure to sign in, is retried
+  the same way, but its error says which setting to check
+  (`MEDIA_MODERATION_API_KEY`, the identity's role, or
+  `MEDIA_MODERATION_ENDPOINT`).
+- **Refusal.** Any other 4xx, such as a 400 for an image Content Safety cannot
+  analyze, is final for that image. Asking again would get the same answer, so
+  the item is rejected with code `unscreenable` and the reason "This image
+  couldn't be checked against our content guidelines. Try a different image."
+  rather than retried.
+
+Nothing unscreened is published. After an outage or a configuration fix,
+replay the `processing_failed` items with the
 [dead-letter runbook](../backend/src/app/workers/media/README.md#dead-letter-runbook).
 
 **Authentication.** `entra`, the default, uses the media processing worker's

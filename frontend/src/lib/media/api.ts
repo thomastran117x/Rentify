@@ -26,6 +26,7 @@ export type MediaStatus =
  * `corrupt`. `processing_failed` is not the image's fault. `malware` means the
  * malware scan flagged the file, and `moderation` that content moderation found
  * the image harmful; in both cases the reason deliberately says no more.
+ * `unscreenable` means moderation could not analyze the image at all.
  */
 export type MediaRejectionCode =
   | "empty"
@@ -40,7 +41,8 @@ export type MediaRejectionCode =
   | "processing_failed"
   | "abandoned"
   | "malware"
-  | "moderation";
+  | "moderation"
+  | "unscreenable";
 
 /** One stored rendition of an image, with its real dimensions. */
 export interface ImageRendition {

@@ -345,7 +345,10 @@ severity). Then:
   error, refused credential, or incomplete answer throws. The job goes through
   the retry tiers and then the dead-letter queue, so moderation fails closed:
   the item ends `processing_failed` and can be replayed once the provider is
-  back.
+  back. A short `Retry-After` is waited out once in the worker first.
+- **Image refused:** any other client error, such as a 400 for an image
+  Content Safety cannot analyze, would be repeated by every retry, so the item
+  is rejected with code `unscreenable` instead, and its upload is deleted.
 - **Either way:** `MediaRepository.markReady` also requires the current
   attempt's moderation to have allowed the image, so the database itself
   refuses to publish an unmoderated or blocked item.

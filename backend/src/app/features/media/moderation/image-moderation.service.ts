@@ -42,8 +42,9 @@ export interface ImageModerationService {
 
 /**
  * The provider could not give a decision: it was unreachable, timed out,
- * refused the request, or answered with something unreadable. A retry may
- * succeed, so it is never a rejection, and nothing unscreened is published.
+ * throttled the request, or answered with an error or something unreadable. A
+ * retry may succeed, so it is never a rejection, and nothing unscreened is
+ * published.
  */
 export class ImageModerationUnavailableError extends Error {
   constructor(
@@ -53,6 +54,34 @@ export class ImageModerationUnavailableError extends Error {
   ) {
     super(message, options);
     this.name = "ImageModerationUnavailableError";
+  }
+}
+
+/**
+ * The provider refused the worker's credentials or endpoint (401, 403, 404),
+ * or the worker could not sign in. Retried like an outage, so the items can
+ * be replayed once the configuration is fixed, but reported as a
+ * configuration problem rather than an outage.
+ */
+export class ImageModerationConfigurationError extends ImageModerationUnavailableError {
+  constructor(message: string, status?: number, options?: { cause?: unknown }) {
+    super(message, status, options);
+    this.name = "ImageModerationConfigurationError";
+  }
+}
+
+/**
+ * The provider refused this particular image, as with a 400. Asking again
+ * gets the same answer, so it is final for the item: the image cannot be
+ * screened, so it is rejected rather than published or retried.
+ */
+export class ImageModerationRefusedError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ImageModerationRefusedError";
   }
 }
 

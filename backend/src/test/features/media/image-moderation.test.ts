@@ -11,6 +11,8 @@ import {
 } from "@/features/media/moderation/create-image-moderation";
 import {
   decideModeration,
+  ImageModerationConfigurationError,
+  ImageModerationRefusedError,
   ImageModerationUnavailableError,
 } from "@/features/media/moderation/image-moderation.service";
 import { NoopModeration } from "@/features/media/moderation/noop-moderation";
@@ -84,6 +86,7 @@ async function expectUnavailable(
   expect(error).toBeInstanceOf(ImageModerationUnavailableError);
   expect((error as Error).message).toMatch(message);
   expect((error as ImageModerationUnavailableError).status).toBe(status);
+  return error;
 }
 
 beforeEach(() => {
@@ -194,7 +197,9 @@ describe("AzureContentSafetyModeration", () => {
       auth: { kind: "entra", credential },
     }).moderate(IMAGE);
 
-    expect(credential.getToken).toHaveBeenCalledWith(SCOPE);
+    expect(credential.getToken).toHaveBeenCalledWith(SCOPE, {
+      abortSignal: expect.any(AbortSignal),
+    });
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.headers).toEqual({
       "Content-Type": "application/json",
@@ -214,6 +219,7 @@ describe("AzureContentSafetyModeration", () => {
 
     expect(credential.getToken).toHaveBeenCalledWith(
       "https://cognitiveservices.azure.us/.default",
+      { abortSignal: expect.any(AbortSignal) },
     );
   });
 
@@ -253,7 +259,7 @@ describe("AzureContentSafetyModeration", () => {
     ).resolves.toMatchObject({ decision: "allow" });
   });
 
-  it.each([429, 500, 503])(
+  it.each([408, 429, 500, 503])(
     "throws a retryable error when the service answers %i",
     async (status) => {
       jest
@@ -262,10 +268,128 @@ describe("AzureContentSafetyModeration", () => {
           respond(status, { error: { code: "TooManyRequests", message: "x" } }),
         );
 
-      await expectUnavailable(
+      const error = await expectUnavailable(
         createModeration().moderate(IMAGE),
         `Content Safety answered ${status} (TooManyRequests).`,
         status,
+      );
+      expect(error).not.toBeInstanceOf(ImageModerationConfigurationError);
+    },
+  );
+
+  it.each([
+    [429, "0"],
+    [503, "0"],
+    // An HTTP date already past means "now".
+    [429, "Wed, 21 Oct 2015 07:28:00 GMT"],
+  ])(
+    "waits out a short Retry-After on a %i and asks once more",
+    async (status, retryAfter) => {
+      const fetchMock = jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(
+          respond(status, {}, { "Retry-After": retryAfter }),
+        )
+        .mockResolvedValueOnce(respond(200, analysis()));
+
+      await expect(createModeration().moderate(IMAGE)).resolves.toMatchObject({
+        decision: "allow",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("asks only once more, then leaves it to the job's retries", async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => respond(429, {}, { "Retry-After": "0" }));
+
+    await expectUnavailable(
+      createModeration().moderate(IMAGE),
+      /^Content Safety answered 429; it asked to wait 0 s\.$/,
+      429,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a long Retry-After to the job's retries, and reports it", async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(respond(429, {}, { "Retry-After": "30" }));
+
+    await expectUnavailable(
+      createModeration().moderate(IMAGE),
+      "Content Safety answered 429; it asked to wait 30 s.",
+      429,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a Retry-After it cannot read", async () => {
+    const fetchMock = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(respond(429, {}, { "Retry-After": "soon" }));
+
+    await expectUnavailable(
+      createModeration().moderate(IMAGE),
+      /^Content Safety answered 429\.$/,
+      429,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting out a Retry-After at the deadline", async () => {
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(respond(429, {}, { "Retry-After": "5" }));
+
+    await expectUnavailable(
+      createModeration({ timeoutMs: 20 }).moderate(IMAGE),
+      "Content Safety did not answer within 20 ms.",
+    );
+  });
+
+  it.each([
+    [401, "It refused the worker's credentials"],
+    [403, "It refused the worker's credentials"],
+    [404, "Check MEDIA_MODERATION_ENDPOINT."],
+  ])(
+    "reports a %i as a configuration problem, still retryable",
+    async (status, hint) => {
+      jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(status, {}));
+
+      const error = await expectUnavailable(
+        createModeration().moderate(IMAGE),
+        hint,
+        status,
+      );
+      expect(error).toBeInstanceOf(ImageModerationConfigurationError);
+    },
+  );
+
+  it.each([400, 413, 415, 422])(
+    "treats a %i as a refusal of this image, not an outage",
+    async (status) => {
+      jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(
+          respond(status, { error: { code: "InvalidRequestBody" } }),
+        );
+
+      const error = await createModeration()
+        .moderate(IMAGE)
+        .then(
+          () => {
+            throw new Error("Expected moderation to throw.");
+          },
+          (caught: unknown) => caught,
+        );
+
+      expect(error).toBeInstanceOf(ImageModerationRefusedError);
+      expect(error).not.toBeInstanceOf(ImageModerationUnavailableError);
+      expect((error as ImageModerationRefusedError).status).toBe(status);
+      expect((error as Error).message).toBe(
+        `Content Safety answered ${status} (InvalidRequestBody).`,
       );
     },
   );
@@ -283,7 +407,7 @@ describe("AzureContentSafetyModeration", () => {
 
     await expectUnavailable(
       createModeration().moderate(IMAGE),
-      /^Content Safety answered 401 \(PermissionDenied\)\.$/,
+      /^Content Safety answered 401 \(PermissionDenied\)\. /,
       401,
     );
   });
@@ -298,27 +422,48 @@ describe("AzureContentSafetyModeration", () => {
 
     await expectUnavailable(
       createModeration().moderate(IMAGE),
-      /^Content Safety answered 401\.$/,
+      /^Content Safety answered 401\. /,
       401,
     );
   });
 
-  it("reports a refusal with no readable error code", async () => {
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(400, "<html>"));
+  it("reports a failure with no readable error code", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(500, "<html>"));
 
     await expectUnavailable(
       createModeration().moderate(IMAGE),
-      /^Content Safety answered 400\.$/,
-      400,
+      /^Content Safety answered 500\.$/,
+      500,
     );
 
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(400, {}));
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(respond(500, {}));
 
     await expectUnavailable(
       createModeration().moderate(IMAGE),
-      /^Content Safety answered 400\.$/,
-      400,
+      /^Content Safety answered 500\.$/,
+      500,
     );
+  });
+
+  it("counts signing in against the deadline", async () => {
+    const fetchMock = jest.spyOn(globalThis, "fetch");
+    const credential = fakeCredential(
+      (_scope, options) =>
+        new Promise((_resolve, reject) => {
+          options?.abortSignal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+
+    await expectUnavailable(
+      createModeration({
+        timeoutMs: 20,
+        auth: { kind: "entra", credential },
+      }).moderate(IMAGE),
+      "Content Safety did not answer within 20 ms.",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("throws a retryable error when the service cannot be reached", async () => {
@@ -483,7 +628,9 @@ describe("createImageModeration", () => {
     await moderation.moderate(IMAGE);
 
     expect(createCredential).toHaveBeenCalledTimes(1);
-    expect(credential.getToken).toHaveBeenCalledWith(SCOPE);
+    expect(credential.getToken).toHaveBeenCalledWith(SCOPE, {
+      abortSignal: expect.any(AbortSignal),
+    });
   });
 
   it("uses DefaultAzureCredential by default", () => {
