@@ -1486,10 +1486,7 @@ describe("MediaProcessingService", () => {
     it("hands the provider the rendition as it is, for it to fit to its own limits", async () => {
       const context = createContext();
       const small = await quarantine(context, await createPngFixture(12, 8));
-      const tall = await quarantine(
-        context,
-        await createPngFixture(900, 2560),
-      );
+      const tall = await quarantine(context, await createPngFixture(900, 2560));
 
       await context.service.process(small.id);
       await context.service.process(tall.id);
