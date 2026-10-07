@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { createMediaGuardTransaction } from "../../support/media-attachment-guard";
 import ConflictError from "@/errors/http/conflict.error";
 import { ProfileRepository } from "@/features/profile/profile.repository";
 import { testUuid } from "../../support/uuid";
@@ -335,6 +336,53 @@ describe("ProfileRepository", () => {
     expect(result?.phoneNumber).toBeUndefined();
     expect(result?.avatarUrl).toBeUndefined();
     expect(result?.avatarBlobName).toBeUndefined();
+  });
+
+  it("stores an avatar inside a transaction guarded against the media cleanup", async () => {
+    const guard = createMediaGuardTransaction([
+      { name: "media/images/u/avatar.webp", status: "ready" },
+    ]);
+    const update = jest.fn(async () => createProfilePersistence());
+    const outsideUpdate = jest.fn();
+    const repository = new ProfileRepository({
+      profile: { update: outsideUpdate },
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({ ...guard, profile: { update } }),
+    } as any);
+
+    await repository.update({
+      userId: USER_1_ID,
+      username: "owner-one",
+      avatarUrl: "https://example.test/avatar.webp",
+      avatarBlobName: "media/images/u/avatar.webp",
+    });
+
+    expect(guard.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(guard.media.updateMany).toHaveBeenCalled();
+    expect(update).toHaveBeenCalled();
+    expect(outsideUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses an avatar the media cleanup has claimed", async () => {
+    const guard = createMediaGuardTransaction([
+      { name: "media/images/u/gone.webp", status: "rejected" },
+    ]);
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const repository = new ProfileRepository({
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({ ...guard, profile: { updateMany } }),
+    } as any);
+
+    await expect(
+      repository.update({
+        userId: USER_1_ID,
+        username: "owner-one",
+        avatarUrl: "https://example.test/gone.webp",
+        avatarBlobName: "media/images/u/gone.webp",
+        usernameChangeGuardAt: new Date(),
+      }),
+    ).rejects.toThrow("Image is no longer available. Upload it again.");
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("maps duplicate usernames to ConflictError", async () => {

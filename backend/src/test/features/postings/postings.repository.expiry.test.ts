@@ -1,4 +1,5 @@
 import { PostingsRepository } from "@/features/postings/postings.repository";
+import { createMediaGuardTransaction } from "../../support/media-attachment-guard";
 
 const EXISTING = new Date("2026-09-01T23:59:59.999Z");
 
@@ -102,6 +103,7 @@ function createUpsertPostingInput(overrides: Record<string, unknown> = {}) {
 
 function createUpdateHarness(currentExpiresAt: Date | null) {
   const transaction = {
+    ...createMediaGuardTransaction(),
     posting: {
       findUnique: jest.fn(async () => ({
         photos: [],
@@ -192,6 +194,7 @@ describe("PostingsRepository expiry columns", () => {
 
   it("stores the expiry date on create", async () => {
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         create: jest.fn(async (_args: { data: Record<string, unknown> }) =>
           createPostingPersistence(),
@@ -277,6 +280,7 @@ describe("PostingsRepository expiry sweeps", () => {
 
   it("pauses a due posting and enqueues a search delete", async () => {
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         updateMany: jest.fn(async (_args: Record<string, unknown>) => ({
           count: 1,
@@ -324,6 +328,7 @@ describe("PostingsRepository expiry sweeps", () => {
 
   it("returns null and touches nothing when the posting is no longer due", async () => {
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         updateMany: jest.fn(async () => ({ count: 0 })),
         findUnique: jest.fn(),

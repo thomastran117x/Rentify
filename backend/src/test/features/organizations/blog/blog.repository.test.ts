@@ -1,4 +1,5 @@
 import { OrganizationBlogRepository } from "@/features/organizations/blog/blog.repository";
+import { createMediaGuardTransaction } from "../../../support/media-attachment-guard";
 import { testUuid } from "../../../support/uuid";
 const BLOG_1_ID = testUuid(9000, 853730);
 
@@ -15,6 +16,7 @@ function buildTransactionalPrisma(
 ) {
   const outboxCreateMany = jest.fn(async () => ({ count: 1 }));
   const client: Record<string, unknown> = {
+    ...createMediaGuardTransaction(),
     organizationBlogPost: blogPostMethods,
     organizationBlogSearchReindexRun: {
       findFirst: jest.fn(async () => options?.activeReindexRun ?? null),

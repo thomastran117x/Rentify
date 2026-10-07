@@ -2,6 +2,7 @@ import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { htmlToPlainText } from "@/configuration/security/html-sanitizer";
 import { BaseRepository } from "@/features/base/base.repository";
+import { guardImageAttachments } from "@/features/media/media-attachment-guard";
 import type {
   CreateOrganizationBlogPostPersistence,
   ListOrganizationBlogPostsResult,
@@ -114,6 +115,10 @@ export class OrganizationBlogRepository extends BaseRepository {
   ): Promise<OrganizationBlogPostRecord> {
     const row = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
+        await guardImageAttachments(transaction, {
+          attached: [input.coverImageBlobName],
+        });
+
         const created = await transaction.organizationBlogPost.create({
           data: {
             id: newUuid(),
@@ -153,6 +158,10 @@ export class OrganizationBlogRepository extends BaseRepository {
   ): Promise<OrganizationBlogPostRecord> {
     const row = await this.executeAsync(() =>
       this.prisma.$transaction(async (transaction) => {
+        await guardImageAttachments(transaction, {
+          attached: [input.coverImageBlobName],
+        });
+
         const updated = await transaction.organizationBlogPost.update({
           where: { id: blogPostId, organizationId },
           data: {

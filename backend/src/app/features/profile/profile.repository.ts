@@ -1,6 +1,7 @@
 import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
+import { guardImageAttachments } from "@/features/media/media-attachment-guard";
 import ConflictError from "@/errors/http/conflict.error";
 import type {
   ListProfilesInput,
@@ -217,11 +218,12 @@ export class ProfileRepository extends BaseRepository {
         return await this.updateEligibleForRename(input, data);
       }
 
-      const prismaProfile = this.prisma.profile as unknown as {
-        update: (args: unknown) => Promise<ProfilePersistence>;
-      };
-      const profile = await this.executeAsync(() =>
-        prismaProfile.update({
+      const profile = await this.writeGuardingAvatar(input, (client) =>
+        (
+          client.profile as unknown as {
+            update: (args: unknown) => Promise<ProfilePersistence>;
+          }
+        ).update({
           where: {
             userId: input.userId,
           },
@@ -311,12 +313,12 @@ export class ProfileRepository extends BaseRepository {
     const cooldownCutoff = new Date(
       guardAt.getTime() - USERNAME_CHANGE_COOLDOWN_MS,
     );
-    const prismaProfile = this.prisma.profile as unknown as {
-      updateMany: (args: unknown) => Promise<{ count: number }>;
-    };
-
-    const result = await this.executeAsync(() =>
-      prismaProfile.updateMany({
+    const result = await this.writeGuardingAvatar(input, (client) =>
+      (
+        client.profile as unknown as {
+          updateMany: (args: unknown) => Promise<{ count: number }>;
+        }
+      ).updateMany({
         where: {
           userId: input.userId,
           OR: [
@@ -336,6 +338,27 @@ export class ProfileRepository extends BaseRepository {
     // Safe to read separately: the guard has already been decided, and it now
     // blocks any further rename, so nothing can move underneath this read.
     return this.findByUserId(input.userId);
+  }
+
+  /**
+   * Runs a profile write, inside a transaction with the media cleanup's
+   * attachment guard when it stores an avatar.
+   */
+  private writeGuardingAvatar<T>(
+    input: UpdateProfileRecordInput,
+    write: (client: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    if (!input.avatarBlobName) {
+      return this.executeAsync(() => write(this.prisma));
+    }
+
+    return this.executeTransaction(async (transaction) => {
+      await guardImageAttachments(transaction, {
+        attached: [input.avatarBlobName],
+      });
+
+      return write(transaction);
+    });
   }
 
   private mapProfile(profile: ProfilePersistence): ProfileRecord {

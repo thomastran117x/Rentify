@@ -1,4 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
+import BadRequestError from "@/errors/http/bad-request.error";
+import { createMediaGuardTransaction } from "../../support/media-attachment-guard";
 import { PostingsRepository } from "@/features/postings/postings.repository";
 import { testUuid } from "../../support/uuid";
 const BLOCK_1_ID = testUuid(9000, 406415);
@@ -775,6 +777,7 @@ describe("PostingsRepository", () => {
 
   it("creates draft postings and enqueues live and reindex delete jobs", async () => {
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         create: jest.fn(async () =>
           createPostingPersistence({
@@ -853,6 +856,7 @@ describe("PostingsRepository", () => {
 
   it("updates postings while preserving existing thumbnails for unchanged photos", async () => {
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         findUnique: jest.fn(async () => ({
           photos: [
@@ -925,6 +929,89 @@ describe("PostingsRepository", () => {
       }),
     );
     expect(result?.status).toBe("published");
+  });
+
+  it("guards the photos it writes and releases the ones it drops", async () => {
+    const transaction = {
+      ...createMediaGuardTransaction([
+        { name: "media/images/u/new.webp", status: "ready" },
+        { name: "media/images/u/old.webp", status: "ready" },
+      ]),
+      posting: {
+        findUnique: jest.fn(async () => ({
+          photos: [
+            {
+              blobUrl: "https://example.test/old.webp",
+              blobName: "media/images/u/old.webp",
+              thumbnailBlobUrl: null,
+              thumbnailBlobName: null,
+            },
+          ],
+        })),
+        update: jest.fn(async () => createPostingPersistence()),
+      },
+      searchReindexRun: { findFirst: jest.fn(async () => null) },
+      postingSearchOutbox: { createMany: jest.fn(async () => undefined) },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as any);
+
+    await repository.update(
+      POSTING_1_ID,
+      createUpsertPostingInput({
+        photos: [
+          {
+            blobUrl: "https://example.test/new.webp",
+            blobName: "media/images/u/new.webp",
+            position: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(transaction.media.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          processedBlobName: {
+            in: ["media/images/u/new.webp", "media/images/u/old.webp"],
+          },
+          status: "ready",
+        },
+      }),
+    );
+  });
+
+  it("writes no posting when a photo was claimed by the media cleanup", async () => {
+    const transaction = {
+      ...createMediaGuardTransaction([
+        { name: "media/images/u/gone.webp", status: "rejected" },
+      ]),
+      posting: { create: jest.fn(async () => createPostingPersistence()) },
+    };
+    const repository = new PostingsRepository({
+      $transaction: async (
+        callback: (tx: typeof transaction) => Promise<unknown>,
+      ) => callback(transaction),
+    } as any);
+
+    await expect(
+      repository.create(
+        createUpsertPostingInput({
+          photos: [
+            {
+              blobUrl: "https://example.test/gone.webp",
+              blobName: "media/images/u/gone.webp",
+              position: 0,
+            },
+          ],
+        }) as any,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(transaction.posting.create).not.toHaveBeenCalled();
   });
 
   it("returns null when updating a missing posting", async () => {
@@ -1971,6 +2058,7 @@ describe("PostingsRepository", () => {
       archivedAt: null,
     };
     const transaction = {
+      ...createMediaGuardTransaction(),
       posting: {
         findUnique: jest.fn(async () => ({
           id: POSTING_1_ID,

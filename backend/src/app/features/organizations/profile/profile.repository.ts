@@ -1,6 +1,7 @@
 import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
+import { guardImageAttachments } from "@/features/media/media-attachment-guard";
 import {
   maskEmailAddress,
   type OrganizationInvitationRecord,
@@ -711,6 +712,18 @@ export class OrganizationsProfileRepository extends BaseRepository {
     }
 
     const organization = await this.executeTransaction(async (transaction) => {
+      if (input.logoBlobName !== undefined) {
+        const current = await transaction.organization.findUnique({
+          where: { id: organizationId },
+          select: { logoBlobName: true },
+        });
+
+        await guardImageAttachments(transaction, {
+          attached: [input.logoBlobName],
+          released: [current?.logoBlobName],
+        });
+      }
+
       const updated = await transaction.organization.update({
         where: {
           id: organizationId,
@@ -752,6 +765,9 @@ export class OrganizationsProfileRepository extends BaseRepository {
         name,
       };
       Object.assign(organizationData, this.buildOrganizationWriteData(profile));
+      await guardImageAttachments(transaction, {
+        attached: [profile.logoBlobName],
+      });
 
       let organization;
       try {
