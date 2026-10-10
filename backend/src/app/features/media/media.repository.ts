@@ -1,6 +1,7 @@
 import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type {
   CreateMediaRecordInput,
   ImageRenditionInfo,
@@ -414,6 +415,171 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
+   * Ready items unmoved since `updatedBefore` whose processed image no posting
+   * photo, avatar, organization logo, or blog cover references, least recently
+   * moved first. Attached items are left out by the query rather than by the
+   * caller, so the many long-attached images cannot fill every batch.
+   */
+  async listUnattachedReady(
+    updatedBefore: Date,
+    limit: number,
+  ): Promise<MediaRecord[]> {
+    const ids = await this.executeAsync(
+      () =>
+        this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT m.id
+          FROM media m
+          WHERE m.status = 'ready'
+            AND m.processed_blob_name IS NOT NULL
+            AND m.updated_at < ${updatedBefore}
+            AND NOT EXISTS (
+              SELECT 1 FROM posting_photos p
+              WHERE p.blob_name = m.processed_blob_name
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM profiles p
+              WHERE p.avatar_blob_name = m.processed_blob_name
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM organizations o
+              WHERE o.logo_blob_name = m.processed_blob_name
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM organization_blog_posts b
+              WHERE b.cover_image_blob_name = m.processed_blob_name
+            )
+          ORDER BY m.updated_at ASC
+          LIMIT ${limit}
+        `),
+      { operationName: "listUnattachedReady" },
+    );
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.listForCleanup(
+      { id: { in: ids.map((row) => row.id) } },
+      { updatedAt: "asc" },
+      limit,
+      "listUnattachedReadyRows",
+    );
+  }
+
+  /**
+   * Which of `blobNames` a restorable audit entry still references: an
+   * organization's logo, or a posting's photo, before or after the change it
+   * records. Restoring that entry writes the reference back, so the image must
+   * outlive it; such entries are never retired today.
+   */
+  async listAuditHeldBlobNames(blobNames: string[]): Promise<Set<string>> {
+    if (blobNames.length === 0) {
+      return new Set();
+    }
+
+    const candidates = JSON.stringify(blobNames);
+    const rows = await this.executeAsync(
+      () =>
+        this.prisma.$queryRaw<
+          Array<{ beforeSnapshot: unknown; afterSnapshot: unknown }>
+        >(Prisma.sql`
+          SELECT a.before_snapshot AS beforeSnapshot,
+                 a.after_snapshot AS afterSnapshot
+          FROM organization_audit_logs a
+          WHERE a.restorable = TRUE
+            AND a.resource_type IN ('organization', 'posting')
+            AND (
+              JSON_UNQUOTE(JSON_EXTRACT(a.before_snapshot, '$.logoBlobName'))
+                IN (${Prisma.join(blobNames)})
+              OR JSON_UNQUOTE(JSON_EXTRACT(a.after_snapshot, '$.logoBlobName'))
+                IN (${Prisma.join(blobNames)})
+              OR JSON_OVERLAPS(
+                JSON_EXTRACT(a.before_snapshot, '$.photos[*].blobName'),
+                CAST(${candidates} AS JSON)
+              )
+              OR JSON_OVERLAPS(
+                JSON_EXTRACT(a.after_snapshot, '$.photos[*].blobName'),
+                CAST(${candidates} AS JSON)
+              )
+            )
+        `),
+      { operationName: "listAuditHeldBlobNames" },
+    );
+
+    const wanted = new Set(blobNames);
+    const held = new Set<string>();
+    const add = (value: unknown): void => {
+      if (typeof value === "string" && wanted.has(value)) {
+        held.add(value);
+      }
+    };
+
+    for (const row of rows) {
+      for (const snapshot of [row.beforeSnapshot, row.afterSnapshot]) {
+        const record = toAuditSnapshotRecord(parseJsonColumn(snapshot));
+        add(record.logoBlobName);
+
+        if (Array.isArray(record.photos)) {
+          record.photos.forEach((photo) =>
+            add(toAuditSnapshotRecord(photo).blobName),
+          );
+        }
+      }
+    }
+
+    return held;
+  }
+
+  /**
+   * Moves a ready item the cleanup must keep for now, such as one a restorable
+   * audit entry references, to the back of the unattached order, so it cannot
+   * hold up newer ones. It is looked at again once its TTL has passed anew.
+   */
+  deferUnattached(
+    id: Uuid,
+    updatedBefore: Date,
+    deferredAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["ready"],
+      { updatedAt: deferredAt },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "deferUnattached",
+      },
+    );
+  }
+
+  /**
+   * Rejects a ready item as `unattached`, only while it is still unmoved since
+   * `updatedBefore`. This is the cleanup's claim on the row. A save that
+   * attached the image after the cleanup read it moved `updated_at` in the
+   * same transaction, so the claim fails and the image is kept; a save after
+   * the claim finds the item rejected and stores nothing. See
+   * guardImageAttachments.
+   */
+  claimUnattached(
+    id: Uuid,
+    updatedBefore: Date,
+    rejectionReason: string,
+    rejectedAt: Date,
+  ): Promise<boolean> {
+    return this.transition(
+      id,
+      ["ready"],
+      {
+        ...rejection(rejectionReason, "unattached", rejectedAt),
+        updatedAt: rejectedAt,
+      },
+      {
+        where: { updatedAt: { lt: updatedBefore } },
+        operationName: "claimUnattached",
+      },
+    );
+  }
+
+  /**
    * Claims a stuck item for re-enqueueing: moves its `updatedAt` to `claimedAt`
    * and counts the re-queue. Applies only while the item is still waiting and
    * still unmoved since `updatedBefore`, so of several cleanup runs racing on
@@ -703,6 +869,22 @@ export function scanResultColumns(
     scannedAt,
     threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
   };
+}
+
+/**
+ * A JSON column as a raw query returns it: already parsed by some drivers, a
+ * string by others.
+ */
+function parseJsonColumn(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 /** Every rejection, whoever records it, is stored the same way. */

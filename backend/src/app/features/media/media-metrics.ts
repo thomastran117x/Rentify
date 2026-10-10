@@ -30,6 +30,12 @@ export type MediaProcessingOutcome =
   | "failed";
 
 /**
+ * Why the media cleanup deleted an item it did not reject: a ready image that
+ * nothing attached within its TTL.
+ */
+export type MediaCleanupDeletionReason = "unattached";
+
+/**
  * A scope as a metric tag: one of the known scopes, or `unknown` when it cannot
  * be told, such as for a row deleted before it was read.
  */
@@ -62,6 +68,7 @@ export interface MediaCounterTags {
   "media.processing.failure": { attempt: number; retrying: boolean };
   "media.rejected": { code: MediaRejectionCode; stage: MediaRejectionStage };
   "media.dlq.published": Record<string, never>;
+  "media.cleanup.deleted": { reason: MediaCleanupDeletionReason };
 }
 
 export interface MediaObservationTags {

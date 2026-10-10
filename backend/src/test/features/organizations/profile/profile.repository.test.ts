@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { createMediaGuardTransaction } from "../../../support/media-attachment-guard";
 import {
   OrganizationSlugTakenError,
   OrganizationsProfileRepository,
@@ -481,6 +482,58 @@ describe("OrganizationsProfileRepository", () => {
     expect(result).toEqual(
       expect.objectContaining({ id: ORG_1_ID, name: "Renamed Org" }),
     );
+  });
+
+  it("guards the logo it stores and releases the one it replaces", async () => {
+    const guard = createMediaGuardTransaction([
+      { name: "media/images/u/new.webp", status: "ready" },
+      { name: "media/images/u/old.webp", status: "ready" },
+    ]);
+    const findUnique = jest.fn(async () => ({
+      logoBlobName: "media/images/u/old.webp",
+    }));
+    const organizationUpdate = jest.fn(async () => ({
+      id: ORG_1_ID,
+      name: "Northwind",
+      logoUrl: "https://example.test/new.webp",
+      logoBlobName: "media/images/u/new.webp",
+      customFields: null,
+    }));
+    const database = {
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({
+          ...guard,
+          organization: { findUnique, update: organizationUpdate },
+          organizationSearchReindexRun: {
+            findFirst: jest.fn(async () => null),
+          },
+          organizationSearchOutbox: {
+            createMany: jest.fn(async () => ({ count: 1 })),
+          },
+        }),
+    };
+    const repository = new OrganizationsProfileRepository(database as any);
+
+    await repository.updateOrganization(ORG_1_ID, {
+      logoUrl: "https://example.test/new.webp",
+      logoBlobName: "media/images/u/new.webp",
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: ORG_1_ID },
+      select: { logoBlobName: true },
+    });
+    expect(guard.media.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          processedBlobName: {
+            in: ["media/images/u/new.webp", "media/images/u/old.webp"],
+          },
+          status: "ready",
+        },
+      }),
+    );
+    expect(organizationUpdate).toHaveBeenCalled();
   });
 
   it("also enqueues a reindex-scoped outbox entry while a reindex run is active", async () => {

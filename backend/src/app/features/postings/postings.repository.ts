@@ -1,6 +1,7 @@
 import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
+import { guardImageAttachments } from "@/features/media/media-attachment-guard";
 import {
   DEFAULT_MAX_BOOKING_DURATION_DAYS,
   isPostingSearchIndexable,
@@ -200,6 +201,8 @@ export class PostingsRepository extends BaseRepository {
   async create(input: UpsertPostingPersistenceInput): Promise<PostingRecord> {
     return this.executeAsync(async () => {
       const posting = await this.prisma.$transaction(async (transaction) => {
+        await this.guardPhotoAttachments(transaction, input.photos);
+
         const created = await transaction.posting.create({
           data: this.toCreateData(input),
           include: postingInclude,
@@ -245,6 +248,12 @@ export class PostingsRepository extends BaseRepository {
               clientVersion: "unknown",
             });
           }
+
+          await this.guardPhotoAttachments(
+            transaction,
+            input.photos,
+            existing.photos,
+          );
 
           const updated = await transaction.posting.update({
             where: {
@@ -1004,6 +1013,12 @@ export class PostingsRepository extends BaseRepository {
               clientVersion: "unknown",
             });
           }
+
+          await this.guardPhotoAttachments(
+            transaction,
+            posting.photos,
+            existing.photos,
+          );
 
           const updated = await transaction.posting.update({
             where: { id: posting.id },
@@ -3105,6 +3120,21 @@ export class PostingsRepository extends BaseRepository {
         })),
       },
     };
+  }
+
+  /**
+   * The media cleanup's attachment guard for a write of `photos`, releasing
+   * any of `existingPhotos` the write drops.
+   */
+  private guardPhotoAttachments(
+    transaction: Prisma.TransactionClient,
+    photos: Array<{ blobName: string }>,
+    existingPhotos: Array<{ blobName: string }> = [],
+  ): Promise<void> {
+    return guardImageAttachments(transaction, {
+      attached: photos.map((photo) => photo.blobName),
+      released: existingPhotos.map((photo) => photo.blobName),
+    });
   }
 
   private mergePhotosWithExisting(

@@ -738,4 +738,130 @@ describe("MediaRepository", () => {
       unattached.isBlobAttached("media/images/u/m.webp"),
     ).resolves.toBe(false);
   });
+
+  it("lists unattached ready rows, leaving attached ones to the query", async () => {
+    const queryRaw = jest.fn(async (_query: unknown) => [{ id: MEDIA_1_ID }]);
+    const findMany = jest.fn(async (_args: any) => [
+      mediaRow({ status: "ready" }),
+    ]);
+    const repository = new MediaRepository({
+      $queryRaw: queryRaw,
+      media: { findMany },
+    } as any);
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+
+    await expect(
+      repository.listUnattachedReady(cutoff, 40),
+    ).resolves.toMatchObject([{ id: MEDIA_1_ID, status: "ready" }]);
+
+    const [[query]] = queryRaw.mock.calls as unknown as [
+      [{ sql: string; values: unknown[] }],
+    ];
+    expect(query.values).toEqual([cutoff, 40]);
+    for (const reference of [
+      "posting_photos p",
+      "profiles p",
+      "organizations o",
+      "organization_blog_posts b",
+    ]) {
+      expect(query.sql).toContain(reference);
+    }
+    expect(findMany).toHaveBeenCalledWith({
+      where: { id: { in: [MEDIA_1_ID] } },
+      orderBy: { updatedAt: "asc" },
+      take: 40,
+    });
+
+    queryRaw.mockResolvedValueOnce([]);
+    await expect(repository.listUnattachedReady(cutoff, 40)).resolves.toEqual(
+      [],
+    );
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports which images a restorable logo or posting audit still holds", async () => {
+    const queryRaw = jest.fn(async (_query: unknown) => [
+      {
+        beforeSnapshot: { logoBlobName: "media/images/u/logo.webp" },
+        afterSnapshot: null,
+      },
+      {
+        // Some drivers return JSON columns as text.
+        beforeSnapshot: JSON.stringify({
+          photos: [
+            { blobName: "media/images/u/photo.webp" },
+            { blobName: "postings/legacy.jpg" },
+            "not a photo",
+          ],
+        }),
+        afterSnapshot: "not json",
+      },
+    ]);
+    const repository = new MediaRepository({ $queryRaw: queryRaw } as any);
+
+    await expect(repository.listAuditHeldBlobNames([])).resolves.toEqual(
+      new Set(),
+    );
+    expect(queryRaw).not.toHaveBeenCalled();
+
+    await expect(
+      repository.listAuditHeldBlobNames([
+        "media/images/u/logo.webp",
+        "media/images/u/photo.webp",
+        "media/images/u/free.webp",
+      ]),
+    ).resolves.toEqual(
+      new Set(["media/images/u/logo.webp", "media/images/u/photo.webp"]),
+    );
+    const [[query]] = queryRaw.mock.calls as unknown as [
+      [{ sql: string; values: unknown[] }],
+    ];
+    expect(query.sql).toContain("a.restorable = TRUE");
+    expect(query.values).toContain(
+      JSON.stringify([
+        "media/images/u/logo.webp",
+        "media/images/u/photo.webp",
+        "media/images/u/free.webp",
+      ]),
+    );
+  });
+
+  it("claims or defers an unattached row only while it is still ready and unmoved", async () => {
+    const updateMany = jest.fn(async (_args: unknown) => ({ count: 1 }));
+    const repository = createRepository({ updateMany });
+    const cutoff = new Date("2026-09-20T12:00:00.000Z");
+    const at = new Date("2026-09-21T12:00:00.000Z");
+
+    await expect(
+      repository.claimUnattached(MEDIA_1_ID, cutoff, "too late", at),
+    ).resolves.toBe(true);
+    await expect(
+      repository.deferUnattached(MEDIA_1_ID, cutoff, at),
+    ).resolves.toBe(true);
+
+    expect(updateMany.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["ready"] },
+          updatedAt: { lt: cutoff },
+        },
+        data: {
+          status: "rejected",
+          rejectionReason: "too late",
+          rejectionCode: "unattached",
+          processingCompletedAt: at,
+          updatedAt: at,
+        },
+      },
+      {
+        where: {
+          id: MEDIA_1_ID,
+          status: { in: ["ready"] },
+          updatedAt: { lt: cutoff },
+        },
+        data: { updatedAt: at },
+      },
+    ]);
+  });
 });

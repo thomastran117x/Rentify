@@ -328,7 +328,7 @@ defined in [`docs/azure/roles/`](./azure/roles/):
 | -------------------------- | ---------------------- | ----------------------------- | ----------------------------- |
 | `backend` (API)            | Storage Blob Delegator | Storage Blob Data Contributor | Rentify Blob Writer-Deleter   |
 | `media-processing-worker`  | —                      | Rentify Blob Reader-Deleter   | Rentify Blob Writer-Deleter   |
-| `media-cleanup-worker`     | —                      | Rentify Blob Reader-Deleter   | —                             |
+| `media-cleanup-worker`     | —                      | Rentify Blob Reader-Deleter   | Rentify Blob Reader-Deleter   |
 | `posting-thumbnail-worker` | —                      | —                             | Storage Blob Data Contributor |
 | `blob-cleanup`             | —                      | Rentify Blob Reader-Deleter   | Rentify Blob Reader-Deleter   |
 | `media-variants-backfill`  | —                      | —                             | Storage Blob Data Contributor |
@@ -345,6 +345,12 @@ defined in [`docs/azure/roles/`](./azure/roles/):
   media processing worker reads and deletes quarantined uploads, but it
   cannot write to the quarantine container. Neither can `blob-cleanup` or
   the media cleanup worker.
+- **The media cleanup worker deletes public images.** It deletes the processed
+  image and renditions of a ready item nothing attached in time. Without the
+  public-container role, those deletions fail with
+  `403 AuthorizationPermissionMismatch`: the item stays an `unattached`
+  rejection with its blobs, and the purge retries it every rejected retention.
+  Reading the public container grants nothing it does not already serve.
 - **No legacy fallback.** These roles do not cover
   `MEDIA_QUARANTINE_LEGACY_FALLBACK`, which reads and deletes `quarantine/`
   names in the public container. Turn it off before switching.
@@ -712,23 +718,34 @@ screening.
 ## Media cleanup worker
 
 `workers.mediaCleanup` controls the sweep that deletes abandoned uploads,
-re-queues items whose processing job was lost, and deletes old rejections. See
+re-queues items whose processing job was lost, deletes old rejections, and
+deletes ready images nothing attached in time. See
 the [media worker guide](../backend/src/app/workers/media/README.md#media-cleanup)
 for what each step does.
 
-| Key                   | Default    | Override                              | Meaning                                                         |
-| --------------------- | ---------- | ------------------------------------- | --------------------------------------------------------------- |
-| `pollIntervalMs`      | `300000`   | `MEDIA_CLEANUP_POLL_INTERVAL_MS`      | Wait between sweeps that found nothing to do                    |
-| `batchSize`           | `100`      | `MEDIA_CLEANUP_BATCH_SIZE`            | Most items each step handles per sweep                          |
-| `pendingUploadTtlMs`  | `86400000` | `MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS` | Age at which a never-completed upload is deleted                |
-| `stuckThresholdMs`    | `900000`   | `MEDIA_CLEANUP_STUCK_THRESHOLD_MS`    | Time an `uploaded` or `processing` item may sit unmoved         |
-| `maxRequeues`         | `3`        | `MEDIA_CLEANUP_MAX_REQUEUES`          | Re-queues after which a stuck item is rejected instead          |
-| `rejectedRetentionMs` | `86400000` | `MEDIA_CLEANUP_REJECTED_RETENTION_MS` | Time a rejected item is kept, so its client can read the reason |
+| Key                    | Default    | Override                                | Meaning                                                         |
+| ---------------------- | ---------- | --------------------------------------- | --------------------------------------------------------------- |
+| `pollIntervalMs`       | `300000`   | `MEDIA_CLEANUP_POLL_INTERVAL_MS`        | Wait between sweeps that found nothing to do                    |
+| `batchSize`            | `100`      | `MEDIA_CLEANUP_BATCH_SIZE`              | Most items each step handles per sweep                          |
+| `pendingUploadTtlMs`   | `86400000` | `MEDIA_CLEANUP_PENDING_UPLOAD_TTL_MS`   | Age at which a never-completed upload is deleted                |
+| `stuckThresholdMs`     | `900000`   | `MEDIA_CLEANUP_STUCK_THRESHOLD_MS`      | Time an `uploaded` or `processing` item may sit unmoved         |
+| `maxRequeues`          | `3`        | `MEDIA_CLEANUP_MAX_REQUEUES`            | Re-queues after which a stuck item is rejected instead          |
+| `rejectedRetentionMs`  | `86400000` | `MEDIA_CLEANUP_REJECTED_RETENTION_MS`   | Time a rejected item is kept, so its client can read the reason |
+| `unattachedReadyTtlMs` | `86400000` | `MEDIA_CLEANUP_UNATTACHED_READY_TTL_MS` | Time a ready image may stay unattached before it is deleted     |
 
 A `processing_failed` item keeps its quarantined upload for the whole
 `rejectedRetentionMs`, which bounds how late its dead-lettered job can be
 replayed; see the
 [dead-letter runbook](../backend/src/app/workers/media/README.md#dead-letter-runbook).
+
+`unattachedReadyTtlMs` counts from a ready item's last change: when it became
+ready, or when a save last stored or dropped its image. It must outlast an
+editing session, because a photo picked at the start of a long session is only
+attached when the posting is saved. An image older than that which no posting
+photo, avatar, organization logo, or blog cover references is deleted, unless
+a restorable audit entry references it, and its row is kept as an `unattached`
+rejection for `rejectedRetentionMs`. Each deletion is counted as
+`media.cleanup.deleted{reason="unattached"}`.
 
 Every value must be a positive integer, except `maxRequeues`, which may be `0`
 to reject a stuck item without queuing it again. A sweep that did work is followed by

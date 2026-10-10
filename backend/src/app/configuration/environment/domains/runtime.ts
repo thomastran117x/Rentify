@@ -394,6 +394,18 @@ export function buildWorkerConfig(
           min: 1,
         },
       ),
+      // Counted from the item's last change, which is when it became ready or
+      // was last attached or released, so it must outlast an editing session.
+      unattachedReadyTtlMs: parseNumber(
+        raw,
+        "MEDIA_CLEANUP_UNATTACHED_READY_TTL_MS",
+        86_400_000,
+        errors,
+        {
+          integer: true,
+          min: 1,
+        },
+      ),
     },
     bookingExpiry: {
       pollIntervalMs: parseNumber(
