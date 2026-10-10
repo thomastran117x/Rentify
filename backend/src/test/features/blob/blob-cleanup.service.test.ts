@@ -14,7 +14,7 @@ const EMPTY_SOURCE_COUNTS = {
   organizations: 0,
   blogPosts: 0,
   postingPhotos: 0,
-  auditSnapshots: 0,
+  auditReferences: 0,
   mediaUploads: 0,
 };
 
@@ -56,7 +56,7 @@ describe("BlobCleanupService", () => {
           organizations: 0,
           blogPosts: 0,
           postingPhotos: 0,
-          auditSnapshots: 0,
+          auditReferences: 0,
           mediaUploads: 0,
         },
       })),
@@ -191,7 +191,7 @@ describe("BlobCleanupService", () => {
       $queryRaw: jest.fn(async () => [
         { source: "profiles", name: `${live}.webp` },
       ]),
-      organizationAuditLog: emptyTable,
+      organizationAuditBlobReference: emptyTable,
       media: emptyTable,
     } as never);
     const inventory = [live, orphan].flatMap((base) =>
@@ -224,7 +224,7 @@ describe("BlobCleanupService", () => {
     const emptyTable = { findMany: jest.fn(async () => []) };
     const repository = new BlobCleanupRepository({
       $queryRaw: jest.fn(async () => []),
-      organizationAuditLog: emptyTable,
+      organizationAuditBlobReference: emptyTable,
       // A processing failure keeps its upload for a replay.
       media: { findMany: jest.fn(async () => [{ originalBlobName: kept }]) },
     } as never);

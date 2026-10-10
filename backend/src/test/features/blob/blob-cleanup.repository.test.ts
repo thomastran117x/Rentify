@@ -19,18 +19,10 @@ describe("BlobCleanupRepository", () => {
           name: "media/images/owner-1/thumbnails/photo.webp",
         },
       ]),
-      organizationAuditLog: {
+      organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
-          {
-            resourceType: "organization",
-            beforeSnapshot: { logoBlobName: processed("old-logo") },
-            afterSnapshot: null,
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: { photos: [{ blobName: processed("old-photo") }] },
-            afterSnapshot: null,
-          },
+          { blobName: processed("old-logo") },
+          { blobName: processed("old-photo") },
         ]),
       },
       media: { findMany: jest.fn(async () => []) },
@@ -66,39 +58,12 @@ describe("BlobCleanupRepository", () => {
         },
         { source: "postingPhotos", name: "postings/user/photo.jpg" },
       ]),
-      organizationAuditLog: {
+      organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
-          {
-            resourceType: "organization",
-            beforeSnapshot: { logoBlobName: "organizations/user/old.png" },
-            afterSnapshot: { logoBlobName: "" },
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: {
-              photos: [
-                {
-                  blobName: "postings/user/former-photo.jpg",
-                  thumbnailBlobName:
-                    "postings/user/thumbnails/former-photo.webp",
-                },
-              ],
-            },
-            afterSnapshot: {
-              photos: [
-                {
-                  blobName: "postings/user/replacement-photo.jpg",
-                  thumbnailBlobName: null,
-                },
-                null,
-              ],
-            },
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: { photos: "invalid" },
-            afterSnapshot: [],
-          },
+          { blobName: "organizations/user/old.png" },
+          { blobName: "postings/user/former-photo.jpg" },
+          { blobName: "postings/user/thumbnails/former-photo.webp" },
+          { blobName: "postings/user/replacement-photo.jpg" },
         ]),
       },
       media: {
@@ -132,7 +97,7 @@ describe("BlobCleanupRepository", () => {
       organizations: 1,
       blogPosts: 1,
       postingPhotos: 3,
-      auditSnapshots: 3,
+      auditReferences: 4,
       mediaUploads: 2,
     });
     // Every image column in the registry is read, in one round trip.
@@ -159,17 +124,9 @@ describe("BlobCleanupRepository", () => {
       },
       select: { originalBlobName: true },
     });
-    expect(database.organizationAuditLog.findMany).toHaveBeenCalledWith({
-      where: {
-        resourceType: { in: ["organization", "posting"] },
-        restorable: true,
-      },
-      select: {
-        resourceType: true,
-        beforeSnapshot: true,
-        afterSnapshot: true,
-      },
-    });
+    expect(
+      database.organizationAuditBlobReference.findMany,
+    ).toHaveBeenCalledWith({ select: { blobName: true } });
   });
   it("deletes media rows left without an image, never a ready row whose leftover upload was cleaned", async () => {
     const deleteMany = jest.fn(async (_args: unknown) => ({ count: 3 }));

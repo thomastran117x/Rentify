@@ -1,7 +1,6 @@
 import { BaseRepository } from "@/features/base/base.repository";
 import { loadImageReferences } from "@/features/blob/image-references";
 import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
-import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 
 /**
  * How many references each source held. A feature source counts the image
@@ -12,7 +11,8 @@ export interface BlobReferenceSourceCounts {
   organizations: number;
   blogPosts: number;
   postingPhotos: number;
-  auditSnapshots: number;
+  /** Names restorable organization and posting audit entries hold. */
+  auditReferences: number;
   /** Quarantined uploads that media processing may still need. */
   mediaUploads: number;
 }
@@ -26,18 +26,12 @@ export class BlobCleanupRepository extends BaseRepository {
   async loadReferences(): Promise<BlobReferenceSnapshot> {
     return this.executeAsync(
       async () => {
-        const [references, auditLogs, mediaUploads] = await Promise.all([
+        const [references, auditReferences, mediaUploads] = await Promise.all([
           loadImageReferences(this.prisma),
-          this.prisma.organizationAuditLog.findMany({
-            where: {
-              resourceType: { in: ["organization", "posting"] },
-              restorable: true,
-            },
-            select: {
-              resourceType: true,
-              beforeSnapshot: true,
-              afterSnapshot: true,
-            },
+          // The names restorable organization and posting audit entries
+          // hold: restoring one writes them back.
+          this.prisma.organizationAuditBlobReference.findMany({
+            select: { blobName: true },
           }),
           // An upload still waiting on processing, or one a processing
           // failure keeps for a dead-letter replay. The media cleanup worker
@@ -78,7 +72,7 @@ export class BlobCleanupRepository extends BaseRepository {
           organizations: 0,
           blogPosts: 0,
           postingPhotos: 0,
-          auditSnapshots: auditLogs.length,
+          auditReferences: auditReferences.length,
           mediaUploads: mediaUploads.length,
         };
 
@@ -87,29 +81,7 @@ export class BlobCleanupRepository extends BaseRepository {
           sourceCounts[reference.source] += 1;
         });
         mediaUploads.forEach((row) => add(row.originalBlobName));
-        auditLogs.forEach((row) => {
-          const snapshots = [row.beforeSnapshot, row.afterSnapshot];
-
-          if (row.resourceType === "organization") {
-            snapshots.forEach((snapshot) => {
-              add(toAuditSnapshotRecord(snapshot).logoBlobName);
-            });
-            return;
-          }
-
-          snapshots.forEach((snapshot) => {
-            const photos = toAuditSnapshotRecord(snapshot).photos;
-            if (!Array.isArray(photos)) {
-              return;
-            }
-
-            photos.forEach((photo) => {
-              const photoRecord = toAuditSnapshotRecord(photo);
-              add(photoRecord.blobName);
-              add(photoRecord.thumbnailBlobName);
-            });
-          });
-        });
+        auditReferences.forEach((row) => add(row.blobName));
 
         return { blobNames, sourceCounts };
       },

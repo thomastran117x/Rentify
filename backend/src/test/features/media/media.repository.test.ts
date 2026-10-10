@@ -878,51 +878,34 @@ describe("MediaRepository", () => {
     });
   });
 
-  it("reports which images a restorable logo or posting audit still holds", async () => {
-    const queryRaw = jest.fn(async (_query: unknown) => [
-      {
-        beforeSnapshot: { logoBlobName: "media/images/u/logo.webp" },
-        afterSnapshot: null,
-      },
-      {
-        // Some drivers return JSON columns as text.
-        beforeSnapshot: JSON.stringify({
-          photos: [
-            { blobName: "media/images/u/photo.webp" },
-            { blobName: "postings/legacy.jpg" },
-            "not a photo",
-          ],
-        }),
-        afterSnapshot: "not json",
-      },
+  it("reports which images a restorable audit entry holds, by an indexed lookup", async () => {
+    const findMany = jest.fn(async (_args: unknown) => [
+      { blobName: "media/images/u/logo.webp" },
     ]);
-    const repository = new MediaRepository({ $queryRaw: queryRaw } as any);
+    const repository = new MediaRepository({
+      organizationAuditBlobReference: { findMany },
+    } as any);
 
     await expect(repository.listAuditHeldBlobNames([])).resolves.toEqual(
       new Set(),
     );
-    expect(queryRaw).not.toHaveBeenCalled();
+    expect(findMany).not.toHaveBeenCalled();
 
     await expect(
       repository.listAuditHeldBlobNames([
         "media/images/u/logo.webp",
-        "media/images/u/photo.webp",
         "media/images/u/free.webp",
       ]),
-    ).resolves.toEqual(
-      new Set(["media/images/u/logo.webp", "media/images/u/photo.webp"]),
-    );
-    const [[query]] = queryRaw.mock.calls as unknown as [
-      [{ sql: string; values: unknown[] }],
-    ];
-    expect(query.sql).toContain("a.restorable = TRUE");
-    expect(query.values).toContain(
-      JSON.stringify([
-        "media/images/u/logo.webp",
-        "media/images/u/photo.webp",
-        "media/images/u/free.webp",
-      ]),
-    );
+    ).resolves.toEqual(new Set(["media/images/u/logo.webp"]));
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        blobName: {
+          in: ["media/images/u/logo.webp", "media/images/u/free.webp"],
+        },
+      },
+      select: { blobName: true },
+      distinct: ["blobName"],
+    });
   });
 
   it("claims or defers an unattached row only while it is still ready and unmoved", async () => {

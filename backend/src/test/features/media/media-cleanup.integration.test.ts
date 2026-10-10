@@ -4,6 +4,7 @@ import { buildApiPath } from "@/configuration/http/api-path";
 import { asUuid } from "@/configuration/validation/uuid";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import { MediaRepository } from "@/features/media/media.repository";
+import { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
 import type {
   MediaProcessingJobPayload,
   MediaStatus,
@@ -151,24 +152,19 @@ describe("Media cleanup persistence integration", () => {
   ): Promise<void> {
     const organization =
       await persistenceApp.prisma.organization.findFirstOrThrow();
-    const latest = await persistenceApp.prisma.organizationAuditLog.aggregate({
-      where: { organizationId: organization.id },
-      _max: { organizationVersion: true },
-    });
 
-    await persistenceApp.prisma.organizationAuditLog.create({
-      data: {
-        id: randomUUID(),
-        organizationId: organization.id,
-        action: `${resourceType}.updated`,
-        resourceType,
-        resourceId: randomUUID(),
-        organizationVersion: (latest._max.organizationVersion ?? 0) + 1,
-        summary: "Held by the media cleanup test.",
-        beforeSnapshot: beforeSnapshot as never,
-        afterSnapshot: {},
-        restorable: true,
-      },
+    await new OrganizationAuditRepository(persistenceApp.prisma).create({
+      organizationId: asUuid(organization.id),
+      action:
+        resourceType === "organization"
+          ? "organization.renamed"
+          : "posting.updated",
+      resourceType,
+      resourceId: resourceType === "posting" ? randomUUID() : null,
+      summary: "Held by the media cleanup test.",
+      beforeSnapshot,
+      afterSnapshot: {},
+      restorable: true,
     });
   }
 

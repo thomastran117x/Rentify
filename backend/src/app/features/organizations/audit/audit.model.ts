@@ -104,6 +104,44 @@ export function toAuditSnapshotRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * The image names a restorable entry holds: restoring an organization entry
+ * writes its logo back, and restoring a posting entry its photos and their
+ * crops, from either snapshot. AuditRepository.create records them beside the
+ * entry, so the media and blob cleanups can find them by index. The migration
+ * that added that record repeats this in SQL for older entries; keep the two
+ * in step.
+ */
+export function listAuditSnapshotBlobNames(
+  resourceType: string,
+  snapshots: unknown[],
+): string[] {
+  const names = new Set<string>();
+  const add = (value: unknown): void => {
+    const name = typeof value === "string" ? value.trim() : "";
+
+    if (name) {
+      names.add(name);
+    }
+  };
+
+  for (const snapshot of snapshots) {
+    const record = toAuditSnapshotRecord(snapshot);
+
+    if (resourceType === "organization") {
+      add(record.logoBlobName);
+    } else if (resourceType === "posting" && Array.isArray(record.photos)) {
+      for (const photo of record.photos) {
+        const { blobName, thumbnailBlobName } = toAuditSnapshotRecord(photo);
+        add(blobName);
+        add(thumbnailBlobName);
+      }
+    }
+  }
+
+  return [...names];
+}
+
 export function createAuditChanges(
   beforeSnapshot: unknown,
   afterSnapshot: unknown,

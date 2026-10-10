@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import ConflictError from "@/errors/http/conflict.error";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
-  toAuditSnapshotRecord,
+  listAuditSnapshotBlobNames,
   type CreateOrganizationAuditLogInput,
   type ListOrganizationAuditInput,
   type ListOrganizationAuditResult,
@@ -63,7 +63,9 @@ export class OrganizationAuditRepository extends BaseRepository {
             : Promise.resolve({ _max: { resourceVersion: null } }),
         ]);
 
-        return await transaction.organizationAuditLog.create({
+        const beforeSnapshot = this.toJson(input.beforeSnapshot);
+        const afterSnapshot = this.toJson(input.afterSnapshot);
+        const created = await transaction.organizationAuditLog.create({
           data: {
             id: newUuid(),
             organizationId: input.organizationId,
@@ -77,13 +79,35 @@ export class OrganizationAuditRepository extends BaseRepository {
               : null,
             summary: input.summary,
             changes: this.toJson(input.changes ?? []),
-            beforeSnapshot: this.toJson(input.beforeSnapshot),
-            afterSnapshot: this.toJson(input.afterSnapshot),
+            beforeSnapshot,
+            afterSnapshot,
             restorable: input.restorable ?? false,
             restoredFromAuditId: input.restoredFromAuditId ?? null,
           },
           include: this.includeActor(),
         });
+
+        // Restoring the entry writes these images back, so they are held
+        // for as long as it is restorable. An entry never stops being
+        // restorable, and the rows go with it.
+        const held = input.restorable
+          ? listAuditSnapshotBlobNames(input.resourceType, [
+              beforeSnapshot,
+              afterSnapshot,
+            ])
+          : [];
+
+        if (held.length > 0) {
+          await transaction.organizationAuditBlobReference.createMany({
+            data: held.map((blobName) => ({
+              id: newUuid(),
+              auditLogId: created.id,
+              blobName,
+            })),
+          });
+        }
+
+        return created;
       } finally {
         await transaction.$queryRaw`SELECT RELEASE_LOCK(${lockName})`;
       }
@@ -139,25 +163,19 @@ export class OrganizationAuditRepository extends BaseRepository {
     organizationId: Uuid;
     blobName: string;
   }): Promise<boolean> {
-    const rows = await this.executeAsync(() =>
-      this.prisma.organizationAuditLog.findMany({
+    const references = await this.executeAsync(() =>
+      this.prisma.organizationAuditBlobReference.count({
         where: {
-          organizationId: input.organizationId,
-          resourceType: "organization",
-          restorable: true,
-        },
-        select: {
-          beforeSnapshot: true,
-          afterSnapshot: true,
+          blobName: input.blobName,
+          auditLog: {
+            organizationId: input.organizationId,
+            resourceType: "organization",
+          },
         },
       }),
     );
 
-    return rows.some(
-      (row) =>
-        this.snapshotReferencesBlobName(row.beforeSnapshot, input.blobName) ||
-        this.snapshotReferencesBlobName(row.afterSnapshot, input.blobName),
-    );
+    return references > 0;
   }
 
   private includeActor() {
@@ -215,15 +233,6 @@ export class OrganizationAuditRepository extends BaseRepository {
     return Array.isArray(value)
       ? (value as unknown as OrganizationAuditChange[])
       : [];
-  }
-
-  private snapshotReferencesBlobName(
-    value: Prisma.JsonValue | null,
-    blobName: string,
-  ): boolean {
-    const snapshot = toAuditSnapshotRecord(value);
-
-    return snapshot.logoBlobName === blobName;
   }
 
   private createPagination(page: number, pageSize: number, total: number) {

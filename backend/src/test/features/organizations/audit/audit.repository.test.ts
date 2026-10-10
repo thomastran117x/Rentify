@@ -132,25 +132,10 @@ describe("OrganizationAuditRepository", () => {
     });
   });
 
-  it("detects restorable organization snapshots that still reference a logo blob", async () => {
-    const findMany = jest.fn(async () => [
-      {
-        beforeSnapshot: {
-          logoBlobName: `organizations/${ORG_1_ID}/logo-a.png`,
-        },
-        afterSnapshot: null,
-      },
-      {
-        beforeSnapshot: null,
-        afterSnapshot: {
-          logoBlobName: `organizations/${ORG_1_ID}/logo-b.png`,
-        },
-      },
-    ]);
+  it("detects a logo a restorable organization entry still holds, by an indexed lookup", async () => {
+    const count = jest.fn(async (_args: unknown) => 1);
     const repository = new OrganizationAuditRepository({
-      organizationAuditLog: {
-        findMany,
-      },
+      organizationAuditBlobReference: { count },
     } as any);
 
     await expect(
@@ -159,38 +144,108 @@ describe("OrganizationAuditRepository", () => {
         blobName: `organizations/${ORG_1_ID}/logo-b.png`,
       }),
     ).resolves.toBe(true);
-    expect(findMany).toHaveBeenCalledWith({
+    expect(count).toHaveBeenCalledWith({
       where: {
-        organizationId: ORG_1_ID,
-        resourceType: "organization",
-        restorable: true,
-      },
-      select: {
-        beforeSnapshot: true,
-        afterSnapshot: true,
+        blobName: `organizations/${ORG_1_ID}/logo-b.png`,
+        auditLog: { organizationId: ORG_1_ID, resourceType: "organization" },
       },
     });
-  });
 
-  it("returns false when no restorable snapshots reference the requested logo blob", async () => {
-    const repository = new OrganizationAuditRepository({
-      organizationAuditLog: {
-        findMany: jest.fn(async () => [
-          {
-            beforeSnapshot: {
-              logoBlobName: `organizations/${ORG_1_ID}/other-logo.png`,
-            },
-            afterSnapshot: {},
-          },
-        ]),
-      },
-    } as any);
-
+    count.mockResolvedValueOnce(0);
     await expect(
       repository.hasRestorableOrganizationLogoReference({
         organizationId: ORG_1_ID,
         blobName: `organizations/${ORG_1_ID}/logo-a.png`,
       }),
     ).resolves.toBe(false);
+  });
+
+  describe("create", () => {
+    function createWritingRepository() {
+      const transaction = {
+        $queryRaw: jest.fn(async () => [{ acquired: 1 }]),
+        organizationAuditLog: {
+          aggregate: jest.fn(async () => ({
+            _max: { organizationVersion: 4, resourceVersion: 1 },
+          })),
+          create: jest.fn(async ({ data }: { data: Record<string, any> }) => ({
+            ...data,
+            actor: null,
+            createdAt: new Date("2026-10-09T12:00:00.000Z"),
+          })),
+        },
+        organizationAuditBlobReference: {
+          createMany: jest.fn(async () => ({ count: 0 })),
+        },
+      };
+      const repository = new OrganizationAuditRepository({
+        $transaction: jest.fn(async (run: (tx: unknown) => unknown) =>
+          run(transaction),
+        ),
+      } as any);
+
+      return { repository, transaction };
+    }
+
+    it("records the images a restorable entry holds beside it", async () => {
+      const { repository, transaction } = createWritingRepository();
+
+      const created = await repository.create({
+        organizationId: ORG_1_ID,
+        action: "posting.updated",
+        resourceType: "posting",
+        resourceId: "posting-1",
+        summary: "Updated posting",
+        beforeSnapshot: {
+          photos: [
+            {
+              blobName: " media/images/u/a.webp ",
+              thumbnailBlobName: "media/images/u/thumbnails/a.webp",
+            },
+          ],
+        },
+        afterSnapshot: {
+          photos: [{ blobName: "media/images/u/a.webp" }, null],
+        },
+        restorable: true,
+      });
+
+      const [[{ data }]] = transaction.organizationAuditBlobReference.createMany
+        .mock.calls as unknown as [
+        [{ data: Array<{ id: string; auditLogId: string; blobName: string }> }],
+      ];
+      expect(
+        data.map(({ auditLogId, blobName }) => [auditLogId, blobName]),
+      ).toEqual([
+        [created.id, "media/images/u/a.webp"],
+        [created.id, "media/images/u/thumbnails/a.webp"],
+      ]);
+    });
+
+    it("records nothing for an entry that cannot be restored, or holds no image", async () => {
+      const { repository, transaction } = createWritingRepository();
+
+      await repository.create({
+        organizationId: ORG_1_ID,
+        action: "organization.renamed",
+        resourceType: "organization",
+        summary: "Updated organization",
+        beforeSnapshot: { logoBlobName: "organizations/x/logo.png" },
+        restorable: false,
+      });
+      await repository.create({
+        organizationId: ORG_1_ID,
+        action: "organization.renamed",
+        resourceType: "organization",
+        summary: "Updated organization",
+        beforeSnapshot: { logoBlobName: null },
+        afterSnapshot: { name: "Northwind" },
+        restorable: true,
+      });
+
+      expect(
+        transaction.organizationAuditBlobReference.createMany,
+      ).not.toHaveBeenCalled();
+    });
   });
 });

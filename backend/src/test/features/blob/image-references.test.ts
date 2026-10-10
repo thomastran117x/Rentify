@@ -7,8 +7,10 @@ import {
 } from "@/features/blob/image-references";
 
 // Tables whose `*_blob_name` columns are not references a feature displays:
-// the media table names its own upload and processed image.
-const NOT_REFERENCES = new Set(["media"]);
+// the media table names its own upload and processed image, and the audit
+// table records names a restorable entry holds, which the cleanups read
+// separately.
+const NOT_REFERENCES = new Set(["media", "organization_audit_blob_references"]);
 
 interface SchemaTable {
   columns: Map<string, string>;

@@ -2,7 +2,6 @@ import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import { listAttachedBlobNames } from "@/features/blob/image-references";
-import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type {
   CreateMediaRecordInput,
   ImageRenditionInfo,
@@ -532,67 +531,28 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Which of `blobNames` a restorable audit entry still references: an
-   * organization's logo, or a posting's photo, before or after the change it
-   * records. Restoring that entry writes the reference back, so the image must
-   * outlive it; such entries are never retired today.
+   * Which of `blobNames` a restorable audit entry holds: an organization's
+   * logo, or a posting's photo, before or after the change it records.
+   * Restoring that entry writes the reference back, so the image must outlive
+   * it; such entries are never retired today. Each held name is recorded
+   * beside its entry, so this is an indexed lookup.
    */
   async listAuditHeldBlobNames(blobNames: string[]): Promise<Set<string>> {
     if (blobNames.length === 0) {
       return new Set();
     }
 
-    const candidates = JSON.stringify(blobNames);
     const rows = await this.executeAsync(
       () =>
-        this.prisma.$queryRaw<
-          Array<{ beforeSnapshot: unknown; afterSnapshot: unknown }>
-        >(Prisma.sql`
-          SELECT a.before_snapshot AS beforeSnapshot,
-                 a.after_snapshot AS afterSnapshot
-          FROM organization_audit_logs a
-          WHERE a.restorable = TRUE
-            AND a.resource_type IN ('organization', 'posting')
-            AND (
-              JSON_UNQUOTE(JSON_EXTRACT(a.before_snapshot, '$.logoBlobName'))
-                IN (${Prisma.join(blobNames)})
-              OR JSON_UNQUOTE(JSON_EXTRACT(a.after_snapshot, '$.logoBlobName'))
-                IN (${Prisma.join(blobNames)})
-              OR JSON_OVERLAPS(
-                JSON_EXTRACT(a.before_snapshot, '$.photos[*].blobName'),
-                CAST(${candidates} AS JSON)
-              )
-              OR JSON_OVERLAPS(
-                JSON_EXTRACT(a.after_snapshot, '$.photos[*].blobName'),
-                CAST(${candidates} AS JSON)
-              )
-            )
-        `),
+        this.prisma.organizationAuditBlobReference.findMany({
+          where: { blobName: { in: blobNames } },
+          select: { blobName: true },
+          distinct: ["blobName"],
+        }),
       { operationName: "listAuditHeldBlobNames" },
     );
 
-    const wanted = new Set(blobNames);
-    const held = new Set<string>();
-    const add = (value: unknown): void => {
-      if (typeof value === "string" && wanted.has(value)) {
-        held.add(value);
-      }
-    };
-
-    for (const row of rows) {
-      for (const snapshot of [row.beforeSnapshot, row.afterSnapshot]) {
-        const record = toAuditSnapshotRecord(parseJsonColumn(snapshot));
-        add(record.logoBlobName);
-
-        if (Array.isArray(record.photos)) {
-          record.photos.forEach((photo) =>
-            add(toAuditSnapshotRecord(photo).blobName),
-          );
-        }
-      }
-    }
-
-    return held;
+    return new Set(rows.map((row) => row.blobName));
   }
 
   /**
@@ -945,22 +905,6 @@ export function scanResultColumns(
     scannedAt,
     threatName: scan.threatName?.slice(0, THREAT_NAME_MAX_LENGTH) ?? null,
   };
-}
-
-/**
- * A JSON column as a raw query returns it: already parsed by some drivers, a
- * string by others.
- */
-function parseJsonColumn(value: unknown): unknown {
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
 }
 
 /** Every rejection, whoever records it, is stored the same way. */
