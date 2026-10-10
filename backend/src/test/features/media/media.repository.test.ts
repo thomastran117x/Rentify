@@ -929,11 +929,11 @@ describe("MediaRepository", () => {
           status: { in: ["ready"] },
           updatedAt: { lt: cutoff },
         },
+        // processing_completed_at keeps when the image became ready.
         data: {
           status: "rejected",
           rejectionReason: "too late",
           rejectionCode: "unattached",
-          processingCompletedAt: at,
           updatedAt: at,
         },
       },

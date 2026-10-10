@@ -594,6 +594,10 @@ export class MediaRepository extends BaseRepository {
    * same transaction, so the claim fails and the image is kept; a save after
    * the claim finds the item rejected and stores nothing. See
    * guardImageAttachments.
+   *
+   * `processing_completed_at` keeps the time processing finished, so the
+   * tombstone still shows how long the image waited; `updated_at` records the
+   * claim.
    */
   claimUnattached(
     id: Uuid,
@@ -605,7 +609,7 @@ export class MediaRepository extends BaseRepository {
       id,
       ["ready"],
       {
-        ...rejection(rejectionReason, "unattached", rejectedAt),
+        ...rejectionColumns(rejectionReason, "unattached"),
         updatedAt: rejectedAt,
       },
       {
@@ -908,6 +912,24 @@ export function scanResultColumns(
 }
 
 /** Every rejection, whoever records it, is stored the same way. */
+function rejectionColumns(
+  rejectionReason: string,
+  rejectionCode: MediaRejectionCode,
+): Pick<
+  Prisma.MediaUpdateManyMutationInput,
+  "status" | "rejectionReason" | "rejectionCode"
+> {
+  return {
+    status: "rejected",
+    rejectionReason: rejectionReason.slice(0, 500),
+    rejectionCode,
+  };
+}
+
+/**
+ * The rejection of an item that never finished processing, which ends its
+ * processing at `rejectedAt`.
+ */
 function rejection(
   rejectionReason: string,
   rejectionCode: MediaRejectionCode,
@@ -917,9 +939,7 @@ function rejection(
   "status" | "rejectionReason" | "rejectionCode" | "processingCompletedAt"
 > {
   return {
-    status: "rejected",
-    rejectionReason: rejectionReason.slice(0, 500),
-    rejectionCode,
+    ...rejectionColumns(rejectionReason, rejectionCode),
     processingCompletedAt: rejectedAt,
   };
 }

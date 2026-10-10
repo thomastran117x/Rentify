@@ -428,6 +428,14 @@ describe("Media cleanup persistence integration", () => {
   it("deletes a ready image nothing attached in time, keeping a tombstone until the purge", async () => {
     const storage = persistenceApp.stubs.blobService.storage;
     const unattached = await createUnattachedMedia();
+    const processedAt = ago(50 * HOUR_MS);
+    await persistenceApp.prisma.media.update({
+      where: { id: unattached.mediaId },
+      data: {
+        processingCompletedAt: processedAt,
+        updatedAt: ago(48 * HOUR_MS),
+      },
+    });
 
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: 1,
@@ -435,10 +443,13 @@ describe("Media cleanup persistence integration", () => {
       failed: 0,
     });
 
+    // The tombstone keeps when processing finished, so it still shows how
+    // long the image waited.
     await expect(findMedia(unattached.mediaId)).resolves.toMatchObject({
       status: "rejected",
       rejectionCode: "unattached",
       rejectionReason: "This image was not saved in time. Upload it again.",
+      processingCompletedAt: processedAt,
     });
     for (const name of imageBlobNames(unattached.blobName)) {
       expect(storage.has(name)).toBe(false);
