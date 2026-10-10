@@ -1,7 +1,7 @@
 import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory } from "@/configuration/logging";
 import type { BlobService } from "@/features/blob/blob.service";
-import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
+import { deleteMediaBlobs } from "@/features/media/media-blobs";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaMetrics } from "@/features/media/media-metrics";
 import type {
@@ -291,7 +291,7 @@ export class MediaCleanupService {
 
     await this.forEachItem(records, "rejected", summary, async (record) => {
       try {
-        await this.deleteRecordBlobs(record);
+        await deleteMediaBlobs(this.blobService, record);
       } catch (error) {
         await this.mediaRepository.deferRejectedPurge(
           record.id,
@@ -391,31 +391,13 @@ export class MediaCleanupService {
           return;
         }
 
-        await this.deleteRecordBlobs(record);
+        await deleteMediaBlobs(this.blobService, record);
         summary.unattachedDeleted += 1;
         this.metrics.increment("media.cleanup.deleted", {
           reason: "unattached",
         });
       },
     );
-  }
-
-  /**
-   * Deletes an item's upload and, once it was processed, its image with every
-   * rendition. Deleting a blob that is already gone succeeds.
-   */
-  private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
-    await this.blobService.deleteBlob(record.originalBlobName);
-
-    if (record.processedBlobName) {
-      const renditions = listImageVariantBlobNames(record.processedBlobName);
-
-      await Promise.all(
-        (renditions.length > 0 ? renditions : [record.processedBlobName]).map(
-          (name) => this.blobService.deleteBlob(name),
-        ),
-      );
-    }
   }
 
   /**

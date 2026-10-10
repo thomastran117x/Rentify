@@ -4,7 +4,10 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
-import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
+import {
+  deleteImageBlobs,
+  deleteMediaBlobs,
+} from "@/features/media/media-blobs";
 import { buildImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
@@ -195,7 +198,7 @@ export class MediaService {
     }
 
     if (deletion.outcome === "deleted") {
-      await this.deleteRecordBlobs(deletion.record);
+      await deleteMediaBlobs(this.blobService, deletion.record);
     }
   }
 
@@ -366,7 +369,7 @@ export class MediaService {
       }
     }
 
-    await this.deleteImageBlobs(blobName);
+    await deleteImageBlobs(this.blobService, blobName);
   }
 
   isOwnedBy(userId: Uuid, blobName: string): boolean {
@@ -480,28 +483,6 @@ export class MediaService {
       reason,
       code,
       "completion",
-    );
-  }
-
-  private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
-    await this.blobService.deleteBlob(record.originalBlobName);
-
-    if (record.processedBlobName) {
-      await this.deleteImageBlobs(record.processedBlobName);
-    }
-  }
-
-  /**
-   * Deletes a stored image. A processed image goes with its renditions, which
-   * nothing references by name; any other name is a single blob.
-   */
-  private async deleteImageBlobs(blobName: string): Promise<void> {
-    const renditions = listImageVariantBlobNames(blobName);
-
-    await Promise.all(
-      (renditions.length > 0 ? renditions : [blobName]).map((name) =>
-        this.blobService.deleteBlob(name),
-      ),
     );
   }
 
