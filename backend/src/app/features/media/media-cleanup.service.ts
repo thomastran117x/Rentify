@@ -39,6 +39,11 @@ export interface MediaCleanupSummary {
   /** Ready items nothing attached within their TTL, deleted. */
   unattachedDeleted: number;
   /**
+   * Ready items past their TTL that something references, moved to the back
+   * of the order so they are not read again until it has passed anew.
+   */
+  attached: number;
+  /**
    * Unattached ready items left alone because a restorable audit entry still
    * references them, so restoring it would need them.
    */
@@ -88,7 +93,8 @@ export class MediaCleanupService {
       | "rejectStuck"
       | "deferRejectedPurge"
       | "deleteByIdIfStatus"
-      | "listUnattachedReady"
+      | "listReadyPastTtl"
+      | "listAttachedBlobNames"
       | "listAuditHeldBlobNames"
       | "deferUnattached"
       | "claimUnattached"
@@ -112,6 +118,7 @@ export class MediaCleanupService {
       rejected: 0,
       rejectedPurged: 0,
       unattachedDeleted: 0,
+      attached: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -303,10 +310,13 @@ export class MediaCleanupService {
   }
 
   /**
-   * The list leaves out every item a posting photo, avatar, organization logo,
-   * or blog cover references. An item a restorable audit entry references is
-   * kept too, because restoring the entry writes the reference back, and is
-   * moved to the back of the order.
+   * Reads at most `limit` ready items past their TTL, oldest first, and asks
+   * which of their images something references, by indexed lookups, so the
+   * cost of a sweep does not grow with the catalog. An item that is attached
+   * is moved to the back of the order, so the many long-attached images are
+   * each read about once per TTL and cannot fill every batch. So is an item a
+   * restorable audit entry references, because restoring the entry writes the
+   * reference back.
    *
    * The row is claimed first, by rejecting it while it is still ready and
    * unmoved. A save stores a reference only in a transaction that moves the
@@ -323,7 +333,7 @@ export class MediaCleanupService {
     limit: number,
     summary: MediaCleanupSummary,
   ): Promise<void> {
-    const records = await this.mediaRepository.listUnattachedReady(
+    const records = await this.mediaRepository.listReadyPastTtl(
       updatedBefore,
       limit,
     );
@@ -332,43 +342,62 @@ export class MediaCleanupService {
       return;
     }
 
+    const names = records.flatMap((record) =>
+      record.processedBlobName ? [record.processedBlobName] : [],
+    );
+    const attached = await this.mediaRepository.listAttachedBlobNames(names);
     const held = await this.mediaRepository.listAuditHeldBlobNames(
-      records.flatMap((record) =>
-        record.processedBlobName ? [record.processedBlobName] : [],
-      ),
+      names.filter((name) => !attached.has(name)),
+    );
+    const idsIn = (kept: Set<string>) =>
+      records
+        .filter(
+          (record) =>
+            record.processedBlobName && kept.has(record.processedBlobName),
+        )
+        .map((record) => record.id);
+
+    summary.attached += await this.mediaRepository.deferUnattached(
+      idsIn(attached),
+      updatedBefore,
+      now,
+    );
+    summary.held += await this.mediaRepository.deferUnattached(
+      idsIn(held),
+      updatedBefore,
+      now,
     );
 
-    await this.forEachItem(records, "unattached", summary, async (record) => {
-      if (record.processedBlobName && held.has(record.processedBlobName)) {
+    const unattached = records.filter(
+      (record) =>
+        record.processedBlobName &&
+        !attached.has(record.processedBlobName) &&
+        !held.has(record.processedBlobName),
+    );
+
+    await this.forEachItem(
+      unattached,
+      "unattached",
+      summary,
+      async (record) => {
         if (
-          await this.mediaRepository.deferUnattached(
+          !(await this.mediaRepository.claimUnattached(
             record.id,
             updatedBefore,
+            UNATTACHED_REASON,
             now,
-          )
+          ))
         ) {
-          summary.held += 1;
+          return;
         }
-        return;
-      }
 
-      if (
-        !(await this.mediaRepository.claimUnattached(
-          record.id,
-          updatedBefore,
-          UNATTACHED_REASON,
-          now,
-        ))
-      ) {
-        return;
-      }
-
-      await this.deleteRecordBlobs(record);
-      summary.unattachedDeleted += 1;
-      this.metrics.increment("media.cleanup.deleted", {
-        reason: "unattached",
-      });
-    });
+        await this.deleteRecordBlobs(record);
+        summary.unattachedDeleted += 1;
+        this.metrics.increment("media.cleanup.deleted", {
+          reason: "unattached",
+        });
+      },
+    );
   }
 
   /**

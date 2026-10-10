@@ -856,44 +856,26 @@ describe("MediaRepository", () => {
     expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it("lists unattached ready rows, leaving attached ones to the query", async () => {
-    const queryRaw = jest.fn(async (_query: unknown) => [{ id: MEDIA_1_ID }]);
+  it("lists ready rows past their TTL, least recently moved first", async () => {
     const findMany = jest.fn(async (_args: any) => [
       mediaRow({ status: "ready" }),
     ]);
-    const repository = new MediaRepository({
-      $queryRaw: queryRaw,
-      media: { findMany },
-    } as any);
+    const repository = createRepository({ findMany });
     const cutoff = new Date("2026-09-20T12:00:00.000Z");
 
     await expect(
-      repository.listUnattachedReady(cutoff, 40),
+      repository.listReadyPastTtl(cutoff, 40),
     ).resolves.toMatchObject([{ id: MEDIA_1_ID, status: "ready" }]);
-
-    const [[query]] = queryRaw.mock.calls as unknown as [
-      [{ sql: string; values: unknown[] }],
-    ];
-    expect(query.values).toEqual([cutoff, 40]);
-    for (const reference of [
-      "posting_photos p",
-      "profiles p",
-      "organizations o",
-      "organization_blog_posts b",
-    ]) {
-      expect(query.sql).toContain(reference);
-    }
+    // One indexed range read on (status, updated_at), whatever the catalog.
     expect(findMany).toHaveBeenCalledWith({
-      where: { id: { in: [MEDIA_1_ID] } },
+      where: {
+        status: "ready",
+        processedBlobName: { not: null },
+        updatedAt: { lt: cutoff },
+      },
       orderBy: { updatedAt: "asc" },
       take: 40,
     });
-
-    queryRaw.mockResolvedValueOnce([]);
-    await expect(repository.listUnattachedReady(cutoff, 40)).resolves.toEqual(
-      [],
-    );
-    expect(findMany).toHaveBeenCalledTimes(1);
   });
 
   it("reports which images a restorable logo or posting audit still holds", async () => {
@@ -953,8 +935,9 @@ describe("MediaRepository", () => {
       repository.claimUnattached(MEDIA_1_ID, cutoff, "too late", at),
     ).resolves.toBe(true);
     await expect(
-      repository.deferUnattached(MEDIA_1_ID, cutoff, at),
-    ).resolves.toBe(true);
+      repository.deferUnattached([MEDIA_1_ID], cutoff, at),
+    ).resolves.toBe(1);
+    await expect(repository.deferUnattached([], cutoff, at)).resolves.toBe(0);
 
     expect(updateMany.mock.calls.map(([args]) => args)).toEqual([
       {
@@ -973,8 +956,8 @@ describe("MediaRepository", () => {
       },
       {
         where: {
-          id: MEDIA_1_ID,
-          status: { in: ["ready"] },
+          id: { in: [MEDIA_1_ID] },
+          status: "ready",
           updatedAt: { lt: cutoff },
         },
         data: { updatedAt: at },

@@ -273,6 +273,8 @@ describe("Media cleanup persistence integration", () => {
       rejected: 1,
       rejectedPurged: 1,
       unattachedDeleted: 0,
+      // The avatar, moved to the back of the order.
+      attached: 1,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -326,6 +328,7 @@ describe("Media cleanup persistence integration", () => {
       rejected: 0,
       rejectedPurged: 0,
       unattachedDeleted: 0,
+      attached: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -527,6 +530,7 @@ describe("Media cleanup persistence integration", () => {
 
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: blogPost ? 0 : 1,
+      attached: blogPost ? 4 : 3,
       held: 2,
       failed: 0,
     });
@@ -541,12 +545,17 @@ describe("Media cleanup persistence integration", () => {
       }
     }
 
-    // A held image moves to the back of the order rather than being read
-    // again by every sweep.
-    const held = await findMedia(replacedLogo.mediaId);
-    expect(held!.updatedAt.getTime()).toBeGreaterThan(ago(HOUR_MS).getTime());
+    // Attached and held images move to the back of the order rather than
+    // being read again by every sweep.
+    for (const item of [photo, avatar, logo, replacedLogo]) {
+      const moved = await findMedia(item.mediaId);
+      expect(moved!.updatedAt.getTime()).toBeGreaterThan(
+        ago(HOUR_MS).getTime(),
+      );
+    }
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: 0,
+      attached: 0,
       held: 0,
     });
   });
@@ -558,14 +567,14 @@ describe("Media cleanup persistence integration", () => {
     });
     const photo = await createUnattachedMedia();
     const repository = new MediaRepository(persistenceApp.prisma);
-    const list = repository.listUnattachedReady.bind(repository);
+    const listAttached = repository.listAttachedBlobNames.bind(repository);
     let saved: Response | undefined;
-    // The save commits between the sweep reading the item as unattached and
+    // The save commits between the sweep finding the item unattached and
     // claiming it.
-    repository.listUnattachedReady = async (updatedBefore, limit) => {
-      const records = await list(updatedBefore, limit);
+    repository.listAttachedBlobNames = async (blobNames) => {
+      const attached = await listAttached(blobNames);
       saved = await createPosting(owner, photo.mediaId);
-      return records;
+      return attached;
     };
 
     await expect(sweep({ mediaRepository: repository })).resolves.toMatchObject(

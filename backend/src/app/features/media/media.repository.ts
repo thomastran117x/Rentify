@@ -513,54 +513,21 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Ready items unmoved since `updatedBefore` whose processed image no posting
-   * photo, avatar, organization logo, or blog cover references, least recently
-   * moved first. Attached items are left out by the query rather than by the
-   * caller, so the many long-attached images cannot fill every batch.
+   * Ready items unmoved since `updatedBefore`, least recently moved first, for
+   * the media cleanup to check for references. It moves the ones still
+   * attached to the back of the order, so each is read about once per TTL
+   * rather than by every sweep, and a sweep never reads more than `limit`.
    */
-  async listUnattachedReady(
-    updatedBefore: Date,
-    limit: number,
-  ): Promise<MediaRecord[]> {
-    const ids = await this.executeAsync(
-      () =>
-        this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT m.id
-          FROM media m
-          WHERE m.status = 'ready'
-            AND m.processed_blob_name IS NOT NULL
-            AND m.updated_at < ${updatedBefore}
-            AND NOT EXISTS (
-              SELECT 1 FROM posting_photos p
-              WHERE p.blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM profiles p
-              WHERE p.avatar_blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM organizations o
-              WHERE o.logo_blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM organization_blog_posts b
-              WHERE b.cover_image_blob_name = m.processed_blob_name
-            )
-          ORDER BY m.updated_at ASC
-          LIMIT ${limit}
-        `),
-      { operationName: "listUnattachedReady" },
-    );
-
-    if (ids.length === 0) {
-      return [];
-    }
-
+  listReadyPastTtl(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
     return this.listForCleanup(
-      { id: { in: ids.map((row) => row.id) } },
+      {
+        status: "ready",
+        processedBlobName: { not: null },
+        updatedAt: { lt: updatedBefore },
+      },
       { updatedAt: "asc" },
       limit,
-      "listUnattachedReadyRows",
+      "listReadyPastTtl",
     );
   }
 
@@ -629,24 +596,35 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Moves a ready item the cleanup must keep for now, such as one a restorable
-   * audit entry references, to the back of the unattached order, so it cannot
-   * hold up newer ones. It is looked at again once its TTL has passed anew.
+   * Moves ready items the cleanup must keep for now, because something
+   * references them or a restorable audit entry holds them, to the back of
+   * the order, so they cannot hold up newer ones. Each is looked at again once
+   * its TTL has passed anew. Applies only to items still ready and unmoved,
+   * and returns how many it moved.
    */
-  deferUnattached(
-    id: Uuid,
+  async deferUnattached(
+    ids: Uuid[],
     updatedBefore: Date,
     deferredAt: Date,
-  ): Promise<boolean> {
-    return this.transition(
-      id,
-      ["ready"],
-      { updatedAt: deferredAt },
-      {
-        where: { updatedAt: { lt: updatedBefore } },
-        operationName: "deferUnattached",
-      },
+  ): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    const result = await this.executeAsync(
+      () =>
+        this.prisma.media.updateMany({
+          where: {
+            id: { in: ids },
+            status: "ready",
+            updatedAt: { lt: updatedBefore },
+          },
+          data: { updatedAt: deferredAt },
+        }),
+      { operationName: "deferUnattached" },
     );
+
+    return result.count;
   }
 
   /**
