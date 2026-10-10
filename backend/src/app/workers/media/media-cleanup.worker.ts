@@ -45,7 +45,9 @@ export async function bootstrapMediaCleanupWorker(): Promise<void> {
         summary.requeued +
         summary.rejected +
         summary.rejectedPurged +
-        summary.unattachedDeleted;
+        summary.unattachedDeleted +
+        summary.attached +
+        summary.auditHoldsRecorded;
 
       if (
         processedCount > 0 ||
@@ -59,6 +61,8 @@ export async function bootstrapMediaCleanupWorker(): Promise<void> {
       // Failures, deferred items, and held items are left out, so a sweep
       // that could not act waits out the poll interval instead of retrying at
       // once; a backlog of items that were handled drains at full speed.
+      // Attached items count: each was moved out of the next sweep's range,
+      // so a first pass over a large catalog drains without a hot loop.
       return processedCount;
     },
   });

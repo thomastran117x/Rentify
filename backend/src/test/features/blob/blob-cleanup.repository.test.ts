@@ -9,39 +9,21 @@ describe("BlobCleanupRepository", () => {
       `media/images/owner-1/${id}.thumbnail.webp`,
     ];
     const database = {
-      profile: {
+      $queryRaw: jest.fn(async () => [
+        { source: "profiles", name: processed("avatar") },
+        { source: "organizations", name: processed("logo") },
+        { source: "blogPosts", name: processed("cover") },
+        { source: "postingPhotos", name: processed("photo") },
+        {
+          source: "postingPhotos",
+          name: "media/images/owner-1/thumbnails/photo.webp",
+        },
+      ]),
+      organizationAuditLog: { findMany: jest.fn(async () => []) },
+      organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
-          { avatarBlobName: processed("avatar") },
-        ]),
-      },
-      organization: {
-        findMany: jest.fn(async () => [{ logoBlobName: processed("logo") }]),
-      },
-      organizationBlogPost: {
-        findMany: jest.fn(async () => [
-          { coverImageBlobName: processed("cover") },
-        ]),
-      },
-      postingPhoto: {
-        findMany: jest.fn(async () => [
-          {
-            blobName: processed("photo"),
-            thumbnailBlobName: "media/images/owner-1/thumbnails/photo.webp",
-          },
-        ]),
-      },
-      organizationAuditLog: {
-        findMany: jest.fn(async () => [
-          {
-            resourceType: "organization",
-            beforeSnapshot: { logoBlobName: processed("old-logo") },
-            afterSnapshot: null,
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: { photos: [{ blobName: processed("old-photo") }] },
-            afterSnapshot: null,
-          },
+          { blobName: processed("old-logo") },
+          { blobName: processed("old-photo") },
         ]),
       },
       media: { findMany: jest.fn(async () => []) },
@@ -66,66 +48,24 @@ describe("BlobCleanupRepository", () => {
 
   it("collects every direct and restorable audit blob reference", async () => {
     const database = {
-      profile: {
+      $queryRaw: jest.fn(async (_query: unknown) => [
+        { source: "profiles", name: "profiles/user/avatar.png" },
+        { source: "organizations", name: " organizations/user/logo.png " },
+        { source: "blogPosts", name: "organizations/user/blog/cover.jpg" },
+        { source: "postingPhotos", name: "postings/user/photo.jpg" },
+        {
+          source: "postingPhotos",
+          name: "postings/user/thumbnails/photo.webp",
+        },
+        { source: "postingPhotos", name: "postings/user/photo.jpg" },
+      ]),
+      organizationAuditLog: { findMany: jest.fn(async () => []) },
+      organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
-          { avatarBlobName: "profiles/user/avatar.png" },
-        ]),
-      },
-      organization: {
-        findMany: jest.fn(async () => [
-          { logoBlobName: " organizations/user/logo.png " },
-        ]),
-      },
-      organizationBlogPost: {
-        findMany: jest.fn(async () => [
-          { coverImageBlobName: "organizations/user/blog/cover.jpg" },
-        ]),
-      },
-      postingPhoto: {
-        findMany: jest.fn(async () => [
-          {
-            blobName: "postings/user/photo.jpg",
-            thumbnailBlobName: "postings/user/thumbnails/photo.webp",
-          },
-          {
-            blobName: "postings/user/photo.jpg",
-            thumbnailBlobName: null,
-          },
-        ]),
-      },
-      organizationAuditLog: {
-        findMany: jest.fn(async () => [
-          {
-            resourceType: "organization",
-            beforeSnapshot: { logoBlobName: "organizations/user/old.png" },
-            afterSnapshot: { logoBlobName: "" },
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: {
-              photos: [
-                {
-                  blobName: "postings/user/former-photo.jpg",
-                  thumbnailBlobName:
-                    "postings/user/thumbnails/former-photo.webp",
-                },
-              ],
-            },
-            afterSnapshot: {
-              photos: [
-                {
-                  blobName: "postings/user/replacement-photo.jpg",
-                  thumbnailBlobName: null,
-                },
-                null,
-              ],
-            },
-          },
-          {
-            resourceType: "posting",
-            beforeSnapshot: { photos: "invalid" },
-            afterSnapshot: [],
-          },
+          { blobName: "organizations/user/old.png" },
+          { blobName: "postings/user/former-photo.jpg" },
+          { blobName: "postings/user/thumbnails/former-photo.webp" },
+          { blobName: "postings/user/replacement-photo.jpg" },
         ]),
       },
       media: {
@@ -158,10 +98,23 @@ describe("BlobCleanupRepository", () => {
       profiles: 1,
       organizations: 1,
       blogPosts: 1,
-      postingPhotos: 2,
-      auditSnapshots: 3,
+      postingPhotos: 3,
+      auditReferences: 4,
       mediaUploads: 2,
     });
+    // Every image column in the registry is read, in one round trip.
+    const [[query]] = database.$queryRaw.mock.calls as unknown as [
+      [{ sql: string }],
+    ];
+    for (const column of [
+      "avatar_blob_name",
+      "logo_blob_name",
+      "cover_image_blob_name",
+      "blob_name",
+      "thumbnail_blob_name",
+    ]) {
+      expect(query.sql).toContain(`${column} IS NOT NULL`);
+    }
     // An upload still waiting on processing, or kept by a processing failure
     // for a replay, is the media cleanup worker's to delete, whatever its age.
     expect(database.media.findMany).toHaveBeenCalledWith({
@@ -173,17 +126,9 @@ describe("BlobCleanupRepository", () => {
       },
       select: { originalBlobName: true },
     });
-    expect(database.organizationAuditLog.findMany).toHaveBeenCalledWith({
-      where: {
-        resourceType: { in: ["organization", "posting"] },
-        restorable: true,
-      },
-      select: {
-        resourceType: true,
-        beforeSnapshot: true,
-        afterSnapshot: true,
-      },
-    });
+    expect(
+      database.organizationAuditBlobReference.findMany,
+    ).toHaveBeenCalledWith({ select: { blobName: true } });
   });
   it("deletes media rows left without an image, never a ready row whose leftover upload was cleaned", async () => {
     const deleteMany = jest.fn(async (_args: unknown) => ({ count: 3 }));

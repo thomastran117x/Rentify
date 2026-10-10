@@ -979,7 +979,6 @@ describe("PostingsRepository", () => {
           processedBlobName: {
             in: ["media/images/u/new.webp", "media/images/u/old.webp"],
           },
-          status: "ready",
         },
       }),
     );

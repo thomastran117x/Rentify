@@ -1,13 +1,19 @@
 import { BaseRepository } from "@/features/base/base.repository";
+import { loadImageReferences } from "@/features/blob/image-references";
+import { listUnrecordedAuditHolds } from "@/features/organizations/audit/audit-blob-holds";
 import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
-import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 
+/**
+ * How many references each source held. A feature source counts the image
+ * names it stores, so a posting photo with a crop counts twice.
+ */
 export interface BlobReferenceSourceCounts {
   profiles: number;
   organizations: number;
   blogPosts: number;
   postingPhotos: number;
-  auditSnapshots: number;
+  /** Names restorable organization and posting audit entries hold. */
+  auditReferences: number;
   /** Quarantined uploads that media processing may still need. */
   mediaUploads: number;
 }
@@ -21,55 +27,30 @@ export class BlobCleanupRepository extends BaseRepository {
   async loadReferences(): Promise<BlobReferenceSnapshot> {
     return this.executeAsync(
       async () => {
-        const [
-          profiles,
-          organizations,
-          blogPosts,
-          postingPhotos,
-          auditLogs,
-          mediaUploads,
-        ] = await Promise.all([
-          this.prisma.profile.findMany({
-            where: { avatarBlobName: { not: null } },
-            select: { avatarBlobName: true },
-          }),
-          this.prisma.organization.findMany({
-            where: { logoBlobName: { not: null } },
-            select: { logoBlobName: true },
-          }),
-          this.prisma.organizationBlogPost.findMany({
-            where: { coverImageBlobName: { not: null } },
-            select: { coverImageBlobName: true },
-          }),
-          this.prisma.postingPhoto.findMany({
-            select: { blobName: true, thumbnailBlobName: true },
-          }),
-          this.prisma.organizationAuditLog.findMany({
-            where: {
-              resourceType: { in: ["organization", "posting"] },
-              restorable: true,
-            },
-            select: {
-              resourceType: true,
-              beforeSnapshot: true,
-              afterSnapshot: true,
-            },
-          }),
-          // An upload still waiting on processing, or one a processing
-          // failure keeps for a dead-letter replay. The media cleanup worker
-          // decides when these go, whatever their age: an item can wait
-          // longer than the grace period, and a replay needs its upload for
-          // the whole rejected retention.
-          this.prisma.media.findMany({
-            where: {
-              OR: [
-                { status: { in: ["uploaded", "processing"] } },
-                { status: "rejected", rejectionCode: "processing_failed" },
-              ],
-            },
-            select: { originalBlobName: true },
-          }),
-        ]);
+        const [references, auditReferences, unrecordedHolds, mediaUploads] =
+          await Promise.all([
+            loadImageReferences(this.prisma),
+            // The names restorable organization and posting audit entries
+            // hold: restoring one writes them back.
+            this.prisma.organizationAuditBlobReference.findMany({
+              select: { blobName: true },
+            }),
+            listUnrecordedAuditHolds(this.prisma),
+            // An upload still waiting on processing, or one a processing
+            // failure keeps for a dead-letter replay. The media cleanup worker
+            // decides when these go, whatever their age: an item can wait
+            // longer than the grace period, and a replay needs its upload for
+            // the whole rejected retention.
+            this.prisma.media.findMany({
+              where: {
+                OR: [
+                  { status: { in: ["uploaded", "processing"] } },
+                  { status: "rejected", rejectionCode: "processing_failed" },
+                ],
+              },
+              select: { originalBlobName: true },
+            }),
+          ]);
 
         const blobNames = new Set<string>();
         const add = (value: unknown): void => {
@@ -89,49 +70,24 @@ export class BlobCleanupRepository extends BaseRepository {
           );
         };
 
-        profiles.forEach((row) => add(row.avatarBlobName));
-        organizations.forEach((row) => add(row.logoBlobName));
-        blogPosts.forEach((row) => add(row.coverImageBlobName));
-        postingPhotos.forEach((row) => {
-          add(row.blobName);
-          add(row.thumbnailBlobName);
+        const sourceCounts: BlobReferenceSourceCounts = {
+          profiles: 0,
+          organizations: 0,
+          blogPosts: 0,
+          postingPhotos: 0,
+          auditReferences: auditReferences.length + unrecordedHolds.length,
+          mediaUploads: mediaUploads.length,
+        };
+
+        references.forEach((reference) => {
+          add(reference.name);
+          sourceCounts[reference.source] += 1;
         });
         mediaUploads.forEach((row) => add(row.originalBlobName));
-        auditLogs.forEach((row) => {
-          const snapshots = [row.beforeSnapshot, row.afterSnapshot];
+        auditReferences.forEach((row) => add(row.blobName));
+        unrecordedHolds.forEach(add);
 
-          if (row.resourceType === "organization") {
-            snapshots.forEach((snapshot) => {
-              add(toAuditSnapshotRecord(snapshot).logoBlobName);
-            });
-            return;
-          }
-
-          snapshots.forEach((snapshot) => {
-            const photos = toAuditSnapshotRecord(snapshot).photos;
-            if (!Array.isArray(photos)) {
-              return;
-            }
-
-            photos.forEach((photo) => {
-              const photoRecord = toAuditSnapshotRecord(photo);
-              add(photoRecord.blobName);
-              add(photoRecord.thumbnailBlobName);
-            });
-          });
-        });
-
-        return {
-          blobNames,
-          sourceCounts: {
-            profiles: profiles.length,
-            organizations: organizations.length,
-            blogPosts: blogPosts.length,
-            postingPhotos: postingPhotos.length,
-            auditSnapshots: auditLogs.length,
-            mediaUploads: mediaUploads.length,
-          },
-        };
+        return { blobNames, sourceCounts };
       },
       { operationName: "loadReferences" },
     );

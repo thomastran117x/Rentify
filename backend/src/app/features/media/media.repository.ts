@@ -1,7 +1,11 @@
 import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
-import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
+import { listAttachedBlobNames } from "@/features/blob/image-references";
+import {
+  listUnrecordedAuditHolds,
+  recordPendingAuditHolds,
+} from "@/features/organizations/audit/audit-blob-holds";
 import type {
   CreateMediaRecordInput,
   ImageRenditionInfo,
@@ -36,6 +40,19 @@ const THREAT_NAME_MAX_LENGTH = 255;
  * double-submitting "complete") cannot both win. Each transition reports
  * whether it applied; the caller decides what losing means.
  */
+/**
+ * What deleteIfUnattached did: deleted the row, kept it because its image is
+ * attached, or found no row.
+ */
+export type MediaDeletion =
+  | { outcome: "deleted" | "attached"; record: MediaRecord }
+  | { outcome: "missing" };
+
+interface DeletionTarget {
+  id?: Uuid;
+  processedBlobName: string | null;
+}
+
 export class MediaRepository extends BaseRepository {
   async create(input: CreateMediaRecordInput): Promise<MediaRecord> {
     const row = await this.executeAsync(
@@ -234,27 +251,14 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Whether a stored reference still points at this blob: a posting photo, an
-   * avatar, an organization logo, or a blog cover.
+   * Which of `blobNames` a stored reference still points at, in any column
+   * IMAGE_REFERENCE_COLUMNS lists.
    */
-  async isBlobAttached(blobName: string): Promise<boolean> {
-    const [photos, profiles, organizations, blogPosts] =
-      await this.executeAsync(
-        () =>
-          Promise.all([
-            this.prisma.postingPhoto.count({ where: { blobName } }),
-            this.prisma.profile.count({ where: { avatarBlobName: blobName } }),
-            this.prisma.organization.count({
-              where: { logoBlobName: blobName },
-            }),
-            this.prisma.organizationBlogPost.count({
-              where: { coverImageBlobName: blobName },
-            }),
-          ]),
-        { operationName: "isBlobAttached" },
-      );
-
-    return photos + profiles + organizations + blogPosts > 0;
+  listAttachedBlobNames(blobNames: string[]): Promise<Set<string>> {
+    return this.executeAsync(
+      () => listAttachedBlobNames(this.prisma, blobNames),
+      { operationName: "listAttachedBlobNames" },
+    );
   }
 
   /**
@@ -358,10 +362,107 @@ export class MediaRepository extends BaseRepository {
     return result.count > 0;
   }
 
-  async deleteById(id: Uuid): Promise<void> {
-    await this.executeAsync(
-      () => this.prisma.media.deleteMany({ where: { id } }),
-      { operationName: "deleteById" },
+  /**
+   * Deletes a media row unless a stored reference still points at its
+   * processed image. Run before deleting the image's blobs, by whoever deletes
+   * an image on purpose.
+   *
+   * The row is locked first, as guardImageAttachments locks it, and the
+   * references are read after the lock is held, so they include any save that
+   * committed first. A save that comes after the delete finds no row and is
+   * refused by the guard, so either the save keeps the image, or the delete
+   * wins and the save fails; a reference to a deleted image is never stored.
+   */
+  async deleteIfUnattached(
+    where: { id: Uuid } | { processedBlobName: string },
+  ): Promise<MediaDeletion> {
+    let target: DeletionTarget;
+
+    if ("id" in where) {
+      // A processed name never changes once set, so it is safe to read ahead
+      // of the lock; the lock itself then goes through that name.
+      const row = await this.findById(where.id);
+
+      if (!row) {
+        return { outcome: "missing" };
+      }
+
+      target = { id: where.id, processedBlobName: row.processedBlobName };
+    } else {
+      target = { processedBlobName: where.processedBlobName };
+    }
+
+    let result = await this.deleteLockedIfUnattached(target);
+
+    // The row became ready between the read and the lock: lock it again,
+    // through its processed name. A name is only ever set once, so this
+    // happens at most once.
+    if (result.outcome === "processed") {
+      result = await this.deleteLockedIfUnattached({
+        ...target,
+        processedBlobName: result.processedBlobName,
+      });
+    }
+
+    return result.outcome === "processed" ? { outcome: "missing" } : result;
+  }
+
+  /**
+   * Locks through the processed name when there is one, in the order the
+   * guard locks (that unique index, then the row), so the two never deadlock.
+   * A row with no processed image is never locked by the guard, so it is
+   * locked by id; if it turns out to have one by then, it is left for the
+   * caller to lock again by name.
+   */
+  private deleteLockedIfUnattached(
+    target: DeletionTarget,
+  ): Promise<
+    MediaDeletion | { outcome: "processed"; processedBlobName: string }
+  > {
+    return this.executeTransaction(
+      async (transaction) => {
+        const [locked] = await transaction.$queryRaw<
+          Array<{ id: string; name: string | null }>
+        >(
+          target.processedBlobName
+            ? Prisma.sql`SELECT id, processed_blob_name AS name FROM media WHERE processed_blob_name = ${target.processedBlobName} FOR UPDATE`
+            : Prisma.sql`SELECT id, processed_blob_name AS name FROM media WHERE id = ${target.id} FOR UPDATE`,
+        );
+
+        if (!locked || (target.id && locked.id !== target.id)) {
+          return { outcome: "missing" } as const;
+        }
+
+        if (!target.processedBlobName && locked.name) {
+          return {
+            outcome: "processed",
+            processedBlobName: locked.name,
+          } as const;
+        }
+
+        // The first plain read, so the snapshot it starts follows the lock.
+        const row = await transaction.media.findUnique({
+          where: { id: locked.id },
+        });
+
+        if (!row) {
+          return { outcome: "missing" } as const;
+        }
+
+        const record = this.toRecord(row);
+
+        if (
+          record.processedBlobName &&
+          (await listAttachedBlobNames(transaction, [record.processedBlobName]))
+            .size > 0
+        ) {
+          return { outcome: "attached", record } as const;
+        }
+
+        await transaction.media.delete({ where: { id: record.id } });
+        return { outcome: "deleted", record } as const;
+      },
+      { operationName: "deleteIfUnattached" },
     );
   }
 
@@ -415,140 +516,99 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Ready items unmoved since `updatedBefore` whose processed image no posting
-   * photo, avatar, organization logo, or blog cover references, least recently
-   * moved first. Attached items are left out by the query rather than by the
-   * caller, so the many long-attached images cannot fill every batch.
+   * Ready items unmoved since `updatedBefore`, least recently moved first, for
+   * the media cleanup to check for references. It moves the ones still
+   * attached to the back of the order, so each is read about once per TTL
+   * rather than by every sweep, and a sweep never reads more than `limit`.
    */
-  async listUnattachedReady(
-    updatedBefore: Date,
-    limit: number,
-  ): Promise<MediaRecord[]> {
-    const ids = await this.executeAsync(
-      () =>
-        this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT m.id
-          FROM media m
-          WHERE m.status = 'ready'
-            AND m.processed_blob_name IS NOT NULL
-            AND m.updated_at < ${updatedBefore}
-            AND NOT EXISTS (
-              SELECT 1 FROM posting_photos p
-              WHERE p.blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM profiles p
-              WHERE p.avatar_blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM organizations o
-              WHERE o.logo_blob_name = m.processed_blob_name
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM organization_blog_posts b
-              WHERE b.cover_image_blob_name = m.processed_blob_name
-            )
-          ORDER BY m.updated_at ASC
-          LIMIT ${limit}
-        `),
-      { operationName: "listUnattachedReady" },
-    );
-
-    if (ids.length === 0) {
-      return [];
-    }
-
+  listReadyPastTtl(updatedBefore: Date, limit: number): Promise<MediaRecord[]> {
     return this.listForCleanup(
-      { id: { in: ids.map((row) => row.id) } },
+      {
+        status: "ready",
+        processedBlobName: { not: null },
+        updatedAt: { lt: updatedBefore },
+      },
       { updatedAt: "asc" },
       limit,
-      "listUnattachedReadyRows",
+      "listReadyPastTtl",
     );
   }
 
   /**
-   * Which of `blobNames` a restorable audit entry still references: an
-   * organization's logo, or a posting's photo, before or after the change it
-   * records. Restoring that entry writes the reference back, so the image must
-   * outlive it; such entries are never retired today.
+   * Which of `blobNames` a restorable audit entry holds: an organization's
+   * logo, or a posting's photo, before or after the change it records.
+   * Restoring that entry writes the reference back, so the image must outlive
+   * it; such entries are never retired today. Each held name is recorded
+   * beside its entry, so this is an indexed lookup, together with the names
+   * of any entry not recorded yet.
    */
   async listAuditHeldBlobNames(blobNames: string[]): Promise<Set<string>> {
     if (blobNames.length === 0) {
       return new Set();
     }
 
-    const candidates = JSON.stringify(blobNames);
-    const rows = await this.executeAsync(
+    const [rows, unrecorded] = await this.executeAsync(
       () =>
-        this.prisma.$queryRaw<
-          Array<{ beforeSnapshot: unknown; afterSnapshot: unknown }>
-        >(Prisma.sql`
-          SELECT a.before_snapshot AS beforeSnapshot,
-                 a.after_snapshot AS afterSnapshot
-          FROM organization_audit_logs a
-          WHERE a.restorable = TRUE
-            AND a.resource_type IN ('organization', 'posting')
-            AND (
-              JSON_UNQUOTE(JSON_EXTRACT(a.before_snapshot, '$.logoBlobName'))
-                IN (${Prisma.join(blobNames)})
-              OR JSON_UNQUOTE(JSON_EXTRACT(a.after_snapshot, '$.logoBlobName'))
-                IN (${Prisma.join(blobNames)})
-              OR JSON_OVERLAPS(
-                JSON_EXTRACT(a.before_snapshot, '$.photos[*].blobName'),
-                CAST(${candidates} AS JSON)
-              )
-              OR JSON_OVERLAPS(
-                JSON_EXTRACT(a.after_snapshot, '$.photos[*].blobName'),
-                CAST(${candidates} AS JSON)
-              )
-            )
-        `),
+        Promise.all([
+          this.prisma.organizationAuditBlobReference.findMany({
+            where: { blobName: { in: blobNames } },
+            select: { blobName: true },
+            distinct: ["blobName"],
+          }),
+          listUnrecordedAuditHolds(this.prisma),
+        ]),
       { operationName: "listAuditHeldBlobNames" },
     );
-
     const wanted = new Set(blobNames);
-    const held = new Set<string>();
-    const add = (value: unknown): void => {
-      if (typeof value === "string" && wanted.has(value)) {
-        held.add(value);
-      }
-    };
 
-    for (const row of rows) {
-      for (const snapshot of [row.beforeSnapshot, row.afterSnapshot]) {
-        const record = toAuditSnapshotRecord(parseJsonColumn(snapshot));
-        add(record.logoBlobName);
-
-        if (Array.isArray(record.photos)) {
-          record.photos.forEach((photo) =>
-            add(toAuditSnapshotRecord(photo).blobName),
-          );
-        }
-      }
-    }
-
-    return held;
+    return new Set([
+      ...rows.map((row) => row.blobName),
+      ...unrecorded.filter((name) => wanted.has(name)),
+    ]);
   }
 
   /**
-   * Moves a ready item the cleanup must keep for now, such as one a restorable
-   * audit entry references, to the back of the unattached order, so it cannot
-   * hold up newer ones. It is looked at again once its TTL has passed anew.
+   * Records the holds of up to `limit` audit entries written without them,
+   * such as by an instance still running an older release, and returns how
+   * many it recorded. See audit-blob-holds.ts.
    */
-  deferUnattached(
-    id: Uuid,
+  recordPendingAuditHolds(limit: number): Promise<number> {
+    return this.executeAsync(
+      () => recordPendingAuditHolds(this.prisma, limit),
+      { operationName: "recordPendingAuditHolds" },
+    );
+  }
+
+  /**
+   * Moves ready items the cleanup must keep for now, because something
+   * references them or a restorable audit entry holds them, to the back of
+   * the order, so they cannot hold up newer ones. Each is looked at again once
+   * its TTL has passed anew. Applies only to items still ready and unmoved,
+   * and returns how many it moved.
+   */
+  async deferUnattached(
+    ids: Uuid[],
     updatedBefore: Date,
     deferredAt: Date,
-  ): Promise<boolean> {
-    return this.transition(
-      id,
-      ["ready"],
-      { updatedAt: deferredAt },
-      {
-        where: { updatedAt: { lt: updatedBefore } },
-        operationName: "deferUnattached",
-      },
+  ): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    const result = await this.executeAsync(
+      () =>
+        this.prisma.media.updateMany({
+          where: {
+            id: { in: ids },
+            status: "ready",
+            updatedAt: { lt: updatedBefore },
+          },
+          data: { updatedAt: deferredAt },
+        }),
+      { operationName: "deferUnattached" },
     );
+
+    return result.count;
   }
 
   /**
@@ -558,6 +618,10 @@ export class MediaRepository extends BaseRepository {
    * same transaction, so the claim fails and the image is kept; a save after
    * the claim finds the item rejected and stores nothing. See
    * guardImageAttachments.
+   *
+   * `processing_completed_at` keeps the time processing finished, so the
+   * tombstone still shows how long the image waited; `updated_at` records the
+   * claim.
    */
   claimUnattached(
     id: Uuid,
@@ -569,7 +633,7 @@ export class MediaRepository extends BaseRepository {
       id,
       ["ready"],
       {
-        ...rejection(rejectionReason, "unattached", rejectedAt),
+        ...rejectionColumns(rejectionReason, "unattached"),
         updatedAt: rejectedAt,
       },
       {
@@ -871,23 +935,25 @@ export function scanResultColumns(
   };
 }
 
-/**
- * A JSON column as a raw query returns it: already parsed by some drivers, a
- * string by others.
- */
-function parseJsonColumn(value: unknown): unknown {
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
+/** Every rejection, whoever records it, is stored the same way. */
+function rejectionColumns(
+  rejectionReason: string,
+  rejectionCode: MediaRejectionCode,
+): Pick<
+  Prisma.MediaUpdateManyMutationInput,
+  "status" | "rejectionReason" | "rejectionCode"
+> {
+  return {
+    status: "rejected",
+    rejectionReason: rejectionReason.slice(0, 500),
+    rejectionCode,
+  };
 }
 
-/** Every rejection, whoever records it, is stored the same way. */
+/**
+ * The rejection of an item that never finished processing, which ends its
+ * processing at `rejectedAt`.
+ */
 function rejection(
   rejectionReason: string,
   rejectionCode: MediaRejectionCode,
@@ -897,9 +963,7 @@ function rejection(
   "status" | "rejectionReason" | "rejectionCode" | "processingCompletedAt"
 > {
   return {
-    status: "rejected",
-    rejectionReason: rejectionReason.slice(0, 500),
-    rejectionCode,
+    ...rejectionColumns(rejectionReason, rejectionCode),
     processingCompletedAt: rejectedAt,
   };
 }

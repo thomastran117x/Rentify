@@ -147,6 +147,7 @@ model Organization {
   searchOutboxEntries OrganizationSearchOutbox[]
   slugReservations OrganizationSlugReservation[]
 
+  @@index([logoBlobName(length: 255)])
   @@map("organizations")
 }
 
@@ -187,15 +188,31 @@ model OrganizationAuditLog {
   afterSnapshot         Json?    @map("after_snapshot")
   restorable            Boolean  @default(false)
   restoredFromAuditId   String?  @map("restored_from_audit_id") @db.VarChar(36)
+  blobHoldsRecorded     Boolean  @default(false) @map("blob_holds_recorded")
   createdAt             DateTime @default(now()) @map("created_at") @db.DateTime(6)
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   actor                 User?    @relation("OrganizationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  blobReferences        OrganizationAuditBlobReference[]
 
   @@index([organizationId, createdAt])
   @@unique([organizationId, organizationVersion], map: "organization_audit_logs_org_version_unique")
   @@unique([organizationId, resourceType, resourceId, resourceVersion], map: "org_audit_resource_version_unique")
   @@index([actorUserId, createdAt])
+  @@index([blobHoldsRecorded])
   @@map("organization_audit_logs")
+}
+
+// The image names a restorable organization or posting audit entry holds,
+// written with the entry, so the media cleanup can find them by index.
+model OrganizationAuditBlobReference {
+  id         String   @id @db.VarChar(36)
+  auditLogId String   @map("audit_log_id") @db.VarChar(36)
+  blobName   String   @map("blob_name") @db.VarChar(1024)
+  auditLog   OrganizationAuditLog @relation(fields: [auditLogId], references: [id], onDelete: Cascade)
+
+  @@index([auditLogId])
+  @@index([blobName(length: 255)])
+  @@map("organization_audit_blob_references")
 }
 
 model OrganizationAnnouncement {
@@ -242,6 +259,7 @@ model OrganizationBlogPost {
   @@unique([organizationId, slug])
   @@index([organizationId, status, publishedAt])
   @@index([authorUserId, createdAt])
+  @@index([coverImageBlobName(length: 255)])
   @@map("organization_blog_posts")
 }
 
@@ -416,6 +434,7 @@ model Profile {
   user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([avatarBlobName(length: 255)])
   @@map("profiles")
 }
 
@@ -532,6 +551,8 @@ model PostingPhoto {
 
   @@unique([postingId, position])
   @@index([postingId])
+  @@index([blobName(length: 255)])
+  @@index([thumbnailBlobName(length: 255)])
   @@map("posting_photos")
 }
 

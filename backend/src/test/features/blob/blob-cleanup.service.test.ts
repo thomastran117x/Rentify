@@ -14,7 +14,7 @@ const EMPTY_SOURCE_COUNTS = {
   organizations: 0,
   blogPosts: 0,
   postingPhotos: 0,
-  auditSnapshots: 0,
+  auditReferences: 0,
   mediaUploads: 0,
 };
 
@@ -56,7 +56,7 @@ describe("BlobCleanupService", () => {
           organizations: 0,
           blogPosts: 0,
           postingPhotos: 0,
-          auditSnapshots: 0,
+          auditReferences: 0,
           mediaUploads: 0,
         },
       })),
@@ -188,12 +188,10 @@ describe("BlobCleanupService", () => {
     const orphan = "media/images/owner-1/orphan";
     const emptyTable = { findMany: jest.fn(async () => []) };
     const repository = new BlobCleanupRepository({
-      profile: {
-        findMany: jest.fn(async () => [{ avatarBlobName: `${live}.webp` }]),
-      },
-      organization: emptyTable,
-      organizationBlogPost: emptyTable,
-      postingPhoto: emptyTable,
+      $queryRaw: jest.fn(async () => [
+        { source: "profiles", name: `${live}.webp` },
+      ]),
+      organizationAuditBlobReference: emptyTable,
       organizationAuditLog: emptyTable,
       media: emptyTable,
     } as never);
@@ -226,10 +224,8 @@ describe("BlobCleanupService", () => {
     const abandoned = "quarantine/images/owner-1/abandoned";
     const emptyTable = { findMany: jest.fn(async () => []) };
     const repository = new BlobCleanupRepository({
-      profile: emptyTable,
-      organization: emptyTable,
-      organizationBlogPost: emptyTable,
-      postingPhoto: emptyTable,
+      $queryRaw: jest.fn(async () => []),
+      organizationAuditBlobReference: emptyTable,
       organizationAuditLog: emptyTable,
       // A processing failure keeps its upload for a replay.
       media: { findMany: jest.fn(async () => [{ originalBlobName: kept }]) },

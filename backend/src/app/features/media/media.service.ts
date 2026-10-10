@@ -4,7 +4,10 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
-import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
+import {
+  deleteImageBlobs,
+  deleteMediaBlobs,
+} from "@/features/media/media-blobs";
 import { buildImageVariants } from "@/features/media/image-variants";
 import {
   assertImageNotEmpty,
@@ -178,19 +181,25 @@ export class MediaService {
    * never saved. An image something still displays is refused rather than
    * deleted: the client cannot always know its save went through, and a
    * deleted blob cannot be brought back.
+   *
+   * The row goes first, under the lock a save takes, and the blobs after it,
+   * so a save racing the delete either keeps the image or is refused. A blob
+   * that fails to delete is left for the orphaned-blob cleanup.
    */
   async deleteMediaById(userId: Uuid, mediaId: Uuid): Promise<void> {
-    const record = await this.requireOwnedRecord(userId, mediaId);
+    await this.requireOwnedRecord(userId, mediaId);
 
-    if (
-      record.processedBlobName &&
-      (await this.mediaRepository.isBlobAttached(record.processedBlobName))
-    ) {
+    const deletion = await this.mediaRepository.deleteIfUnattached({
+      id: mediaId,
+    });
+
+    if (deletion.outcome === "attached") {
       throw new ConflictError("This image is in use and cannot be deleted.");
     }
 
-    await this.deleteRecordBlobs(record);
-    await this.mediaRepository.deleteById(record.id);
+    if (deletion.outcome === "deleted") {
+      await deleteMediaBlobs(this.blobService, deletion.record);
+    }
   }
 
   /**
@@ -336,29 +345,31 @@ export class MediaService {
 
   /**
    * Deletes an image a feature has just replaced, by the blob name it stored,
-   * together with its media record when it is a processed image. Unlike
-   * deleteMediaById it does not check whether the image is attached: the
-   * caller has already detached it, and checks for itself whether anything
-   * else, such as a restorable audit entry, still needs it.
+   * together with its media record when it is a processed image. The caller
+   * has already detached it, and checks for itself whether anything else,
+   * such as a restorable audit entry, still needs it.
+   *
+   * A processed image's row goes first, as in deleteMediaById, so a save or
+   * restore racing the delete either keeps the image or is refused. One that
+   * attached it again first keeps it, and nothing is deleted.
    */
   async deleteReplacedImageByBlobName(
     userId: Uuid,
     blobName: string,
   ): Promise<void> {
     this.assertOwnedBy(userId, blobName);
-    await this.deleteImageBlobs(blobName);
 
-    if (!this.blobService.isProcessedImageBlobName(blobName)) {
-      return;
+    if (this.blobService.isProcessedImageBlobName(blobName)) {
+      const deletion = await this.mediaRepository.deleteIfUnattached({
+        processedBlobName: blobName.trim(),
+      });
+
+      if (deletion.outcome === "attached") {
+        return;
+      }
     }
 
-    const record = await this.mediaRepository.findByProcessedBlobName(
-      blobName.trim(),
-    );
-
-    if (record) {
-      await this.mediaRepository.deleteById(record.id);
-    }
+    await deleteImageBlobs(this.blobService, blobName);
   }
 
   isOwnedBy(userId: Uuid, blobName: string): boolean {
@@ -472,28 +483,6 @@ export class MediaService {
       reason,
       code,
       "completion",
-    );
-  }
-
-  private async deleteRecordBlobs(record: MediaRecord): Promise<void> {
-    await this.blobService.deleteBlob(record.originalBlobName);
-
-    if (record.processedBlobName) {
-      await this.deleteImageBlobs(record.processedBlobName);
-    }
-  }
-
-  /**
-   * Deletes a stored image. A processed image goes with its renditions, which
-   * nothing references by name; any other name is a single blob.
-   */
-  private async deleteImageBlobs(blobName: string): Promise<void> {
-    const renditions = listImageVariantBlobNames(blobName);
-
-    await Promise.all(
-      (renditions.length > 0 ? renditions : [blobName]).map((name) =>
-        this.blobService.deleteBlob(name),
-      ),
     );
   }
 

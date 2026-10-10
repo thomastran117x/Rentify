@@ -388,13 +388,28 @@ attached. A replaced image is removed by the feature that replaced it.
 Every write that stores image references calls `guardImageAttachments`
 (`features/media/media-attachment-guard.ts`) inside its own transaction. It
 locks the media rows behind the names, refuses with 400 a write that stores an
-image the cleanup has claimed, and moves the others' `updated_at`, including
-images the write drops. The cleanup claims an unattached image only while its
-row is ready and unmoved, under the same lock, so a save racing it either keeps
-the image or fails cleanly.
+image the cleanup has claimed, or a processed image whose row is gone, and
+moves the others' `updated_at`, including images the write drops. The cleanup
+claims an unattached image only while its row is ready and unmoved, under the
+same lock. `DELETE /media/{id}` and the deletion of a replaced image take that
+lock too, check for references while holding it, and delete the row before the
+blobs. A save racing any of them therefore either keeps the image or fails
+cleanly.
 
 **Cleanup.** Two jobs share the work, and neither ever deletes a processed image
-that something references, including a restorable audit snapshot.
+that something references, including a restorable audit snapshot. The columns
+that can hold an image reference are listed once, in `IMAGE_REFERENCE_COLUMNS`
+(`features/blob/image-references.ts`), and both jobs and `DELETE /media/{id}`
+read them from there. Each column is indexed, and a unit test fails when a
+`*_blob_name` column in the schema is missing from the list or has no index.
+The names a restorable organization or posting audit entry holds are written
+beside it, in `organization_audit_blob_references`, by the transaction that
+records the entry, so both jobs look them up by index rather than reading
+snapshots. An entry written without them, such as by an instance still running
+the previous release during a rolling deploy, is left unmarked
+(`blob_holds_recorded`); readers also take its names from its snapshots, and
+`media-cleanup-worker` records them (`features/organizations/audit/audit-blob-holds.ts`). `listAuditSnapshotBlobNames` (`features/organizations/audit/audit.model.ts`)
+decides which names those are.
 
 - `media-cleanup-worker` runs all the time and works from the `media` table, so
   it covers Azure and local-disk storage alike. It deletes an upload still

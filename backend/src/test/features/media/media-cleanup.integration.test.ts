@@ -4,6 +4,7 @@ import { buildApiPath } from "@/configuration/http/api-path";
 import { asUuid } from "@/configuration/validation/uuid";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import { MediaRepository } from "@/features/media/media.repository";
+import { OrganizationAuditRepository } from "@/features/organizations/audit/audit.repository";
 import type {
   MediaProcessingJobPayload,
   MediaStatus,
@@ -151,24 +152,19 @@ describe("Media cleanup persistence integration", () => {
   ): Promise<void> {
     const organization =
       await persistenceApp.prisma.organization.findFirstOrThrow();
-    const latest = await persistenceApp.prisma.organizationAuditLog.aggregate({
-      where: { organizationId: organization.id },
-      _max: { organizationVersion: true },
-    });
 
-    await persistenceApp.prisma.organizationAuditLog.create({
-      data: {
-        id: randomUUID(),
-        organizationId: organization.id,
-        action: `${resourceType}.updated`,
-        resourceType,
-        resourceId: randomUUID(),
-        organizationVersion: (latest._max.organizationVersion ?? 0) + 1,
-        summary: "Held by the media cleanup test.",
-        beforeSnapshot: beforeSnapshot as never,
-        afterSnapshot: {},
-        restorable: true,
-      },
+    await new OrganizationAuditRepository(persistenceApp.prisma).create({
+      organizationId: asUuid(organization.id),
+      action:
+        resourceType === "organization"
+          ? "organization.renamed"
+          : "posting.updated",
+      resourceType,
+      resourceId: resourceType === "posting" ? randomUUID() : null,
+      summary: "Held by the media cleanup test.",
+      beforeSnapshot,
+      afterSnapshot: {},
+      restorable: true,
     });
   }
 
@@ -273,6 +269,9 @@ describe("Media cleanup persistence integration", () => {
       rejected: 1,
       rejectedPurged: 1,
       unattachedDeleted: 0,
+      // The avatar, moved to the back of the order.
+      attached: 1,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -326,6 +325,8 @@ describe("Media cleanup persistence integration", () => {
       rejected: 0,
       rejectedPurged: 0,
       unattachedDeleted: 0,
+      attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -429,6 +430,14 @@ describe("Media cleanup persistence integration", () => {
   it("deletes a ready image nothing attached in time, keeping a tombstone until the purge", async () => {
     const storage = persistenceApp.stubs.blobService.storage;
     const unattached = await createUnattachedMedia();
+    const processedAt = ago(50 * HOUR_MS);
+    await persistenceApp.prisma.media.update({
+      where: { id: unattached.mediaId },
+      data: {
+        processingCompletedAt: processedAt,
+        updatedAt: ago(48 * HOUR_MS),
+      },
+    });
 
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: 1,
@@ -436,10 +445,13 @@ describe("Media cleanup persistence integration", () => {
       failed: 0,
     });
 
+    // The tombstone keeps when processing finished, so it still shows how
+    // long the image waited.
     await expect(findMedia(unattached.mediaId)).resolves.toMatchObject({
       status: "rejected",
       rejectionCode: "unattached",
       rejectionReason: "This image was not saved in time. Upload it again.",
+      processingCompletedAt: processedAt,
     });
     for (const name of imageBlobNames(unattached.blobName)) {
       expect(storage.has(name)).toBe(false);
@@ -527,6 +539,7 @@ describe("Media cleanup persistence integration", () => {
 
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: blogPost ? 0 : 1,
+      attached: blogPost ? 4 : 3,
       held: 2,
       failed: 0,
     });
@@ -541,12 +554,17 @@ describe("Media cleanup persistence integration", () => {
       }
     }
 
-    // A held image moves to the back of the order rather than being read
-    // again by every sweep.
-    const held = await findMedia(replacedLogo.mediaId);
-    expect(held!.updatedAt.getTime()).toBeGreaterThan(ago(HOUR_MS).getTime());
+    // Attached and held images move to the back of the order rather than
+    // being read again by every sweep.
+    for (const item of [photo, avatar, logo, replacedLogo]) {
+      const moved = await findMedia(item.mediaId);
+      expect(moved!.updatedAt.getTime()).toBeGreaterThan(
+        ago(HOUR_MS).getTime(),
+      );
+    }
     await expect(sweep()).resolves.toMatchObject({
       unattachedDeleted: 0,
+      attached: 0,
       held: 0,
     });
   });
@@ -558,14 +576,14 @@ describe("Media cleanup persistence integration", () => {
     });
     const photo = await createUnattachedMedia();
     const repository = new MediaRepository(persistenceApp.prisma);
-    const list = repository.listUnattachedReady.bind(repository);
+    const listAttached = repository.listAttachedBlobNames.bind(repository);
     let saved: Response | undefined;
-    // The save commits between the sweep reading the item as unattached and
+    // The save commits between the sweep finding the item unattached and
     // claiming it.
-    repository.listUnattachedReady = async (updatedBefore, limit) => {
-      const records = await list(updatedBefore, limit);
+    repository.listAttachedBlobNames = async (blobNames) => {
+      const attached = await listAttached(blobNames);
       saved = await createPosting(owner, photo.mediaId);
-      return records;
+      return attached;
     };
 
     await expect(sweep({ mediaRepository: repository })).resolves.toMatchObject(
@@ -650,5 +668,127 @@ describe("Media cleanup persistence integration", () => {
         });
       }
     }
+  });
+
+  describe("DELETE /media/{id} racing a save", () => {
+    function deleteMedia(
+      owner: { headers(): Record<string, string> },
+      mediaId: string,
+    ) {
+      return persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/media/${mediaId}`)}`,
+        { method: "DELETE", headers: owner.headers() },
+      );
+    }
+
+    it("refuses a save whose image was deleted after the save read it", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photo = await createReadyMedia(ownerId);
+      const findById = MediaRepository.prototype.findById;
+      let deleted: Response | undefined;
+      // The client picks another photo and deletes this one between the save
+      // resolving the media id, which still finds it ready, and writing the
+      // posting.
+      const spy = jest
+        .spyOn(MediaRepository.prototype, "findById")
+        .mockImplementationOnce(async function (this: MediaRepository, id) {
+          const record = await findById.call(this, id);
+          deleted = await deleteMedia(owner, photo.mediaId);
+          return record;
+        });
+
+      try {
+        const saved = await createPosting(owner, photo.mediaId);
+
+        expect(deleted?.status).toBe(200);
+        expect(saved.status).toBe(400);
+        await expect(saved.json()).resolves.toMatchObject({
+          message: "Image is no longer available. Upload it again.",
+        });
+      } finally {
+        spy.mockRestore();
+      }
+
+      await expect(countPhotoReferences(photo.blobName)).resolves.toBe(0);
+      await expect(findMedia(photo.mediaId)).resolves.toBeNull();
+      for (const name of imageBlobNames(photo.blobName)) {
+        expect(storage.has(name)).toBe(false);
+      }
+    });
+
+    it("keeps an image a save attached after the delete checked its owner", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photo = await createReadyMedia(ownerId);
+      const findById = MediaRepository.prototype.findById;
+      let saved: Response | undefined;
+      // The save commits between the delete reading the item and locking it.
+      const spy = jest
+        .spyOn(MediaRepository.prototype, "findById")
+        .mockImplementationOnce(async function (this: MediaRepository, id) {
+          const record = await findById.call(this, id);
+          saved = await createPosting(owner, photo.mediaId);
+          return record;
+        });
+
+      try {
+        const deleted = await deleteMedia(owner, photo.mediaId);
+
+        expect(saved?.status).toBe(201);
+        expect(deleted.status).toBe(409);
+      } finally {
+        spy.mockRestore();
+      }
+
+      await expect(countPhotoReferences(photo.blobName)).resolves.toBe(1);
+      await expect(findMedia(photo.mediaId)).resolves.toMatchObject({
+        status: "ready",
+      });
+      for (const name of imageBlobNames(photo.blobName)) {
+        expect(storage.has(name)).toBe(true);
+      }
+    });
+
+    it("never leaves a reference to a deleted image when saves and deletes race", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photos = await Promise.all(
+        Array.from({ length: 6 }, () => createReadyMedia(ownerId)),
+      );
+
+      const [saves, deletes] = await Promise.all([
+        Promise.all(photos.map((photo) => createPosting(owner, photo.mediaId))),
+        Promise.all(photos.map((photo) => deleteMedia(owner, photo.mediaId))),
+      ]);
+
+      for (const [index, photo] of photos.entries()) {
+        const references = await countPhotoReferences(photo.blobName);
+
+        if (saves[index]!.status === 201) {
+          expect(deletes[index]!.status).toBe(409);
+          expect(references).toBe(1);
+          await expect(findMedia(photo.mediaId)).resolves.toMatchObject({
+            status: "ready",
+          });
+          for (const name of imageBlobNames(photo.blobName)) {
+            expect(storage.has(name)).toBe(true);
+          }
+        } else {
+          expect(
+            `${saves[index]!.status} ${await saves[index]!.text()}`,
+          ).toMatch(/^400 /);
+          expect(deletes[index]!.status).toBe(200);
+          expect(references).toBe(0);
+          await expect(findMedia(photo.mediaId)).resolves.toBeNull();
+        }
+      }
+    });
   });
 });

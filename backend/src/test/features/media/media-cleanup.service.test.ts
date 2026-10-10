@@ -68,6 +68,7 @@ function createContext(
     stuck?: MediaRecord[];
     rejected?: MediaRecord[];
     unattached?: MediaRecord[];
+    attached?: string[];
     auditHeld?: string[];
   } = {},
 ) {
@@ -99,20 +100,24 @@ function createContext(
     deleteByIdIfStatus: jest.fn(
       async (_id: string, _status: MediaStatus) => true,
     ),
-    listUnattachedReady: jest.fn(
+    listReadyPastTtl: jest.fn(
       async (_updatedBefore: Date, _limit: number) =>
         candidates.unattached ?? [],
+    ),
+    listAttachedBlobNames: jest.fn(
+      async (_blobNames: string[]) => new Set(candidates.attached ?? []),
     ),
     listAuditHeldBlobNames: jest.fn(
       async (_blobNames: string[]) => new Set(candidates.auditHeld ?? []),
     ),
     deferUnattached: jest.fn(
-      async (_id: string, _updatedBefore: Date, _at: Date) => true,
+      async (ids: string[], _updatedBefore: Date, _at: Date) => ids.length,
     ),
     claimUnattached: jest.fn(
       async (_id: string, _updatedBefore: Date, _reason: string, _at: Date) =>
         true,
     ),
+    recordPendingAuditHolds: jest.fn(async (_limit: number) => 0),
   };
   const blobService = {
     deleteBlob: jest.fn(async (_blobName: string) => undefined),
@@ -147,6 +152,8 @@ describe("MediaCleanupService", () => {
       rejected: 0,
       rejectedPurged: 0,
       unattachedDeleted: 0,
+      attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -164,13 +171,15 @@ describe("MediaCleanupService", () => {
       ago(48 * HOUR_MS),
       25,
     );
-    expect(mediaRepository.listUnattachedReady).toHaveBeenCalledWith(
+    expect(mediaRepository.listReadyPastTtl).toHaveBeenCalledWith(
       ago(12 * HOUR_MS),
       25,
     );
+    expect(mediaRepository.recordPendingAuditHolds).toHaveBeenCalledWith(25);
     // Nothing stuck, so there is no need to ask RabbitMQ.
     expect(queue.readBacklog).not.toHaveBeenCalled();
-    // Nothing unattached, so there is no need to read the audit log.
+    // Nothing past its TTL, so there is no need to look for references.
+    expect(mediaRepository.listAttachedBlobNames).not.toHaveBeenCalled();
     expect(mediaRepository.listAuditHeldBlobNames).not.toHaveBeenCalled();
   });
 
@@ -474,6 +483,9 @@ describe("MediaCleanupService", () => {
         held: 0,
         failed: 0,
       });
+      expect(mediaRepository.listAttachedBlobNames).toHaveBeenCalledWith([
+        `${base}.webp`,
+      ]);
       expect(mediaRepository.listAuditHeldBlobNames).toHaveBeenCalledWith([
         `${base}.webp`,
       ]);
@@ -518,7 +530,7 @@ describe("MediaCleanupService", () => {
         held: 1,
       });
       expect(mediaRepository.deferUnattached).toHaveBeenCalledWith(
-        held.id,
+        [held.id],
         ago(12 * HOUR_MS),
         NOW,
       );
@@ -539,11 +551,46 @@ describe("MediaCleanupService", () => {
         unattached: [held],
         auditHeld: [held.processedBlobName!],
       });
-      mediaRepository.deferUnattached.mockResolvedValueOnce(false);
+      mediaRepository.deferUnattached
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
 
       await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
         held: 0,
       });
+    });
+
+    it("moves an attached item to the back without claiming it or reading the audit log for it", async () => {
+      const attached = readyRecord();
+      const unattached = readyRecord();
+      const { mediaRepository, blobService, service } = createContext({
+        unattached: [attached, unattached],
+        attached: [attached.processedBlobName!],
+      });
+
+      await expect(service.sweep(OPTIONS)).resolves.toMatchObject({
+        unattachedDeleted: 1,
+        attached: 1,
+        held: 0,
+      });
+      expect(mediaRepository.listAuditHeldBlobNames).toHaveBeenCalledWith([
+        unattached.processedBlobName,
+      ]);
+      expect(mediaRepository.deferUnattached).toHaveBeenCalledWith(
+        [attached.id],
+        ago(12 * HOUR_MS),
+        NOW,
+      );
+      expect(mediaRepository.claimUnattached).toHaveBeenCalledTimes(1);
+      expect(mediaRepository.claimUnattached).toHaveBeenCalledWith(
+        unattached.id,
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(blobService.deleteBlob).not.toHaveBeenCalledWith(
+        attached.processedBlobName,
+      );
     });
 
     it("leaves an item a save attached or moved before the claim", async () => {
@@ -597,6 +644,8 @@ describe("MediaCleanupService", () => {
       rejected: 0,
       rejectedPurged: 1,
       unattachedDeleted: 0,
+      attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 2,
@@ -622,7 +671,8 @@ describe("MediaCleanupService", () => {
       listAbandonedUploads: jest.fn(async () => []),
       listStuck: jest.fn(async () => []),
       listRejected: jest.fn(async () => []),
-      listUnattachedReady: jest.fn(async () => []),
+      listReadyPastTtl: jest.fn(async () => []),
+      recordPendingAuditHolds: jest.fn(async () => 0),
     };
     const service = new MediaCleanupService(
       mediaRepository as never,
