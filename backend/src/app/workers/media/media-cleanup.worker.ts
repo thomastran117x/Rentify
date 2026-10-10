@@ -46,7 +46,8 @@ export async function bootstrapMediaCleanupWorker(): Promise<void> {
         summary.rejected +
         summary.rejectedPurged +
         summary.unattachedDeleted +
-        summary.attached;
+        summary.attached +
+        summary.auditHoldsRecorded;
 
       if (
         processedCount > 0 ||

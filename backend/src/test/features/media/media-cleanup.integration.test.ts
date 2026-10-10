@@ -271,6 +271,7 @@ describe("Media cleanup persistence integration", () => {
       unattachedDeleted: 0,
       // The avatar, moved to the back of the order.
       attached: 1,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -325,6 +326,7 @@ describe("Media cleanup persistence integration", () => {
       rejectedPurged: 0,
       unattachedDeleted: 0,
       attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,

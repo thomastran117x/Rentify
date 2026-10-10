@@ -19,6 +19,7 @@ describe("BlobCleanupRepository", () => {
           name: "media/images/owner-1/thumbnails/photo.webp",
         },
       ]),
+      organizationAuditLog: { findMany: jest.fn(async () => []) },
       organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
           { blobName: processed("old-logo") },
@@ -58,6 +59,7 @@ describe("BlobCleanupRepository", () => {
         },
         { source: "postingPhotos", name: "postings/user/photo.jpg" },
       ]),
+      organizationAuditLog: { findMany: jest.fn(async () => []) },
       organizationAuditBlobReference: {
         findMany: jest.fn(async () => [
           { blobName: "organizations/user/old.png" },

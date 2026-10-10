@@ -134,8 +134,12 @@ describe("OrganizationAuditRepository", () => {
 
   it("detects a logo a restorable organization entry still holds, by an indexed lookup", async () => {
     const count = jest.fn(async (_args: unknown) => 1);
+    const unrecorded = jest.fn(
+      async (_args: unknown): Promise<unknown[]> => [],
+    );
     const repository = new OrganizationAuditRepository({
       organizationAuditBlobReference: { count },
+      organizationAuditLog: { findMany: unrecorded },
     } as any);
 
     await expect(
@@ -158,6 +162,33 @@ describe("OrganizationAuditRepository", () => {
         blobName: `organizations/${ORG_1_ID}/logo-a.png`,
       }),
     ).resolves.toBe(false);
+
+    // An entry an older instance wrote holds the logo before it is recorded.
+    count.mockResolvedValueOnce(0);
+    unrecorded.mockResolvedValueOnce([
+      {
+        resourceType: "organization",
+        beforeSnapshot: {
+          logoBlobName: `organizations/${ORG_1_ID}/logo-a.png`,
+        },
+        afterSnapshot: {},
+      },
+    ]);
+    await expect(
+      repository.hasRestorableOrganizationLogoReference({
+        organizationId: ORG_1_ID,
+        blobName: `organizations/${ORG_1_ID}/logo-a.png`,
+      }),
+    ).resolves.toBe(true);
+    expect(unrecorded).toHaveBeenLastCalledWith({
+      where: {
+        blobHoldsRecorded: false,
+        restorable: true,
+        resourceType: "organization",
+        organizationId: ORG_1_ID,
+      },
+      select: { resourceType: true, beforeSnapshot: true, afterSnapshot: true },
+    });
   });
 
   describe("create", () => {
@@ -214,6 +245,9 @@ describe("OrganizationAuditRepository", () => {
         .mock.calls as unknown as [
         [{ data: Array<{ id: string; auditLogId: string; blobName: string }> }],
       ];
+      const [[{ data: entry }]] = transaction.organizationAuditLog.create.mock
+        .calls as unknown as [[{ data: { blobHoldsRecorded: boolean } }]];
+      expect(entry.blobHoldsRecorded).toBe(true);
       expect(
         data.map(({ auditLogId, blobName }) => [auditLogId, blobName]),
       ).toEqual([

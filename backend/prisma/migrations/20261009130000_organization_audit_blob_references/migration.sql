@@ -7,6 +7,12 @@
 -- writes one row per held name, beside the entry and in the same transaction,
 -- and the cleanup looks names up by index. Restorable entries never stop being
 -- restorable, and the rows go with their entry.
+--
+-- `blob_holds_recorded` marks an entry whose names are recorded. An entry
+-- written without it, for example by an instance still running the previous
+-- release during a rolling deploy, keeps the default FALSE. The readers then
+-- take its names from its snapshots, and the media cleanup records them, so no
+-- hold is lost while old and new instances run side by side.
 
 -- CreateTable
 CREATE TABLE `organization_audit_blob_references` (
@@ -22,12 +28,23 @@ CREATE TABLE `organization_audit_blob_references` (
 -- AddForeignKey
 ALTER TABLE `organization_audit_blob_references` ADD CONSTRAINT `organization_audit_blob_references_audit_log_id_fkey` FOREIGN KEY (`audit_log_id`) REFERENCES `organization_audit_logs`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Backfill the entries written before this migration. This is a one-time copy,
--- in SQL, of listAuditSnapshotBlobNames in features/organizations/audit/
--- audit.model.ts: an organization entry holds its logo, and a posting entry
--- each photo and photo crop, from its before and after snapshots, trimmed,
--- with blank and non-string values left out. A test runs this statement and
--- compares its rows with that function.
+-- AlterTable
+ALTER TABLE `organization_audit_logs` ADD COLUMN `blob_holds_recorded` BOOLEAN NOT NULL DEFAULT false;
+
+-- CreateIndex
+CREATE INDEX `organization_audit_logs_blob_holds_recorded_idx` ON `organization_audit_logs`(`blob_holds_recorded`);
+
+-- Mark the entries that exist now, then backfill exactly those. An entry an
+-- older instance writes after the mark stays unmarked, so it is never taken
+-- for recorded without its rows.
+UPDATE `organization_audit_logs` SET `blob_holds_recorded` = TRUE;
+
+-- Backfill the entries marked above. This is a one-time copy, in SQL, of
+-- listAuditSnapshotBlobNames in features/organizations/audit/audit.model.ts:
+-- an organization entry holds its logo, and a posting entry each photo and
+-- photo crop, from its before and after snapshots, trimmed, with blank and
+-- non-string values left out. A test runs this statement and compares its rows
+-- with that function.
 INSERT INTO `organization_audit_blob_references` (`id`, `audit_log_id`, `blob_name`)
 SELECT UUID(), held.audit_log_id, held.blob_name
 FROM (
@@ -40,7 +57,8 @@ FROM (
             ),
             '$[*]' COLUMNS (value JSON PATH '$')
         ) names
-    WHERE a.restorable = TRUE
+    WHERE a.blob_holds_recorded = TRUE
+        AND a.restorable = TRUE
         AND a.resource_type = 'organization'
         AND JSON_TYPE(names.value) = 'STRING'
     UNION
@@ -58,7 +76,7 @@ FROM (
                     thumbnail_blob_name JSON PATH '$.thumbnailBlobName'
                 )
             ) names
-        WHERE a.restorable = TRUE AND a.resource_type = 'posting'
+        WHERE a.blob_holds_recorded = TRUE AND a.restorable = TRUE AND a.resource_type = 'posting'
         UNION ALL
         SELECT a.id, names.thumbnail_blob_name
         FROM `organization_audit_logs` a,
@@ -72,7 +90,7 @@ FROM (
                     thumbnail_blob_name JSON PATH '$.thumbnailBlobName'
                 )
             ) names
-        WHERE a.restorable = TRUE AND a.resource_type = 'posting'
+        WHERE a.blob_holds_recorded = TRUE AND a.restorable = TRUE AND a.resource_type = 'posting'
     ) photos
     WHERE JSON_TYPE(photos.value) = 'STRING'
 ) held

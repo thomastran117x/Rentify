@@ -882,8 +882,22 @@ describe("MediaRepository", () => {
     const findMany = jest.fn(async (_args: unknown) => [
       { blobName: "media/images/u/logo.webp" },
     ]);
+    // An entry an older instance wrote, whose holds are not recorded yet.
+    const unrecorded = jest.fn(async (_args: unknown) => [
+      {
+        resourceType: "posting",
+        beforeSnapshot: {
+          photos: [
+            { blobName: "media/images/u/photo.webp" },
+            { blobName: "media/images/u/other.webp" },
+          ],
+        },
+        afterSnapshot: null,
+      },
+    ]);
     const repository = new MediaRepository({
       organizationAuditBlobReference: { findMany },
+      organizationAuditLog: { findMany: unrecorded },
     } as any);
 
     await expect(repository.listAuditHeldBlobNames([])).resolves.toEqual(
@@ -894,13 +908,28 @@ describe("MediaRepository", () => {
     await expect(
       repository.listAuditHeldBlobNames([
         "media/images/u/logo.webp",
+        "media/images/u/photo.webp",
         "media/images/u/free.webp",
       ]),
-    ).resolves.toEqual(new Set(["media/images/u/logo.webp"]));
+    ).resolves.toEqual(
+      new Set(["media/images/u/logo.webp", "media/images/u/photo.webp"]),
+    );
+    expect(unrecorded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          blobHoldsRecorded: false,
+          restorable: true,
+        }),
+      }),
+    );
     expect(findMany).toHaveBeenCalledWith({
       where: {
         blobName: {
-          in: ["media/images/u/logo.webp", "media/images/u/free.webp"],
+          in: [
+            "media/images/u/logo.webp",
+            "media/images/u/photo.webp",
+            "media/images/u/free.webp",
+          ],
         },
       },
       select: { blobName: true },

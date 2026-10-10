@@ -1,5 +1,6 @@
 import { BaseRepository } from "@/features/base/base.repository";
 import { loadImageReferences } from "@/features/blob/image-references";
+import { listUnrecordedAuditHolds } from "@/features/organizations/audit/audit-blob-holds";
 import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 /**
@@ -26,28 +27,30 @@ export class BlobCleanupRepository extends BaseRepository {
   async loadReferences(): Promise<BlobReferenceSnapshot> {
     return this.executeAsync(
       async () => {
-        const [references, auditReferences, mediaUploads] = await Promise.all([
-          loadImageReferences(this.prisma),
-          // The names restorable organization and posting audit entries
-          // hold: restoring one writes them back.
-          this.prisma.organizationAuditBlobReference.findMany({
-            select: { blobName: true },
-          }),
-          // An upload still waiting on processing, or one a processing
-          // failure keeps for a dead-letter replay. The media cleanup worker
-          // decides when these go, whatever their age: an item can wait
-          // longer than the grace period, and a replay needs its upload for
-          // the whole rejected retention.
-          this.prisma.media.findMany({
-            where: {
-              OR: [
-                { status: { in: ["uploaded", "processing"] } },
-                { status: "rejected", rejectionCode: "processing_failed" },
-              ],
-            },
-            select: { originalBlobName: true },
-          }),
-        ]);
+        const [references, auditReferences, unrecordedHolds, mediaUploads] =
+          await Promise.all([
+            loadImageReferences(this.prisma),
+            // The names restorable organization and posting audit entries
+            // hold: restoring one writes them back.
+            this.prisma.organizationAuditBlobReference.findMany({
+              select: { blobName: true },
+            }),
+            listUnrecordedAuditHolds(this.prisma),
+            // An upload still waiting on processing, or one a processing
+            // failure keeps for a dead-letter replay. The media cleanup worker
+            // decides when these go, whatever their age: an item can wait
+            // longer than the grace period, and a replay needs its upload for
+            // the whole rejected retention.
+            this.prisma.media.findMany({
+              where: {
+                OR: [
+                  { status: { in: ["uploaded", "processing"] } },
+                  { status: "rejected", rejectionCode: "processing_failed" },
+                ],
+              },
+              select: { originalBlobName: true },
+            }),
+          ]);
 
         const blobNames = new Set<string>();
         const add = (value: unknown): void => {
@@ -72,7 +75,7 @@ export class BlobCleanupRepository extends BaseRepository {
           organizations: 0,
           blogPosts: 0,
           postingPhotos: 0,
-          auditReferences: auditReferences.length,
+          auditReferences: auditReferences.length + unrecordedHolds.length,
           mediaUploads: mediaUploads.length,
         };
 
@@ -82,6 +85,7 @@ export class BlobCleanupRepository extends BaseRepository {
         });
         mediaUploads.forEach((row) => add(row.originalBlobName));
         auditReferences.forEach((row) => add(row.blobName));
+        unrecordedHolds.forEach(add);
 
         return { blobNames, sourceCounts };
       },

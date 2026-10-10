@@ -192,6 +192,7 @@ describe("BlobCleanupService", () => {
         { source: "profiles", name: `${live}.webp` },
       ]),
       organizationAuditBlobReference: emptyTable,
+      organizationAuditLog: emptyTable,
       media: emptyTable,
     } as never);
     const inventory = [live, orphan].flatMap((base) =>
@@ -225,6 +226,7 @@ describe("BlobCleanupService", () => {
     const repository = new BlobCleanupRepository({
       $queryRaw: jest.fn(async () => []),
       organizationAuditBlobReference: emptyTable,
+      organizationAuditLog: emptyTable,
       // A processing failure keeps its upload for a replay.
       media: { findMany: jest.fn(async () => [{ originalBlobName: kept }]) },
     } as never);

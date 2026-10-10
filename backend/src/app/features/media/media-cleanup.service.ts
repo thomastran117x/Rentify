@@ -44,6 +44,11 @@ export interface MediaCleanupSummary {
    */
   attached: number;
   /**
+   * Audit entries written without a record of the images they hold, such as
+   * by an instance still running an older release, now recorded.
+   */
+  auditHoldsRecorded: number;
+  /**
    * Unattached ready items left alone because a restorable audit entry still
    * references them, so restoring it would need them.
    */
@@ -68,7 +73,8 @@ export interface MediaCleanupSummary {
  * 3. a rejected item is deleted once its retention has passed;
  * 4. a ready item that nothing has attached, or that was released, for its
  *    TTL has its image deleted, and is kept as an `unattached` rejection
- *    until step 3 purges it.
+ *    until step 3 purges it. First, the images any audit entry written
+ *    without a record of them holds are recorded.
  *
  * Every change is conditional on the item still being in the state it was
  * selected in, so an item that moves on during a sweep is left alone and
@@ -96,6 +102,7 @@ export class MediaCleanupService {
       | "listReadyPastTtl"
       | "listAttachedBlobNames"
       | "listAuditHeldBlobNames"
+      | "recordPendingAuditHolds"
       | "deferUnattached"
       | "claimUnattached"
     >,
@@ -119,6 +126,7 @@ export class MediaCleanupService {
       rejectedPurged: 0,
       unattachedDeleted: 0,
       attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -142,6 +150,10 @@ export class MediaCleanupService {
       options.batchSize,
       summary,
     );
+    // Holds are read from unrecorded entries too, so this only keeps that
+    // set small; the unattached step is correct either way.
+    summary.auditHoldsRecorded +=
+      await this.mediaRepository.recordPendingAuditHolds(options.batchSize);
     await this.deleteUnattachedMedia(
       cutoff(options.unattachedReadyTtlMs),
       now,

@@ -117,6 +117,7 @@ function createContext(
       async (_id: string, _updatedBefore: Date, _reason: string, _at: Date) =>
         true,
     ),
+    recordPendingAuditHolds: jest.fn(async (_limit: number) => 0),
   };
   const blobService = {
     deleteBlob: jest.fn(async (_blobName: string) => undefined),
@@ -152,6 +153,7 @@ describe("MediaCleanupService", () => {
       rejectedPurged: 0,
       unattachedDeleted: 0,
       attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 0,
@@ -173,6 +175,7 @@ describe("MediaCleanupService", () => {
       ago(12 * HOUR_MS),
       25,
     );
+    expect(mediaRepository.recordPendingAuditHolds).toHaveBeenCalledWith(25);
     // Nothing stuck, so there is no need to ask RabbitMQ.
     expect(queue.readBacklog).not.toHaveBeenCalled();
     // Nothing past its TTL, so there is no need to look for references.
@@ -642,6 +645,7 @@ describe("MediaCleanupService", () => {
       rejectedPurged: 1,
       unattachedDeleted: 0,
       attached: 0,
+      auditHoldsRecorded: 0,
       held: 0,
       deferred: 0,
       failed: 2,
@@ -668,6 +672,7 @@ describe("MediaCleanupService", () => {
       listStuck: jest.fn(async () => []),
       listRejected: jest.fn(async () => []),
       listReadyPastTtl: jest.fn(async () => []),
+      recordPendingAuditHolds: jest.fn(async () => 0),
     };
     const service = new MediaCleanupService(
       mediaRepository as never,

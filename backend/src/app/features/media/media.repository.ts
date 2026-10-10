@@ -2,6 +2,10 @@ import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import { listAttachedBlobNames } from "@/features/blob/image-references";
+import {
+  listUnrecordedAuditHolds,
+  recordPendingAuditHolds,
+} from "@/features/organizations/audit/audit-blob-holds";
 import type {
   CreateMediaRecordInput,
   ImageRenditionInfo,
@@ -535,24 +539,44 @@ export class MediaRepository extends BaseRepository {
    * logo, or a posting's photo, before or after the change it records.
    * Restoring that entry writes the reference back, so the image must outlive
    * it; such entries are never retired today. Each held name is recorded
-   * beside its entry, so this is an indexed lookup.
+   * beside its entry, so this is an indexed lookup, together with the names
+   * of any entry not recorded yet.
    */
   async listAuditHeldBlobNames(blobNames: string[]): Promise<Set<string>> {
     if (blobNames.length === 0) {
       return new Set();
     }
 
-    const rows = await this.executeAsync(
+    const [rows, unrecorded] = await this.executeAsync(
       () =>
-        this.prisma.organizationAuditBlobReference.findMany({
-          where: { blobName: { in: blobNames } },
-          select: { blobName: true },
-          distinct: ["blobName"],
-        }),
+        Promise.all([
+          this.prisma.organizationAuditBlobReference.findMany({
+            where: { blobName: { in: blobNames } },
+            select: { blobName: true },
+            distinct: ["blobName"],
+          }),
+          listUnrecordedAuditHolds(this.prisma),
+        ]),
       { operationName: "listAuditHeldBlobNames" },
     );
+    const wanted = new Set(blobNames);
 
-    return new Set(rows.map((row) => row.blobName));
+    return new Set([
+      ...rows.map((row) => row.blobName),
+      ...unrecorded.filter((name) => wanted.has(name)),
+    ]);
+  }
+
+  /**
+   * Records the holds of up to `limit` audit entries written without them,
+   * such as by an instance still running an older release, and returns how
+   * many it recorded. See audit-blob-holds.ts.
+   */
+  recordPendingAuditHolds(limit: number): Promise<number> {
+    return this.executeAsync(
+      () => recordPendingAuditHolds(this.prisma, limit),
+      { operationName: "recordPendingAuditHolds" },
+    );
   }
 
   /**

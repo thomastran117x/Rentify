@@ -188,6 +188,7 @@ model OrganizationAuditLog {
   afterSnapshot         Json?    @map("after_snapshot")
   restorable            Boolean  @default(false)
   restoredFromAuditId   String?  @map("restored_from_audit_id") @db.VarChar(36)
+  blobHoldsRecorded     Boolean  @default(false) @map("blob_holds_recorded")
   createdAt             DateTime @default(now()) @map("created_at") @db.DateTime(6)
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   actor                 User?    @relation("OrganizationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
@@ -197,6 +198,7 @@ model OrganizationAuditLog {
   @@unique([organizationId, organizationVersion], map: "organization_audit_logs_org_version_unique")
   @@unique([organizationId, resourceType, resourceId, resourceVersion], map: "org_audit_resource_version_unique")
   @@index([actorUserId, createdAt])
+  @@index([blobHoldsRecorded])
   @@map("organization_audit_logs")
 }
 

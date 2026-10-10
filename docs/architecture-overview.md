@@ -405,7 +405,10 @@ read them from there. Each column is indexed, and a unit test fails when a
 The names a restorable organization or posting audit entry holds are written
 beside it, in `organization_audit_blob_references`, by the transaction that
 records the entry, so both jobs look them up by index rather than reading
-snapshots. `listAuditSnapshotBlobNames` (`features/organizations/audit/audit.model.ts`)
+snapshots. An entry written without them, such as by an instance still running
+the previous release during a rolling deploy, is left unmarked
+(`blob_holds_recorded`); readers also take its names from its snapshots, and
+`media-cleanup-worker` records them (`features/organizations/audit/audit-blob-holds.ts`). `listAuditSnapshotBlobNames` (`features/organizations/audit/audit.model.ts`)
 decides which names those are.
 
 - `media-cleanup-worker` runs all the time and works from the `media` table, so
