@@ -342,19 +342,28 @@ export class ProfileRepository extends BaseRepository {
 
   /**
    * Runs a profile write, inside a transaction with the media cleanup's
-   * attachment guard when it stores an avatar.
+   * attachment guard when it sets or clears the avatar. The avatar it
+   * replaces is released, as a replaced logo or photo is, so it gets a fresh
+   * TTL rather than being deleted by the next sweep while a cached page may
+   * still show it.
    */
   private writeGuardingAvatar<T>(
     input: UpdateProfileRecordInput,
     write: (client: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    if (!input.avatarBlobName) {
+    if (input.avatarBlobName === undefined) {
       return this.executeAsync(() => write(this.prisma));
     }
 
     return this.executeTransaction(async (transaction) => {
+      const current = await transaction.profile.findUnique({
+        where: { userId: input.userId },
+        select: { avatarBlobName: true },
+      });
+
       await guardImageAttachments(transaction, {
         attached: [input.avatarBlobName],
+        released: [current?.avatarBlobName],
       });
 
       return write(transaction);

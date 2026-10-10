@@ -285,10 +285,17 @@ describe("ProfileRepository", () => {
         recommendationPersonalizationEnabled: undefined,
       }),
     );
+    // Clearing an avatar the profile never had leaves the guard nothing to do.
+    const guard = createMediaGuardTransaction();
     const repository = new ProfileRepository({
-      profile: {
-        update,
-      },
+      $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+        callback({
+          ...guard,
+          profile: {
+            update,
+            findUnique: jest.fn(async () => ({ avatarBlobName: null })),
+          },
+        }),
     } as any);
 
     const result = await repository.update({
@@ -347,7 +354,10 @@ describe("ProfileRepository", () => {
     const repository = new ProfileRepository({
       profile: { update: outsideUpdate },
       $transaction: async <T>(callback: (client: any) => Promise<T>) =>
-        callback({ ...guard, profile: { update } }),
+        callback({
+          ...guard,
+          profile: { update, findUnique: jest.fn(async () => null) },
+        }),
     } as any);
 
     await repository.update({
@@ -363,6 +373,58 @@ describe("ProfileRepository", () => {
     expect(outsideUpdate).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["replaced", "media/images/u/new.webp"],
+    ["cleared", null],
+  ])(
+    "releases the previous avatar when it is %s, as a replaced logo is",
+    async (_change, avatarBlobName) => {
+      const guard = createMediaGuardTransaction([
+        { name: "media/images/u/old.webp", status: "ready" },
+        ...(avatarBlobName ? [{ name: avatarBlobName, status: "ready" }] : []),
+      ]);
+      const findUnique = jest.fn(async () => ({
+        avatarBlobName: "media/images/u/old.webp",
+      }));
+      const update = jest.fn(async () => createProfilePersistence());
+      const repository = new ProfileRepository({
+        $transaction: async <T>(callback: (client: any) => Promise<T>) =>
+          callback({ ...guard, profile: { update, findUnique } }),
+      } as any);
+
+      await repository.update({
+        userId: USER_1_ID,
+        username: "owner-one",
+        avatarUrl: avatarBlobName && "https://example.test/new.webp",
+        avatarBlobName,
+      });
+
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { userId: USER_1_ID },
+        select: { avatarBlobName: true },
+      });
+      const [[lock]] = guard.$queryRaw.mock.calls as unknown as [
+        [{ values: unknown[] }],
+      ];
+      expect(lock.values).toEqual(
+        avatarBlobName
+          ? [avatarBlobName, "media/images/u/old.webp"]
+          : ["media/images/u/old.webp"],
+      );
+      // The released avatar's TTL starts again from now.
+      expect(guard.media.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            processedBlobName: {
+              in: expect.arrayContaining(["media/images/u/old.webp"]),
+            },
+          },
+        }),
+      );
+      expect(update).toHaveBeenCalled();
+    },
+  );
+
   it("refuses an avatar the media cleanup has claimed", async () => {
     const guard = createMediaGuardTransaction([
       { name: "media/images/u/gone.webp", status: "rejected" },
@@ -370,7 +432,10 @@ describe("ProfileRepository", () => {
     const updateMany = jest.fn(async () => ({ count: 1 }));
     const repository = new ProfileRepository({
       $transaction: async <T>(callback: (client: any) => Promise<T>) =>
-        callback({ ...guard, profile: { updateMany } }),
+        callback({
+          ...guard,
+          profile: { updateMany, findUnique: jest.fn(async () => null) },
+        }),
     } as any);
 
     await expect(
