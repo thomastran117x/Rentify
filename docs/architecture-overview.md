@@ -388,10 +388,13 @@ attached. A replaced image is removed by the feature that replaced it.
 Every write that stores image references calls `guardImageAttachments`
 (`features/media/media-attachment-guard.ts`) inside its own transaction. It
 locks the media rows behind the names, refuses with 400 a write that stores an
-image the cleanup has claimed, and moves the others' `updated_at`, including
-images the write drops. The cleanup claims an unattached image only while its
-row is ready and unmoved, under the same lock, so a save racing it either keeps
-the image or fails cleanly.
+image the cleanup has claimed, or a processed image whose row is gone, and
+moves the others' `updated_at`, including images the write drops. The cleanup
+claims an unattached image only while its row is ready and unmoved, under the
+same lock. `DELETE /media/{id}` and the deletion of a replaced image take that
+lock too, check for references while holding it, and delete the row before the
+blobs. A save racing any of them therefore either keeps the image or fails
+cleanly.
 
 **Cleanup.** Two jobs share the work, and neither ever deletes a processed image
 that something references, including a restorable audit snapshot. The columns

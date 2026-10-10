@@ -651,4 +651,126 @@ describe("Media cleanup persistence integration", () => {
       }
     }
   });
+
+  describe("DELETE /media/{id} racing a save", () => {
+    function deleteMedia(
+      owner: { headers(): Record<string, string> },
+      mediaId: string,
+    ) {
+      return persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/media/${mediaId}`)}`,
+        { method: "DELETE", headers: owner.headers() },
+      );
+    }
+
+    it("refuses a save whose image was deleted after the save read it", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photo = await createReadyMedia(ownerId);
+      const findById = MediaRepository.prototype.findById;
+      let deleted: Response | undefined;
+      // The client picks another photo and deletes this one between the save
+      // resolving the media id, which still finds it ready, and writing the
+      // posting.
+      const spy = jest
+        .spyOn(MediaRepository.prototype, "findById")
+        .mockImplementationOnce(async function (this: MediaRepository, id) {
+          const record = await findById.call(this, id);
+          deleted = await deleteMedia(owner, photo.mediaId);
+          return record;
+        });
+
+      try {
+        const saved = await createPosting(owner, photo.mediaId);
+
+        expect(deleted?.status).toBe(200);
+        expect(saved.status).toBe(400);
+        await expect(saved.json()).resolves.toMatchObject({
+          message: "Image is no longer available. Upload it again.",
+        });
+      } finally {
+        spy.mockRestore();
+      }
+
+      await expect(countPhotoReferences(photo.blobName)).resolves.toBe(0);
+      await expect(findMedia(photo.mediaId)).resolves.toBeNull();
+      for (const name of imageBlobNames(photo.blobName)) {
+        expect(storage.has(name)).toBe(false);
+      }
+    });
+
+    it("keeps an image a save attached after the delete checked its owner", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photo = await createReadyMedia(ownerId);
+      const findById = MediaRepository.prototype.findById;
+      let saved: Response | undefined;
+      // The save commits between the delete reading the item and locking it.
+      const spy = jest
+        .spyOn(MediaRepository.prototype, "findById")
+        .mockImplementationOnce(async function (this: MediaRepository, id) {
+          const record = await findById.call(this, id);
+          saved = await createPosting(owner, photo.mediaId);
+          return record;
+        });
+
+      try {
+        const deleted = await deleteMedia(owner, photo.mediaId);
+
+        expect(saved?.status).toBe(201);
+        expect(deleted.status).toBe(409);
+      } finally {
+        spy.mockRestore();
+      }
+
+      await expect(countPhotoReferences(photo.blobName)).resolves.toBe(1);
+      await expect(findMedia(photo.mediaId)).resolves.toMatchObject({
+        status: "ready",
+      });
+      for (const name of imageBlobNames(photo.blobName)) {
+        expect(storage.has(name)).toBe(true);
+      }
+    });
+
+    it("never leaves a reference to a deleted image when saves and deletes race", async () => {
+      const storage = persistenceApp.stubs.blobService.storage;
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const photos = await Promise.all(
+        Array.from({ length: 6 }, () => createReadyMedia(ownerId)),
+      );
+
+      const [saves, deletes] = await Promise.all([
+        Promise.all(photos.map((photo) => createPosting(owner, photo.mediaId))),
+        Promise.all(photos.map((photo) => deleteMedia(owner, photo.mediaId))),
+      ]);
+
+      for (const [index, photo] of photos.entries()) {
+        const references = await countPhotoReferences(photo.blobName);
+
+        if (saves[index]!.status === 201) {
+          expect(deletes[index]!.status).toBe(409);
+          expect(references).toBe(1);
+          await expect(findMedia(photo.mediaId)).resolves.toMatchObject({
+            status: "ready",
+          });
+          for (const name of imageBlobNames(photo.blobName)) {
+            expect(storage.has(name)).toBe(true);
+          }
+        } else {
+          expect(
+            `${saves[index]!.status} ${await saves[index]!.text()}`,
+          ).toMatch(/^400 /);
+          expect(deletes[index]!.status).toBe(200);
+          expect(references).toBe(0);
+          await expect(findMedia(photo.mediaId)).resolves.toBeNull();
+        }
+      }
+    });
+  });
 });

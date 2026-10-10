@@ -55,7 +55,6 @@ describe("guardImageAttachments", () => {
         processedBlobName: {
           in: ["media/images/u/kept.webp", "media/images/u/released.webp"],
         },
-        status: "ready",
       },
       data: { updatedAt: NOW },
     });
@@ -74,6 +73,34 @@ describe("guardImageAttachments", () => {
     await expect(result).rejects.toThrow(
       "Image is no longer available. Upload it again.",
     );
+    expect(transaction.media.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses to store a processed image whose row was deleted", async () => {
+    const transaction = createMediaGuardTransaction([]);
+
+    await expect(
+      guardImageAttachments(transaction as never, {
+        attached: ["media/images/u/deleted.webp"],
+      }),
+    ).rejects.toThrow("Image is no longer available. Upload it again.");
+    expect(transaction.media.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("lets a write store or release names that never had a row", async () => {
+    const transaction = createMediaGuardTransaction([]);
+
+    await guardImageAttachments(transaction as never, {
+      // A legacy upload, a posting crop, and a rendition are not processed
+      // images, so no row is expected behind them.
+      attached: [
+        "postings/u/legacy.jpg",
+        "media/images/u/thumbnails/crop.webp",
+        "media/images/u/m.medium.webp",
+      ],
+      released: ["media/images/u/deleted.webp"],
+    });
+
     expect(transaction.media.updateMany).not.toHaveBeenCalled();
   });
 

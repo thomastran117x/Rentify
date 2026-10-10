@@ -836,6 +836,44 @@ describe("MediaService", () => {
       ).resolves.toBeDefined();
     });
 
+    it("finishes quietly when a concurrent delete removed the item first", async () => {
+      const { mediaService, mediaRepository } = createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      jest
+        .spyOn(mediaRepository, "deleteIfUnattached")
+        .mockResolvedValueOnce({ outcome: "missing" });
+
+      await expect(
+        mediaService.deleteMediaById(USER_1_ID, mediaId),
+      ).resolves.toBeUndefined();
+    });
+
+    it("keeps a replaced image that was attached again before it could be deleted", async () => {
+      const { mediaService, mediaRepository, blobService } =
+        createLocalMediaService();
+      const { mediaId } = await startUpload(mediaService);
+      const record = (await mediaRepository.findById(mediaId))!;
+      const processedBlobName = blobService.buildProcessedImageBlobName(
+        USER_1_ID,
+        mediaId,
+      );
+      const renditions = await writeRenditions(blobService, processedBlobName);
+      mediaRepository.put({ ...record, status: "ready", processedBlobName });
+      mediaRepository.attachedBlobNames.add(processedBlobName);
+
+      await mediaService.deleteReplacedImageByBlobName(
+        USER_1_ID,
+        processedBlobName,
+      );
+
+      expect(await mediaRepository.findById(mediaId)).not.toBeNull();
+      for (const blobName of renditions) {
+        await expect(
+          blobService.readLocalBlob(blobName),
+        ).resolves.toBeDefined();
+      }
+    });
+
     it("drops the media record and every rendition when its processed image is deleted by name", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();

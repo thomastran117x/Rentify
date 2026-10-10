@@ -37,6 +37,19 @@ const THREAT_NAME_MAX_LENGTH = 255;
  * double-submitting "complete") cannot both win. Each transition reports
  * whether it applied; the caller decides what losing means.
  */
+/**
+ * What deleteIfUnattached did: deleted the row, kept it because its image is
+ * attached, or found no row.
+ */
+export type MediaDeletion =
+  | { outcome: "deleted" | "attached"; record: MediaRecord }
+  | { outcome: "missing" };
+
+interface DeletionTarget {
+  id?: Uuid;
+  processedBlobName: string | null;
+}
+
 export class MediaRepository extends BaseRepository {
   async create(input: CreateMediaRecordInput): Promise<MediaRecord> {
     const row = await this.executeAsync(
@@ -235,14 +248,9 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Whether a stored reference still points at this blob, in any column
+   * Which of `blobNames` a stored reference still points at, in any column
    * IMAGE_REFERENCE_COLUMNS lists.
    */
-  async isBlobAttached(blobName: string): Promise<boolean> {
-    return (await this.listAttachedBlobNames([blobName])).size > 0;
-  }
-
-  /** Which of `blobNames` a stored reference still points at. */
   listAttachedBlobNames(blobNames: string[]): Promise<Set<string>> {
     return this.executeAsync(
       () => listAttachedBlobNames(this.prisma, blobNames),
@@ -351,10 +359,107 @@ export class MediaRepository extends BaseRepository {
     return result.count > 0;
   }
 
-  async deleteById(id: Uuid): Promise<void> {
-    await this.executeAsync(
-      () => this.prisma.media.deleteMany({ where: { id } }),
-      { operationName: "deleteById" },
+  /**
+   * Deletes a media row unless a stored reference still points at its
+   * processed image. Run before deleting the image's blobs, by whoever deletes
+   * an image on purpose.
+   *
+   * The row is locked first, as guardImageAttachments locks it, and the
+   * references are read after the lock is held, so they include any save that
+   * committed first. A save that comes after the delete finds no row and is
+   * refused by the guard, so either the save keeps the image, or the delete
+   * wins and the save fails; a reference to a deleted image is never stored.
+   */
+  async deleteIfUnattached(
+    where: { id: Uuid } | { processedBlobName: string },
+  ): Promise<MediaDeletion> {
+    let target: DeletionTarget;
+
+    if ("id" in where) {
+      // A processed name never changes once set, so it is safe to read ahead
+      // of the lock; the lock itself then goes through that name.
+      const row = await this.findById(where.id);
+
+      if (!row) {
+        return { outcome: "missing" };
+      }
+
+      target = { id: where.id, processedBlobName: row.processedBlobName };
+    } else {
+      target = { processedBlobName: where.processedBlobName };
+    }
+
+    let result = await this.deleteLockedIfUnattached(target);
+
+    // The row became ready between the read and the lock: lock it again,
+    // through its processed name. A name is only ever set once, so this
+    // happens at most once.
+    if (result.outcome === "processed") {
+      result = await this.deleteLockedIfUnattached({
+        ...target,
+        processedBlobName: result.processedBlobName,
+      });
+    }
+
+    return result.outcome === "processed" ? { outcome: "missing" } : result;
+  }
+
+  /**
+   * Locks through the processed name when there is one, in the order the
+   * guard locks (that unique index, then the row), so the two never deadlock.
+   * A row with no processed image is never locked by the guard, so it is
+   * locked by id; if it turns out to have one by then, it is left for the
+   * caller to lock again by name.
+   */
+  private deleteLockedIfUnattached(
+    target: DeletionTarget,
+  ): Promise<
+    MediaDeletion | { outcome: "processed"; processedBlobName: string }
+  > {
+    return this.executeTransaction(
+      async (transaction) => {
+        const [locked] = await transaction.$queryRaw<
+          Array<{ id: string; name: string | null }>
+        >(
+          target.processedBlobName
+            ? Prisma.sql`SELECT id, processed_blob_name AS name FROM media WHERE processed_blob_name = ${target.processedBlobName} FOR UPDATE`
+            : Prisma.sql`SELECT id, processed_blob_name AS name FROM media WHERE id = ${target.id} FOR UPDATE`,
+        );
+
+        if (!locked || (target.id && locked.id !== target.id)) {
+          return { outcome: "missing" } as const;
+        }
+
+        if (!target.processedBlobName && locked.name) {
+          return {
+            outcome: "processed",
+            processedBlobName: locked.name,
+          } as const;
+        }
+
+        // The first plain read, so the snapshot it starts follows the lock.
+        const row = await transaction.media.findUnique({
+          where: { id: locked.id },
+        });
+
+        if (!row) {
+          return { outcome: "missing" } as const;
+        }
+
+        const record = this.toRecord(row);
+
+        if (
+          record.processedBlobName &&
+          (await listAttachedBlobNames(transaction, [record.processedBlobName]))
+            .size > 0
+        ) {
+          return { outcome: "attached", record } as const;
+        }
+
+        await transaction.media.delete({ where: { id: record.id } });
+        return { outcome: "deleted", record } as const;
+      },
+      { operationName: "deleteIfUnattached" },
     );
   }
 

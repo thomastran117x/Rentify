@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import BadRequestError from "@/errors/http/bad-request.error";
+import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
 
 export interface ImageAttachmentChange {
   /** Every image name the write stores, whether new or resent unchanged. */
@@ -26,7 +27,11 @@ interface LockedMediaRow {
  * deleted image is never stored. Moving a released image keeps it too, until
  * a restorable audit entry recorded after the write can hold it.
  *
- * A name with no media row, such as a legacy or seeded image, is left alone.
+ * A processed image always has a media row while it exists, so a write that
+ * stores one whose row is gone is refused too: the image was deleted, by
+ * DELETE /media/{id} or by a feature replacing it, and both delete the row
+ * under the same lock before its blobs. Any other name with no row, such as a
+ * legacy or seeded image, is left alone.
  */
 export async function guardImageAttachments(
   transaction: Prisma.TransactionClient,
@@ -49,17 +54,27 @@ export async function guardImageAttachments(
     FOR UPDATE
   `);
 
-  if (rows.some((row) => attached.has(row.name) && row.status !== "ready")) {
+  const statuses = new Map(rows.map((row) => [row.name, row.status]));
+  const unavailable = [...attached].some((name) => {
+    const status = statuses.get(name);
+
+    return status === undefined
+      ? buildImageVariantBlobNames(name) !== null
+      : status !== "ready";
+  });
+
+  if (unavailable) {
     throw new BadRequestError("Image is no longer available. Upload it again.");
   }
 
+  // The rows are locked, so the statuses just read are still current.
   const ready = rows
     .filter((row) => row.status === "ready")
     .map((row) => row.name);
 
   if (ready.length > 0) {
     await transaction.media.updateMany({
-      where: { processedBlobName: { in: ready }, status: "ready" },
+      where: { processedBlobName: { in: ready } },
       data: { updatedAt: now },
     });
   }

@@ -178,19 +178,25 @@ export class MediaService {
    * never saved. An image something still displays is refused rather than
    * deleted: the client cannot always know its save went through, and a
    * deleted blob cannot be brought back.
+   *
+   * The row goes first, under the lock a save takes, and the blobs after it,
+   * so a save racing the delete either keeps the image or is refused. A blob
+   * that fails to delete is left for the orphaned-blob cleanup.
    */
   async deleteMediaById(userId: Uuid, mediaId: Uuid): Promise<void> {
-    const record = await this.requireOwnedRecord(userId, mediaId);
+    await this.requireOwnedRecord(userId, mediaId);
 
-    if (
-      record.processedBlobName &&
-      (await this.mediaRepository.isBlobAttached(record.processedBlobName))
-    ) {
+    const deletion = await this.mediaRepository.deleteIfUnattached({
+      id: mediaId,
+    });
+
+    if (deletion.outcome === "attached") {
       throw new ConflictError("This image is in use and cannot be deleted.");
     }
 
-    await this.deleteRecordBlobs(record);
-    await this.mediaRepository.deleteById(record.id);
+    if (deletion.outcome === "deleted") {
+      await this.deleteRecordBlobs(deletion.record);
+    }
   }
 
   /**
@@ -336,29 +342,31 @@ export class MediaService {
 
   /**
    * Deletes an image a feature has just replaced, by the blob name it stored,
-   * together with its media record when it is a processed image. Unlike
-   * deleteMediaById it does not check whether the image is attached: the
-   * caller has already detached it, and checks for itself whether anything
-   * else, such as a restorable audit entry, still needs it.
+   * together with its media record when it is a processed image. The caller
+   * has already detached it, and checks for itself whether anything else,
+   * such as a restorable audit entry, still needs it.
+   *
+   * A processed image's row goes first, as in deleteMediaById, so a save or
+   * restore racing the delete either keeps the image or is refused. One that
+   * attached it again first keeps it, and nothing is deleted.
    */
   async deleteReplacedImageByBlobName(
     userId: Uuid,
     blobName: string,
   ): Promise<void> {
     this.assertOwnedBy(userId, blobName);
+
+    if (this.blobService.isProcessedImageBlobName(blobName)) {
+      const deletion = await this.mediaRepository.deleteIfUnattached({
+        processedBlobName: blobName.trim(),
+      });
+
+      if (deletion.outcome === "attached") {
+        return;
+      }
+    }
+
     await this.deleteImageBlobs(blobName);
-
-    if (!this.blobService.isProcessedImageBlobName(blobName)) {
-      return;
-    }
-
-    const record = await this.mediaRepository.findByProcessedBlobName(
-      blobName.trim(),
-    );
-
-    if (record) {
-      await this.mediaRepository.deleteById(record.id);
-    }
   }
 
   isOwnedBy(userId: Uuid, blobName: string): boolean {

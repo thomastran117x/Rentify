@@ -11,6 +11,7 @@ import type {
 import {
   describeProcessingError,
   scanResultColumns,
+  type MediaDeletion,
   type MediaRepository,
 } from "@/features/media/media.repository";
 import type { ModerationResult } from "@/features/media/moderation/image-moderation.service";
@@ -22,7 +23,7 @@ import type { ModerationResult } from "@/features/media/moderation/image-moderat
  */
 export class InMemoryMediaRepository {
   readonly rows = new Map<string, MediaRecord>();
-  /** Blob names a feature table references, for isBlobAttached. */
+  /** Blob names a feature table references, for the attachment checks. */
   readonly attachedBlobNames = new Set<string>();
   /** Ids a processing job reported progress on, in order. */
   readonly progressRecorded: string[] = [];
@@ -245,10 +246,6 @@ export class InMemoryMediaRepository {
     return this.transition(id, ["processing"], {});
   }
 
-  async isBlobAttached(blobName: string): Promise<boolean> {
-    return this.attachedBlobNames.has(blobName);
-  }
-
   async listAttachedBlobNames(blobNames: string[]): Promise<Set<string>> {
     return new Set(
       blobNames.filter((name) => this.attachedBlobNames.has(name)),
@@ -292,8 +289,34 @@ export class InMemoryMediaRepository {
     return true;
   }
 
+  /** Test helper: removes a row, as a concurrent delete would. */
   async deleteById(id: Uuid): Promise<void> {
     this.rows.delete(id);
+  }
+
+  async deleteIfUnattached(
+    where: { id: Uuid } | { processedBlobName: string },
+  ): Promise<MediaDeletion> {
+    const record =
+      "id" in where
+        ? this.rows.get(where.id)
+        : [...this.rows.values()].find(
+            (row) => row.processedBlobName === where.processedBlobName,
+          );
+
+    if (!record) {
+      return { outcome: "missing" };
+    }
+
+    if (
+      record.processedBlobName &&
+      this.attachedBlobNames.has(record.processedBlobName)
+    ) {
+      return { outcome: "attached", record: { ...record } };
+    }
+
+    this.rows.delete(record.id);
+    return { outcome: "deleted", record: { ...record } };
   }
 
   /** Test helper: puts a row into any state directly. */

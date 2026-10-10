@@ -419,13 +419,129 @@ describe("MediaRepository", () => {
     );
   });
 
-  it("deletes by id without failing on a missing row", async () => {
-    const deleteMany = jest.fn(async () => ({ count: 0 }));
-    const repository = createRepository({ deleteMany });
+  describe("deleteIfUnattached", () => {
+    const PROCESSED = `media/images/${USER_1_ID}/${MEDIA_1_ID}.webp`;
+    const READY = mediaRow({ status: "ready", processedBlobName: PROCESSED });
 
-    await repository.deleteById(MEDIA_1_ID);
+    type Lock = { id: string; name: string | null };
 
-    expect(deleteMany).toHaveBeenCalledWith({ where: { id: MEDIA_1_ID } });
+    // Each transaction's locking read finds the next of `locks`; the
+    // reference lookup that follows finds `attached`.
+    function createDeletingRepository(options: {
+      row: ReturnType<typeof mediaRow> | null;
+      locks: Lock[][];
+      attached?: boolean;
+    }) {
+      const queries: Array<{ sql: string; values: unknown[] }> = [];
+      const locks = [...options.locks];
+      const queryRaw = jest.fn(async (query: { sql: string; values: [] }) => {
+        queries.push(query);
+        return query.sql.includes("FOR UPDATE")
+          ? (locks.shift() ?? [])
+          : options.attached
+            ? [{ name: PROCESSED }]
+            : [];
+      });
+      const media = {
+        findUnique: jest.fn(async () => options.row),
+        delete: jest.fn(async () => options.row),
+      };
+      const transactions = jest.fn(async (run: (tx: unknown) => unknown) =>
+        run({ $queryRaw: queryRaw, media }),
+      );
+      const repository = new MediaRepository({
+        media,
+        $transaction: transactions,
+      } as any);
+
+      return { repository, media, queries, transactions };
+    }
+
+    it("locks a processed image through its name, as the guard does, then deletes it", async () => {
+      const { repository, media, queries } = createDeletingRepository({
+        row: READY,
+        locks: [[{ id: MEDIA_1_ID, name: PROCESSED }]],
+      });
+
+      await expect(
+        repository.deleteIfUnattached({ id: MEDIA_1_ID }),
+      ).resolves.toMatchObject({
+        outcome: "deleted",
+        record: { id: MEDIA_1_ID, processedBlobName: PROCESSED },
+      });
+
+      const [lock, references] = queries;
+      expect(lock!.sql).toContain("WHERE processed_blob_name = ? FOR UPDATE");
+      expect(lock!.values).toEqual([PROCESSED]);
+      expect(references!.sql).toContain("UNION ALL");
+      expect(media.delete).toHaveBeenCalledWith({ where: { id: MEDIA_1_ID } });
+    });
+
+    it("keeps a row whose image a save attached first", async () => {
+      const { repository, media } = createDeletingRepository({
+        row: READY,
+        locks: [[{ id: MEDIA_1_ID, name: PROCESSED }]],
+        attached: true,
+      });
+
+      await expect(
+        repository.deleteIfUnattached({ processedBlobName: PROCESSED }),
+      ).resolves.toMatchObject({ outcome: "attached" });
+      expect(media.delete).not.toHaveBeenCalled();
+    });
+
+    it("locks an unprocessed row by id, and deletes it without looking for references", async () => {
+      const { repository, media, queries } = createDeletingRepository({
+        row: mediaRow(),
+        locks: [[{ id: MEDIA_1_ID, name: null }]],
+      });
+
+      await expect(
+        repository.deleteIfUnattached({ id: MEDIA_1_ID }),
+      ).resolves.toMatchObject({ outcome: "deleted" });
+
+      expect(queries).toHaveLength(1);
+      expect(queries[0]!.sql).toContain("WHERE id = ? FOR UPDATE");
+      expect(media.delete).toHaveBeenCalled();
+    });
+
+    it("locks again by name when the row became ready before the lock", async () => {
+      const { repository, media, queries, transactions } =
+        createDeletingRepository({
+          row: mediaRow(),
+          locks: [
+            [{ id: MEDIA_1_ID, name: PROCESSED }],
+            [{ id: MEDIA_1_ID, name: PROCESSED }],
+          ],
+        });
+      media.findUnique
+        .mockResolvedValueOnce(mediaRow())
+        .mockResolvedValue(READY);
+
+      await expect(
+        repository.deleteIfUnattached({ id: MEDIA_1_ID }),
+      ).resolves.toMatchObject({ outcome: "deleted" });
+
+      expect(transactions).toHaveBeenCalledTimes(2);
+      expect(queries[0]!.sql).toContain("WHERE id = ? FOR UPDATE");
+      expect(queries[1]!.sql).toContain(
+        "WHERE processed_blob_name = ? FOR UPDATE",
+      );
+    });
+
+    it("reports a row that is already gone", async () => {
+      const missingRow = createDeletingRepository({ row: null, locks: [] });
+      await expect(
+        missingRow.repository.deleteIfUnattached({ id: MEDIA_1_ID }),
+      ).resolves.toEqual({ outcome: "missing" });
+      expect(missingRow.transactions).not.toHaveBeenCalled();
+
+      const unlocked = createDeletingRepository({ row: READY, locks: [[]] });
+      await expect(
+        unlocked.repository.deleteIfUnattached({ id: MEDIA_1_ID }),
+      ).resolves.toEqual({ outcome: "missing" });
+      expect(unlocked.media.delete).not.toHaveBeenCalled();
+    });
   });
 
   it("lists cleanup candidates by status and age, oldest first, never a ready row", async () => {
@@ -710,15 +826,18 @@ describe("MediaRepository", () => {
       repository.deleteByIdIfStatus(MEDIA_1_ID, "rejected"),
     ).resolves.toBe(false);
   });
-  it("reports whether any image column still references a blob", async () => {
+  it("reports which blobs any image column still references", async () => {
     const queryRaw = jest.fn(async (_query: unknown) => [
       { name: "media/images/u/m.webp" },
     ]);
     const repository = new MediaRepository({ $queryRaw: queryRaw } as any);
 
     await expect(
-      repository.isBlobAttached("media/images/u/m.webp"),
-    ).resolves.toBe(true);
+      repository.listAttachedBlobNames([
+        "media/images/u/m.webp",
+        "media/images/u/free.webp",
+      ]),
+    ).resolves.toEqual(new Set(["media/images/u/m.webp"]));
     const [[query]] = queryRaw.mock.calls as unknown as [
       [{ sql: string; values: unknown[] }],
     ];
@@ -731,15 +850,10 @@ describe("MediaRepository", () => {
       expect(query.sql).toContain(column);
     }
 
-    queryRaw.mockResolvedValueOnce([]);
-    await expect(
-      repository.isBlobAttached("media/images/u/m.webp"),
-    ).resolves.toBe(false);
-
     await expect(repository.listAttachedBlobNames([])).resolves.toEqual(
       new Set(),
     );
-    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it("lists unattached ready rows, leaving attached ones to the query", async () => {
