@@ -1,6 +1,7 @@
 import { Prisma, type Media } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { listAttachedBlobNames } from "@/features/blob/image-references";
 import { toAuditSnapshotRecord } from "@/features/organizations/audit/audit.model";
 import type {
   CreateMediaRecordInput,
@@ -234,27 +235,19 @@ export class MediaRepository extends BaseRepository {
   }
 
   /**
-   * Whether a stored reference still points at this blob: a posting photo, an
-   * avatar, an organization logo, or a blog cover.
+   * Whether a stored reference still points at this blob, in any column
+   * IMAGE_REFERENCE_COLUMNS lists.
    */
   async isBlobAttached(blobName: string): Promise<boolean> {
-    const [photos, profiles, organizations, blogPosts] =
-      await this.executeAsync(
-        () =>
-          Promise.all([
-            this.prisma.postingPhoto.count({ where: { blobName } }),
-            this.prisma.profile.count({ where: { avatarBlobName: blobName } }),
-            this.prisma.organization.count({
-              where: { logoBlobName: blobName },
-            }),
-            this.prisma.organizationBlogPost.count({
-              where: { coverImageBlobName: blobName },
-            }),
-          ]),
-        { operationName: "isBlobAttached" },
-      );
+    return (await this.listAttachedBlobNames([blobName])).size > 0;
+  }
 
-    return photos + profiles + organizations + blogPosts > 0;
+  /** Which of `blobNames` a stored reference still points at. */
+  listAttachedBlobNames(blobNames: string[]): Promise<Set<string>> {
+    return this.executeAsync(
+      () => listAttachedBlobNames(this.prisma, blobNames),
+      { operationName: "listAttachedBlobNames" },
+    );
   }
 
   /**

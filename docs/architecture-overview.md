@@ -394,7 +394,11 @@ row is ready and unmoved, under the same lock, so a save racing it either keeps
 the image or fails cleanly.
 
 **Cleanup.** Two jobs share the work, and neither ever deletes a processed image
-that something references, including a restorable audit snapshot.
+that something references, including a restorable audit snapshot. The columns
+that can hold an image reference are listed once, in `IMAGE_REFERENCE_COLUMNS`
+(`features/blob/image-references.ts`), and both jobs and `DELETE /media/{id}`
+read them from there. Each column is indexed, and a unit test fails when a
+`*_blob_name` column in the schema is missing from the list or has no index.
 
 - `media-cleanup-worker` runs all the time and works from the `media` table, so
   it covers Azure and local-disk storage alike. It deletes an upload still

@@ -710,33 +710,36 @@ describe("MediaRepository", () => {
       repository.deleteByIdIfStatus(MEDIA_1_ID, "rejected"),
     ).resolves.toBe(false);
   });
-  it("reports whether any feature table still references a blob", async () => {
-    const zero = jest.fn(async (_args: unknown) => 0);
-    const repository = new MediaRepository({
-      postingPhoto: { count: zero },
-      profile: { count: zero },
-      organization: { count: jest.fn(async (_args: unknown) => 1) },
-      organizationBlogPost: { count: zero },
-    } as any);
+  it("reports whether any image column still references a blob", async () => {
+    const queryRaw = jest.fn(async (_query: unknown) => [
+      { name: "media/images/u/m.webp" },
+    ]);
+    const repository = new MediaRepository({ $queryRaw: queryRaw } as any);
 
     await expect(
       repository.isBlobAttached("media/images/u/m.webp"),
     ).resolves.toBe(true);
-    expect(zero.mock.calls.map(([args]) => args)).toEqual([
-      { where: { blobName: "media/images/u/m.webp" } },
-      { where: { avatarBlobName: "media/images/u/m.webp" } },
-      { where: { coverImageBlobName: "media/images/u/m.webp" } },
-    ]);
+    const [[query]] = queryRaw.mock.calls as unknown as [
+      [{ sql: string; values: unknown[] }],
+    ];
+    for (const column of [
+      "posting_photos WHERE blob_name IN",
+      "profiles WHERE avatar_blob_name IN",
+      "organizations WHERE logo_blob_name IN",
+      "organization_blog_posts WHERE cover_image_blob_name IN",
+    ]) {
+      expect(query.sql).toContain(column);
+    }
 
-    const unattached = new MediaRepository({
-      postingPhoto: { count: zero },
-      profile: { count: zero },
-      organization: { count: zero },
-      organizationBlogPost: { count: zero },
-    } as any);
+    queryRaw.mockResolvedValueOnce([]);
     await expect(
-      unattached.isBlobAttached("media/images/u/m.webp"),
+      repository.isBlobAttached("media/images/u/m.webp"),
     ).resolves.toBe(false);
+
+    await expect(repository.listAttachedBlobNames([])).resolves.toEqual(
+      new Set(),
+    );
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it("lists unattached ready rows, leaving attached ones to the query", async () => {

@@ -249,6 +249,12 @@ export class InMemoryMediaRepository {
     return this.attachedBlobNames.has(blobName);
   }
 
+  async listAttachedBlobNames(blobNames: string[]): Promise<Set<string>> {
+    return new Set(
+      blobNames.filter((name) => this.attachedBlobNames.has(name)),
+    );
+  }
+
   async listReadyWithoutVariants(
     afterId: string | null,
     limit: number,

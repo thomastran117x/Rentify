@@ -147,6 +147,7 @@ model Organization {
   searchOutboxEntries OrganizationSearchOutbox[]
   slugReservations OrganizationSlugReservation[]
 
+  @@index([logoBlobName(length: 255)])
   @@map("organizations")
 }
 
@@ -242,6 +243,7 @@ model OrganizationBlogPost {
   @@unique([organizationId, slug])
   @@index([organizationId, status, publishedAt])
   @@index([authorUserId, createdAt])
+  @@index([coverImageBlobName(length: 255)])
   @@map("organization_blog_posts")
 }
 
@@ -416,6 +418,7 @@ model Profile {
   user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([avatarBlobName(length: 255)])
   @@map("profiles")
 }
 
@@ -532,6 +535,8 @@ model PostingPhoto {
 
   @@unique([postingId, position])
   @@index([postingId])
+  @@index([blobName(length: 255)])
+  @@index([thumbnailBlobName(length: 255)])
   @@map("posting_photos")
 }
 
