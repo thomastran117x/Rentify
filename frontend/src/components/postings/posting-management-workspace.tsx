@@ -917,7 +917,7 @@ export function PhotoUploader({
           No photos yet.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3">
           {photos.map((photo) => {
             const isPrimary = photo.key === primaryKey;
             const rejected = photo.status === "rejected";
@@ -932,13 +932,33 @@ export function PhotoUploader({
                       : "border-slate-200 dark:border-slate-800"
                 }`}
               >
-                <ResponsiveImage
-                  src={photo.previewUrl}
-                  variants={photo.previewVariants}
-                  sizes="(min-width: 768px) 25vw, 50vw"
-                  alt="Posting photo preview"
-                  className="aspect-[4/3] w-full object-cover"
-                />
+                {photo.status === "rejected" ? (
+                  // No preview: a refused file is often not an image at all,
+                  // and one refused by moderation should not be shown. The
+                  // file name says which photo it was.
+                  <div
+                    role="alert"
+                    className="flex aspect-[4/3] w-full flex-col gap-1 bg-rose-950 p-3 pb-11 text-xs text-white"
+                  >
+                    <span className="font-semibold">
+                      Couldn&apos;t use this photo
+                    </span>
+                    {photo.file ? (
+                      <span className="truncate font-medium text-rose-200">
+                        {photo.file.name}
+                      </span>
+                    ) : null}
+                    <span className="text-rose-100">{photo.reason}</span>
+                  </div>
+                ) : (
+                  <ResponsiveImage
+                    src={photo.previewUrl}
+                    variants={photo.previewVariants}
+                    sizes="(min-width: 768px) 25vw, 50vw"
+                    alt="Posting photo preview"
+                    className="aspect-[4/3] w-full object-cover"
+                  />
+                )}
                 {isPhotoPending(photo) ? (
                   <div
                     role="status"
@@ -949,19 +969,6 @@ export function PhotoUploader({
                       className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
                     />
                     {PENDING_PHOTO_LABELS[photo.status]}
-                  </div>
-                ) : null}
-                {photo.status === "rejected" ? (
-                  <div
-                    role="alert"
-                    className="absolute inset-0 flex flex-col gap-1 overflow-hidden bg-rose-950/85 p-3 pb-10 text-xs text-white"
-                  >
-                    <span className="font-semibold">
-                      Couldn&apos;t use this photo
-                    </span>
-                    <span className="line-clamp-4 text-rose-100">
-                      {photo.reason}
-                    </span>
                   </div>
                 ) : null}
                 {isPrimary && !rejected ? (

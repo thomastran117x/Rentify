@@ -598,6 +598,9 @@ describe("PostingManagementWorkspace", () => {
       await screen.findByText("Uploaded file could not be read as an image."),
     ).toBeInTheDocument();
     expect(screen.getByText("Couldn't use this photo")).toBeInTheDocument();
+    // The refused file is named rather than previewed.
+    expect(screen.getByText("bad.png")).toBeInTheDocument();
+    expect(screen.getAllByAltText("Posting photo preview")).toHaveLength(1);
     expect(
       screen.getByText(
         "Remove the photos that couldn't be used before continuing.",
