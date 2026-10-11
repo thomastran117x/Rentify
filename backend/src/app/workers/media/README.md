@@ -132,6 +132,28 @@ Alert on:
     AND updated_at < UTC_TIMESTAMP() - INTERVAL 15 MINUTE;
   ```
 
+### Measuring latency
+
+[benchmark-media-latency.ts](../../scripts/benchmark-media-latency.ts) measures the time from picking an image to its being ready against a running development stack, the way `uploadImage` sees it. It is a development tool: it runs with tsx from a checkout and is not part of the image. Start the stack with `docker compose up --build`, then:
+
+```bash
+npm --prefix backend run bench:media-latency -- --runs 20 --worker-logs
+npm --prefix backend run bench:media-latency -- --burst 10 --worker-logs
+```
+
+It signs in as `owner-one` with the development captcha bypass and uploads a fixed reference set, generated from a seeded texture and cached under the system temp directory (`--cache-dir` moves it), so two runs compare like with like:
+
+| Image        | Size             | Why                                        |
+| ------------ | ---------------- | ------------------------------------------ |
+| `small`      | 1600 x 1200 JPEG | A screenshot or an already-resized photo   |
+| `12mp`       | 4000 x 3000 JPEG | A typical phone photo, about 3.3 MiB       |
+| `40mp`       | 8000 x 5000 PNG  | The pixel limit, where decoding costs most |
+| `near-limit` | 5000 x 4000 JPEG | Just under the 5 MiB upload limit          |
+
+Each image gets one warm-up upload, then `--runs` uploads one after another. The script polls every 50 ms, far tighter than the browser, so its wait ends when the item really finished. `--burst <n>` instead uploads n copies of `--burst-image` (default `12mp`) at once, to see the worker under load. A burst polls every 500 ms, because each item's `GET /media/{id}` is limited to 60 requests a minute. Every upload is deleted once measured. With real Azure storage configured, the uploads still pass through it.
+
+The script prints p50, p95, and max of the client-observed upload, wait, and total. With `--worker-logs` it also reads the `media.metric` lines the worker and the API logged during the run from `docker compose logs`, and prints the queue wait, each processing stage, the whole attempt, and the client notice delay. The metrics carry no media ids, so run nothing else against the stack while measuring.
+
 ### Dead-letter runbook
 
 A job lands in `media.processing.dead-letter` after `MEDIA_PROCESSING_MAX_ATTEMPTS` failed attempts, usually because storage, the database, the broker, clamd, or the moderation provider was unavailable for longer than the retry tiers (5 s, 30 s, and 120 s) cover. Its item is then either `rejected` with `processing_failed` and its upload kept, or, when the outage also stopped the rejection from being recorded, still `uploaded` or `processing`. Either way the image was not found at fault, and it can be replayed once the cause is fixed. A final rejection (any other code) cannot be replayed; the user has to upload again.

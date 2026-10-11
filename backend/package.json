@@ -15,6 +15,7 @@
     "blob:cleanup": "node dist/scripts/cleanup-orphaned-blobs.js",
     "media:backfill-variants": "node dist/scripts/backfill-media-variants.js",
     "media:replay-dead-letters": "node dist/scripts/replay-media-dead-letters.js",
+    "bench:media-latency": "tsx src/app/scripts/benchmark-media-latency.ts",
     "openapi:generate": "tsx src/app/scripts/openapi.ts --write",
     "openapi:check": "tsx src/app/scripts/openapi.ts --check",
     "dev:analytics-worker": "tsx watch src/app/workers/analytics/postings-analytics.worker.ts",
