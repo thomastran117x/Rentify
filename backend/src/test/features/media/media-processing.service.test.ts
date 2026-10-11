@@ -360,7 +360,13 @@ describe("MediaProcessingService", () => {
       expect((await context.mediaRepository.findById(record.id))?.status).toBe(
         "rejected",
       );
-      expect(stagesOf(context)).toEqual(["download", "scan", "inspect"]);
+      // The header reads fine, so it is the decode, in render, that refuses it.
+      expect(stagesOf(context)).toEqual([
+        "download",
+        "scan",
+        "inspect",
+        "render",
+      ]);
     });
 
     it("times a stage that throws", async () => {

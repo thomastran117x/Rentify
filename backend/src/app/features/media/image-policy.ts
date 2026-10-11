@@ -36,7 +36,7 @@ const SHARP_FORMAT_CONTENT_TYPES: Record<string, SupportedImageContentType> = {
  * phone exports, editors, and messaging apps produce such files. "warning"
  * would refuse them although they decode to a usable image. Truncation that
  * matters (a missing end of image, or pixel data cut short) is still an error,
- * and the full-decode pass below catches it. Revisit only if a corpus of real
+ * and decodeUprightImage, which decodes every pixel, catches it. Revisit only if a corpus of real
  * uploads shows "warning" accepts every legitimate sample.
  */
 export const IMAGE_DECODE_FAIL_ON = "error" as const;
@@ -186,9 +186,10 @@ export function assertImageNotEmpty(sizeBytes: number): void {
 }
 
 /**
- * Validates the actual bytes of an upload: that they decode as an image, that
- * the real format matches what the client declared, and that the dimensions are
- * within policy. Returns the detected content type.
+ * The first of the two passes that validate an upload's actual bytes: that
+ * they read as an image, that the real format matches what the client
+ * declared, and that the frame count and dimensions are within policy. Returns
+ * the detected content type. The second pass is decodeUprightImage.
  *
  * Decoding through sharp rather than a hand-written signature table is
  * deliberate. Stored blobs are later re-decoded by sharp for thumbnailing, so
@@ -197,26 +198,18 @@ export function assertImageNotEmpty(sizeBytes: number): void {
  * the failure this is meant to prevent. It also yields the dimensions in the
  * same pass.
  *
- * Validation runs in two passes. The first reads only the header: cheap, and
- * it allocates nothing proportional to the image, so it can safely check the
- * format and dimensions of anything. limitInputPixels is disabled on it
- * deliberately - at the policy value, sharp throws on an oversized header,
- * which would surface as "could not be read as an image" instead of an
- * accurate "too large".
- *
- * The second pass decodes every pixel. A header can be valid while the data
- * behind it is truncated or corrupt, and metadata() alone accepts that: a PNG
- * cut to 60% of its length still reports its full dimensions. Such a blob would
- * be stored and then fail when rendered or thumbnailed. The full decode only
- * runs once the pixel budget has passed, so it is bounded, and it keeps
- * limitInputPixels as a second guard against a decompression bomb.
+ * This pass reads only the header: cheap, and it allocates nothing
+ * proportional to the image, so it can safely check the format and dimensions
+ * of anything. limitInputPixels is disabled on it deliberately - at the policy
+ * value, sharp throws on an oversized header, which would surface as "could
+ * not be read as an image" instead of an accurate "too large".
  *
  * Animated and multi-page images are refused, using the frame count from the
  * header. An APNG is the exception: libvips reads it as a static PNG and does
  * not report its frames, so it is accepted and becomes its first frame.
  * Refusing it would mean parsing its acTL chunk by hand.
  */
-export async function assertImageBytes(
+export async function inspectImageHeader(
   body: Buffer,
   declaredContentType: SupportedImageContentType,
 ): Promise<SupportedImageContentType> {
@@ -288,21 +281,63 @@ export async function assertImageBytes(
     );
   }
 
+  return detected;
+}
+
+/** An upload's pixels, upright and fitted inside the processed edge. */
+export interface DecodedImage {
+  data: Buffer;
+  width: number;
+  height: number;
+  channels: 1 | 2 | 3 | 4;
+}
+
+/**
+ * The second pass: decodes every pixel of an upload that passed
+ * inspectImageHeader, applying its EXIF orientation and scaling it to fit
+ * inside `imageUploads.maxProcessedEdge`, never enlarged. The result is what
+ * every rendition is made from, so the upload is decoded once.
+ *
+ * A header can be valid while the data behind it is truncated or corrupt, and
+ * metadata() alone accepts that: a PNG cut to 60% of its length still reports
+ * its full dimensions. The decode reads all of it, so it refuses such data the
+ * way a separate full decode would. That holds when the decoder shrinks on
+ * load too, as libjpeg and libwebp do for a large image: they still read the
+ * whole stream. It only runs once the pixel budget has passed, so it is
+ * bounded, and it keeps limitInputPixels as a second guard against a
+ * decompression bomb. Scaling during the decode also bounds the raw result by
+ * the processed edge rather than the upload's size.
+ */
+export async function decodeUprightImage(body: Buffer): Promise<DecodedImage> {
+  const policy = environment.getImageUploadsConfig();
+
   try {
-    // stats() forces every pixel through the decoder; libvips streams the work
-    // in tiles rather than materialising the whole raster.
-    await sharp(body, {
+    const { data, info } = await sharp(body, {
       limitInputPixels: policy.maxPixels,
       failOn: IMAGE_DECODE_FAIL_ON,
-    }).stats();
+    })
+      .rotate()
+      .resize({
+        width: policy.maxProcessedEdge,
+        height: policy.maxProcessedEdge,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    return {
+      data,
+      width: info.width,
+      height: info.height,
+      channels: info.channels,
+    };
   } catch {
     throw new UnsupportedMediaTypeError(
       "Uploaded image data is truncated or corrupt.",
       withRejectionCode("corrupt"),
     );
   }
-
-  return detected;
 }
 
 /**

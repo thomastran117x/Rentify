@@ -1,9 +1,11 @@
+import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
   IMAGE_DECODE_FAIL_ON,
-  assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  decodeUprightImage,
   formatByteLimit,
+  inspectImageHeader,
   isImagePolicyRejection,
   normalizeImageContentType,
   rejectionCodeOf,
@@ -32,6 +34,7 @@ const POLICY_VARIABLES = [
   "MAX_IMAGE_WIDTH",
   "MAX_IMAGE_HEIGHT",
   "MAX_IMAGE_PIXELS",
+  "MAX_PROCESSED_IMAGE_EDGE",
 ] as const;
 
 const originalValues = new Map(
@@ -196,7 +199,97 @@ describe("assertImageSizeWithinLimit", () => {
   });
 });
 
-describe("assertImageBytes", () => {
+/**
+ * Both passes over an upload's bytes, as processing runs them: the header
+ * checks, then the decode, which is what proves the pixel data whole.
+ */
+async function assertImageBytes(
+  body: Buffer,
+  declaredContentType: SupportedImageContentType,
+): Promise<SupportedImageContentType> {
+  const detected = await inspectImageHeader(body, declaredContentType);
+  await decodeUprightImage(body);
+  return detected;
+}
+
+/**
+ * An image with real detail, so its pixel data far outweighs its header and
+ * damage lands in the data. Random, but only the damage matters here.
+ */
+async function createNoisyFixture(
+  format: "jpeg" | "png" | "webp",
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      // Typed as required, though the noise replaces it.
+      background: "#000000",
+      noise: { type: "gaussian", mean: 128, sigma: 40 },
+    },
+  })
+    .toFormat(format)
+    .toBuffer();
+}
+
+describe("decodeUprightImage", () => {
+  it("decodes upright, fitted inside the processed edge and never enlarged", async () => {
+    process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+    const rotated = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: "#2878c8" },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+
+    await expect(decodeUprightImage(rotated)).resolves.toMatchObject({
+      width: 192,
+      height: 256,
+      channels: 3,
+    });
+    const small = await decodeUprightImage(await createPngFixture(12, 8));
+    expect(small).toMatchObject({ width: 12, height: 8, channels: 3 });
+    expect(small.data.byteLength).toBe(12 * 8 * 3);
+  });
+
+  // The decoders shrink a large image while they read it, which the small
+  // fixtures elsewhere never trigger: 2048 wide into a 256 edge is eight times.
+  it.each(["jpeg", "png", "webp"] as const)(
+    "still rejects truncated %s data while shrinking it on load",
+    async (format) => {
+      process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+      const image = await createNoisyFixture(format, 2048, 1536);
+
+      await expect(decodeUprightImage(image)).resolves.toMatchObject({
+        width: 256,
+        height: 192,
+      });
+      for (const damaged of [
+        truncateImage(image),
+        truncateImage(image, 0.95),
+        image.subarray(0, image.length - 16),
+      ]) {
+        await expect(decodeUprightImage(damaged)).rejects.toThrow(
+          "Uploaded image data is truncated or corrupt.",
+        );
+      }
+    },
+  );
+
+  it("names the refusal as corrupt", async () => {
+    const error = await decodeUprightImage(
+      truncateImage(await createPngFixture(64, 64)),
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(UnsupportedMediaTypeError);
+    expect(rejectionCodeOf(error as UnsupportedMediaTypeError)).toBe("corrupt");
+  });
+});
+
+describe("inspectImageHeader and decodeUprightImage", () => {
   it("accepts bytes whose real format matches the declared type", async () => {
     await expect(
       assertImageBytes(await createPngFixture(6, 3), "image/png"),

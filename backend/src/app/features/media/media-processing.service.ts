@@ -1,5 +1,4 @@
 import { performance } from "node:perf_hooks";
-import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -11,14 +10,15 @@ import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
-  assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  decodeUprightImage,
   describeImageSizeLimit,
-  IMAGE_DECODE_FAIL_ON,
+  inspectImageHeader,
   isImagePolicyRejection,
   normalizeImageContentType,
   rejectionCodeOf,
+  type DecodedImage,
 } from "@/features/media/image-policy";
 import {
   deleteQuarantinedUpload,
@@ -26,8 +26,9 @@ import {
   rejectMedia,
 } from "@/features/media/media-rejection";
 import {
+  decodedImageSource,
   PROCESSED_IMAGE_CONTENT_TYPE,
-  renderImage,
+  renderProcessedImage,
   renderSmallerRenditions,
   uploadSmallerRenditions,
   type RenderedImage,
@@ -110,10 +111,10 @@ function policyRejection(
  * process rather than supplied by the client. It also scales the image down so
  * its longest edge is within `imageUploads.maxProcessedEdge`, since the full
  * upload can be far larger than anything the UI displays. The upload is
- * decoded once. The two smaller renditions, medium and thumbnail, are then
- * scaled from the encoded processed image, which is far cheaper to decode than
- * a full-size upload, and all three are written before the item is marked
- * ready, so a ready image always has them.
+ * decoded once, upright and already at that size, and the same pixels give
+ * the processed image and the two smaller renditions, medium and thumbnail.
+ * All three are written before the item is marked ready, so a ready image
+ * always has them.
  *
  * The upload credential outlives completion, so the blob may have been written
  * again since. Its properties are checked before anything is downloaded: the
@@ -276,11 +277,19 @@ export class MediaProcessingService {
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     let detectedContentType: SupportedImageContentType;
+    let decoded: DecodedImage;
+    let processed: RenderedImage;
 
     try {
       detectedContentType = await this.timed("inspect", scope, () =>
         this.inspect(record, original.body),
       );
+      // The only decode of the upload. It is also the check that its pixel
+      // data is whole, so a truncated image is rejected here.
+      ({ decoded, processed } = await this.timed("render", scope, async () => {
+        const image = await decodeUprightImage(original.body);
+        return { decoded: image, processed: await renderProcessedImage(image) };
+      }));
     } catch (error) {
       if (isImagePolicyRejection(error)) {
         return this.reject(record, policyRejection(error));
@@ -289,20 +298,8 @@ export class MediaProcessingService {
       throw error;
     }
 
-    const policy = environment.getImageUploadsConfig();
-    // Rotated first, so the cap applies to the upright image. The upload is
-    // decoded once, here; the smaller renditions come from the result.
-    const processed = await this.timed("render", scope, () =>
-      renderImage(
-        sharp(original.body, {
-          limitInputPixels: policy.maxPixels,
-          failOn: IMAGE_DECODE_FAIL_ON,
-        }).rotate(),
-        policy.maxProcessedEdge,
-      ),
-    );
     const renditions = await this.timed("renditions", scope, () =>
-      renderSmallerRenditions(processed.data, processed.width),
+      renderSmallerRenditions(decodedImageSource(decoded), decoded.width),
     );
     await this.mediaRepository.recordProcessingProgress(record.id);
 
@@ -533,7 +530,7 @@ export class MediaProcessingService {
 
     // Re-checked against today's allow-list: a type narrowed out since the
     // credential was issued is rejected rather than published.
-    return assertImageBytes(
+    return inspectImageHeader(
       original,
       normalizeImageContentType(record.declaredContentType),
     );

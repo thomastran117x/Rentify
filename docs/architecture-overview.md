@@ -258,8 +258,10 @@ leaves room for that as a follow-up. Non-image files are out of scope, since
 the pipeline accepts only images.
 
 The worker decodes the bytes with sharp and matches the real format against the declared
-type and today's allow-list. It holds the length and dimensions to the policy
-and decodes every pixel, which catches truncated data. Animated and multi-page
+type and today's allow-list. It holds the length and dimensions to the policy,
+reading only the header, and then decodes every pixel once, which catches
+truncated data. That one decode is already upright and scaled to the processed
+edge, and every rendition is made from it. Animated and multi-page
 images are rejected ("Animated or multi-page images are not supported."),
 because only the first frame would survive. An APNG is the exception: libvips
 reads it as a static PNG and does not report its frames, so it is accepted and
@@ -288,8 +290,8 @@ A smaller rendition is only written when the processed image is wider than
 it: a copy of the same width would only be a duplicate to store and serve. So a
 600 px image gets a thumbnail but no medium, and a 200 px image gets neither.
 The smaller two are sized by width, not longest edge, so a portrait is never
-picked too small. They are scaled from the processed image, so the upload is
-decoded only once.
+picked too small. They are scaled from the processed image's decoded pixels,
+so the upload is decoded only once.
 
 The names are derived from the processed name
 (`buildImageVariantBlobNames` in `features/blob/image-variant-names.ts`), so
