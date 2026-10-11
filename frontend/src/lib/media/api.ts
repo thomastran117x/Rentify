@@ -119,24 +119,35 @@ interface MediaResult {
 }
 
 export const mediaApi = {
-  createUpload(input: CreateMediaUploadInput): Promise<CreatedMediaUpload> {
+  createUpload(
+    input: CreateMediaUploadInput,
+    signal?: AbortSignal,
+  ): Promise<CreatedMediaUpload> {
     return authenticatedJson<CreatedMediaUpload, CreateMediaUploadInput>(
       "POST",
       "/media/uploads",
       input,
+      undefined,
+      signal,
     );
   },
-  async complete(mediaId: string): Promise<MediaView> {
+  async complete(mediaId: string, signal?: AbortSignal): Promise<MediaView> {
     const result = await authenticatedJson<MediaResult>(
       "POST",
       `/media/${encodeURIComponent(mediaId)}/complete`,
+      undefined,
+      undefined,
+      signal,
     );
     return result.media;
   },
-  async get(mediaId: string): Promise<MediaView> {
+  async get(mediaId: string, signal?: AbortSignal): Promise<MediaView> {
     const result = await authenticatedJson<MediaResult>(
       "GET",
       `/media/${encodeURIComponent(mediaId)}`,
+      undefined,
+      undefined,
+      signal,
     );
     return result.media;
   },
@@ -181,10 +192,37 @@ export interface UploadedImage {
 
 export type UploadImageStage = "uploading" | "processing";
 
+/**
+ * The server looked at the image and refused it. Unlike a dropped connection
+ * or a timeout, sending the same file again will not help.
+ */
+export class MediaRejectedError extends Error {
+  readonly mediaId: string;
+  readonly code: MediaRejectionCode | null;
+
+  constructor(
+    message: string,
+    mediaId: string,
+    code: MediaRejectionCode | null,
+  ) {
+    super(message);
+    this.name = "MediaRejectedError";
+    this.mediaId = mediaId;
+    this.code = code;
+  }
+}
+
 export interface UploadImageOptions {
   scope: MediaScope;
   /** Reports when the transfer ends and server-side processing begins. */
   onStageChange?: (stage: UploadImageStage) => void;
+  /**
+   * Reports the media id as soon as the upload exists, so a caller that
+   * cancels later can still delete it.
+   */
+  onCreated?: (mediaId: string) => void;
+  /** Cancels the transfer and stops polling; the promise rejects with it. */
+  signal?: AbortSignal;
   /** Delays between status checks, in order; the last one repeats. */
   pollDelaysMs?: number[];
   /** How long to wait for processing before giving up. */
@@ -196,8 +234,30 @@ export interface UploadImageOptions {
 const DEFAULT_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
 const DEFAULT_PROCESSING_TIMEOUT_MS = 60_000;
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function abortReason(signal: AbortSignal): unknown {
+  return (
+    signal.reason ?? new DOMException("The upload was cancelled.", "AbortError")
+  );
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw abortReason(signal);
+  }
+}
+
+function waitFor(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(abortReason(signal));
+      },
+      { once: true },
+    );
+  });
 }
 
 /**
@@ -212,30 +272,39 @@ export async function uploadImage(
   file: File,
   options: UploadImageOptions,
 ): Promise<UploadedImage> {
-  const sleep = options.sleep ?? wait;
+  const { signal } = options;
+  const sleep = options.sleep ?? ((ms: number) => waitFor(ms, signal));
   const now = options.now ?? Date.now;
   const delays = options.pollDelaysMs ?? DEFAULT_POLL_DELAYS_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS;
 
+  throwIfAborted(signal);
   options.onStageChange?.("uploading");
-  const { mediaId, upload } = await mediaApi.createUpload({
-    filename: file.name,
-    contentType: resolveUploadContentType(file),
-    sizeBytes: file.size,
-    scope: options.scope,
-  });
+  const { mediaId, upload } = await mediaApi.createUpload(
+    {
+      filename: file.name,
+      contentType: resolveUploadContentType(file),
+      sizeBytes: file.size,
+      scope: options.scope,
+    },
+    signal,
+  );
+  options.onCreated?.(mediaId);
+  throwIfAborted(signal);
   const response = await fetch(upload.url, {
     method: upload.method,
     headers: upload.headers,
     body: file,
+    ...(signal ? { signal } : {}),
   });
 
   if (!response.ok) {
     throw new Error(`Upload failed with status ${response.status}.`);
   }
 
+  throwIfAborted(signal);
   options.onStageChange?.("processing");
-  let current = await mediaApi.complete(mediaId);
+  let current = await mediaApi.complete(mediaId, signal);
   const startedAt = now();
   let attempt = 0;
 
@@ -247,14 +316,21 @@ export async function uploadImage(
     }
 
     await sleep(delays[Math.min(attempt, delays.length - 1)] ?? 1000);
+    throwIfAborted(signal);
     attempt += 1;
-    current = await mediaApi.get(mediaId);
+    current = await mediaApi.get(mediaId, signal);
   }
 
-  if (current.status === "rejected" || !current.url) {
-    throw new Error(
+  if (current.status === "rejected") {
+    throw new MediaRejectedError(
       current.rejectionReason ?? "The image could not be processed.",
+      current.id,
+      current.rejectionCode ?? null,
     );
+  }
+
+  if (!current.url) {
+    throw new Error("The image could not be processed.");
   }
 
   return {
