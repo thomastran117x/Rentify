@@ -1,12 +1,15 @@
 import type { Server as HttpServer } from "node:http";
-import { createAdapter } from "@socket.io/redis-adapter";
 import { Server as SocketIoServer, type Socket } from "socket.io";
 import { getContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import { readAllowedOrigins } from "@/configuration/middlewares/csrf.middleware";
-import { getRedisClient } from "@/configuration/resources/redis";
+import {
+  createSocketRedisAdapter,
+  readCookie,
+  type SocketRedisClient,
+} from "@/configuration/realtime/socket-handshake";
 import type { BookingParticipantSide } from "@/features/bookings/booking-participants";
 import {
   BOOKING_MESSAGE_TYPING_TTL_SECONDS,
@@ -56,33 +59,6 @@ interface SocketState {
 type BookingMessageSocket = Socket & { state?: SocketState };
 
 /**
- * Minimal cookie parse for the handshake. `hono/cookie` is gone and Express's
- * cookie parser never sees this request: the handshake arrives on the Socket.IO
- * engine, not through the app's middleware stack.
- */
-function readTicketCookie(header?: string): string {
-  if (!header) {
-    return "";
-  }
-
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    if (
-      part.slice(0, separator).trim() === BOOKING_MESSAGE_SOCKET_COOKIE_NAME
-    ) {
-      return decodeURIComponent(part.slice(separator + 1).trim());
-    }
-  }
-
-  return "";
-}
-
-/**
  * Booking message realtime gateway.
  *
  * Socket.IO rather than a raw WebSocket server, which removes three things that
@@ -101,7 +77,7 @@ export class BookingMessageSocketServer {
   private readonly logger: Logger;
   private io: SocketIoServer | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
-  private adapterClients: Array<{ quit: () => Promise<unknown> }> = [];
+  private adapterClients: SocketRedisClient[] = [];
   /** Background work in flight, so shutdown can drain it before quitting Redis. */
   private readonly pending = new Set<Promise<unknown>>();
 
@@ -119,7 +95,8 @@ export class BookingMessageSocketServer {
    * trying to repair it.
    */
   async attach(server: HttpServer): Promise<void> {
-    const adapter = await this.createRedisAdapter();
+    const { adapter, clients } = await createSocketRedisAdapter(this.logger);
+    this.adapterClients = clients;
 
     this.io = new SocketIoServer(server, {
       path: BOOKING_MESSAGE_SOCKET_PATH,
@@ -241,40 +218,6 @@ export class BookingMessageSocketServer {
     return sockets.length > 0;
   }
 
-  /**
-   * The adapter needs its own pair of connections: Redis puts a client into
-   * subscriber mode exclusively, so the shared one backing cache, locks and
-   * rate limiting cannot be reused.
-   */
-  private async createRedisAdapter(): Promise<ReturnType<
-    typeof createAdapter
-  > | null> {
-    try {
-      const publisher = getRedisClient().duplicate();
-      const subscriber = publisher.duplicate();
-
-      // Recorded before connecting, not after. Assigning only on success meant
-      // that if the subscriber failed, the already-connected publisher was
-      // never referenced again and its connection leaked for the life of the
-      // process.
-      this.adapterClients = [publisher, subscriber];
-      await Promise.all([publisher.connect(), subscriber.connect()]);
-
-      return createAdapter(publisher, subscriber);
-    } catch (error) {
-      // A single-instance deployment still works without the adapter, so this
-      // must not stop the server from serving. It is logged loudly because a
-      // replicated one silently loses cross-node delivery.
-      this.logger.error(
-        "Failed to build the Redis adapter; realtime delivery is limited to this instance.",
-        undefined,
-        error,
-      );
-
-      return null;
-    }
-  }
-
   private async authenticate(
     socket: BookingMessageSocket,
     next: (error?: Error) => void,
@@ -287,7 +230,10 @@ export class BookingMessageSocketServer {
       // cannot set headers on this handshake, and a query parameter would put
       // the credential into proxy and access logs.
       const identity = await service.redeemSocketTicket(
-        readTicketCookie(socket.handshake.headers.cookie),
+        readCookie(
+          socket.handshake.headers.cookie,
+          BOOKING_MESSAGE_SOCKET_COOKIE_NAME,
+        ),
       );
 
       if (!identity) {
