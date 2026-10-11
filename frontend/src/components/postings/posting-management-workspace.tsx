@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   startTransition,
   useEffect,
-  useRef,
   useState,
   type ChangeEvent,
   type ReactNode,
@@ -13,7 +12,11 @@ import {
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage, useErrorModal } from "@/components/errors";
 import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/blob/image-policy";
-import { uploadImage, type ImageVariants } from "@/lib/media/api";
+import {
+  isPhotoPending,
+  usePhotoUploads,
+  type PhotoItem,
+} from "@/components/postings/photo-uploads";
 import {
   MAX_EXPIRY_HORIZON_DAYS,
   isExpiryBeyondHorizon,
@@ -79,22 +82,6 @@ interface PostingFormState {
   details: Record<string, PostingDetailValue>;
 }
 
-interface PhotoItem {
-  key: string;
-  previewUrl: string;
-  /** The stored photo's renditions; a local file being added has none. */
-  previewVariants?: ImageVariants | null;
-  file?: File;
-  blobUrl?: string;
-  blobName?: string;
-}
-
-/** A photo ready to save: freshly processed media, or one already stored. */
-type SavedPhoto = { key: string } & (
-  | { mediaId: string }
-  | { blobUrl: string; blobName: string }
-);
-
 const subtypeOptionsByFamily: Record<PostingFamily, PostingSubtypeOption[]> = {
   place: [
     { value: "workspace", label: "Workspace" },
@@ -131,6 +118,10 @@ const WIZARD_STEPS = [
 ] as const;
 
 const REVIEW_STEP = WIZARD_STEPS.length - 1;
+const DETAILS_STEP = WIZARD_STEPS.findIndex((step) => step.id === "details");
+
+const REJECTED_PHOTOS_MESSAGE =
+  "Remove the photos that couldn't be used before continuing.";
 
 export function createDefaultDetails(
   family: PostingFamily,
@@ -250,6 +241,7 @@ export function photoItemsFromPosting(posting: PostingRecord): PhotoItem[] {
     .sort((a, b) => a.position - b.position)
     .map((photo, index) => ({
       key: `existing-${photo.blobName}-${index}`,
+      status: "stored" as const,
       // The card crop is the fallback: without renditions, or when one fails,
       // it is the smallest copy there is.
       previewUrl: photo.thumbnailBlobUrl ?? photo.blobUrl,
@@ -311,15 +303,32 @@ export function buildPayload(
 }
 
 /**
- * Uploads a new photo and waits for the server to validate and process it,
- * returning the media id the posting save refers to. The server is the only
- * judge of what is acceptable; its reason for refusing a file (an unsupported
- * type, the size limit, or bytes that are not really an image) is thrown and
- * surfaces through the save error modal.
+ * The photos a save sends, primary first: processed uploads by media id and
+ * photos already on the posting by blob name. Photos still uploading or
+ * rejected are left out; the caller waits for or blocks on those first.
  */
-export async function uploadManagedPhoto(file: File): Promise<string> {
-  const image = await uploadImage(file, { scope: "postings" });
-  return image.mediaId;
+export function buildPhotoInputs(
+  photos: PhotoItem[],
+  primaryKey: string | null,
+): PostingPhotoInput[] {
+  const ordered = [
+    ...photos.filter((photo) => photo.key === primaryKey),
+    ...photos.filter((photo) => photo.key !== primaryKey),
+  ];
+
+  const inputs: PostingPhotoInput[] = [];
+  for (const photo of ordered) {
+    if (photo.status === "ready") {
+      inputs.push({ mediaId: photo.mediaId, position: inputs.length });
+    } else if (photo.status === "stored") {
+      inputs.push({
+        blobUrl: photo.blobUrl,
+        blobName: photo.blobName,
+        position: inputs.length,
+      });
+    }
+  }
+  return inputs;
 }
 
 export function getCompletenessItems(
@@ -386,6 +395,7 @@ export function validateStep(
   stepId: StepId,
   form: PostingFormState,
   photoCount: number,
+  rejectedPhotoCount = 0,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -456,7 +466,10 @@ export function validateStep(
       }
     }
   } else if (stepId === "details") {
-    if (photoCount < 1) {
+    // Photos still uploading do not block: only the final save waits for them.
+    if (rejectedPhotoCount > 0) {
+      errors.photos = REJECTED_PHOTOS_MESSAGE;
+    } else if (photoCount < 1) {
       errors.photos = "Add at least one photo before continuing.";
     }
   }
@@ -843,11 +856,18 @@ export function DetailsEditor({
   );
 }
 
+const PENDING_PHOTO_LABELS = {
+  queued: "Waiting to upload…",
+  uploading: "Uploading…",
+  processing: "Processing…",
+} as const;
+
 export function PhotoUploader({
   photos,
   primaryKey,
   onAddFiles,
   onRemove,
+  onRetry,
   onSetPrimary,
   disabled,
   error,
@@ -856,10 +876,13 @@ export function PhotoUploader({
   primaryKey: string | null;
   onAddFiles: (event: ChangeEvent<HTMLInputElement>) => void;
   onRemove: (key: string) => void;
+  onRetry?: (key: string) => void;
   onSetPrimary: (key: string) => void;
   disabled?: boolean;
   error?: string;
 }) {
+  const uploading = photos.some(isPhotoPending);
+
   return (
     <div className="grid gap-3">
       {!disabled ? (
@@ -882,6 +905,12 @@ export function PhotoUploader({
       ) : null}
 
       <FieldError message={error} />
+      {uploading && !disabled ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Photos keep uploading while you continue. Saving waits for any that
+          are still in progress.
+        </p>
+      ) : null}
 
       {photos.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -891,13 +920,16 @@ export function PhotoUploader({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {photos.map((photo) => {
             const isPrimary = photo.key === primaryKey;
+            const rejected = photo.status === "rejected";
             return (
               <div
                 key={photo.key}
                 className={`relative overflow-hidden rounded-2xl border ${
-                  isPrimary
-                    ? "border-violet-400 ring-2 ring-violet-200 dark:ring-violet-500/30"
-                    : "border-slate-200 dark:border-slate-800"
+                  rejected
+                    ? "border-rose-300 ring-2 ring-rose-200 dark:border-rose-800 dark:ring-rose-500/30"
+                    : isPrimary
+                      ? "border-violet-400 ring-2 ring-violet-200 dark:ring-violet-500/30"
+                      : "border-slate-200 dark:border-slate-800"
                 }`}
               >
                 <ResponsiveImage
@@ -907,14 +939,48 @@ export function PhotoUploader({
                   alt="Posting photo preview"
                   className="aspect-[4/3] w-full object-cover"
                 />
-                {isPrimary ? (
+                {isPhotoPending(photo) ? (
+                  <div
+                    role="status"
+                    className="absolute inset-0 flex items-center justify-center gap-2 bg-slate-950/50 text-xs font-semibold text-white"
+                  >
+                    <span
+                      aria-hidden
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                    />
+                    {PENDING_PHOTO_LABELS[photo.status]}
+                  </div>
+                ) : null}
+                {photo.status === "rejected" ? (
+                  <div
+                    role="alert"
+                    className="absolute inset-0 flex flex-col gap-1 overflow-hidden bg-rose-950/85 p-3 pb-10 text-xs text-white"
+                  >
+                    <span className="font-semibold">
+                      Couldn&apos;t use this photo
+                    </span>
+                    <span className="line-clamp-4 text-rose-100">
+                      {photo.reason}
+                    </span>
+                  </div>
+                ) : null}
+                {isPrimary && !rejected ? (
                   <span className="absolute left-2 top-2 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Primary
                   </span>
                 ) : null}
                 {!disabled ? (
                   <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-slate-950/70 to-transparent p-2">
-                    {!isPrimary ? (
+                    {rejected && photo.retryable && onRetry ? (
+                      <button
+                        type="button"
+                        onClick={() => onRetry(photo.key)}
+                        aria-label="Retry photo upload"
+                        className="rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-800 transition hover:bg-white"
+                      >
+                        Retry
+                      </button>
+                    ) : !isPrimary && !rejected ? (
                       <button
                         type="button"
                         onClick={() => onSetPrimary(photo.key)}
@@ -1107,11 +1173,11 @@ export function PostingManagementWorkspace() {
   const [selectedPostingId, setSelectedPostingId] = useState<string | null>(
     null,
   );
-  const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
+  const { items: photoItems, uploads: photoUploads } = usePhotoUploads();
   const [primaryPhotoKey, setPrimaryPhotoKey] = useState<string | null>(null);
-  const photoKeyRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [finishingUploads, setFinishingUploads] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -1191,7 +1257,7 @@ export function PostingManagementWorkspace() {
               startTransition(() => {
                 setSelectedPostingId(detailPosting.id);
                 setForm(toFormState(detailPosting));
-                setPhotoItems(items);
+                photoUploads.reset(items);
                 setPrimaryPhotoKey(items[0]?.key ?? null);
                 setSeasonalRules(rules);
                 setCurrentStep(0);
@@ -1225,17 +1291,14 @@ export function PostingManagementWorkspace() {
     return () => {
       active = false;
     };
-  }, [status]);
+  }, [photoUploads, status]);
 
   useEffect(() => {
     setShowStepErrors(false);
   }, [currentStep]);
 
-  function nextPhotoKey() {
-    photoKeyRef.current += 1;
-    return `photo-${photoKeyRef.current}`;
-  }
-
+  // Each photo starts uploading as soon as it is picked, so a rejected one is
+  // caught here rather than when the posting is saved.
   function handleAddFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -1243,25 +1306,16 @@ export function PostingManagementWorkspace() {
       return;
     }
 
-    const additions: PhotoItem[] = files.map((file) => ({
-      key: nextPhotoKey(),
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-
-    setPhotoItems((current) => [...current, ...additions]);
+    const additions = photoUploads.add(files);
     setPrimaryPhotoKey((current) => current ?? additions[0]?.key ?? null);
     setShowStepErrors(true);
   }
 
   function handleRemovePhoto(key: string) {
-    const target = photoItems.find((item) => item.key === key);
-    if (target?.file) {
-      URL.revokeObjectURL(target.previewUrl);
-    }
-
-    const remaining = photoItems.filter((item) => item.key !== key);
-    setPhotoItems(remaining);
+    photoUploads.remove(key);
+    const remaining = photoItems.filter(
+      (item) => item.key !== key && item.status !== "rejected",
+    );
     if (primaryPhotoKey === key) {
       setPrimaryPhotoKey(remaining[0]?.key ?? null);
     }
@@ -1272,13 +1326,9 @@ export function PostingManagementWorkspace() {
     setPrimaryPhotoKey(key);
   }
 
+  /** Replaces the photos, deleting uploads the posting never saved. */
   function resetPhotos(next: PhotoItem[] = []) {
-    for (const item of photoItems) {
-      if (item.file) {
-        URL.revokeObjectURL(item.previewUrl);
-      }
-    }
-    setPhotoItems(next);
+    photoUploads.reset(next);
     setPrimaryPhotoKey(next[0]?.key ?? null);
   }
 
@@ -1288,37 +1338,32 @@ export function PostingManagementWorkspace() {
   const isEditing = form.postingId !== null;
 
   async function savePostingRequest() {
-    const uploaded = await Promise.all(
-      photoItems.map(async (item): Promise<SavedPhoto> => {
-        if (item.file) {
-          return {
-            key: item.key,
-            mediaId: await uploadManagedPhoto(item.file),
-          };
-        }
-        return {
-          key: item.key,
-          blobUrl: item.blobUrl ?? "",
-          blobName: item.blobName ?? "",
-        };
-      }),
-    );
+    let photos = photoItems;
 
-    // Primary photo must be position 0; the rest keep their order after it.
-    const ordered = [
-      ...uploaded.filter((photo) => photo.key === primaryPhotoKey),
-      ...uploaded.filter((photo) => photo.key !== primaryPhotoKey),
-    ];
-    const nextPhotos: PostingPhotoInput[] = ordered.map((photo, index) =>
-      "mediaId" in photo
-        ? { mediaId: photo.mediaId, position: index }
-        : { blobUrl: photo.blobUrl, blobName: photo.blobName, position: index },
-    );
+    // Photos upload as they are picked; only wait for those still going.
+    if (photos.some(isPhotoPending)) {
+      setFinishingUploads(true);
+      try {
+        photos = await photoUploads.waitForUploads();
+      } finally {
+        setFinishingUploads(false);
+      }
+    }
 
-    const payload = buildPayload(form, nextPhotos);
+    if (photos.some((photo) => photo.status === "rejected")) {
+      // Each rejected photo shows its reason on the photos step.
+      setCurrentStep(DETAILS_STEP);
+      return;
+    }
+
+    const payload = buildPayload(
+      form,
+      buildPhotoInputs(photos, primaryPhotoKey),
+    );
     const saved = form.postingId
       ? await postingsApi.update(form.postingId, payload)
       : await postingsApi.create(payload);
+    photoUploads.markSaved();
 
     await refresh(saved.id);
     setEditorOpen(false);
@@ -1384,18 +1429,12 @@ export function PostingManagementWorkspace() {
       .listSeasonalPricing(postingId)
       .catch(() => []);
 
-    for (const item of photoItems) {
-      if (item.file) {
-        URL.revokeObjectURL(item.previewUrl);
-      }
-    }
     const items = photoItemsFromPosting(nextPosting);
 
     startTransition(() => {
       setSelectedPostingId(postingId);
       setForm(toFormState(nextPosting));
-      setPhotoItems(items);
-      setPrimaryPhotoKey(items[0]?.key ?? null);
+      resetPhotos(items);
       setSeasonalRules(rules);
       setSeasonalForm({
         editingId: null,
@@ -1451,6 +1490,7 @@ export function PostingManagementWorkspace() {
   }
 
   function closeEditor() {
+    resetPhotos();
     setEditorOpen(false);
     setError(null);
   }
@@ -1675,18 +1715,28 @@ export function PostingManagementWorkspace() {
   }
 
   const disabled = !canManage || saving;
-  const completeness = getCompletenessItems(form, photoItems.length);
+  const rejectedPhotoCount = photoItems.filter(
+    (photo) => photo.status === "rejected",
+  ).length;
+  const usablePhotoCount = photoItems.length - rejectedPhotoCount;
+  const completeness = getCompletenessItems(form, usablePhotoCount);
   const completedCount = completeness.filter((item) => item.done).length;
   const completenessPct = Math.round(
     (completedCount / completeness.length) * 100,
   );
   const currentStepId = WIZARD_STEPS[currentStep].id;
   const stepErrors: Record<string, string> = showStepErrors
-    ? validateStep(currentStepId, form, photoItems.length)
+    ? validateStep(currentStepId, form, usablePhotoCount, rejectedPhotoCount)
     : {};
   const isStepValid = (index: number) =>
-    Object.keys(validateStep(WIZARD_STEPS[index].id, form, photoItems.length))
-      .length === 0;
+    Object.keys(
+      validateStep(
+        WIZARD_STEPS[index].id,
+        form,
+        usablePhotoCount,
+        rejectedPhotoCount,
+      ),
+    ).length === 0;
   const currentStepValid = isStepValid(currentStep);
   const canSubmit = WIZARD_STEPS.slice(0, REVIEW_STEP).every((_, index) =>
     isStepValid(index),
@@ -2124,9 +2174,14 @@ export function PostingManagementWorkspace() {
               primaryKey={primaryPhotoKey}
               onAddFiles={handleAddFiles}
               onRemove={handleRemovePhoto}
+              onRetry={photoUploads.retry}
               onSetPrimary={handleSetPrimary}
               disabled={disabled}
-              error={stepErrors.photos}
+              // A rejected photo is called out even before the step is touched.
+              error={
+                stepErrors.photos ??
+                (rejectedPhotoCount > 0 ? REJECTED_PHOTOS_MESSAGE : undefined)
+              }
             />
           </div>
         </div>
@@ -2468,11 +2523,13 @@ export function PostingManagementWorkspace() {
                   }
                   className={primaryButtonClass}
                 >
-                  {saving
-                    ? "Saving..."
-                    : isEditing
-                      ? "Save changes"
-                      : "Create draft"}
+                  {finishingUploads
+                    ? "Finishing photo uploads…"
+                    : saving
+                      ? "Saving..."
+                      : isEditing
+                        ? "Save changes"
+                        : "Create draft"}
                 </button>
                 {!canSubmit ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">

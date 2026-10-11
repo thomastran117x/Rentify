@@ -123,6 +123,21 @@ GET  /media/{id}             poll until ready (url set) or rejected (reason set)
 attach by mediaId            postings, logos, blog covers, avatars
 ```
 
+**Client upload timing.** The frontend uploads an image as soon as it is
+picked, not when the form is saved, so a rejection shows up next to the image
+and a save only sends media ids. Organization logos, blog covers, and posting
+photos all work this way. In the posting wizard, `PhotoUploads`
+(`frontend/src/components/postings/photo-uploads.ts`) tracks each photo as
+queued, uploading, processing, ready, or rejected. It uploads at most three at
+once, two on a 3G connection and one on 2G or with Save-Data (read from
+`navigator.connection` when the browser exposes it). The user can continue
+through the wizard while photos upload. A rejected photo blocks the photos
+step, and saving waits for any photo still in progress. Uploads the posting
+never saved are deleted with `DELETE /media/{id}` when the photo is removed or
+the wizard is closed, and with a keepalive request when the page is hidden.
+The [unattached-media sweep](../backend/src/app/workers/media/README.md)
+deletes whatever this misses after `unattachedReadyTtlMs` (24 hours by default).
+
 **Where the rules live.**
 
 - `BlobService` (`features/blob`) is the storage adapter. It signs Azure SAS and
