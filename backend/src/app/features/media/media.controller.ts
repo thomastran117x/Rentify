@@ -4,6 +4,10 @@ import { getRequestUrl } from "@/configuration/http/request";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { requireUuidRouteParam } from "@/configuration/validation/input-sanitization";
 import { parseRequestBody } from "@/configuration/validation/request";
+import {
+  CLIENT_UPLOAD_TIMING_HEADER,
+  parseClientUploadTiming,
+} from "@/features/media/client-upload-timing";
 import { createMediaUploadRequestSchema } from "@/features/media/media.model";
 import type { MediaService } from "@/features/media/media.service";
 
@@ -54,6 +58,7 @@ export class MediaController {
     const media = await this.mediaService.getMediaView(
       auth.sub,
       requireUuidRouteParam(request, "id"),
+      parseClientUploadTiming(request.get(CLIENT_UPLOAD_TIMING_HEADER)),
     );
 
     ok(response, { media });

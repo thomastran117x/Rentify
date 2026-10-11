@@ -533,6 +533,68 @@ describe("Media persistence integration", () => {
     }
   });
 
+  it("records the client's upload timings once it sees the item finished", async () => {
+    const owner = await createAuthenticatedRequestContext({
+      email: "owner1@rentify.local",
+    });
+    const { mediaId, upload } = await startUpload(owner.headers());
+    await putBytes(upload.url, await createPngFixture(64, 64));
+    await request(`/media/${mediaId}/complete`, {
+      method: "POST",
+      headers: owner.headers(),
+    });
+    const observe = jest.spyOn(
+      persistenceApp.container.resolve(containerTokens.mediaMetrics),
+      "observe",
+    );
+    const clientObservations = () =>
+      observe.mock.calls.filter(([name]) => name.startsWith("media.client."));
+
+    try {
+      // Still waiting: nothing to record yet.
+      const waiting = await request(`/media/${mediaId}`, {
+        headers: {
+          ...owner.headers(),
+          "x-media-upload-timing": "upload=400, wait=100, via=poll",
+        },
+      });
+      expect(waiting.status).toBe(200);
+      expect(clientObservations()).toEqual([]);
+
+      await persistenceApp.container
+        .resolve(containerTokens.mediaProcessingService)
+        .process(mediaId);
+
+      // A malformed header is dropped, never refused.
+      const malformed = await request(`/media/${mediaId}`, {
+        headers: { ...owner.headers(), "x-media-upload-timing": "upload=?" },
+      });
+      expect(malformed.status).toBe(200);
+      expect(clientObservations()).toEqual([]);
+
+      const finished = await request(`/media/${mediaId}`, {
+        headers: {
+          ...owner.headers(),
+          "x-media-upload-timing": "upload=400, wait=700, via=poll",
+        },
+      });
+      expect(finished.status).toBe(200);
+      await expect(
+        readData<{ media: MediaView }>(finished),
+      ).resolves.toMatchObject({ media: { status: "ready" } });
+      expect(
+        clientObservations().map(([name, value]) => [name, value]),
+      ).toEqual([
+        ["media.client.upload.duration", 400],
+        ["media.client.wait.duration", 700],
+        ["media.client.total.duration", 1_100],
+        ["media.client.notice.delay", expect.any(Number)],
+      ]);
+    } finally {
+      observe.mockRestore();
+    }
+  });
+
   it("rejects an upload whose bytes are not an image", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",

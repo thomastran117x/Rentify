@@ -141,12 +141,16 @@ export const mediaApi = {
     );
     return result.media;
   },
-  async get(mediaId: string, signal?: AbortSignal): Promise<MediaView> {
+  async get(
+    mediaId: string,
+    signal?: AbortSignal,
+    headers?: Record<string, string>,
+  ): Promise<MediaView> {
     const result = await authenticatedJson<MediaResult>(
       "GET",
       `/media/${encodeURIComponent(mediaId)}`,
       undefined,
-      undefined,
+      headers,
       signal,
     );
     return result.media;
@@ -232,6 +236,8 @@ export interface UploadImageOptions {
 }
 
 const DEFAULT_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
+/** What `uploadImage` measured, for the server's latency metrics. */
+const UPLOAD_TIMING_HEADER = "x-media-upload-timing";
 const DEFAULT_PROCESSING_TIMEOUT_MS = 60_000;
 
 function abortReason(signal: AbortSignal): unknown {
@@ -280,6 +286,7 @@ export async function uploadImage(
 
   throwIfAborted(signal);
   options.onStageChange?.("uploading");
+  const uploadStartedAt = now();
   const { mediaId, upload } = await mediaApi.createUpload(
     {
       filename: file.name,
@@ -304,9 +311,20 @@ export async function uploadImage(
 
   throwIfAborted(signal);
   options.onStageChange?.("processing");
+  const uploadMs = now() - uploadStartedAt;
+  const waitStartedAt = now();
   let current = await mediaApi.complete(mediaId, signal);
   const startedAt = now();
   let attempt = 0;
+  // Sent with every check, since any of them may be the one that finds the
+  // item finished; the server records only that one.
+  const timingHeaders = () => ({
+    [UPLOAD_TIMING_HEADER]: [
+      `upload=${Math.round(uploadMs)}`,
+      `wait=${Math.round(now() - waitStartedAt)}`,
+      "via=poll",
+    ].join(", "),
+  });
 
   while (current.status !== "ready" && current.status !== "rejected") {
     if (now() - startedAt >= timeoutMs) {
@@ -318,7 +336,7 @@ export async function uploadImage(
     await sleep(delays[Math.min(attempt, delays.length - 1)] ?? 1000);
     throwIfAborted(signal);
     attempt += 1;
-    current = await mediaApi.get(mediaId, signal);
+    current = await mediaApi.get(mediaId, signal, timingHeaders());
   }
 
   if (current.status === "rejected") {

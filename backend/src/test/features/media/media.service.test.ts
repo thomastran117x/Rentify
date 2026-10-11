@@ -670,6 +670,123 @@ describe("MediaService", () => {
       expect(JSON.stringify(view)).not.toMatch(/Eicar|ClamAV/);
     });
 
+    describe("client upload timings", () => {
+      const timing = { uploadMs: 1_200, waitMs: 900, via: "push" as const };
+      const clientMetrics = (metrics: RecordingMediaMetrics) =>
+        metrics.recorded.filter((metric) =>
+          metric.name.startsWith("media.client."),
+        );
+
+      async function finishedUpload(
+        status: MediaStatus,
+        finishedAgoMs: number | null,
+      ) {
+        const context = createLocalMediaService();
+        const { mediaId } = await startUpload(context.mediaService);
+        const record = (await context.mediaRepository.findById(mediaId))!;
+        context.mediaRepository.put({
+          ...record,
+          status,
+          processingCompletedAt:
+            finishedAgoMs === null
+              ? null
+              : new Date(Date.now() - finishedAgoMs),
+        });
+
+        return { ...context, mediaId };
+      }
+
+      it("records what the client measured once it sees the item ready", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          800,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+
+        expect(metrics.calls("media.client.upload.duration")).toEqual([
+          expect.objectContaining({
+            value: 1_200,
+            tags: { scope: "postings" },
+          }),
+        ]);
+        expect(metrics.calls("media.client.wait.duration")).toEqual([
+          expect.objectContaining({
+            value: 900,
+            tags: { scope: "postings", outcome: "ready", via: "push" },
+          }),
+        ]);
+        expect(metrics.calls("media.client.total.duration")).toEqual([
+          expect.objectContaining({
+            value: 2_100,
+            tags: { scope: "postings", outcome: "ready", via: "push" },
+          }),
+        ]);
+        const [notice] = metrics.calls("media.client.notice.delay");
+        expect(notice?.tags).toEqual({ scope: "postings", via: "push" });
+        expect(notice?.value).toBeGreaterThanOrEqual(800);
+        expect(notice?.value).toBeLessThan(60_000);
+        metrics.assertNoIdentifiers();
+      });
+
+      it("tags a rejected item with its outcome", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "rejected",
+          10,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, {
+          ...timing,
+          via: "poll",
+        });
+
+        expect(metrics.tagsOf("media.client.wait.duration")).toEqual([
+          { scope: "postings", outcome: "rejected", via: "poll" },
+        ]);
+      });
+
+      it.each([
+        ["the item is still processing", "processing", 10],
+        ["the item finished more than ten minutes ago", "ready", 600_001],
+        ["the item has no finish time", "ready", null],
+      ] as const)(
+        "records nothing when %s",
+        async (_case, status, finishedAgoMs) => {
+          const { mediaService, metrics, mediaId } = await finishedUpload(
+            status,
+            finishedAgoMs,
+          );
+
+          await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+
+          expect(clientMetrics(metrics)).toEqual([]);
+        },
+      );
+
+      it("drops only the notice delay when the worker's clock is ahead", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          -5_000,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+
+        expect(metrics.count("media.client.total.duration")).toBe(1);
+        expect(metrics.count("media.client.notice.delay")).toBe(0);
+      });
+
+      it("records nothing without timings", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId);
+
+        expect(clientMetrics(metrics)).toEqual([]);
+      });
+    });
+
     it("exposes a URL only for the processed image of a ready media", async () => {
       const { mediaService, mediaRepository, blobService } =
         createLocalMediaService();

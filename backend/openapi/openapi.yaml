@@ -6473,7 +6473,7 @@ paths:
     get:
       operationId: getMedia
       summary: Get an uploaded image's processing state
-      description: Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`, in words, and `rejectionCode`, for clients to branch on. Media belonging to anyone else is reported as 404.
+      description: Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`, in words, and `rejectionCode`, for clients to branch on. Media belonging to anyone else is reported as 404. A client waiting on an upload may send `X-Media-Upload-Timing` with what it measured; it is recorded as metrics once the item is `ready` or `rejected`, and never changes the response.
       tags:
         - media
       security:
@@ -6490,6 +6490,14 @@ paths:
           schema:
             type: string
           example: 8b0f3c1e-6a4d-4c8e-9f21-5d7b2a9e4c10
+        - name: X-Media-Upload-Timing
+          in: header
+          required: false
+          description: 'Advisory client timings, in milliseconds: `upload` from requesting the upload to the end of the PUT, `wait` from completing it to this request, and `via`, `poll` or `push`, for how the client learned the item finished. Each time is an integer from 0 to 600000. A malformed value is ignored.'
+          schema:
+            type: string
+            maxLength: 100
+          example: upload=1200, wait=900, via=push
       responses:
         '200':
           description: Successful response.

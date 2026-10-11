@@ -214,11 +214,57 @@ describe("uploadImage", () => {
       "GET",
       `/media/${MEDIA_ID}`,
       undefined,
-      undefined,
+      {
+        "x-media-upload-timing": expect.stringMatching(
+          /^upload=\d+, wait=\d+, via=poll$/,
+        ),
+      },
       undefined,
     );
     // Backs off through the configured delays, repeating the last.
     expect(sleep.mock.calls).toEqual([[10], [20]]);
+  });
+
+  it("reports how long the upload took and how long it has waited since", async () => {
+    let clock = 0;
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => {
+      clock += 1_200;
+      return new Response(null, { status: 201 });
+    });
+    authenticatedJsonMock.mockImplementation(
+      async (method: string, path: string) => {
+        if (method === "POST" && path === "/media/uploads") {
+          return { mediaId: MEDIA_ID, upload: UPLOAD };
+        }
+        if (method === "POST") {
+          clock += 100;
+          return { media: mediaView({ status: "uploaded" }) };
+        }
+        return {
+          media:
+            clock < 1_330
+              ? mediaView({ status: "processing" })
+              : mediaView({ status: "ready", url: "https://cdn.test/a" }),
+        };
+      },
+    );
+
+    await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+      scope: "postings",
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      pollDelaysMs: [10, 20],
+    });
+
+    const timings = authenticatedJsonMock.mock.calls
+      .filter(([method]) => method === "GET")
+      .map((call) => call[3]?.["x-media-upload-timing"]);
+    expect(timings).toEqual([
+      "upload=1200, wait=110, via=poll",
+      "upload=1200, wait=130, via=poll",
+    ]);
   });
 
   it("resolves the content type from the extension when the browser gives none", async () => {

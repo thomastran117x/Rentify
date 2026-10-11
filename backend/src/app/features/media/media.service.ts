@@ -17,6 +17,10 @@ import {
   rejectionCodeOf,
 } from "@/features/media/image-policy";
 import {
+  MAX_CLIENT_TIMING_MS,
+  type ClientUploadTiming,
+} from "@/features/media/client-upload-timing";
+import {
   mediaMetricScope,
   type MediaMetrics,
 } from "@/features/media/media-metrics";
@@ -172,8 +176,70 @@ export class MediaService {
     return this.toView(await this.requireOwnedRecord(userId, mediaId));
   }
 
-  async getMediaView(userId: Uuid, mediaId: Uuid): Promise<MediaView> {
-    return this.toView(await this.requireOwnedRecord(userId, mediaId));
+  /**
+   * `clientTiming` is what the uploading client measured while it waited, and
+   * is recorded once it sees the item finished. It never changes the answer.
+   */
+  async getMediaView(
+    userId: Uuid,
+    mediaId: Uuid,
+    clientTiming: ClientUploadTiming | null = null,
+  ): Promise<MediaView> {
+    const record = await this.requireOwnedRecord(userId, mediaId);
+
+    if (clientTiming) {
+      this.observeClientTiming(record, clientTiming);
+    }
+
+    return this.toView(record);
+  }
+
+  /**
+   * Only for an item that finished recently. `uploadImage` stops checking the
+   * moment it sees one finish, so that check is the one to record; a later
+   * read of an old item is not an upload being waited on.
+   */
+  private observeClientTiming(
+    record: MediaRecord,
+    timing: ClientUploadTiming,
+  ): void {
+    const finishedAt = record.processingCompletedAt?.getTime();
+    const noticeDelayMs =
+      finishedAt === undefined ? NaN : Date.now() - finishedAt;
+
+    if (
+      (record.status !== "ready" && record.status !== "rejected") ||
+      !(noticeDelayMs <= MAX_CLIENT_TIMING_MS)
+    ) {
+      return;
+    }
+
+    const scope = mediaMetricScope(record.scope);
+    const { via } = timing;
+    const outcome = record.status;
+
+    this.metrics.observe("media.client.upload.duration", timing.uploadMs, {
+      scope,
+    });
+    this.metrics.observe("media.client.wait.duration", timing.waitMs, {
+      scope,
+      outcome,
+      via,
+    });
+    this.metrics.observe(
+      "media.client.total.duration",
+      timing.uploadMs + timing.waitMs,
+      { scope, outcome, via },
+    );
+
+    // The worker stamped the finish on its own clock, so a skewed one could
+    // make the delay negative; such a sample is dropped.
+    if (noticeDelayMs >= 0) {
+      this.metrics.observe("media.client.notice.delay", noticeDelayMs, {
+        scope,
+        via,
+      });
+    }
   }
 
   /**

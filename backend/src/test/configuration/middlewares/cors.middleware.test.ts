@@ -30,6 +30,28 @@ describe("corsMiddleware", () => {
     );
   });
 
+  it("lets a trusted origin send its upload timings", async () => {
+    const app = createApp();
+    const response = await app.request(
+      "http://rent.test/postings/autocomplete",
+      {
+        method: "OPTIONS",
+        headers: {
+          origin: "http://127.0.0.1:3040",
+          "access-control-request-method": "GET",
+          "access-control-request-headers": "x-media-upload-timing",
+        },
+      },
+    );
+
+    expect(
+      response.headers
+        .get("access-control-allow-headers")
+        ?.split(",")
+        .map((header) => header.trim()),
+    ).toContain("x-media-upload-timing");
+  });
+
   it("omits the allow-origin header for an untrusted origin", async () => {
     const app = createApp();
     const response = await app.request(

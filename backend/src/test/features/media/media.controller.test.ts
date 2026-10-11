@@ -103,11 +103,36 @@ describe("MediaController", () => {
     });
     for (const method of [
       mediaService.completeMediaUpload,
-      mediaService.getMediaView,
       mediaService.deleteMediaById,
     ]) {
       expect(method).toHaveBeenCalledWith(USER_ID, MEDIA_ID);
     }
+    expect(mediaService.getMediaView).toHaveBeenCalledWith(
+      USER_ID,
+      MEDIA_ID,
+      null,
+    );
+  });
+
+  it("hands the client's upload timings to the service, dropping a malformed header", async () => {
+    const { controller, mediaService } = createController();
+
+    await invokeHandler(controller.get, {
+      params: { id: MEDIA_ID },
+      state: requestState,
+      headers: { "X-Media-Upload-Timing": "upload=1200, wait=900, via=push" },
+    });
+    const malformed = await invokeHandler(controller.get, {
+      params: { id: MEDIA_ID },
+      state: requestState,
+      headers: { "X-Media-Upload-Timing": "upload=soon" },
+    });
+
+    expect(malformed.status).toBe(200);
+    expect(mediaService.getMediaView.mock.calls).toEqual([
+      [USER_ID, MEDIA_ID, { uploadMs: 1200, waitMs: 900, via: "push" }],
+      [USER_ID, MEDIA_ID, null],
+    ]);
   });
 
   it("rejects a malformed media id before reaching the service", async () => {
