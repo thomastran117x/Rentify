@@ -145,12 +145,14 @@ describe("posting management form components", () => {
     const photos = [
       {
         key: "one",
+        status: "stored" as const,
         previewUrl: "https://img/one.jpg",
         blobUrl: "one",
         blobName: "one",
       },
       {
         key: "two",
+        status: "stored" as const,
         previewUrl: "https://img/two.jpg",
         blobUrl: "two",
         blobName: "two",
@@ -232,12 +234,14 @@ describe("posting management form components", () => {
     const photos = [
       {
         key: "one",
+        status: "stored" as const,
         previewUrl: "https://img/one.jpg",
         blobUrl: "one",
         blobName: "one",
       },
       {
         key: "two",
+        status: "stored" as const,
         previewUrl: "https://img/two.jpg",
         blobUrl: "two",
         blobName: "two",

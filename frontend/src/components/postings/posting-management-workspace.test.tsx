@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { PostingManagementWorkspace } from "./posting-management-workspace";
 import { ApiClientError } from "@/lib/api/types";
+import {
+  MediaRejectedError,
+  type UploadedImage,
+  type UploadImageOptions,
+} from "@/lib/media/api";
 
 const {
   replaceMock,
@@ -10,6 +15,7 @@ const {
   getPostingMock,
   createPostingMock,
   uploadImageMock,
+  deleteMediaMock,
   listSeasonalMock,
   createSeasonalMock,
   updateSeasonalMock,
@@ -22,6 +28,7 @@ const {
   getPostingMock: vi.fn(),
   createPostingMock: vi.fn(),
   uploadImageMock: vi.fn(),
+  deleteMediaMock: vi.fn(),
   listSeasonalMock: vi.fn(),
   createSeasonalMock: vi.fn(),
   updateSeasonalMock: vi.fn(),
@@ -70,9 +77,39 @@ vi.mock("@/lib/postings/api", () => ({
   },
 }));
 
-vi.mock("@/lib/media/api", () => ({
+vi.mock("@/lib/media/api", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/media/api")>(
+    "@/lib/media/api",
+  )),
   uploadImage: uploadImageMock,
+  mediaApi: { delete: deleteMediaMock, deleteKeepalive: vi.fn() },
 }));
+
+/** A processed image named after the file, so previews can be told apart. */
+function uploadedImage(file: File): UploadedImage {
+  return {
+    mediaId: `media-${file.name}`,
+    url: `https://blob.example/media/images/user-1/${file.name}.webp`,
+    variants: null,
+  };
+}
+
+/** An upload the test settles by hand. */
+function deferredUpload() {
+  let resolve!: (image: UploadedImage) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<UploadedImage>((settle, fail) => {
+    resolve = settle;
+    reject = fail;
+  });
+  uploadImageMock.mockImplementationOnce(
+    (_file: File, options: UploadImageOptions) => {
+      options.onStageChange?.("processing");
+      return promise;
+    },
+  );
+  return { resolve, reject };
+}
 
 function managerSession() {
   return {
@@ -139,6 +176,18 @@ async function fillBasics(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
+/** Opens a new draft and walks to the Details & photos step. */
+async function openPhotosStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(
+    await screen.findByRole("button", { name: "Create posting" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await fillBasics(user);
+  for (let step = 0; step < 4; step += 1) {
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+  }
+}
+
 describe("PostingManagementWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -186,10 +235,10 @@ describe("PostingManagementWorkspace", () => {
       endDate: "2026-08-01",
       dailyAmount: 175,
     });
-    uploadImageMock.mockResolvedValue({
-      mediaId: "media-1",
-      url: "https://blob.example/media/images/user-1/media-1.webp",
-    });
+    uploadImageMock.mockImplementation(async (file: File) =>
+      uploadedImage(file),
+    );
+    deleteMediaMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -474,12 +523,13 @@ describe("PostingManagementWorkspace", () => {
     });
 
     // The new photo was uploaded as media and is attached by its media id.
-    expect(uploadImageMock).toHaveBeenCalledWith(expect.any(File), {
-      scope: "postings",
-    });
+    expect(uploadImageMock).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.objectContaining({ scope: "postings" }),
+    );
     expect(createPostingMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        photos: [{ mediaId: "media-1", position: 0 }],
+        photos: [{ mediaId: "media-one.png", position: 0 }],
       }),
     );
 
@@ -488,6 +538,215 @@ describe("PostingManagementWorkspace", () => {
     // The modal message is a node listing every field-level detail.
     const { getByText } = render(<>{call.message}</>);
     expect(getByText(/Number must be greater than 0/)).toBeInTheDocument();
+  });
+
+  it("uploads a photo as soon as it is picked and saves it without uploading again", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    createPostingMock.mockResolvedValue({ ...samplePosting, id: "posting-2" });
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(
+      screen.getByLabelText("Upload photos"),
+      new File(["a"], "one.png", { type: "image/png" }),
+    );
+
+    // The upload starts on the photos step, before the user moves on.
+    expect(uploadImageMock).toHaveBeenCalledTimes(1);
+    expect(uploadImageMock).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.objectContaining({ scope: "postings" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Continue" })); // -> Review
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+
+    await waitFor(() => {
+      expect(createPostingMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          photos: [{ mediaId: "media-one.png", position: 0 }],
+        }),
+      );
+    });
+    // The save itself makes no upload.
+    expect(uploadImageMock).toHaveBeenCalledTimes(1);
+    // A saved photo is never deleted as an abandoned upload.
+    expect(deleteMediaMock).not.toHaveBeenCalled();
+    expect(showErrorModalMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a rejected photo's reason and blocks Continue until it is removed", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    uploadImageMock.mockRejectedValueOnce(
+      new MediaRejectedError(
+        "Uploaded file could not be read as an image.",
+        "media-bad",
+        "corrupt",
+      ),
+    );
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(screen.getByLabelText("Upload photos"), [
+      new File(["x"], "bad.png", { type: "image/png" }),
+      new File(["a"], "good.png", { type: "image/png" }),
+    ]);
+
+    expect(
+      await screen.findByText("Uploaded file could not be read as an image."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Couldn't use this photo")).toBeInTheDocument();
+    // The refused file is named rather than previewed.
+    expect(screen.getByText("bad.png")).toBeInTheDocument();
+    expect(screen.getAllByAltText("Posting photo preview")).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "Remove the photos that couldn't be used before continuing.",
+      ),
+    ).toBeInTheDocument();
+    // A refused file cannot be retried, only removed.
+    expect(
+      screen.queryByRole("button", { name: "Retry photo upload" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+    await user.click(
+      screen.getAllByRole("button", { name: "Remove photo" })[0],
+    );
+
+    expect(
+      screen.queryByText("Uploaded file could not be read as an image."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+    // The good photo becomes primary in place of the removed one.
+    expect(screen.getByText("Primary")).toBeInTheDocument();
+  });
+
+  it("offers a retry when an upload fails for a reason other than the file", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    uploadImageMock.mockRejectedValueOnce(
+      new Error("The image is taking too long to process. Please try again."),
+    );
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(
+      screen.getByLabelText("Upload photos"),
+      new File(["a"], "one.png", { type: "image/png" }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Retry photo upload" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+    expect(uploadImageMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  it("lets the user continue while a photo processes and waits for it at save", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    createPostingMock.mockResolvedValue({ ...samplePosting, id: "posting-2" });
+    const upload = deferredUpload();
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(
+      screen.getByLabelText("Upload photos"),
+      new File(["a"], "one.png", { type: "image/png" }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Processing…");
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Continue" })); // -> Review
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Finishing photo uploads…" }),
+    ).toBeDisabled();
+    expect(createPostingMock).not.toHaveBeenCalled();
+
+    upload.resolve(
+      uploadedImage(new File(["a"], "one.png", { type: "image/png" })),
+    );
+
+    await waitFor(() => {
+      expect(createPostingMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          photos: [{ mediaId: "media-one.png", position: 0 }],
+        }),
+      );
+    });
+  });
+
+  it("returns to the photos step when a photo is rejected while saving", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    const upload = deferredUpload();
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(
+      screen.getByLabelText("Upload photos"),
+      new File(["a"], "one.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" })); // -> Review
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+    await screen.findByRole("button", { name: "Finishing photo uploads…" });
+
+    upload.reject(
+      new MediaRejectedError(
+        "This image can't be published.",
+        "media-one",
+        "moderation",
+      ),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Details & photos" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This image can't be published."),
+    ).toBeInTheDocument();
+    expect(createPostingMock).not.toHaveBeenCalled();
+    expect(showErrorModalMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes unsaved uploads when a photo is removed or the wizard is left", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue(managerSession());
+    uploadImageMock.mockImplementation(
+      async (file: File, options: UploadImageOptions) => {
+        const image = uploadedImage(file);
+        options.onCreated?.(image.mediaId);
+        return image;
+      },
+    );
+
+    render(<PostingManagementWorkspace />);
+    await openPhotosStep(user);
+    await user.upload(screen.getByLabelText("Upload photos"), [
+      new File(["a"], "one.png", { type: "image/png" }),
+      new File(["b"], "two.png", { type: "image/png" }),
+    ]);
+    await waitFor(() => {
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getAllByRole("button", { name: "Remove photo" })[0],
+    );
+    expect(deleteMediaMock).toHaveBeenCalledWith("media-one.png");
+
+    await user.click(screen.getByRole("button", { name: "Back to postings" }));
+    expect(deleteMediaMock).toHaveBeenCalledWith("media-two.png");
+    expect(deleteMediaMock).toHaveBeenCalledTimes(2);
   });
 
   it("creates, edits, and deletes seasonal pricing rules", async () => {

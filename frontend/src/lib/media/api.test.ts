@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mediaApi, uploadImage, type MediaView } from "./api";
+import {
+  MediaRejectedError,
+  mediaApi,
+  uploadImage,
+  type MediaView,
+} from "./api";
 
 const { authenticatedJsonMock, readSessionMock, baseUrlMock } = vi.hoisted(
   () => ({
@@ -95,9 +100,11 @@ describe("mediaApi", () => {
         "POST",
         "/media/uploads",
         { filename: "a.png", contentType: "image/png", scope: "postings" },
+        undefined,
+        undefined,
       ],
-      ["POST", `/media/${MEDIA_ID}/complete`],
-      ["GET", `/media/${MEDIA_ID}`],
+      ["POST", `/media/${MEDIA_ID}/complete`, undefined, undefined, undefined],
+      ["GET", `/media/${MEDIA_ID}`, undefined, undefined, undefined],
       ["DELETE", `/media/${MEDIA_ID}`],
     ]);
   });
@@ -187,6 +194,8 @@ describe("uploadImage", () => {
         sizeBytes: 3,
         scope: "postings",
       },
+      undefined,
+      undefined,
     );
     expect(globalThis.fetch).toHaveBeenCalledWith(UPLOAD.url, {
       method: "PUT",
@@ -197,10 +206,16 @@ describe("uploadImage", () => {
     expect(authenticatedJsonMock).toHaveBeenCalledWith(
       "POST",
       `/media/${MEDIA_ID}/complete`,
+      undefined,
+      undefined,
+      undefined,
     );
     expect(authenticatedJsonMock).toHaveBeenCalledWith(
       "GET",
       `/media/${MEDIA_ID}`,
+      undefined,
+      undefined,
+      undefined,
     );
     // Backs off through the configured delays, repeating the last.
     expect(sleep.mock.calls).toEqual([[10], [20]]);
@@ -215,6 +230,8 @@ describe("uploadImage", () => {
       "POST",
       "/media/uploads",
       expect.objectContaining({ contentType: "image/jpeg" }),
+      undefined,
+      undefined,
     );
   });
 
@@ -227,12 +244,108 @@ describe("uploadImage", () => {
       }),
     ]);
 
+    const failure = uploadImage(
+      new File(["x"], "fake.png", { type: "image/png" }),
+      { scope: "postings", sleep },
+    );
+
+    await expect(failure).rejects.toThrow(
+      "Uploaded file could not be read as an image.",
+    );
+    // Typed, so a caller can tell a refused file from a dropped connection.
+    await expect(failure).rejects.toBeInstanceOf(MediaRejectedError);
+    await expect(failure).rejects.toMatchObject({
+      mediaId: MEDIA_ID,
+      code: "corrupt",
+    });
+  });
+
+  it("reports the media id as soon as the upload exists", async () => {
+    routeMediaApi(mediaView({ status: "ready", url: "https://cdn.test/a" }));
+    const order: string[] = [];
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => {
+      order.push("put");
+      return new Response(null, { status: 201 });
+    });
+
+    await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+      scope: "postings",
+      onCreated: (mediaId) => order.push(`created:${mediaId}`),
+    });
+
+    expect(order).toEqual([`created:${MEDIA_ID}`, "put"]);
+  });
+
+  it("passes the abort signal to every request", async () => {
+    routeMediaApi(mediaView({ status: "uploaded" }), [
+      mediaView({ status: "ready", url: "https://cdn.test/a" }),
+    ]);
+    const controller = new AbortController();
+
+    await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+      scope: "postings",
+      sleep,
+      signal: controller.signal,
+    });
+
+    for (const call of authenticatedJsonMock.mock.calls) {
+      expect(call[4]).toBe(controller.signal);
+    }
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      UPLOAD.url,
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
+  it("makes no request when already cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
     await expect(
-      uploadImage(new File(["x"], "fake.png", { type: "image/png" }), {
+      uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
         scope: "postings",
-        sleep,
+        signal: controller.signal,
       }),
-    ).rejects.toThrow("Uploaded file could not be read as an image.");
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(authenticatedJsonMock).not.toHaveBeenCalled();
+  });
+
+  it("stops before the transfer when cancelled after the upload exists", async () => {
+    routeMediaApi(mediaView({ status: "uploaded" }));
+    const controller = new AbortController();
+
+    await expect(
+      uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        signal: controller.signal,
+        onCreated: () => controller.abort(),
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(authenticatedJsonMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops polling when cancelled while waiting", async () => {
+    vi.useFakeTimers();
+    try {
+      routeMediaApi(mediaView({ status: "processing" }));
+      const controller = new AbortController();
+      const failure = uploadImage(
+        new File(["x"], "a.png", { type: "image/png" }),
+        { scope: "postings", signal: controller.signal, pollDelaysMs: [5000] },
+      );
+      const settled = expect(failure).rejects.toMatchObject({
+        name: "AbortError",
+      });
+
+      await vi.advanceTimersByTimeAsync(10);
+      controller.abort();
+      await settled;
+      // Create and complete only: the pending poll never fires.
+      expect(authenticatedJsonMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("falls back to a generic message for a rejection without a reason", async () => {

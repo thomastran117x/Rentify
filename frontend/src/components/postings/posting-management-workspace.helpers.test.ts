@@ -3,17 +3,10 @@ import { ApiClientError } from "@/lib/api/types";
 import type { PostingRecord } from "@/lib/postings/api";
 import { toExpiryIsoValue } from "@/lib/postings/expiry";
 
-const { uploadImageMock } = vi.hoisted(() => ({
-  uploadImageMock: vi.fn(),
-}));
-
-vi.mock("@/lib/media/api", () => ({
-  uploadImage: uploadImageMock,
-}));
-
 import {
   buildLifecycleActions,
   buildPayload,
+  buildPhotoInputs,
   createDefaultDetails,
   createDefaultFormState,
   getCompletenessItems,
@@ -21,7 +14,6 @@ import {
   readValidationDetails,
   safeFormatPrice,
   toFormState,
-  uploadManagedPhoto,
   validateStep,
 } from "./posting-management-workspace";
 
@@ -150,6 +142,7 @@ describe("posting management helpers", () => {
       "https://blob/thumb.jpg",
       "https://blob/second.jpg",
     ]);
+    expect(items.every((item) => item.status === "stored")).toBe(true);
   });
 
   it("builds payloads with both blank and populated optional settings", () => {
@@ -201,27 +194,37 @@ describe("posting management helpers", () => {
     expect(() => buildPayload(form, [])).toThrow("Upload at least one photo");
   });
 
-  it("uploads a photo as postings media and returns its media id", async () => {
-    uploadImageMock.mockResolvedValueOnce({
-      mediaId: "media-1",
-      url: "https://cdn/media/images/u/media-1.webp",
-    });
+  it("sends uploaded photos by media id and kept photos by blob, primary first", () => {
     const file = new File(["a"], "a.jpg", { type: "image/jpeg" });
 
-    await expect(uploadManagedPhoto(file)).resolves.toBe("media-1");
-    expect(uploadImageMock).toHaveBeenCalledWith(file, { scope: "postings" });
-  });
-
-  it("leaves acceptability to the server and surfaces its reason", async () => {
-    // The client holds no copy of the limits: whatever the server refuses the
-    // file for, at upload or after processing, is what the user sees.
-    uploadImageMock.mockRejectedValueOnce(
-      new Error("Uploaded file could not be read as an image."),
-    );
-
-    await expect(
-      uploadManagedPhoto(new File(["a"], "fake.png", { type: "image/png" })),
-    ).rejects.toThrow("Uploaded file could not be read as an image.");
+    expect(
+      buildPhotoInputs(
+        [
+          {
+            key: "kept",
+            status: "stored",
+            blobUrl: "https://blob/kept.webp",
+            blobName: "kept.webp",
+            previewUrl: "https://blob/kept.webp",
+          },
+          {
+            key: "new",
+            status: "ready",
+            mediaId: "media-1",
+            previewUrl: "https://cdn/media-1.webp",
+          },
+          { key: "late", status: "uploading", file, previewUrl: "blob:a" },
+        ],
+        "new",
+      ),
+    ).toEqual([
+      { mediaId: "media-1", position: 0 },
+      {
+        blobUrl: "https://blob/kept.webp",
+        blobName: "kept.webp",
+        position: 1,
+      },
+    ]);
   });
 
   it("reports completeness for both incomplete and complete drafts", () => {
@@ -338,6 +341,10 @@ describe("posting management helpers", () => {
     expect(validateStep("availability", form, 0)).toEqual({});
     expect(validateStep("details", form, 0)).toHaveProperty("photos");
     expect(validateStep("details", form, 1)).toEqual({});
+    // A rejected photo blocks the step even when others are usable.
+    expect(validateStep("details", form, 1, 1)).toEqual({
+      photos: "Remove the photos that couldn't be used before continuing.",
+    });
     expect(validateStep("category", form, 0)).toEqual({});
   });
 
