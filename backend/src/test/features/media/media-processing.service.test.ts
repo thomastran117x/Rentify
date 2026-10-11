@@ -317,6 +317,117 @@ describe("MediaProcessingService", () => {
     );
   });
 
+  describe("stage timings", () => {
+    const stagesOf = (context: Context) =>
+      context.metrics
+        .tagsOf("media.processing.stage.duration")
+        .map((tags) => tags.stage);
+
+    it("times every stage of an attempt that ends ready, in order", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(12, 8));
+
+      await context.service.process(record.id);
+
+      expect(stagesOf(context)).toEqual([
+        "download",
+        "scan",
+        "inspect",
+        "render",
+        "renditions",
+        "moderate",
+        "upload",
+        "mark_ready",
+      ]);
+      for (const call of context.metrics.calls(
+        "media.processing.stage.duration",
+      )) {
+        expect(call.tags.scope).toBe("postings");
+        expect(call.value).toBeGreaterThanOrEqual(0);
+      }
+      context.metrics.assertNoIdentifiers();
+    });
+
+    it("stops at the stage that rejected the item", async () => {
+      const context = createContext();
+      const record = await quarantine(
+        context,
+        truncateImage(await createPngFixture(64, 64)),
+      );
+
+      await context.service.process(record.id);
+
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "rejected",
+      );
+      expect(stagesOf(context)).toEqual(["download", "scan", "inspect"]);
+    });
+
+    it("times a stage that throws", async () => {
+      const moderation = new FakeModeration();
+      moderation.moderate = async () => {
+        throw new ImageModerationUnavailableError(
+          "Content Safety answered 503.",
+        );
+      };
+      const context = createContext({ moderation });
+      const record = await quarantine(context, await createPngFixture());
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        ImageModerationUnavailableError,
+      );
+      expect(stagesOf(context).at(-1)).toBe("moderate");
+    });
+  });
+
+  describe("queue wait", () => {
+    it("records how long a first delivery waited for a worker", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(record.id, {
+        enqueuedAt: new Date(Date.now() - 1_500).toISOString(),
+      });
+
+      const [wait, ...rest] = context.metrics.calls(
+        "media.processing.queue_wait",
+      );
+      expect(rest).toEqual([]);
+      expect(wait?.tags).toEqual({ scope: "postings" });
+      expect(wait?.value).toBeGreaterThanOrEqual(1_500);
+      expect(wait?.value).toBeLessThan(60_000);
+    });
+
+    it.each([
+      ["no publish time is given", undefined],
+      ["the publish time is unreadable", "not a date"],
+      ["the publish time is ahead of this clock", "2999-01-01T00:00:00.000Z"],
+    ])("records nothing when %s", async (_case, enqueuedAt) => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(
+        record.id,
+        enqueuedAt === undefined ? {} : { enqueuedAt },
+      );
+
+      expect(context.metrics.count("media.processing.queue_wait")).toBe(0);
+    });
+
+    it("records nothing for an item it does not claim", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(), {
+        status: "ready",
+      });
+
+      await context.service.process(record.id, {
+        enqueuedAt: new Date().toISOString(),
+      });
+
+      expect(context.metrics.count("media.processing.queue_wait")).toBe(0);
+    });
+  });
+
   describe("renditions", () => {
     /**
      * Processes an upload; returns the ready row and each stored rendition, or

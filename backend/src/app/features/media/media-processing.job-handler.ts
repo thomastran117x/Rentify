@@ -41,7 +41,12 @@ export function createMediaProcessingJobHandler(
 
   return async (payload, message, channel) => {
     try {
-      await processing.process(payload.mediaId);
+      // A retried job keeps its first publish time, so only a first delivery
+      // says how long the job waited for a worker.
+      await processing.process(
+        payload.mediaId,
+        payload.attempt === 0 ? { enqueuedAt: payload.occurredAt } : {},
+      );
       channel.ack(message);
       return;
     } catch (error) {

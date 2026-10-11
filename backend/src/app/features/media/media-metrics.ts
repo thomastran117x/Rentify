@@ -30,6 +30,20 @@ export type MediaProcessingOutcome =
   | "failed";
 
 /**
+ * A step of one processing attempt, in the order they run. A rejection ends
+ * the attempt at the stage that decided it, so later stages are not timed.
+ */
+export type MediaProcessingStage =
+  | "download"
+  | "scan"
+  | "inspect"
+  | "render"
+  | "renditions"
+  | "moderate"
+  | "upload"
+  | "mark_ready";
+
+/**
  * Why the media cleanup deleted an item it did not reject: a ready image that
  * nothing attached within its TTL.
  */
@@ -79,6 +93,16 @@ export interface MediaObservationTags {
     scope: MediaMetricScope;
     outcome: MediaProcessingOutcome;
   };
+  /** Milliseconds one stage of a claimed attempt took, whether or not it threw. */
+  "media.processing.stage.duration": {
+    scope: MediaMetricScope;
+    stage: MediaProcessingStage;
+  };
+  /**
+   * Milliseconds from a job being published to its item being claimed. Only a
+   * first delivery is timed: a retried job also waited out its retry delay.
+   */
+  "media.processing.queue_wait": { scope: MediaMetricScope };
 }
 
 export type MediaCounterName = keyof MediaCounterTags;
