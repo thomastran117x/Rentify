@@ -156,6 +156,19 @@ Each image gets one warm-up upload, then `--runs` uploads one after another. By 
 
 The script prints p50, p95, and max of the client-observed upload, wait, and total. With `--worker-logs` it also reads the `media.metric` lines the worker and the API logged during the run from `docker compose logs`, and prints the queue wait, each processing stage, the whole attempt, and the client notice delay. The metrics carry no media ids, so run nothing else against the stack while measuring.
 
+### Sizing the worker
+
+Processing an image is CPU work, and libvips already spreads each image across every core the worker has (`sharp.concurrency()` defaults to the core count). A burst is therefore bounded by the worker's cores, not by how its jobs are interleaved. On the local Docker worker (8 vCPUs), a burst of ten 12 MP photos took about 10 to 13 s of wall time, roughly one image a second, and that did not change measurably with the settings below. Each was tried with two bursts of `bench:media-latency -- --burst 10`, against four with the defaults (10.7 to 16.9 s):
+
+| Setting                              | Wall time      | What changed                                                 |
+| ------------------------------------ | -------------- | ------------------------------------------------------------ |
+| `MEDIA_PROCESSING_PREFETCH` 4        | 13.2 s, 13.3 s | Processing p50 fell to about 3.5 s; queue wait rose to match |
+| `MEDIA_PROCESSING_PREFETCH` 2        | 17.2 s, 15.1 s | The same trade, and the last image finished later            |
+| `UV_THREADPOOL_SIZE` 10, prefetch 10 | 12.2 s, 9.5 s  | Within the noise of the defaults                             |
+| `VIPS_CONCURRENCY` 2, prefetch 4     | 12.8 s, 12.9 s | Within the noise of prefetch 4 alone                         |
+
+So keep the default prefetch of 10. A lower one only moves time from processing into the queue, and a prefetch of at least 2 lets one job's download, scan, moderation, and upload, which wait on the network, overlap another's rendering. To clear bursts faster, give the worker more cores or run more replicas: throughput grows with total cores, at about one 12 MP image per second per 8 vCPUs here. Re-measure on the production worker size before relying on that figure.
+
 ### Dead-letter runbook
 
 A job lands in `media.processing.dead-letter` after `MEDIA_PROCESSING_MAX_ATTEMPTS` failed attempts, usually because storage, the database, the broker, clamd, or the moderation provider was unavailable for longer than the retry tiers (5 s, 30 s, and 120 s) cover. Its item is then either `rejected` with `processing_failed` and its upload kept, or, when the outage also stopped the rejection from being recorded, still `uploaded` or `processing`. Either way the image was not found at fault, and it can be replayed once the cause is fixed. A final rejection (any other code) cannot be replayed; the user has to upload again.
