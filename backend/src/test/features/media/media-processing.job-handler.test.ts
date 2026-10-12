@@ -54,7 +54,7 @@ function createHarness(options: {
   const channel = { ack: jest.fn() } as unknown as Channel & {
     ack: jest.Mock;
   };
-  const message = {} as ConsumeMessage;
+  const message = { fields: { redelivered: false } } as ConsumeMessage;
   const metrics = new RecordingMediaMetrics();
   const handle = createMediaProcessingJobHandler({
     queue,
@@ -93,6 +93,17 @@ describe("createMediaProcessingJobHandler", () => {
       [MEDIA_ID, { enqueuedAt: "2026-09-21T00:00:00.000Z" }],
       [MEDIA_ID, {}],
     ]);
+  });
+
+  it("passes no publish time for a first job RabbitMQ redelivers", async () => {
+    const { handle, channel, processing } = createHarness({});
+    const redelivered = {
+      fields: { redelivered: true },
+    } as ConsumeMessage;
+
+    await handle(payload(0), redelivered, channel);
+
+    expect(processing.process).toHaveBeenCalledWith(MEDIA_ID, {});
   });
 
   it("sends a failed job through the retry queues until its last attempt", async () => {
