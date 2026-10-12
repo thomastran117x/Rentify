@@ -19,6 +19,12 @@
  *                        find when the item really finished. Each item's
  *                        GET /media/{id} is limited to 60 a minute, which a
  *                        burst's longer waits would exceed at 50 ms
+ * --notify <mode>        how the script learns an upload finished (default
+ *                        exact): `exact` polls every --poll-interval ms, to
+ *                        find when it really finished; `poll` uses the
+ *                        browser's polling schedule without a socket; `push`
+ *                        listens on the /ws/media socket, as the browser does,
+ *                        with its slower fallback polling
  * --worker-logs          also read the stage timings the worker logged, from
  *                        `docker compose logs`
  * --cache-dir <dir>      where the generated images are kept between runs
@@ -35,6 +41,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import sharp, { type Sharp } from "sharp";
+import { io, type Socket as ClientSocket } from "socket.io-client";
 
 interface Options {
   api: string;
@@ -45,6 +52,7 @@ interface Options {
   burst: number;
   burstImage: ReferenceImageName;
   pollIntervalMs: number;
+  notify: NotifyMode;
   workerLogs: boolean;
   prepare: boolean;
   cacheDir: string;
@@ -90,6 +98,13 @@ const REFERENCE_IMAGES = {
 
 type ReferenceImageName = keyof typeof REFERENCE_IMAGES;
 
+const NOTIFY_MODES = ["exact", "poll", "push"] as const;
+type NotifyMode = (typeof NOTIFY_MODES)[number];
+
+/** What `uploadImage` waits between checks, without a socket and with one. */
+const BROWSER_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
+const BROWSER_PUSH_FALLBACK_DELAYS_MS = [2000, 3000, 5000];
+
 interface ReferenceImage {
   name: ReferenceImageName;
   body: Buffer;
@@ -131,6 +146,12 @@ function parseOptions(argv: string[]): Options {
     values.get("images") ?? Object.keys(REFERENCE_IMAGES).join(",")
   ).split(",");
 
+  const notify = (values.get("notify") ?? "exact") as NotifyMode;
+
+  if (!NOTIFY_MODES.includes(notify)) {
+    throw new Error(`Unknown --notify mode: ${notify}`);
+  }
+
   for (const name of [...imageNames, values.get("burst-image") ?? "12mp"]) {
     if (!(name in REFERENCE_IMAGES)) {
       throw new Error(`Unknown reference image: ${name}`);
@@ -148,6 +169,7 @@ function parseOptions(argv: string[]): Options {
     pollIntervalMs: Number(
       values.get("poll-interval") ?? (values.has("burst") ? 500 : 50),
     ),
+    notify,
     workerLogs: flags.has("worker-logs"),
     prepare: flags.has("prepare"),
     cacheDir:
@@ -328,6 +350,64 @@ class Api {
       return ((await response.json()) as { data: T }).data;
     }
   }
+
+  /** Mints a media status socket ticket and returns its cookie. */
+  async socketTicketCookie(): Promise<string> {
+    const token = this.token ?? (await this.signIn());
+    const response = await fetch(`${this.options.api}/media/socket-ticket`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Socket ticket failed with ${response.status}.`);
+    }
+
+    return (response.headers.get("set-cookie") ?? "").split(";")[0]!;
+  }
+}
+
+/** The page's media status socket, shared by every upload, as in the browser. */
+class StatusSocket {
+  private socket: ClientSocket | null = null;
+  private readonly finished = new Set<string>();
+  private readonly waiters = new Map<string, () => void>();
+
+  async open(api: Api, options: Options): Promise<void> {
+    const cookie = await api.socketTicketCookie();
+    const socket = io(new URL(options.api).origin, {
+      path: "/ws/media",
+      extraHeaders: { cookie },
+      reconnection: false,
+      forceNew: true,
+    });
+    this.socket = socket;
+    socket.on("media.status", (event: { mediaId: string }) => {
+      this.finished.add(event.mediaId);
+      this.waiters.get(event.mediaId)?.();
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once("ready", () => resolve());
+      socket.once("connect_error", reject);
+    });
+  }
+
+  /** Resolves when `mediaId` has been pushed, at once if it already was. */
+  next(mediaId: string): Promise<"push"> {
+    return new Promise((resolve) => {
+      if (this.finished.has(mediaId)) {
+        resolve("push");
+        return;
+      }
+
+      this.waiters.set(mediaId, () => resolve("push"));
+    });
+  }
+
+  close(): void {
+    this.socket?.disconnect();
+  }
 }
 
 interface MediaView {
@@ -344,6 +424,7 @@ async function uploadOnce(
   api: Api,
   image: ReferenceImage,
   options: Options,
+  statusSocket: StatusSocket | null,
 ): Promise<UploadTiming> {
   const startedAt = performance.now();
   const { mediaId, upload } = await api.json<{
@@ -373,15 +454,30 @@ async function uploadOnce(
       await api.json<{ media: MediaView }>("POST", `/media/${mediaId}/complete`)
     ).media;
 
+    const delays =
+      options.notify === "exact"
+        ? [options.pollIntervalMs]
+        : statusSocket
+          ? BROWSER_PUSH_FALLBACK_DELAYS_MS
+          : BROWSER_POLL_DELAYS_MS;
+    let attempt = 0;
+
     while (media.status !== "ready" && media.status !== "rejected") {
       if (performance.now() - waitStartedAt > 120_000) {
         throw new Error(`${mediaId} did not finish within 2 minutes.`);
       }
 
-      await sleep(options.pollIntervalMs);
+      const delay = delays[Math.min(attempt, delays.length - 1)]!;
+      attempt += 1;
+      const via = statusSocket
+        ? await Promise.race([
+            sleep(delay).then(() => "poll" as const),
+            statusSocket.next(mediaId),
+          ])
+        : await sleep(delay).then(() => "poll" as const);
       const timing = `upload=${Math.round(uploadMs)}, wait=${Math.round(
         performance.now() - waitStartedAt,
-      )}, via=poll`;
+      )}, via=${via}`;
       media = (
         await api.json<{ media: MediaView }>(
           "GET",
@@ -550,6 +646,7 @@ const LOG_SETTLE_MS = 3_000;
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const api = new Api(options);
+  let statusSocket: StatusSocket | null = null;
   const names = options.burst > 0 ? [options.burstImage] : options.images;
   const images = [];
 
@@ -566,15 +663,33 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (options.notify === "push") {
+    statusSocket = new StatusSocket();
+    await statusSocket.open(api, options);
+  }
+
+  try {
+    await measure(api, images, options, statusSocket);
+  } finally {
+    statusSocket?.close();
+  }
+}
+
+async function measure(
+  api: Api,
+  images: ReferenceImage[],
+  options: Options,
+  statusSocket: StatusSocket | null,
+): Promise<void> {
   if (options.burst > 0) {
     const image = images[0]!;
     // One upload first, so sign-in and connection setup are not in the burst.
-    await uploadOnce(api, image, options);
+    await uploadOnce(api, image, options, statusSocket);
     const since = new Date();
     const startedAt = performance.now();
     const timings = await Promise.all(
       Array.from({ length: options.burst }, () =>
-        uploadOnce(api, image, options),
+        uploadOnce(api, image, options, statusSocket),
       ),
     );
     const wallMs = performance.now() - startedAt;
@@ -593,12 +708,12 @@ async function main(): Promise<void> {
 
   for (const image of images) {
     // A warm-up upload, not counted.
-    await uploadOnce(api, image, options);
+    await uploadOnce(api, image, options, statusSocket);
     const since = new Date();
     const timings: UploadTiming[] = [];
 
     for (let run = 0; run < options.runs; run += 1) {
-      timings.push(await uploadOnce(api, image, options));
+      timings.push(await uploadOnce(api, image, options, statusSocket));
     }
 
     printClientTimings(image.name, timings);
