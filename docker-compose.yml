@@ -554,6 +554,9 @@ services:
       clamav:
         condition: service_healthy
         required: false
+      # Status pushes only: the worker starts and processes without it.
+      redis:
+        condition: service_started
     environment:
       <<: [*worker-environment, *entra-identity]
       AZURE_CLIENT_ID: ${MEDIA_PROCESSING_AZURE_CLIENT_ID:-}

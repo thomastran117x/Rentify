@@ -7,12 +7,14 @@ import type {
   MediaRecord,
   MediaRejectionCode,
   MediaStatus,
+  MediaStatusEvent,
 } from "@/features/media/media.model";
 import {
   BestEffortMediaMetrics,
   type MediaMetrics,
 } from "@/features/media/media-metrics";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
+import type { MediaStatusPublisher } from "@/features/media/media-status-publisher";
 import {
   MalwareScannerUnavailableError,
   type MalwareScanner,
@@ -89,6 +91,15 @@ const BLOCKED: ModerationResult = {
   provider: "fake-moderation",
 };
 
+/** Keeps every status pushed, with the user it was pushed to. */
+class RecordingStatusPublisher implements MediaStatusPublisher {
+  readonly published: Array<{ userId: string } & MediaStatusEvent> = [];
+
+  publish(userId: string, event: MediaStatusEvent): void {
+    this.published.push({ userId, ...event });
+  }
+}
+
 /**
  * Answers with `result`, allow unless a test sets it. Records each image it
  * was given.
@@ -129,6 +140,7 @@ function createContext(
     moderation?: ImageModerationService;
   } = {},
 ) {
+  const statusPublisher = new RecordingStatusPublisher();
   useLocalBlobStorage();
   const blobService = new BlobService();
   const mediaRepository = new InMemoryMediaRepository();
@@ -148,7 +160,9 @@ function createContext(
       options.metrics ?? metrics,
       scanner,
       moderation,
+      statusPublisher,
     ),
+    statusPublisher,
   };
 }
 
@@ -315,6 +329,79 @@ describe("MediaProcessingService", () => {
     expect((await context.mediaRepository.findById(record.id))?.status).toBe(
       "ready",
     );
+  });
+
+  describe("status pushes", () => {
+    it("tells the owner when the item becomes ready", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(record.id);
+
+      expect(context.statusPublisher.published).toEqual([
+        { userId: USER_1_ID, mediaId: record.id, status: "ready" },
+      ]);
+    });
+
+    it.each([
+      ["the policy refuses it", async () => createGifFixture(), "image/gif"],
+      [
+        "the scanner finds malware",
+        async () => Buffer.concat([await createPngFixture(), INFECTED_MARKER]),
+        "image/png",
+      ],
+    ])(
+      "tells the owner when processing rejects it because %s",
+      async (_case, body, declaredContentType) => {
+        const context = createContext();
+        const record = await quarantine(context, await body(), {
+          declaredContentType,
+        });
+
+        await context.service.process(record.id);
+
+        expect(context.statusPublisher.published).toEqual([
+          { userId: USER_1_ID, mediaId: record.id, status: "rejected" },
+        ]);
+      },
+    );
+
+    it("tells the owner once when a dead-lettered item is rejected", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.markProcessingFailed(record.id);
+      await context.service.markProcessingFailed(record.id);
+
+      expect(context.statusPublisher.published).toEqual([
+        { userId: USER_1_ID, mediaId: record.id, status: "rejected" },
+      ]);
+    });
+
+    it("pushes nothing for an item it did not finish", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(), {
+        status: "ready",
+      });
+
+      await context.service.process(record.id);
+      await context.service.markProcessingFailed(record.id);
+
+      expect(context.statusPublisher.published).toEqual([]);
+    });
+
+    it("pushes nothing for an attempt that fails and is retried", async () => {
+      const moderation = new FakeModeration();
+      moderation.moderate = async () => {
+        throw new ImageModerationUnavailableError("Content Safety is down.");
+      };
+      const context = createContext({ moderation });
+      const record = await quarantine(context, await createPngFixture());
+
+      await expect(context.service.process(record.id)).rejects.toThrow();
+
+      expect(context.statusPublisher.published).toEqual([]);
+    });
   });
 
   describe("stage timings", () => {

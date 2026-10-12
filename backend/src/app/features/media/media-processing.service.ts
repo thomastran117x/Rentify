@@ -47,6 +47,10 @@ import type {
   MediaStatus,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import {
+  NoopMediaStatusPublisher,
+  type MediaStatusPublisher,
+} from "@/features/media/media-status-publisher";
 import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
 import {
   ImageModerationRefusedError,
@@ -130,6 +134,10 @@ function policyRejection(
  * refuses to mark an item ready without a passing scan of the current
  * attempt.
  *
+ * The moment the item becomes ready, or this service rejects it, the user's
+ * open pages are told through the status publisher, so a waiting client need
+ * not poll for it. The push is best effort, and the row stays the record.
+ *
  * Once the renditions are rendered, and before any of them is written, the
  * image is moderated for harmful visual content: the medium rendition, or the
  * processed image when there is none, is sent to the configured provider. A
@@ -150,6 +158,7 @@ export class MediaProcessingService {
     private readonly metrics: MediaMetrics,
     private readonly scanner: MalwareScanner,
     private readonly moderation: ImageModerationService,
+    private readonly statusPublisher: MediaStatusPublisher = new NoopMediaStatusPublisher(),
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -356,6 +365,10 @@ export class MediaProcessingService {
       return "discarded";
     }
 
+    this.statusPublisher.publish(record.userId, {
+      mediaId: record.id,
+      status: "ready",
+    });
     this.metrics.increment("media.processing.success", { scope });
     this.metrics.observe("media.bytes.processed", processed.data.byteLength, {
       scope,
@@ -383,13 +396,17 @@ export class MediaProcessingService {
       return;
     }
 
-    await rejectMedia(
-      this.rejection,
-      record,
-      PROCESSING_FAILED_REASON,
-      "processing_failed",
-      "dead_letter",
-    );
+    if (
+      await rejectMedia(
+        this.rejection,
+        record,
+        PROCESSING_FAILED_REASON,
+        "processing_failed",
+        "dead_letter",
+      )
+    ) {
+      this.publishRejected(record);
+    }
   }
 
   /**
@@ -624,6 +641,19 @@ export class MediaProcessingService {
       "processing",
     );
 
-    return rejected ? "rejected" : "discarded";
+    if (!rejected) {
+      return "discarded";
+    }
+
+    this.publishRejected(record);
+    return "rejected";
+  }
+
+  /** Only the actor that rejected the item tells the client. */
+  private publishRejected(record: MediaRecord): void {
+    this.statusPublisher.publish(record.userId, {
+      mediaId: record.id,
+      status: "rejected",
+    });
   }
 }

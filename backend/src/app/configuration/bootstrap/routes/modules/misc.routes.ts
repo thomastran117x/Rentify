@@ -38,6 +38,13 @@ export const mediaRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/media/socket-ticket",
+      resolveHandler<MediaController>(
+        containerTokens.mediaController,
+        "socketTicket",
+      ),
+    );
+    app.post(
       "/media/:id/complete",
       resolveHandler<MediaController>(
         containerTokens.mediaController,

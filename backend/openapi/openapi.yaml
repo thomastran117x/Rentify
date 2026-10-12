@@ -6613,6 +6613,49 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /media/socket-ticket:
+    post:
+      operationId: createMediaStatusSocketTicket
+      summary: Issue a media status socket ticket
+      description: 'Issues a short-lived, single-use ticket for the media status WebSocket, which tells the caller''s open pages when one of their uploads becomes `ready` or `rejected`, so a client need not poll `GET /media/{id}` at its fastest. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/media`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use or after 30 seconds. The socket itself is not an HTTP operation and is therefore not described here: it emits `ready` once it is listening and `media.status` frames of `{ mediaId, status }`, and accepts nothing from the client. A push is best effort, so a client still polls, more slowly, while it waits. PAT bearer authentication is not allowed.'
+      tags:
+        - media
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MediaStatusSocketTicket'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Socket ticket issued successfully.
+                data:
+                  expiresInSeconds: 30
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /blob/upload:
     put:
       operationId: uploadLocalBlob
@@ -21741,6 +21784,15 @@ components:
             - renter
             - owner
           description: Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing.
+    MediaStatusSocketTicket:
+      type: object
+      required:
+        - expiresInSeconds
+      description: The ticket itself is delivered as an HttpOnly cookie scoped to the socket path, never in this body.
+      properties:
+        expiresInSeconds:
+          type: integer
+          minimum: 1
     BookingMessageSocketTicket:
       type: object
       required:

@@ -130,6 +130,27 @@ function createApp(
 }
 
 describe("resolveRateLimitPolicy", () => {
+  it("gives media status socket tickets their own bucket", () => {
+    expect(
+      resolveRateLimitPolicy(
+        policyRequest("http://rent.test/media/socket-ticket", {
+          method: "POST",
+        }),
+      ),
+    ).toMatchObject({
+      id: "media-status-socket-ticket",
+      bucketKey: "POST:media-status-socket-ticket",
+      limit: 60,
+      windowSeconds: 300,
+    });
+    // Reading an item is not minting a ticket.
+    expect(
+      resolveRateLimitPolicy(
+        policyRequest("http://rent.test/media/socket-ticket"),
+      ).id,
+    ).toBe("default");
+  });
+
   it("assigns a stricter auth policy to login routes", () => {
     const policy = resolveRateLimitPolicy(
       policyRequest("http://rent.test/auth/local/login", {

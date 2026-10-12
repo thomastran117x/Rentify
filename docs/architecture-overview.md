@@ -119,7 +119,9 @@ media-processing-worker      row: processing -> ready | rejected
                              ready: media/images/<userId>/<mediaId>.webp
                                     + .medium.webp, .thumbnail.webp
                                     (public container)
-GET  /media/{id}             poll until ready (url set) or rejected (reason set)
+/ws/media                    pushes { mediaId, status } when ready or rejected
+GET  /media/{id}             read on the push, or poll, until ready (url set)
+                             or rejected (reason set)
 attach by mediaId            postings, logos, blog covers, avatars
 ```
 
@@ -574,27 +576,30 @@ that at startup.
 
 ## Realtime Transport
 
-There are two realtime surfaces, both on **Socket.IO** with the **Redis
-adapter** carrying events between API instances, and both mounted outside the
+There are three realtime surfaces, all on **Socket.IO** with the **Redis
+adapter** carrying events between API instances, and all mounted outside the
 versioned REST prefix:
 
 | Surface                         | Path                   | Audience                                          |
 | ------------------------------- | ---------------------- | ------------------------------------------------- |
 | Booking request message threads | `/ws/booking-messages` | The two participants of one booking               |
 | Blog post comments              | `/ws/blog-comments`    | Anyone reading a published post, signed in or not |
+| Media status                    | `/ws/media`            | A signed-in user waiting on their own uploads     |
 
 Each gateway is a feature-owned class registered as a singleton with a dispose
 hook and **no constructor dependencies**; the feature service depends on the
 gateway through a narrow `publish` seam, which is what keeps that edge from
-closing a cycle. There is no shared socket infrastructure, deliberately: the two
-differ in enough load-bearing ways (below) that a common base would be mostly
+closing a cycle. Shared socket infrastructure stops at the handshake cookie
+reader and the Redis adapter builder in
+`configuration/realtime/socket-handshake.ts`, deliberately: the gateways differ
+in enough load-bearing ways (below) that a common base would be mostly
 branches.
 
-Both attach to the same Node HTTP server. That is safe because Engine.IO
-dispatches upgrades by `path` and the two paths are not in a prefix
-relationship, so neither claims the other's traffic. Two consequences worth
-knowing: each gateway duplicates its own pair of Redis connections (four in
-total for realtime), and on the **client** `socket.io-client` caches Managers by
+All attach to the same Node HTTP server. That is safe because Engine.IO
+dispatches upgrades by `path` and no path is a prefix of another, so none
+claims another's traffic. Two consequences worth knowing: each gateway opens
+its own pair of Redis connections (six in total for realtime), and on the
+**client** `socket.io-client` caches Managers by
 origin rather than by path — a second client on the same origin must pass
 `forceNew: true` or it can silently reuse the other gateway's transport.
 
@@ -643,6 +648,19 @@ is rejected, before any connection exists. An anonymous identity carries no
 session, so the periodic sweep checks only the post for those sockets — calling
 the token service with a null user would fail closed and disconnect exactly the
 readers the surface exists to serve.
+
+**Media status is pushed from a worker.** The media processing worker runs no
+Socket.IO server. When it marks an item `ready`, or rejects it, it publishes
+`media.status { mediaId, status }` into the owner's room (`media-status:<userId>`)
+through a `@socket.io/redis-emitter`, on the media gateway's own adapter key
+(`socket.io-media`), so the instance holding the user's sockets delivers it and
+the other gateways never receive it. The gateway only sends: a socket joins its
+user's room and nothing else, and the 60-second sweep checks only the session,
+since a user may always hear about their own uploads. The event carries no
+view; the client reads `GET /media/{id}`, which applies the usual ownership
+check. A push is best effort. The worker connects Redis in the background,
+drops a push while Redis is not ready rather than queue it, and never fails a
+job over one, so a client keeps polling as the fallback.
 
 **Per-viewer capabilities never enter a broadcast.** `canWrite`, and on blog
 comments `viewerCanModerate`, live on the REST list response, not on the

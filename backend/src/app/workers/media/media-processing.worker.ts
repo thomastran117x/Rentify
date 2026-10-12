@@ -7,6 +7,7 @@ import {
   databaseWorkerResource,
   disconnectResources,
   imageModerationWorkerResource,
+  optionalRedisWorkerResource,
   rabbitMqWorkerResource,
 } from "@/workers/shared/resources";
 import { bootstrapWorker, startWorker } from "@/workers/shared/worker-runtime";
@@ -17,6 +18,8 @@ const workerResources = [
   imageModerationWorkerResource,
   databaseWorkerResource,
   rabbitMqWorkerResource,
+  // For status pushes only, so it never holds up processing.
+  optionalRedisWorkerResource,
 ];
 const workerLogger = loggerFactory
   .forComponent("media-processing.worker", "worker")
