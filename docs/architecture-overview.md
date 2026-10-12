@@ -660,7 +660,14 @@ since a user may always hear about their own uploads. The event carries no
 view; the client reads `GET /media/{id}`, which applies the usual ownership
 check. A push is best effort. The worker connects Redis in the background,
 drops a push while Redis is not ready rather than queue it, and never fails a
-job over one, so a client keeps polling as the fallback.
+job over one, so a client keeps polling as the fallback. On the client,
+`mediaStatusChannel` (`frontend/src/lib/media/status-socket.ts`) holds one
+socket per page for every upload: `uploadImage` takes it as the upload starts,
+so it connects during the PUT, and it closes 30 seconds after the last upload
+stops waiting. While the socket is listening, `uploadImage` checks at 2 s,
+3 s, then every 5 s behind the push; while it is not, at the old 0.5 to 2 s
+schedule. Like the other clients it retries a failed connect with a fresh
+ticket, further apart each time, and stops after five.
 
 **Per-viewer capabilities never enter a broadcast.** `canWrite`, and on blog
 comments `viewerCanModerate`, live on the REST list response, not on the
