@@ -17,8 +17,10 @@
  * --poll-interval <ms>   how often to check the status (default 50, or 500
  *                        in a burst), well under the browser's schedule, to
  *                        find when the item really finished. Each item's
- *                        GET /media/{id} is limited to 60 a minute, which a
- *                        burst's longer waits would exceed at 50 ms
+ *                        GET /media/{id} is limited to 60 a minute, so after
+ *                        45 checks the script checks once a second, and it
+ *                        waits out a 429 rather than stopping; a run that
+ *                        reached either is reported as coarse
  * --notify <mode>        how the script learns an upload finished (default
  *                        exact): `exact` polls every --poll-interval ms, to
  *                        find when it really finished; `poll` uses the
@@ -101,6 +103,14 @@ type ReferenceImageName = keyof typeof REFERENCE_IMAGES;
 const NOTIFY_MODES = ["exact", "poll", "push"] as const;
 type NotifyMode = (typeof NOTIFY_MODES)[number];
 
+/**
+ * Each item's GET /media/{id} may be called 60 times a minute. The fine
+ * interval is kept for this many checks, which covers most uploads, and later
+ * checks come at the coarse interval, so a slow item stays inside its budget.
+ */
+const FINE_STATUS_CHECKS = 45;
+const COARSE_POLL_INTERVAL_MS = 1_000;
+
 /** What `uploadImage` waits between checks, without a socket and with one. */
 const BROWSER_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
 const BROWSER_PUSH_FALLBACK_DELAYS_MS = [2000, 3000, 5000];
@@ -115,6 +125,8 @@ interface ReferenceImage {
 }
 
 interface UploadTiming {
+  /** The wait is accurate only to the coarse interval or a rate-limit pause. */
+  coarse: boolean;
   uploadMs: number;
   waitMs: number;
   totalMs: number;
@@ -292,6 +304,13 @@ async function loadReferenceImage(
   };
 }
 
+/** A 429, with how long the server asked the client to wait. */
+class RateLimitedError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super(`Rate limited; retry after ${retryAfterMs} ms.`);
+  }
+}
+
 class Api {
   private token: string | null = null;
 
@@ -335,6 +354,15 @@ class Api {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
+
+      if (response.status === 429) {
+        const retryAfterSeconds = Number(response.headers.get("retry-after"));
+        throw new RateLimitedError(
+          Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+            ? retryAfterSeconds * 1_000
+            : COARSE_POLL_INTERVAL_MS,
+        );
+      }
 
       if (response.status === 401 && attempt === 0) {
         this.token = null;
@@ -461,13 +489,20 @@ async function uploadOnce(
           ? BROWSER_PUSH_FALLBACK_DELAYS_MS
           : BROWSER_POLL_DELAYS_MS;
     let attempt = 0;
+    let coarse = false;
 
     while (media.status !== "ready" && media.status !== "rejected") {
       if (performance.now() - waitStartedAt > 120_000) {
         throw new Error(`${mediaId} did not finish within 2 minutes.`);
       }
 
-      const delay = delays[Math.min(attempt, delays.length - 1)]!;
+      let delay = delays[Math.min(attempt, delays.length - 1)]!;
+
+      if (options.notify === "exact" && attempt >= FINE_STATUS_CHECKS) {
+        delay = Math.max(delay, COARSE_POLL_INTERVAL_MS);
+        coarse = true;
+      }
+
       attempt += 1;
       const via = statusSocket
         ? await Promise.race([
@@ -478,14 +513,26 @@ async function uploadOnce(
       const timing = `upload=${Math.round(uploadMs)}, wait=${Math.round(
         performance.now() - waitStartedAt,
       )}, via=${via}`;
-      media = (
-        await api.json<{ media: MediaView }>(
-          "GET",
-          `/media/${mediaId}`,
-          undefined,
-          { "x-media-upload-timing": timing },
-        )
-      ).media;
+      try {
+        media = (
+          await api.json<{ media: MediaView }>(
+            "GET",
+            `/media/${mediaId}`,
+            undefined,
+            { "x-media-upload-timing": timing },
+          )
+        ).media;
+      } catch (error) {
+        if (!(error instanceof RateLimitedError)) {
+          throw error;
+        }
+
+        console.warn(
+          `  ${image.name}: status checks rate limited; waiting ${error.retryAfterMs} ms`,
+        );
+        coarse = true;
+        await sleep(error.retryAfterMs);
+      }
     }
 
     const finishedAt = performance.now();
@@ -495,6 +542,7 @@ async function uploadOnce(
     }
 
     return {
+      coarse,
       uploadMs,
       waitMs: finishedAt - waitStartedAt,
       totalMs: finishedAt - startedAt,
@@ -627,10 +675,15 @@ function printWorkerTimings(label: string, since: Date, until: Date): void {
 
 function printClientTimings(label: string, timings: UploadTiming[]): void {
   const failed = timings.filter((timing) => timing.status !== "ready").length;
+  const coarse = timings.filter((timing) => timing.coarse).length;
 
   console.log(
     `\n${label}: client-observed timings (ms), ${timings.length} uploads${
       failed ? `, ${failed} not ready` : ""
+    }${
+      coarse
+        ? `, ${coarse} timed coarsely (to ${COARSE_POLL_INTERVAL_MS} ms or a rate-limit pause)`
+        : ""
     }\n`,
   );
   console.log("| Phase | p50 | p95 | max |");
