@@ -1,7 +1,9 @@
-import { randomBytes } from "node:crypto";
+import {
+  SocketTicketStore,
+  type SocketTicketCache,
+} from "@/configuration/realtime/socket-tickets";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type { TokenService } from "@/features/auth/token/token.service";
-import type { CacheService } from "@/features/cache/cache.service";
 import {
   MEDIA_STATUS_SOCKET_TICKET_TTL_SECONDS,
   type MediaStatusSocketIdentity,
@@ -15,44 +17,34 @@ import {
  * check beyond the session that minted it.
  */
 export class MediaStatusSocketService {
-  constructor(
-    private readonly cacheService: CacheService,
-    private readonly tokenService: TokenService,
-  ) {}
+  private readonly tickets: SocketTicketStore<MediaStatusSocketIdentity>;
 
-  async createSocketTicket(
+  constructor(
+    cache: SocketTicketCache,
+    private readonly tokenService: Pick<TokenService, "assertSessionIsUsable">,
+  ) {
+    this.tickets = new SocketTicketStore(cache, {
+      keyPrefix: "media-status:ws-ticket",
+      ttlSeconds: MEDIA_STATUS_SOCKET_TICKET_TTL_SECONDS,
+    });
+  }
+
+  createSocketTicket(
     userId: Uuid,
     session: MediaStatusSocketSession,
   ): Promise<MediaStatusSocketTicket> {
-    const ticket = randomBytes(32).toString("base64url");
-    const identity: MediaStatusSocketIdentity = { userId, ...session };
-
-    await this.cacheService.setJson(
-      this.socketTicketKey(ticket),
-      identity,
-      MEDIA_STATUS_SOCKET_TICKET_TTL_SECONDS,
-    );
-
-    return { ticket, expiresInSeconds: MEDIA_STATUS_SOCKET_TICKET_TTL_SECONDS };
+    return this.tickets.issue({ userId, ...session });
   }
 
   /**
-   * Redeems a ticket exactly once, reading and removing it in one operation,
-   * so two upgrades racing with the same ticket cannot both be admitted. The
-   * session is checked again rather than trusted: it can be signed out between
-   * minting the ticket and the upgrade landing.
+   * Redeems a ticket exactly once. The session is checked again rather than
+   * trusted: it can be signed out between minting the ticket and the upgrade
+   * landing.
    */
   async redeemSocketTicket(
     ticket: string,
   ): Promise<MediaStatusSocketIdentity | null> {
-    if (!ticket) {
-      return null;
-    }
-
-    const identity =
-      await this.cacheService.getDeleteJson<MediaStatusSocketIdentity>(
-        this.socketTicketKey(ticket),
-      );
+    const identity = await this.tickets.redeem(ticket);
 
     if (!identity) {
       return null;
@@ -76,9 +68,5 @@ export class MediaStatusSocketService {
       identity.sessionId,
       identity.tokenVersion,
     );
-  }
-
-  private socketTicketKey(ticket: string): string {
-    return `media-status:ws-ticket:${ticket}`;
   }
 }

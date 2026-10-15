@@ -589,11 +589,14 @@ versioned REST prefix:
 Each gateway is a feature-owned class registered as a singleton with a dispose
 hook and **no constructor dependencies**; the feature service depends on the
 gateway through a narrow `publish` seam, which is what keeps that edge from
-closing a cycle. Shared socket infrastructure stops at the handshake cookie
-reader and the Redis adapter builder in
-`configuration/realtime/socket-handshake.ts`, deliberately: the gateways differ
-in enough load-bearing ways (below) that a common base would be mostly
-branches.
+closing a cycle. The security- and shutdown-sensitive pieces live in
+`configuration/realtime/`: the handshake cookie reader and the Redis adapter
+builder (`socket-handshake.ts`), the single-use ticket store
+(`socket-tickets.ts`), and the background-work tracking and shutdown order
+(`socket-gateway.ts`). The media status gateway uses all of them; the booking
+and blog gateways use the first two, and still carry their own copies of the
+rest until they are moved over. Beyond that the gateways differ in enough
+load-bearing ways (below) that a common base would be mostly branches.
 
 All attach to the same Node HTTP server. That is safe because Engine.IO
 dispatches upgrades by `path` and no path is a prefix of another, so none

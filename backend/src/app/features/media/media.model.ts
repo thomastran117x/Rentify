@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IssuedSocketTicket } from "@/configuration/realtime/socket-tickets";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type { ModerationResult } from "@/features/media/moderation/image-moderation.service";
 
@@ -392,11 +393,7 @@ export interface MediaStatusEvent {
   status: Extract<MediaStatus, "ready" | "rejected">;
 }
 
-export interface MediaStatusSocketTicket {
-  /** Never returned to the browser: it is delivered as an HttpOnly cookie. */
-  ticket: string;
-  expiresInSeconds: number;
-}
+export type MediaStatusSocketTicket = IssuedSocketTicket;
 
 /** The session details a ticket carries, taken from the minting request. */
 export interface MediaStatusSocketSession {

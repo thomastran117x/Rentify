@@ -10,6 +10,11 @@ import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import { readAllowedOrigins } from "@/configuration/middlewares/csrf.middleware";
 import {
+  closeGateway,
+  GatewayWork,
+  SOCKET_REAUTHORIZE_INTERVAL_MS,
+} from "@/configuration/realtime/socket-gateway";
+import {
   createSocketRedisAdapter,
   readCookie,
   type SocketRedisClient,
@@ -23,9 +28,6 @@ import {
 } from "@/features/media/media.model";
 
 export { MEDIA_STATUS_SOCKET_PATH };
-
-/** How often an open socket re-checks its session. */
-const REAUTHORIZE_INTERVAL_MS = 60_000;
 
 /**
  * Largest client payload accepted. The client sends nothing on this socket,
@@ -75,13 +77,16 @@ export class MediaStatusSocketServer {
   private adapterClients: SocketRedisClient[] = [];
   /** Whether the worker's pushes can reach this instance's sockets. */
   private canDeliver = false;
-  /** Handshakes in flight, so shutdown can drain them before quitting Redis. */
-  private readonly pending = new Set<Promise<unknown>>();
+  private readonly work: GatewayWork;
 
   constructor(
     private readonly buildAdapter: MediaStatusAdapterBuilder = buildRedisAdapter,
   ) {
     this.logger = loggerFactory.forClass(MediaStatusSocketServer, "service");
+    this.work = new GatewayWork(
+      this.logger,
+      "Media status socket work failed.",
+    );
   }
 
   /**
@@ -106,16 +111,16 @@ export class MediaStatusSocketServer {
     });
 
     this.io.use((socket, next) => {
-      this.track(this.authenticate(socket as MediaStatusSocket, next));
+      this.work.track(this.authenticate(socket as MediaStatusSocket, next));
     });
 
     this.io.on("connection", (socket) => {
-      this.track(this.register(socket as MediaStatusSocket));
+      this.work.track(this.register(socket as MediaStatusSocket));
     });
 
     this.reauthorize = setInterval(
       () => void this.reauthorizeAll(),
-      REAUTHORIZE_INTERVAL_MS,
+      SOCKET_REAUTHORIZE_INTERVAL_MS,
     );
   }
 
@@ -126,40 +131,15 @@ export class MediaStatusSocketServer {
     }
 
     const io = this.io;
-
-    if (io) {
-      // `local`: with the Redis adapter a bare `disconnectSockets()` would
-      // disconnect every instance's clients, not just this one's.
-      io.local.disconnectSockets(true);
-      await Promise.allSettled([...this.pending]);
-      // The engine rather than `io.close()`, which would close the HTTP server
-      // the process shutdown has already closed, and wait forever on it.
-      io.engine.close();
-    }
-
+    const adapterClients = this.adapterClients;
     this.io = null;
-
-    await Promise.allSettled(
-      this.adapterClients.map((client) => client.quit()),
-    );
     this.adapterClients = [];
+    await closeGateway(io, this.work, adapterClients);
   }
 
   /** Open sockets on this instance. Used by tests and diagnostics. */
   activeConnectionCount(): number {
     return this.io?.sockets.sockets.size ?? 0;
-  }
-
-  /** Keeps a handle on handshake work and logs, rather than throws, a failure. */
-  private track(work: Promise<unknown>): void {
-    const tracked = work.catch((error: unknown) => {
-      this.logger.error("Media status socket work failed.", undefined, error);
-    });
-
-    this.pending.add(tracked);
-    void tracked.finally(() => {
-      this.pending.delete(tracked);
-    });
   }
 
   private async authenticate(
