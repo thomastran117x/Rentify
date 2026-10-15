@@ -17,10 +17,11 @@
  * --poll-interval <ms>   how often to check the status (default 50, or 500
  *                        in a burst), well under the browser's schedule, to
  *                        find when the item really finished. Each item's
- *                        GET /media/{id} is limited to 60 a minute, so after
- *                        45 checks the script checks once a second, and it
- *                        waits out a 429 rather than stopping; a run that
- *                        reached either is reported as coarse
+ *                        GET /media/{id} is limited to 60 in any 60 s, so
+ *                        after 40 checks the script checks every 4 s, never
+ *                        makes more than 55 in a window, and waits out a 429
+ *                        rather than stopping; a run that slowed down for any
+ *                        of these is reported as coarse
  * --notify <mode>        how the script learns an upload finished (default
  *                        exact): `exact` polls every --poll-interval ms, to
  *                        find when it really finished; `poll` uses the
@@ -104,12 +105,44 @@ const NOTIFY_MODES = ["exact", "poll", "push"] as const;
 type NotifyMode = (typeof NOTIFY_MODES)[number];
 
 /**
- * Each item's GET /media/{id} may be called 60 times a minute. The fine
- * interval is kept for this many checks, which covers most uploads, and later
- * checks come at the coarse interval, so a slow item stays inside its budget.
+ * Each item's GET /media/{id} may be called 60 times in any 60 s. The fine
+ * interval is kept for this many checks, which covers most uploads; later ones
+ * come at the coarse interval, paced so the fine checks plus the coarse ones
+ * stay under the budget for the rest of the window (40 + 14 by 56 s). Every
+ * check also goes through a sliding-window budget with a little headroom, so
+ * no interval, however small, can reach the limit.
  */
-const FINE_STATUS_CHECKS = 45;
-const COARSE_POLL_INTERVAL_MS = 1_000;
+const FINE_STATUS_CHECKS = 40;
+const COARSE_POLL_INTERVAL_MS = 4_000;
+const STATUS_CHECK_BUDGET = 55;
+const STATUS_CHECK_WINDOW_MS = 60_000;
+
+/**
+ * The checks one item has made, so the next waits until it fits the
+ * per-item budget. Returns how long it waited.
+ */
+class StatusCheckBudget {
+  private readonly checkedAt: number[] = [];
+
+  async take(): Promise<number> {
+    const windowStart = () => performance.now() - STATUS_CHECK_WINDOW_MS;
+
+    while ((this.checkedAt[0] ?? Infinity) <= windowStart()) {
+      this.checkedAt.shift();
+    }
+
+    let waitedMs = 0;
+
+    if (this.checkedAt.length >= STATUS_CHECK_BUDGET) {
+      waitedMs = this.checkedAt[0]! - windowStart();
+      await sleep(waitedMs);
+      this.checkedAt.shift();
+    }
+
+    this.checkedAt.push(performance.now());
+    return waitedMs;
+  }
+}
 
 /** What `uploadImage` waits between checks, without a socket and with one. */
 const BROWSER_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
@@ -490,6 +523,7 @@ async function uploadOnce(
           : BROWSER_POLL_DELAYS_MS;
     let attempt = 0;
     let coarse = false;
+    const budget = new StatusCheckBudget();
 
     while (media.status !== "ready" && media.status !== "rejected") {
       if (performance.now() - waitStartedAt > 120_000) {
@@ -498,8 +532,8 @@ async function uploadOnce(
 
       let delay = delays[Math.min(attempt, delays.length - 1)]!;
 
-      if (options.notify === "exact" && attempt >= FINE_STATUS_CHECKS) {
-        delay = Math.max(delay, COARSE_POLL_INTERVAL_MS);
+      if (attempt >= FINE_STATUS_CHECKS && delay < COARSE_POLL_INTERVAL_MS) {
+        delay = COARSE_POLL_INTERVAL_MS;
         coarse = true;
       }
 
@@ -510,6 +544,11 @@ async function uploadOnce(
             statusSocket.next(mediaId),
           ])
         : await sleep(delay).then(() => "poll" as const);
+
+      if ((await budget.take()) > 0) {
+        coarse = true;
+      }
+
       const timing = `upload=${Math.round(uploadMs)}, wait=${Math.round(
         performance.now() - waitStartedAt,
       )}, via=${via}`;
@@ -682,7 +721,7 @@ function printClientTimings(label: string, timings: UploadTiming[]): void {
       failed ? `, ${failed} not ready` : ""
     }${
       coarse
-        ? `, ${coarse} timed coarsely (to ${COARSE_POLL_INTERVAL_MS} ms or a rate-limit pause)`
+        ? `, ${coarse} timed coarsely (checks ${COARSE_POLL_INTERVAL_MS} ms apart, or paused for the rate limit)`
         : ""
     }\n`,
   );
