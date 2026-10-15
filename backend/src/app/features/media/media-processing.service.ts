@@ -18,7 +18,6 @@ import {
   isImagePolicyRejection,
   normalizeImageContentType,
   rejectionCodeOf,
-  type DecodedImage,
 } from "@/features/media/image-policy";
 import {
   deleteQuarantinedUpload,
@@ -32,6 +31,7 @@ import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
   type RenderedImage,
+  type SmallerRenditions,
 } from "@/features/media/image-renditions";
 import {
   mediaMetricScope,
@@ -238,6 +238,33 @@ export class MediaProcessingService {
     }
   }
 
+  /**
+   * Decodes the upload, once, and encodes the processed image and both
+   * renditions from its pixels. The decode is also the check that the pixel
+   * data is whole, so a truncated image is rejected here. Only the encoded
+   * images leave this method: the raw pixels, which take up to the processed
+   * edge squared times four bytes, are not held through moderation and the
+   * uploads that follow.
+   */
+  private async render(
+    original: Buffer,
+    scope: MediaMetricScope,
+  ): Promise<{ processed: RenderedImage; renditions: SmallerRenditions }> {
+    const { decoded, processed } = await this.timed(
+      "render",
+      scope,
+      async () => {
+        const image = await decodeUprightImage(original);
+        return { decoded: image, processed: await renderProcessedImage(image) };
+      },
+    );
+    const renditions = await this.timed("renditions", scope, () =>
+      renderSmallerRenditions(decodedImageSource(decoded), decoded.width),
+    );
+
+    return { processed, renditions };
+  }
+
   /** Runs one stage of an attempt and records how long it took. */
   private async timed<T>(
     stage: MediaProcessingStage,
@@ -286,19 +313,14 @@ export class MediaProcessingService {
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     let detectedContentType: SupportedImageContentType;
-    let decoded: DecodedImage;
     let processed: RenderedImage;
+    let renditions: SmallerRenditions;
 
     try {
       detectedContentType = await this.timed("inspect", scope, () =>
         this.inspect(record, original.body),
       );
-      // The only decode of the upload. It is also the check that its pixel
-      // data is whole, so a truncated image is rejected here.
-      ({ decoded, processed } = await this.timed("render", scope, async () => {
-        const image = await decodeUprightImage(original.body);
-        return { decoded: image, processed: await renderProcessedImage(image) };
-      }));
+      ({ processed, renditions } = await this.render(original.body, scope));
     } catch (error) {
       if (isImagePolicyRejection(error)) {
         return this.reject(record, policyRejection(error));
@@ -307,9 +329,6 @@ export class MediaProcessingService {
       throw error;
     }
 
-    const renditions = await this.timed("renditions", scope, () =>
-      renderSmallerRenditions(decodedImageSource(decoded), decoded.width),
-    );
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     // Moderated before anything is written, so a harmful image never reaches
