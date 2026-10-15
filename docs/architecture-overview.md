@@ -660,12 +660,17 @@ since a user may always hear about their own uploads. The event carries no
 view; the client reads `GET /media/{id}`, which applies the usual ownership
 check. A push is best effort. The worker connects Redis in the background,
 drops a push while Redis is not ready rather than queue it, and never fails a
-job over one, so a client keeps polling as the fallback. On the client,
-`mediaStatusChannel` (`frontend/src/lib/media/status-socket.ts`) holds one
-socket per page for every upload: `uploadImage` takes it as the upload starts,
-so it connects during the PUT, and it closes 30 seconds after the last upload
-stops waiting. While the socket is listening, `uploadImage` checks at 2 s,
-3 s, then every 5 s behind the push; while it is not, at the old 0.5 to 2 s
+job over one, so a client keeps polling as the fallback. Unlike the other
+gateways, this one is no use without its Redis adapter, since the pushes only
+arrive through it: when the adapter cannot be built at startup, it refuses
+every handshake as `Unavailable`, and the client stops trying and polls at its
+full rate. On the client, `mediaStatusChannel`
+(`frontend/src/lib/media/status-socket.ts`) holds one socket per page for every
+upload: `uploadImage` takes it as the upload starts, so it connects during the
+PUT, and it closes 30 seconds after the last upload stops waiting. While the
+socket is listening, `uploadImage` checks at 1 s, 2 s, then every 3 s behind
+the push, so a push lost while the worker cannot reach Redis costs about a
+second more than polling; while it is not listening, at the old 0.5 to 2 s
 schedule. Like the other clients it retries a failed connect with a fresh
 ticket, further apart each time, and stops after five.
 

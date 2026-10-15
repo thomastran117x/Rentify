@@ -1,5 +1,9 @@
 import type { Server as HttpServer } from "node:http";
-import { Server as SocketIoServer, type Socket } from "socket.io";
+import {
+  Server as SocketIoServer,
+  type ServerOptions,
+  type Socket,
+} from "socket.io";
 import { getContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { loggerFactory } from "@/configuration/logging";
@@ -32,6 +36,21 @@ const MAX_CLIENT_FRAME_BYTES = 1_024;
 type MediaStatusSocket = Socket & { identity?: MediaStatusSocketIdentity };
 
 /**
+ * The handshake error a client is refused with while no push can reach it,
+ * so it stops trying and polls at its full rate instead.
+ */
+export const MEDIA_STATUS_UNAVAILABLE = "Unavailable";
+
+/** Builds the adapter the worker's emitter publishes through. */
+export type MediaStatusAdapterBuilder = (logger: Logger) => Promise<{
+  adapter: ServerOptions["adapter"] | null;
+  clients: SocketRedisClient[];
+}>;
+
+const buildRedisAdapter: MediaStatusAdapterBuilder = (logger) =>
+  createSocketRedisAdapter(logger, { key: MEDIA_STATUS_SOCKET_ADAPTER_KEY });
+
+/**
  * Media status realtime gateway: tells a signed-in user's open pages when one
  * of their uploads becomes `ready` or `rejected`.
  *
@@ -39,6 +58,12 @@ type MediaStatusSocket = Socket & { identity?: MediaStatusSocketIdentity };
  * worker, which has no Socket.IO server of its own, publishes into that room
  * through a Redis emitter on this gateway's adapter channel. The event carries
  * just the id and status; the client reads the item itself over REST.
+ *
+ * Unlike the other gateways, it is no use without its Redis adapter: their
+ * events come from the API that holds the sockets, but these come from the
+ * worker, and only through the adapter. When the adapter cannot be built, the
+ * gateway refuses every handshake as `Unavailable`, so a client polls at its
+ * full rate rather than slowly, waiting for a push that cannot come.
  *
  * Like the other gateways, a replicated API needs sticky sessions at the load
  * balancer for Socket.IO's polling handshake.
@@ -48,10 +73,14 @@ export class MediaStatusSocketServer {
   private io: SocketIoServer | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
   private adapterClients: SocketRedisClient[] = [];
+  /** Whether the worker's pushes can reach this instance's sockets. */
+  private canDeliver = false;
   /** Handshakes in flight, so shutdown can drain them before quitting Redis. */
   private readonly pending = new Set<Promise<unknown>>();
 
-  constructor() {
+  constructor(
+    private readonly buildAdapter: MediaStatusAdapterBuilder = buildRedisAdapter,
+  ) {
     this.logger = loggerFactory.forClass(MediaStatusSocketServer, "service");
   }
 
@@ -61,10 +90,9 @@ export class MediaStatusSocketServer {
    * adapter would never hear the worker's broadcasts.
    */
   async attach(server: HttpServer): Promise<void> {
-    const { adapter, clients } = await createSocketRedisAdapter(this.logger, {
-      key: MEDIA_STATUS_SOCKET_ADAPTER_KEY,
-    });
+    const { adapter, clients } = await this.buildAdapter(this.logger);
     this.adapterClients = clients;
+    this.canDeliver = adapter !== null;
 
     this.io = new SocketIoServer(server, {
       path: MEDIA_STATUS_SOCKET_PATH,
@@ -138,6 +166,13 @@ export class MediaStatusSocketServer {
     socket: MediaStatusSocket,
     next: (error?: Error) => void,
   ): Promise<void> {
+    // Refused before the ticket is redeemed, so the client keeps nothing
+    // waiting on a socket that would never be told anything.
+    if (!this.canDeliver) {
+      next(new Error(MEDIA_STATUS_UNAVAILABLE));
+      return;
+    }
+
     const scope = getContainer().createScope();
 
     try {

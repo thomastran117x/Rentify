@@ -210,6 +210,29 @@ describe("createMediaStatusChannel", () => {
     expect(sockets).toHaveLength(3);
   });
 
+  it("stops trying when the server cannot deliver pushes, until the idle close", async () => {
+    const { channel, dependencies, sockets, timers, runTimers } = harness();
+    const release = channel.acquire();
+    await settle();
+
+    sockets[0]!.fire("connect_error", new Error("Unavailable"));
+    channel.acquire()();
+    await settle();
+
+    // No retry was scheduled, and a second upload opens nothing either.
+    expect(timers).toHaveLength(0);
+    expect(dependencies.mintTicket).toHaveBeenCalledTimes(1);
+    expect(channel.isListening()).toBe(false);
+
+    // Once everything lets go and the idle close runs, a later upload tries
+    // again.
+    release();
+    runTimers();
+    channel.acquire();
+    await settle();
+    expect(dependencies.mintTicket).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores events from a socket it has already replaced", async () => {
     const { channel, sockets, runTimers } = harness();
     channel.acquire();

@@ -247,9 +247,11 @@ export interface UploadImageOptions {
 const DEFAULT_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
 /**
  * Delays between checks while the status socket is listening. A push ends the
- * wait as soon as the item finishes, so these only cover a push that is lost.
+ * wait as soon as the item finishes, so these only cover a push that is lost,
+ * as when the worker cannot reach Redis. Kept close to the polling schedule,
+ * so a lost push costs about a second more than polling would have.
  */
-const PUSH_FALLBACK_DELAYS_MS = [2000, 3000, 5000];
+const PUSH_FALLBACK_DELAYS_MS = [1000, 2000, 3000];
 /** What `uploadImage` measured, for the server's latency metrics. */
 const UPLOAD_TIMING_HEADER = "x-media-upload-timing";
 const DEFAULT_PROCESSING_TIMEOUT_MS = 60_000;

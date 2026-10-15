@@ -9,6 +9,12 @@ const SOCKET_PATH = "/ws/media";
 export const MAX_CONSECUTIVE_SOCKET_FAILURES = 5;
 
 /**
+ * The handshake error a server without its Redis adapter refuses with: no push
+ * can reach this page, so trying again would only spend tickets.
+ */
+const UNAVAILABLE = "Unavailable";
+
+/**
  * How long the socket stays open once nothing is waiting on it, so photos
  * picked one after another share one connection instead of each opening one.
  */
@@ -142,12 +148,22 @@ export function createMediaStatusChannel(
       }
     });
 
-    next.on("connect_error", () => {
-      if (socket === next) {
-        socket = null;
-        listening = false;
-        retry();
+    next.on("connect_error", (error: Error) => {
+      if (socket !== next) {
+        return;
       }
+
+      socket = null;
+      listening = false;
+
+      if (error?.message === UNAVAILABLE) {
+        // Given up at once, so uploads poll at their full rate. A later
+        // upload, after the idle close, tries again.
+        failures = MAX_CONSECUTIVE_SOCKET_FAILURES;
+        return;
+      }
+
+      retry();
     });
 
     next.on("disconnect", (reason) => {

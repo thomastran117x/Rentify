@@ -350,8 +350,8 @@ describe("uploadImage", () => {
       );
 
       expect(image.url).toBe(READY.url);
-      // Polling would have waited two seconds; the push ended it first.
-      expect(waits).toEqual([2000]);
+      // The fallback check would have waited a second; the push ended it first.
+      expect(waits).toEqual([1000]);
       expect(reads()).toHaveLength(1);
       expect(timingOf(reads()[0]!)).toMatch(/via=push$/);
     });
@@ -379,7 +379,7 @@ describe("uploadImage", () => {
       expect(timingOf(reads()[0]!)).toMatch(/via=push$/);
     });
 
-    it("polls slowly while the socket listens, in case a push is lost", async () => {
+    it("polls more slowly while the socket listens, in case a push is lost", async () => {
       statusChannel.listening = true;
       routeMediaApi(mediaView({ status: "uploaded" }), [
         mediaView({ status: "processing" }),
@@ -393,7 +393,7 @@ describe("uploadImage", () => {
         sleep,
       });
 
-      expect(sleep.mock.calls).toEqual([[2000], [3000], [5000], [5000]]);
+      expect(sleep.mock.calls).toEqual([[1000], [2000], [3000], [3000]]);
       expect(timingOf(reads().at(-1)!)).toMatch(/via=poll$/);
     });
 

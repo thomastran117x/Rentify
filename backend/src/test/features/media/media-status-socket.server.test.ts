@@ -11,9 +11,12 @@ import {
 import { containerTokens } from "@/configuration/container/tokens";
 import { asUuid } from "@/configuration/validation/uuid";
 import { mediaStatusRoom } from "@/features/media/media.model";
+import { Adapter } from "socket.io-adapter";
 import {
   MEDIA_STATUS_SOCKET_PATH,
+  MEDIA_STATUS_UNAVAILABLE,
   MediaStatusSocketServer,
+  type MediaStatusAdapterBuilder,
 } from "@/features/media/media-status-socket.server";
 import { testUuid } from "../../support/uuid";
 
@@ -26,10 +29,17 @@ interface Fakes {
 }
 
 /**
+ * Socket.IO's own in-memory adapter, in place of the Redis one: rooms work on
+ * a single instance, and delivery across Redis is the integration suite's.
+ */
+const inMemoryAdapter: MediaStatusAdapterBuilder = async () => ({
+  adapter: Adapter,
+  clients: [],
+});
+
+/**
  * A container of fakes, so the gateway's own logic - the handshake, the room
- * it joins, the session sweep and teardown - runs without infrastructure. The
- * Redis adapter is absent, as a single instance works without it; delivery
- * across Redis is the integration suite's.
+ * it joins, the session sweep and teardown - runs without infrastructure.
  */
 function installFakeContainer(overrides: Partial<Fakes> = {}): Fakes {
   const fakes: Fakes = {
@@ -68,8 +78,8 @@ describe("MediaStatusSocketServer", () => {
   let port: number;
   const clients: ClientSocket[] = [];
 
-  beforeEach(async () => {
-    socketServer = new MediaStatusSocketServer();
+  async function start(buildAdapter: MediaStatusAdapterBuilder): Promise<void> {
+    socketServer = new MediaStatusSocketServer(buildAdapter);
     httpServer = createServer((_request, response) => {
       response.writeHead(404);
       response.end();
@@ -77,6 +87,10 @@ describe("MediaStatusSocketServer", () => {
     await socketServer.attach(httpServer);
     await new Promise<void>((resolve) => httpServer.listen(0, resolve));
     port = (httpServer.address() as AddressInfo).port;
+  }
+
+  beforeEach(async () => {
+    await start(inMemoryAdapter);
   });
 
   afterEach(async () => {
@@ -173,6 +187,22 @@ describe("MediaStatusSocketServer", () => {
     });
 
     expect(error.message).toBe("Unauthorized");
+    expect(socketServer.activeConnectionCount()).toBe(0);
+  });
+
+  it("refuses every handshake as unavailable when it has no adapter for the worker's pushes", async () => {
+    await socketServer.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    await start(async () => ({ adapter: null, clients: [] }));
+    const fakes = installFakeContainer();
+
+    const error = await new Promise<Error>((resolve) => {
+      client("good").once("connect_error", resolve);
+    });
+
+    expect(error.message).toBe(MEDIA_STATUS_UNAVAILABLE);
+    // Refused before the ticket is spent.
+    expect(fakes.redeemSocketTicket).not.toHaveBeenCalled();
     expect(socketServer.activeConnectionCount()).toBe(0);
   });
 

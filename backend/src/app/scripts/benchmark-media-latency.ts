@@ -113,7 +113,7 @@ const COARSE_POLL_INTERVAL_MS = 1_000;
 
 /** What `uploadImage` waits between checks, without a socket and with one. */
 const BROWSER_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
-const BROWSER_PUSH_FALLBACK_DELAYS_MS = [2000, 3000, 5000];
+const BROWSER_PUSH_FALLBACK_DELAYS_MS = [1000, 2000, 3000];
 
 interface ReferenceImage {
   name: ReferenceImageName;

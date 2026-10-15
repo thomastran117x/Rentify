@@ -49,10 +49,12 @@ export interface SocketRedisClient {
  * other's broadcasts and discard them, since their rooms never match, so a
  * gateway with its own emitter gives itself a key of its own.
  *
- * A single-instance deployment still works without the adapter, so failing to
- * build it does not stop the gateway from serving: the adapter is null, and
- * the failure is logged loudly, because a replicated deployment silently loses
- * cross-node delivery.
+ * Failing to build it does not throw: the adapter is null, and the failure is
+ * logged loudly, because a replicated deployment silently loses cross-node
+ * delivery. A gateway whose events come from the API instance holding the
+ * sockets still works on a single instance without it. One whose events come
+ * from another process, through an emitter, cannot, and must decide for itself
+ * what a null adapter means.
  */
 export async function createSocketRedisAdapter(
   logger: Pick<Logger, "error">,
