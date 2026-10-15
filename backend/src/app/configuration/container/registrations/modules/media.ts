@@ -80,6 +80,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mediaRepository,
         containerTokens.mediaProcessingQueueService,
         containerTokens.mediaMetrics,
+        containerTokens.cacheService,
       ],
       resolve: ({ resolve }) =>
         new MediaService(
@@ -87,6 +88,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.mediaProcessingQueueService),
           resolve(containerTokens.mediaMetrics),
+          resolve(containerTokens.cacheService),
         ),
     });
     container.register({

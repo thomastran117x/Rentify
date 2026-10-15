@@ -4,6 +4,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import ServiceNotImplementedError from "@/errors/http/service-not-implemented.error";
 import type { BlobService } from "@/features/blob/blob.service";
+import type { CacheService } from "@/features/cache/cache.service";
 import {
   deleteImageBlobs,
   deleteMediaBlobs,
@@ -68,6 +69,7 @@ export class MediaService {
       "enqueueMediaProcessingJob"
     >,
     private readonly metrics: MediaMetrics,
+    private readonly clientTimingClaims: Pick<CacheService, "setIfNotExists">,
   ) {}
 
   /**
@@ -188,28 +190,31 @@ export class MediaService {
     const record = await this.requireOwnedRecord(userId, mediaId);
 
     if (clientTiming) {
-      this.observeClientTiming(record, clientTiming);
+      await this.observeClientTiming(record, clientTiming);
     }
 
     return this.toView(record);
   }
 
   /**
-   * Only for an item that finished recently. `uploadImage` stops checking the
-   * moment it sees one finish, so that check is the one to record; a later
-   * read of an old item is not an upload being waited on.
+   * Only for an item that finished recently, and only once. `uploadImage`
+   * stops checking the moment it sees one finish, so that check is the one to
+   * record. A later read of an old item is not an upload being waited on, and
+   * a repeated read, such as a retry after a dropped response or a client
+   * sending the header on purpose, would count the same upload again.
    */
-  private observeClientTiming(
+  private async observeClientTiming(
     record: MediaRecord,
     timing: ClientUploadTiming,
-  ): void {
+  ): Promise<void> {
     const finishedAt = record.processingCompletedAt?.getTime();
     const noticeDelayMs =
       finishedAt === undefined ? NaN : Date.now() - finishedAt;
 
     if (
       (record.status !== "ready" && record.status !== "rejected") ||
-      !(noticeDelayMs <= MAX_CLIENT_TIMING_MS)
+      !(noticeDelayMs <= MAX_CLIENT_TIMING_MS) ||
+      !(await this.claimClientTiming(record.id))
     ) {
       return;
     }
@@ -239,6 +244,28 @@ export class MediaService {
         scope,
         via,
       });
+    }
+  }
+
+  /**
+   * Takes the one recording an item's client timings get. It is kept for as
+   * long as a read can still be recorded at all, so it outlives every repeat.
+   * If the claim cannot be made, nothing is recorded: the timings are
+   * advisory, and must never fail or slow the read carrying them.
+   */
+  private async claimClientTiming(mediaId: Uuid): Promise<boolean> {
+    try {
+      return await this.clientTimingClaims.setIfNotExists(
+        `media:client-timing:${mediaId}`,
+        "1",
+        Math.ceil(MAX_CLIENT_TIMING_MS / 1_000),
+      );
+    } catch (error) {
+      this.logger.warn("Could not claim an upload's client timings.", {
+        mediaId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
     }
   }
 

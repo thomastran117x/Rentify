@@ -18,6 +18,8 @@ import {
 } from "../../support/recording-media-metrics";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import { testUuid } from "../../support/uuid";
+import { InMemoryCacheClaims } from "../../support/in-memory-cache-claims";
+import type { CacheService } from "@/features/cache/cache.service";
 import {
   readLocalUploadUrl,
   restoreBlobEnvironmentAfterEach,
@@ -31,7 +33,12 @@ const USER_2_ID = testUuid(9000, 994260);
 
 restoreBlobEnvironmentAfterEach();
 
-function createLocalMediaService(options: { metrics?: MediaMetrics } = {}): {
+function createLocalMediaService(
+  options: {
+    metrics?: MediaMetrics;
+    claims?: Pick<CacheService, "setIfNotExists">;
+  } = {},
+): {
   mediaService: MediaService;
   blobService: BlobService;
   mediaRepository: InMemoryMediaRepository;
@@ -52,6 +59,7 @@ function createLocalMediaService(options: { metrics?: MediaMetrics } = {}): {
       mediaRepository.asRepository(),
       queue,
       options.metrics ?? metrics,
+      options.claims ?? new InMemoryCacheClaims(),
     ),
     blobService,
     mediaRepository,
@@ -359,6 +367,7 @@ describe("MediaService", () => {
         mediaRepository.asRepository(),
         { enqueueMediaProcessingJob: jest.fn() },
         new NoopMediaMetrics(),
+        new InMemoryCacheClaims(),
       );
 
       await expect(startUpload(mediaService)).rejects.toThrow(
@@ -680,8 +689,9 @@ describe("MediaService", () => {
       async function finishedUpload(
         status: MediaStatus,
         finishedAgoMs: number | null,
+        claims?: Pick<CacheService, "setIfNotExists">,
       ) {
-        const context = createLocalMediaService();
+        const context = createLocalMediaService(claims ? { claims } : {});
         const { mediaId } = await startUpload(context.mediaService);
         const record = (await context.mediaRepository.findById(mediaId))!;
         context.mediaRepository.put({
@@ -762,6 +772,44 @@ describe("MediaService", () => {
           expect(clientMetrics(metrics)).toEqual([]);
         },
       );
+
+      it("records an upload once, however often it is read with timings", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+        );
+
+        // A retry after a dropped response, or a client replaying the header.
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await mediaService.getMediaView(USER_1_ID, mediaId, {
+          uploadMs: 600_000,
+          waitMs: 600_000,
+          via: "push",
+        });
+
+        expect(metrics.calls("media.client.total.duration")).toEqual([
+          expect.objectContaining({ value: 2_100 }),
+        ]);
+        expect(metrics.count("media.client.notice.delay")).toBe(1);
+      });
+
+      it("records nothing, and still answers, when the claim cannot be made", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+          {
+            setIfNotExists: async () => {
+              throw new Error("Redis is unavailable.");
+            },
+          },
+        );
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId, timing),
+        ).resolves.toMatchObject({ id: mediaId, status: "ready" });
+        expect(clientMetrics(metrics)).toEqual([]);
+      });
 
       it("drops only the notice delay when the worker's clock is ahead", async () => {
         const { mediaService, metrics, mediaId } = await finishedUpload(
