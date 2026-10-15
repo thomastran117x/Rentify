@@ -7,6 +7,7 @@ import {
   formatByteLimit,
   inspectImageHeader,
   isImagePolicyRejection,
+  isUndecodableImageError,
   normalizeImageContentType,
   rejectionCodeOf,
 } from "@/features/media/image-policy";
@@ -286,6 +287,51 @@ describe("decodeUprightImage", () => {
 
     expect(error).toBeInstanceOf(UnsupportedMediaTypeError);
     expect(rejectionCodeOf(error as UnsupportedMediaTypeError)).toBe("corrupt");
+  });
+
+  it("throws a failure that is not the image's fault as it is, for a retry", async () => {
+    // Built first: the spy below would fail its encode too.
+    const image = await createPngFixture(64, 64);
+    const outOfMemory = new Error("out of memory --- size == 16MB");
+    const toBuffer = jest
+      .spyOn(sharp.prototype, "toBuffer")
+      .mockRejectedValueOnce(outOfMemory);
+
+    try {
+      await expect(decodeUprightImage(image)).rejects.toBe(outOfMemory);
+    } finally {
+      toBuffer.mockRestore();
+    }
+  });
+});
+
+describe("isUndecodableImageError", () => {
+  // What libvips and sharp said for each damaged fixture the decode tests use.
+  it.each([
+    "VipsJpeg: premature end of JPEG image",
+    "vipspng: libpng read error",
+    "Input buffer has corrupt header: webp: unable to parse image",
+    "Input buffer contains unsupported image format",
+    "Input image exceeds pixel limit",
+    "webp2vips: unable to read pixels\nwebpload_buffer: load error",
+    "jpegload: out of order read at line 12",
+  ])("blames the image for %j", (message) => {
+    expect(isUndecodableImageError(new Error(message))).toBe(true);
+  });
+
+  it.each([
+    "out of memory --- size == 16MB",
+    "VipsJpeg: out of memory",
+    "Array buffer allocation failed",
+    "Could not allocate memory",
+    "vips_resize: operation cancelled",
+    "something unexpected",
+  ])("blames the worker for %j", (message) => {
+    expect(isUndecodableImageError(new Error(message))).toBe(false);
+  });
+
+  it("reads a thrown value that is not an Error", () => {
+    expect(isUndecodableImageError("vipspng: libpng read error")).toBe(true);
   });
 });
 

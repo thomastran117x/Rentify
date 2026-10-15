@@ -293,6 +293,35 @@ export interface DecodedImage {
 }
 
 /**
+ * Out of memory, as Node or libvips reports it. Checked first, because a
+ * decoder that cannot allocate names itself in the message as well.
+ */
+const RESOURCE_FAILURE = /out of memory|alloc/i;
+
+/**
+ * How libvips and sharp report bytes they cannot decode: a loader naming
+ * itself (`VipsJpeg:`, `vipspng:`, `webpload_buffer: load error`,
+ * `webp2vips:`), or sharp describing the input buffer or image. Every
+ * truncated, cut and corrupt JPEG, PNG and WebP the tests try fails with one
+ * of these.
+ */
+const DECODE_FAILURE =
+  /\b(?:vips(?:jpeg|png|webp|foreignload)\w*|(?:jpeg|png|webp|gif|heif|tiff)load\w*|(?:jpeg|png|webp)2vips|webp|libpng|libjpeg|spng)\b|load error|input buffer|input image|premature end|corrupt|truncat/i;
+
+/**
+ * Whether a failed decode is the upload's fault, so final, rather than the
+ * worker's, such as running out of memory under load, which a retry can fix.
+ * Anything that is neither is treated as the worker's: retrying a bad image
+ * costs a few delayed attempts before it is rejected as `processing_failed`,
+ * while rejecting a good image as corrupt cannot be undone.
+ */
+export function isUndecodableImageError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return !RESOURCE_FAILURE.test(message) && DECODE_FAILURE.test(message);
+}
+
+/**
  * The second pass: decodes every pixel of an upload that passed
  * inspectImageHeader, applying its EXIF orientation and scaling it to fit
  * inside `imageUploads.maxProcessedEdge`, never enlarged. The result is what
@@ -307,6 +336,10 @@ export interface DecodedImage {
  * bounded, and it keeps limitInputPixels as a second guard against a
  * decompression bomb. Scaling during the decode also bounds the raw result by
  * the processed edge rather than the upload's size.
+ *
+ * Only a failure that is the upload's fault is refused as `corrupt`. One that
+ * is not, such as running out of memory while several jobs decode at once, is
+ * thrown as it is, so the job is retried.
  */
 export async function decodeUprightImage(body: Buffer): Promise<DecodedImage> {
   const policy = environment.getImageUploadsConfig();
@@ -332,7 +365,11 @@ export async function decodeUprightImage(body: Buffer): Promise<DecodedImage> {
       height: info.height,
       channels: info.channels,
     };
-  } catch {
+  } catch (error) {
+    if (!isUndecodableImageError(error)) {
+      throw error;
+    }
+
     throw new UnsupportedMediaTypeError(
       "Uploaded image data is truncated or corrupt.",
       withRejectionCode("corrupt"),
