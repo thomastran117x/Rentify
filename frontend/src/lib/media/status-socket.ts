@@ -80,10 +80,20 @@ export function createMediaStatusChannel(
   let listening = false;
   let failures = 0;
   let idleTimer: unknown = null;
+  let retryTimer: unknown = null;
+
+  function cancelRetry(): void {
+    if (retryTimer !== null) {
+      dependencies.clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
 
   function open(): void {
     if (
       typeof window === "undefined" ||
+      // Nothing is waiting: a late retry must not mint a ticket for no one.
+      holders === 0 ||
       socket ||
       connecting ||
       failures >= MAX_CONSECUTIVE_SOCKET_FAILURES
@@ -99,7 +109,11 @@ export function createMediaStatusChannel(
     failures += 1;
 
     if (failures < MAX_CONSECUTIVE_SOCKET_FAILURES && holders > 0) {
-      dependencies.setTimeout(open, 1_000 * failures);
+      cancelRetry();
+      retryTimer = dependencies.setTimeout(() => {
+        retryTimer = null;
+        open();
+      }, 1_000 * failures);
     }
   }
 
@@ -183,6 +197,7 @@ export function createMediaStatusChannel(
 
   function close(): void {
     idleTimer = null;
+    cancelRetry();
     listening = false;
     // A later upload gets a fresh set of attempts.
     failures = 0;
@@ -212,6 +227,8 @@ export function createMediaStatusChannel(
         holders -= 1;
 
         if (holders === 0) {
+          // No one is left to retry for.
+          cancelRetry();
           idleTimer = dependencies.setTimeout(close, IDLE_CLOSE_MS);
         }
       };

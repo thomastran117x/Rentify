@@ -233,6 +233,24 @@ describe("createMediaStatusChannel", () => {
     expect(dependencies.mintTicket).toHaveBeenCalledTimes(2);
   });
 
+  it("cancels a pending retry when the last upload lets go", async () => {
+    const { channel, dependencies, sockets, timers, runTimers } = harness();
+    const release = channel.acquire();
+    await settle();
+    sockets[0]!.fire("connect_error", new Error("Unauthorized"));
+    const retry = timers.find((timer) => timer.ms === 1_000);
+    expect(retry?.cleared).toBe(false);
+
+    release();
+    expect(retry?.cleared).toBe(true);
+    runTimers();
+    await settle();
+
+    // Only the first attempt minted a ticket; the cancelled retry did not.
+    expect(dependencies.mintTicket).toHaveBeenCalledTimes(1);
+    expect(sockets).toHaveLength(1);
+  });
+
   it("ignores events from a socket it has already replaced", async () => {
     const { channel, sockets, runTimers } = harness();
     channel.acquire();
