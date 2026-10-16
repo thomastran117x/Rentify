@@ -26,6 +26,9 @@ export function applyDatabaseSeedTestEnvironment(
   process.env.PERSONAL_ACCESS_TOKEN_SECRET =
     process.env.PERSONAL_ACCESS_TOKEN_SECRET ??
     "seed-test-personal-access-token-32";
+  process.env.AUTH_AUDIT_IDENTIFIER_SECRET =
+    process.env.AUTH_AUDIT_IDENTIFIER_SECRET ??
+    "seed-test-auth-audit-identifier-32";
   process.env.GMAIL_USER = process.env.GMAIL_USER ?? "seed-test@example.com";
   process.env.GMAIL_APP_PASSWORD =
     process.env.GMAIL_APP_PASSWORD ?? "seed-test-password";

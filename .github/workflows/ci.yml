@@ -184,6 +184,7 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
@@ -237,6 +238,7 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
@@ -333,6 +335,7 @@ jobs:
       ACCESS_TOKEN_SECRET: ci-access-token-secret-value-32ch
       REFRESH_TOKEN_SECRET: ci-refresh-token-secret-value-32c
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
+      AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id

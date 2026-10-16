@@ -256,6 +256,9 @@ export function applyPersistenceTestEnvironment(
   process.env.PERSONAL_ACCESS_TOKEN_SECRET =
     process.env.PERSONAL_ACCESS_TOKEN_SECRET ??
     "seed-test-personal-access-token-32";
+  process.env.AUTH_AUDIT_IDENTIFIER_SECRET =
+    process.env.AUTH_AUDIT_IDENTIFIER_SECRET ??
+    "seed-test-auth-audit-identifier-32";
   process.env.MFA_TOTP_ENCRYPTION_KEY =
     process.env.MFA_TOTP_ENCRYPTION_KEY ?? "0".repeat(64);
   process.env.GMAIL_USER = process.env.GMAIL_USER ?? "seed-test@example.com";

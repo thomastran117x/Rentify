@@ -175,6 +175,7 @@ export function buildAuthConfig(
   accessTokenCredentials: AccessTokenCredentials,
   refreshTokenSecret: string,
   personalAccessTokenSecret: string,
+  authAuditIdentifierSecret: string,
   mfaTotpEncryptionKey: string,
 ): AppEnvironment["auth"] {
   return {
@@ -220,6 +221,7 @@ export function buildAuthConfig(
     refreshTokenCachePrefix:
       raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
     personalAccessTokenSecret,
+    authAuditIdentifierSecret,
     mfaTotpEncryptionKey,
   };
 }
