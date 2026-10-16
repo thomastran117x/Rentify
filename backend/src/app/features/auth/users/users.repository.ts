@@ -305,6 +305,21 @@ export class UsersRepository extends BaseRepository {
     return identity ? this.mapUser(identity.user) : null;
   }
 
+  async recordLastLogin(userId: Uuid, at: Date = new Date()): Promise<void> {
+    await this.executeAsync(
+      () =>
+        this.prisma.user.update({
+          where: {
+            id: userId,
+          },
+          data: {
+            lastLoginAt: at,
+          },
+        }),
+      { maxRetries: 0 },
+    );
+  }
+
   async markEmailVerified(userId: Uuid): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.user.update({

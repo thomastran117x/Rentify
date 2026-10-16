@@ -443,6 +443,43 @@ describe("UsersRepository", () => {
     });
   });
 
+  it("records when a user last signed in", async () => {
+    const update = jest.fn(async () => undefined);
+    const repository = new UsersRepository({
+      user: {
+        update,
+      },
+    } as any);
+    const signedInAt = new Date("2026-10-16T09:00:00.000Z");
+
+    await repository.recordLastLogin(USER_1_ID, signedInAt);
+
+    expect(update).toHaveBeenCalledWith({
+      where: {
+        id: USER_1_ID,
+      },
+      data: {
+        lastLoginAt: signedInAt,
+      },
+    });
+  });
+
+  it("does not retry a failed last sign-in update", async () => {
+    const update = jest.fn(async () => {
+      throw Object.assign(new Error("connection lost"), { code: "P1001" });
+    });
+    const repository = new UsersRepository({
+      user: {
+        update,
+      },
+    } as any);
+
+    await expect(repository.recordLastLogin(USER_1_ID)).rejects.toThrow(
+      "connection lost",
+    );
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it("marks a user's email as verified", async () => {
     const update = jest.fn(async () => undefined);
     const repository = new UsersRepository({
