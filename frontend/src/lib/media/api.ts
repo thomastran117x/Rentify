@@ -359,7 +359,12 @@ async function uploadAndWait(
     const waitStartedAt = now();
     let current = await mediaApi.complete(mediaId, signal);
     const startedAt = now();
-    let attempt = 0;
+    // Each schedule keeps its own place. The fallback one starts again each
+    // time the socket starts listening, rather than picking up where polling
+    // had got to and waiting its longest.
+    let pollAttempt = 0;
+    let fallbackAttempt = 0;
+    let wasListening = channel.isListening();
 
     while (current.status !== "ready" && current.status !== "rejected") {
       if (now() - startedAt >= timeoutMs) {
@@ -368,14 +373,20 @@ async function uploadAndWait(
         );
       }
 
-      const delays = channel.isListening()
-        ? PUSH_FALLBACK_DELAYS_MS
-        : pollDelays;
-      const via = await push.waitWith(
-        sleep(delays[Math.min(attempt, delays.length - 1)] ?? 1000),
-      );
+      const listening = channel.isListening();
+
+      if (listening && !wasListening) {
+        fallbackAttempt = 0;
+      }
+
+      wasListening = listening;
+      const delay = listening
+        ? PUSH_FALLBACK_DELAYS_MS[
+            Math.min(fallbackAttempt++, PUSH_FALLBACK_DELAYS_MS.length - 1)
+          ]
+        : pollDelays[Math.min(pollAttempt++, pollDelays.length - 1)];
+      const via = await push.waitWith(sleep(delay ?? 1000));
       throwIfAborted(signal);
-      attempt += 1;
       // Sent with every check, since any of them may be the one that finds
       // the item finished; the server records only that one.
       current = await mediaApi.get(mediaId, signal, {
@@ -394,38 +405,59 @@ async function uploadAndWait(
 }
 
 /**
- * Pushes for one item. A push that arrives between waits, such as during the
- * completion call or a check, is kept, so the next wait ends at once.
+ * Pushes for one item, and the socket starting to listen. Either, arriving
+ * between waits, such as during the completion call or a check, is kept, so
+ * the next wait ends at once.
+ *
+ * The socket starting to listen ends a wait too: a push the worker published
+ * before the socket joined its room, as it can for an upload that finishes
+ * while the first socket of a page is still connecting, was lost, and only a
+ * check finds it.
  */
 function listenForPush(channel: MediaStatusChannel, mediaId: string) {
-  let pending = false;
-  let wake: (() => void) | null = null;
-  const unsubscribe = channel.onStatus(mediaId, () => {
-    pending = true;
-    wake?.();
+  let pushed = false;
+  let startedListening = false;
+  let wake: ((reason: "push" | "listening") => void) | null = null;
+  const stopStatus = channel.onStatus(mediaId, () => {
+    pushed = true;
+    wake?.("push");
+  });
+  const stopListening = channel.onListening(() => {
+    startedListening = true;
+    wake?.("listening");
   });
 
   return {
-    /** Ends at whichever comes first, `sleeping` or a push, and says which. */
+    /**
+     * Ends at whichever comes first, `sleeping`, a push, or the socket
+     * starting to listen, and says whether a push ended it.
+     */
     async waitWith(sleeping: Promise<void>): Promise<"poll" | "push"> {
       try {
-        return await Promise.race([
-          sleeping.then(() => "poll" as const),
-          new Promise<"push">((resolve) => {
-            wake = () => resolve("push");
+        const woken = await Promise.race([
+          sleeping.then(() => "slept" as const),
+          new Promise<"push" | "listening">((resolve) => {
+            wake = resolve;
 
-            if (pending) {
-              wake();
+            if (pushed) {
+              resolve("push");
+            } else if (startedListening) {
+              resolve("listening");
             }
           }),
         ]);
+        return woken === "push" ? "push" : "poll";
       } finally {
-        // A check follows either way, and it reads whatever the push was for.
+        // A check follows either way, and it reads whatever woke the wait.
         wake = null;
-        pending = false;
+        pushed = false;
+        startedListening = false;
       }
     },
-    stop: unsubscribe,
+    stop(): void {
+      stopStatus();
+      stopListening();
+    },
   };
 }
 

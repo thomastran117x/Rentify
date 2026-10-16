@@ -45,7 +45,9 @@ function harness(mintTicket: () => Promise<unknown> = async () => ({})) {
   const sockets: FakeSocket[] = [];
   const timers: Array<{ callback: () => void; ms: number; cleared: boolean }> =
     [];
+  const session = { userId: "user-a" as string | null };
   const dependencies: MediaStatusChannelDependencies = {
+    currentUserId: () => session.userId,
     mintTicket: vi.fn(mintTicket),
     connect: vi.fn(() => {
       const socket = fakeSocket();
@@ -65,6 +67,7 @@ function harness(mintTicket: () => Promise<unknown> = async () => ({})) {
   return {
     channel: createMediaStatusChannel(dependencies),
     dependencies,
+    session,
     sockets,
     timers,
     /** Runs every timer scheduled and not yet run or cleared. */
@@ -249,6 +252,86 @@ describe("createMediaStatusChannel", () => {
     // Only the first attempt minted a ticket; the cancelled retry did not.
     expect(dependencies.mintTicket).toHaveBeenCalledTimes(1);
     expect(sockets).toHaveLength(1);
+  });
+
+  it("says when it starts listening, until unsubscribed", async () => {
+    const { channel, sockets } = harness();
+    const listener = vi.fn();
+    const unsubscribe = channel.onListening(listener);
+    channel.acquire();
+    await settle();
+
+    sockets[0]!.fire("ready");
+    unsubscribe();
+    sockets[0]!.fire("ready");
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens for another user rather than reusing the previous user's socket", async () => {
+    const { channel, dependencies, session, sockets } = harness();
+    const release = channel.acquire();
+    await settle();
+    release();
+    sockets[0]!.fire("ready");
+    expect(channel.isListening()).toBe(true);
+
+    // Signed out, and someone else signed in, inside the idle close.
+    session.userId = "user-b";
+    channel.acquire();
+    await settle();
+
+    expect(sockets[0]!.disconnected).toBe(true);
+    expect(channel.isListening()).toBe(false);
+    expect(dependencies.mintTicket).toHaveBeenCalledTimes(2);
+    expect(sockets).toHaveLength(2);
+  });
+
+  it("keeps the socket for the same user", async () => {
+    const { channel, dependencies, sockets } = harness();
+    const release = channel.acquire();
+    await settle();
+    release();
+
+    channel.acquire();
+    await settle();
+
+    expect(sockets[0]!.disconnected).toBe(false);
+    expect(dependencies.mintTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it("abandons a connect still minting the previous user's ticket", async () => {
+    const mints: Array<() => void> = [];
+    const { channel, session, sockets } = harness(
+      () => new Promise<void>((resolve) => mints.push(resolve)),
+    );
+    channel.acquire();
+    await settle();
+
+    session.userId = "user-b";
+    channel.acquire();
+    await settle();
+    // The first ticket, minted for the previous user, answers late.
+    mints[0]!();
+    await settle();
+    expect(sockets).toHaveLength(0);
+
+    mints[1]!();
+    await settle();
+    expect(sockets).toHaveLength(1);
+  });
+
+  it("ignores a ready from a socket it has already replaced", async () => {
+    const { channel, session, sockets } = harness();
+    channel.acquire();
+    await settle();
+    session.userId = "user-b";
+    channel.acquire();
+    await settle();
+
+    sockets[0]!.fire("ready");
+
+    expect(channel.isListening()).toBe(false);
   });
 
   it("ignores events from a socket it has already replaced", async () => {

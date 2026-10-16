@@ -23,6 +23,7 @@ const statusChannel = vi.hoisted(() => {
     string,
     Set<(push: { mediaId: string; status: "ready" | "rejected" }) => void>
   >();
+  const listeningListeners = new Set<() => void>();
   const channel = {
     listening: false,
     acquired: 0,
@@ -48,15 +49,30 @@ const statusChannel = vi.hoisted(() => {
       };
     },
     isListening: () => channel.listening,
+    onListening(listener: () => void) {
+      listeningListeners.add(listener);
+      return () => {
+        listeningListeners.delete(listener);
+      };
+    },
+    /** The socket joins its room, as on the server's `ready`. */
+    startListening() {
+      channel.listening = true;
+      for (const listener of [...listeningListeners]) {
+        listener();
+      }
+    },
     push(mediaId: string, status: "ready" | "rejected" = "ready") {
       for (const listener of listeners.get(mediaId) ?? []) {
         listener({ mediaId, status });
       }
     },
     subscribers: () =>
-      [...listeners.values()].reduce((count, set) => count + set.size, 0),
+      [...listeners.values()].reduce((count, set) => count + set.size, 0) +
+      listeningListeners.size,
     reset() {
       listeners.clear();
+      listeningListeners.clear();
       channel.listening = false;
       channel.acquired = 0;
       channel.released = 0;
@@ -395,6 +411,52 @@ describe("uploadImage", () => {
 
       expect(sleep.mock.calls).toEqual([[1000], [2000], [3000], [3000]]);
       expect(timingOf(reads().at(-1)!)).toMatch(/via=poll$/);
+    });
+
+    it("checks at once when the socket starts listening, for a push it missed", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [READY]);
+      const waits: number[] = [];
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: (ms) => {
+          waits.push(ms);
+          // The socket joins its room only after the worker already pushed
+          // to it, so that push is gone; only a check finds the item.
+          setTimeout(() => statusChannel.startListening(), 0);
+          return never();
+        },
+      });
+
+      // The first poll wait is cut short; nothing waits for its 500 ms.
+      expect(waits).toEqual([500]);
+      expect(reads()).toHaveLength(1);
+      expect(timingOf(reads()[0]!)).toMatch(/via=poll$/);
+    });
+
+    it("starts the fallback schedule afresh once the socket listens", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        READY,
+      ]);
+      const waits: number[] = [];
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: async (ms) => {
+          waits.push(ms);
+          // Listening from the third wait, after two polls.
+          if (waits.length === 2) {
+            statusChannel.listening = true;
+          }
+        },
+      });
+
+      // Two polls at 500 and 750 ms, then the fallback from its start, not
+      // from where polling had got to.
+      expect(waits).toEqual([500, 750, 1000, 2000]);
     });
 
     it("polls at the full rate while the socket does not listen", async () => {

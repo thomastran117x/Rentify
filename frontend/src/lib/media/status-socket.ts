@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import { authenticatedJson } from "@/lib/api/client";
+import { readStoredSession } from "@/lib/auth/storage";
 import { resolveApiBaseUrl } from "@/lib/env";
 
 /** Path the server mounts the media status socket on, and the ticket's scope. */
@@ -44,6 +45,12 @@ export interface MediaStatusChannel {
   ): () => void;
   /** Whether a push can arrive right now: connected and in its room. */
   isListening(): boolean;
+  /**
+   * Calls `listener` each time the socket starts listening. A push published
+   * before then was lost, so a waiting upload checks at once. Returns the
+   * unsubscribe.
+   */
+  onListening(listener: () => void): () => void;
 }
 
 export interface MediaStatusChannelDependencies {
@@ -51,6 +58,8 @@ export interface MediaStatusChannelDependencies {
   connect: (origin: string, options: Parameters<typeof io>[1]) => Socket;
   setTimeout: (callback: () => void, ms: number) => unknown;
   clearTimeout: (timer: unknown) => void;
+  /** Who is signed in now, whose uploads a socket opened now would hear. */
+  currentUserId: () => string | null;
 }
 
 const defaultDependencies: MediaStatusChannelDependencies = {
@@ -63,6 +72,7 @@ const defaultDependencies: MediaStatusChannelDependencies = {
   connect: (origin, options) => io(origin, options),
   setTimeout: (callback, ms) => window.setTimeout(callback, ms),
   clearTimeout: (timer) => window.clearTimeout(timer as number),
+  currentUserId: () => readStoredSession()?.user?.id ?? null,
 };
 
 /** `http(s)://host/api/v1` → `http(s)://host`. Socket.IO adds the path. */
@@ -74,7 +84,12 @@ export function createMediaStatusChannel(
   dependencies: MediaStatusChannelDependencies = defaultDependencies,
 ): MediaStatusChannel {
   const listeners = new Map<string, Set<(push: MediaStatusPush) => void>>();
+  const listeningListeners = new Set<() => void>();
   let holders = 0;
+  /** The user whose ticket opened, or is opening, the current socket. */
+  let socketUserId: string | null = null;
+  /** Bumped on close, so an attempt still minting its ticket is abandoned. */
+  let generation = 0;
   let socket: Socket | null = null;
   let connecting = false;
   let listening = false;
@@ -118,13 +133,22 @@ export function createMediaStatusChannel(
   }
 
   async function connect(): Promise<void> {
+    const attempt = generation;
     connecting = true;
+    socketUserId = dependencies.currentUserId();
 
     try {
       await dependencies.mintTicket();
     } catch {
-      connecting = false;
-      retry();
+      if (attempt === generation) {
+        connecting = false;
+        retry();
+      }
+      return;
+    }
+
+    // Closed while the ticket was minted, such as for another user's upload.
+    if (attempt !== generation) {
       return;
     }
 
@@ -152,8 +176,16 @@ export function createMediaStatusChannel(
     // Sent once the server has put the socket in the user's room, which is
     // when pushes start to arrive and the attempt counts as a success.
     next.on("ready", () => {
+      if (socket !== next) {
+        return;
+      }
+
       listening = true;
       failures = 0;
+
+      for (const listener of [...listeningListeners]) {
+        listener();
+      }
     });
 
     next.on("media.status", (push: MediaStatusPush) => {
@@ -198,6 +230,9 @@ export function createMediaStatusChannel(
   function close(): void {
     idleTimer = null;
     cancelRetry();
+    generation += 1;
+    connecting = false;
+    socketUserId = null;
     listening = false;
     // A later upload gets a fresh set of attempts.
     failures = 0;
@@ -213,6 +248,15 @@ export function createMediaStatusChannel(
       if (idleTimer !== null) {
         dependencies.clearTimeout(idleTimer);
         idleTimer = null;
+      }
+
+      // A socket opened for someone else, such as before a sign-out, sits in
+      // their room and would never hear about this user's uploads.
+      if (
+        (socket || connecting) &&
+        socketUserId !== dependencies.currentUserId()
+      ) {
+        close();
       }
 
       open();
@@ -247,6 +291,13 @@ export function createMediaStatusChannel(
       };
     },
     isListening: () => listening,
+    onListening(listener) {
+      listeningListeners.add(listener);
+
+      return () => {
+        listeningListeners.delete(listener);
+      };
+    },
   };
 }
 

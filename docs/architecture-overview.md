@@ -674,8 +674,15 @@ PUT, and it closes 30 seconds after the last upload stops waiting. While the
 socket is listening, `uploadImage` checks at 1 s, 2 s, then every 3 s behind
 the push, so a push lost while the worker cannot reach Redis costs about a
 second more than polling; while it is not listening, at the old 0.5 to 2 s
-schedule. Like the other clients it retries a failed connect with a fresh
-ticket, further apart each time, and stops after five.
+schedule. The two schedules keep their own place, and the fallback one starts
+again each time the socket starts listening. That moment also ends any wait at
+once: a push the worker published before the socket joined its room, as it can
+for a small photo while the page's first socket is still connecting, was lost,
+and only a check finds it. The channel remembers whose ticket opened its
+socket, and closes it when another user's upload takes it, such as after a
+sign-out inside the idle window, since that socket sits in the previous user's
+room. Like the other clients it retries a failed connect with a fresh ticket,
+further apart each time, and stops after five.
 
 **Per-viewer capabilities never enter a broadcast.** `canWrite`, and on blog
 comments `viewerCanModerate`, live on the REST list response, not on the
