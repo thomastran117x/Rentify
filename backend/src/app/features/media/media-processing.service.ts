@@ -245,16 +245,24 @@ export class MediaProcessingService {
    * images leave this method: the raw pixels, which take up to the processed
    * edge squared times four bytes, are not held through moderation and the
    * uploads that follow.
+   *
+   * A decode failure that is probably the upload's fault, but could be the
+   * worker's, is only taken as final on a retried attempt: the first is thrown,
+   * so the job is retried once the retry delay has let any memory pressure
+   * pass.
    */
   private async render(
     original: Buffer,
+    attempt: number,
     scope: MediaMetricScope,
   ): Promise<{ processed: RenderedImage; renditions: SmallerRenditions }> {
     const { decoded, processed } = await this.timed(
       "render",
       scope,
       async () => {
-        const image = await decodeUprightImage(original);
+        const image = await decodeUprightImage(original, {
+          confirm: attempt > 1,
+        });
         return { decoded: image, processed: await renderProcessedImage(image) };
       },
     );
@@ -320,7 +328,11 @@ export class MediaProcessingService {
       detectedContentType = await this.timed("inspect", scope, () =>
         this.inspect(record, original.body),
       );
-      ({ processed, renditions } = await this.render(original.body, scope));
+      ({ processed, renditions } = await this.render(
+        original.body,
+        attempt,
+        scope,
+      ));
     } catch (error) {
       if (isImagePolicyRejection(error)) {
         return this.reject(record, policyRejection(error));

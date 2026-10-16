@@ -180,6 +180,8 @@ async function quarantine(
     declaredContentType?: string;
     status?: MediaStatus;
     legacy?: boolean;
+    /** Claims made before, so the next is a retried attempt. */
+    processingAttempts?: number;
   } = {},
 ): Promise<MediaRecord> {
   const id = testUuid(9000, nextMediaIndex++);
@@ -205,7 +207,7 @@ async function quarantine(
     rejectionReason: null,
     rejectionCode: null,
     processingRequeues: 0,
-    processingAttempts: 0,
+    processingAttempts: options.processingAttempts ?? 0,
     processingStartedAt: null,
     processingCompletedAt: null,
     processingError: null,
@@ -404,6 +406,47 @@ describe("MediaProcessingService", () => {
     });
   });
 
+  describe("a probable decode fault", () => {
+    // libpng reports a truncated PNG as a generic read error, which a decoder
+    // short of memory could also report.
+    const truncatedPng = async () =>
+      truncateImage(await createPngFixture(64, 64));
+
+    it("is retried on the first attempt, keeping the upload", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await truncatedPng());
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        /libpng read error/,
+      );
+
+      const current = await context.mediaRepository.findById(record.id);
+      expect(current?.status).toBe("processing");
+      expect(current?.rejectionCode).toBeNull();
+      await expect(
+        context.blobService.readLocalBlob(record.originalBlobName),
+      ).resolves.toBeDefined();
+      expect(context.metrics.count("media.rejected")).toBe(0);
+    });
+
+    it("is refused as corrupt when a retried attempt hits it again", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await truncatedPng(), {
+        processingAttempts: 1,
+      });
+
+      await expect(context.service.process(record.id)).resolves.toBeUndefined();
+
+      const rejected = await context.mediaRepository.findById(record.id);
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        rejectionCode: "corrupt",
+        rejectionReason: "Uploaded image data is truncated or corrupt.",
+      });
+      await expectMissing(context, record.originalBlobName);
+    });
+  });
+
   describe("stage timings", () => {
     const stagesOf = (context: Context) =>
       context.metrics
@@ -437,10 +480,10 @@ describe("MediaProcessingService", () => {
 
     it("stops at the stage that rejected the item", async () => {
       const context = createContext();
-      const record = await quarantine(
-        context,
-        truncateImage(await createPngFixture(64, 64)),
-      );
+      const jpeg = await createJpegFixture(64, 64);
+      const record = await quarantine(context, jpeg.subarray(0, -16), {
+        declaredContentType: "image/jpeg",
+      });
 
       await context.service.process(record.id);
 
@@ -911,9 +954,9 @@ describe("MediaProcessingService", () => {
       "animated",
     ],
     [
-      "truncated image data",
-      async () => truncateImage(await createPngFixture(64, 64)),
-      "image/png",
+      "a JPEG cut short",
+      async () => (await createJpegFixture(64, 64)).subarray(0, -16),
+      "image/jpeg",
       null,
       "corrupt",
     ],

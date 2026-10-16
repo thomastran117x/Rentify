@@ -293,32 +293,54 @@ export interface DecodedImage {
 }
 
 /**
- * Out of memory, as Node or libvips reports it. Checked first, because a
- * decoder that cannot allocate names itself in the message as well.
+ * Running out of memory, as Node, libvips, and libjpeg (`Insufficient memory
+ * (case N)`) report it. Checked first, because a decoder that cannot allocate
+ * names itself in the message as well.
  */
-const RESOURCE_FAILURE = /out of memory|alloc/i;
+const RESOURCE_FAILURE = /out of memory|insufficient memory|alloc|ENOMEM/i;
 
 /**
- * How libvips and sharp report bytes they cannot decode: a loader naming
- * itself (`VipsJpeg:`, `vipspng:`, `webpload_buffer: load error`,
- * `webp2vips:`), or sharp describing the input buffer or image. Every
- * truncated, cut and corrupt JPEG, PNG and WebP the tests try fails with one
- * of these.
+ * Failures only bad bytes produce: a format sharp does not recognise, a
+ * header it cannot parse, a JPEG that ends early, or an image over the pixel
+ * limit.
  */
-const DECODE_FAILURE =
-  /\b(?:vips(?:jpeg|png|webp|foreignload)\w*|(?:jpeg|png|webp|gif|heif|tiff)load\w*|(?:jpeg|png|webp)2vips|webp|libpng|libjpeg|spng)\b|load error|input buffer|input image|premature end|corrupt|truncat/i;
+const CERTAIN_DECODE_FAILURE =
+  /unsupported image format|corrupt header|premature end|exceeds pixel limit/i;
 
 /**
- * Whether a failed decode is the upload's fault, so final, rather than the
- * worker's, such as running out of memory under load, which a retry can fix.
- * Anything that is neither is treated as the worker's: retrying a bad image
- * costs a few delayed attempts before it is rejected as `processing_failed`,
- * while rejecting a good image as corrupt cannot be undone.
+ * A loader naming itself in a failure without saying why (`vipspng: libpng
+ * read error`, `webp2vips: unable to read pixels`, `webpload_buffer: load
+ * error`). Truncated or corrupt data produces these, but so can a decoder
+ * that ran short of resources and reported it in generic words.
  */
-export function isUndecodableImageError(error: unknown): boolean {
+const AMBIGUOUS_DECODE_FAILURE =
+  /\b(?:vips(?:jpeg|png|webp|foreignload)\w*|(?:jpeg|png|webp|gif|heif|tiff)load\w*|(?:jpeg|png|webp)2vips|webp|libpng|libjpeg|spng)\b|load error|input buffer|input image|corrupt|truncat/i;
+
+/**
+ * Who a failed decode is down to:
+ *
+ * - `image`: only bad bytes fail this way, so the upload is refused at once;
+ * - `probably_image`: a loader failed without saying why, which bad bytes
+ *   usually explain, but which a decoder short of resources can also produce;
+ * - `worker`: running out of memory, or anything unrecognised.
+ *
+ * Erring towards the worker costs a bad image a delayed retry or two; erring
+ * towards the image would reject a good one for good and delete its upload.
+ */
+export type DecodeFailure = "image" | "probably_image" | "worker";
+
+export function classifyDecodeFailure(error: unknown): DecodeFailure {
   const message = error instanceof Error ? error.message : String(error);
 
-  return !RESOURCE_FAILURE.test(message) && DECODE_FAILURE.test(message);
+  if (RESOURCE_FAILURE.test(message)) {
+    return "worker";
+  }
+
+  if (CERTAIN_DECODE_FAILURE.test(message)) {
+    return "image";
+  }
+
+  return AMBIGUOUS_DECODE_FAILURE.test(message) ? "probably_image" : "worker";
 }
 
 /**
@@ -339,9 +361,16 @@ export function isUndecodableImageError(error: unknown): boolean {
  *
  * Only a failure that is the upload's fault is refused as `corrupt`. One that
  * is not, such as running out of memory while several jobs decode at once, is
- * thrown as it is, so the job is retried.
+ * thrown as it is, so the job is retried. A failure that is probably the
+ * upload's fault but could be a decoder short of resources is refused only
+ * when `confirm` says this is already a retried attempt: the first time, it is
+ * thrown, so the job is retried after a delay in which any memory pressure
+ * has passed, and the same failure again settles it.
  */
-export async function decodeUprightImage(body: Buffer): Promise<DecodedImage> {
+export async function decodeUprightImage(
+  body: Buffer,
+  options: { confirm: boolean },
+): Promise<DecodedImage> {
   const policy = environment.getImageUploadsConfig();
 
   try {
@@ -366,7 +395,12 @@ export async function decodeUprightImage(body: Buffer): Promise<DecodedImage> {
       channels: info.channels,
     };
   } catch (error) {
-    if (!isUndecodableImageError(error)) {
+    const failure = classifyDecodeFailure(error);
+
+    if (
+      failure === "worker" ||
+      (failure === "probably_image" && !options.confirm)
+    ) {
       throw error;
     }
 
