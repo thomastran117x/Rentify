@@ -198,7 +198,7 @@ paths:
     post:
       operationId: localLogin
       summary: Authenticate with username and password
-      description: Creates an authenticated session with local credentials. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.
+      description: Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED until it is unlocked through POST /auth/local/unlock or the lock expires. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.
       tags:
         - auth
       x-rentify-permissions:
@@ -264,6 +264,23 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '423':
+          description: Local sign-in is locked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              example:
+                success: false
+                message: This sign-in is locked. Use the code we emailed you to unlock it.
+                data: null
+                error:
+                  code: ACCOUNT_LOCKED
+                  details:
+                    email: owner1@rentify.local
+                    unlockRequired: true
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
