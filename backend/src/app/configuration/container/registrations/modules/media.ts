@@ -150,6 +150,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.mediaProcessingQueueService,
         containerTokens.mediaMetrics,
+        containerTokens.mediaStatusPublisher,
       ],
       resolve: ({ resolve }) =>
         new MediaCleanupService(
@@ -157,6 +158,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaProcessingQueueService),
           resolve(containerTokens.mediaMetrics),
+          resolve(containerTokens.mediaStatusPublisher),
         ),
     });
     container.register({

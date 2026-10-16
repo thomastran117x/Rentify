@@ -586,7 +586,11 @@ services:
     image: rent-backend:local
     container_name: rent-media-cleanup-worker
     restart: unless-stopped
-    depends_on: *recommendation-worker-depends-on
+    depends_on:
+      <<: *recommendation-worker-depends-on
+      # Status pushes for the items it rejects only: it sweeps without it.
+      redis:
+        condition: service_started
     environment:
       <<: [*worker-environment, *entra-identity]
       AZURE_CLIENT_ID: ${MEDIA_CLEANUP_AZURE_CLIENT_ID:-}
