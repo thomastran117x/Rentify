@@ -190,7 +190,16 @@ export class MediaService {
     const record = await this.requireOwnedRecord(userId, mediaId);
 
     if (clientTiming) {
-      await this.observeClientTiming(record, clientTiming);
+      // Not awaited: this read can be the one that ends the user's wait, the
+      // very latency being measured, so its answer must not wait on Redis.
+      void this.observeClientTiming(record, clientTiming).catch(
+        (error: unknown) => {
+          this.logger.warn("Could not record an upload's client timings.", {
+            mediaId: record.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
+      );
     }
 
     return this.toView(record);

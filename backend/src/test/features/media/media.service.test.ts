@@ -681,6 +681,9 @@ describe("MediaService", () => {
 
     describe("client upload timings", () => {
       const timing = { uploadMs: 1_200, waitMs: 900, via: "push" as const };
+      // The timings are recorded after the read answers, so a test lets
+      // that work finish before looking.
+      const settle = () => new Promise((resolve) => setImmediate(resolve));
       const clientMetrics = (metrics: RecordingMediaMetrics) =>
         metrics.recorded.filter((metric) =>
           metric.name.startsWith("media.client."),
@@ -713,6 +716,7 @@ describe("MediaService", () => {
         );
 
         await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await settle();
 
         expect(metrics.calls("media.client.upload.duration")).toEqual([
           expect.objectContaining({
@@ -749,6 +753,7 @@ describe("MediaService", () => {
           ...timing,
           via: "poll",
         });
+        await settle();
 
         expect(metrics.tagsOf("media.client.wait.duration")).toEqual([
           { scope: "postings", outcome: "rejected", via: "poll" },
@@ -768,6 +773,7 @@ describe("MediaService", () => {
           );
 
           await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+          await settle();
 
           expect(clientMetrics(metrics)).toEqual([]);
         },
@@ -787,6 +793,7 @@ describe("MediaService", () => {
           waitMs: 600_000,
           via: "push",
         });
+        await settle();
 
         expect(metrics.calls("media.client.total.duration")).toEqual([
           expect.objectContaining({ value: 2_100 }),
@@ -808,7 +815,31 @@ describe("MediaService", () => {
         await expect(
           mediaService.getMediaView(USER_1_ID, mediaId, timing),
         ).resolves.toMatchObject({ id: mediaId, status: "ready" });
+        await settle();
         expect(clientMetrics(metrics)).toEqual([]);
+      });
+
+      it("answers before the claim settles, and records once it does", async () => {
+        let claim: (claimed: boolean) => void = () => {};
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+          {
+            setIfNotExists: () =>
+              new Promise<boolean>((resolve) => {
+                claim = resolve;
+              }),
+          },
+        );
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId, timing),
+        ).resolves.toMatchObject({ id: mediaId, status: "ready" });
+        expect(clientMetrics(metrics)).toEqual([]);
+
+        claim(true);
+        await settle();
+        expect(metrics.count("media.client.total.duration")).toBe(1);
       });
 
       it("drops only the notice delay when the worker's clock is ahead", async () => {
@@ -818,6 +849,7 @@ describe("MediaService", () => {
         );
 
         await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await settle();
 
         expect(metrics.count("media.client.total.duration")).toBe(1);
         expect(metrics.count("media.client.notice.delay")).toBe(0);
@@ -830,6 +862,7 @@ describe("MediaService", () => {
         );
 
         await mediaService.getMediaView(USER_1_ID, mediaId);
+        await settle();
 
         expect(clientMetrics(metrics)).toEqual([]);
       });

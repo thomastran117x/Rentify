@@ -582,6 +582,11 @@ describe("Media persistence integration", () => {
       await expect(
         readData<{ media: MediaView }>(finished),
       ).resolves.toMatchObject({ media: { status: "ready" } });
+      // Recorded after the response, once the Redis claim answers.
+      const deadline = Date.now() + 5_000;
+      while (clientObservations().length < 4 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
       expect(
         clientObservations().map(([name, value]) => [name, value]),
       ).toEqual([
