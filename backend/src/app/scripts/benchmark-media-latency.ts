@@ -45,6 +45,10 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import sharp, { type Sharp } from "sharp";
 import { io, type Socket as ClientSocket } from "socket.io-client";
+import {
+  BROWSER_POLL_DELAYS_MS,
+  BROWSER_PUSH_FALLBACK_DELAYS_MS,
+} from "./media-latency-browser-schedules";
 
 interface Options {
   api: string;
@@ -143,10 +147,6 @@ class StatusCheckBudget {
     return waitedMs;
   }
 }
-
-/** What `uploadImage` waits between checks, without a socket and with one. */
-const BROWSER_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
-const BROWSER_PUSH_FALLBACK_DELAYS_MS = [1000, 2000, 3000];
 
 interface ReferenceImage {
   name: ReferenceImageName;
