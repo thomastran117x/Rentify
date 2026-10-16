@@ -1,13 +1,18 @@
 import { io, type Socket } from "socket.io-client";
 import { authenticatedJson } from "@/lib/api/client";
 import { readStoredSession } from "@/lib/auth/storage";
-import { resolveApiBaseUrl } from "@/lib/env";
+import {
+  MAX_CONSECUTIVE_SOCKET_FAILURES,
+  resolveSocketOrigin,
+  socketRetryDelayMs,
+  ticketedSocketOptions,
+} from "@/lib/realtime/ticketed-socket";
 
 /** Path the server mounts the media status socket on, and the ticket's scope. */
 const SOCKET_PATH = "/ws/media";
 
 /** After this many consecutive failed connects the channel stops trying. */
-export const MAX_CONSECUTIVE_SOCKET_FAILURES = 5;
+export { MAX_CONSECUTIVE_SOCKET_FAILURES } from "@/lib/realtime/ticketed-socket";
 
 /**
  * The handshake error a server without its Redis adapter refuses with: no push
@@ -75,11 +80,6 @@ const defaultDependencies: MediaStatusChannelDependencies = {
   currentUserId: () => readStoredSession()?.user?.id ?? null,
 };
 
-/** `http(s)://host/api/v1` → `http(s)://host`. Socket.IO adds the path. */
-function resolveSocketOrigin(): string {
-  return new URL(resolveApiBaseUrl(), window.location.origin).origin;
-}
-
 export function createMediaStatusChannel(
   dependencies: MediaStatusChannelDependencies = defaultDependencies,
 ): MediaStatusChannel {
@@ -128,7 +128,7 @@ export function createMediaStatusChannel(
       retryTimer = dependencies.setTimeout(() => {
         retryTimer = null;
         open();
-      }, 1_000 * failures);
+      }, socketRetryDelayMs(failures));
     }
   }
 
@@ -159,18 +159,10 @@ export function createMediaStatusChannel(
       return;
     }
 
-    const next = dependencies.connect(resolveSocketOrigin(), {
-      path: SOCKET_PATH,
-      // The ticket rides in a cookie, so the handshake carries credentials.
-      withCredentials: true,
-      // Each attempt needs a fresh single-use ticket, so reconnecting is
-      // driven from here instead of by Socket.IO.
-      reconnection: false,
-      // `socket.io-client` caches Managers by origin, not path, so without
-      // this a page with another gateway's socket open could reuse its
-      // transport and connect to the wrong one.
-      forceNew: true,
-    });
+    const next = dependencies.connect(
+      resolveSocketOrigin(),
+      ticketedSocketOptions(SOCKET_PATH),
+    );
     socket = next;
 
     // Sent once the server has put the socket in the user's room, which is
