@@ -1,5 +1,5 @@
+import { SocketTicketStore } from "@/configuration/realtime/socket-tickets";
 import type { ImageVariantsResolver } from "@/features/media/image-variants";
-import { randomBytes } from "node:crypto";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import BadRequestError from "@/errors/http/bad-request.error";
@@ -51,6 +51,8 @@ export interface OrganizationBlogCommentRealtimeGateway {
 export class OrganizationBlogCommentsService {
   private readonly logger: Logger;
 
+  private readonly socketTickets: SocketTicketStore<OrganizationBlogCommentSocketIdentity>;
+
   constructor(
     private readonly repository: OrganizationBlogCommentsRepository,
     private readonly organizationAccessService: OrganizationAccessService,
@@ -64,6 +66,10 @@ export class OrganizationBlogCommentsService {
       OrganizationBlogCommentsService,
       "service",
     );
+    this.socketTickets = new SocketTicketStore(cacheService, {
+      keyPrefix: "blog-comments:ws-ticket",
+      ttlSeconds: BLOG_COMMENT_SOCKET_TICKET_TTL_SECONDS,
+    });
   }
 
   async list(
@@ -251,8 +257,6 @@ export class OrganizationBlogCommentsService {
     // draft has no stream at all.
     const post = await this.requirePublishedPost(organizationId, slug);
 
-    const ticket = randomBytes(32).toString("base64url");
-
     const identity: OrganizationBlogCommentSocketIdentity = {
       blogPostId: asUuid(post.id),
       organizationId: asUuid(post.organizationId),
@@ -264,16 +268,7 @@ export class OrganizationBlogCommentsService {
       tokenVersion: actor.userId ? (actor.tokenVersion ?? null) : null,
     };
 
-    await this.cacheService.setJson(
-      this.socketTicketKey(ticket),
-      identity,
-      BLOG_COMMENT_SOCKET_TICKET_TTL_SECONDS,
-    );
-
-    return {
-      ticket,
-      expiresInSeconds: BLOG_COMMENT_SOCKET_TICKET_TTL_SECONDS,
-    };
+    return this.socketTickets.issue(identity);
   }
 
   /**
@@ -283,16 +278,9 @@ export class OrganizationBlogCommentsService {
   async redeemSocketTicket(
     ticket: string,
   ): Promise<OrganizationBlogCommentSocketIdentity | null> {
-    if (!ticket) {
-      return null;
-    }
-
-    // Read and removed in one operation. Reading then deleting would let two
-    // concurrent upgrades both observe the ticket before either deleted it.
-    const identity =
-      await this.cacheService.getDeleteJson<OrganizationBlogCommentSocketIdentity>(
-        this.socketTicketKey(ticket),
-      );
+    // Read and removed in one operation, so two upgrades racing with the
+    // same ticket cannot both be admitted.
+    const identity = await this.socketTickets.redeem(ticket);
 
     if (!identity) {
       return null;
@@ -365,10 +353,6 @@ export class OrganizationBlogCommentsService {
   /** How many sockets are currently watching this post's comments. */
   async countReaders(blogPostId: Uuid): Promise<number> {
     return this.realtimeGateway.countReaders(blogPostId);
-  }
-
-  private socketTicketKey(ticket: string): string {
-    return `blog-comments:ws-ticket:${ticket}`;
   }
 
   private editWindowStart(): Date {

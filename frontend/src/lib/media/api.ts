@@ -3,6 +3,10 @@ import { getClientAppHeader } from "@/lib/api/client-app";
 import { readStoredSession } from "@/lib/auth/storage";
 import { resolveUploadContentType } from "@/lib/blob/image-policy";
 import { resolveApiBaseUrl } from "@/lib/env";
+import {
+  mediaStatusChannel,
+  type MediaStatusChannel,
+} from "@/lib/media/status-socket";
 
 /**
  * What an upload is for, mirroring the backend's closed set. Each attach
@@ -141,12 +145,16 @@ export const mediaApi = {
     );
     return result.media;
   },
-  async get(mediaId: string, signal?: AbortSignal): Promise<MediaView> {
+  async get(
+    mediaId: string,
+    signal?: AbortSignal,
+    headers?: Record<string, string>,
+  ): Promise<MediaView> {
     const result = await authenticatedJson<MediaResult>(
       "GET",
       `/media/${encodeURIComponent(mediaId)}`,
       undefined,
-      undefined,
+      headers,
       signal,
     );
     return result.media;
@@ -223,8 +231,13 @@ export interface UploadImageOptions {
   onCreated?: (mediaId: string) => void;
   /** Cancels the transfer and stops polling; the promise rejects with it. */
   signal?: AbortSignal;
-  /** Delays between status checks, in order; the last one repeats. */
+  /**
+   * Delays between status checks while no status push can arrive, in order;
+   * the last one repeats.
+   */
   pollDelaysMs?: number[];
+  /** Where status pushes come from; the page's shared socket by default. */
+  statusChannel?: MediaStatusChannel;
   /** How long to wait for processing before giving up. */
   timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -232,6 +245,15 @@ export interface UploadImageOptions {
 }
 
 const DEFAULT_POLL_DELAYS_MS = [500, 750, 1000, 1500, 2000];
+/**
+ * Delays between checks while the status socket is listening. A push ends the
+ * wait as soon as the item finishes, so these only cover a push that is lost,
+ * as when the worker cannot reach Redis. Kept close to the polling schedule,
+ * so a lost push costs about a second more than polling would have.
+ */
+const PUSH_FALLBACK_DELAYS_MS = [1000, 2000, 3000];
+/** What `uploadImage` measured, for the server's latency metrics. */
+const UPLOAD_TIMING_HEADER = "x-media-upload-timing";
 const DEFAULT_PROCESSING_TIMEOUT_MS = 60_000;
 
 function abortReason(signal: AbortSignal): unknown {
@@ -267,19 +289,43 @@ function waitFor(ms: number, signal: AbortSignal | undefined): Promise<void> {
  * size is refused when the upload is created, and bytes that are not really an
  * image come back as a rejected item. Either way the server's reason is thrown,
  * so the caller can show it rather than a generic "try again".
+ *
+ * While it waits, the media status socket says the moment the item finishes,
+ * and the item is read then. Polling continues behind it, slowly while the
+ * socket listens and at the full rate while it does not, so a lost push or a
+ * socket that never connects only costs time.
  */
 export async function uploadImage(
   file: File,
   options: UploadImageOptions,
 ): Promise<UploadedImage> {
   const { signal } = options;
-  const sleep = options.sleep ?? ((ms: number) => waitFor(ms, signal));
-  const now = options.now ?? Date.now;
-  const delays = options.pollDelaysMs ?? DEFAULT_POLL_DELAYS_MS;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS;
+  const channel = options.statusChannel ?? mediaStatusChannel;
 
   throwIfAborted(signal);
+  // Taken first, so the socket connects while the file is being sent.
+  const release = channel.acquire();
+
+  try {
+    return await uploadAndWait(file, options, channel);
+  } finally {
+    release();
+  }
+}
+
+async function uploadAndWait(
+  file: File,
+  options: UploadImageOptions,
+  channel: MediaStatusChannel,
+): Promise<UploadedImage> {
+  const { signal } = options;
+  const sleep = options.sleep ?? ((ms: number) => waitFor(ms, signal));
+  const now = options.now ?? Date.now;
+  const pollDelays = options.pollDelaysMs ?? DEFAULT_POLL_DELAYS_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS;
+
   options.onStageChange?.("uploading");
+  const uploadStartedAt = now();
   const { mediaId, upload } = await mediaApi.createUpload(
     {
       filename: file.name,
@@ -304,23 +350,118 @@ export async function uploadImage(
 
   throwIfAborted(signal);
   options.onStageChange?.("processing");
-  let current = await mediaApi.complete(mediaId, signal);
-  const startedAt = now();
-  let attempt = 0;
+  const uploadMs = now() - uploadStartedAt;
+  // Listened for before completing, so a worker that finishes before the
+  // completion's response arrives is not missed.
+  const push = listenForPush(channel, mediaId);
 
-  while (current.status !== "ready" && current.status !== "rejected") {
-    if (now() - startedAt >= timeoutMs) {
-      throw new Error(
-        "The image is taking too long to process. Please try again.",
-      );
+  try {
+    const waitStartedAt = now();
+    let current = await mediaApi.complete(mediaId, signal);
+    const startedAt = now();
+    // Each schedule keeps its own place. The fallback one starts again each
+    // time the socket starts listening, rather than picking up where polling
+    // had got to and waiting its longest.
+    let pollAttempt = 0;
+    let fallbackAttempt = 0;
+    let wasListening = channel.isListening();
+
+    while (current.status !== "ready" && current.status !== "rejected") {
+      if (now() - startedAt >= timeoutMs) {
+        throw new Error(
+          "The image is taking too long to process. Please try again.",
+        );
+      }
+
+      const listening = channel.isListening();
+
+      if (listening && !wasListening) {
+        fallbackAttempt = 0;
+      }
+
+      wasListening = listening;
+      const delay = listening
+        ? PUSH_FALLBACK_DELAYS_MS[
+            Math.min(fallbackAttempt++, PUSH_FALLBACK_DELAYS_MS.length - 1)
+          ]
+        : pollDelays[Math.min(pollAttempt++, pollDelays.length - 1)];
+      const via = await push.waitWith(sleep(delay ?? 1000));
+      throwIfAborted(signal);
+      // Sent with every check, since any of them may be the one that finds
+      // the item finished; the server records only that one.
+      current = await mediaApi.get(mediaId, signal, {
+        [UPLOAD_TIMING_HEADER]: [
+          `upload=${Math.round(uploadMs)}`,
+          `wait=${Math.round(now() - waitStartedAt)}`,
+          `via=${via}`,
+        ].join(", "),
+      });
     }
 
-    await sleep(delays[Math.min(attempt, delays.length - 1)] ?? 1000);
-    throwIfAborted(signal);
-    attempt += 1;
-    current = await mediaApi.get(mediaId, signal);
+    return readUploadedImage(current);
+  } finally {
+    push.stop();
   }
+}
 
+/**
+ * Pushes for one item, and the socket starting to listen. Either, arriving
+ * between waits, such as during the completion call or a check, is kept, so
+ * the next wait ends at once.
+ *
+ * The socket starting to listen ends a wait too: a push the worker published
+ * before the socket joined its room, as it can for an upload that finishes
+ * while the first socket of a page is still connecting, was lost, and only a
+ * check finds it.
+ */
+function listenForPush(channel: MediaStatusChannel, mediaId: string) {
+  let pushed = false;
+  let startedListening = false;
+  let wake: ((reason: "push" | "listening") => void) | null = null;
+  const stopStatus = channel.onStatus(mediaId, () => {
+    pushed = true;
+    wake?.("push");
+  });
+  const stopListening = channel.onListening(() => {
+    startedListening = true;
+    wake?.("listening");
+  });
+
+  return {
+    /**
+     * Ends at whichever comes first, `sleeping`, a push, or the socket
+     * starting to listen, and says whether a push ended it.
+     */
+    async waitWith(sleeping: Promise<void>): Promise<"poll" | "push"> {
+      try {
+        const woken = await Promise.race([
+          sleeping.then(() => "slept" as const),
+          new Promise<"push" | "listening">((resolve) => {
+            wake = resolve;
+
+            if (pushed) {
+              resolve("push");
+            } else if (startedListening) {
+              resolve("listening");
+            }
+          }),
+        ]);
+        return woken === "push" ? "push" : "poll";
+      } finally {
+        // A check follows either way, and it reads whatever woke the wait.
+        wake = null;
+        pushed = false;
+        startedListening = false;
+      }
+    },
+    stop(): void {
+      stopStatus();
+      stopListening();
+    },
+  };
+}
+
+function readUploadedImage(current: MediaView): UploadedImage {
   if (current.status === "rejected") {
     throw new MediaRejectedError(
       current.rejectionReason ?? "The image could not be processed.",

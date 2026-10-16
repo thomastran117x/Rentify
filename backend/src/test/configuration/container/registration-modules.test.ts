@@ -7,6 +7,9 @@ import { smsRegistrationModule } from "@/configuration/container/registrations/m
 import { BlobController } from "@/features/blob/blob.controller";
 import { BlobService } from "@/features/blob/blob.service";
 import { MediaService } from "@/features/media/media.service";
+import { RedisMediaStatusPublisher } from "@/features/media/media-status-publisher";
+import { MediaStatusSocketServer } from "@/features/media/media-status-socket.server";
+import { MediaStatusSocketService } from "@/features/media/media-status-socket.service";
 import { MediaController } from "@/features/media/media.controller";
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
@@ -94,6 +97,10 @@ describe("targeted container registration modules", () => {
       } as any);
     }
 
+    // Registered by other modules; the status socket tickets only hold them.
+    resolved.set(containerTokens.cacheService, {});
+    resolved.set(containerTokens.tokenService, {});
+
     const resolve = (token: unknown): unknown => {
       if (!resolved.has(token)) {
         const registration = registrations.find(
@@ -128,6 +135,15 @@ describe("targeted container registration modules", () => {
     );
     expect(resolve(containerTokens.blobController)).toBeInstanceOf(
       BlobController,
+    );
+    expect(resolve(containerTokens.mediaStatusPublisher)).toBeInstanceOf(
+      RedisMediaStatusPublisher,
+    );
+    expect(resolve(containerTokens.mediaStatusSocketService)).toBeInstanceOf(
+      MediaStatusSocketService,
+    );
+    expect(resolve(containerTokens.mediaStatusSocketServer)).toBeInstanceOf(
+      MediaStatusSocketServer,
     );
   });
 

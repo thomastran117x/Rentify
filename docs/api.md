@@ -82,9 +82,10 @@ the spec and documents the frames the socket carries:
 | ---------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
 | `/ws/booking-messages` | `createBookingMessageSocketTicket`          | Signed-in participant only                                       |
 | `/ws/blog-comments`    | `createOrganizationBlogCommentSocketTicket` | Optional — an unauthenticated caller receives a read-only ticket |
+| `/ws/media`            | `createMediaStatusSocketTicket`             | Signed-in user; hears only about their own uploads               |
 
-Both return the ticket as an HttpOnly cookie scoped to the socket path rather
-than in the response body, and both reject personal access tokens. See
+Each returns the ticket as an HttpOnly cookie scoped to the socket path rather
+than in the response body, and each rejects personal access tokens. See
 [architecture-overview.md](./architecture-overview.md#realtime-transport) for the
 room and presence design.
 

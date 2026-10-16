@@ -1,12 +1,20 @@
 import type { Server as HttpServer } from "node:http";
-import { createAdapter } from "@socket.io/redis-adapter";
 import { Server as SocketIoServer, type Socket } from "socket.io";
 import { getContainer } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import { readAllowedOrigins } from "@/configuration/middlewares/csrf.middleware";
-import { getRedisClient } from "@/configuration/resources/redis";
+import {
+  closeGateway,
+  GatewayWork,
+  SOCKET_REAUTHORIZE_INTERVAL_MS,
+} from "@/configuration/realtime/socket-gateway";
+import {
+  createSocketRedisAdapter,
+  readCookie,
+  type SocketRedisClient,
+} from "@/configuration/realtime/socket-handshake";
 import {
   BLOG_COMMENT_SOCKET_COOKIE_NAME,
   BLOG_COMMENT_SOCKET_PATH,
@@ -17,9 +25,6 @@ import {
 import type { Uuid } from "@/configuration/validation/uuid";
 
 export { BLOG_COMMENT_SOCKET_PATH };
-
-/** How often an open socket re-checks the post and its session. */
-const REAUTHORIZE_INTERVAL_MS = 60_000;
 
 /** A client may not push typing frames faster than this. */
 const TYPING_THROTTLE_MS = 2_000;
@@ -65,31 +70,6 @@ interface SocketState {
 type BlogCommentSocket = Socket & { state?: SocketState };
 
 /**
- * Minimal cookie parse for the handshake. Express's cookie parser never sees
- * this request: the handshake arrives on the Socket.IO engine, not through the
- * app's middleware stack.
- */
-function readTicketCookie(header?: string): string {
-  if (!header) {
-    return "";
-  }
-
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    if (part.slice(0, separator).trim() === BLOG_COMMENT_SOCKET_COOKIE_NAME) {
-      return decodeURIComponent(part.slice(separator + 1).trim());
-    }
-  }
-
-  return "";
-}
-
-/**
  * Blog comment realtime gateway.
  *
  * The second Socket.IO server in this process, alongside the booking message
@@ -116,9 +96,8 @@ export class OrganizationBlogCommentSocketServer {
   private readonly logger: Logger;
   private io: SocketIoServer | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
-  private adapterClients: Array<{ quit: () => Promise<unknown> }> = [];
-  /** Background work in flight, so shutdown can drain it before quitting Redis. */
-  private readonly pending = new Set<Promise<unknown>>();
+  private adapterClients: SocketRedisClient[] = [];
+  private readonly work: GatewayWork;
   /** Posts with a presence broadcast already scheduled. See `schedulePresence`. */
   private readonly presenceTimers = new Map<
     string,
@@ -130,6 +109,10 @@ export class OrganizationBlogCommentSocketServer {
       OrganizationBlogCommentSocketServer,
       "service",
     );
+    this.work = new GatewayWork(
+      this.logger,
+      "Blog comment socket work failed.",
+    );
   }
 
   /**
@@ -139,7 +122,8 @@ export class OrganizationBlogCommentSocketServer {
    * in-memory one.
    */
   async attach(server: HttpServer): Promise<void> {
-    const adapter = await this.createRedisAdapter();
+    const { adapter, clients } = await createSocketRedisAdapter(this.logger);
+    this.adapterClients = clients;
 
     this.io = new SocketIoServer(server, {
       path: BLOG_COMMENT_SOCKET_PATH,
@@ -153,16 +137,18 @@ export class OrganizationBlogCommentSocketServer {
     });
 
     this.io.use((socket, next) => {
-      this.track(this.authenticate(socket as BlogCommentSocket, next));
+      this.work.track(this.authenticate(socket as BlogCommentSocket, next));
     });
 
     this.io.on("connection", (socket) => {
-      this.track(this.register(socket as BlogCommentSocket));
+      this.work.track(this.register(socket as BlogCommentSocket));
     });
 
     this.reauthorize = setInterval(
-      () => void this.reauthorizeAll(),
-      REAUTHORIZE_INTERVAL_MS,
+      // Tracked like the handlers: shutdown waits for a sweep in flight,
+      // and a failure is logged, never left as an unhandled rejection.
+      () => this.work.track(this.reauthorizeAll()),
+      SOCKET_REAUTHORIZE_INTERVAL_MS,
     );
   }
 
@@ -177,49 +163,11 @@ export class OrganizationBlogCommentSocketServer {
     }
     this.presenceTimers.clear();
 
-    const io = this.io;
-
-    if (io) {
-      // `local` is load-bearing: with the Redis adapter a bare
-      // `disconnectSockets()` is a cluster-wide broadcast, so shutting one
-      // instance down would disconnect every client on every other one.
-      io.local.disconnectSockets(true);
-
-      // `this.io` stays set while the disconnect handlers run, because they
-      // publish the final reader count and `publish` reads it.
-      await Promise.allSettled([...this.pending]);
-
-      // The engine, and deliberately *not* `io.close()`. That delegates to
-      // `httpServer.close(cb)`, which the process shutdown has already called;
-      // a second close registers its callback on a `close` event that never
-      // fires again while any request is still in flight.
-      io.engine.close();
-    }
-
+    // `this.io` stays set while the disconnect handlers run, because they
+    // publish the final reader count and `publish` reads it.
+    await closeGateway(this.io, this.work, this.adapterClients);
     this.io = null;
-
-    await Promise.allSettled(
-      this.adapterClients.map((client) => client.quit()),
-    );
     this.adapterClients = [];
-  }
-
-  /**
-   * Keeps a handle on background work and swallows its failure.
-   *
-   * Every one of these runs from an event handler, so nothing awaits it: a
-   * `fetchSockets()` timing out during a rolling deploy would otherwise surface
-   * as an unhandled rejection, and this process installs no handler for those.
-   */
-  private track(work: Promise<unknown>): void {
-    const tracked = work.catch((error: unknown) => {
-      this.logger.error("Blog comment socket work failed.", undefined, error);
-    });
-
-    this.pending.add(tracked);
-    void tracked.finally(() => {
-      this.pending.delete(tracked);
-    });
   }
 
   /** Open sockets on this instance. Used by tests and diagnostics. */
@@ -252,40 +200,6 @@ export class OrganizationBlogCommentSocketServer {
     return sockets.length;
   }
 
-  /**
-   * The adapter needs its own pair of connections: Redis puts a client into
-   * subscriber mode exclusively, so the shared one backing cache, locks and
-   * rate limiting cannot be reused. That is two more connections on top of the
-   * booking gateway's two.
-   */
-  private async createRedisAdapter(): Promise<ReturnType<
-    typeof createAdapter
-  > | null> {
-    try {
-      const publisher = getRedisClient().duplicate();
-      const subscriber = publisher.duplicate();
-
-      // Recorded before connecting, not after: assigning only on success would
-      // leak an already-connected publisher for the life of the process if the
-      // subscriber failed.
-      this.adapterClients = [publisher, subscriber];
-      await Promise.all([publisher.connect(), subscriber.connect()]);
-
-      return createAdapter(publisher, subscriber);
-    } catch (error) {
-      // A single-instance deployment still works without the adapter, so this
-      // must not stop the server from serving. Logged loudly because a
-      // replicated one silently loses cross-node delivery.
-      this.logger.error(
-        "Failed to build the Redis adapter; realtime delivery is limited to this instance.",
-        undefined,
-        error,
-      );
-
-      return null;
-    }
-  }
-
   private async authenticate(
     socket: BlogCommentSocket,
     next: (error?: Error) => void,
@@ -300,7 +214,10 @@ export class OrganizationBlogCommentSocketServer {
       // set headers on this handshake, and a query parameter would put the
       // credential into proxy and access logs.
       const identity = await service.redeemSocketTicket(
-        readTicketCookie(socket.handshake.headers.cookie),
+        readCookie(
+          socket.handshake.headers.cookie,
+          BLOG_COMMENT_SOCKET_COOKIE_NAME,
+        ),
       );
 
       if (!identity) {
@@ -345,10 +262,10 @@ export class OrganizationBlogCommentSocketServer {
     await socket.join(postRoom(blogPostId));
 
     socket.on("typing", () => {
-      this.track(this.handleTyping(socket));
+      this.work.track(this.handleTyping(socket));
     });
     socket.on("disconnect", () => {
-      this.track(this.handleDisconnect(socket));
+      this.work.track(this.handleDisconnect(socket));
     });
 
     // Carries `canWrite` so a client knows immediately whether to offer a
@@ -380,7 +297,7 @@ export class OrganizationBlogCommentSocketServer {
 
     const timer = setTimeout(() => {
       this.presenceTimers.delete(blogPostId);
-      this.track(this.broadcastPresence(blogPostId));
+      this.work.track(this.broadcastPresence(blogPostId));
     }, PRESENCE_BROADCAST_INTERVAL_MS);
 
     // Nothing should be held open on this timer during shutdown; `close()`

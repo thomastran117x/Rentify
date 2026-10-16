@@ -28,15 +28,18 @@ async function bootstrap(): Promise<void> {
   // Awaited: each gateway builds its Redis adapter before it accepts anything,
   // because swapping the adapter on a live server does not migrate the rooms of
   // sockets that already joined.
-  // Two servers on one HTTP server is safe: Engine.IO dispatches upgrades by
-  // `path`, and `/ws/booking-messages` and `/ws/blog-comments` are not in a
-  // prefix relationship, so neither claims the other's traffic.
+  // Several servers on one HTTP server is safe: Engine.IO dispatches upgrades
+  // by `path`, and `/ws/booking-messages`, `/ws/blog-comments` and `/ws/media`
+  // are not in a prefix relationship, so none claims another's traffic.
   await Promise.all([
     getContainer()
       .resolve(containerTokens.bookingMessageSocketServer)
       .attach(server),
     getContainer()
       .resolve(containerTokens.organizationBlogCommentSocketServer)
+      .attach(server),
+    getContainer()
+      .resolve(containerTokens.mediaStatusSocketServer)
       .attach(server),
   ]);
 

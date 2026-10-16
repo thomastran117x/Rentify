@@ -32,6 +32,8 @@ export function createCorsMiddleware(): RequestHandler {
       "x-device-platform",
       "x-request-id",
       "x-csrf-token",
+      // The client's own upload timings, sent while it waits on GET /media/{id}.
+      "x-media-upload-timing",
       CLIENT_APP_HEADER_NAME,
     ],
     exposedHeaders: [

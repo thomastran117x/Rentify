@@ -41,7 +41,16 @@ export function createMediaProcessingJobHandler(
 
   return async (payload, message, channel) => {
     try {
-      await processing.process(payload.mediaId);
+      // Only a first delivery says how long the job waited for a worker. A
+      // retried job keeps its first publish time, and so does one RabbitMQ
+      // redelivers after a worker died holding it, still at attempt 0: both
+      // would add the earlier attempt to the wait.
+      const firstDelivery =
+        payload.attempt === 0 && !message.fields.redelivered;
+      await processing.process(
+        payload.mediaId,
+        firstDelivery ? { enqueuedAt: payload.occurredAt } : {},
+      );
       channel.ack(message);
       return;
     } catch (error) {

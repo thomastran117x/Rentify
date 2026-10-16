@@ -43,6 +43,9 @@ import { MediaProcessingQueueService } from "@/features/media/media-processing.q
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import type { MediaMetrics } from "@/features/media/media-metrics";
+import type { MediaStatusPublisher } from "@/features/media/media-status-publisher";
+import type { MediaStatusSocketServer } from "@/features/media/media-status-socket.server";
+import type { MediaStatusSocketService } from "@/features/media/media-status-socket.service";
 import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
 import type { ImageModerationService } from "@/features/media/moderation/image-moderation.service";
 import { MediaRepository } from "@/features/media/media.repository";
@@ -439,6 +442,15 @@ export const containerTokens = {
     "MediaCleanupService",
   ),
   mediaMetrics: createServiceToken<MediaMetrics>("MediaMetrics"),
+  mediaStatusPublisher: createServiceToken<MediaStatusPublisher>(
+    "MediaStatusPublisher",
+  ),
+  mediaStatusSocketService: createServiceToken<MediaStatusSocketService>(
+    "MediaStatusSocketService",
+  ),
+  mediaStatusSocketServer: createServiceToken<MediaStatusSocketServer>(
+    "MediaStatusSocketServer",
+  ),
   malwareScanner: createServiceToken<MalwareScanner>("MalwareScanner"),
   imageModeration: createServiceToken<ImageModerationService>(
     "ImageModerationService",

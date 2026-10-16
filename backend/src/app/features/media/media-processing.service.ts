@@ -1,5 +1,4 @@
 import { performance } from "node:perf_hooks";
-import sharp from "sharp";
 import { environment } from "@/configuration/environment/index";
 import { loggerFactory } from "@/configuration/logging";
 import type { Uuid } from "@/configuration/validation/uuid";
@@ -11,11 +10,11 @@ import { listImageVariantBlobNames } from "@/features/blob/image-variant-names";
 import type { BlobProperties } from "@/features/blob/blob.model";
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
-  assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  decodeUprightImage,
   describeImageSizeLimit,
-  IMAGE_DECODE_FAIL_ON,
+  inspectImageHeader,
   isImagePolicyRejection,
   normalizeImageContentType,
   rejectionCodeOf,
@@ -26,17 +25,20 @@ import {
   rejectMedia,
 } from "@/features/media/media-rejection";
 import {
+  decodedImageSource,
   PROCESSED_IMAGE_CONTENT_TYPE,
-  renderImage,
+  renderProcessedImage,
   renderSmallerRenditions,
   uploadSmallerRenditions,
   type RenderedImage,
+  type SmallerRenditions,
 } from "@/features/media/image-renditions";
 import {
   mediaMetricScope,
   type MediaMetricScope,
   type MediaMetrics,
   type MediaProcessingOutcome,
+  type MediaProcessingStage,
 } from "@/features/media/media-metrics";
 import type {
   MediaRecord,
@@ -45,6 +47,10 @@ import type {
   MediaStatus,
 } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
+import {
+  NoopMediaStatusPublisher,
+  type MediaStatusPublisher,
+} from "@/features/media/media-status-publisher";
 import type { MalwareScanner } from "@/features/media/scanning/malware-scanner";
 import {
   ImageModerationRefusedError,
@@ -109,10 +115,10 @@ function policyRejection(
  * process rather than supplied by the client. It also scales the image down so
  * its longest edge is within `imageUploads.maxProcessedEdge`, since the full
  * upload can be far larger than anything the UI displays. The upload is
- * decoded once. The two smaller renditions, medium and thumbnail, are then
- * scaled from the encoded processed image, which is far cheaper to decode than
- * a full-size upload, and all three are written before the item is marked
- * ready, so a ready image always has them.
+ * decoded once, upright and already at that size, and the same pixels give
+ * the processed image and the two smaller renditions, medium and thumbnail.
+ * All three are written before the item is marked ready, so a ready image
+ * always has them.
  *
  * The upload credential outlives completion, so the blob may have been written
  * again since. Its properties are checked before anything is downloaded: the
@@ -127,6 +133,10 @@ function policyRejection(
  * throws, so the job is retried and eventually dead-lettered; the repository
  * refuses to mark an item ready without a passing scan of the current
  * attempt.
+ *
+ * The moment the item becomes ready, or this service rejects it, the user's
+ * open pages are told through the status publisher, so a waiting client need
+ * not poll for it. The push is best effort, and the row stays the record.
  *
  * Once the renditions are rendered, and before any of them is written, the
  * image is moderated for harmful visual content: the medium rendition, or the
@@ -148,6 +158,7 @@ export class MediaProcessingService {
     private readonly metrics: MediaMetrics,
     private readonly scanner: MalwareScanner,
     private readonly moderation: ImageModerationService,
+    private readonly statusPublisher: MediaStatusPublisher = new NoopMediaStatusPublisher(),
   ) {}
 
   // What the shared rejection routine needs from this service.
@@ -164,8 +175,14 @@ export class MediaProcessingService {
    * Processes one media item. Returns normally when the item is finished,
    * either way, or was not in a state to process. Throws only for failures
    * that a retry could fix, such as storage being unavailable.
+   *
+   * `enqueuedAt` is when the job was published, given only for a first
+   * delivery, so the wait for a worker can be measured.
    */
-  async process(mediaId: Uuid): Promise<void> {
+  async process(
+    mediaId: Uuid,
+    options: { enqueuedAt?: string } = {},
+  ): Promise<void> {
     const record = await this.mediaRepository.findById(mediaId);
 
     if (!record || !CLAIMABLE_STATUSES.includes(record.status)) {
@@ -193,9 +210,10 @@ export class MediaProcessingService {
     const startedAt = performance.now();
     const scope: MediaMetricScope = mediaMetricScope(record.scope);
     let outcome: MediaProcessingOutcome = "failed";
+    this.observeQueueWait(options.enqueuedAt, scope);
 
     try {
-      outcome = await this.processClaimed(record, attempt);
+      outcome = await this.processClaimed(record, attempt, scope);
     } finally {
       this.metrics.observe(
         "media.processing.duration",
@@ -205,11 +223,83 @@ export class MediaProcessingService {
     }
   }
 
+  /**
+   * Skipped when the publish time is missing or later than now: the API and
+   * the worker read different clocks, and a skewed sample is worse than none.
+   */
+  private observeQueueWait(
+    enqueuedAt: string | undefined,
+    scope: MediaMetricScope,
+  ): void {
+    const waitedMs = enqueuedAt ? Date.now() - Date.parse(enqueuedAt) : NaN;
+
+    if (Number.isFinite(waitedMs) && waitedMs >= 0) {
+      this.metrics.observe("media.processing.queue_wait", waitedMs, { scope });
+    }
+  }
+
+  /**
+   * Decodes the upload, once, and encodes the processed image and both
+   * renditions from its pixels. The decode is also the check that the pixel
+   * data is whole, so a truncated image is rejected here. Only the encoded
+   * images leave this method: the raw pixels, which take up to the processed
+   * edge squared times four bytes, are not held through moderation and the
+   * uploads that follow.
+   *
+   * A decode failure that is probably the upload's fault, but could be the
+   * worker's, is only taken as final on a retried attempt: the first is thrown,
+   * so the job is retried once the retry delay has let any memory pressure
+   * pass.
+   */
+  private async render(
+    original: Buffer,
+    attempt: number,
+    scope: MediaMetricScope,
+  ): Promise<{ processed: RenderedImage; renditions: SmallerRenditions }> {
+    const { decoded, processed } = await this.timed(
+      "render",
+      scope,
+      async () => {
+        const image = await decodeUprightImage(original, {
+          confirm: attempt > 1,
+        });
+        return { decoded: image, processed: await renderProcessedImage(image) };
+      },
+    );
+    const renditions = await this.timed("renditions", scope, () =>
+      renderSmallerRenditions(decodedImageSource(decoded), decoded.width),
+    );
+
+    return { processed, renditions };
+  }
+
+  /** Runs one stage of an attempt and records how long it took. */
+  private async timed<T>(
+    stage: MediaProcessingStage,
+    scope: MediaMetricScope,
+    step: () => Promise<T>,
+  ): Promise<T> {
+    const startedAt = performance.now();
+
+    try {
+      return await step();
+    } finally {
+      this.metrics.observe(
+        "media.processing.stage.duration",
+        performance.now() - startedAt,
+        { scope, stage },
+      );
+    }
+  }
+
   private async processClaimed(
     record: MediaRecord,
     attempt: number,
+    scope: MediaMetricScope,
   ): Promise<MediaProcessingOutcome> {
-    const original = await this.downloadOriginal(record);
+    const original = await this.timed("download", scope, () =>
+      this.downloadOriginal(record),
+    );
 
     if ("rejection" in original) {
       return this.reject(record, original.rejection);
@@ -220,7 +310,9 @@ export class MediaProcessingService {
     // mistakes a slow job for a lost one.
     await this.mediaRepository.recordProcessingProgress(record.id);
 
-    const scanned = await this.scan(record, attempt, original.body);
+    const scanned = await this.timed("scan", scope, () =>
+      this.scan(record, attempt, original.body),
+    );
 
     if (scanned !== "passed") {
       return scanned;
@@ -229,9 +321,18 @@ export class MediaProcessingService {
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     let detectedContentType: SupportedImageContentType;
+    let processed: RenderedImage;
+    let renditions: SmallerRenditions;
 
     try {
-      detectedContentType = await this.inspect(record, original.body);
+      detectedContentType = await this.timed("inspect", scope, () =>
+        this.inspect(record, original.body),
+      );
+      ({ processed, renditions } = await this.render(
+        original.body,
+        attempt,
+        scope,
+      ));
     } catch (error) {
       if (isImagePolicyRejection(error)) {
         return this.reject(record, policyRejection(error));
@@ -240,28 +341,12 @@ export class MediaProcessingService {
       throw error;
     }
 
-    const policy = environment.getImageUploadsConfig();
-    // Rotated first, so the cap applies to the upright image. The upload is
-    // decoded once, here; the smaller renditions come from the result.
-    const processed = await renderImage(
-      sharp(original.body, {
-        limitInputPixels: policy.maxPixels,
-        failOn: IMAGE_DECODE_FAIL_ON,
-      }).rotate(),
-      policy.maxProcessedEdge,
-    );
-    const renditions = await renderSmallerRenditions(
-      processed.data,
-      processed.width,
-    );
     await this.mediaRepository.recordProcessingProgress(record.id);
 
     // Moderated before anything is written, so a harmful image never reaches
     // the public container, even under a name no one has been given.
-    const moderated = await this.moderate(
-      record,
-      attempt,
-      renditions.medium ?? processed,
+    const moderated = await this.timed("moderate", scope, () =>
+      this.moderate(record, attempt, renditions.medium ?? processed),
     );
 
     if (moderated !== "passed") {
@@ -281,25 +366,29 @@ export class MediaProcessingService {
 
     // All three at once. A failure part way through throws, and the retried
     // job writes every rendition again under the same names.
-    const [, variants] = await Promise.all([
-      this.blobService.uploadBuffer({
-        blobName: processedBlobName,
-        body: processed.data,
-        contentType: PROCESSED_IMAGE_CONTENT_TYPE,
-      }),
-      uploadSmallerRenditions(this.blobService, renditionNames, renditions),
-    ]);
+    const [, variants] = await this.timed("upload", scope, () =>
+      Promise.all([
+        this.blobService.uploadBuffer({
+          blobName: processedBlobName,
+          body: processed.data,
+          contentType: PROCESSED_IMAGE_CONTENT_TYPE,
+        }),
+        uploadSmallerRenditions(this.blobService, renditionNames, renditions),
+      ]),
+    );
 
     // sizeBytes, width, and height now describe what is served, not what was
     // uploaded; detectedContentType records what the upload really was.
-    const marked = await this.mediaRepository.markReady(record.id, attempt, {
-      processedBlobName,
-      detectedContentType,
-      sizeBytes: processed.data.byteLength,
-      width: processed.width,
-      height: processed.height,
-      variants,
-    });
+    const marked = await this.timed("mark_ready", scope, () =>
+      this.mediaRepository.markReady(record.id, attempt, {
+        processedBlobName,
+        detectedContentType,
+        sizeBytes: processed.data.byteLength,
+        width: processed.width,
+        height: processed.height,
+        variants,
+      }),
+    );
 
     // Only the attempt that marked the item ready counts it.
     if (!marked) {
@@ -307,7 +396,10 @@ export class MediaProcessingService {
       return "discarded";
     }
 
-    const scope = mediaMetricScope(record.scope);
+    this.statusPublisher.publish(record.userId, {
+      mediaId: record.id,
+      status: "ready",
+    });
     this.metrics.increment("media.processing.success", { scope });
     this.metrics.observe("media.bytes.processed", processed.data.byteLength, {
       scope,
@@ -335,13 +427,17 @@ export class MediaProcessingService {
       return;
     }
 
-    await rejectMedia(
-      this.rejection,
-      record,
-      PROCESSING_FAILED_REASON,
-      "processing_failed",
-      "dead_letter",
-    );
+    if (
+      await rejectMedia(
+        this.rejection,
+        record,
+        PROCESSING_FAILED_REASON,
+        "processing_failed",
+        "dead_letter",
+      )
+    ) {
+      this.publishRejected(record);
+    }
   }
 
   /**
@@ -482,7 +578,7 @@ export class MediaProcessingService {
 
     // Re-checked against today's allow-list: a type narrowed out since the
     // credential was issued is rejected rather than published.
-    return assertImageBytes(
+    return inspectImageHeader(
       original,
       normalizeImageContentType(record.declaredContentType),
     );
@@ -576,6 +672,19 @@ export class MediaProcessingService {
       "processing",
     );
 
-    return rejected ? "rejected" : "discarded";
+    if (!rejected) {
+      return "discarded";
+    }
+
+    this.publishRejected(record);
+    return "rejected";
+  }
+
+  /** Only the actor that rejected the item tells the client. */
+  private publishRejected(record: MediaRecord): void {
+    this.statusPublisher.publish(record.userId, {
+      mediaId: record.id,
+      status: "rejected",
+    });
   }
 }

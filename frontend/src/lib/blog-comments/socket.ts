@@ -1,6 +1,10 @@
-import { io, type Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import { optionalAuthJson } from "@/lib/api/client";
-import { resolveApiBaseUrl } from "@/lib/env";
+import {
+  MAX_CONSECUTIVE_SOCKET_FAILURES,
+  openTicketedSocket,
+  socketRetryDelayMs,
+} from "@/lib/realtime/ticketed-socket";
 import type {
   BlogCommentStreamEvent,
   BlogCommentStreamStatus,
@@ -10,7 +14,7 @@ import type {
 const SOCKET_PATH = "/ws/blog-comments";
 
 /** After this many consecutive failed connects the caller should fall back. */
-export const MAX_CONSECUTIVE_SOCKET_FAILURES = 5;
+export { MAX_CONSECUTIVE_SOCKET_FAILURES } from "@/lib/realtime/ticketed-socket";
 
 /** Client-side typing throttle. The server enforces its own as well. */
 const TYPING_THROTTLE_MS = 2_500;
@@ -30,13 +34,6 @@ export interface BlogCommentSocketHandle {
   /** Announces that the local user is composing. Throttled. */
   sendTyping(): void;
   close(): void;
-}
-
-/** `http(s)://host/api/v1` → `http(s)://host`. Socket.IO adds the path. */
-function resolveSocketOrigin(): string {
-  const api = new URL(resolveApiBaseUrl(), window.location.origin);
-
-  return api.origin;
 }
 
 /**
@@ -106,7 +103,7 @@ export function openBlogCommentSocket(options: {
     handleFailure();
 
     if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
-      window.setTimeout(() => void connect(), 1_000 * failures);
+      window.setTimeout(() => void connect(), socketRetryDelayMs(failures));
     }
   }
 
@@ -127,19 +124,7 @@ export function openBlogCommentSocket(options: {
       return;
     }
 
-    const next = io(resolveSocketOrigin(), {
-      path: SOCKET_PATH,
-      // The ticket rides in a cookie, so the handshake has to carry credentials.
-      withCredentials: true,
-      // Reconnection is Socket.IO's, but each attempt needs a *fresh* ticket,
-      // so the reconnect is driven from here instead.
-      reconnection: false,
-      // Load-bearing with two gateways on one origin: `socket.io-client` caches
-      // Managers by origin, not by path, so without this a page that also has a
-      // booking thread open could hand this call the Manager built for
-      // `/ws/booking-messages` and silently connect to the wrong gateway.
-      forceNew: true,
-    });
+    const next = openTicketedSocket(SOCKET_PATH);
 
     socket = next;
 

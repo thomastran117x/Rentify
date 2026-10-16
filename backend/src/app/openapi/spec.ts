@@ -4534,7 +4534,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getMedia",
       summary: "Get an uploaded image's processing state",
       description:
-        "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`, in words, and `rejectionCode`, for clients to branch on. Media belonging to anyone else is reported as 404.",
+        "Returns one of the caller's media items. `url` is only set once the status is `ready`, and always addresses the processed image. A rejected item carries `rejectionReason`, in words, and `rejectionCode`, for clients to branch on. Media belonging to anyone else is reported as 404. A client waiting on an upload may send `X-Media-Upload-Timing` with what it measured; it is recorded as metrics once the item is `ready` or `rejected`, and never changes the response.",
       tags: ["media"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4542,7 +4542,18 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
       },
-      parameters: [routePathParam("id", "Media identifier.", mediaIdExample)],
+      parameters: [
+        routePathParam("id", "Media identifier.", mediaIdExample),
+        {
+          name: "X-Media-Upload-Timing",
+          in: "header",
+          required: false,
+          description:
+            "Advisory client timings, in milliseconds: `upload` from requesting the upload to the end of the PUT, `wait` from completing it to this request, and `via`, `poll` or `push`, for how the client learned the item finished. Each time is an integer from 0 to 600000. A malformed value is ignored.",
+          schema: { type: "string", maxLength: 100 },
+          example: "upload=1200, wait=900, via=push",
+        },
+      ],
       responses: {
         "200": successResponse(
           200,
@@ -4551,6 +4562,30 @@ function buildOperations(): OperationDefinition[] {
           { media: mediaViewReadyExample },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/media/socket-ticket",
+      operationId: "createMediaStatusSocketTicket",
+      summary: "Issue a media status socket ticket",
+      description:
+        "Issues a short-lived, single-use ticket for the media status WebSocket, which tells the caller's open pages when one of their uploads becomes `ready` or `rejected`, so a client need not poll `GET /media/{id}` at its fastest. A browser `WebSocket` cannot send an `authorization` header, so the bearer token is exchanged here and the ticket is returned as an HttpOnly cookie scoped to `/ws/media`, which the browser then sends automatically on the upgrade. The ticket never appears in the response body or a query string, and is consumed on first use or after 30 seconds. The socket itself is not an HTTP operation and is therefore not described here: it emits `ready` once it is listening and `media.status` frames of `{ mediaId, status }`, and accepts nothing from the client. A push is best effort, so a client still polls, more slowly, while it waits. PAT bearer authentication is not allowed.",
+      tags: ["media"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "201": successResponse(
+          201,
+          "Socket ticket issued successfully.",
+          "MediaStatusSocketTicket",
+          { expiresInSeconds: 30 },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
       },
     },
     {
@@ -12486,6 +12521,15 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Which side of the thread the requesting user is on. Align the conversation against this rather than the author's user id, so a second organization manager sees a colleague's message as outgoing.",
           },
+        },
+      },
+      MediaStatusSocketTicket: {
+        type: "object",
+        required: ["expiresInSeconds"],
+        description:
+          "The ticket itself is delivered as an HttpOnly cookie scoped to the socket path, never in this body.",
+        properties: {
+          expiresInSeconds: { type: "integer", minimum: 1 },
         },
       },
       BookingMessageSocketTicket: {

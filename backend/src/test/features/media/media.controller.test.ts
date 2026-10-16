@@ -1,6 +1,7 @@
 import { RequestValidationError } from "@/configuration/validation/request";
 import { MediaController } from "@/features/media/media.controller";
 import type { MediaService } from "@/features/media/media.service";
+import type { MediaStatusSocketService } from "@/features/media/media-status-socket.service";
 import { invokeHandler } from "../../support/mock-http";
 import { testUuid } from "../../support/uuid";
 
@@ -8,9 +9,11 @@ const USER_ID = testUuid(9000, 994280);
 const MEDIA_ID = testUuid(9000, 994281);
 
 const mockRequireJwtAuth = jest.fn();
+const mockRequireSessionAuth = jest.fn();
 
 jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
+  requireSessionAuth: (...args: unknown[]) => mockRequireSessionAuth(...args),
 }));
 
 // Input sanitization reads its inspector from the request container.
@@ -39,10 +42,20 @@ function createController() {
     getMediaView: jest.fn(async () => mediaView),
     deleteMediaById: jest.fn(async () => undefined),
   };
+  const mediaStatusSockets = {
+    createSocketTicket: jest.fn(async () => ({
+      ticket: "ticket-1",
+      expiresInSeconds: 30,
+    })),
+  };
 
   return {
-    controller: new MediaController(mediaService as unknown as MediaService),
+    controller: new MediaController(
+      mediaService as unknown as MediaService,
+      mediaStatusSockets as unknown as MediaStatusSocketService,
+    ),
     mediaService,
+    mediaStatusSockets,
   };
 }
 
@@ -103,11 +116,74 @@ describe("MediaController", () => {
     });
     for (const method of [
       mediaService.completeMediaUpload,
-      mediaService.getMediaView,
       mediaService.deleteMediaById,
     ]) {
       expect(method).toHaveBeenCalledWith(USER_ID, MEDIA_ID);
     }
+    expect(mediaService.getMediaView).toHaveBeenCalledWith(
+      USER_ID,
+      MEDIA_ID,
+      null,
+    );
+  });
+
+  it("hands the client's upload timings to the service, dropping a malformed header", async () => {
+    const { controller, mediaService } = createController();
+
+    await invokeHandler(controller.get, {
+      params: { id: MEDIA_ID },
+      state: requestState,
+      headers: { "X-Media-Upload-Timing": "upload=1200, wait=900, via=push" },
+    });
+    const malformed = await invokeHandler(controller.get, {
+      params: { id: MEDIA_ID },
+      state: requestState,
+      headers: { "X-Media-Upload-Timing": "upload=soon" },
+    });
+
+    expect(malformed.status).toBe(200);
+    expect(mediaService.getMediaView.mock.calls).toEqual([
+      [USER_ID, MEDIA_ID, { uploadMs: 1200, waitMs: 900, via: "push" }],
+      [USER_ID, MEDIA_ID, null],
+    ]);
+  });
+
+  it("issues a status socket ticket as an HttpOnly cookie scoped to the socket", async () => {
+    mockRequireSessionAuth.mockResolvedValue({
+      sub: USER_ID,
+      sessionId: "session-1",
+      tokenVersion: 3,
+    });
+    const { controller, mediaStatusSockets } = createController();
+
+    const response = await invokeHandler(controller.socketTicket, {
+      state: requestState,
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { expiresInSeconds: 30 },
+    });
+    expect(mediaStatusSockets.createSocketTicket).toHaveBeenCalledWith(
+      USER_ID,
+      { sessionId: "session-1", tokenVersion: 3 },
+    );
+    const cookie = response.headers["set-cookie"] ?? "";
+    expect(cookie).toContain("rentify_media_ws_ticket=ticket-1");
+    expect(cookie).toContain("Path=/ws/media");
+    expect(cookie).toContain("HttpOnly");
+  });
+
+  it("records no session it cannot read from the token", async () => {
+    mockRequireSessionAuth.mockResolvedValue({ sub: USER_ID });
+    const { controller, mediaStatusSockets } = createController();
+
+    await invokeHandler(controller.socketTicket, { state: requestState });
+
+    expect(mediaStatusSockets.createSocketTicket).toHaveBeenCalledWith(
+      USER_ID,
+      { sessionId: null, tokenVersion: null },
+    );
   });
 
   it("rejects a malformed media id before reaching the service", async () => {

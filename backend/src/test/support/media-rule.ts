@@ -1,4 +1,5 @@
 import type { BlobService } from "@/features/blob/blob.service";
+import { InMemoryCacheClaims } from "./in-memory-cache-claims";
 import type { MediaScope } from "@/features/media/media.model";
 import { NoopMediaMetrics } from "@/features/media/media-metrics";
 import { MediaService } from "@/features/media/media.service";
@@ -31,6 +32,7 @@ export function createMediaRule(
     repository.asRepository(),
     { enqueueMediaProcessingJob: jest.fn() },
     new NoopMediaMetrics(),
+    new InMemoryCacheClaims(),
   );
 
   return {

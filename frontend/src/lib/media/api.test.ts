@@ -14,8 +14,78 @@ const { authenticatedJsonMock, readSessionMock, baseUrlMock } = vi.hoisted(
   }),
 );
 
+/**
+ * Stands in for the page's status socket: a test says whether it is listening
+ * and pushes statuses itself.
+ */
+const statusChannel = vi.hoisted(() => {
+  const listeners = new Map<
+    string,
+    Set<(push: { mediaId: string; status: "ready" | "rejected" }) => void>
+  >();
+  const listeningListeners = new Set<() => void>();
+  const channel = {
+    listening: false,
+    acquired: 0,
+    released: 0,
+    acquire() {
+      channel.acquired += 1;
+      return () => {
+        channel.released += 1;
+      };
+    },
+    onStatus(
+      mediaId: string,
+      listener: (push: {
+        mediaId: string;
+        status: "ready" | "rejected";
+      }) => void,
+    ) {
+      const forMedia = listeners.get(mediaId) ?? new Set();
+      forMedia.add(listener);
+      listeners.set(mediaId, forMedia);
+      return () => {
+        forMedia.delete(listener);
+      };
+    },
+    isListening: () => channel.listening,
+    onListening(listener: () => void) {
+      listeningListeners.add(listener);
+      return () => {
+        listeningListeners.delete(listener);
+      };
+    },
+    /** The socket joins its room, as on the server's `ready`. */
+    startListening() {
+      channel.listening = true;
+      for (const listener of [...listeningListeners]) {
+        listener();
+      }
+    },
+    push(mediaId: string, status: "ready" | "rejected" = "ready") {
+      for (const listener of listeners.get(mediaId) ?? []) {
+        listener({ mediaId, status });
+      }
+    },
+    subscribers: () =>
+      [...listeners.values()].reduce((count, set) => count + set.size, 0) +
+      listeningListeners.size,
+    reset() {
+      listeners.clear();
+      listeningListeners.clear();
+      channel.listening = false;
+      channel.acquired = 0;
+      channel.released = 0;
+    },
+  };
+  return channel;
+});
+
 vi.mock("@/lib/api/client", () => ({
   authenticatedJson: authenticatedJsonMock,
+}));
+vi.mock("@/lib/media/status-socket", () => ({
+  mediaStatusChannel: statusChannel,
 }));
 vi.mock("@/lib/auth/storage", () => ({ readStoredSession: readSessionMock }));
 vi.mock("@/lib/env", () => ({ resolveApiBaseUrl: baseUrlMock }));
@@ -131,6 +201,7 @@ describe("uploadImage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    statusChannel.reset();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(null, { status: 201 }),
     );
@@ -214,11 +285,251 @@ describe("uploadImage", () => {
       "GET",
       `/media/${MEDIA_ID}`,
       undefined,
-      undefined,
+      {
+        "x-media-upload-timing": expect.stringMatching(
+          /^upload=\d+, wait=\d+, via=poll$/,
+        ),
+      },
       undefined,
     );
     // Backs off through the configured delays, repeating the last.
     expect(sleep.mock.calls).toEqual([[10], [20]]);
+  });
+
+  it("reports how long the upload took and how long it has waited since", async () => {
+    let clock = 0;
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => {
+      clock += 1_200;
+      return new Response(null, { status: 201 });
+    });
+    authenticatedJsonMock.mockImplementation(
+      async (method: string, path: string) => {
+        if (method === "POST" && path === "/media/uploads") {
+          return { mediaId: MEDIA_ID, upload: UPLOAD };
+        }
+        if (method === "POST") {
+          clock += 100;
+          return { media: mediaView({ status: "uploaded" }) };
+        }
+        return {
+          media:
+            clock < 1_330
+              ? mediaView({ status: "processing" })
+              : mediaView({ status: "ready", url: "https://cdn.test/a" }),
+        };
+      },
+    );
+
+    await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+      scope: "postings",
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      pollDelaysMs: [10, 20],
+    });
+
+    const timings = authenticatedJsonMock.mock.calls
+      .filter(([method]) => method === "GET")
+      .map((call) => call[3]?.["x-media-upload-timing"]);
+    expect(timings).toEqual([
+      "upload=1200, wait=110, via=poll",
+      "upload=1200, wait=130, via=poll",
+    ]);
+  });
+
+  describe("status pushes", () => {
+    const READY = mediaView({ status: "ready", url: "https://cdn.test/a" });
+    const never = () => new Promise<void>(() => {});
+    const timingOf = (call: unknown[]) =>
+      (call[3] as Record<string, string> | undefined)?.[
+        "x-media-upload-timing"
+      ];
+    const reads = () =>
+      authenticatedJsonMock.mock.calls.filter(([method]) => method === "GET");
+
+    it("reads the item the moment a push says it finished", async () => {
+      statusChannel.listening = true;
+      routeMediaApi(mediaView({ status: "uploaded" }), [READY]);
+      const waits: number[] = [];
+
+      const image = await uploadImage(
+        new File(["x"], "a.png", { type: "image/png" }),
+        {
+          scope: "postings",
+          sleep: (ms) => {
+            waits.push(ms);
+            setTimeout(() => statusChannel.push(MEDIA_ID), 0);
+            return never();
+          },
+        },
+      );
+
+      expect(image.url).toBe(READY.url);
+      // The fallback check would have waited a second; the push ended it first.
+      expect(waits).toEqual([1000]);
+      expect(reads()).toHaveLength(1);
+      expect(timingOf(reads()[0]!)).toMatch(/via=push$/);
+    });
+
+    it("keeps a push that arrives while the upload is being completed", async () => {
+      statusChannel.listening = true;
+      authenticatedJsonMock.mockImplementation(
+        async (method: string, path: string) => {
+          if (path === "/media/uploads") {
+            return { mediaId: MEDIA_ID, upload: UPLOAD };
+          }
+          if (method === "POST") {
+            statusChannel.push(MEDIA_ID);
+            return { media: mediaView({ status: "processing" }) };
+          }
+          return { media: READY };
+        },
+      );
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: never,
+      });
+
+      expect(timingOf(reads()[0]!)).toMatch(/via=push$/);
+    });
+
+    it("polls more slowly while the socket listens, in case a push is lost", async () => {
+      statusChannel.listening = true;
+      routeMediaApi(mediaView({ status: "uploaded" }), [
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        READY,
+      ]);
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep,
+      });
+
+      expect(sleep.mock.calls).toEqual([[1000], [2000], [3000], [3000]]);
+      expect(timingOf(reads().at(-1)!)).toMatch(/via=poll$/);
+    });
+
+    it("checks at once when the socket starts listening, for a push it missed", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [READY]);
+      const waits: number[] = [];
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: (ms) => {
+          waits.push(ms);
+          // The socket joins its room only after the worker already pushed
+          // to it, so that push is gone; only a check finds the item.
+          setTimeout(() => statusChannel.startListening(), 0);
+          return never();
+        },
+      });
+
+      // The first poll wait is cut short; nothing waits for its 500 ms.
+      expect(waits).toEqual([500]);
+      expect(reads()).toHaveLength(1);
+      expect(timingOf(reads()[0]!)).toMatch(/via=poll$/);
+    });
+
+    it("starts the fallback schedule afresh once the socket listens", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        mediaView({ status: "processing" }),
+        READY,
+      ]);
+      const waits: number[] = [];
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: async (ms) => {
+          waits.push(ms);
+          // Listening from the third wait, after two polls.
+          if (waits.length === 2) {
+            statusChannel.listening = true;
+          }
+        },
+      });
+
+      // Two polls at 500 and 750 ms, then the fallback from its start, not
+      // from where polling had got to.
+      expect(waits).toEqual([500, 750, 1000, 2000]);
+    });
+
+    it("polls at the full rate while the socket does not listen", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [READY]);
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep,
+      });
+
+      expect(sleep.mock.calls).toEqual([[500]]);
+    });
+
+    it("ignores a push for another item", async () => {
+      statusChannel.listening = true;
+      routeMediaApi(mediaView({ status: "uploaded" }), [READY]);
+
+      await uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+        scope: "postings",
+        sleep: async () => {
+          statusChannel.push("someone-else");
+        },
+      });
+
+      expect(timingOf(reads()[0]!)).toMatch(/via=poll$/);
+    });
+
+    it("lets go of the socket and the item once it has an answer", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }), [
+        mediaView({ status: "rejected", rejectionReason: "No." }),
+      ]);
+
+      await expect(
+        uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+          scope: "postings",
+          sleep,
+        }),
+      ).rejects.toBeInstanceOf(MediaRejectedError);
+
+      expect(statusChannel.acquired).toBe(1);
+      expect(statusChannel.released).toBe(1);
+      expect(statusChannel.subscribers()).toBe(0);
+    });
+
+    it("lets go of the socket when the upload fails before processing", async () => {
+      routeMediaApi(mediaView({ status: "uploaded" }));
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+        new Response(null, { status: 403 }),
+      );
+
+      await expect(
+        uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+          scope: "postings",
+        }),
+      ).rejects.toThrow("Upload failed with status 403.");
+
+      expect(statusChannel.released).toBe(1);
+      expect(statusChannel.subscribers()).toBe(0);
+    });
+
+    it("takes the socket only once it knows the upload is not already cancelled", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        uploadImage(new File(["x"], "a.png", { type: "image/png" }), {
+          scope: "postings",
+          signal: controller.signal,
+        }),
+      ).rejects.toMatchObject({ name: "AbortError" });
+
+      expect(statusChannel.acquired).toBe(0);
+    });
   });
 
   it("resolves the content type from the extension when the browser gives none", async () => {

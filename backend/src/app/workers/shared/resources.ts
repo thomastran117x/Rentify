@@ -10,10 +10,16 @@ import {
   connectRabbitMq,
   disconnectRabbitMq,
 } from "@/configuration/resources/rabbitmq";
+import { loggerFactory } from "@/configuration/logging";
 import { connectRedis, disconnectRedis } from "@/configuration/resources/redis";
 import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 import { checkImageModerationAccess } from "@/features/media/moderation/check-image-moderation";
 import type { WorkerResource } from "@/workers/shared/worker-runtime";
+
+const resourcesLogger = loggerFactory.forComponent(
+  "worker-resources",
+  "worker",
+);
 
 /**
  * For workers that touch blobs; list it first, so a worker that cannot reach
@@ -50,6 +56,26 @@ export const rabbitMqWorkerResource: WorkerResource = {
 
 export const redisWorkerResource: WorkerResource = {
   connect: connectRedis,
+  disconnect: disconnectRedis,
+};
+
+/**
+ * Redis for a worker that uses it only for best-effort work, such as the media
+ * processing worker's status pushes. The worker starts without waiting for it:
+ * the client connects, and reconnects after an outage, in the background, and
+ * the work that needs it is skipped while it is not ready. A Redis outage must
+ * not stop images from being processed.
+ */
+export const optionalRedisWorkerResource: WorkerResource = {
+  connect: async () => {
+    void connectRedis().catch((error: unknown) => {
+      resourcesLogger.warn(
+        "Redis is unavailable; continuing without it.",
+        undefined,
+        error,
+      );
+    });
+  },
   disconnect: disconnectRedis,
 };
 

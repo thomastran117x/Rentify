@@ -127,15 +127,24 @@ function createContext(
     readBacklog: jest.fn(async (): Promise<MediaProcessingBacklog> => IDLE),
   };
   const metrics = new RecordingMediaMetrics();
+  const statusPublisher = { publish: jest.fn() };
   const service = new MediaCleanupService(
     mediaRepository as never,
     blobService,
     queue as never,
     metrics,
+    statusPublisher,
     () => NOW,
   );
 
-  return { mediaRepository, blobService, queue, metrics, service };
+  return {
+    mediaRepository,
+    blobService,
+    queue,
+    metrics,
+    statusPublisher,
+    service,
+  };
 }
 
 function ago(ms: number): Date {
@@ -333,6 +342,21 @@ describe("MediaCleanupService", () => {
     metrics.assertNoIdentifiers();
   });
 
+  it("tells the owner's open pages when it rejects a stuck item", async () => {
+    const exhausted = record("processing", { processingRequeues: 3 });
+    const requeued = record("uploaded");
+    const { statusPublisher, service } = createContext({
+      stuck: [exhausted, requeued],
+    });
+
+    await service.sweep(OPTIONS);
+
+    // Only the rejection: a re-queued item is still being processed.
+    expect(statusPublisher.publish.mock.calls).toEqual([
+      [exhausted.userId, { mediaId: exhausted.id, status: "rejected" }],
+    ]);
+  });
+
   it("does not reject an item for its age alone", async () => {
     const { mediaRepository, service } = createContext({
       stuck: [record("uploaded", { createdAt: ago(7 * 24 * HOUR_MS) })],
@@ -370,6 +394,17 @@ describe("MediaCleanupService", () => {
     });
     expect(blobService.deleteBlob).not.toHaveBeenCalled();
     expect(metrics.count("media.rejected")).toBe(0);
+  });
+
+  it("pushes nothing for a stuck item a job claimed first", async () => {
+    const { mediaRepository, statusPublisher, service } = createContext({
+      stuck: [record("processing", { processingRequeues: 3 })],
+    });
+    mediaRepository.rejectStuck.mockResolvedValueOnce(false);
+
+    await service.sweep(OPTIONS);
+
+    expect(statusPublisher.publish).not.toHaveBeenCalled();
   });
 
   it("counts a rejection even when deleting its upload fails", async () => {

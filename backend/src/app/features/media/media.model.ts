@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IssuedSocketTicket } from "@/configuration/realtime/socket-tickets";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type { ModerationResult } from "@/features/media/moderation/image-moderation.service";
 
@@ -350,4 +351,60 @@ export interface MediaProcessingJobPayload {
   mediaId: Uuid;
   attempt: number;
   occurredAt: string;
+}
+
+/**
+ * Media status pushes. A client waiting on an upload opens one socket for all
+ * its uploads and is told when any of them becomes `ready` or `rejected`, so
+ * it need not poll. The push carries no view: the client then reads
+ * `GET /media/{id}`, which applies the usual ownership check, and keeps
+ * polling as a fallback for a push that never comes.
+ *
+ * A browser cannot set an `Authorization` header on the Socket.IO handshake, so
+ * the client exchanges its bearer token for a short-lived, single-use ticket
+ * over REST. It comes back as an HttpOnly cookie scoped to the socket path.
+ */
+export const MEDIA_STATUS_SOCKET_TICKET_TTL_SECONDS = 30;
+
+/** Path the client upgrades on, and the ticket cookie's scope. */
+export const MEDIA_STATUS_SOCKET_PATH = "/ws/media";
+
+/** HttpOnly cookie carrying the upgrade ticket, scoped to the socket path. */
+export const MEDIA_STATUS_SOCKET_COOKIE_NAME = "rentify_media_ws_ticket";
+
+/**
+ * The Redis channel prefix of the gateway's adapter, which the processing
+ * worker's emitter publishes on. Its own, so the other gateways' broadcasts
+ * never reach it.
+ */
+export const MEDIA_STATUS_SOCKET_ADAPTER_KEY = "socket.io-media";
+
+/** The event a status push is sent as. */
+export const MEDIA_STATUS_EVENT = "media.status";
+
+/** The room every socket of a user joins, and the only one. */
+export function mediaStatusRoom(userId: Uuid): string {
+  return `media-status:${userId}`;
+}
+
+/** A pushed status: which item finished, and how. */
+export interface MediaStatusEvent {
+  mediaId: Uuid;
+  status: Extract<MediaStatus, "ready" | "rejected">;
+}
+
+export type MediaStatusSocketTicket = IssuedSocketTicket;
+
+/** The session details a ticket carries, taken from the minting request. */
+export interface MediaStatusSocketSession {
+  sessionId: string | null;
+  tokenVersion: number | null;
+}
+
+/**
+ * Who a redeemed ticket belongs to, and the session that minted it, so an open
+ * socket can be re-checked against logout and token-version bumps.
+ */
+export interface MediaStatusSocketIdentity extends MediaStatusSocketSession {
+  userId: Uuid;
 }

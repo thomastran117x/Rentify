@@ -5,7 +5,10 @@ import {
   type ImageVariantBlobNames,
   type ImageVariantName,
 } from "@/features/blob/image-variant-names";
-import { IMAGE_DECODE_FAIL_ON } from "@/features/media/image-policy";
+import {
+  IMAGE_DECODE_FAIL_ON,
+  type DecodedImage,
+} from "@/features/media/image-policy";
 import type { BlobService } from "@/features/blob/blob.service";
 import type {
   ImageRenditionInfo,
@@ -21,46 +24,45 @@ export interface RenderedImage {
   height: number;
 }
 
-/** Encodes `source`, fitted inside a square of `edge` pixels, never enlarged. */
-export async function renderImage(
-  source: Sharp,
-  edge: number,
+/** Reads decoded pixels back in, for encoding without decoding again. */
+export function decodedImageSource(image: DecodedImage): Sharp {
+  return sharp(image.data, {
+    raw: { width: image.width, height: image.height, channels: image.channels },
+  });
+}
+
+/** Encodes the processed image, already upright and at its final size. */
+export async function renderProcessedImage(
+  image: DecodedImage,
 ): Promise<RenderedImage> {
-  return encode(
-    source.resize({
-      width: edge,
-      height: edge,
-      fit: "inside",
-      withoutEnlargement: true,
-    }),
-  );
+  return encode(decodedImageSource(image));
 }
 
 export type SmallerRenditions = Record<ImageVariantName, RenderedImage | null>;
 
 /**
  * Encodes the medium and thumbnail renditions of a processed image, each
- * scaled to its width.
+ * scaled to its width. `source` is the processed image at `processedWidth`:
+ * its decoded pixels while processing an upload, or the stored processed image
+ * when renditions are backfilled.
  *
  * A rendition is only made when the processed image is wider than it. One that
  * is not would be re-encoded at its own size, a copy of the processed image
  * that is no smaller, so it is null, and clients are given the processed image
  * in its place.
  *
- * They are made from the encoded processed image, not the upload: decoding an
- * image already capped at the processed edge costs a fraction of decoding a
- * full-size upload again, and scaling it down keeps every rendition within
- * that cap.
+ * They are made from the processed image, not the upload: it is already
+ * capped at the processed edge, and scaling it down keeps every rendition
+ * within that cap.
  */
 export async function renderSmallerRenditions(
-  processed: Buffer,
+  source: Sharp,
   processedWidth: number,
 ): Promise<SmallerRenditions> {
-  const source = sharp(processed, { failOn: IMAGE_DECODE_FAIL_ON });
   const renditions = {} as SmallerRenditions;
 
-  // One after the other: each clone decodes the source again, and running them
-  // at once would only raise the worker's peak memory.
+  // One after the other, so a job holds one rendition's buffers at a time and
+  // leaves the CPU to the worker's other jobs.
   for (const variant of SMALLER_IMAGE_VARIANTS) {
     const width = IMAGE_VARIANT_WIDTHS[variant];
     renditions[variant] =

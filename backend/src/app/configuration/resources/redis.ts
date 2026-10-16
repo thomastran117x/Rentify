@@ -70,8 +70,19 @@ export function getRedisClient(): RedisClient {
   return redis;
 }
 
+/**
+ * Quits a connected client, letting queued commands finish. A client that is
+ * open but not ready, because it is still trying to reach Redis, is destroyed
+ * instead: QUIT would be queued behind a connection that never comes, and the
+ * shutdown awaiting it would hang until the process is killed.
+ */
 export async function disconnectRedis(): Promise<void> {
   if (!redis || !redis.isOpen) {
+    return;
+  }
+
+  if (!redis.isReady) {
+    redis.destroy();
     return;
   }
 

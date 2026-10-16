@@ -10,6 +10,10 @@ import type {
 } from "@/features/media/media-processing.queue.service";
 import type { MediaRepository } from "@/features/media/media.repository";
 import {
+  NoopMediaStatusPublisher,
+  type MediaStatusPublisher,
+} from "@/features/media/media-status-publisher";
+import {
   PROCESSING_FAILED_REASON,
   recordMediaRejection,
 } from "@/features/media/media-rejection";
@@ -112,6 +116,7 @@ export class MediaCleanupService {
       "enqueueMediaProcessingJob" | "readBacklog"
     >,
     private readonly metrics: Pick<MediaMetrics, "increment">,
+    private readonly statusPublisher: MediaStatusPublisher = new NoopMediaStatusPublisher(),
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -266,6 +271,12 @@ export class MediaCleanupService {
           // can still be replayed; the purge of old rejections deletes it.
           summary.rejected += 1;
           recordMediaRejection(this.metrics, code, "cleanup");
+          // A page may still be waiting on it, as it would on a rejection
+          // from processing.
+          this.statusPublisher.publish(record.userId, {
+            mediaId: record.id,
+            status: "rejected",
+          });
         }
         return;
       }

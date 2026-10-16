@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { SocketTicketStore } from "@/configuration/realtime/socket-tickets";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
@@ -50,6 +50,8 @@ export interface BookingMessageRealtimeGateway {
 export class BookingMessagesService {
   private readonly logger: Logger;
 
+  private readonly socketTickets: SocketTicketStore<BookingMessageSocketIdentity>;
+
   constructor(
     private readonly bookingMessagesRepository: BookingMessagesRepository,
     private readonly bookingsRepository: BookingsRepository,
@@ -61,6 +63,10 @@ export class BookingMessagesService {
     private readonly realtimeGateway: BookingMessageRealtimeGateway,
   ) {
     this.logger = loggerFactory.forClass(BookingMessagesService, "service");
+    this.socketTickets = new SocketTicketStore(cacheService, {
+      keyPrefix: "booking-messages:ws-ticket",
+      ttlSeconds: BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
+    });
   }
 
   async send(input: SendBookingMessageInput): Promise<BookingMessageRecord> {
@@ -302,8 +308,6 @@ export class BookingMessagesService {
     // Same bar as reading the thread: a ticket must never widen access.
     await this.authorizeStream(bookingRequestId, actorUserId);
 
-    const ticket = randomBytes(32).toString("base64url");
-
     // The session that minted the ticket rides along so the socket can be
     // re-checked against it later. Without this the connection outlives its own
     // session: membership is revalidated, but a signed-out user keeps
@@ -315,16 +319,7 @@ export class BookingMessagesService {
       tokenVersion: session.tokenVersion ?? null,
     };
 
-    await this.cacheService.setJson(
-      this.socketTicketKey(ticket),
-      identity,
-      BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
-    );
-
-    return {
-      ticket,
-      expiresInSeconds: BOOKING_MESSAGE_SOCKET_TICKET_TTL_SECONDS,
-    };
+    return this.socketTickets.issue(identity);
   }
 
   /**
@@ -348,18 +343,9 @@ export class BookingMessagesService {
   async redeemSocketTicket(
     ticket: string,
   ): Promise<BookingMessageSocketIdentity | null> {
-    if (!ticket) {
-      return null;
-    }
-
-    // Read and removed in one operation. Reading then deleting let two
-    // concurrent upgrades both observe the ticket before either deleted it, so
-    // both were admitted and the single-use guarantee held only when nothing
-    // raced.
-    const identity =
-      await this.cacheService.getDeleteJson<BookingMessageSocketIdentity>(
-        this.socketTicketKey(ticket),
-      );
+    // Read and removed in one operation, so two upgrades racing with the
+    // same ticket cannot both be admitted.
+    const identity = await this.socketTickets.redeem(ticket);
 
     if (!identity) {
       return null;
@@ -378,10 +364,6 @@ export class BookingMessagesService {
     }
 
     return identity;
-  }
-
-  private socketTicketKey(ticket: string): string {
-    return `booking-messages:ws-ticket:${ticket}`;
   }
 
   /**

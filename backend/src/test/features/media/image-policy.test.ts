@@ -1,9 +1,12 @@
+import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import {
   IMAGE_DECODE_FAIL_ON,
-  assertImageBytes,
   assertImageNotEmpty,
   assertImageSizeWithinLimit,
+  classifyDecodeFailure,
+  decodeUprightImage,
   formatByteLimit,
+  inspectImageHeader,
   isImagePolicyRejection,
   normalizeImageContentType,
   rejectionCodeOf,
@@ -32,6 +35,7 @@ const POLICY_VARIABLES = [
   "MAX_IMAGE_WIDTH",
   "MAX_IMAGE_HEIGHT",
   "MAX_IMAGE_PIXELS",
+  "MAX_PROCESSED_IMAGE_EDGE",
 ] as const;
 
 const originalValues = new Map(
@@ -196,7 +200,171 @@ describe("assertImageSizeWithinLimit", () => {
   });
 });
 
-describe("assertImageBytes", () => {
+/**
+ * Both passes over an upload's bytes, as processing runs them: the header
+ * checks, then the decode, which is what proves the pixel data whole.
+ */
+async function assertImageBytes(
+  body: Buffer,
+  declaredContentType: SupportedImageContentType,
+): Promise<SupportedImageContentType> {
+  const detected = await inspectImageHeader(body, declaredContentType);
+  // As on a retried attempt, where a probable decode fault is final.
+  await decodeUprightImage(body, { confirm: true });
+  return detected;
+}
+
+/**
+ * An image with real detail, so its pixel data far outweighs its header and
+ * damage lands in the data. Random, but only the damage matters here.
+ */
+async function createNoisyFixture(
+  format: "jpeg" | "png" | "webp",
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      // Typed as required, though the noise replaces it.
+      background: "#000000",
+      noise: { type: "gaussian", mean: 128, sigma: 40 },
+    },
+  })
+    .toFormat(format)
+    .toBuffer();
+}
+
+describe("decodeUprightImage", () => {
+  const confirmed = { confirm: true };
+  const firstAttempt = { confirm: false };
+
+  it("decodes upright, fitted inside the processed edge and never enlarged", async () => {
+    process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+    const rotated = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: "#2878c8" },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+
+    await expect(
+      decodeUprightImage(rotated, firstAttempt),
+    ).resolves.toMatchObject({ width: 192, height: 256, channels: 3 });
+    const small = await decodeUprightImage(
+      await createPngFixture(12, 8),
+      firstAttempt,
+    );
+    expect(small).toMatchObject({ width: 12, height: 8, channels: 3 });
+    expect(small.data.byteLength).toBe(12 * 8 * 3);
+  });
+
+  // The decoders shrink a large image while they read it, which the small
+  // fixtures elsewhere never trigger: 2048 wide into a 256 edge is eight times.
+  it.each(["jpeg", "png", "webp"] as const)(
+    "still rejects truncated %s data while shrinking it on load",
+    async (format) => {
+      process.env.MAX_PROCESSED_IMAGE_EDGE = "256";
+      const image = await createNoisyFixture(format, 2048, 1536);
+
+      await expect(
+        decodeUprightImage(image, firstAttempt),
+      ).resolves.toMatchObject({ width: 256, height: 192 });
+      for (const damaged of [
+        truncateImage(image),
+        truncateImage(image, 0.95),
+        image.subarray(0, image.length - 16),
+      ]) {
+        await expect(decodeUprightImage(damaged, confirmed)).rejects.toThrow(
+          "Uploaded image data is truncated or corrupt.",
+        );
+      }
+    },
+  );
+
+  it("names the refusal as corrupt", async () => {
+    const error = await decodeUprightImage(
+      truncateImage(await createPngFixture(64, 64)),
+      confirmed,
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(UnsupportedMediaTypeError);
+    expect(rejectionCodeOf(error as UnsupportedMediaTypeError)).toBe("corrupt");
+  });
+
+  it("refuses a failure only bad bytes produce on the first attempt", async () => {
+    const jpeg = await createJpegFixture(64, 64);
+
+    await expect(
+      decodeUprightImage(jpeg.subarray(0, jpeg.length - 16), firstAttempt),
+    ).rejects.toThrow("Uploaded image data is truncated or corrupt.");
+  });
+
+  it("leaves a probable decode fault to a retry on the first attempt", async () => {
+    // libpng reports truncation as a generic read error, which a decoder short
+    // of resources could also report.
+    const error = await decodeUprightImage(
+      truncateImage(await createPngFixture(64, 64)),
+      firstAttempt,
+    ).catch((thrown: unknown) => thrown);
+
+    expect(isImagePolicyRejection(error)).toBe(false);
+    expect((error as Error).message).toMatch(/libpng read error/);
+  });
+
+  it("throws a failure that is not the image's fault as it is, even when confirmed", async () => {
+    // Built first: the spy below would fail its encode too.
+    const image = await createPngFixture(64, 64);
+    const outOfMemory = new Error("VipsJpeg: Insufficient memory (case 4)");
+    const toBuffer = jest
+      .spyOn(sharp.prototype, "toBuffer")
+      .mockRejectedValueOnce(outOfMemory);
+
+    try {
+      await expect(decodeUprightImage(image, confirmed)).rejects.toBe(
+        outOfMemory,
+      );
+    } finally {
+      toBuffer.mockRestore();
+    }
+  });
+});
+
+describe("classifyDecodeFailure", () => {
+  // What libvips and sharp said for the damaged fixtures the decode tests use,
+  // and what they say when memory runs out.
+  it.each([
+    ["VipsJpeg: premature end of JPEG image", "image"],
+    ["Input buffer has corrupt header: webp: unable to parse image", "image"],
+    ["Input buffer contains unsupported image format", "image"],
+    ["Input image exceeds pixel limit", "image"],
+    ["vipspng: libpng read error", "probably_image"],
+    [
+      "webp2vips: unable to read pixels\nwebpload_buffer: load error",
+      "probably_image",
+    ],
+    ["jpegload: out of order read at line 12", "probably_image"],
+    ["VipsJpeg: Insufficient memory (case 4)", "worker"],
+    ["out of memory --- size == 16MB", "worker"],
+    ["VipsJpeg: out of memory", "worker"],
+    ["Array buffer allocation failed", "worker"],
+    ["Could not allocate memory", "worker"],
+    ["vips_resize: operation cancelled", "worker"],
+    ["something unexpected", "worker"],
+  ] as const)("classes %j as the %s's fault", (message, expected) => {
+    expect(classifyDecodeFailure(new Error(message))).toBe(expected);
+  });
+
+  it("reads a thrown value that is not an Error", () => {
+    expect(classifyDecodeFailure("vipspng: libpng read error")).toBe(
+      "probably_image",
+    );
+  });
+});
+
+describe("inspectImageHeader and decodeUprightImage", () => {
   it("accepts bytes whose real format matches the declared type", async () => {
     await expect(
       assertImageBytes(await createPngFixture(6, 3), "image/png"),

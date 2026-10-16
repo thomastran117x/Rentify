@@ -18,6 +18,8 @@ import {
 } from "../../support/recording-media-metrics";
 import { InMemoryMediaRepository } from "../../support/in-memory-media-repository";
 import { testUuid } from "../../support/uuid";
+import { InMemoryCacheClaims } from "../../support/in-memory-cache-claims";
+import type { CacheService } from "@/features/cache/cache.service";
 import {
   readLocalUploadUrl,
   restoreBlobEnvironmentAfterEach,
@@ -31,7 +33,12 @@ const USER_2_ID = testUuid(9000, 994260);
 
 restoreBlobEnvironmentAfterEach();
 
-function createLocalMediaService(options: { metrics?: MediaMetrics } = {}): {
+function createLocalMediaService(
+  options: {
+    metrics?: MediaMetrics;
+    claims?: Pick<CacheService, "setIfNotExists">;
+  } = {},
+): {
   mediaService: MediaService;
   blobService: BlobService;
   mediaRepository: InMemoryMediaRepository;
@@ -52,6 +59,7 @@ function createLocalMediaService(options: { metrics?: MediaMetrics } = {}): {
       mediaRepository.asRepository(),
       queue,
       options.metrics ?? metrics,
+      options.claims ?? new InMemoryCacheClaims(),
     ),
     blobService,
     mediaRepository,
@@ -359,6 +367,7 @@ describe("MediaService", () => {
         mediaRepository.asRepository(),
         { enqueueMediaProcessingJob: jest.fn() },
         new NoopMediaMetrics(),
+        new InMemoryCacheClaims(),
       );
 
       await expect(startUpload(mediaService)).rejects.toThrow(
@@ -668,6 +677,195 @@ describe("MediaService", () => {
       expect(view).not.toHaveProperty("scanStatus");
       expect(view).not.toHaveProperty("threatName");
       expect(JSON.stringify(view)).not.toMatch(/Eicar|ClamAV/);
+    });
+
+    describe("client upload timings", () => {
+      const timing = { uploadMs: 1_200, waitMs: 900, via: "push" as const };
+      // The timings are recorded after the read answers, so a test lets
+      // that work finish before looking.
+      const settle = () => new Promise((resolve) => setImmediate(resolve));
+      const clientMetrics = (metrics: RecordingMediaMetrics) =>
+        metrics.recorded.filter((metric) =>
+          metric.name.startsWith("media.client."),
+        );
+
+      async function finishedUpload(
+        status: MediaStatus,
+        finishedAgoMs: number | null,
+        claims?: Pick<CacheService, "setIfNotExists">,
+      ) {
+        const context = createLocalMediaService(claims ? { claims } : {});
+        const { mediaId } = await startUpload(context.mediaService);
+        const record = (await context.mediaRepository.findById(mediaId))!;
+        context.mediaRepository.put({
+          ...record,
+          status,
+          processingCompletedAt:
+            finishedAgoMs === null
+              ? null
+              : new Date(Date.now() - finishedAgoMs),
+        });
+
+        return { ...context, mediaId };
+      }
+
+      it("records what the client measured once it sees the item ready", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          800,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await settle();
+
+        expect(metrics.calls("media.client.upload.duration")).toEqual([
+          expect.objectContaining({
+            value: 1_200,
+            tags: { scope: "postings" },
+          }),
+        ]);
+        expect(metrics.calls("media.client.wait.duration")).toEqual([
+          expect.objectContaining({
+            value: 900,
+            tags: { scope: "postings", outcome: "ready", via: "push" },
+          }),
+        ]);
+        expect(metrics.calls("media.client.total.duration")).toEqual([
+          expect.objectContaining({
+            value: 2_100,
+            tags: { scope: "postings", outcome: "ready", via: "push" },
+          }),
+        ]);
+        const [notice] = metrics.calls("media.client.notice.delay");
+        expect(notice?.tags).toEqual({ scope: "postings", via: "push" });
+        expect(notice?.value).toBeGreaterThanOrEqual(800);
+        expect(notice?.value).toBeLessThan(60_000);
+        metrics.assertNoIdentifiers();
+      });
+
+      it("tags a rejected item with its outcome", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "rejected",
+          10,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, {
+          ...timing,
+          via: "poll",
+        });
+        await settle();
+
+        expect(metrics.tagsOf("media.client.wait.duration")).toEqual([
+          { scope: "postings", outcome: "rejected", via: "poll" },
+        ]);
+      });
+
+      it.each([
+        ["the item is still processing", "processing", 10],
+        ["the item finished more than ten minutes ago", "ready", 600_001],
+        ["the item has no finish time", "ready", null],
+      ] as const)(
+        "records nothing when %s",
+        async (_case, status, finishedAgoMs) => {
+          const { mediaService, metrics, mediaId } = await finishedUpload(
+            status,
+            finishedAgoMs,
+          );
+
+          await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+          await settle();
+
+          expect(clientMetrics(metrics)).toEqual([]);
+        },
+      );
+
+      it("records an upload once, however often it is read with timings", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+        );
+
+        // A retry after a dropped response, or a client replaying the header.
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await mediaService.getMediaView(USER_1_ID, mediaId, {
+          uploadMs: 600_000,
+          waitMs: 600_000,
+          via: "push",
+        });
+        await settle();
+
+        expect(metrics.calls("media.client.total.duration")).toEqual([
+          expect.objectContaining({ value: 2_100 }),
+        ]);
+        expect(metrics.count("media.client.notice.delay")).toBe(1);
+      });
+
+      it("records nothing, and still answers, when the claim cannot be made", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+          {
+            setIfNotExists: async () => {
+              throw new Error("Redis is unavailable.");
+            },
+          },
+        );
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId, timing),
+        ).resolves.toMatchObject({ id: mediaId, status: "ready" });
+        await settle();
+        expect(clientMetrics(metrics)).toEqual([]);
+      });
+
+      it("answers before the claim settles, and records once it does", async () => {
+        let claim: (claimed: boolean) => void = () => {};
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+          {
+            setIfNotExists: () =>
+              new Promise<boolean>((resolve) => {
+                claim = resolve;
+              }),
+          },
+        );
+
+        await expect(
+          mediaService.getMediaView(USER_1_ID, mediaId, timing),
+        ).resolves.toMatchObject({ id: mediaId, status: "ready" });
+        expect(clientMetrics(metrics)).toEqual([]);
+
+        claim(true);
+        await settle();
+        expect(metrics.count("media.client.total.duration")).toBe(1);
+      });
+
+      it("drops only the notice delay when the worker's clock is ahead", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          -5_000,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId, timing);
+        await settle();
+
+        expect(metrics.count("media.client.total.duration")).toBe(1);
+        expect(metrics.count("media.client.notice.delay")).toBe(0);
+      });
+
+      it("records nothing without timings", async () => {
+        const { mediaService, metrics, mediaId } = await finishedUpload(
+          "ready",
+          10,
+        );
+
+        await mediaService.getMediaView(USER_1_ID, mediaId);
+        await settle();
+
+        expect(clientMetrics(metrics)).toEqual([]);
+      });
     });
 
     it("exposes a URL only for the processed image of a ready media", async () => {

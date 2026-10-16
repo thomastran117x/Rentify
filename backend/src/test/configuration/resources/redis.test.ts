@@ -34,14 +34,21 @@ function createMockRedisClient(initiallyOpen = false) {
   const eventHandlers = new Map<string, (...args: unknown[]) => void>();
   const client = {
     isOpen: initiallyOpen,
+    isReady: initiallyOpen,
     on: jest.fn((event: string, handler: (...args: unknown[]) => void) => {
       eventHandlers.set(event, handler);
     }),
     connect: jest.fn(async () => {
       client.isOpen = true;
+      client.isReady = true;
     }),
     quit: jest.fn(async () => {
       client.isOpen = false;
+      client.isReady = false;
+    }),
+    destroy: jest.fn(() => {
+      client.isOpen = false;
+      client.isReady = false;
     }),
   };
 
@@ -149,8 +156,30 @@ describe("redis resource", () => {
     await redisModule.disconnectRedis();
 
     expect(redisClientMock.client.quit).toHaveBeenCalledTimes(1);
+    expect(redisClientMock.client.destroy).not.toHaveBeenCalled();
     expect(() => redisModule.getRedisClient()).toThrow(
       "Redis has not been initialized. Call connectRedis() first.",
     );
+  });
+
+  it("destroys a client still trying to reach Redis rather than waiting on QUIT", async () => {
+    const redisClientMock = createMockRedisClient(false);
+    // Open but never ready: node-redis keeps reconnecting, and a QUIT queued
+    // behind it would never settle.
+    redisClientMock.client.connect.mockImplementation(
+      () =>
+        new Promise<void>(() => {
+          redisClientMock.client.isOpen = true;
+        }),
+    );
+    mockCreateClient.mockReturnValue(redisClientMock.client);
+    const redisModule = await loadRedisModule();
+
+    void redisModule.connectRedis();
+    await redisModule.disconnectRedis();
+
+    expect(redisClientMock.client.destroy).toHaveBeenCalledTimes(1);
+    expect(redisClientMock.client.quit).not.toHaveBeenCalled();
+    expect(redisClientMock.client.isOpen).toBe(false);
   });
 });

@@ -289,6 +289,17 @@ function isBlogCommentSocketTicketRoute(
   );
 }
 
+/**
+ * The media status equivalent. A page mints a ticket when it first waits on an
+ * upload, and again on each reconnect.
+ */
+function isMediaStatusSocketTicketRoute(
+  request: Request,
+  pathname: string,
+): boolean {
+  return request.method === "POST" && pathname === "/media/socket-ticket";
+}
+
 function isBlogCommentWriteRoute(request: Request, pathname: string): boolean {
   return (
     (request.method === "POST" ||
@@ -417,6 +428,22 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     return createPolicy(request, {
       id: "booking-messages-socket-ticket",
       bucketKey: `${request.method}:booking-messages-socket-ticket`,
+      strategy: "sliding-window",
+      limit: 60,
+      windowSeconds: 300,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 60 / 300,
+    });
+  }
+
+  if (isMediaStatusSocketTicketRoute(request, pathname)) {
+    // One socket serves every upload on a page, so ordinary use mints a ticket
+    // per page that uploads, plus a few for reconnects. The client gives up
+    // after five consecutive failures and polls, so this need not be what
+    // stops a reconnect storm. Sized like the booking message tickets.
+    return createPolicy(request, {
+      id: "media-status-socket-ticket",
+      bucketKey: `${request.method}:media-status-socket-ticket`,
       strategy: "sliding-window",
       limit: 60,
       windowSeconds: 300,

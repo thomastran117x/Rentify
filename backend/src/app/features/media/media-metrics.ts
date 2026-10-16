@@ -1,6 +1,7 @@
 import type { SupportedImageContentType } from "@/configuration/environment/constants";
 import { loggerFactory } from "@/configuration/logging";
 import type { Logger, LogLevel } from "@/configuration/logging/types";
+import type { MediaStatusNotice } from "@/features/media/client-upload-timing";
 import {
   MEDIA_SCOPES,
   type MediaRejectionCode,
@@ -28,6 +29,23 @@ export type MediaProcessingOutcome =
   | "rejected"
   | "discarded"
   | "failed";
+
+/**
+ * A step of one processing attempt, in the order they run. A rejection ends
+ * the attempt at the stage that decided it, so later stages are not timed.
+ */
+export type MediaProcessingStage =
+  | "download"
+  | "scan"
+  | "inspect"
+  | "render"
+  | "renditions"
+  | "moderate"
+  | "upload"
+  | "mark_ready";
+
+/** How an item a client waited on finished. */
+export type MediaClientOutcome = "ready" | "rejected";
 
 /**
  * Why the media cleanup deleted an item it did not reject: a ready image that
@@ -78,6 +96,40 @@ export interface MediaObservationTags {
   "media.processing.duration": {
     scope: MediaMetricScope;
     outcome: MediaProcessingOutcome;
+  };
+  /** Milliseconds one stage of a claimed attempt took, whether or not it threw. */
+  "media.processing.stage.duration": {
+    scope: MediaMetricScope;
+    stage: MediaProcessingStage;
+  };
+  /**
+   * Milliseconds from a job being published to its item being claimed. Only a
+   * first delivery is timed: a retried job also waited out its retry delay.
+   */
+  "media.processing.queue_wait": { scope: MediaMetricScope };
+  /**
+   * The client-observed timings `uploadImage` reports when it sees the item
+   * finish, in milliseconds on the client's clock: the upload itself, the
+   * wait from completing it to seeing it finished, and the two together.
+   */
+  "media.client.upload.duration": { scope: MediaMetricScope };
+  "media.client.wait.duration": {
+    scope: MediaMetricScope;
+    outcome: MediaClientOutcome;
+    via: MediaStatusNotice;
+  };
+  "media.client.total.duration": {
+    scope: MediaMetricScope;
+    outcome: MediaClientOutcome;
+    via: MediaStatusNotice;
+  };
+  /**
+   * Milliseconds on the server's clock from the item finishing to the client
+   * asking for it: how long the client took to notice.
+   */
+  "media.client.notice.delay": {
+    scope: MediaMetricScope;
+    via: MediaStatusNotice;
   };
 }
 

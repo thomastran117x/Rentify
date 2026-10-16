@@ -7,12 +7,14 @@ import type {
   MediaRecord,
   MediaRejectionCode,
   MediaStatus,
+  MediaStatusEvent,
 } from "@/features/media/media.model";
 import {
   BestEffortMediaMetrics,
   type MediaMetrics,
 } from "@/features/media/media-metrics";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
+import type { MediaStatusPublisher } from "@/features/media/media-status-publisher";
 import {
   MalwareScannerUnavailableError,
   type MalwareScanner,
@@ -89,6 +91,15 @@ const BLOCKED: ModerationResult = {
   provider: "fake-moderation",
 };
 
+/** Keeps every status pushed, with the user it was pushed to. */
+class RecordingStatusPublisher implements MediaStatusPublisher {
+  readonly published: Array<{ userId: string } & MediaStatusEvent> = [];
+
+  publish(userId: string, event: MediaStatusEvent): void {
+    this.published.push({ userId, ...event });
+  }
+}
+
 /**
  * Answers with `result`, allow unless a test sets it. Records each image it
  * was given.
@@ -129,6 +140,7 @@ function createContext(
     moderation?: ImageModerationService;
   } = {},
 ) {
+  const statusPublisher = new RecordingStatusPublisher();
   useLocalBlobStorage();
   const blobService = new BlobService();
   const mediaRepository = new InMemoryMediaRepository();
@@ -148,7 +160,9 @@ function createContext(
       options.metrics ?? metrics,
       scanner,
       moderation,
+      statusPublisher,
     ),
+    statusPublisher,
   };
 }
 
@@ -166,6 +180,8 @@ async function quarantine(
     declaredContentType?: string;
     status?: MediaStatus;
     legacy?: boolean;
+    /** Claims made before, so the next is a retried attempt. */
+    processingAttempts?: number;
   } = {},
 ): Promise<MediaRecord> {
   const id = testUuid(9000, nextMediaIndex++);
@@ -191,7 +207,7 @@ async function quarantine(
     rejectionReason: null,
     rejectionCode: null,
     processingRequeues: 0,
-    processingAttempts: 0,
+    processingAttempts: options.processingAttempts ?? 0,
     processingStartedAt: null,
     processingCompletedAt: null,
     processingError: null,
@@ -315,6 +331,237 @@ describe("MediaProcessingService", () => {
     expect((await context.mediaRepository.findById(record.id))?.status).toBe(
       "ready",
     );
+  });
+
+  describe("status pushes", () => {
+    it("tells the owner when the item becomes ready", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(record.id);
+
+      expect(context.statusPublisher.published).toEqual([
+        { userId: USER_1_ID, mediaId: record.id, status: "ready" },
+      ]);
+    });
+
+    it.each([
+      ["the policy refuses it", async () => createGifFixture(), "image/gif"],
+      [
+        "the scanner finds malware",
+        async () => Buffer.concat([await createPngFixture(), INFECTED_MARKER]),
+        "image/png",
+      ],
+    ])(
+      "tells the owner when processing rejects it because %s",
+      async (_case, body, declaredContentType) => {
+        const context = createContext();
+        const record = await quarantine(context, await body(), {
+          declaredContentType,
+        });
+
+        await context.service.process(record.id);
+
+        expect(context.statusPublisher.published).toEqual([
+          { userId: USER_1_ID, mediaId: record.id, status: "rejected" },
+        ]);
+      },
+    );
+
+    it("tells the owner once when a dead-lettered item is rejected", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.markProcessingFailed(record.id);
+      await context.service.markProcessingFailed(record.id);
+
+      expect(context.statusPublisher.published).toEqual([
+        { userId: USER_1_ID, mediaId: record.id, status: "rejected" },
+      ]);
+    });
+
+    it("pushes nothing for an item it did not finish", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(), {
+        status: "ready",
+      });
+
+      await context.service.process(record.id);
+      await context.service.markProcessingFailed(record.id);
+
+      expect(context.statusPublisher.published).toEqual([]);
+    });
+
+    it("pushes nothing for an attempt that fails and is retried", async () => {
+      const moderation = new FakeModeration();
+      moderation.moderate = async () => {
+        throw new ImageModerationUnavailableError("Content Safety is down.");
+      };
+      const context = createContext({ moderation });
+      const record = await quarantine(context, await createPngFixture());
+
+      await expect(context.service.process(record.id)).rejects.toThrow();
+
+      expect(context.statusPublisher.published).toEqual([]);
+    });
+  });
+
+  describe("a probable decode fault", () => {
+    // libpng reports a truncated PNG as a generic read error, which a decoder
+    // short of memory could also report.
+    const truncatedPng = async () =>
+      truncateImage(await createPngFixture(64, 64));
+
+    it("is retried on the first attempt, keeping the upload", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await truncatedPng());
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        /libpng read error/,
+      );
+
+      const current = await context.mediaRepository.findById(record.id);
+      expect(current?.status).toBe("processing");
+      expect(current?.rejectionCode).toBeNull();
+      await expect(
+        context.blobService.readLocalBlob(record.originalBlobName),
+      ).resolves.toBeDefined();
+      expect(context.metrics.count("media.rejected")).toBe(0);
+    });
+
+    it("is refused as corrupt when a retried attempt hits it again", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await truncatedPng(), {
+        processingAttempts: 1,
+      });
+
+      await expect(context.service.process(record.id)).resolves.toBeUndefined();
+
+      const rejected = await context.mediaRepository.findById(record.id);
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        rejectionCode: "corrupt",
+        rejectionReason: "Uploaded image data is truncated or corrupt.",
+      });
+      await expectMissing(context, record.originalBlobName);
+    });
+  });
+
+  describe("stage timings", () => {
+    const stagesOf = (context: Context) =>
+      context.metrics
+        .tagsOf("media.processing.stage.duration")
+        .map((tags) => tags.stage);
+
+    it("times every stage of an attempt that ends ready, in order", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(12, 8));
+
+      await context.service.process(record.id);
+
+      expect(stagesOf(context)).toEqual([
+        "download",
+        "scan",
+        "inspect",
+        "render",
+        "renditions",
+        "moderate",
+        "upload",
+        "mark_ready",
+      ]);
+      for (const call of context.metrics.calls(
+        "media.processing.stage.duration",
+      )) {
+        expect(call.tags.scope).toBe("postings");
+        expect(call.value).toBeGreaterThanOrEqual(0);
+      }
+      context.metrics.assertNoIdentifiers();
+    });
+
+    it("stops at the stage that rejected the item", async () => {
+      const context = createContext();
+      const jpeg = await createJpegFixture(64, 64);
+      const record = await quarantine(context, jpeg.subarray(0, -16), {
+        declaredContentType: "image/jpeg",
+      });
+
+      await context.service.process(record.id);
+
+      expect((await context.mediaRepository.findById(record.id))?.status).toBe(
+        "rejected",
+      );
+      // The header reads fine, so it is the decode, in render, that refuses it.
+      expect(stagesOf(context)).toEqual([
+        "download",
+        "scan",
+        "inspect",
+        "render",
+      ]);
+    });
+
+    it("times a stage that throws", async () => {
+      const moderation = new FakeModeration();
+      moderation.moderate = async () => {
+        throw new ImageModerationUnavailableError(
+          "Content Safety answered 503.",
+        );
+      };
+      const context = createContext({ moderation });
+      const record = await quarantine(context, await createPngFixture());
+
+      await expect(context.service.process(record.id)).rejects.toThrow(
+        ImageModerationUnavailableError,
+      );
+      expect(stagesOf(context).at(-1)).toBe("moderate");
+    });
+  });
+
+  describe("queue wait", () => {
+    it("records how long a first delivery waited for a worker", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(record.id, {
+        enqueuedAt: new Date(Date.now() - 1_500).toISOString(),
+      });
+
+      const [wait, ...rest] = context.metrics.calls(
+        "media.processing.queue_wait",
+      );
+      expect(rest).toEqual([]);
+      expect(wait?.tags).toEqual({ scope: "postings" });
+      expect(wait?.value).toBeGreaterThanOrEqual(1_500);
+      expect(wait?.value).toBeLessThan(60_000);
+    });
+
+    it.each([
+      ["no publish time is given", undefined],
+      ["the publish time is unreadable", "not a date"],
+      ["the publish time is ahead of this clock", "2999-01-01T00:00:00.000Z"],
+    ])("records nothing when %s", async (_case, enqueuedAt) => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture());
+
+      await context.service.process(
+        record.id,
+        enqueuedAt === undefined ? {} : { enqueuedAt },
+      );
+
+      expect(context.metrics.count("media.processing.queue_wait")).toBe(0);
+    });
+
+    it("records nothing for an item it does not claim", async () => {
+      const context = createContext();
+      const record = await quarantine(context, await createPngFixture(), {
+        status: "ready",
+      });
+
+      await context.service.process(record.id, {
+        enqueuedAt: new Date().toISOString(),
+      });
+
+      expect(context.metrics.count("media.processing.queue_wait")).toBe(0);
+    });
   });
 
   describe("renditions", () => {
@@ -707,9 +954,9 @@ describe("MediaProcessingService", () => {
       "animated",
     ],
     [
-      "truncated image data",
-      async () => truncateImage(await createPngFixture(64, 64)),
-      "image/png",
+      "a JPEG cut short",
+      async () => (await createJpegFixture(64, 64)).subarray(0, -16),
+      "image/jpeg",
       null,
       "corrupt",
     ],

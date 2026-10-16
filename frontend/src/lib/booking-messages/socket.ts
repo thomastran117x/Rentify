@@ -1,6 +1,10 @@
-import { io, type Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import { authenticatedJson } from "@/lib/api/client";
-import { resolveApiBaseUrl } from "@/lib/env";
+import {
+  MAX_CONSECUTIVE_SOCKET_FAILURES,
+  openTicketedSocket,
+  socketRetryDelayMs,
+} from "@/lib/realtime/ticketed-socket";
 import type {
   BookingMessageStreamEvent,
   BookingMessageStreamStatus,
@@ -10,7 +14,7 @@ import type {
 const SOCKET_PATH = "/ws/booking-messages";
 
 /** After this many consecutive failed connects the caller should fall back. */
-export const MAX_CONSECUTIVE_SOCKET_FAILURES = 5;
+export { MAX_CONSECUTIVE_SOCKET_FAILURES } from "@/lib/realtime/ticketed-socket";
 
 /** Client-side typing throttle. The server enforces its own as well. */
 const TYPING_THROTTLE_MS = 2_500;
@@ -32,13 +36,6 @@ export interface BookingMessageSocketHandle {
   /** Acknowledges receipt of messages authored by the other side. */
   sendDelivered(messageIds: string[]): void;
   close(): void;
-}
-
-/** `http(s)://host/api/v1` → `http(s)://host`. Socket.IO adds the path. */
-function resolveSocketOrigin(): string {
-  const api = new URL(resolveApiBaseUrl(), window.location.origin);
-
-  return api.origin;
 }
 
 /**
@@ -104,7 +101,7 @@ export function openBookingMessageSocket(options: {
 
       if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
         // No socket exists yet, so nothing else will retry for us.
-        window.setTimeout(() => void connect(), 1_000 * failures);
+        window.setTimeout(() => void connect(), socketRetryDelayMs(failures));
       }
 
       return;
@@ -114,14 +111,7 @@ export function openBookingMessageSocket(options: {
       return;
     }
 
-    const next = io(resolveSocketOrigin(), {
-      path: SOCKET_PATH,
-      // The ticket rides in a cookie, so the handshake has to carry credentials.
-      withCredentials: true,
-      // Reconnection is Socket.IO's, but each attempt needs a *fresh* ticket,
-      // so the reconnect is driven from here instead.
-      reconnection: false,
-    });
+    const next = openTicketedSocket(SOCKET_PATH);
 
     socket = next;
 
@@ -153,7 +143,7 @@ export function openBookingMessageSocket(options: {
       handleFailure();
 
       if (!closed && failures < MAX_CONSECUTIVE_SOCKET_FAILURES) {
-        window.setTimeout(() => void connect(), 1_000 * failures);
+        window.setTimeout(() => void connect(), socketRetryDelayMs(failures));
       }
     });
 

@@ -8,6 +8,7 @@ import {
   renderSmallerRenditions,
   uploadSmallerRenditions,
 } from "@/features/media/image-renditions";
+import { IMAGE_DECODE_FAIL_ON } from "@/features/media/image-policy";
 import type { MediaRecord } from "@/features/media/media.model";
 import type { MediaRepository } from "@/features/media/media.repository";
 import { buildImageVariantBlobNames } from "@/features/blob/image-variant-names";
@@ -146,7 +147,7 @@ export class MediaVariantsBackfillService {
         record.sizeBytes ?? environment.getImageUploadsConfig().maxSizeBytes,
     });
     const renditions = await renderSmallerRenditions(
-      body,
+      sharp(body, { failOn: IMAGE_DECODE_FAIL_ON }),
       record.width ?? (await sharp(body).metadata()).width ?? 0,
     );
     const variants = await uploadSmallerRenditions(

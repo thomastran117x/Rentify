@@ -11,6 +11,9 @@ import {
 import { MediaProcessingQueueService } from "@/features/media/media-processing.queue.service";
 import { MediaProcessingService } from "@/features/media/media-processing.service";
 import { MediaRepository } from "@/features/media/media.repository";
+import { RedisMediaStatusPublisher } from "@/features/media/media-status-publisher";
+import { MediaStatusSocketServer } from "@/features/media/media-status-socket.server";
+import { MediaStatusSocketService } from "@/features/media/media-status-socket.service";
 import { MediaService } from "@/features/media/media.service";
 import { createMalwareScanner } from "@/features/media/scanning/create-malware-scanner";
 import { createImageModeration } from "@/features/media/moderation/create-image-moderation";
@@ -77,6 +80,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mediaRepository,
         containerTokens.mediaProcessingQueueService,
         containerTokens.mediaMetrics,
+        containerTokens.cacheService,
       ],
       resolve: ({ resolve }) =>
         new MediaService(
@@ -84,6 +88,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.mediaRepository),
           resolve(containerTokens.mediaProcessingQueueService),
           resolve(containerTokens.mediaMetrics),
+          resolve(containerTokens.cacheService),
         ),
     });
     container.register({
@@ -95,6 +100,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mediaMetrics,
         containerTokens.malwareScanner,
         containerTokens.imageModeration,
+        containerTokens.mediaStatusPublisher,
       ],
       resolve: ({ resolve }) =>
         new MediaProcessingService(
@@ -103,7 +109,38 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.mediaMetrics),
           resolve(containerTokens.malwareScanner),
           resolve(containerTokens.imageModeration),
+          resolve(containerTokens.mediaStatusPublisher),
         ),
+    });
+    // Reads the shared Redis client at each publish, so a process that never
+    // connected Redis, or lost it, drops the push rather than failing.
+    container.register({
+      token: containerTokens.mediaStatusPublisher,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new RedisMediaStatusPublisher(),
+    });
+    container.register({
+      token: containerTokens.mediaStatusSocketService,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.cacheService,
+        containerTokens.tokenService,
+      ],
+      resolve: ({ resolve }) =>
+        new MediaStatusSocketService(
+          resolve(containerTokens.cacheService),
+          resolve(containerTokens.tokenService),
+        ),
+    });
+    container.register({
+      // Singleton with a dispose hook: it owns the Socket.IO server, its Redis
+      // adapter connections and every open socket.
+      token: containerTokens.mediaStatusSocketServer,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new MediaStatusSocketServer(),
+      dispose: (socketServer) => socketServer.close(),
     });
     container.register({
       token: containerTokens.mediaCleanupService,
@@ -113,6 +150,7 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
         containerTokens.blobService,
         containerTokens.mediaProcessingQueueService,
         containerTokens.mediaMetrics,
+        containerTokens.mediaStatusPublisher,
       ],
       resolve: ({ resolve }) =>
         new MediaCleanupService(
@@ -120,14 +158,21 @@ export const mediaRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.blobService),
           resolve(containerTokens.mediaProcessingQueueService),
           resolve(containerTokens.mediaMetrics),
+          resolve(containerTokens.mediaStatusPublisher),
         ),
     });
     container.register({
       token: containerTokens.mediaController,
       lifetime: "scoped",
-      dependencies: [containerTokens.mediaService],
+      dependencies: [
+        containerTokens.mediaService,
+        containerTokens.mediaStatusSocketService,
+      ],
       resolve: ({ resolve }) =>
-        new MediaController(resolve(containerTokens.mediaService)),
+        new MediaController(
+          resolve(containerTokens.mediaService),
+          resolve(containerTokens.mediaStatusSocketService),
+        ),
     });
   },
 };

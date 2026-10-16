@@ -5,6 +5,7 @@ import {
   blobStorageWorkerResource,
   databaseWorkerResource,
   disconnectResources,
+  optionalRedisWorkerResource,
   rabbitMqWorkerResource,
 } from "@/workers/shared/resources";
 import {
@@ -15,11 +16,13 @@ import {
 const workerName = "Media cleanup worker";
 // RabbitMQ is required because the sweep re-enqueues items whose processing
 // job was lost. Blob storage is reached through BlobService, which needs no
-// connection of its own.
+// connection of its own. Redis is only for pushing the status of an item the
+// sweep rejects, so it never holds up the sweep.
 const workerResources = [
   blobStorageWorkerResource,
   databaseWorkerResource,
   rabbitMqWorkerResource,
+  optionalRedisWorkerResource,
 ];
 const workerLogger = loggerFactory
   .forComponent("media-cleanup.worker", "worker")
