@@ -132,11 +132,11 @@ export class MediaStatusSocketServer {
       this.reauthorize = null;
     }
 
-    const io = this.io;
-    const adapterClients = this.adapterClients;
+    // Cleared only once closed, as in the other gateways, so work the
+    // disconnects start still sees the server.
+    await closeGateway(this.io, this.work, this.adapterClients);
     this.io = null;
     this.adapterClients = [];
-    await closeGateway(io, this.work, adapterClients);
   }
 
   /** Open sockets on this instance. Used by tests and diagnostics. */

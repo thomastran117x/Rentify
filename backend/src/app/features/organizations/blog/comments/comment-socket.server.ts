@@ -6,6 +6,11 @@ import { loggerFactory } from "@/configuration/logging";
 import type { Logger } from "@/configuration/logging/types";
 import { readAllowedOrigins } from "@/configuration/middlewares/csrf.middleware";
 import {
+  closeGateway,
+  GatewayWork,
+  SOCKET_REAUTHORIZE_INTERVAL_MS,
+} from "@/configuration/realtime/socket-gateway";
+import {
   createSocketRedisAdapter,
   readCookie,
   type SocketRedisClient,
@@ -20,9 +25,6 @@ import {
 import type { Uuid } from "@/configuration/validation/uuid";
 
 export { BLOG_COMMENT_SOCKET_PATH };
-
-/** How often an open socket re-checks the post and its session. */
-const REAUTHORIZE_INTERVAL_MS = 60_000;
 
 /** A client may not push typing frames faster than this. */
 const TYPING_THROTTLE_MS = 2_000;
@@ -95,8 +97,7 @@ export class OrganizationBlogCommentSocketServer {
   private io: SocketIoServer | null = null;
   private reauthorize: ReturnType<typeof setInterval> | null = null;
   private adapterClients: SocketRedisClient[] = [];
-  /** Background work in flight, so shutdown can drain it before quitting Redis. */
-  private readonly pending = new Set<Promise<unknown>>();
+  private readonly work: GatewayWork;
   /** Posts with a presence broadcast already scheduled. See `schedulePresence`. */
   private readonly presenceTimers = new Map<
     string,
@@ -107,6 +108,10 @@ export class OrganizationBlogCommentSocketServer {
     this.logger = loggerFactory.forClass(
       OrganizationBlogCommentSocketServer,
       "service",
+    );
+    this.work = new GatewayWork(
+      this.logger,
+      "Blog comment socket work failed.",
     );
   }
 
@@ -132,16 +137,18 @@ export class OrganizationBlogCommentSocketServer {
     });
 
     this.io.use((socket, next) => {
-      this.track(this.authenticate(socket as BlogCommentSocket, next));
+      this.work.track(this.authenticate(socket as BlogCommentSocket, next));
     });
 
     this.io.on("connection", (socket) => {
-      this.track(this.register(socket as BlogCommentSocket));
+      this.work.track(this.register(socket as BlogCommentSocket));
     });
 
     this.reauthorize = setInterval(
-      () => void this.reauthorizeAll(),
-      REAUTHORIZE_INTERVAL_MS,
+      // Tracked like the handlers: shutdown waits for a sweep in flight,
+      // and a failure is logged, never left as an unhandled rejection.
+      () => this.work.track(this.reauthorizeAll()),
+      SOCKET_REAUTHORIZE_INTERVAL_MS,
     );
   }
 
@@ -156,49 +163,11 @@ export class OrganizationBlogCommentSocketServer {
     }
     this.presenceTimers.clear();
 
-    const io = this.io;
-
-    if (io) {
-      // `local` is load-bearing: with the Redis adapter a bare
-      // `disconnectSockets()` is a cluster-wide broadcast, so shutting one
-      // instance down would disconnect every client on every other one.
-      io.local.disconnectSockets(true);
-
-      // `this.io` stays set while the disconnect handlers run, because they
-      // publish the final reader count and `publish` reads it.
-      await Promise.allSettled([...this.pending]);
-
-      // The engine, and deliberately *not* `io.close()`. That delegates to
-      // `httpServer.close(cb)`, which the process shutdown has already called;
-      // a second close registers its callback on a `close` event that never
-      // fires again while any request is still in flight.
-      io.engine.close();
-    }
-
+    // `this.io` stays set while the disconnect handlers run, because they
+    // publish the final reader count and `publish` reads it.
+    await closeGateway(this.io, this.work, this.adapterClients);
     this.io = null;
-
-    await Promise.allSettled(
-      this.adapterClients.map((client) => client.quit()),
-    );
     this.adapterClients = [];
-  }
-
-  /**
-   * Keeps a handle on background work and swallows its failure.
-   *
-   * Every one of these runs from an event handler, so nothing awaits it: a
-   * `fetchSockets()` timing out during a rolling deploy would otherwise surface
-   * as an unhandled rejection, and this process installs no handler for those.
-   */
-  private track(work: Promise<unknown>): void {
-    const tracked = work.catch((error: unknown) => {
-      this.logger.error("Blog comment socket work failed.", undefined, error);
-    });
-
-    this.pending.add(tracked);
-    void tracked.finally(() => {
-      this.pending.delete(tracked);
-    });
   }
 
   /** Open sockets on this instance. Used by tests and diagnostics. */
@@ -293,10 +262,10 @@ export class OrganizationBlogCommentSocketServer {
     await socket.join(postRoom(blogPostId));
 
     socket.on("typing", () => {
-      this.track(this.handleTyping(socket));
+      this.work.track(this.handleTyping(socket));
     });
     socket.on("disconnect", () => {
-      this.track(this.handleDisconnect(socket));
+      this.work.track(this.handleDisconnect(socket));
     });
 
     // Carries `canWrite` so a client knows immediately whether to offer a
@@ -328,7 +297,7 @@ export class OrganizationBlogCommentSocketServer {
 
     const timer = setTimeout(() => {
       this.presenceTimers.delete(blogPostId);
-      this.track(this.broadcastPresence(blogPostId));
+      this.work.track(this.broadcastPresence(blogPostId));
     }, PRESENCE_BROADCAST_INTERVAL_MS);
 
     // Nothing should be held open on this timer during shutdown; `close()`
