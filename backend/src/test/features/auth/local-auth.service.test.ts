@@ -744,7 +744,7 @@ describe("LocalAuthService", () => {
     expect(issuedRefreshOptions?.expiresInSeconds).toBe(2_592_000);
   });
 
-  it("rejects local sign-in for unverified users after a correct password check", async () => {
+  it("retains failed attempts when an unverified user supplies the correct password", async () => {
     const user = {
       ...createUser(),
       emailVerified: false,
@@ -768,8 +768,58 @@ describe("LocalAuthService", () => {
       }),
     ).rejects.toThrow("Please verify your email address before signing in.");
 
-    expect(clearedKey).toBe("auth:local-login-attempts:test-user");
+    expect(clearedKey).toBeUndefined();
   });
+
+  it.each([
+    ["correct", "CorrectHorseBatteryStaple1!"],
+    ["wrong", "WrongPassword1!"],
+  ])(
+    "keeps a locked account locked when it supplies the %s password",
+    async (_passwordKind, password) => {
+      const user = {
+        ...createUser(),
+        passwordHash: FAST_TEST_PASSWORD_HASH,
+      };
+      const evaluateSuccessfulAuthentication = jest.fn(async () => ({
+        deviceId: DEVICE_1_ID,
+        known: true,
+        knownByIp: true,
+      }));
+      const cacheDelete = jest.fn(async () => true);
+      const service = createService({
+        findUserByUsername: async () => user,
+        cacheGetJson: async (key) =>
+          key.startsWith("auth:local-login-attempts:")
+            ? {
+                failedAttempts: 5,
+                lockedAt: "2026-01-02T00:00:00.000Z",
+              }
+            : null,
+        cacheDelete,
+        evaluateSuccessfulAuthentication,
+      });
+
+      await expect(
+        service.localAuthenticate({
+          client: createClient(),
+          username: user.profile.username,
+          password,
+          deviceId: DEVICE_1_ID,
+        }),
+      ).rejects.toMatchObject({
+        status: 423,
+        code: "ACCOUNT_LOCKED",
+        details: {
+          email: user.email,
+          unlockRequired: true,
+        },
+      });
+
+      expect(cacheDelete).not.toHaveBeenCalled();
+      expect(evaluateSuccessfulAuthentication).not.toHaveBeenCalled();
+    },
+  );
 
   it("skips login MFA for allowlisted users outside production", async () => {
     const user = {
@@ -828,6 +878,218 @@ describe("LocalAuthService", () => {
     ).rejects.toMatchObject({
       message: "Authenticator code is required.",
     });
+  });
+
+  it("does not count or clear the missing-code login MFA challenge", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const cacheSetJson = jest.fn(async () => undefined);
+    const cacheDelete = jest.fn(async () => true);
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? { failedAttempts: 2 }
+          : null,
+      cacheSetJson,
+      cacheDelete,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "CorrectHorseBatteryStaple1!",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).rejects.toMatchObject({
+      status: 401,
+      details: { mfaRequired: true },
+    });
+
+    expect(cacheSetJson).not.toHaveBeenCalled();
+    expect(cacheDelete).not.toHaveBeenCalled();
+  });
+
+  it("counts an invalid supplied login TOTP in the shared failure record", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const cacheSetJson = jest.fn(async () => undefined);
+    const cacheDelete = jest.fn(async () => true);
+    const evaluateSuccessfulAuthentication = jest.fn(async () => ({
+      deviceId: DEVICE_1_ID,
+      known: true,
+      knownByIp: true,
+    }));
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode: async () => {
+        throw new UnauthorizedError("MFA verification failed.");
+      },
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? { failedAttempts: 2 }
+          : null,
+      cacheSetJson,
+      cacheDelete,
+      evaluateSuccessfulAuthentication,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "CorrectHorseBatteryStaple1!",
+        totpCode: "000000",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).rejects.toMatchObject({
+      status: 401,
+      message: "MFA verification failed.",
+    });
+
+    expect(cacheSetJson).toHaveBeenCalledWith(
+      "auth:local-login-attempts:test-user",
+      { failedAttempts: 3 },
+      15 * 60,
+    );
+    expect(cacheDelete).not.toHaveBeenCalled();
+    expect(evaluateSuccessfulAuthentication).not.toHaveBeenCalled();
+  });
+
+  it("locks on the fifth combined failure when the supplied login TOTP is invalid", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const sendLoginUnlockEmail = jest.fn(async () => undefined);
+    const cacheDelete = jest.fn(async () => true);
+    const evaluateSuccessfulAuthentication = jest.fn(async () => ({
+      deviceId: DEVICE_1_ID,
+      known: true,
+      knownByIp: true,
+    }));
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode: async () => {
+        throw new UnauthorizedError("MFA verification failed.");
+      },
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? { failedAttempts: 4 }
+          : null,
+      cacheDelete,
+      sendLoginUnlockEmail,
+      evaluateSuccessfulAuthentication,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "CorrectHorseBatteryStaple1!",
+        totpCode: "000000",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).rejects.toMatchObject({
+      status: 423,
+      code: "ACCOUNT_LOCKED",
+    });
+
+    expect(sendLoginUnlockEmail).toHaveBeenCalledWith({
+      to: user.email,
+      unlockCode: "123456",
+      firstName: user.firstName,
+    });
+    expect(cacheDelete).not.toHaveBeenCalled();
+    expect(evaluateSuccessfulAuthentication).not.toHaveBeenCalled();
+  });
+
+  it("does not count a non-authentication failure from login MFA", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const cacheSetJson = jest.fn(async () => undefined);
+    const cacheDelete = jest.fn(async () => true);
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode: async () => {
+        throw new Error("MFA store unavailable.");
+      },
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? { failedAttempts: 2 }
+          : null,
+      cacheSetJson,
+      cacheDelete,
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "CorrectHorseBatteryStaple1!",
+        totpCode: "123456",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).rejects.toThrow("MFA store unavailable.");
+
+    expect(cacheSetJson).not.toHaveBeenCalled();
+    expect(cacheDelete).not.toHaveBeenCalled();
+  });
+
+  it("clears prior failures only after login MFA succeeds", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const events: string[] = [];
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode: async () => {
+        events.push("mfa");
+      },
+      cacheGetJson: async (key) =>
+        key.startsWith("auth:local-login-attempts:")
+          ? { failedAttempts: 2 }
+          : null,
+      cacheDelete: async () => {
+        events.push("clear");
+        return true;
+      },
+      evaluateSuccessfulAuthentication: async () => {
+        events.push("session");
+        return {
+          deviceId: DEVICE_1_ID,
+          known: true,
+          knownByIp: true,
+        };
+      },
+    });
+
+    await expect(
+      service.localAuthenticate({
+        client: createClient(),
+        username: user.profile.username,
+        password: "CorrectHorseBatteryStaple1!",
+        totpCode: "123456",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).resolves.toMatchObject({
+      user: { email: user.email },
+    });
+
+    expect(events).toEqual(["mfa", "clear", "session"]);
   });
 
   it("ignores the bypass allowlist in production", async () => {

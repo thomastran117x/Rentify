@@ -38,7 +38,7 @@ interface LoginSession {
   csrfToken: string | null;
   body: {
     data?: { accessToken?: string };
-    error?: { details?: Record<string, unknown> };
+    error?: { code?: string; details?: Record<string, unknown> };
   };
 }
 
@@ -1139,11 +1139,18 @@ describe("Auth persistence integration", () => {
     expect(failures.slice(0, 4)).toEqual([401, 401, 401, 401]);
     expect(failures[4]).toBe(423);
 
-    // While locked, a further wrong password keeps reporting locked rather
-    // than a plain rejection.
-    expect((await login({ username, password: "StillWrong1!" })).status).toBe(
-      423,
-    );
+    // A lock is binding even when the next password is correct, and no session
+    // material may be issued before the emailed unlock code is verified.
+    const lockedCorrectPassword = await login({
+      username,
+      password: "Rentify123!",
+    });
+    expect(lockedCorrectPassword.status).toBe(423);
+    expect(lockedCorrectPassword.body.error?.code).toBe("ACCOUNT_LOCKED");
+    expect(lockedCorrectPassword.accessToken).toBe("");
+    expect(lockedCorrectPassword.refreshToken).toBeNull();
+    expect(lockedCorrectPassword.csrfToken).toBeNull();
+    expect(await getRedisClient().keys("auth:session:*")).toHaveLength(0);
 
     const resendUnlockResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/local/unlock/resend")}`,
@@ -1169,9 +1176,14 @@ describe("Auth persistence integration", () => {
     expect(unlockResponse.status).toBe(200);
 
     // The unlock must restore access, not merely return success.
-    expect((await login({ username, password: "Rentify123!" })).status).toBe(
-      200,
-    );
+    const unlockedSession = await login({
+      username,
+      password: "Rentify123!",
+    });
+    expect(unlockedSession.status).toBe(200);
+    expect(unlockedSession.accessToken).toBeTruthy();
+    expect(unlockedSession.refreshToken).toBeTruthy();
+    expect(await getRedisClient().keys("auth:session:*")).toHaveLength(1);
   }, 120_000);
 
   it("authenticates through the Microsoft OAuth provider", async () => {

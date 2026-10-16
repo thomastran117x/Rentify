@@ -92,30 +92,14 @@ export class LocalAuthService {
       input.username,
     );
 
-    if (loginAttemptRecord?.lockedAt && (!user || !isPasswordValid)) {
-      await this.loginLockoutService.sendUnlockCode(user);
-      throw new LockedError(
-        "This sign-in is locked. Use the code we emailed you to unlock it.",
-        this.loginLockoutService.buildLockedLoginDetails(user),
-      );
+    if (loginAttemptRecord?.lockedAt) {
+      await this.throwLockedLogin(user);
     }
 
     if (!user || !isPasswordValid) {
-      const updatedAttemptRecord =
-        await this.loginLockoutService.recordFailedAttempt(input.username);
-
-      if (updatedAttemptRecord.lockedAt) {
-        await this.loginLockoutService.sendUnlockCode(user);
-        throw new LockedError(
-          "This sign-in is locked. Use the code we emailed you to unlock it.",
-          this.loginLockoutService.buildLockedLoginDetails(user),
-        );
-      }
-
+      await this.recordFailedLoginAttempt(input.username, user);
       throw new UnauthorizedError("Invalid username or password.");
     }
-
-    await this.loginLockoutService.clearAttemptRecord(input.username);
 
     if (!user.emailVerified) {
       throw new UnauthorizedError(
@@ -123,14 +107,44 @@ export class LocalAuthService {
       );
     }
 
-    await requireLoginMfa(
-      this.mfaTotpService,
-      asUuid(user.id),
-      user.email,
-      input.totpCode,
-    );
+    try {
+      await requireLoginMfa(
+        this.mfaTotpService,
+        asUuid(user.id),
+        user.email,
+        input.totpCode,
+      );
+    } catch (error) {
+      if (input.totpCode && error instanceof UnauthorizedError) {
+        await this.recordFailedLoginAttempt(input.username, user);
+      }
+
+      throw error;
+    }
+
+    await this.loginLockoutService.clearAttemptRecord(input.username);
 
     return this.authSessionService.authenticateVerifiedUser(user, input);
+  }
+
+  private async recordFailedLoginAttempt(
+    username: string,
+    user: AuthUserRecord | null,
+  ): Promise<void> {
+    const updatedAttemptRecord =
+      await this.loginLockoutService.recordFailedAttempt(username);
+
+    if (updatedAttemptRecord.lockedAt) {
+      await this.throwLockedLogin(user);
+    }
+  }
+
+  private async throwLockedLogin(user: AuthUserRecord | null): Promise<never> {
+    await this.loginLockoutService.sendUnlockCode(user);
+    throw new LockedError(
+      "This sign-in is locked. Use the code we emailed you to unlock it.",
+      this.loginLockoutService.buildLockedLoginDetails(user),
+    );
   }
 
   async localSignup(

@@ -15,8 +15,9 @@ const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
 const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
 
 /**
- * Throttles password guessing by locking an account after repeated failures,
- * and owns the emailed code that lifts the lock.
+ * Throttles local credential guessing by locking an account after repeated
+ * password or login-time authenticator failures, and owns the emailed code
+ * that lifts the lock.
  *
  * Attempts are counted per username in the cache rather than on the user row:
  * an unknown username has no row to count against, and it must be locked out on

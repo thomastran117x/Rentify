@@ -50,6 +50,28 @@ to allowed browser origins. If neither source provides a valid ID, the existing
 error message is shown without a reference. Client errors (including 429) and
 network failures do not display request IDs. There is no separate trace ID.
 
+## Authentication Security
+
+Local sign-in failures are tracked in Redis by normalized username. Five
+combined invalid-password or supplied-invalid-TOTP attempts within 15 minutes
+lock that username for 30 minutes. While the lock is active, every local login
+attempt returns `423 ACCOUNT_LOCKED`, even when the password and authenticator
+code are correct, and no session is issued.
+
+The first MFA round trip, where the password is correct but no TOTP code was
+supplied, returns an `mfaRequired` challenge and does not count as a failure.
+The failure record is cleared only after the password, email-verification, and
+login MFA checks all succeed. Unknown usernames use the same schedule and a
+timing-safe dummy password hash so the lockout behavior does not disclose
+whether an account exists.
+
+A locked user can recover with the emailed code through
+`POST /auth/local/unlock`; successful verification clears the shared failure
+record. Because the lock is keyed by username, another person who knows a
+username can temporarily lock out its owner. The emailed unlock code is the
+current mitigation. Per-IP credential-stuffing detection is tracked in
+[#379](https://github.com/thomastran117x/Rentify/issues/379).
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them

@@ -1608,7 +1608,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localLogin",
       summary: "Authenticate with username and password",
       description:
-        "Creates an authenticated session with local credentials. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED until it is unlocked through POST /auth/local/unlock or the lock expires. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1630,6 +1630,15 @@ function buildOperations(): OperationDefinition[] {
           "Authenticated successfully.",
           "AuthSessionResponseData",
           authSessionExample,
+        ),
+        "423": errorResponse(
+          "Local sign-in is locked.",
+          "This sign-in is locked. Use the code we emailed you to unlock it.",
+          "ACCOUNT_LOCKED",
+          {
+            email: "owner1@rentify.local",
+            unlockRequired: true,
+          },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
       },
