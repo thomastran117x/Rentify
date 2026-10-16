@@ -71,6 +71,10 @@ function createHarness() {
   const authRepository = {
     findUserById: jest.fn(async () => createUser()),
     rotateTokenVersion: jest.fn(async () => 8),
+    recordLastLogin: jest.fn(async () => undefined),
+  };
+  const authAuditService = {
+    recordSafely: jest.fn(async () => undefined),
   };
   const tokenService = {
     createAccessToken: jest.fn(() => "access-token"),
@@ -106,11 +110,13 @@ function createHarness() {
     authRepository,
     tokenService,
     deviceService,
+    authAuditService,
     service: new AuthSessionService(
       authRepository as never,
       authRepository as never,
       tokenService as never,
       deviceService as never,
+      authAuditService as never,
     ),
   };
 }
@@ -147,7 +153,33 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
       refreshTokenExpiresInSeconds: 2_592_000,
       device: { deviceId: DEVICE_1_ID, known: false, knownByIp: true },
       user: { id: USER_1_ID, username: "test-user" },
+      sessionId: expect.any(String),
     });
+  });
+
+  it("records the sign-in time for the user", async () => {
+    const harness = createHarness();
+
+    await harness.service.authenticateVerifiedUser(createUser(), {
+      client: createClient(),
+    });
+
+    expect(harness.authRepository.recordLastLogin).toHaveBeenCalledWith(
+      USER_1_ID,
+    );
+  });
+
+  it("still signs in when the sign-in time cannot be recorded", async () => {
+    const harness = createHarness();
+    harness.authRepository.recordLastLogin.mockRejectedValue(
+      new Error("database unavailable"),
+    );
+
+    await expect(
+      harness.service.authenticateVerifiedUser(createUser(), {
+        client: createClient(),
+      }),
+    ).resolves.toMatchObject({ accessToken: "access-token" });
   });
 
   it("honours rememberMe in the refresh token lifetime", async () => {
@@ -393,6 +425,23 @@ describe("AuthSessionService.logout", () => {
     );
   });
 
+  it("records the sign-out with its session and request context", async () => {
+    const harness = createHarness();
+    const audit = { ipAddress: "203.0.113.10", requestId: "request-1" };
+
+    await harness.service.logout(createAuthContext({ audit }));
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "logout",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: undefined,
+      sessionId: "session-1",
+      context: audit,
+    });
+  });
+
   it("still ends the session when the refresh token cannot be revoked", async () => {
     const harness = createHarness();
     harness.tokenService.revokeRefreshToken.mockRejectedValue(
@@ -428,5 +477,12 @@ describe("AuthSessionService.logout", () => {
       USER_1_ID,
     );
     expect(harness.tokenService.revokeSession).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "logout",
+        method: "pat",
+        sessionId: undefined,
+      }),
+    );
   });
 });

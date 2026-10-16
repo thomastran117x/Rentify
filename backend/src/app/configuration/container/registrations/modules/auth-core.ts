@@ -50,6 +50,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authTokenRepository,
         containerTokens.tokenService,
         containerTokens.deviceService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new AuthSessionService(
@@ -57,6 +58,7 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authTokenRepository),
           resolve(containerTokens.tokenService),
           resolve(containerTokens.deviceService),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

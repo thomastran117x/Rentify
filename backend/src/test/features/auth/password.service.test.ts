@@ -132,12 +132,17 @@ function createHarness() {
         authRepository as never,
         tokenService as never,
         deviceService as never,
+        { recordSafely: async () => undefined } as never,
       ),
       new LoginLockoutService(
         cacheService as never,
         authRepository as never,
         otpService as never,
         publicOtpService,
+        {
+          hashIdentifier: String,
+          recordSafely: async () => undefined,
+        } as never,
       ),
       publicOtpService,
     ),

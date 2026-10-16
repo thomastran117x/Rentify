@@ -28,7 +28,7 @@ export class LoginLockoutController {
       unlockLocalLoginRequestSchema,
     );
     const result = await this.loginLockoutService.unlockLocalLogin(
-      toUnlockLocalLoginInput(input),
+      toUnlockLocalLoginInput(request, input),
     );
     ok(response, result, {
       message: "Local login unlocked successfully.",

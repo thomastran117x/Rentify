@@ -67,7 +67,13 @@ function createContainer(): ServiceContainer {
 function createRequest(options: MockRequestOptions = {}): Request {
   return createMockRequest({
     ...options,
-    state: { client, auth, container: createContainer(), ...options.state },
+    state: {
+      client,
+      auth,
+      container: createContainer(),
+      requestId: "request-1",
+      ...options.state,
+    },
   });
 }
 
@@ -173,6 +179,11 @@ describe("credential mappers", () => {
       client,
       deviceId: "body-device",
       totpCode: "123456",
+      audit: {
+        ipAddress: "203.0.113.10",
+        deviceId: "body-device",
+        requestId: "request-1",
+      },
     });
   });
 
@@ -294,10 +305,21 @@ describe("recovery mappers", () => {
     });
   });
 
-  it("maps an unlock body without reading the request", () => {
+  it("maps an unlock body with the request's audit context", () => {
     expect(
-      toUnlockLocalLoginInput({ email: "user@example.com", code: "123456" }),
-    ).toEqual({ email: "user@example.com", code: "123456" });
+      toUnlockLocalLoginInput(createRequest(), {
+        email: "user@example.com",
+        code: "123456",
+      }),
+    ).toEqual({
+      email: "user@example.com",
+      code: "123456",
+      audit: {
+        ipAddress: "203.0.113.10",
+        deviceId: "fingerprint-device",
+        requestId: "request-1",
+      },
+    });
   });
 
   it("maps a resend-unlock body", () => {
@@ -310,6 +332,11 @@ describe("recovery mappers", () => {
       client,
       email: "user@example.com",
       deviceId: "fingerprint-device",
+      audit: {
+        ipAddress: "203.0.113.10",
+        deviceId: "fingerprint-device",
+        requestId: "request-1",
+      },
     });
   });
 });

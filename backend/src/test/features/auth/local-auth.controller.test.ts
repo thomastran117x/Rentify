@@ -467,6 +467,12 @@ describe("LocalAuthController", () => {
       rememberMe: true,
       client: context.get("client"),
       deviceId: "device-1",
+      audit: {
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        deviceId: "device-1",
+        requestId: "request-123",
+      },
     });
     expect(mockSetCookie).toHaveBeenCalledWith(
       context.response,

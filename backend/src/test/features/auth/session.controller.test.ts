@@ -184,6 +184,13 @@ describe("AuthSessionController.logout", () => {
       auth,
       client: expect.any(Object),
       refreshToken: "cookie-refresh-token",
+      // The token's device, not the fingerprint, identifies a signed-in device.
+      audit: {
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        deviceId: "token-device-1",
+        requestId: "request-test",
+      },
     });
     expect(mockClearCookie).toHaveBeenCalledWith(
       expect.anything(),

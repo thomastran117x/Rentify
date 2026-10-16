@@ -28,6 +28,7 @@ This folder is the working documentation set for the Rentify repository. Use it 
 
 ## Security
 
+- [auth-security.md](./auth-security.md): the authentication audit log, its event catalogue, what is and isn't stored, and why identifiers are hashed
 - [dependency-security.md](./dependency-security.md): dependency auditing, the CI severity gate, install-script allowlists, Socket.dev, and the remediation runbook
 - [content-screening.md](./content-screening.md): text screening rules and term-bank maintenance
 
