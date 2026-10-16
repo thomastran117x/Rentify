@@ -6,8 +6,10 @@ import {
 } from "socket.io-client";
 import {
   createRootContainer,
+  getContainer,
   setContainer,
 } from "@/configuration/bootstrap/container";
+import { SOCKET_REAUTHORIZE_INTERVAL_MS } from "@/configuration/realtime/socket-gateway";
 import { containerTokens } from "@/configuration/container/tokens";
 import { asUuid } from "@/configuration/validation/uuid";
 import { mediaStatusRoom } from "@/features/media/media.model";
@@ -224,6 +226,43 @@ describe("MediaStatusSocketServer", () => {
     await closed;
     expect(socketServer.activeConnectionCount()).toBe(1);
     expect(assertSocketSessionValid).toHaveBeenCalledTimes(2);
+  });
+
+  it("tracks the sweep it schedules, logging a failure rather than leaving it unhandled", async () => {
+    await socketServer.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    const setIntervalSpy = jest.spyOn(global, "setInterval");
+    await start(inMemoryAdapter);
+    const sweep = setIntervalSpy.mock.calls.find(
+      ([, ms]) => ms === SOCKET_REAUTHORIZE_INTERVAL_MS,
+    )?.[0] as () => void;
+    setIntervalSpy.mockRestore();
+    installFakeContainer();
+    await connected("good");
+    const logError = jest
+      .spyOn(socketServer["logger"], "error")
+      .mockImplementation(() => {});
+    // As during shutdown, once the container is disposed.
+    const createScope = jest
+      .spyOn(getContainer(), "createScope")
+      .mockImplementation(() => {
+        throw new Error("container disposed");
+      });
+
+    try {
+      sweep();
+      await socketServer["work"].drain();
+
+      expect(logError).toHaveBeenCalledWith(
+        "Media status socket work failed.",
+        undefined,
+        expect.objectContaining({ message: "container disposed" }),
+      );
+      // A failure to check is not a revoked session.
+      expect(socketServer.activeConnectionCount()).toBe(1);
+    } finally {
+      createScope.mockRestore();
+    }
   });
 
   it("disconnects every socket on close", async () => {

@@ -119,7 +119,9 @@ export class MediaStatusSocketServer {
     });
 
     this.reauthorize = setInterval(
-      () => void this.reauthorizeAll(),
+      // Tracked like the handshakes: shutdown waits for a sweep in flight
+      // before quitting Redis, and a failure is logged, never left unhandled.
+      () => this.work.track(this.reauthorizeAll()),
       SOCKET_REAUTHORIZE_INTERVAL_MS,
     );
   }
@@ -212,21 +214,37 @@ export class MediaStatusSocketServer {
         continue;
       }
 
-      const scope = getContainer().createScope();
+      const refusal = await this.checkSession(identity);
 
-      try {
-        await scope
-          .resolve(containerTokens.mediaStatusSocketService)
-          .assertSocketSessionValid(identity);
-      } catch (error) {
+      if (refusal) {
         this.logger.info("Closing a media status socket after sign-out.", {
           userId: identity.userId,
-          reason: error instanceof Error ? error.message : "unknown",
+          reason: refusal,
         });
         typed.disconnect(true);
-      } finally {
-        await scope.dispose();
       }
+    }
+  }
+
+  /**
+   * Why the socket's session can no longer be used, or null while it can. A
+   * failure to get a scope at all, such as during shutdown, is not the
+   * session's: it is thrown, ending the sweep, which logs it.
+   */
+  private async checkSession(
+    identity: MediaStatusSocketIdentity,
+  ): Promise<string | null> {
+    const scope = getContainer().createScope();
+
+    try {
+      await scope
+        .resolve(containerTokens.mediaStatusSocketService)
+        .assertSocketSessionValid(identity);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "unknown";
+    } finally {
+      await scope.dispose();
     }
   }
 }
