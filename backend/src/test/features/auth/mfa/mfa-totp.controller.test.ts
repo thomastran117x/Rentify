@@ -187,6 +187,15 @@ describe("MfaTotpController", () => {
     expect(mfaTotpService.confirmEnrollment).toHaveBeenCalledWith(
       USER_1_ID,
       "123456",
+      {
+        sessionId: "session-1",
+        context: {
+          ipAddress: "127.0.0.1",
+          deviceId: "device-1",
+          userAgent: "test-agent",
+          requestId: "request-1",
+        },
+      },
     );
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP enrollment confirmed",
@@ -213,7 +222,15 @@ describe("MfaTotpController", () => {
     );
     const payload = await response.json();
 
-    expect(mfaTotpService.disable).toHaveBeenCalledWith(USER_3_ID);
+    expect(mfaTotpService.disable).toHaveBeenCalledWith(USER_3_ID, {
+      sessionId: "session-3",
+      context: {
+        ipAddress: "127.0.0.1",
+        deviceId: "device-1",
+        userAgent: "test-agent",
+        requestId: "request-1",
+      },
+    });
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP disabled",
       expect.objectContaining({

@@ -64,10 +64,16 @@ describe("targeted container registration modules", () => {
     const repository = repositoryRegistration!.resolve({
       resolve: jest.fn(),
     });
+    const authAuditService = { recordSafely: jest.fn() };
     const service = serviceRegistration!.resolve({
       resolve: (token) => {
-        expect(token).toBe(containerTokens.personalAccessTokenRepository);
-        return repository;
+        if (token === containerTokens.personalAccessTokenRepository) {
+          return repository;
+        }
+        if (token === containerTokens.authAuditService) {
+          return authAuditService;
+        }
+        throw new Error(`Unexpected token: ${String(token)}`);
       },
     });
     const controller = controllerRegistration!.resolve({
