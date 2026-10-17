@@ -387,7 +387,10 @@ describe("Auth audit events persistence integration", () => {
     const ttl = await redis.ttl(refreshKey);
     await redis.set(
       refreshKey,
-      JSON.stringify({ ...refreshRecord, rotatedAt: refreshRecord.rotatedAt - 6 }),
+      JSON.stringify({
+        ...refreshRecord,
+        rotatedAt: refreshRecord.rotatedAt - 6,
+      }),
       { EX: ttl },
     );
 
@@ -497,4 +500,26 @@ describe("Auth audit events persistence integration", () => {
     expect(serialized).not.toContain(patBody.data.token);
   }, 120_000);
 
+  it("dedupes a 50-request login 429 burst to one persisted event", async () => {
+    const responses = [];
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      responses.push(
+        await login({ username: "rate-limit-audit", password: WRONG_PASSWORD }),
+      );
+    }
+
+    expect(
+      responses.filter((response) => response.status === 429),
+    ).toHaveLength(40);
+    const events = (await listEvents()).filter(
+      (event) => event.eventType === "rate_limit.exceeded",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      userId: null,
+      metadata: { policy: "auth-sensitive", identityType: "ip" },
+    });
+  }, 120_000);
 });
