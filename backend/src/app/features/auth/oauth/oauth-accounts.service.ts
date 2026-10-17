@@ -285,7 +285,7 @@ export class OAuthAccountsService {
       profile = await verify();
       this.requireVerifiedOAuthProfile(profile);
     } catch (error) {
-      if (error instanceof Error) {
+      if (error instanceof UnauthorizedError) {
         await this.recordOAuthFailure({
           reasonCode: "token_invalid",
           method: provider,

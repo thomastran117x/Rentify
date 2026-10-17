@@ -1,4 +1,6 @@
 import ConflictError from "@/errors/http/conflict.error";
+import BadGatewayError from "@/errors/http/bad-gateway.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
@@ -449,6 +451,20 @@ describe("OAuthAccountsService sign-in", () => {
       identifierHash: undefined,
       context: undefined,
     });
+  });
+
+  it.each([
+    ["provider outage", new ServiceNotAvaliableError("provider unavailable")],
+    ["malformed provider response", new BadGatewayError("invalid response")],
+  ])("does not audit a %s as an invalid token", async (_label, error) => {
+    const harness = createHarness();
+    harness.googleOAuthService.verify.mockRejectedValue(error);
+
+    await expect(harness.service.googleAuthenticate(oauthInput)).rejects.toBe(
+      error,
+    );
+
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 
   it("rejects a provider profile with an unverified email", async () => {
