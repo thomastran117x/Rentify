@@ -416,7 +416,7 @@ describe("MfaTotpService", () => {
         outcome: "success",
         userId: USER_ID_ID,
         sessionId: "session-1",
-        context: undefined,
+        context: {},
       });
     });
 
