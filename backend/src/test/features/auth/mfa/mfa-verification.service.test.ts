@@ -114,9 +114,7 @@ function createService(
     verifyCode: jest.fn(async () => undefined),
   };
   const authAuditService = {
-    recordSafely: jest.fn(
-      async (_input: Record<string, unknown>) => undefined,
-    ),
+    recordSafely: jest.fn(async (_input: Record<string, unknown>) => undefined),
   };
 
   const service = new MfaVerificationService({
