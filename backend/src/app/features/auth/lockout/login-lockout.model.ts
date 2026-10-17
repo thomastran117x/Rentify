@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { requiredSafeTrimmedString } from "@/features/auth/auth.model";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 export const unlockLocalLoginRequestSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
@@ -26,12 +27,14 @@ export type ResendUnlockLocalLoginRequestBody = z.infer<
 export interface UnlockLocalLoginInput {
   email: string;
   code: string;
+  audit: AuthAuditContext;
 }
 
 export interface ResendUnlockLocalLoginInput {
   client: ClientRequestContext;
   email: string;
   deviceId?: string;
+  audit: AuthAuditContext;
 }
 
 export interface LocalLoginAttemptRecord {

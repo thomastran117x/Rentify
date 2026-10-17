@@ -232,6 +232,7 @@ export type RawEnvironmentValues = {
   REFRESH_TOKEN_MODE?: string;
   REFRESH_TOKEN_SECRET?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
+  AUTH_AUDIT_IDENTIFIER_SECRET?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
   TELNYX_API_KEY?: string;
@@ -314,6 +315,8 @@ export interface AppEnvironment {
     refreshTokenMode: RefreshTokenMode;
     refreshTokenCachePrefix: string;
     personalAccessTokenSecret: string;
+    /** HMAC key for the hashed sign-in identifiers in the auth audit log. */
+    authAuditIdentifierSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
   };

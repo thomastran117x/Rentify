@@ -16,6 +16,7 @@ const tokenConfig = {
   refreshTokenMode: "stateful" as const,
   refreshTokenCachePrefix: "auth:refresh",
   personalAccessTokenSecret: "test-personal-access-token-secret-32",
+  authAuditIdentifierSecret: "test-auth-audit-identifier-secret-32",
   mfaBypassEmails: [],
   mfaTotpEncryptionKey:
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

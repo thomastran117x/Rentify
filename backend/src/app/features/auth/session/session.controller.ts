@@ -11,6 +11,7 @@ import {
 import { toRefreshInput } from "@/features/auth/auth.request-mappers";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { refreshRequestSchema } from "@/features/auth/session/session.model";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
 export class AuthSessionController {
   constructor(private readonly authSessionService: AuthSessionService) {}
@@ -40,6 +41,7 @@ export class AuthSessionController {
       auth: request.auth,
       client: request.client,
       refreshToken: readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
+      audit: toAuthAuditContext(request, request.auth.deviceId),
     });
 
     clearBrowserSessionCookies(response);

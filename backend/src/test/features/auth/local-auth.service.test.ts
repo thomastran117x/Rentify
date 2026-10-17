@@ -12,6 +12,9 @@ import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
+import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
+import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import { testUuid } from "../../support/uuid";
 const DEVICE_1_ID = testUuid(9200, 895443);
 const KNOWN_DEVICE_1_ID = testUuid(9200, 135264);
@@ -69,7 +72,17 @@ function createClient() {
   };
 }
 
+const AUDIT_SECRET = "test-auth-audit-identifier-secret-32";
+const AUDIT_CONTEXT = {
+  ipAddress: "127.0.0.1",
+  userAgent: "Mozilla/5.0",
+  deviceId: DEVICE_1_ID,
+  requestId: "request-1",
+};
+
 function createService(overrides?: {
+  recordAuditEvent?: (input: RecordAuthAuditEventInput) => Promise<void>;
+  authAuditService?: AuthAuditService;
   findUserByEmail?: (email: string) => Promise<AuthUserRecord | null>;
   findUserByUsername?: (username: string) => Promise<AuthUserRecord | null>;
   findUserIdByUsername?: (username: string) => Promise<string | null>;
@@ -335,6 +348,7 @@ function createService(overrides?: {
       overrides?.listOAuthIdentitiesByUserId ?? (async () => []),
     unlinkOAuthIdentity: overrides?.unlinkOAuthIdentity ?? (async () => true),
     markEmailVerified: overrides?.markEmailVerified ?? (async () => {}),
+    recordLastLogin: async () => {},
     activatePendingLocalUser:
       overrides?.activatePendingLocalUser ??
       (async (userId, input) => ({
@@ -517,11 +531,18 @@ function createService(overrides?: {
   // fakes, so assertions keep targeting the fakes (cacheService.setJson,
   // emailService.send*, tokenService.create*) rather than a mock of the
   // collaborator.
+  const authAuditService = overrides?.authAuditService ?? {
+    hashIdentifier: (value: string) => hashAuthIdentifier(value, AUDIT_SECRET),
+    recordSafely: jest.fn(async (input: RecordAuthAuditEventInput) => {
+      await overrides?.recordAuditEvent?.(input);
+    }),
+  };
   const authSessionService = new AuthSessionService(
     authRepository as any,
     authRepository as any,
     tokenService as any,
     deviceService as any,
+    authAuditService as any,
   );
   const pendingSignupStore = new PendingSignupStore(
     cacheService as any,
@@ -547,6 +568,7 @@ function createService(overrides?: {
     authRepository as any,
     otpService as any,
     publicOtpService,
+    authAuditService as any,
   );
 
   const service = new LocalAuthService(
@@ -564,6 +586,7 @@ function createService(overrides?: {
     publicOtpService,
     usernameService,
     loginLockoutService,
+    authAuditService as any,
   );
 
   return service;
@@ -732,6 +755,7 @@ describe("LocalAuthService", () => {
 
     const session = await service.localAuthenticate({
       client: createClient(),
+      audit: AUDIT_CONTEXT,
       username: user.profile.username,
       password: "CorrectHorseBatteryStaple1!",
       rememberMe: true,
@@ -762,6 +786,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
@@ -803,6 +828,7 @@ describe("LocalAuthService", () => {
       await expect(
         service.localAuthenticate({
           client: createClient(),
+          audit: AUDIT_CONTEXT,
           username: user.profile.username,
           password,
           deviceId: DEVICE_1_ID,
@@ -842,6 +868,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
@@ -871,6 +898,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
@@ -901,6 +929,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
@@ -944,6 +973,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         totpCode: "000000",
@@ -993,6 +1023,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         totpCode: "000000",
@@ -1036,6 +1067,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         totpCode: "123456",
@@ -1080,6 +1112,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         totpCode: "123456",
@@ -1111,6 +1144,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
@@ -1406,6 +1440,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: "Missing-User",
         password: "WrongPassword1!",
         deviceId: DEVICE_1_ID,
@@ -1434,6 +1469,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: "missing-user",
         password: "WrongPassword1!",
         deviceId: DEVICE_1_ID,
@@ -1472,6 +1508,7 @@ describe("LocalAuthService", () => {
     await expect(
       service.localAuthenticate({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "WrongPassword1!",
         deviceId: DEVICE_1_ID,
@@ -1562,5 +1599,261 @@ describe("LocalAuthService", () => {
       ).resolves.toEqual({ accepted: true });
       expect(findUserByEmail).toHaveBeenCalled();
     });
+  });
+});
+
+describe("LocalAuthService.localAuthenticate audit events", () => {
+  const PASSWORD = "CorrectHorseBatteryStaple1!";
+  const LOCK_KEY_PREFIX = "auth:local-login-attempts:";
+  const expectedHash = hashAuthIdentifier("test-user", AUDIT_SECRET);
+
+  function createAudited(overrides: Parameters<typeof createService>[0] = {}) {
+    const events: RecordAuthAuditEventInput[] = [];
+    const user = { ...createUser(), passwordHash: FAST_TEST_PASSWORD_HASH };
+    const service = createService({
+      findUserByUsername: async () => user,
+      recordAuditEvent: async (input) => {
+        events.push(input);
+      },
+      ...overrides,
+    });
+
+    return { events, service, user };
+  }
+
+  function attempt(
+    service: LocalAuthService,
+    input: { username?: string; password?: string; totpCode?: string } = {},
+  ) {
+    return service.localAuthenticate({
+      client: createClient(),
+      audit: AUDIT_CONTEXT,
+      username: input.username ?? "test-user",
+      password: input.password ?? PASSWORD,
+      totpCode: input.totpCode,
+      deviceId: DEVICE_1_ID,
+    });
+  }
+
+  it("records a successful sign-in with its session", async () => {
+    const { events, service } = createAudited();
+
+    const session = await attempt(service);
+
+    expect(events).toEqual([
+      {
+        eventType: "login.succeeded",
+        outcome: "success",
+        method: "password",
+        userId: USER_1_ID,
+        identifierHash: expectedHash,
+        sessionId: session.sessionId,
+        context: AUDIT_CONTEXT,
+      },
+    ]);
+    expect(session.sessionId).toEqual(expect.any(String));
+  });
+
+  it("records a wrong password as bad credentials", async () => {
+    const { events, service } = createAudited();
+
+    await expect(
+      attempt(service, { password: "WrongPassword1!" }),
+    ).rejects.toThrow("Invalid username or password.");
+
+    expect(events).toEqual([
+      {
+        eventType: "login.failed",
+        outcome: "failure",
+        reasonCode: "bad_credentials",
+        method: "password",
+        userId: USER_1_ID,
+        identifierHash: expectedHash,
+        context: AUDIT_CONTEXT,
+      },
+    ]);
+  });
+
+  it("records an unknown username by hash alone", async () => {
+    const { events, service } = createAudited({
+      findUserByUsername: async () => null,
+    });
+
+    await expect(attempt(service, { username: "ghost-user" })).rejects.toThrow(
+      "Invalid username or password.",
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "login.failed",
+      reasonCode: "bad_credentials",
+      userId: null,
+      identifierHash: hashAuthIdentifier("ghost-user", AUDIT_SECRET),
+    });
+    expect(JSON.stringify(events)).not.toContain("ghost-user");
+    expect(JSON.stringify(events)).not.toContain(PASSWORD);
+  });
+
+  it("records an unverified email", async () => {
+    const { events, service, user } = createAudited();
+    user.emailVerified = false;
+
+    await expect(attempt(service)).rejects.toThrow(
+      "Please verify your email address before signing in.",
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        eventType: "login.failed",
+        outcome: "failure",
+        reasonCode: "email_unverified",
+        userId: USER_1_ID,
+      }),
+    ]);
+  });
+
+  it("records the MFA challenge when no code was supplied", async () => {
+    const { events, service } = createAudited({
+      mfaIsEnabled: async () => true,
+    });
+
+    await expect(attempt(service)).rejects.toMatchObject({
+      details: { mfaRequired: true },
+    });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        eventType: "login.mfa_challenged",
+        outcome: "success",
+        reasonCode: "mfa_required",
+        userId: USER_1_ID,
+      }),
+    ]);
+  });
+
+  it("records a rejected authenticator code", async () => {
+    const { events, service } = createAudited({
+      mfaIsEnabled: async () => true,
+      verifyTotpCode: async () => {
+        throw new UnauthorizedError("MFA verification failed.");
+      },
+    });
+
+    await expect(attempt(service, { totpCode: "482913" })).rejects.toThrow(
+      "MFA verification failed.",
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        eventType: "login.failed",
+        reasonCode: "mfa_invalid",
+        userId: USER_1_ID,
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain("482913");
+  });
+
+  it("records nothing for an MFA error that is not a rejection", async () => {
+    const { events, service } = createAudited({
+      mfaIsEnabled: async () => {
+        throw new Error("redis unavailable");
+      },
+    });
+
+    await expect(attempt(service)).rejects.toThrow("redis unavailable");
+
+    expect(events).toEqual([]);
+  });
+
+  it.each([
+    ["password", { password: "WrongPassword1!" }, "bad_credentials"],
+    ["authenticator code", { totpCode: "000000" }, "mfa_invalid"],
+  ] as const)(
+    "records the %s failure that sets the lock as the lock",
+    async (_kind, input, failureReason) => {
+      const { events, service } = createAudited({
+        mfaIsEnabled: async () => true,
+        verifyTotpCode: async () => {
+          throw new UnauthorizedError("MFA verification failed.");
+        },
+        cacheGetJson: async (key) =>
+          key.startsWith(LOCK_KEY_PREFIX) ? { failedAttempts: 4 } : null,
+      });
+
+      await expect(attempt(service, input)).rejects.toMatchObject({
+        status: 423,
+      });
+
+      expect(events).toEqual([
+        {
+          eventType: "login.locked",
+          outcome: "blocked",
+          reasonCode: "locked",
+          method: "password",
+          userId: USER_1_ID,
+          identifierHash: expectedHash,
+          context: AUDIT_CONTEXT,
+          metadata: { triggered: true, failureReason },
+        },
+      ]);
+    },
+  );
+
+  it("records an attempt against an existing lock without the trigger flag", async () => {
+    const { events, service } = createAudited({
+      findUserByUsername: async () => null,
+      cacheGetJson: async (key) =>
+        key.startsWith(LOCK_KEY_PREFIX)
+          ? { failedAttempts: 5, lockedAt: "2026-01-02T00:00:00.000Z" }
+          : null,
+    });
+
+    await expect(attempt(service)).rejects.toMatchObject({ status: 423 });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        eventType: "login.locked",
+        outcome: "blocked",
+        reasonCode: "locked",
+        userId: null,
+        metadata: undefined,
+      }),
+    ]);
+  });
+
+  it("still signs in when the audit store rejects the write", async () => {
+    const create = jest.fn(async () => {
+      throw new Error("audit store unavailable");
+    });
+    const { service } = createAudited({
+      authAuditService: new AuthAuditService({ create } as any, {
+        identifierSecret: AUDIT_SECRET,
+      }),
+    });
+
+    await expect(attempt(service)).resolves.toMatchObject({
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String),
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "login.succeeded" }),
+    );
+  });
+
+  it("keeps a failed sign-in's error when the audit store rejects the write", async () => {
+    const { service } = createAudited({
+      authAuditService: new AuthAuditService(
+        {
+          create: async () => {
+            throw new Error("audit store unavailable");
+          },
+        } as any,
+        { identifierSecret: AUDIT_SECRET },
+      ),
+    });
+
+    await expect(
+      attempt(service, { password: "WrongPassword1!" }),
+    ).rejects.toThrow("Invalid username or password.");
   });
 });

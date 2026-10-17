@@ -4,6 +4,7 @@ import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 export const UNSAFE_AUTH_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
@@ -78,6 +79,8 @@ export interface AuthRequestContext {
   auth: AuthPrincipal;
   client: ClientRequestContext;
   refreshToken?: string;
+  /** Set by the flows that write to the auth audit log, such as logout. */
+  audit?: AuthAuditContext;
 }
 
 export interface CreateLocalUserInput {
@@ -180,6 +183,8 @@ export interface AuthSessionResult {
     knownByIp: boolean;
   };
   user: AuthUserProfile;
+  /** Server-side session id, for the audit log. Never sent to the client. */
+  sessionId?: string;
   /**
    * Set only when this session was created by a first-time OAuth sign-in, so
    * clients can surface the auto-generated username onboarding flow. Absent for

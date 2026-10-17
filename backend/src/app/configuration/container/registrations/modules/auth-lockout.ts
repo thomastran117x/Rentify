@@ -14,6 +14,7 @@ export const authLockoutRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authUsersRepository,
         containerTokens.otpService,
         containerTokens.publicOtpService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new LoginLockoutService(
@@ -21,6 +22,7 @@ export const authLockoutRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.otpService),
           resolve(containerTokens.publicOtpService),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

@@ -93,6 +93,11 @@ export function parseEnvironmentState(
     "PERSONAL_ACCESS_TOKEN_SECRET",
     errors,
   );
+  const authAuditIdentifierSecret = readRequiredSecret(
+    raw,
+    "AUTH_AUDIT_IDENTIFIER_SECRET",
+    errors,
+  );
   const mfaTotpEncryptionKeyRaw = raw.MFA_TOTP_ENCRYPTION_KEY;
   if (!mfaTotpEncryptionKeyRaw) {
     errors.push("MFA_TOTP_ENCRYPTION_KEY is required.");
@@ -130,6 +135,7 @@ export function parseEnvironmentState(
       accessTokenCredentials,
       refreshTokenSecret,
       personalAccessTokenSecret,
+      authAuditIdentifierSecret,
       mfaTotpEncryptionKey,
     ),
     email: buildEmailConfig(raw, gmailUser, gmailAppPassword),

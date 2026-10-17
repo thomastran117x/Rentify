@@ -15,6 +15,7 @@ function buildRequiredEnv(
     ACCESS_TOKEN_SECRET: "process-access-secret-value-with-32chars",
     REFRESH_TOKEN_SECRET: "process-refresh-secret-value-with-32ch",
     PERSONAL_ACCESS_TOKEN_SECRET: "process-personal-token-secret-32chars",
+    AUTH_AUDIT_IDENTIFIER_SECRET: "process-auth-audit-identifier-32chars",
     MFA_TOTP_ENCRYPTION_KEY:
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
@@ -451,6 +452,25 @@ describe("EnvironmentManager", () => {
 
     expect(() => manager.load()).toThrow(
       "ACCESS_TOKEN_SECRET is required when using HS256.",
+    );
+  });
+
+  it("requires a long enough auth audit identifier secret", () => {
+    process.env = buildRequiredEnv({
+      AUTH_AUDIT_IDENTIFIER_SECRET: undefined,
+    });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AUTH_AUDIT_IDENTIFIER_SECRET is required.",
+    );
+
+    process.env = buildRequiredEnv({ AUTH_AUDIT_IDENTIFIER_SECRET: "short" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AUTH_AUDIT_IDENTIFIER_SECRET must be at least 32 characters long.",
+    );
+
+    process.env = buildRequiredEnv();
+    expect(new EnvironmentManager().load().auth.authAuditIdentifierSecret).toBe(
+      "process-auth-audit-identifier-32chars",
     );
   });
 

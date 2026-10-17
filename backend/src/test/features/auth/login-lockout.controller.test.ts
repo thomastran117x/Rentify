@@ -48,6 +48,12 @@ describe("LoginLockoutController.unlockLocalLogin", () => {
     expect(loginLockoutService.unlockLocalLogin).toHaveBeenCalledWith({
       email: "user@example.com",
       code: "123456",
+      audit: {
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        deviceId: "device-1",
+        requestId: "request-test",
+      },
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({

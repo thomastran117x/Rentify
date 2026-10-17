@@ -6,6 +6,7 @@ import { testUuid } from "../../support/uuid";
 
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
+const AUDIT_CONTEXT = { ipAddress: "127.0.0.1", requestId: "request-1" };
 
 function createClient(): ClientRequestContext {
   return {
@@ -79,6 +80,10 @@ function createHarness() {
     check: jest.fn(() => "unknown" as string),
     add: jest.fn(async () => undefined),
   };
+  const authAuditService = {
+    hashIdentifier: (value: string) => `hash:${value}`,
+    recordSafely: jest.fn(async () => undefined),
+  };
 
   return {
     store,
@@ -88,11 +93,13 @@ function createHarness() {
     otpService,
     emailService,
     emailBloomService,
+    authAuditService,
     service: new LoginLockoutService(
       cacheService as never,
       authRepository as never,
       otpService as never,
       publicOtpService,
+      authAuditService as never,
     ),
   };
 }
@@ -179,6 +186,7 @@ describe("LoginLockoutService.unlockLocalLogin", () => {
 
     await expect(
       harness.service.unlockLocalLogin({
+        audit: AUDIT_CONTEXT,
         email: "user@example.com",
         code: "123456",
       }),
@@ -190,6 +198,14 @@ describe("LoginLockoutService.unlockLocalLogin", () => {
       code: "123456",
     });
     expect(harness.store.has(LOCK_KEY)).toBe(false);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "login.unlocked",
+      outcome: "success",
+      userId: USER_1_ID,
+      identifierHash: "hash:user@example.com",
+      context: AUDIT_CONTEXT,
+    });
   });
 
   it("reports success for an unknown address once the code checks out", async () => {
@@ -197,11 +213,19 @@ describe("LoginLockoutService.unlockLocalLogin", () => {
 
     await expect(
       harness.service.unlockLocalLogin({
+        audit: AUDIT_CONTEXT,
         email: "nobody@example.com",
         code: "123456",
       }),
     ).resolves.toEqual({ unlocked: true, email: "nobody@example.com" });
     expect(harness.cacheService.delete).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "login.unlocked",
+        outcome: "success",
+        userId: null,
+      }),
+    );
   });
 
   it("propagates an invalid code", async () => {
@@ -210,10 +234,55 @@ describe("LoginLockoutService.unlockLocalLogin", () => {
 
     await expect(
       harness.service.unlockLocalLogin({
+        audit: AUDIT_CONTEXT,
         email: "user@example.com",
         code: "000000",
       }),
     ).rejects.toThrow("Invalid code.");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "login.unlocked",
+      outcome: "failure",
+      reasonCode: "otp_invalid",
+      userId: null,
+      identifierHash: "hash:user@example.com",
+      context: AUDIT_CONTEXT,
+    });
+  });
+
+  it("attributes a rejected code to the account it targets", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByEmail.mockResolvedValue(createUser());
+    harness.otpService.verify.mockRejectedValue(new Error("Invalid code."));
+
+    await expect(
+      harness.service.unlockLocalLogin({
+        audit: AUDIT_CONTEXT,
+        email: "user@example.com",
+        code: "000000",
+      }),
+    ).rejects.toThrow("Invalid code.");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "failure", userId: USER_1_ID }),
+    );
+  });
+
+  it("keeps the code rejection when the attribution lookup fails", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByEmail.mockRejectedValue(
+      new Error("database unavailable"),
+    );
+    harness.otpService.verify.mockRejectedValue(new Error("Invalid code."));
+
+    await expect(
+      harness.service.unlockLocalLogin({
+        audit: AUDIT_CONTEXT,
+        email: "user@example.com",
+        code: "000000",
+      }),
+    ).rejects.toThrow("Invalid code.");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "failure", userId: null }),
+    );
   });
 });
 
@@ -226,6 +295,7 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
     await expect(
       harness.service.resendUnlockLocalLogin({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         email: "user@example.com",
         deviceId: "device-1",
       }),
@@ -235,6 +305,14 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
       to: "user@example.com",
       unlockCode: "654321",
       firstName: "Test",
+    });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "login.unlock_requested",
+      outcome: "success",
+      userId: USER_1_ID,
+      identifierHash: "hash:user@example.com",
+      context: AUDIT_CONTEXT,
     });
   });
 
@@ -246,10 +324,19 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
     await expect(
       harness.service.resendUnlockLocalLogin({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         email: "user@example.com",
       }),
     ).resolves.toEqual({ accepted: true });
     expect(harness.emailService.sendLoginUnlockEmail).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "login.unlock_requested",
+      outcome: "failure",
+      reasonCode: "not_locked",
+      userId: USER_1_ID,
+      identifierHash: "hash:user@example.com",
+      context: AUDIT_CONTEXT,
+    });
   });
 
   it("accepts an unknown address without sending anything", async () => {
@@ -258,10 +345,18 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
     await expect(
       harness.service.resendUnlockLocalLogin({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         email: "nobody@example.com",
       }),
     ).resolves.toEqual({ accepted: true });
     expect(harness.emailService.sendLoginUnlockEmail).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: "failure",
+        reasonCode: "not_locked",
+        userId: null,
+      }),
+    );
   });
 
   it("still reports acceptance when rate limited", async () => {
@@ -278,10 +373,18 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
     await expect(
       harness.service.resendUnlockLocalLogin({
         client: createClient(),
+        audit: AUDIT_CONTEXT,
         email: "user@example.com",
       }),
     ).resolves.toEqual({ accepted: true });
     expect(harness.emailService.sendLoginUnlockEmail).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "login.unlock_requested",
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      identifierHash: "hash:user@example.com",
+      context: AUDIT_CONTEXT,
+    });
   });
 
   it("always queries, so a locked account can still be recovered", async () => {
@@ -294,6 +397,7 @@ describe("LoginLockoutService.resendUnlockLocalLogin", () => {
 
     await harness.service.resendUnlockLocalLogin({
       client: createClient(),
+      audit: AUDIT_CONTEXT,
       email: "user@example.com",
     });
 

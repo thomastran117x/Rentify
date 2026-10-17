@@ -63,6 +63,7 @@ import {
   type UsernameSuggestionsQuery,
 } from "@/features/auth/username/username.model";
 import { asUuid } from "@/configuration/validation/uuid";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
 /**
  * An explicit body value wins over the fingerprinted device so a client that
@@ -165,13 +166,16 @@ export function toLocalAuthenticateInput(
   request: Request,
   input: LocalAuthenticateRequestBody,
 ): LocalAuthenticateInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
   return {
     username: input.username,
     password: input.password,
     rememberMe: input.rememberMe,
     client: request.client,
-    deviceId: resolveDeviceId(request, input.deviceId),
+    deviceId,
     totpCode: input.totpCode,
+    audit: toAuthAuditContext(request, deviceId),
   };
 }
 
@@ -333,11 +337,13 @@ export function toRemoveKnownDeviceInput(
 }
 
 export function toUnlockLocalLoginInput(
+  request: Request,
   input: UnlockLocalLoginRequestBody,
 ): UnlockLocalLoginInput {
   return {
     email: input.email,
     code: input.code,
+    audit: toAuthAuditContext(request),
   };
 }
 
@@ -349,6 +355,7 @@ export function toResendUnlockLocalLoginInput(
     client: request.client,
     email: input.email,
     deviceId: resolveDeviceId(request),
+    audit: toAuthAuditContext(request),
   };
 }
 

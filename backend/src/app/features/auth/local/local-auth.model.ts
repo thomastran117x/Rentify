@@ -9,6 +9,7 @@ import {
   UNSAFE_AUTH_INPUT_MESSAGE,
 } from "@/features/auth/auth.model";
 import { dateOfBirthSchema } from "@/features/auth/date-of-birth";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 export const localSignupRequestSchema = z.object({
   username: authUsernameSchema,
@@ -69,6 +70,7 @@ export interface LocalAuthenticateInput {
   rememberMe?: boolean;
   deviceId?: string;
   totpCode?: string;
+  audit: AuthAuditContext;
 }
 
 export interface LocalSignupInput {

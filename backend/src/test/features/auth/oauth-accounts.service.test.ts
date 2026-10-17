@@ -88,6 +88,7 @@ const oauthInput = {
 function createHarness() {
   const authRepository = {
     findUserByEmail: jest.fn(async () => null as AuthUserRecord | null),
+    recordLastLogin: jest.fn(async () => undefined),
     findUserById: jest.fn(async () => createUser()),
     findUserByOAuthIdentity: jest.fn(async () => null as AuthUserRecord | null),
     createOAuthUser: jest.fn(async () => createUser()),
@@ -183,6 +184,7 @@ function createHarness() {
         authRepository as never,
         tokenService as never,
         deviceService as never,
+        { recordSafely: async () => undefined } as never,
       ),
       oauthSignupStore as never,
     ),

@@ -9,6 +9,8 @@ import type {
   ResendUnlockLocalLoginInput,
   UnlockLocalLoginInput,
 } from "@/features/auth/lockout/login-lockout.model";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import { asUuid } from "@/configuration/validation/uuid";
 
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
@@ -30,6 +32,7 @@ export class LoginLockoutService {
     private readonly usersRepository: UsersRepository,
     private readonly otpService: OtpService,
     private readonly publicOtpService: PublicOtpService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async getAttemptRecord(
@@ -90,21 +93,52 @@ export class LoginLockoutService {
     await this.publicOtpService.sendLoginUnlockCode(user);
   }
 
+  /**
+   * The unlock routes are keyed by email, so their audit events hash the typed
+   * email where sign-in events hash the username.
+   */
   async unlockLocalLogin(input: UnlockLocalLoginInput): Promise<{
     unlocked: true;
     email: string;
   }> {
-    await this.otpService.verify({
-      purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
-      subject: input.email,
-      code: input.code,
-    });
+    const identifierHash = this.authAuditService.hashIdentifier(input.email);
+
+    try {
+      await this.otpService.verify({
+        purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
+        subject: input.email,
+        code: input.code,
+      });
+    } catch (error) {
+      // Only to attribute the event: a failed lookup must not replace the
+      // rejection the caller is owed.
+      const user = await this.usersRepository
+        .findUserByEmail(input.email)
+        .catch(() => null);
+      await this.authAuditService.recordSafely({
+        eventType: "login.unlocked",
+        outcome: "failure",
+        reasonCode: "otp_invalid",
+        userId: user ? asUuid(user.id) : null,
+        identifierHash,
+        context: input.audit,
+      });
+      throw error;
+    }
 
     const user = await this.usersRepository.findUserByEmail(input.email);
 
     if (user) {
       await this.clearAttemptRecord(user.profile.username);
     }
+
+    await this.authAuditService.recordSafely({
+      eventType: "login.unlocked",
+      outcome: "success",
+      userId: user ? asUuid(user.id) : null,
+      identifierHash,
+      context: input.audit,
+    });
 
     return {
       unlocked: true,
@@ -122,9 +156,19 @@ export class LoginLockoutService {
       deviceId: input.deviceId,
       flow: "resend-unlock-local-login",
     });
+    const audit = {
+      eventType: "login.unlock_requested",
+      identifierHash: this.authAuditService.hashIdentifier(input.email),
+      context: input.audit,
+    } as const;
 
     if (!rateLimitResult.allowed) {
       this.publicOtpService.logSuspicious(rateLimitResult);
+      await this.authAuditService.recordSafely({
+        ...audit,
+        outcome: "blocked",
+        reasonCode: "rate_limited",
+      });
       return {
         accepted: true,
       };
@@ -132,16 +176,29 @@ export class LoginLockoutService {
 
     const user = await this.usersRepository.findUserByEmail(input.email);
     const isLocked = user ? await this.isLocked(user.profile.username) : false;
+    const userId = user ? asUuid(user.id) : null;
 
     // Only a locked account gets a code. Sending one regardless would let the
-    // endpoint mail anybody on demand.
+    // endpoint mail anybody on demand. The response stays the same either way;
+    // only the audit event tells the cases apart.
     if (!isLocked) {
+      await this.authAuditService.recordSafely({
+        ...audit,
+        outcome: "failure",
+        reasonCode: "not_locked",
+        userId,
+      });
       return {
         accepted: true,
       };
     }
 
     await this.publicOtpService.sendLoginUnlockCode(user);
+    await this.authAuditService.recordSafely({
+      ...audit,
+      outcome: "success",
+      userId,
+    });
 
     return {
       accepted: true,

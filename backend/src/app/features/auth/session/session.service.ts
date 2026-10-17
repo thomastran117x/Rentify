@@ -18,6 +18,8 @@ import { DeviceService } from "@/features/auth/device/device.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { asUuid } from "@/configuration/validation/uuid";
+import { loggerFactory } from "@/configuration/logging";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 interface DeviceStatus {
   deviceId?: string;
@@ -32,11 +34,17 @@ interface DeviceStatus {
  * token are always minted together and always from the same token version.
  */
 export class AuthSessionService {
+  private readonly logger = loggerFactory.forClass(
+    AuthSessionService,
+    "service",
+  );
+
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly tokenRepository: TokenRepository,
     private readonly tokenService: TokenService,
     private readonly deviceService: DeviceService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   /**
@@ -132,6 +140,7 @@ export class AuthSessionService {
       refreshTokenExpiresInSeconds,
       device: deviceStatus,
       user: toAuthUserProfile(user),
+      sessionId,
     };
   }
 
@@ -152,6 +161,16 @@ export class AuthSessionService {
       await this.tokenRepository.rotateTokenVersion(context.auth.sub);
     }
 
+    await this.authAuditService.recordSafely({
+      eventType: "logout",
+      outcome: "success",
+      userId: asUuid(context.auth.sub),
+      method: context.auth.authMethod === "pat" ? "pat" : undefined,
+      sessionId:
+        context.auth.authMethod === "jwt" ? context.auth.sessionId : undefined,
+      context: context.audit,
+    });
+
     return {
       loggedOut: true,
       auth: {
@@ -164,7 +183,7 @@ export class AuthSessionService {
 
   /**
    * A fresh sign-in: the device is evaluated as a login event, which can mark it
-   * newly known and send a new-device alert.
+   * newly known and send a new-device alert, and `last_login_at` moves forward.
    */
   async authenticateVerifiedUser(
     user: AuthUserRecord,
@@ -180,13 +199,31 @@ export class AuthSessionService {
         input.client,
         input.deviceId,
       );
-
-    return this.issueTokensForUser(
+    const session = await this.issueTokensForUser(
       user,
       deviceStatus,
       input.deviceId,
       Boolean(input.rememberMe),
     );
+
+    await this.recordLastLogin(user);
+
+    return session;
+  }
+
+  /**
+   * Best effort: the timestamp is informational, so failing to write it must
+   * not fail a sign-in whose session has already been issued.
+   */
+  private async recordLastLogin(user: AuthUserRecord): Promise<void> {
+    try {
+      await this.usersRepository.recordLastLogin(asUuid(user.id));
+    } catch (error) {
+      this.logger.error("Failed to record last sign-in time.", {
+        userId: user.id,
+        error,
+      });
+    }
   }
 
   /**
@@ -254,6 +291,7 @@ export class AuthSessionService {
       refreshTokenExpiresInSeconds,
       device: deviceStatus,
       user: toAuthUserProfile(user),
+      sessionId,
     };
   }
 }
