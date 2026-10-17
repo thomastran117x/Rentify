@@ -1,6 +1,7 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import {
+  RefreshTokenReuseDetectedError,
   TokenService,
   type JwtClaims,
 } from "@/features/auth/token/token.service";
@@ -569,6 +570,11 @@ describe("TokenService", () => {
       },
     );
 
+    await expect(service.verifyRefreshToken(token)).resolves.toMatchObject({
+      sub: USER_1_ID,
+      sessionId: "session-rotate",
+    });
+
     await expect(
       service.rotateRefreshToken(
         token,
@@ -599,7 +605,18 @@ describe("TokenService", () => {
           expiresInSeconds: 120,
         },
       ),
-    ).rejects.toThrow("Refresh token has already been used.");
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: "RefreshTokenReuseDetectedError",
+        message: "Refresh token has already been used.",
+        userId: USER_1_ID,
+        sessionId: "session-rotate",
+      }),
+    );
+
+    expect(RefreshTokenReuseDetectedError.prototype).toBeInstanceOf(
+      UnauthorizedError,
+    );
   });
 
   it("rejects malformed stateful refresh tokens with an unauthorized error", async () => {

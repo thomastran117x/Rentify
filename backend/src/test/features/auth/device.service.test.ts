@@ -159,11 +159,17 @@ function createService(overrides?: {
   const cache = {
     exists: jest.fn(overrides?.cacheExists ?? (async () => false)),
     set: jest.fn(overrides?.cacheSet ?? (async () => {})),
+    setIfNotExists: jest.fn(
+      async (key: string) =>
+        !(await (overrides?.cacheExists ?? (async () => false))(key)),
+    ),
   };
+  const authAuditService = { recordSafely: jest.fn(async () => undefined) };
   const service = new DeviceService({
     deviceRepository: deviceRepository as any,
     emailService: emailService as any,
     cache: cache as any,
+    authAuditService: authAuditService as any,
     unknownDeviceAlertCooldownInSeconds:
       overrides?.unknownDeviceAlertCooldownInSeconds,
   });
@@ -173,6 +179,7 @@ function createService(overrides?: {
     deviceRepository,
     emailService,
     cache,
+    authAuditService,
   };
 }
 
@@ -323,7 +330,7 @@ describe("DeviceService", () => {
   });
 
   it("sends a new-device alert and fail-closes trust for unknown ip addresses", async () => {
-    const { service, cache, emailService } = createService({
+    const { service, cache, emailService, authAuditService } = createService({
       cacheExists: async () => false,
       unknownDeviceAlertCooldownInSeconds: 1800,
     });
@@ -339,10 +346,7 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: false,
     });
-    expect(cache.exists).toHaveBeenCalledWith(
-      `auth:unknown-device:${USER_1_ID}:new-device`,
-    );
-    expect(cache.set).toHaveBeenCalledWith(
+    expect(cache.setIfNotExists).toHaveBeenCalledWith(
       `auth:unknown-device:${USER_1_ID}:new-device`,
       "1",
       1800,
@@ -355,6 +359,17 @@ describe("DeviceService", () => {
       platform: "macOS",
       userAgent: "test-agent",
       detectedAt: expect.any(Date),
+    });
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "device.new_detected",
+      outcome: "success",
+      userId: USER_1_ID,
+      context: {
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        deviceId: "new-device",
+      },
+      metadata: { emailNotification: "sent" },
     });
   });
 
@@ -401,7 +416,7 @@ describe("DeviceService", () => {
   });
 
   it("suppresses duplicate unknown-device alerts during the cooldown window", async () => {
-    const { service, cache, emailService } = createService({
+    const { service, cache, emailService, authAuditService } = createService({
       cacheExists: async () => true,
     });
 
@@ -416,8 +431,18 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: false,
     });
-    expect(cache.set).not.toHaveBeenCalled();
+    expect(cache.setIfNotExists).toHaveBeenCalledWith(
+      `auth:unknown-device:${USER_1_ID}:device-77`,
+      "1",
+      3600,
+    );
     expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "device.new_detected",
+        metadata: { emailNotification: "suppressed" },
+      }),
+    );
   });
 
   it("falls back to an unknown-device label when alerting without a device id", async () => {
@@ -429,8 +454,10 @@ describe("DeviceService", () => {
       undefined,
     );
 
-    expect(cache.exists).toHaveBeenCalledWith(
+    expect(cache.setIfNotExists).toHaveBeenCalledWith(
       `auth:unknown-device:${USER_1_ID}:unknown-device`,
+      "1",
+      3600,
     );
     expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -13,6 +13,7 @@ import {
 } from "./mfa-totp.model";
 import type { MfaTotpService } from "./mfa-totp.service";
 import type { Uuid } from "@/configuration/validation/uuid";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
 export class MfaTotpController {
   private readonly logger: Logger;
@@ -67,7 +68,10 @@ export class MfaTotpController {
       request,
       confirmEnrollmentRequestSchema,
     );
-    await this.mfaTotpService.confirmEnrollment(auth.sub, input.code);
+    await this.mfaTotpService.confirmEnrollment(auth.sub, input.code, {
+      sessionId: auth.sessionId,
+      context: toAuthAuditContext(request, auth.deviceId),
+    });
     this.logMfaChangeEvent(
       request,
       auth.sub,
@@ -90,7 +94,10 @@ export class MfaTotpController {
       MFA_MANAGEMENT_SCOPE,
     );
     await parseRequestBody(request, disableRequestSchema);
-    await this.mfaTotpService.disable(auth.sub);
+    await this.mfaTotpService.disable(auth.sub, {
+      sessionId: auth.sessionId,
+      context: toAuthAuditContext(request, auth.deviceId),
+    });
     this.logMfaChangeEvent(request, auth.sub, auth.sessionId, "TOTP disabled");
     ok(
       response,

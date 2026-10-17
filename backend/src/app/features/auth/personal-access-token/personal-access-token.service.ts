@@ -16,6 +16,7 @@ import type {
 } from "./personal-access-token.model";
 import { PersonalAccessTokenRepository } from "./personal-access-token.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 interface PersonalAccessTokenServiceOptions {
   personalAccessTokenSecret?: string;
@@ -30,6 +31,7 @@ export class PersonalAccessTokenService {
 
   constructor(
     private readonly personalAccessTokenRepository: PersonalAccessTokenRepository,
+    private readonly authAuditService: AuthAuditService,
     options: PersonalAccessTokenServiceOptions = {},
   ) {
     this.personalAccessTokenSecret = options.personalAccessTokenSecret;
@@ -66,6 +68,15 @@ export class PersonalAccessTokenService {
           }
         : {}),
     });
+    await this.authAuditService.recordSafely({
+      eventType: "pat.created",
+      outcome: "success",
+      userId: input.userId,
+      method: "pat",
+      sessionId: input.sessionId,
+      context: input.audit,
+      metadata: { tokenId: tokenRecord.id },
+    });
 
     return {
       ...this.toSummary(tokenRecord),
@@ -87,6 +98,15 @@ export class PersonalAccessTokenService {
 
     if (!token.revokedAt) {
       await this.personalAccessTokenRepository.revoke(token.id);
+      await this.authAuditService.recordSafely({
+        eventType: "pat.revoked",
+        outcome: "success",
+        userId: input.userId,
+        method: "pat",
+        sessionId: input.sessionId,
+        context: input.audit,
+        metadata: { tokenId: token.id },
+      });
     }
 
     return {

@@ -17,6 +17,14 @@ function createRepositoryMock() {
   };
 }
 
+function createService(repository: ReturnType<typeof createRepositoryMock>) {
+  return new PersonalAccessTokenService(
+    repository as any,
+    { recordSafely: jest.fn(async () => undefined) } as any,
+    { personalAccessTokenSecret: "test-pat-secret" },
+  );
+}
+
 function createTokenRecord(
   overrides: Partial<PersonalAccessTokenRecord> = {},
 ): PersonalAccessTokenRecord {
@@ -66,9 +74,12 @@ function installCreateMock(
 describe("PersonalAccessTokenService", () => {
   it("creates a token, stores only a hash, and returns the token once", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+    const service = new PersonalAccessTokenService(
+      repository as any,
+      authAuditService as any,
+      { personalAccessTokenSecret: "test-pat-secret" },
+    );
     const createState = installCreateMock(repository);
 
     const result = await service.create({
@@ -76,6 +87,8 @@ describe("PersonalAccessTokenService", () => {
       name: "Rentify MCP",
       scopes: ["mcp:read"],
       expiresInDays: 30,
+      sessionId: "session-1",
+      audit: { requestId: "request-1" },
     });
 
     expect(result.token).toMatch(/^rpat_[a-f0-9]{24}_[a-f0-9]{48}$/);
@@ -83,14 +96,24 @@ describe("PersonalAccessTokenService", () => {
     expect(createState.getLatestInput()?.secretHash).not.toEqual(result.token);
     expect(result.tokenPrefix).toMatch(/^rpat_[a-f0-9]{24}_[a-f0-9]{6}$/);
     expect(result.scopes).toEqual(["mcp:read"]);
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "pat.created",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: "pat",
+      sessionId: "session-1",
+      context: { requestId: "request-1" },
+      metadata: { tokenId: PAT_RECORD_1_ID },
+    });
+    expect(
+      JSON.stringify(authAuditService.recordSafely.mock.calls),
+    ).not.toContain(result.token);
   });
 
   it("authenticates a valid PAT and updates lastUsedAt", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
     const created = await service.create({
       userId: USER_1_ID,
       name: "Rentify MCP",
@@ -120,9 +143,7 @@ describe("PersonalAccessTokenService", () => {
 
   it("rejects PATs with invalid formats before repository lookup", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
 
     await expect(
       service.authenticateToken("not-a-real-pat"),
@@ -133,9 +154,7 @@ describe("PersonalAccessTokenService", () => {
 
   it("rejects unknown PAT public ids without updating lastUsedAt", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
 
     repository.findByPublicId.mockResolvedValue(null);
 
@@ -150,9 +169,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects PATs when the secret does not match the stored hash", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
     const created = await service.create({
       userId: USER_1_ID,
       name: "Rentify MCP",
@@ -179,9 +196,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects revoked PATs", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
     const created = await service.create({
       userId: USER_1_ID,
       name: "Rentify MCP",
@@ -207,9 +222,7 @@ describe("PersonalAccessTokenService", () => {
   it("rejects expired PATs", async () => {
     const repository = createRepositoryMock();
     const createState = installCreateMock(repository);
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const service = createService(repository);
     const created = await service.create({
       userId: USER_1_ID,
       name: "Rentify MCP",
@@ -234,15 +247,19 @@ describe("PersonalAccessTokenService", () => {
 
   it("revokes tokens for the owning user", async () => {
     const repository = createRepositoryMock();
-    const service = new PersonalAccessTokenService(repository as any, {
-      personalAccessTokenSecret: "test-pat-secret",
-    });
+    const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+    const service = new PersonalAccessTokenService(
+      repository as any,
+      authAuditService as any,
+      { personalAccessTokenSecret: "test-pat-secret" },
+    );
 
     repository.findByIdForUser.mockResolvedValue(createTokenRecord());
 
     const result = await service.revoke({
       userId: USER_1_ID,
       tokenId: PAT_RECORD_1_ID,
+      sessionId: "session-1",
     });
 
     expect(result).toEqual({
@@ -250,5 +267,32 @@ describe("PersonalAccessTokenService", () => {
       tokenId: PAT_RECORD_1_ID,
     });
     expect(repository.revoke).toHaveBeenCalledWith(PAT_RECORD_1_ID);
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "pat.revoked",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: "pat",
+      sessionId: "session-1",
+      context: undefined,
+      metadata: { tokenId: PAT_RECORD_1_ID },
+    });
+  });
+
+  it("does not audit revoking a token that was already revoked", async () => {
+    const repository = createRepositoryMock();
+    const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+    const service = new PersonalAccessTokenService(
+      repository as any,
+      authAuditService as any,
+      { personalAccessTokenSecret: "test-pat-secret" },
+    );
+    repository.findByIdForUser.mockResolvedValue(
+      createTokenRecord({ revokedAt: "2026-04-26T12:00:00.000Z" }),
+    );
+
+    await service.revoke({ userId: USER_1_ID, tokenId: PAT_RECORD_1_ID });
+
+    expect(repository.revoke).not.toHaveBeenCalled();
+    expect(authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 });

@@ -26,6 +26,7 @@ export const authEmailChangeRegistrationModule: ContainerRegistrationModule = {
         containerTokens.emailService,
         containerTokens.authSessionService,
         containerTokens.emailBloomService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new EmailChangeService(
@@ -37,6 +38,7 @@ export const authEmailChangeRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.emailService),
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.emailBloomService),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

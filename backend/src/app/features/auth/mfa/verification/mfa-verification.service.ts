@@ -34,6 +34,8 @@ import {
   type MfaVerificationScope,
 } from "./mfa-verification.model";
 import { type Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 interface MfaVerificationServiceOptions {
   mfaVerificationRepository: MfaVerificationRepository;
@@ -41,6 +43,7 @@ interface MfaVerificationServiceOptions {
   otpService: OtpService;
   emailService: EmailService;
   mfaTotpService: MfaTotpService;
+  authAuditService: AuthAuditService;
 }
 
 interface VerificationRequestContext {
@@ -49,6 +52,7 @@ interface VerificationRequestContext {
   scope: MfaVerificationScope;
   factor?: MfaVerificationFactor;
   client?: ClientRequestContext;
+  audit?: AuthAuditContext;
 }
 
 interface VerifiedFactorState {
@@ -169,6 +173,7 @@ export class MfaVerificationService {
         };
       } catch (error) {
         if (error instanceof TooManyRequestError) {
+          await this.recordStepUpLocked(input, factor, "challenge", "cooldown");
           this.logSecurityEvent("MFA step-up challenge failed", {
             ...input,
             factor,
@@ -178,6 +183,12 @@ export class MfaVerificationService {
           throw new MfaChallengeRateLimitedError(undefined, error.details);
         }
 
+        await this.recordStepUpFailed(
+          input,
+          factor,
+          "challenge",
+          "delivery_error",
+        );
         this.logSecurityEvent("MFA step-up challenge failed", {
           ...input,
           factor,
@@ -244,6 +255,13 @@ export class MfaVerificationService {
         error instanceof UnauthorizedError
       ) {
         await this.recordFailedConfirmAttempt(input, factor);
+        await this.recordStepUpFailed(
+          input,
+          factor,
+          "confirm",
+          "invalid_code",
+          "mfa_invalid",
+        );
         this.logSecurityEvent("MFA step-up failed", {
           ...input,
           factor,
@@ -564,6 +582,7 @@ export class MfaVerificationService {
     factor: MfaVerificationChallengeFactor;
     limit: number;
     windowSeconds: number;
+    audit?: AuthAuditContext;
   }): Promise<void> {
     const key = this.getRateLimitKey(
       input.kind,
@@ -584,11 +603,23 @@ export class MfaVerificationService {
         Math.ceil((record.resetAt - now) / 1000),
       );
       if (input.kind === "challenge") {
+        await this.recordStepUpLocked(
+          input,
+          input.factor,
+          "challenge",
+          "window_limit",
+        );
         throw new MfaChallengeRateLimitedError(undefined, {
           retryAfterSeconds,
         });
       }
 
+      await this.recordStepUpLocked(
+        input,
+        input.factor,
+        "confirm",
+        "window_limit",
+      );
       throw new MfaConfirmRateLimitedError(undefined, {
         retryAfterSeconds,
       });
@@ -609,7 +640,10 @@ export class MfaVerificationService {
   }
 
   private async assertConfirmLockNotActive(
-    input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
+    input: Pick<
+      VerificationRequestContext,
+      "userId" | "sessionId" | "scope" | "audit"
+    >,
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
     const key = this.getConfirmLockKey(
@@ -621,6 +655,12 @@ export class MfaVerificationService {
     const ttl = await this.options.cache.ttl(key);
 
     if (ttl > 0) {
+      await this.recordStepUpLocked(
+        input,
+        factor,
+        "confirm",
+        "failed_code_lock",
+      );
       throw new MfaConfirmRateLimitedError(undefined, {
         retryAfterSeconds: ttl,
       });
@@ -628,7 +668,10 @@ export class MfaVerificationService {
   }
 
   private async recordFailedConfirmAttempt(
-    input: Pick<VerificationRequestContext, "userId" | "sessionId" | "scope">,
+    input: Pick<
+      VerificationRequestContext,
+      "userId" | "sessionId" | "scope" | "audit"
+    >,
     factor: MfaVerificationChallengeFactor,
   ): Promise<void> {
     const key = this.getFailedConfirmKey(
@@ -659,10 +702,57 @@ export class MfaVerificationService {
         "1",
         FAILED_CONFIRM_LOCK_SECONDS,
       );
+      await this.recordStepUpLocked(
+        input,
+        factor,
+        "confirm",
+        "failed_code_lock",
+      );
       throw new MfaConfirmRateLimitedError(undefined, {
         retryAfterSeconds: FAILED_CONFIRM_LOCK_SECONDS,
       });
     }
+  }
+
+  private async recordStepUpFailed(
+    input: Pick<
+      VerificationRequestContext,
+      "userId" | "sessionId" | "scope" | "audit"
+    >,
+    factor: MfaVerificationChallengeFactor,
+    stage: "challenge" | "confirm",
+    result: "delivery_error" | "invalid_code",
+    reasonCode?: "mfa_invalid",
+  ): Promise<void> {
+    await this.options.authAuditService.recordSafely({
+      eventType: "mfa.step_up_failed",
+      outcome: "failure",
+      reasonCode,
+      userId: input.userId,
+      sessionId: input.sessionId,
+      context: input.audit,
+      metadata: { stage, scope: input.scope, factor, result },
+    });
+  }
+
+  private async recordStepUpLocked(
+    input: Pick<
+      VerificationRequestContext,
+      "userId" | "sessionId" | "scope" | "audit"
+    >,
+    factor: MfaVerificationChallengeFactor,
+    stage: "challenge" | "confirm",
+    result: "cooldown" | "window_limit" | "failed_code_lock",
+  ): Promise<void> {
+    await this.options.authAuditService.recordSafely({
+      eventType: "mfa.step_up_locked",
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      userId: input.userId,
+      sessionId: input.sessionId,
+      context: input.audit,
+      metadata: { stage, scope: input.scope, factor, result },
+    });
   }
 
   private async clearConfirmAttemptState(

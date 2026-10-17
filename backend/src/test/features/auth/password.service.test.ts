@@ -109,6 +109,10 @@ function createHarness() {
       knownByIp: true,
     })),
   };
+  const authAuditService = {
+    hashIdentifier: jest.fn((value: string) => `hash:${value}`),
+    recordSafely: jest.fn(async () => undefined),
+  };
   const publicOtpService = new PublicOtpService(
     cacheService as never,
     otpService as never,
@@ -122,6 +126,7 @@ function createHarness() {
     otpService,
     emailService,
     tokenService,
+    authAuditService,
     service: new PasswordService(
       authRepository as never,
       authRepository as never,
@@ -145,6 +150,7 @@ function createHarness() {
         } as never,
       ),
       publicOtpService,
+      authAuditService as never,
     ),
   };
 }
@@ -261,6 +267,15 @@ describe("PasswordService.resetPassword", () => {
       USER_1_ID,
     );
     expect(session.accessToken).toBe("access-token");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "password.reset",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: "password",
+      identifierHash: "hash:test-user",
+      sessionId: expect.any(String),
+      context: undefined,
+    });
   }, 20_000);
 
   it("clears any login lockout", async () => {
@@ -354,6 +369,14 @@ describe("PasswordService.changePassword", () => {
     expect(harness.authRepository.updatePasswordHash).toHaveBeenCalled();
     expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalled();
     expect(session.accessToken).toBe("access-token");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "password.changed",
+        method: "password",
+        userId: USER_1_ID,
+        sessionId: expect.any(String),
+      }),
+    );
   }, 20_000);
 
   it("rejects an incorrect current password", async () => {
@@ -426,6 +449,14 @@ describe("PasswordService.setPassword", () => {
     expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
     expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalled();
     expect(session.accessToken).toBe("access-token");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "password.set",
+        method: "password",
+        userId: USER_1_ID,
+        sessionId: expect.any(String),
+      }),
+    );
   }, 20_000);
 
   it("loses the race conditionally rather than double-rotating", async () => {
@@ -448,6 +479,7 @@ describe("PasswordService.setPassword", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(harness.authRepository.rotateTokenVersion).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   }, 20_000);
 
   it("rejects an account that already has a password", async () => {

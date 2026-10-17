@@ -1,6 +1,7 @@
 import BadRequestError from "@/errors/http/bad-request.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import MfaChallengeRateLimitedError from "@/errors/http/mfa-challenge-rate-limited.error";
+import MfaConfirmRateLimitedError from "@/errors/http/mfa-confirm-rate-limited.error";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import { environment } from "@/configuration/environment";
@@ -112,6 +113,11 @@ function createService(
   const mfaTotpService = {
     verifyCode: jest.fn(async () => undefined),
   };
+  const authAuditService = {
+    recordSafely: jest.fn(
+      async (_input: Record<string, unknown>) => undefined,
+    ),
+  };
 
   const service = new MfaVerificationService({
     mfaVerificationRepository: authRepository as any,
@@ -119,6 +125,7 @@ function createService(
     otpService: otpService as any,
     emailService: emailService as any,
     mfaTotpService: mfaTotpService as any,
+    authAuditService: authAuditService as any,
   });
 
   return {
@@ -128,6 +135,7 @@ function createService(
     otpService,
     emailService,
     mfaTotpService,
+    authAuditService,
   };
 }
 
@@ -180,7 +188,7 @@ describe("MfaVerificationService", () => {
       factor: "email",
       client: {
         source: "frontend-browser",
-        device: { type: "desktop", isMobile: false },
+        device: { type: "desktop" as const, isMobile: false },
       },
     });
 
@@ -258,7 +266,7 @@ describe("MfaVerificationService", () => {
       factor: "email",
       client: {
         source: "frontend-browser",
-        device: { type: "desktop", isMobile: false },
+        device: { type: "desktop" as const, isMobile: false },
       },
     });
 
@@ -498,7 +506,7 @@ describe("MfaVerificationService", () => {
   });
 
   it("maps OTP cooldowns to the stable challenge rate-limit error code", async () => {
-    const { service, otpService } = createService();
+    const { service, otpService, authAuditService } = createService();
     otpService.issue.mockRejectedValue(
       new TooManyRequestError("cooldown", { retryAfterSeconds: 42 }),
     );
@@ -518,10 +526,23 @@ describe("MfaVerificationService", () => {
       code: "MFA_CHALLENGE_RATE_LIMITED",
       details: { retryAfterSeconds: 42 },
     });
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "mfa.step_up_locked",
+        outcome: "blocked",
+        reasonCode: "rate_limited",
+        metadata: {
+          stage: "challenge",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "email",
+          result: "cooldown",
+        },
+      }),
+    );
   });
 
   it("returns the stable invalid-code error for failed verification attempts", async () => {
-    const { service, otpService } = createService();
+    const { service, otpService, authAuditService } = createService();
     otpService.verify.mockRejectedValue(new BadRequestError("invalid"));
 
     await expect(
@@ -537,6 +558,134 @@ describe("MfaVerificationService", () => {
         },
       }),
     ).rejects.toBeInstanceOf(InvalidMfaCodeError);
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "mfa.step_up_failed",
+        outcome: "failure",
+        reasonCode: "mfa_invalid",
+        metadata: {
+          stage: "confirm",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "email",
+          result: "invalid_code",
+        },
+      }),
+    );
+  });
+
+  it("records challenge delivery failures without the OTP code", async () => {
+    const { service, emailService, authAuditService } = createService();
+    emailService.sendMfaStepUpEmail.mockRejectedValue(new Error("mail down"));
+
+    await expect(
+      service.issueChallenge({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        scope: MFA_MANAGEMENT_SCOPE,
+        factor: "email",
+        client: {
+          source: "frontend-browser",
+          device: { type: "desktop", isMobile: false },
+        },
+      }),
+    ).rejects.toThrow("mail down");
+
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "mfa.step_up_failed",
+        reasonCode: undefined,
+        metadata: {
+          stage: "challenge",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "email",
+          result: "delivery_error",
+        },
+      }),
+    );
+    expect(
+      JSON.stringify(authAuditService.recordSafely.mock.calls),
+    ).not.toContain("123456");
+  });
+
+  it.each([
+    ["challenge", 5],
+    ["confirm", 10],
+  ] as const)("records the %s window lock", async (kind, count) => {
+    const { service, cache, authAuditService } = createService();
+    cache.jsonStore.set(
+      `auth:mfa-verify:${kind}:${USER_1_ID}:session-1:${MFA_MANAGEMENT_SCOPE}:email`,
+      { value: { count, resetAt: Date.now() + 60_000 }, ttlSeconds: 60 },
+    );
+    const common = {
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "email" as const,
+      client: {
+        source: "frontend-browser" as const,
+        device: { type: "desktop" as const, isMobile: false },
+      },
+    };
+
+    await expect(
+      kind === "challenge"
+        ? service.issueChallenge(common)
+        : service.confirmChallenge({ ...common, code: "000000" }),
+    ).rejects.toMatchObject({
+      code:
+        kind === "challenge"
+          ? "MFA_CHALLENGE_RATE_LIMITED"
+          : "MFA_CONFIRM_RATE_LIMITED",
+    });
+
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "mfa.step_up_locked",
+        metadata: expect.objectContaining({
+          stage: kind,
+          result: "window_limit",
+        }),
+      }),
+    );
+  });
+
+  it("records the repeated-code lock and attempts made while locked", async () => {
+    const { service, otpService, authAuditService } = createService();
+    otpService.verify.mockRejectedValue(new BadRequestError("invalid"));
+    const input = {
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "email" as const,
+      code: "000000",
+      client: {
+        source: "frontend-browser" as const,
+        device: { type: "desktop" as const, isMobile: false },
+      },
+    };
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await expect(service.confirmChallenge(input)).rejects.toBeInstanceOf(
+        InvalidMfaCodeError,
+      );
+    }
+    await expect(service.confirmChallenge(input)).rejects.toBeInstanceOf(
+      MfaConfirmRateLimitedError,
+    );
+    await expect(service.confirmChallenge(input)).rejects.toBeInstanceOf(
+      MfaConfirmRateLimitedError,
+    );
+
+    const lockedEvents = authAuditService.recordSafely.mock.calls.filter(
+      ([event]) => event.eventType === "mfa.step_up_locked",
+    );
+    expect(lockedEvents).toHaveLength(2);
+    expect(lockedEvents[0][0]).toEqual(
+      expect.objectContaining({
+        reasonCode: "rate_limited",
+        metadata: expect.objectContaining({ result: "failed_code_lock" }),
+      }),
+    );
   });
 
   it("returns a prompt contract for TOTP challenges when an active factor exists", async () => {

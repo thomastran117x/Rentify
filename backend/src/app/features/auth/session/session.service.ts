@@ -15,11 +15,15 @@ import type {
   RefreshInput,
 } from "@/features/auth/session/session.model";
 import { DeviceService } from "@/features/auth/device/device.service";
-import { TokenService } from "@/features/auth/token/token.service";
+import {
+  RefreshTokenReuseDetectedError,
+  TokenService,
+} from "@/features/auth/token/token.service";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { asUuid } from "@/configuration/validation/uuid";
 import { loggerFactory } from "@/configuration/logging";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 interface DeviceStatus {
   deviceId?: string;
@@ -77,6 +81,7 @@ export class AuthSessionService {
       user,
       input.client,
       deviceId,
+      input.audit,
     );
     const sessionId = claims.sessionId ?? randomUUID();
     const refreshTokenExpiresInSeconds =
@@ -107,32 +112,49 @@ export class AuthSessionService {
       sessionId,
       tokenVersion: user.tokenVersion,
     });
-    const refreshToken = claims.sessionId
-      ? await this.tokenService.rotateRefreshToken(
-          input.refreshToken,
-          {
-            sub: user.id,
-            deviceId,
-            rememberMe: Boolean(claims.rememberMe),
-            sessionId,
-            tokenVersion: user.tokenVersion,
-          },
-          {
-            expiresInSeconds: refreshTokenExpiresInSeconds,
-          },
-        )
-      : await this.tokenService.createRefreshToken(
-          {
-            sub: user.id,
-            deviceId,
-            rememberMe: Boolean(claims.rememberMe),
-            sessionId,
-            tokenVersion: user.tokenVersion,
-          },
-          {
-            expiresInSeconds: refreshTokenExpiresInSeconds,
-          },
-        );
+    let refreshToken: string;
+
+    try {
+      refreshToken = claims.sessionId
+        ? await this.tokenService.rotateRefreshToken(
+            input.refreshToken,
+            {
+              sub: user.id,
+              deviceId,
+              rememberMe: Boolean(claims.rememberMe),
+              sessionId,
+              tokenVersion: user.tokenVersion,
+            },
+            {
+              expiresInSeconds: refreshTokenExpiresInSeconds,
+            },
+          )
+        : await this.tokenService.createRefreshToken(
+            {
+              sub: user.id,
+              deviceId,
+              rememberMe: Boolean(claims.rememberMe),
+              sessionId,
+              tokenVersion: user.tokenVersion,
+            },
+            {
+              expiresInSeconds: refreshTokenExpiresInSeconds,
+            },
+          );
+    } catch (error) {
+      if (error instanceof RefreshTokenReuseDetectedError) {
+        await this.authAuditService.recordSafely({
+          eventType: "session.refresh_reuse_detected",
+          outcome: "blocked",
+          userId: error.userId,
+          method: "refresh",
+          sessionId: error.sessionId,
+          context: input.audit,
+        });
+      }
+
+      throw error;
+    }
 
     return {
       accessToken,
@@ -191,6 +213,7 @@ export class AuthSessionService {
       deviceId?: string;
       client: ClientRequestContext;
       rememberMe?: boolean;
+      audit?: AuthAuditContext;
     },
   ): Promise<AuthSessionResult> {
     const deviceStatus =
@@ -198,6 +221,7 @@ export class AuthSessionService {
         user,
         input.client,
         input.deviceId,
+        input.audit,
       );
     const session = await this.issueTokensForUser(
       user,
@@ -235,11 +259,13 @@ export class AuthSessionService {
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
+    audit?: AuthAuditContext,
   ): Promise<AuthSessionResult> {
     const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
       user,
       client,
       deviceId,
+      audit,
     );
 
     return this.issueTokensForUser(user, deviceStatus, deviceId);

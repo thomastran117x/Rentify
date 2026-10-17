@@ -5,6 +5,7 @@ import type {
   AuthUserRecord,
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import { RefreshTokenReuseDetectedError } from "@/features/auth/token/token.service";
 import { testUuid } from "../../support/uuid";
 const PAT_1_ID = testUuid(9300, 1);
 const DEVICE_1_ID = testUuid(9200, 895443);
@@ -133,7 +134,7 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
 
     expect(
       harness.deviceService.evaluateSuccessfulAuthentication,
-    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID);
+    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID, undefined);
     expect(
       harness.deviceService.evaluateExistingSessionDevice,
     ).not.toHaveBeenCalled();
@@ -255,7 +256,7 @@ describe("AuthSessionService.reissueSessionForUser", () => {
 
     expect(
       harness.deviceService.evaluateExistingSessionDevice,
-    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID);
+    ).toHaveBeenCalledWith(user, expect.anything(), DEVICE_1_ID, undefined);
     expect(
       harness.deviceService.evaluateSuccessfulAuthentication,
     ).not.toHaveBeenCalled();
@@ -401,6 +402,31 @@ describe("AuthSessionService.refresh", () => {
         refreshToken: "incoming-refresh-token",
       }),
     ).rejects.toThrow();
+  });
+
+  it("records refresh-token reuse with the compromised session context", async () => {
+    const harness = createHarness();
+    harness.tokenService.rotateRefreshToken.mockRejectedValue(
+      new RefreshTokenReuseDetectedError(USER_1_ID, "session-1"),
+    );
+    const audit = { ipAddress: "203.0.113.10", requestId: "request-1" };
+
+    await expect(
+      harness.service.refresh({
+        client: createClient(),
+        refreshToken: "incoming-refresh-token",
+        audit,
+      }),
+    ).rejects.toThrow("Refresh token has already been used.");
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "session.refresh_reuse_detected",
+      outcome: "blocked",
+      userId: USER_1_ID,
+      method: "refresh",
+      sessionId: "session-1",
+      context: audit,
+    });
   });
 });
 
