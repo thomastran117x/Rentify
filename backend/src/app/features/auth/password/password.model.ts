@@ -9,6 +9,7 @@ import {
   containsUnsafeAuthInput,
 } from "@/features/auth/auth.model";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 export const forgotPasswordRequestSchema = z.object({
   username: authUsernameSchema,
@@ -77,6 +78,7 @@ export interface ResetPasswordInput {
   code: string;
   newPassword: string;
   deviceId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface ChangePasswordInput {
@@ -85,6 +87,7 @@ export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
   deviceId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface SetPasswordInput {
@@ -92,4 +95,5 @@ export interface SetPasswordInput {
   client: ClientRequestContext;
   newPassword: string;
   deviceId?: string;
+  audit?: AuthAuditContext;
 }

@@ -94,6 +94,16 @@ export interface AuthSessionState {
   updatedAt: string;
 }
 
+export class RefreshTokenReuseDetectedError extends UnauthorizedError {
+  constructor(
+    readonly userId: Uuid,
+    readonly sessionId: string,
+  ) {
+    super("Refresh token has already been used.");
+    this.name = "RefreshTokenReuseDetectedError";
+  }
+}
+
 function toBase64Url(value: string | Buffer): string {
   const buffer = typeof value === "string" ? Buffer.from(value, "utf8") : value;
   return buffer.toString("base64url");
@@ -265,9 +275,9 @@ export class TokenService {
   async revokeSessionsForDevice(
     userId: Uuid,
     deviceId: string,
-  ): Promise<number> {
+  ): Promise<string[]> {
     const sessionKeys = await this.cache.scanKeys(this.getSessionScanPattern());
-    let revokedCount = 0;
+    const revokedSessionIds: string[] = [];
 
     for (const sessionKey of sessionKeys) {
       const session = await this.cache.getJson<AuthSessionState>(sessionKey);
@@ -290,10 +300,10 @@ export class TokenService {
         } satisfies AuthSessionState,
         await this.getRemainingTtlInSeconds(sessionKey),
       );
-      revokedCount += 1;
+      revokedSessionIds.push(session.sessionId);
     }
 
-    return revokedCount;
+    return revokedSessionIds;
   }
 
   async rotateRefreshToken(
@@ -343,7 +353,7 @@ export class TokenService {
           }
 
           await this.revokeSession(sessionId);
-          throw new UnauthorizedError("Refresh token has already been used.");
+          throw new RefreshTokenReuseDetectedError(claims.sub, sessionId);
         }
 
         if (currentRecord.status !== "active") {
@@ -448,7 +458,7 @@ export class TokenService {
     }
 
     if (
-      session.status !== "active" ||
+      (session.status !== "active" && session.status !== "consumed") ||
       session.sub !== claims.sub ||
       session.deviceId !== claims.deviceId
     ) {

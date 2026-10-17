@@ -91,6 +91,12 @@ describe("OAuthController sign-in handlers", () => {
       deviceId: "oauth-device",
       totpCode: undefined,
       dateOfBirth: "2012-06-15",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "oauth-device",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -192,6 +198,12 @@ describe("OAuthController sign-in handlers", () => {
       signupToken: "signup-token",
       dateOfBirth: "2012-06-15",
       deviceId: "oauth-device",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "oauth-device",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -267,6 +279,13 @@ describe("OAuthController link and unlink", () => {
     expect(oauthAccountsService.unlinkOAuthProvider).toHaveBeenCalledWith({
       provider: "microsoft",
       userId: USER_15_ID,
+      sessionId: undefined,
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "token-device-1",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     await expect(response.json()).resolves.toMatchObject({
       message: "OAuth provider unlinked successfully.",

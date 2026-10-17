@@ -67,6 +67,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mfaTotpService,
         containerTokens.authSessionService,
         containerTokens.oauthSignupStore,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new OAuthAccountsService(
@@ -81,6 +82,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.oauthSignupStore),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

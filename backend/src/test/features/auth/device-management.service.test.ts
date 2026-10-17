@@ -83,17 +83,20 @@ function createHarness() {
     removeKnownDevice: jest.fn(async () => undefined),
   };
   const tokenService = {
-    revokeSessionsForDevice: jest.fn(async () => 1),
+    revokeSessionsForDevice: jest.fn(async () => ["session-1"]),
   };
+  const authAuditService = { recordSafely: jest.fn(async () => undefined) };
 
   return {
     authRepository,
     deviceService,
     tokenService,
+    authAuditService,
     service: new DeviceManagementService(
       authRepository as never,
       deviceService as never,
       tokenService as never,
+      authAuditService as never,
     ),
   };
 }
@@ -211,5 +214,49 @@ describe("DeviceManagementService.removeKnownDevice", () => {
       USER_1_ID,
       "device-2",
     );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "session.revoked",
+      outcome: "success",
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      context: undefined,
+      metadata: { source: "device" },
+    });
+  });
+
+  it("records one event for every active session revoked", async () => {
+    const harness = createHarness();
+    harness.tokenService.revokeSessionsForDevice.mockResolvedValue([
+      "session-1",
+      "session-2",
+    ]);
+
+    await harness.service.removeKnownDevice({
+      userId: USER_1_ID,
+      deviceId: "device-2",
+      audit: { requestId: "request-1" },
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(2);
+    expect(harness.authAuditService.recordSafely).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        eventType: "session.revoked",
+        sessionId: "session-2",
+        context: { requestId: "request-1" },
+      }),
+    );
+  });
+
+  it("does not record a revocation when the device had no active sessions", async () => {
+    const harness = createHarness();
+    harness.tokenService.revokeSessionsForDevice.mockResolvedValue([]);
+
+    await harness.service.removeKnownDevice({
+      userId: USER_1_ID,
+      deviceId: "device-2",
+    });
+
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 });

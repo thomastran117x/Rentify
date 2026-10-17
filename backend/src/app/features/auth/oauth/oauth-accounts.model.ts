@@ -7,6 +7,7 @@ import {
 } from "@/features/auth/auth.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 import { dateOfBirthSchema } from "@/features/auth/date-of-birth";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 export const oauthAuthenticateRequestSchema = z
   .object({
@@ -61,6 +62,7 @@ export interface OAuthAuthenticateInput {
   lastName?: string;
   totpCode?: string;
   dateOfBirth?: string;
+  audit?: AuthAuditContext;
 }
 
 export const completeOAuthSignupRequestSchema = z.object({
@@ -78,6 +80,7 @@ export interface CompleteOAuthSignupInput {
   signupToken: string;
   dateOfBirth: string;
   deviceId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface OAuthSignupRequiredResult {
@@ -89,11 +92,14 @@ export interface OAuthSignupRequiredResult {
 export interface LinkOAuthProviderInput extends OAuthAuthenticateInput {
   userId: Uuid;
   provider: OAuthProvider;
+  sessionId?: string;
 }
 
 export interface UnlinkOAuthProviderInput {
   userId: Uuid;
   provider: OAuthProvider;
+  sessionId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface LinkedOAuthProvidersResult {

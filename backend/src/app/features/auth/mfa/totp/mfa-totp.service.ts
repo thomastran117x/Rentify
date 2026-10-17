@@ -6,6 +6,8 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -15,17 +17,25 @@ interface MfaTotpServiceOptions {
   totpService: TotpService;
   mfaTotpRepository: MfaTotpRepository;
   encryptionKey: Buffer;
+  authAuditService: AuthAuditService;
+}
+
+interface MfaTotpAuditInput {
+  sessionId?: string;
+  context: AuthAuditContext;
 }
 
 export class MfaTotpService {
   private readonly totpService: TotpService;
   private readonly mfaTotpRepository: MfaTotpRepository;
   private readonly encryptionKey: Buffer;
+  private readonly authAuditService: AuthAuditService;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
     this.mfaTotpRepository = options.mfaTotpRepository;
     this.encryptionKey = options.encryptionKey;
+    this.authAuditService = options.authAuditService;
   }
 
   async beginEnrollment(
@@ -84,7 +94,11 @@ export class MfaTotpService {
     return { secret, uri };
   }
 
-  async confirmEnrollment(userId: Uuid, code: string): Promise<void> {
+  async confirmEnrollment(
+    userId: Uuid,
+    code: string,
+    audit?: MfaTotpAuditInput,
+  ): Promise<void> {
     const record = await this.mfaTotpRepository.findByUserId(userId);
 
     if (!record || record.status !== "pending") {
@@ -110,6 +124,15 @@ export class MfaTotpService {
       new Date(),
       matchedCounter,
     );
+    if (audit) {
+      await this.authAuditService.recordSafely({
+        eventType: "mfa.totp_enabled",
+        outcome: "success",
+        userId,
+        sessionId: audit.sessionId,
+        context: audit.context,
+      });
+    }
   }
 
   async verifyCode(userId: Uuid, code: string): Promise<void> {
@@ -142,8 +165,18 @@ export class MfaTotpService {
     );
   }
 
-  async disable(userId: Uuid): Promise<void> {
+  async disable(userId: Uuid, audit?: MfaTotpAuditInput): Promise<void> {
+    const existing = await this.mfaTotpRepository.findByUserId(userId);
     await this.mfaTotpRepository.deleteByUserId(userId);
+    if (existing?.status === "active" && audit) {
+      await this.authAuditService.recordSafely({
+        eventType: "mfa.totp_disabled",
+        outcome: "success",
+        userId,
+        sessionId: audit.sessionId,
+        context: audit.context,
+      });
+    }
   }
 
   // Cancels an in-progress enrollment by deleting the pending record.

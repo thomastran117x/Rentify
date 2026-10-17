@@ -5,11 +5,14 @@ import { EmailService } from "@/features/email/email.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { DeviceRepository, type KnownDeviceRecord } from "./device.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 interface DeviceServiceOptions {
   deviceRepository: DeviceRepository;
   emailService: EmailService;
   cache: CacheService;
+  authAuditService: AuthAuditService;
   unknownDeviceAlertCooldownInSeconds?: number;
 }
 
@@ -25,12 +28,14 @@ export class DeviceService {
   private readonly deviceRepository: DeviceRepository;
   private readonly emailService: EmailService;
   private readonly cache: CacheService;
+  private readonly authAuditService: AuthAuditService;
   private readonly unknownDeviceAlertCooldownInSeconds: number;
 
   constructor(options: DeviceServiceOptions) {
     this.deviceRepository = options.deviceRepository;
     this.emailService = options.emailService;
     this.cache = options.cache;
+    this.authAuditService = options.authAuditService;
     this.unknownDeviceAlertCooldownInSeconds =
       options.unknownDeviceAlertCooldownInSeconds ??
       DEFAULT_UNKNOWN_DEVICE_ALERT_COOLDOWN_SECONDS;
@@ -69,6 +74,7 @@ export class DeviceService {
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
+    audit?: AuthAuditContext,
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
       const knownDevice = await this.deviceRepository.findKnownDevice(
@@ -116,7 +122,12 @@ export class DeviceService {
       };
     }
 
-    await this.notifyUnknownDevice(user, client, deviceId ?? "unknown-device");
+    await this.notifyUnknownDevice(
+      user,
+      client,
+      deviceId ?? "unknown-device",
+      audit,
+    );
 
     return {
       deviceId,
@@ -129,6 +140,7 @@ export class DeviceService {
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
+    audit?: AuthAuditContext,
   ): Promise<KnownDeviceStatus> {
     if (deviceId) {
       const knownDevice = await this.deviceRepository.findKnownDevice(
@@ -184,7 +196,12 @@ export class DeviceService {
       };
     }
 
-    await this.notifyUnknownDevice(user, client, deviceId ?? "unknown-device");
+    await this.notifyUnknownDevice(
+      user,
+      client,
+      deviceId ?? "unknown-device",
+      audit,
+    );
 
     return {
       deviceId,
@@ -226,19 +243,19 @@ export class DeviceService {
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId: string,
+    audit?: AuthAuditContext,
   ): Promise<void> {
     const notificationKey = `auth:unknown-device:${user.id}:${deviceId}`;
-    const alreadySent = await this.cache.exists(notificationKey);
-
-    if (alreadySent) {
-      return;
-    }
-
-    await this.cache.set(
+    const shouldSend = await this.cache.setIfNotExists(
       notificationKey,
       "1",
       this.unknownDeviceAlertCooldownInSeconds,
     );
+
+    if (!shouldSend) {
+      await this.recordNewDevice(user, client, deviceId, "suppressed", audit);
+      return;
+    }
 
     await this.emailService.sendNewDeviceEmail({
       to: user.email,
@@ -248,6 +265,27 @@ export class DeviceService {
       platform: client.device.platform,
       userAgent: client.device.userAgent,
       detectedAt: new Date(),
+    });
+    await this.recordNewDevice(user, client, deviceId, "sent", audit);
+  }
+
+  private async recordNewDevice(
+    user: AuthUserRecord,
+    client: ClientRequestContext,
+    deviceId: string,
+    emailNotification: "sent" | "suppressed",
+    audit?: AuthAuditContext,
+  ): Promise<void> {
+    await this.authAuditService.recordSafely({
+      eventType: "device.new_detected",
+      outcome: "success",
+      userId: asUuid(user.id),
+      context: audit ?? {
+        ipAddress: client.ip,
+        userAgent: client.device.userAgent,
+        deviceId,
+      },
+      metadata: { emailNotification },
     });
   }
 }

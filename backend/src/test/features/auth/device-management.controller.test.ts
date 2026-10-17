@@ -148,6 +148,12 @@ describe("DeviceManagementController.removeKnownDevice", () => {
     expect(deviceManagementService.removeKnownDevice).toHaveBeenCalledWith({
       userId: USER_12_ID,
       deviceId: "device-99",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "device-99",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     await expect(response.json()).resolves.toMatchObject({
       message: "Known device removed successfully.",

@@ -9,7 +9,9 @@ import {
   type CreatePersonalAccessTokenInput,
 } from "./personal-access-token.model";
 import { PersonalAccessTokenService } from "./personal-access-token.service";
-import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 
 export class PersonalAccessTokenController {
   constructor(
@@ -29,7 +31,7 @@ export class PersonalAccessTokenController {
       createPersonalAccessTokenRequestSchema,
     );
     const result = await this.personalAccessTokenService.create(
-      this.toCreateInput(auth.sub, input),
+      this.toCreateInput(request, auth, input),
     );
     created(response, result, {
       message: "Personal access token created successfully.",
@@ -41,6 +43,8 @@ export class PersonalAccessTokenController {
     const result = await this.personalAccessTokenService.revoke({
       userId: asUuid(auth.sub),
       tokenId: requireUuidRouteParam(request, "id"),
+      sessionId: auth.sessionId,
+      audit: toAuthAuditContext(request, auth.deviceId),
     });
     ok(response, result, {
       message: "Personal access token revoked successfully.",
@@ -48,15 +52,18 @@ export class PersonalAccessTokenController {
   };
 
   private toCreateInput(
-    userId: Uuid,
+    request: Request,
+    auth: JwtAuthPrincipal,
     input: CreatePersonalAccessTokenRequestBody,
   ): CreatePersonalAccessTokenInput {
     return {
-      userId,
+      userId: asUuid(auth.sub),
       name: input.name,
       scopes: input.scopes as CreatePersonalAccessTokenInput["scopes"],
       expiresAt: input.expiresAt,
       expiresInDays: input.expiresInDays,
+      sessionId: auth.sessionId,
+      audit: toAuthAuditContext(request, auth.deviceId),
     };
   }
 }

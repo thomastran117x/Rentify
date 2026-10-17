@@ -132,6 +132,12 @@ describe("PasswordController recovery handlers", () => {
       code: "123456",
       newPassword: "ResetPassword1!",
       deviceId: "reset-device",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "reset-device",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -186,6 +192,12 @@ describe("PasswordController.changePassword", () => {
       currentPassword: "CurrentPassword1!",
       newPassword: "NextPassword1!",
       deviceId: "auth-device",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "auth-device",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     await expect(response.json()).resolves.toMatchObject({
       message: "Password changed successfully.",
@@ -234,6 +246,12 @@ describe("PasswordController.setPassword", () => {
       client: expect.any(Object),
       newPassword: "FirstPassword1!",
       deviceId: "auth-device",
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "auth-device",
+        userAgent: "test-agent",
+        requestId: "request-test",
+      },
     });
     await expect(response.json()).resolves.toMatchObject({
       message: "Password set successfully.",

@@ -1,5 +1,6 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
+import { getRedisClient } from "@/configuration/resources/redis";
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_HEADER_NAME,
@@ -10,6 +11,7 @@ import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier"
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import {
+  createAuthenticatedRequestContext,
   createPersistenceTestApp,
   resetPersistenceState,
   teardownPersistenceTestApp,
@@ -91,6 +93,16 @@ describe("Auth audit events persistence integration", () => {
     return response.status;
   }
 
+  function sessionHeaders(session: LoginResult): Record<string, string> {
+    return {
+      authorization: `Bearer ${session.accessToken}`,
+      "content-type": "application/json",
+      cookie: `${REFRESH_TOKEN_COOKIE_NAME}=${session.refreshToken}; ${CSRF_TOKEN_COOKIE_NAME}=${session.csrfToken}`,
+      origin: ORIGIN,
+      [CSRF_TOKEN_HEADER_NAME]: session.csrfToken ?? "",
+    };
+  }
+
   async function postPublic(path: string, body: unknown): Promise<number> {
     const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(path)}`,
@@ -151,12 +163,18 @@ describe("Auth audit events persistence integration", () => {
 
     const events = await listEvents();
     expect(events.map((event) => event.eventType)).toEqual([
+      "device.new_detected",
       "login.succeeded",
       "login.failed",
       "logout",
     ]);
 
-    const [succeeded, failure, loggedOut] = events;
+    const [newDevice, succeeded, failure, loggedOut] = events;
+    expect(newDevice).toMatchObject({
+      userId,
+      outcome: "success",
+      metadata: { emailNotification: "sent" },
+    });
     expect(succeeded).toMatchObject({
       userId,
       outcome: "success",
@@ -302,4 +320,206 @@ describe("Auth audit events persistence integration", () => {
     );
     expect(await listEvents()).toHaveLength(0);
   });
+
+  it("persists OAuth signup and returning-login events from the mocked verifier", async () => {
+    const authenticate = () =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            idToken: "google-id-token",
+            nonce: "audit-oauth-nonce",
+            deviceId: "audit-oauth-device",
+            dateOfBirth: "2012-06-15",
+          }),
+        },
+      );
+
+    expect((await authenticate()).status).toBe(200);
+    expect((await authenticate()).status).toBe(200);
+
+    const events = (await listEvents()).filter((event) =>
+      event.eventType.startsWith("oauth."),
+    );
+    expect(events.map((event) => event.eventType)).toEqual([
+      "oauth.signup.completed",
+      "oauth.login.succeeded",
+    ]);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          outcome: "success",
+          method: "google",
+          identifierHash: hash("google-user@rentify.local"),
+          userId: expect.any(String),
+          sessionId: expect.any(String),
+        }),
+      ]),
+    );
+  });
+
+  it("revokes and audits a session when a refresh token is replayed outside grace", async () => {
+    const session = await login({ username: USERNAME, password: PASSWORD });
+    expect(session.status).toBe(200);
+
+    const firstRefresh = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/refresh")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      },
+    );
+    expect(firstRefresh.status).toBe(200);
+
+    const [, encodedClaims] = session.refreshToken!.split(".");
+    const claims = JSON.parse(
+      Buffer.from(encodedClaims!, "base64url").toString("utf8"),
+    ) as { jti: string };
+    const redis = getRedisClient();
+    const refreshKey = `auth:refresh:${claims.jti}`;
+    const refreshRecord = JSON.parse((await redis.get(refreshKey))!) as {
+      rotatedAt: number;
+      [key: string]: unknown;
+    };
+    const ttl = await redis.ttl(refreshKey);
+    await redis.set(
+      refreshKey,
+      JSON.stringify({
+        ...refreshRecord,
+        rotatedAt: refreshRecord.rotatedAt - 6,
+      }),
+      { EX: ttl },
+    );
+
+    const replay = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/refresh")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      },
+    );
+    expect(replay.status).toBe(401);
+
+    const reuse = (await listEvents()).find(
+      (event) => event.eventType === "session.refresh_reuse_detected",
+    );
+    expect(reuse).toMatchObject({
+      outcome: "blocked",
+      method: "refresh",
+      userId: await findUserId(),
+      sessionId: expect.any(String),
+    });
+  });
+
+  it("persists password, PAT, and per-session device revocation events without secrets", async () => {
+    const initial = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const changedPassword = "AuditChangedPassword1!";
+    const passwordResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+      {
+        method: "POST",
+        headers: initial.headers({ origin: ORIGIN }),
+        body: JSON.stringify({
+          currentPassword: PASSWORD,
+          newPassword: changedPassword,
+        }),
+      },
+    );
+    expect(passwordResponse.status).toBe(200);
+
+    const current = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const createPatResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/personal-access-tokens")}`,
+      {
+        method: "POST",
+        headers: current.headers({ origin: ORIGIN }),
+        body: JSON.stringify({
+          name: "Audit PAT",
+          scopes: ["mcp:read"],
+          expiresInDays: 30,
+        }),
+      },
+    );
+    expect(createPatResponse.status).toBe(201);
+    const patBody = (await createPatResponse.json()) as {
+      data: { id: string; token: string };
+    };
+    const revokePatResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/auth/personal-access-tokens/${patBody.data.id}`)}`,
+      { method: "DELETE", headers: current.headers({ origin: ORIGIN }) },
+    );
+    expect(revokePatResponse.status).toBe(200);
+
+    const removeDeviceResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/devices/remove")}`,
+      {
+        method: "DELETE",
+        headers: current.headers({ origin: ORIGIN }),
+        body: JSON.stringify({ deviceId: current.deviceId }),
+      },
+    );
+    expect(removeDeviceResponse.status).toBe(200);
+
+    const relevant = (await listEvents()).filter((event) =>
+      [
+        "password.changed",
+        "pat.created",
+        "pat.revoked",
+        "session.revoked",
+      ].includes(event.eventType),
+    );
+    expect(relevant.slice(0, 3).map((event) => event.eventType)).toEqual([
+      "password.changed",
+      "pat.created",
+      "pat.revoked",
+    ]);
+    expect(relevant[1]!.metadata).toEqual({ tokenId: patBody.data.id });
+    expect(relevant[2]!.metadata).toEqual({ tokenId: patBody.data.id });
+    expect(
+      relevant.find(
+        (event) =>
+          event.eventType === "session.revoked" &&
+          event.sessionId === current.sessionId,
+      ),
+    ).toMatchObject({
+      userId: current.userId,
+      sessionId: current.sessionId,
+      deviceId: current.deviceId,
+      actorUserId: null,
+    });
+    const serialized = JSON.stringify(relevant);
+    expect(serialized).not.toContain(changedPassword);
+    expect(serialized).not.toContain(patBody.data.token);
+  }, 120_000);
+
+  it("dedupes a 50-request login 429 burst to one persisted event", async () => {
+    const responses = [];
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      responses.push(
+        await login({ username: "rate-limit-audit", password: WRONG_PASSWORD }),
+      );
+    }
+
+    expect(
+      responses.filter((response) => response.status === 429),
+    ).toHaveLength(40);
+    const events = (await listEvents()).filter(
+      (event) => event.eventType === "rate_limit.exceeded",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      userId: null,
+      metadata: { policy: "auth-sensitive", identityType: "ip" },
+    });
+  }, 120_000);
 });

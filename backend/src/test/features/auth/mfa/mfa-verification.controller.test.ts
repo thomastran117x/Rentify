@@ -162,6 +162,12 @@ describe("MfaVerificationController", () => {
       scope: "mfa-management",
       factor: "email",
       client: context.get("client"),
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "device-1",
+        userAgent: "test-agent",
+        requestId: "request-1",
+      },
     });
     expect(response.status).toBe(200);
   });
@@ -187,6 +193,12 @@ describe("MfaVerificationController", () => {
       factor: "totp",
       code: "123456",
       client: context.get("client"),
+      audit: {
+        ipAddress: "127.0.0.1",
+        deviceId: "device-1",
+        userAgent: "test-agent",
+        requestId: "request-1",
+      },
     });
     expect(response.status).toBe(200);
     expect(payload.data).toMatchObject({

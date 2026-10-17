@@ -30,6 +30,7 @@ import type {
   SetPasswordInput,
 } from "@/features/auth/password/password.model";
 import { asUuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -49,6 +50,7 @@ export class PasswordService {
     private readonly authSessionService: AuthSessionService,
     private readonly loginLockoutService: LoginLockoutService,
     private readonly publicOtpService: PublicOtpService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{
@@ -83,7 +85,13 @@ export class PasswordService {
       eligibleUser.passwordHash,
     );
 
-    return this.applyNewPassword(eligibleUser, passwordHash, input);
+    return this.applyNewPassword(
+      eligibleUser,
+      passwordHash,
+      input,
+      "password.reset",
+      this.authAuditService.hashIdentifier(input.username),
+    );
   }
 
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
@@ -104,7 +112,7 @@ export class PasswordService {
 
     const passwordHash = await hashPassword(input.newPassword);
 
-    return this.applyNewPassword(user, passwordHash, input);
+    return this.applyNewPassword(user, passwordHash, input, "password.changed");
   }
 
   /**
@@ -132,7 +140,7 @@ export class PasswordService {
       );
     }
 
-    return this.finishPasswordWrite(user, passwordHash, input);
+    return this.finishPasswordWrite(user, passwordHash, input, "password.set");
   }
 
   /**
@@ -183,10 +191,18 @@ export class PasswordService {
   private async applyNewPassword(
     user: AuthUserRecord,
     passwordHash: string,
-    input: { client: ResetPasswordInput["client"]; deviceId?: string },
+    input: Pick<ResetPasswordInput, "client" | "deviceId" | "audit">,
+    eventType: "password.changed" | "password.reset",
+    identifierHash?: string,
   ): Promise<AuthSessionResult> {
     await this.passwordRepository.updatePasswordHash(user.id, passwordHash);
-    return this.finishPasswordWrite(user, passwordHash, input);
+    return this.finishPasswordWrite(
+      user,
+      passwordHash,
+      input,
+      eventType,
+      identifierHash,
+    );
   }
 
   /**
@@ -196,7 +212,9 @@ export class PasswordService {
   private async finishPasswordWrite(
     user: AuthUserRecord,
     passwordHash: string,
-    input: { client: ResetPasswordInput["client"]; deviceId?: string },
+    input: Pick<ResetPasswordInput, "client" | "deviceId" | "audit">,
+    eventType: "password.changed" | "password.reset" | "password.set",
+    identifierHash?: string,
   ): Promise<AuthSessionResult> {
     const nextTokenVersion = await this.tokenRepository.rotateTokenVersion(
       asUuid(user.id),
@@ -209,10 +227,21 @@ export class PasswordService {
       tokenVersion: nextTokenVersion,
     };
 
-    return this.authSessionService.reissueSessionForUser(
+    const session = await this.authSessionService.reissueSessionForUser(
       updatedUser,
       input.client,
       input.deviceId,
+      input.audit,
     );
+    await this.authAuditService.recordSafely({
+      eventType,
+      outcome: "success",
+      userId: asUuid(user.id),
+      method: "password",
+      identifierHash,
+      sessionId: session.sessionId,
+      context: input.audit,
+    });
+    return session;
   }
 }

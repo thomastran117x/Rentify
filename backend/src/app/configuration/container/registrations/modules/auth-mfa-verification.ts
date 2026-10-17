@@ -23,6 +23,7 @@ export const authMfaVerificationRegistrationModule: ContainerRegistrationModule 
           containerTokens.otpService,
           containerTokens.emailService,
           containerTokens.mfaTotpService,
+          containerTokens.authAuditService,
         ],
         resolve: ({ resolve }) =>
           new MfaVerificationService({
@@ -33,6 +34,7 @@ export const authMfaVerificationRegistrationModule: ContainerRegistrationModule 
             otpService: resolve(containerTokens.otpService),
             emailService: resolve(containerTokens.emailService),
             mfaTotpService: resolve(containerTokens.mfaTotpService),
+            authAuditService: resolve(containerTokens.authAuditService),
           }),
       });
       container.register({
