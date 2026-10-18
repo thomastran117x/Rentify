@@ -96,6 +96,7 @@ npm run dev:sms-worker
 npm run dev:search-worker
 npm run dev:recommendation-precompute-worker
 npm run dev:identity-bloom-worker
+npm run dev:auth-audit-prune-worker
 ```
 
 ## API Endpoints and Docs

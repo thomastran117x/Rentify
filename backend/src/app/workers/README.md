@@ -12,6 +12,7 @@ docker compose up --build
 | ---------------------------------------------- | ----------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
 | [analytics](./analytics/README.md)             | `postings-analytics.worker.ts`                  | `analytics-worker`                           | MySQL analytics outbox                       |
 | [auth](./auth/README.md)                       | `identity-bloom.worker.ts`                      | `identity-bloom-worker`                      | Scheduled username/email filter rebuilds     |
+| [auth](./auth/README.md)                       | `auth-audit-prune.worker.ts`                    | `auth-audit-prune-worker`                    | Auth audit events past retention             |
 | [bookings](./bookings/README.md)               | `booking-expiry.worker.ts`                      | `booking-expiry-worker`                      | Expired booking candidates                   |
 | [email](./email/README.md)                     | `email-delivery.worker.ts`                      | `email-worker`                               | RabbitMQ email jobs                          |
 | [logging](./logging/README.md)                 | `log-consumer.worker.ts`                        | `log-consumer-worker`                        | RabbitMQ application logs                    |
@@ -39,7 +40,7 @@ Recommendation precompute is included in source, watch scripts, and the backend 
 
 ## Configuration and Operations
 
-Read [backend configuration](../../../../docs/backend-configuration.md) for YAML profiles, secret injection, and overrides. Worker defaults live under `workers` in [default.yml](../../../config/default.yml), except identity filters under `identityBloom` and constants identified in individual guides. Do not put secrets into committed YAML.
+Read [backend configuration](../../../../docs/backend-configuration.md) for YAML profiles, secret injection, and overrides. Worker defaults live under `workers` in [default.yml](../../../config/default.yml), except identity filters under `identityBloom`, auth audit retention under `authAudit`, and constants identified in individual guides. Do not put secrets into committed YAML.
 
 Compose workers inherit the backend environment and use database pool limits of 5 connections and 1 minimum idle per database-connected process. Some services declare more startup dependencies than their entrypoints explicitly connect; see the service definition and domain service calls before changing dependencies.
 

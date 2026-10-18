@@ -526,6 +526,19 @@ services:
     volumes: *backend-log-volume
     command: ["node", "dist/workers/auth/identity-bloom.worker.js"]
 
+  # Deletes auth_audit_events rows older than AUTH_AUDIT_RETENTION_DAYS, in
+  # batches, once at startup and then every AUTH_AUDIT_PRUNE_INTERVAL_MINUTES.
+  # Works from MySQL alone. Replicas are safe: each batch is deleted by id.
+  auth-audit-prune-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-auth-audit-prune-worker
+    restart: unless-stopped
+    depends_on: *db-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/auth/auth-audit-prune.worker.js"]
+
   posting-thumbnail-worker:
     build: *backend-build
     image: rent-backend:local
