@@ -62,6 +62,9 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.refreshTokenTtlSeconds": "REFRESH_TOKEN_TTL_SECONDS",
   "auth.rememberMeRefreshTokenTtlSeconds":
     "REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS",
+  "authAudit.pruneBatchSize": "AUTH_AUDIT_PRUNE_BATCH_SIZE",
+  "authAudit.pruneIntervalMinutes": "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
+  "authAudit.retentionDays": "AUTH_AUDIT_RETENTION_DAYS",
   "blobStorage.auth": "AZURE_STORAGE_AUTH",
   "blobStorage.accountUrl": "AZURE_STORAGE_ACCOUNT_URL",
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",

@@ -116,6 +116,7 @@ import { PasswordController } from "@/features/auth/password/password.controller
 import { PasswordService } from "@/features/auth/password/password.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
+import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
 import { EmailAvailabilityService } from "@/features/auth/email-availability/email-availability.service";
@@ -415,6 +416,9 @@ export const containerTokens = {
     "AuthAuditRepository",
   ),
   authAuditService: createServiceToken<AuthAuditService>("AuthAuditService"),
+  authAuditRetentionService: createServiceToken<AuthAuditRetentionService>(
+    "AuthAuditRetentionService",
+  ),
   loginLockoutService: createServiceToken<LoginLockoutService>(
     "LoginLockoutService",
   ),

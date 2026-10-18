@@ -44,6 +44,11 @@ describe("YAML configuration files", () => {
           backendOrigin: "https://api.test",
         },
         server: { port: 9000 },
+        authAudit: {
+          retentionDays: 30,
+          pruneBatchSize: 500,
+          pruneIntervalMinutes: 15,
+        },
         application: { frontendUrl: "${config.frontendOrigin}" },
         cors: {
           allowedOrigins: ["${config.frontendOrigin}", "https://two.test"],
@@ -58,6 +63,9 @@ describe("YAML configuration files", () => {
     ).toEqual({
       raw: {
         PORT: "9000",
+        AUTH_AUDIT_RETENTION_DAYS: "30",
+        AUTH_AUDIT_PRUNE_BATCH_SIZE: "500",
+        AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: "15",
         FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
         PAYPAL_CHECKOUT_METHODS: "paypal,card",

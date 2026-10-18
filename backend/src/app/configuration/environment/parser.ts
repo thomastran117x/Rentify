@@ -1,4 +1,5 @@
 import {
+  buildAuthAuditConfig,
   buildAuthConfig,
   buildCaptchaConfig,
   buildCorsConfig,
@@ -138,6 +139,7 @@ export function parseEnvironmentState(
       authAuditIdentifierSecret,
       mfaTotpEncryptionKey,
     ),
+    authAudit: buildAuthAuditConfig(raw, errors),
     email: buildEmailConfig(raw, gmailUser, gmailAppPassword),
     sms: buildSmsConfig(raw, errors),
     captcha: buildCaptchaConfig(raw),

@@ -47,4 +47,37 @@ export class AuthAuditRepository extends BaseRepository {
       { maxRetries: 0 },
     );
   }
+
+  /**
+   * The oldest ids created before the cutoff, served by the created_at index.
+   * A plain read takes no locks, so a sign-in writing a new row is never held
+   * up by a prune.
+   */
+  async listIdsCreatedBefore(cutoff: Date, limit: number): Promise<string[]> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.findMany({
+        where: { createdAt: { lt: cutoff } },
+        select: { id: true },
+        orderBy: { createdAt: "asc" },
+        take: limit,
+      }),
+    );
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * Deletes the listed rows that are still older than the cutoff and returns
+   * how many went. Another replica may have deleted some of them already;
+   * those are not counted, and that is not an error.
+   */
+  async deleteByIds(ids: string[], cutoff: Date): Promise<number> {
+    const result = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.deleteMany({
+        where: { id: { in: ids }, createdAt: { lt: cutoff } },
+      }),
+    );
+
+    return result.count;
+  }
 }

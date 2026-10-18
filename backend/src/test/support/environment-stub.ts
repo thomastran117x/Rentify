@@ -466,6 +466,13 @@ export const environment = {
   getRateLimiterConfig() {
     return rateLimiterConfig;
   },
+  getAuthAuditConfig() {
+    return {
+      retentionDays: 180,
+      pruneBatchSize: 1000,
+      pruneIntervalMinutes: 60,
+    };
+  },
   getUsernameBloomConfig() {
     return identityBloomConfig;
   },

@@ -63,6 +63,13 @@ auth:
   refreshTokenCachePrefix: auth:refresh
   mfaBypassEmails: []
 
+# auth_audit_events holds IP addresses and user agents, so rows are kept only
+# as long as abuse investigation needs them. See docs/auth-security.md.
+authAudit:
+  retentionDays: 180
+  pruneBatchSize: 1000
+  pruneIntervalMinutes: 60
+
 email:
   gmailUser: change-me@example.com
   fromName: Rent

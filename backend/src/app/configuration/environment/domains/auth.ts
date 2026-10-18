@@ -226,6 +226,52 @@ export function buildAuthConfig(
   };
 }
 
+// setTimeout holds a 32-bit signed delay and runs anything longer after 1 ms,
+// so a longer interval would make the prune worker run back to back.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+const MAX_AUTH_AUDIT_PRUNE_INTERVAL_MINUTES = Math.floor(
+  MAX_TIMER_DELAY_MS / 60_000,
+);
+
+/**
+ * Retention for auth_audit_events. A retention of zero or less would delete
+ * every row on the next run, so it is a startup error rather than a policy.
+ * The batch size bounds the id list each delete statement carries.
+ */
+export function buildAuthAuditConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["authAudit"] {
+  return {
+    retentionDays: parseNumber(raw, "AUTH_AUDIT_RETENTION_DAYS", 180, errors, {
+      integer: true,
+      min: 1,
+    }),
+    pruneBatchSize: parseNumber(
+      raw,
+      "AUTH_AUDIT_PRUNE_BATCH_SIZE",
+      1000,
+      errors,
+      {
+        integer: true,
+        min: 1,
+        max: 10_000,
+      },
+    ),
+    pruneIntervalMinutes: parseNumber(
+      raw,
+      "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
+      60,
+      errors,
+      {
+        integer: true,
+        min: 1,
+        max: MAX_AUTH_AUDIT_PRUNE_INTERVAL_MINUTES,
+      },
+    ),
+  };
+}
+
 export function buildEmailConfig(
   raw: RawEnvironmentValues,
   gmailUser: string,

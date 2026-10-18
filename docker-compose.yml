@@ -61,6 +61,9 @@ x-backend-environment: &backend-environment
   REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
   PERSONAL_ACCESS_TOKEN_SECRET: ${PERSONAL_ACCESS_TOKEN_SECRET}
   AUTH_AUDIT_IDENTIFIER_SECRET: ${AUTH_AUDIT_IDENTIFIER_SECRET}
+  AUTH_AUDIT_RETENTION_DAYS: ${AUTH_AUDIT_RETENTION_DAYS:-}
+  AUTH_AUDIT_PRUNE_BATCH_SIZE: ${AUTH_AUDIT_PRUNE_BATCH_SIZE:-}
+  AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: ${AUTH_AUDIT_PRUNE_INTERVAL_MINUTES:-}
   PAYPAL_CHECKOUT_METHODS: ${PAYPAL_CHECKOUT_METHODS:-}
   PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
   PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET}
@@ -522,6 +525,19 @@ services:
     environment: *worker-environment
     volumes: *backend-log-volume
     command: ["node", "dist/workers/auth/identity-bloom.worker.js"]
+
+  # Deletes auth_audit_events rows older than AUTH_AUDIT_RETENTION_DAYS, in
+  # batches, once at startup and then every AUTH_AUDIT_PRUNE_INTERVAL_MINUTES.
+  # Works from MySQL alone. Replicas are safe: each batch is deleted by id.
+  auth-audit-prune-worker:
+    build: *backend-build
+    image: rent-backend:local
+    container_name: rent-auth-audit-prune-worker
+    restart: unless-stopped
+    depends_on: *db-worker-depends-on
+    environment: *worker-environment
+    volumes: *backend-log-volume
+    command: ["node", "dist/workers/auth/auth-audit-prune.worker.js"]
 
   posting-thumbnail-worker:
     build: *backend-build

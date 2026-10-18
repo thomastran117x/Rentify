@@ -1092,6 +1092,59 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it("defaults auth audit retention and allows overriding it", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getAuthAuditConfig()).toEqual({
+      retentionDays: 180,
+      pruneBatchSize: 1000,
+      pruneIntervalMinutes: 60,
+    });
+
+    process.env = buildRequiredEnv({
+      AUTH_AUDIT_RETENTION_DAYS: "1",
+      AUTH_AUDIT_PRUNE_BATCH_SIZE: "10000",
+      AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: "35791",
+    });
+    const overriddenManager = new EnvironmentManager();
+    overriddenManager.load();
+
+    expect(overriddenManager.getAuthAuditConfig()).toEqual({
+      retentionDays: 1,
+      pruneBatchSize: 10_000,
+      pruneIntervalMinutes: 35_791,
+    });
+  });
+
+  it.each([
+    ["AUTH_AUDIT_RETENTION_DAYS", "0", "must be greater than or equal to 1."],
+    ["AUTH_AUDIT_RETENTION_DAYS", "-30", "must be greater than or equal to 1."],
+    ["AUTH_AUDIT_RETENTION_DAYS", "1.5", "must be an integer."],
+    ["AUTH_AUDIT_PRUNE_BATCH_SIZE", "0", "must be greater than or equal to 1."],
+    [
+      "AUTH_AUDIT_PRUNE_BATCH_SIZE",
+      "10001",
+      "must be less than or equal to 10000.",
+    ],
+    [
+      "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    // 30 days: past the longest delay setTimeout can hold.
+    [
+      "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
+      "43200",
+      "must be less than or equal to 35791.",
+    ],
+  ])("rejects %s=%s", (name, value, message) => {
+    process.env = buildRequiredEnv({ [name]: value });
+
+    expect(() => new EnvironmentManager().load()).toThrow(`${name} ${message}`);
+  });
+
   it("keeps abandoned uploads until their upload URL can no longer be used", () => {
     // An hour-long Azure upload URL plus 15 minutes to finish and complete.
     process.env = buildRequiredEnv({
