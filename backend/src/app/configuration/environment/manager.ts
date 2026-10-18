@@ -295,6 +295,10 @@ export class EnvironmentManager {
     return this.get().workers.payoutRelease;
   }
 
+  getAuthAuditConfig(): AppEnvironment["authAudit"] {
+    return this.get().authAudit;
+  }
+
   getPostingsPublicCacheConfig(): AppEnvironment["postingsCache"] {
     return this.get().postingsCache;
   }

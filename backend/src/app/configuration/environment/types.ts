@@ -233,6 +233,9 @@ export type RawEnvironmentValues = {
   REFRESH_TOKEN_SECRET?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
+  AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
+  AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
+  AUTH_AUDIT_RETENTION_DAYS?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
   TELNYX_API_KEY?: string;
@@ -319,6 +322,14 @@ export interface AppEnvironment {
     authAuditIdentifierSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
+  };
+  authAudit: {
+    /** Rows older than this many days are deleted by the prune worker. */
+    retentionDays: number;
+    /** Most rows each prune delete statement removes. */
+    pruneBatchSize: number;
+    /** Wait between prune runs. */
+    pruneIntervalMinutes: number;
   };
   email: {
     gmailUser: string;

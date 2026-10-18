@@ -758,6 +758,24 @@ minimum is the longer of `blobStorage.uploadSasTtlSeconds`
 lifetime, plus 15 minutes to finish and complete the upload. A shorter value is
 a startup error. With the maximum one-hour SAS lifetime, that is 75 minutes.
 
+## Auth audit retention
+
+`authAudit` sets how long `auth_audit_events` rows are kept and how the
+`auth-audit-prune-worker` deletes the older ones. See
+[Retention](./auth-security.md#retention) for what is kept and why.
+
+| Key                    | Default | Override                            | Meaning                                     |
+| ---------------------- | ------- | ----------------------------------- | ------------------------------------------- |
+| `retentionDays`        | `180`   | `AUTH_AUDIT_RETENTION_DAYS`         | Rows with an older `created_at` are deleted |
+| `pruneBatchSize`       | `1000`  | `AUTH_AUDIT_PRUNE_BATCH_SIZE`       | Most rows each delete statement removes     |
+| `pruneIntervalMinutes` | `60`    | `AUTH_AUDIT_PRUNE_INTERVAL_MINUTES` | Wait between prune runs                     |
+
+The worker runs once at startup and then once per interval. Every value must be a positive integer, so a `retentionDays` of `0` or less is
+a startup error rather than an instruction to delete every row.
+`pruneBatchSize` is at most `10000`, which bounds the id list each delete
+carries. A run deletes batch after batch until none is left, so the batch size
+limits each statement, not the run.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:
