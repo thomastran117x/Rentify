@@ -145,4 +145,53 @@ describe("AuthAuditRepository", () => {
       where: { id: { in: ["a", "b"] }, createdAt: { lt: cutoff } },
     });
   });
+
+  it("lists one user's events newest first, filtered by type", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      eventTypes: ["logout", "session.revoked"],
+      limit: 21,
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        userId: USER_1_ID,
+        eventType: { in: ["logout", "session.revoked"] },
+      },
+      select: expect.objectContaining({ id: true, createdAt: true }),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 21,
+    });
+    const select = (findMany.mock.calls[0] as any[])[0].select;
+    expect(select).not.toHaveProperty("identifierHash");
+    expect(select).not.toHaveProperty("requestId");
+    expect(select).not.toHaveProperty("metadata");
+  });
+
+  it("starts after the cursor row when one is given", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      afterId: "event-9",
+      limit: 3,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: USER_1_ID },
+        cursor: { id: "event-9" },
+        skip: 1,
+        take: 3,
+      }),
+    );
+  });
 });

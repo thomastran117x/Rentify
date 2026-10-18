@@ -5,6 +5,7 @@ import { resolveHandler } from "@/configuration/bootstrap/routes/helpers";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
 import { createFeatureFlagMiddleware } from "@/configuration/bootstrap/routes/feature-flag.middleware";
 import {
+  authAuditRouteModule,
   authDevicesRouteModule,
   authLocalRouteModule,
   authMfaTotpRouteModule,
@@ -66,6 +67,7 @@ export const routeModuleRegistry: RouteModule[] = [
   authLocalRouteModule,
   authOauthRouteModule,
   authDevicesRouteModule,
+  authAuditRouteModule,
   authPersonalAccessTokensRouteModule,
   authMfaVerificationRouteModule,
   authMfaTotpRouteModule,

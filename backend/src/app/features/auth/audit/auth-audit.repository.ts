@@ -1,6 +1,9 @@
 import { BaseRepository } from "@/features/base/base.repository";
-import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
-import { newUuid } from "@/configuration/validation/uuid";
+import type {
+  AuthAuditActivityRow,
+  RecordAuthAuditEventInput,
+} from "@/features/auth/audit/auth-audit.model";
+import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const COLUMN_LIMITS = {
   ipAddress: 45,
@@ -13,6 +16,29 @@ const COLUMN_LIMITS = {
 function truncate(value: string | undefined, limit: number): string | null {
   return value ? value.slice(0, limit) : null;
 }
+
+export interface ListAuthAuditEventsForUserInput {
+  userId: Uuid;
+  eventTypes?: readonly string[];
+  /** Id of the last event already returned; the page starts after it. */
+  afterId?: string;
+  limit: number;
+}
+
+const ACTIVITY_COLUMNS = {
+  id: true,
+  userId: true,
+  actorUserId: true,
+  eventType: true,
+  outcome: true,
+  reasonCode: true,
+  method: true,
+  ipAddress: true,
+  userAgent: true,
+  deviceId: true,
+  sessionId: true,
+  createdAt: true,
+} as const;
 
 export class AuthAuditRepository extends BaseRepository {
   /**
@@ -79,5 +105,32 @@ export class AuthAuditRepository extends BaseRepository {
     );
 
     return result.count;
+  }
+
+  /**
+   * One user's events, newest first, served by the (user_id, created_at)
+   * index. Paging uses Prisma's cursor, which compares against the cursor
+   * row's stored values in SQL, so created_at keeps its microseconds and
+   * events sharing a millisecond are neither skipped nor repeated. Prisma
+   * applies the filter to the cursor row too, so a cursor naming another
+   * user's event, or one since pruned, yields an empty page.
+   */
+  async listForUser(
+    input: ListAuthAuditEventsForUserInput,
+  ): Promise<AuthAuditActivityRow[]> {
+    return this.executeAsync(() =>
+      this.prisma.authAuditEvent.findMany({
+        where: {
+          userId: input.userId,
+          ...(input.eventTypes
+            ? { eventType: { in: [...input.eventTypes] } }
+            : {}),
+        },
+        select: ACTIVITY_COLUMNS,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: input.limit,
+        ...(input.afterId ? { cursor: { id: input.afterId }, skip: 1 } : {}),
+      }),
+    );
   }
 }

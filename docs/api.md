@@ -72,6 +72,16 @@ username can temporarily lock out its owner. The emailed unlock code is the
 current mitigation. Per-IP credential-stuffing detection is tracked in
 [#379](https://github.com/thomastran117x/Rentify/issues/379).
 
+Users can review their own authentication history through
+`GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
+step-up (`mfa-management` scope), returns only the caller's events newest
+first, and pages with an opaque `cursor`. `limit` is 1 to 50 (default 20), and
+`category` is `sign_in`, `security_changes` or `sessions`. Each item is a
+user-safe projection with a server-written `label`. Identifier hashes, actor
+IDs, request IDs, session and device IDs, raw user agents and metadata are
+never returned. See
+[auth-security.md](./auth-security.md#reading-your-own-activity).
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them

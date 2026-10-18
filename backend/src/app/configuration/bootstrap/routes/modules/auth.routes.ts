@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import type { LocalAuthController } from "@/features/auth/local/local-auth.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
+import type { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
 import type { EmailChangeController } from "@/features/auth/email-change/email-change.controller";
@@ -277,6 +278,19 @@ export const authDevicesRouteModule: RouteModule = {
       resolveHandler<DeviceManagementController>(
         containerTokens.deviceManagementController,
         "removeKnownDevice",
+      ),
+    );
+  },
+};
+
+export const authAuditRouteModule: RouteModule = {
+  id: "auth-audit",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/auth/audit/me",
+      resolveHandler<AuthAuditController>(
+        containerTokens.authAuditController,
+        "listMine",
       ),
     );
   },

@@ -108,10 +108,28 @@ export async function parseRequestBodyWithRichText<TSchema extends ZodType>(
   }
 }
 
-function handleParseError(error: unknown): never {
+/**
+ * Validates the query string against a schema. Schema failures become a 400
+ * `VALIDATION_ERROR` rather than escaping as a raw `ZodError`.
+ */
+export function parseRequestQuery<TSchema extends ZodType>(
+  query: Record<string, string>,
+  schema: TSchema,
+): output<TSchema> {
+  try {
+    return schema.parse(query);
+  } catch (error) {
+    return handleParseError(error, "Request query validation failed.");
+  }
+}
+
+function handleParseError(
+  error: unknown,
+  message = "Request body validation failed.",
+): never {
   if (error instanceof ZodError) {
     throw new RequestValidationError(
-      "Request body validation failed.",
+      message,
       error.issues.map((issue) => ({
         path: issue.path.join("."),
         message: issue.message,

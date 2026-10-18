@@ -1,6 +1,6 @@
 # Authentication Audit Log
 
-The backend records authentication activity in the `auth_audit_events` table and writes one structured log line for each event. The record answers "who tried to sign in to which account, from where, and what happened". It backs the later security-activity and admin views, but has no read API yet.
+The backend records authentication activity in the `auth_audit_events` table and writes one structured log line for each event. The record answers "who tried to sign in to which account, from where, and what happened". Users read their own history through `GET /auth/audit/me` (see [Reading Your Own Activity](#reading-your-own-activity)); there is no admin read API yet.
 
 Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/auth/audit). Flows write through `AuthAuditService.recordSafely`, which never fails or retries. If the insert fails, the error is logged and the authentication operation goes ahead unchanged.
 
@@ -76,6 +76,31 @@ When rate-limit evaluation falls back to process memory because Redis is unavail
 Indexes: `(user_id, created_at)`, `(actor_user_id, created_at)`, `(ip_address, created_at)`, `(event_type, created_at)`, `(identifier_hash, created_at)` and `(created_at)`. The last serves the retention prune.
 
 Order events by `created_at`, never by insert order or `id`. Rows outlive their user: deleting an account sets `user_id` to null on its rows rather than deleting them.
+
+## Reading Your Own Activity
+
+`GET /auth/audit/me` returns the signed-in user's own events, newest first. It is served by `AuthAuditController.listMine` and `AuthAuditActivityService`, and it is documented in the OpenAPI spec as `listMySecurityActivity`.
+
+- **Who can call it.** It needs a signed-in session with a recent MFA step-up for the `mfa-management` scope, the same guard as `GET /auth/devices`. Without the step-up it returns `401 MFA_VERIFICATION_REQUIRED`. Personal access tokens are rejected.
+- **Whose events it returns.** Only the caller's. The user ID comes from the session and no parameter can override it; the query schema is strict, so an extra parameter such as `userId` is a `400 VALIDATION_ERROR`. Rows with a null `user_id`, such as unknown-username attempts, are never returned to anyone.
+- **Query.** `limit` is 1 to 50 and defaults to 20. `category` is one of the values below. `cursor` is the previous page's `nextCursor`, which is null on the last page. A malformed cursor is a `400`.
+- **What each item contains.** `id`, `type`, `outcome`, `label`, `occurredAt`, `method`, `ipAddress`, `browser`, `os`, `deviceKnown` and `current`. `toSecurityActivityItem` builds the item field by field. `identifier_hash`, `actor_user_id`, `reason_code`, `request_id`, `session_id`, `device_id`, the raw user agent and `metadata` never leave the server.
+
+Field details:
+
+- `label` is server-side wording keyed by event type and refined by reason and method, for example "Signed in with password", "Failed sign-in: wrong password" or "Signed in with Google". An event type with no wording yet reads "Account activity".
+- When `actor_user_id` is set and is not the user, the label reads as an administrator action, for example "An administrator locked your account". The administrator is never identified.
+- `browser` and `os` come from a small in-house user-agent parser (`parseUserAgent`). Unrecognised agents are null, and the account page shows them as "Unknown device".
+- `current` is true when the event's session is the caller's current session.
+- `deviceKnown` is true when the event's device ID matches one of the user's registered devices.
+
+| Category           | Event types                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sign_in`          | `login.*`, `oauth.login.succeeded`, `oauth.login.failed`, `oauth.signup.completed`, `mfa.step_up_failed`, `mfa.step_up_locked`, `rate_limit.exceeded`                          |
+| `security_changes` | `password.changed`, `password.reset`, `password.set`, `email.changed`, `mfa.totp_enabled`, `mfa.totp_disabled`, `oauth.linked`, `oauth.unlinked`, `pat.created`, `pat.revoked` |
+| `sessions`         | `logout`, `session.revoked`, `session.refresh_reuse_detected`, `device.new_detected`                                                                                           |
+
+The cursor is an opaque wrapper around the last event's ID, and paging uses Prisma's cursor. Prisma compares against that row's stored `created_at` in SQL, so the microsecond precision survives and events written in the same millisecond, such as several sessions revoked at once, are neither skipped nor repeated. A JavaScript `Date` would keep only milliseconds. A cursor naming another user's event, or one since pruned, yields an empty last page.
 
 ## Retention
 

@@ -17,6 +17,8 @@ import { MediaProcessingService } from "@/features/media/media-processing.servic
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import { BestEffortMediaMetrics } from "@/features/media/media-metrics";
 import { MediaRepository } from "@/features/media/media.repository";
+import { AuthAuditActivityService } from "@/features/auth/audit/auth-audit-activity.service";
+import { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
@@ -64,6 +66,34 @@ describe("targeted container registration modules", () => {
         },
       }),
     ).toBeInstanceOf(AuthAuditRetentionService);
+  });
+
+  it("registers the security activity reader and its controller", () => {
+    const registrations: Array<{
+      token: unknown;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authAuditRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const find = (token: unknown) =>
+      registrations.find((candidate) => candidate.token === token)!;
+    const resolve = () => ({});
+
+    expect(find(containerTokens.authAuditActivityService).dependencies).toEqual(
+      [containerTokens.authAuditRepository, containerTokens.deviceRepository],
+    );
+    expect(
+      find(containerTokens.authAuditActivityService).resolve({ resolve }),
+    ).toBeInstanceOf(AuthAuditActivityService);
+    expect(
+      find(containerTokens.authAuditController).resolve({ resolve }),
+    ).toBeInstanceOf(AuthAuditController);
   });
 
   it("registers and resolves the personal access token graph", () => {
