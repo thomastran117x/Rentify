@@ -774,7 +774,8 @@ The worker runs once at startup and then once per interval. Every value must be 
 a startup error rather than an instruction to delete every row.
 `pruneBatchSize` is at most `10000`, which bounds the id list each delete
 carries. A run deletes batch after batch until none is left, so the batch size
-limits each statement, not the run.
+limits each statement, not the run. `pruneIntervalMinutes` is at most `35791`
+(about 24.8 days), the longest delay a Node.js timer can hold.
 
 ## Feature flags
 

@@ -1106,7 +1106,7 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv({
       AUTH_AUDIT_RETENTION_DAYS: "1",
       AUTH_AUDIT_PRUNE_BATCH_SIZE: "10000",
-      AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: "5",
+      AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: "35791",
     });
     const overriddenManager = new EnvironmentManager();
     overriddenManager.load();
@@ -1114,7 +1114,7 @@ describe("EnvironmentManager", () => {
     expect(overriddenManager.getAuthAuditConfig()).toEqual({
       retentionDays: 1,
       pruneBatchSize: 10_000,
-      pruneIntervalMinutes: 5,
+      pruneIntervalMinutes: 35_791,
     });
   });
 
@@ -1132,6 +1132,12 @@ describe("EnvironmentManager", () => {
       "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
       "0",
       "must be greater than or equal to 1.",
+    ],
+    // 30 days: past the longest delay setTimeout can hold.
+    [
+      "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
+      "43200",
+      "must be less than or equal to 35791.",
     ],
   ])("rejects %s=%s", (name, value, message) => {
     process.env = buildRequiredEnv({ [name]: value });

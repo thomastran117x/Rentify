@@ -226,6 +226,13 @@ export function buildAuthConfig(
   };
 }
 
+// setTimeout holds a 32-bit signed delay and runs anything longer after 1 ms,
+// so a longer interval would make the prune worker run back to back.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+const MAX_AUTH_AUDIT_PRUNE_INTERVAL_MINUTES = Math.floor(
+  MAX_TIMER_DELAY_MS / 60_000,
+);
+
 /**
  * Retention for auth_audit_events. A retention of zero or less would delete
  * every row on the next run, so it is a startup error rather than a policy.
@@ -259,6 +266,7 @@ export function buildAuthAuditConfig(
       {
         integer: true,
         min: 1,
+        max: MAX_AUTH_AUDIT_PRUNE_INTERVAL_MINUTES,
       },
     ),
   };
