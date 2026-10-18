@@ -70,7 +70,8 @@ model User {
 // One row per authentication outcome: a sign-in, a failed or locked attempt,
 // an unlock or a sign-out. The typed sign-in identifier is never stored, only
 // its HMAC, so attempts against an unknown username can still be correlated.
-// Rows outlive their user: deleting the account nulls user_id.
+// Rows outlive their user: deleting the account nulls user_id. Rows older
+// than authAudit.retentionDays are deleted by the auth audit prune worker.
 model AuthAuditEvent {
   id             String   @id @db.VarChar(36)
   userId         String?  @map("user_id") @db.VarChar(36)
@@ -95,6 +96,7 @@ model AuthAuditEvent {
   @@index([ipAddress, createdAt])
   @@index([eventType, createdAt])
   @@index([identifierHash, createdAt])
+  @@index([createdAt])
   @@map("auth_audit_events")
 }
 

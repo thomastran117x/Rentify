@@ -73,9 +73,17 @@ When rate-limit evaluation falls back to process memory because Redis is unavail
 | `metadata`        | `JSON?`         | Small, non-secret extras only                                                                                               |
 | `created_at`      | `DATETIME(6)`   | Set by the database                                                                                                         |
 
-Indexes: `(user_id, created_at)`, `(actor_user_id, created_at)`, `(ip_address, created_at)`, `(event_type, created_at)` and `(identifier_hash, created_at)`.
+Indexes: `(user_id, created_at)`, `(actor_user_id, created_at)`, `(ip_address, created_at)`, `(event_type, created_at)`, `(identifier_hash, created_at)` and `(created_at)`. The last serves the retention prune.
 
 Order events by `created_at`, never by insert order or `id`. Rows outlive their user: deleting an account sets `user_id` to null on its rows rather than deleting them.
+
+## Retention
+
+Rows are kept for `authAudit.retentionDays` (`AUTH_AUDIT_RETENTION_DAYS`), 180 days by default, and then deleted. Every event type and outcome follows the same period. That includes rows that suspicious sign-in detection (#379) later flags, unless a later decision gives them their own.
+
+Why: each row can carry an IP address and a user agent, which are personal data. They are kept only as long as investigating credential stuffing, account takeover and support questions about past sign-ins needs them. The identifier hash and user ID only matter alongside the rest of the row, so they go with it. Nothing is archived; a deleted row is gone.
+
+The `auth-audit-prune-worker` deletes rows whose `created_at` is older than the retention period. It runs once at startup and then every `authAudit.pruneIntervalMinutes` (60 by default). Each run deletes the oldest expired rows in batches of `authAudit.pruneBatchSize` (1000 by default) until none are left, using the `(created_at)` index, and logs `Auth audit prune completed.` with the number deleted. Each batch is deleted by ID, so replicas pruning at the same time only race for the same rows and none is deleted twice. A database error ends that run. The rows already deleted stay deleted, and the next run continues. A retention of zero or less is a startup error. See [backend-configuration.md](./backend-configuration.md#auth-audit-retention) and the [auth workers guide](../backend/src/app/workers/auth/README.md#auth-audit-prune-worker).
 
 ## What Is Never Stored
 

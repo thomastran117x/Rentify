@@ -1,4 +1,5 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
+import { authAuditRegistrationModule } from "@/configuration/container/registrations/modules/auth-audit";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { mediaRegistrationModule } from "@/configuration/container/registrations/modules/media";
@@ -16,6 +17,7 @@ import { MediaProcessingService } from "@/features/media/media-processing.servic
 import { MediaCleanupService } from "@/features/media/media-cleanup.service";
 import { BestEffortMediaMetrics } from "@/features/media/media-metrics";
 import { MediaRepository } from "@/features/media/media.repository";
+import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
@@ -32,6 +34,38 @@ jest.mock("@/configuration/resources/database", () => ({
 }));
 
 describe("targeted container registration modules", () => {
+  it("registers the auth audit retention service on the audit repository", () => {
+    const registrations: Array<{
+      token: unknown;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authAuditRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const registration = registrations.find(
+      (candidate) =>
+        candidate.token === containerTokens.authAuditRetentionService,
+    );
+    const repository = {};
+
+    expect(registration?.dependencies).toEqual([
+      containerTokens.authAuditRepository,
+    ]);
+    expect(
+      registration!.resolve({
+        resolve: (token) => {
+          expect(token).toBe(containerTokens.authAuditRepository);
+          return repository;
+        },
+      }),
+    ).toBeInstanceOf(AuthAuditRetentionService);
+  });
+
   it("registers and resolves the personal access token graph", () => {
     const registrations: Array<{
       token: unknown;

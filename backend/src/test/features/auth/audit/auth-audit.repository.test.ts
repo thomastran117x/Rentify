@@ -113,4 +113,36 @@ describe("AuthAuditRepository", () => {
     ).rejects.toThrow("connection lost");
     expect(create).toHaveBeenCalledTimes(1);
   });
+
+  it("lists the oldest ids created before the cutoff", async () => {
+    const cutoff = new Date("2026-04-20T12:00:00.000Z");
+    const findMany = jest.fn(async () => [{ id: "a" }, { id: "b" }]);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+
+    await expect(repository.listIdsCreatedBefore(cutoff, 2)).resolves.toEqual([
+      "a",
+      "b",
+    ]);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: cutoff } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: 2,
+    });
+  });
+
+  it("deletes the listed ids that are still past the cutoff", async () => {
+    const cutoff = new Date("2026-04-20T12:00:00.000Z");
+    const deleteMany = jest.fn(async () => ({ count: 1 }));
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { deleteMany },
+    } as any);
+
+    await expect(repository.deleteByIds(["a", "b"], cutoff)).resolves.toBe(1);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["a", "b"] }, createdAt: { lt: cutoff } },
+    });
+  });
 });
