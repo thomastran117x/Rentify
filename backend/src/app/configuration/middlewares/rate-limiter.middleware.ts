@@ -11,6 +11,9 @@ import { loggerFactory } from "@/configuration/logging";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { getOptionalJwtAuth } from "./jwt-middleware";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 type RateLimiterStrategy = "sliding-window" | "token-bucket";
 
@@ -534,6 +537,7 @@ function buildRateLimitKey(policy: RateLimitPolicy, ipAddress: string): string {
 interface RateLimitIdentity {
   keyPart: string;
   type: "ip" | "user";
+  userId?: Uuid;
 }
 
 async function resolveRateLimitIdentity(
@@ -545,6 +549,7 @@ async function resolveRateLimitIdentity(
     return {
       type: "user",
       keyPart: `user:${existingAuth.sub}`,
+      userId: asUuid(existingAuth.sub),
     };
   }
 
@@ -555,6 +560,7 @@ async function resolveRateLimitIdentity(
       return {
         type: "user",
         keyPart: `user:${auth.sub}`,
+        userId: asUuid(auth.sub),
       };
     }
   } catch (error) {
@@ -779,6 +785,56 @@ export function resetRateLimiterMemoryFallbackForTests(): void {
   lastRedisFallbackLogAt = 0;
 }
 
+async function recordRateLimitExceeded(
+  request: Request,
+  policy: RateLimitPolicy,
+  identity: RateLimitIdentity,
+  backend: RateLimitBackend,
+): Promise<void> {
+  if (
+    backend !== "redis" ||
+    (policy.id !== "auth-sensitive" && policy.id !== "auth-refresh")
+  ) {
+    return;
+  }
+
+  try {
+    const container = getRequestContainer(request);
+    const cache = container.resolve(containerTokens.cacheService);
+    const claimed = await cache.setIfNotExists(
+      `auth:audit:rate-limit:${policy.id}:${identity.keyPart}`,
+      "1",
+      policy.windowSeconds,
+    );
+
+    if (!claimed) {
+      return;
+    }
+
+    const authAuditService = container.resolve<AuthAuditService>(
+      containerTokens.authAuditService,
+    );
+    await authAuditService.recordSafely({
+      eventType: "rate_limit.exceeded",
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      userId: identity.userId ?? null,
+      method: policy.id === "auth-refresh" ? "refresh" : undefined,
+      context: toAuthAuditContext(request),
+      metadata: {
+        policy: policy.id,
+        identityType: identity.type,
+      },
+    });
+  } catch (error) {
+    rateLimiterLogger.warn("Failed to record rate-limit audit event.", {
+      policy: policy.id,
+      identityType: identity.type,
+      error,
+    });
+  }
+}
+
 export const rateLimiterMiddleware: RequestHandler = async (
   request,
   response,
@@ -812,6 +868,12 @@ export const rateLimiterMiddleware: RequestHandler = async (
       response.setHeader(
         "retry-after",
         String(Math.max(1, evaluation.result.retryAfterSeconds)),
+      );
+      await recordRateLimitExceeded(
+        request,
+        policy,
+        identity,
+        evaluation.backend,
       );
       throw new TooManyRequestError(
         "Too many requests. Please try again later.",

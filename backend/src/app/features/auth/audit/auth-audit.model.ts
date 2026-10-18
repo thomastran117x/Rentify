@@ -11,7 +11,26 @@ export type AuthAuditEventType =
   | "login.locked"
   | "login.unlock_requested"
   | "login.unlocked"
-  | "logout";
+  | "logout"
+  | "oauth.login.succeeded"
+  | "oauth.login.failed"
+  | "oauth.signup.completed"
+  | "oauth.linked"
+  | "oauth.unlinked"
+  | "session.refresh_reuse_detected"
+  | "session.revoked"
+  | "device.new_detected"
+  | "password.changed"
+  | "password.reset"
+  | "password.set"
+  | "email.changed"
+  | "mfa.totp_enabled"
+  | "mfa.totp_disabled"
+  | "mfa.step_up_failed"
+  | "mfa.step_up_locked"
+  | "pat.created"
+  | "pat.revoked"
+  | "rate_limit.exceeded";
 
 export type AuthAuditOutcome = "success" | "failure" | "blocked";
 
@@ -23,7 +42,10 @@ export type AuthAuditReasonCode =
   | "locked"
   | "rate_limited"
   | "not_locked"
-  | "otp_invalid";
+  | "otp_invalid"
+  | "token_invalid"
+  | "email_conflict"
+  | "signup_expired";
 
 export type AuthAuditMethod =
   | "password"

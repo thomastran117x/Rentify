@@ -199,6 +199,8 @@ export function toOAuthAuthenticateInput(
   request: Request,
   input: OAuthAuthenticateRequestBody,
 ): OAuthAuthenticateInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
   return {
     code: input.code,
     codeVerifier: input.codeVerifier,
@@ -208,9 +210,10 @@ export function toOAuthAuthenticateInput(
     client: request.client,
     firstName: input.firstName,
     lastName: input.lastName,
-    deviceId: resolveDeviceId(request, input.deviceId),
+    deviceId,
     totpCode: input.totpCode,
     dateOfBirth: input.dateOfBirth,
+    audit: toAuthAuditContext(request, deviceId),
   };
 }
 
@@ -218,11 +221,14 @@ export function toCompleteOAuthSignupInput(
   request: Request,
   input: CompleteOAuthSignupRequestBody,
 ): CompleteOAuthSignupInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
   return {
     client: request.client,
     signupToken: input.signupToken,
     dateOfBirth: input.dateOfBirth,
-    deviceId: resolveDeviceId(request, input.deviceId),
+    deviceId,
+    audit: toAuthAuditContext(request, deviceId),
   };
 }
 
@@ -234,6 +240,8 @@ export function toLinkOAuthProviderInput(
     ...toOAuthAuthenticateInput(request, input),
     provider: requireOAuthProviderParam(request),
     userId: asUuid(request.auth.sub),
+    sessionId:
+      request.auth.authMethod === "jwt" ? request.auth.sessionId : undefined,
   };
 }
 
@@ -243,6 +251,9 @@ export function toUnlinkOAuthProviderInput(
   return {
     provider: requireOAuthProviderParam(request),
     userId: asUuid(request.auth.sub),
+    sessionId:
+      request.auth.authMethod === "jwt" ? request.auth.sessionId : undefined,
+    audit: toAuthAuditContext(request, request.auth.deviceId),
   };
 }
 
@@ -310,6 +321,7 @@ export function toRefreshInput(
     client: request.client,
     refreshToken:
       input.refreshToken ?? readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
+    audit: toAuthAuditContext(request),
   };
 }
 
@@ -323,6 +335,10 @@ export function toResetPasswordInput(
     code: input.code,
     newPassword: input.newPassword,
     deviceId: resolveDeviceId(request, input.deviceId),
+    audit: toAuthAuditContext(
+      request,
+      resolveDeviceId(request, input.deviceId),
+    ),
   };
 }
 
@@ -333,6 +349,7 @@ export function toRemoveKnownDeviceInput(
   return {
     userId: asUuid(request.auth.sub),
     deviceId: input.deviceId,
+    audit: toAuthAuditContext(request, input.deviceId),
   };
 }
 
@@ -369,6 +386,10 @@ export function toChangePasswordInput(
     currentPassword: input.currentPassword,
     newPassword: input.newPassword,
     deviceId: request.auth.deviceId ?? request.client.device.id,
+    audit: toAuthAuditContext(
+      request,
+      request.auth.deviceId ?? request.client.device.id,
+    ),
   };
 }
 
@@ -381,5 +402,9 @@ export function toSetPasswordInput(
     client: request.client,
     newPassword: input.newPassword,
     deviceId: request.auth.deviceId ?? request.client.device.id,
+    audit: toAuthAuditContext(
+      request,
+      request.auth.deviceId ?? request.client.device.id,
+    ),
   };
 }

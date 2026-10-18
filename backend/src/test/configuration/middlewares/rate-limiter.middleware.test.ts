@@ -42,8 +42,12 @@ function policyRequest(
 
 class FakeContainer implements ServiceContainer {
   constructor(
-    private readonly cacheService: { eval: jest.Mock },
+    private readonly cacheService: {
+      eval: jest.Mock;
+      setIfNotExists: jest.Mock;
+    },
     private readonly tokenService: { verifyAccessToken: jest.Mock },
+    private readonly authAuditService: { recordSafely: jest.Mock },
   ) {}
 
   resolve<TValue>(token: unknown): TValue {
@@ -53,6 +57,10 @@ class FakeContainer implements ServiceContainer {
 
     if (token === containerTokens.tokenService) {
       return this.tokenService as TValue;
+    }
+
+    if (token === containerTokens.authAuditService) {
+      return this.authAuditService as TValue;
     }
 
     throw new Error(`Unexpected token: ${String(token)}`);
@@ -81,13 +89,17 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
 function createApp(
   cacheEval = jest.fn().mockResolvedValue([1, 4, 0]),
   verifyAccessToken = jest.fn().mockResolvedValue(createClaims()),
+  setIfNotExists = jest.fn().mockResolvedValue(true),
+  recordSafely = jest.fn().mockResolvedValue(undefined),
 ) {
   const cacheService = {
     eval: cacheEval,
+    setIfNotExists,
   };
   const tokenService = {
     verifyAccessToken,
   };
+  const authAuditService = { recordSafely };
   const requestLogger: Logger = {
     debug: jest.fn(),
     info: jest.fn(),
@@ -108,7 +120,11 @@ function createApp(
           isMobile: false,
         },
       };
-      request.container = new FakeContainer(cacheService, tokenService);
+      request.container = new FakeContainer(
+        cacheService,
+        tokenService,
+        authAuditService,
+      );
       request.logger = requestLogger;
       request.outputFormat = "json";
       next();
@@ -126,7 +142,14 @@ function createApp(
     instance.use(handleApplicationError);
   });
 
-  return { app, cacheEval, verifyAccessToken, requestLogger };
+  return {
+    app,
+    cacheEval,
+    verifyAccessToken,
+    setIfNotExists,
+    recordSafely,
+    requestLogger,
+  };
 }
 
 describe("resolveRateLimitPolicy", () => {
@@ -381,6 +404,7 @@ describe("rateLimiterMiddleware", () => {
     const { cacheEval, verifyAccessToken } = createApp();
     const cacheService = {
       eval: cacheEval,
+      setIfNotExists: jest.fn().mockResolvedValue(true),
     };
     const tokenService = {
       verifyAccessToken,
@@ -399,7 +423,9 @@ describe("rateLimiterMiddleware", () => {
             isMobile: false,
           },
         };
-        request.container = new FakeContainer(cacheService, tokenService);
+        request.container = new FakeContainer(cacheService, tokenService, {
+          recordSafely: jest.fn().mockResolvedValue(undefined),
+        });
         request.outputFormat = "json";
         next();
       });
@@ -463,6 +489,158 @@ describe("rateLimiterMiddleware", () => {
         requestId: "unknown",
       },
     });
+  });
+
+  it("dedupes a 50-request login 429 burst to one IP audit event", async () => {
+    const claimedKeys = new Set<string>();
+    const setIfNotExists = jest.fn(async (key: string) => {
+      if (claimedKeys.has(key)) {
+        return false;
+      }
+      claimedKeys.add(key);
+      return true;
+    });
+    const { app, recordSafely } = createApp(
+      jest.fn().mockResolvedValue([0, 0, 9]),
+      undefined,
+      setIfNotExists,
+    );
+
+    const responses = await Promise.all(
+      Array.from({ length: 50 }, () =>
+        app.request("http://rent.test/auth/local/login", { method: "POST" }),
+      ),
+    );
+
+    expect(responses.every((response) => response.status === 429)).toBe(true);
+    expect(recordSafely).toHaveBeenCalledTimes(1);
+    expect(recordSafely).toHaveBeenCalledWith({
+      eventType: "rate_limit.exceeded",
+      outcome: "blocked",
+      reasonCode: "rate_limited",
+      userId: null,
+      method: undefined,
+      context: expect.objectContaining({ ipAddress: "203.0.113.10" }),
+      metadata: {
+        policy: "auth-sensitive",
+        identityType: "ip",
+      },
+    });
+    expect(setIfNotExists).toHaveBeenLastCalledWith(
+      "auth:audit:rate-limit:auth-sensitive:ip:203.0.113.10",
+      "1",
+      60,
+    );
+  });
+
+  it("uses separate user and IP dedupe identities and marks refresh events", async () => {
+    const { app, setIfNotExists, recordSafely } = createApp(
+      jest.fn().mockResolvedValue([0, 0, 9]),
+    );
+
+    await app.request("http://rent.test/auth/refresh", { method: "POST" });
+    await app.request("http://rent.test/auth/refresh", {
+      method: "POST",
+      headers: { authorization: "Bearer valid-access-token" },
+    });
+
+    expect(setIfNotExists).toHaveBeenNthCalledWith(
+      1,
+      "auth:audit:rate-limit:auth-refresh:ip:203.0.113.10",
+      "1",
+      60,
+    );
+    expect(setIfNotExists).toHaveBeenNthCalledWith(
+      2,
+      `auth:audit:rate-limit:auth-refresh:user:${USER_1_ID}`,
+      "1",
+      60,
+    );
+    expect(recordSafely).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        userId: USER_1_ID,
+        method: "refresh",
+        metadata: { policy: "auth-refresh", identityType: "user" },
+      }),
+    );
+  });
+
+  it("records again after the dedupe window expires", async () => {
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1_000);
+    const expiresAt = new Map<string, number>();
+    const setIfNotExists = jest.fn(
+      async (key: string, _value: string, ttlSeconds: number) => {
+        const now = Date.now();
+        if ((expiresAt.get(key) ?? 0) > now) {
+          return false;
+        }
+        expiresAt.set(key, now + ttlSeconds * 1000);
+        return true;
+      },
+    );
+    const { app, recordSafely } = createApp(
+      jest.fn().mockResolvedValue([0, 0, 9]),
+      undefined,
+      setIfNotExists,
+    );
+
+    await app.request("http://rent.test/auth/local/login", { method: "POST" });
+    nowSpy.mockReturnValue(61_001);
+    await app.request("http://rent.test/auth/local/login", { method: "POST" });
+
+    expect(recordSafely).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not audit unsupported policies or memory-fallback 429s", async () => {
+    const redisApp = createApp(jest.fn().mockResolvedValue([0, 0, 9]));
+    await redisApp.app.request("http://rent.test/auth/device/verify", {
+      method: "POST",
+    });
+    expect(redisApp.recordSafely).not.toHaveBeenCalled();
+    expect(redisApp.setIfNotExists).not.toHaveBeenCalled();
+
+    const memoryApp = createApp(
+      jest
+        .fn()
+        .mockRejectedValue(new Error("Redis connection closed unexpectedly.")),
+    );
+    for (let attempt = 0; attempt <= 10; attempt += 1) {
+      await memoryApp.app.request("http://rent.test/auth/local/login", {
+        method: "POST",
+      });
+    }
+    expect(memoryApp.recordSafely).not.toHaveBeenCalled();
+    expect(memoryApp.setIfNotExists).not.toHaveBeenCalled();
+  });
+
+  it("keeps the 429 response when dedupe or audit recording fails", async () => {
+    const dedupeFailure = createApp(
+      jest.fn().mockResolvedValue([0, 0, 9]),
+      undefined,
+      jest.fn().mockRejectedValue(new Error("dedupe unavailable")),
+    );
+    expect(
+      (
+        await dedupeFailure.app.request("http://rent.test/auth/local/login", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(429);
+
+    const auditFailure = createApp(
+      jest.fn().mockResolvedValue([0, 0, 9]),
+      undefined,
+      undefined,
+      jest.fn().mockRejectedValue(new Error("audit unavailable")),
+    );
+    expect(
+      (
+        await auditFailure.app.request("http://rent.test/auth/local/login", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(429);
   });
 
   it("prefers the authenticated user id over the client ip when a valid bearer token is present", async () => {

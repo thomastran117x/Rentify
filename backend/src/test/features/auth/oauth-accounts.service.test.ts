@@ -1,4 +1,6 @@
 import ConflictError from "@/errors/http/conflict.error";
+import BadGatewayError from "@/errors/http/bad-gateway.error";
+import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
@@ -157,6 +159,10 @@ function createHarness() {
     delete: jest.fn(async (token: string) => pendingOAuthSignups.delete(token)),
     acquireCompletionLock: jest.fn(async () => ({ release: jest.fn() })),
   };
+  const authAuditService = {
+    hashIdentifier: jest.fn((value: string) => `hash:${value}`),
+    recordSafely: jest.fn(async () => undefined),
+  };
 
   return {
     authRepository,
@@ -169,6 +175,7 @@ function createHarness() {
     oauthSignupStore,
     mfaTotpService,
     tokenService,
+    authAuditService,
     service: new OAuthAccountsService(
       authRepository as never,
       authRepository as never,
@@ -187,6 +194,7 @@ function createHarness() {
         { recordSafely: async () => undefined } as never,
       ),
       oauthSignupStore as never,
+      authAuditService as never,
     ),
   };
 }
@@ -209,6 +217,7 @@ describe("OAuthAccountsService sign-in", () => {
     expect(harness.oauthSignupStore.create).toHaveBeenCalledWith(
       expect.objectContaining({ profile: googleProfile }),
     );
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 
   it("completes a paused social signup with any valid date of birth", async () => {
@@ -237,6 +246,16 @@ describe("OAuthAccountsService sign-in", () => {
       accessToken: "access-token",
       isNewUser: true,
     });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.signup.completed",
+        outcome: "success",
+        method: "google",
+        userId: USER_1_ID,
+        identifierHash: "hash:oauth@example.com",
+        sessionId: expect.any(String),
+      }),
+    );
   });
 
   it("rejects an expired social signup continuation", async () => {
@@ -249,6 +268,15 @@ describe("OAuthAccountsService sign-in", () => {
         dateOfBirth: "2012-06-15",
       }),
     ).rejects.toBeInstanceOf(OAuthSignupContinuationExpiredError);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "oauth.login.failed",
+      outcome: "failure",
+      reasonCode: "signup_expired",
+      method: undefined,
+      userId: null,
+      identifierHash: undefined,
+      context: undefined,
+    });
   });
 
   it("creates a new user when the provider account is verified and unlinked", async () => {
@@ -272,6 +300,13 @@ describe("OAuthAccountsService sign-in", () => {
       user: { email: createdUser.email },
       isNewUser: true,
     });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.signup.completed",
+        method: "google",
+        identifierHash: "hash:oauth-created@example.com",
+      }),
+    );
   });
 
   it("adds the generated username to the bloom filter", async () => {
@@ -353,6 +388,15 @@ describe("OAuthAccountsService sign-in", () => {
     await expect(
       harness.service.googleAuthenticate(oauthInput),
     ).rejects.toBeInstanceOf(ConflictError);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        reasonCode: "email_conflict",
+        userId: USER_1_ID,
+        method: "google",
+        identifierHash: "hash:oauth@example.com",
+      }),
+    );
   });
 
   it("matches on the provider subject before the email", async () => {
@@ -377,6 +421,50 @@ describe("OAuthAccountsService sign-in", () => {
     expect(harness.authRepository.findUserByEmail).not.toHaveBeenCalled();
     expect(result).toMatchObject({ user: { email: "renamed@example.com" } });
     expect(result).not.toHaveProperty("isNewUser");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.succeeded",
+        userId: USER_1_ID,
+        method: "google",
+        identifierHash: "hash:provider-email@example.com",
+        sessionId: expect.any(String),
+      }),
+    );
+  });
+
+  it("records invalid provider tokens without a user or identifier hash", async () => {
+    const harness = createHarness();
+    harness.googleOAuthService.verify.mockRejectedValue(
+      new UnauthorizedError("invalid provider token"),
+    );
+
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "oauth.login.failed",
+      outcome: "failure",
+      reasonCode: "token_invalid",
+      method: "google",
+      userId: null,
+      identifierHash: undefined,
+      context: undefined,
+    });
+  });
+
+  it.each([
+    ["provider outage", new ServiceNotAvaliableError("provider unavailable")],
+    ["malformed provider response", new BadGatewayError("invalid response")],
+  ])("does not audit a %s as an invalid token", async (_label, error) => {
+    const harness = createHarness();
+    harness.googleOAuthService.verify.mockRejectedValue(error);
+
+    await expect(harness.service.googleAuthenticate(oauthInput)).rejects.toBe(
+      error,
+    );
+
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 
   it("rejects a provider profile with an unverified email", async () => {
@@ -401,6 +489,36 @@ describe("OAuthAccountsService sign-in", () => {
     await expect(
       harness.service.googleAuthenticate(oauthInput),
     ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        reasonCode: "mfa_required",
+        userId: USER_1_ID,
+        method: "google",
+      }),
+    );
+  });
+
+  it("records an invalid OAuth login MFA code", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
+    harness.mfaTotpService.verifyCode.mockRejectedValue(
+      new UnauthorizedError("MFA verification failed."),
+    );
+
+    await expect(
+      harness.service.googleAuthenticate({ ...oauthInput, totpCode: "000000" }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        reasonCode: "mfa_invalid",
+        userId: USER_1_ID,
+      }),
+    );
   });
 
   it("authenticates through Microsoft", async () => {
@@ -462,6 +580,14 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
       USER_1_ID,
       expect.objectContaining({ provider: "google" }),
     );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "oauth.linked",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: "google",
+      sessionId: undefined,
+      context: undefined,
+    });
   });
 
   it("rejects a subject already linked to another account", async () => {
@@ -491,6 +617,7 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
       harness.service.linkOAuthProvider(linkInput),
     ).resolves.toMatchObject({ hasPassword: true });
     expect(harness.authRepository.linkOAuthIdentity).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 
   it("routes to the provider named in the route parameter", async () => {
@@ -580,6 +707,14 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
       USER_1_ID,
       "google",
     );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "oauth.unlinked",
+      outcome: "success",
+      userId: USER_1_ID,
+      method: "google",
+      sessionId: undefined,
+      context: undefined,
+    });
   });
 
   it("is a no-op when the provider was never linked", async () => {
@@ -595,5 +730,6 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
       }),
     ).resolves.toEqual({ hasPassword: true, providers: [] });
     expect(harness.authRepository.unlinkOAuthIdentity).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 });

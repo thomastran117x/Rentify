@@ -21,12 +21,14 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
         containerTokens.deviceRepository,
         containerTokens.emailService,
         containerTokens.cacheService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new DeviceService({
           deviceRepository: resolve(containerTokens.deviceRepository),
           emailService: resolve(containerTokens.emailService),
           cache: resolve(containerTokens.cacheService),
+          authAuditService: resolve(containerTokens.authAuditService),
         }),
     });
     container.register({
@@ -36,12 +38,14 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authUsersRepository,
         containerTokens.deviceService,
         containerTokens.tokenService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new DeviceManagementService(
           resolve(containerTokens.authUsersRepository),
           resolve(containerTokens.deviceService),
           resolve(containerTokens.tokenService),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

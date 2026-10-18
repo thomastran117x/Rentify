@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 const UNSAFE_PAT_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
@@ -70,11 +71,15 @@ export interface CreatePersonalAccessTokenInput {
   scopes: PersonalAccessTokenScope[];
   expiresAt?: string;
   expiresInDays?: number;
+  sessionId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface RevokePersonalAccessTokenInput {
   userId: Uuid;
   tokenId: string;
+  sessionId?: string;
+  audit?: AuthAuditContext;
 }
 
 export interface PersonalAccessTokenRecord {

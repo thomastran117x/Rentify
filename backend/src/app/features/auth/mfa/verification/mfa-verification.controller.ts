@@ -15,6 +15,7 @@ import {
 } from "./mfa-verification.model";
 import type { MfaVerificationService } from "./mfa-verification.service";
 import { asUuid } from "@/configuration/validation/uuid";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
 export class MfaVerificationController {
   constructor(
@@ -49,6 +50,7 @@ export class MfaVerificationController {
       scope: input.scope,
       factor: input.factor,
       client: request.client,
+      audit: toAuthAuditContext(request, auth.deviceId),
     });
     ok(response, result);
   };
@@ -70,6 +72,7 @@ export class MfaVerificationController {
       factor: input.factor,
       code: input.code,
       client: request.client,
+      audit: toAuthAuditContext(request, auth.deviceId),
     });
     ok(response, result);
   };

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 /**
  * Normalisation matches `emailAvailabilityQuerySchema` and the `.trim()
@@ -46,6 +47,7 @@ export interface ConfirmEmailChangeInput {
   code: string;
   client: ClientRequestContext;
   deviceId?: string;
+  audit?: AuthAuditContext;
 }
 
 /**

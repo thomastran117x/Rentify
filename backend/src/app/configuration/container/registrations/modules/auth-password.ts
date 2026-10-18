@@ -24,6 +24,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authSessionService,
         containerTokens.loginLockoutService,
         containerTokens.publicOtpService,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new PasswordService(
@@ -34,6 +35,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.loginLockoutService),
           resolve(containerTokens.publicOtpService),
+          resolve(containerTokens.authAuditService),
         ),
     });
     container.register({

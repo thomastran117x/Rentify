@@ -10,6 +10,7 @@ import type {
   RemoveKnownDeviceResult,
 } from "@/features/auth/device/device-management.model";
 import { asUuid } from "@/configuration/validation/uuid";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 /**
  * The device surface a signed-in user manages for themselves. Distinct from
@@ -21,6 +22,7 @@ export class DeviceManagementService {
     private readonly usersRepository: UsersRepository,
     private readonly deviceService: DeviceService,
     private readonly tokenService: TokenService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async deviceVerify(context: AuthRequestContext): Promise<DeviceVerifyResult> {
@@ -79,10 +81,21 @@ export class DeviceManagementService {
     input: RemoveKnownDeviceInput,
   ): Promise<RemoveKnownDeviceResult> {
     await this.deviceService.removeKnownDevice(input.userId, input.deviceId);
-    await this.tokenService.revokeSessionsForDevice(
+    const revokedSessionIds = await this.tokenService.revokeSessionsForDevice(
       input.userId,
       input.deviceId,
     );
+
+    for (const sessionId of revokedSessionIds) {
+      await this.authAuditService.recordSafely({
+        eventType: "session.revoked",
+        outcome: "success",
+        userId: input.userId,
+        sessionId,
+        context: input.audit,
+        metadata: { source: "device" },
+      });
+    }
 
     return {
       removed: true,

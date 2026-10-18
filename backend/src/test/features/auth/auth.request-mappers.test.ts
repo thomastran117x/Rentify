@@ -44,6 +44,13 @@ const client = {
 
 const auth = { sub: "user-1", deviceId: "session-device" };
 
+const auditContext = (deviceId: string) => ({
+  ipAddress: "203.0.113.10",
+  deviceId,
+  userAgent: undefined,
+  requestId: "request-1",
+});
+
 // Route-parameter sanitization resolves the sanitizer off the request-scoped
 // container, so the mappers that read `:provider` need one present.
 function createContainer(): ServiceContainer {
@@ -223,6 +230,7 @@ describe("credential mappers", () => {
       currentPassword: "Rentify123!",
       newPassword: "Rentify456!",
       deviceId: "session-device",
+      audit: auditContext("session-device"),
     });
   });
 
@@ -234,6 +242,7 @@ describe("credential mappers", () => {
       client,
       newPassword: "Rentify456!",
       deviceId: "session-device",
+      audit: auditContext("session-device"),
     });
   });
 
@@ -261,6 +270,7 @@ describe("credential mappers", () => {
       code: "123456",
       newPassword: "Rentify456!",
       deviceId: "body-device",
+      audit: auditContext("body-device"),
     });
   });
 });
@@ -398,6 +408,7 @@ describe("oauth mappers", () => {
       deviceId: "fingerprint-device",
       totpCode: undefined,
       dateOfBirth: "2012-06-15",
+      audit: auditContext("fingerprint-device"),
     });
   });
 
@@ -413,6 +424,7 @@ describe("oauth mappers", () => {
       signupToken: "signup-token",
       dateOfBirth: "2012-06-15",
       deviceId: "fingerprint-device",
+      audit: auditContext("fingerprint-device"),
     });
   });
 
@@ -434,7 +446,12 @@ describe("oauth mappers", () => {
       toUnlinkOAuthProviderInput(
         createRequest({ params: { provider: "apple" } }),
       ),
-    ).toEqual({ provider: "apple", userId: "user-1" });
+    ).toEqual({
+      provider: "apple",
+      userId: "user-1",
+      sessionId: undefined,
+      audit: auditContext("session-device"),
+    });
   });
 });
 
@@ -442,7 +459,11 @@ describe("session and device mappers", () => {
   it("prefers a refresh token from the body", () => {
     expect(
       toRefreshInput(createRequest(), { refreshToken: "body-token" }),
-    ).toEqual({ client, refreshToken: "body-token" });
+    ).toEqual({
+      client,
+      refreshToken: "body-token",
+      audit: auditContext("fingerprint-device"),
+    });
   });
 
   it("falls back to the refresh cookie", () => {
@@ -451,12 +472,20 @@ describe("session and device mappers", () => {
         createRequest({ headers: { cookie: "refresh_token=cookie-token" } }),
         { refreshToken: undefined },
       ),
-    ).toEqual({ client, refreshToken: "cookie-token" });
+    ).toEqual({
+      client,
+      refreshToken: "cookie-token",
+      audit: auditContext("fingerprint-device"),
+    });
   });
 
   it("maps a remove-device body onto the principal", () => {
     expect(
       toRemoveKnownDeviceInput(createRequest(), { deviceId: "device-2" }),
-    ).toEqual({ userId: "user-1", deviceId: "device-2" });
+    ).toEqual({
+      userId: "user-1",
+      deviceId: "device-2",
+      audit: auditContext("device-2"),
+    });
   });
 });

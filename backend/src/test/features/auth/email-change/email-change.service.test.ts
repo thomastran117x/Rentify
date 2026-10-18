@@ -85,6 +85,7 @@ function createHarness() {
     reissueSessionForUser: jest.fn(async () => createSessionResult()),
   };
   const emailBloomService = { add: jest.fn(async () => undefined) };
+  const authAuditService = { recordSafely: jest.fn(async () => undefined) };
 
   const service = new EmailChangeService(
     usersRepository as unknown as UsersRepository,
@@ -95,10 +96,12 @@ function createHarness() {
     emailService as unknown as EmailService,
     authSessionService as unknown as AuthSessionService,
     emailBloomService as unknown as IdentityBloomService,
+    authAuditService as never,
   );
 
   return {
     service,
+    authAuditService,
     usersRepository,
     tokenRepository,
     store,
@@ -340,6 +343,7 @@ describe("EmailChangeService.confirmChange", () => {
     code: "123456",
     client: createClient(),
     deviceId: "device-1",
+    audit: { requestId: "request-1" },
   };
 
   it("writes the address, rotates the token version, and reissues the session", async () => {
@@ -371,7 +375,24 @@ describe("EmailChangeService.confirmChange", () => {
       }),
       expect.any(Object),
       "device-1",
+      { requestId: "request-1" },
     );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "email.changed",
+      outcome: "success",
+      userId: USER_ID,
+      sessionId: undefined,
+      context: { requestId: "request-1" },
+      metadata: {
+        oldEmailMasked: "o***@rentify.local",
+        newEmailMasked: "o***@rentify.local",
+      },
+    });
+    const serializedAudit = JSON.stringify(
+      harness.authAuditService.recordSafely.mock.calls,
+    );
+    expect(serializedAudit).not.toContain(CURRENT_EMAIL);
+    expect(serializedAudit).not.toContain(NEW_EMAIL);
   });
 
   /**

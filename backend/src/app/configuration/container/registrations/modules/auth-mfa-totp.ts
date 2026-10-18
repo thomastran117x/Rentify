@@ -33,12 +33,14 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.totpService,
         containerTokens.mfaTotpRepository,
+        containerTokens.authAuditService,
       ],
       resolve: ({ resolve }) =>
         new MfaTotpService({
           totpService: resolve(containerTokens.totpService),
           mfaTotpRepository: resolve(containerTokens.mfaTotpRepository),
           encryptionKey,
+          authAuditService: resolve(containerTokens.authAuditService),
         }),
     });
     container.register({

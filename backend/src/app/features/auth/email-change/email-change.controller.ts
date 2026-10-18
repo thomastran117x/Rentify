@@ -13,6 +13,7 @@ import {
   confirmEmailChangeRequestSchema,
   requestEmailChangeRequestSchema,
 } from "@/features/auth/email-change/email-change.model";
+import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
 export class EmailChangeController {
   constructor(
@@ -77,6 +78,10 @@ export class EmailChangeController {
       code: input.code,
       client: request.client,
       deviceId: auth.deviceId ?? request.client.device.id,
+      audit: toAuthAuditContext(
+        request,
+        auth.deviceId ?? request.client.device.id,
+      ),
     });
     writeAuthSessionResponse(request, response, result, {
       message: "Email address changed successfully.",

@@ -27,6 +27,7 @@ import type {
   RequestEmailChangeInput,
   ResendEmailChangeCodeInput,
 } from "@/features/auth/email-change/email-change.model";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 
 /**
  * Moving an account to a new email address.
@@ -58,6 +59,7 @@ export class EmailChangeService {
     private readonly emailService: EmailService,
     private readonly authSessionService: AuthSessionService,
     private readonly emailBloomService: IdentityBloomService,
+    private readonly authAuditService: AuthAuditService,
   ) {
     this.logger = loggerFactory.forClass(EmailChangeService, "service");
   }
@@ -315,11 +317,24 @@ export class EmailChangeService {
         tokenVersion: nextTokenVersion,
       };
 
-      return await this.authSessionService.reissueSessionForUser(
+      const session = await this.authSessionService.reissueSessionForUser(
         updatedUser,
         input.client,
         input.deviceId,
+        input.audit,
       );
+      await this.authAuditService.recordSafely({
+        eventType: "email.changed",
+        outcome: "success",
+        userId: input.userId,
+        sessionId: session.sessionId,
+        context: input.audit,
+        metadata: {
+          oldEmailMasked: redactEmail(confirmed.currentEmail),
+          newEmailMasked: redactEmail(confirmed.newEmail),
+        },
+      });
+      return session;
     } finally {
       await lock.release();
     }

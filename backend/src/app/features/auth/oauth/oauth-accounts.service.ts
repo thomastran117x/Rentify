@@ -32,6 +32,9 @@ import { asUuid } from "@/configuration/validation/uuid";
 import type { UsernameService } from "@/features/auth/username/username.service";
 import type { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
+import UnauthorizedError from "@/errors/http/unauthorized.error";
+import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { AuthAuditReasonCode } from "@/features/auth/audit/auth-audit.model";
 
 const OAUTH_USERNAME_ALLOCATION_ATTEMPTS = 5;
 
@@ -54,27 +57,31 @@ export class OAuthAccountsService {
     private readonly mfaTotpService: MfaTotpService,
     private readonly authSessionService: AuthSessionService,
     private readonly oauthSignupStore: OAuthSignupStore,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async googleAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    const profile = await this.googleOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
+    return this.authenticateProvider("google", input, () =>
+      this.googleOAuthService.verify(input),
+    );
   }
 
   async microsoftAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    const profile = await this.microsoftOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
+    return this.authenticateProvider("microsoft", input, () =>
+      this.microsoftOAuthService.verify(input),
+    );
   }
 
   async appleAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    const profile = await this.appleOAuthService.verify(input);
-    return this.authenticateOAuthProfile(profile, input);
+    return this.authenticateProvider("apple", input, () =>
+      this.appleOAuthService.verify(input),
+    );
   }
 
   async linkOAuthProvider(
@@ -107,6 +114,14 @@ export class OAuthAccountsService {
     }
 
     await this.oauthIdentityRepository.linkOAuthIdentity(user.id, profile);
+    await this.authAuditService.recordSafely({
+      eventType: "oauth.linked",
+      outcome: "success",
+      userId: asUuid(user.id),
+      method: input.provider,
+      sessionId: input.sessionId,
+      context: input.audit,
+    });
     return this.listLinkedOAuthProvidersForUser({
       ...user,
       oauthIdentities:
@@ -145,10 +160,20 @@ export class OAuthAccountsService {
       );
     }
 
-    await this.oauthIdentityRepository.unlinkOAuthIdentity(
+    const unlinked = await this.oauthIdentityRepository.unlinkOAuthIdentity(
       asUuid(user.id),
       input.provider,
     );
+    if (unlinked) {
+      await this.authAuditService.recordSafely({
+        eventType: "oauth.unlinked",
+        outcome: "success",
+        userId: asUuid(user.id),
+        method: input.provider,
+        sessionId: input.sessionId,
+        context: input.audit,
+      });
+    }
     return this.listLinkedOAuthProvidersForUser({
       ...user,
       oauthIdentities:
@@ -164,6 +189,10 @@ export class OAuthAccountsService {
     );
 
     if (!completionLock) {
+      await this.recordOAuthFailure({
+        reasonCode: "signup_expired",
+        context: input.audit,
+      });
       throw new OAuthSignupContinuationExpiredError();
     }
 
@@ -171,6 +200,10 @@ export class OAuthAccountsService {
       const pendingSignup = await this.oauthSignupStore.read(input.signupToken);
 
       if (!pendingSignup) {
+        await this.recordOAuthFailure({
+          reasonCode: "signup_expired",
+          context: input.audit,
+        });
         throw new OAuthSignupContinuationExpiredError();
       }
 
@@ -182,12 +215,31 @@ export class OAuthAccountsService {
 
       if (existingProviderUser) {
         await this.oauthSignupStore.delete(input.signupToken);
+        await this.recordOAuthFailure({
+          reasonCode: "signup_expired",
+          method: pendingSignup.profile.provider,
+          userId: asUuid(existingProviderUser.id),
+          identifierHash: this.authAuditService.hashIdentifier(
+            pendingSignup.profile.email,
+          ),
+          context: input.audit,
+        });
         throw new OAuthSignupContinuationExpiredError();
       }
 
-      if (
-        await this.usersRepository.findUserByEmail(pendingSignup.profile.email)
-      ) {
+      const existingEmailUser = await this.usersRepository.findUserByEmail(
+        pendingSignup.profile.email,
+      );
+      if (existingEmailUser) {
+        await this.recordOAuthFailure({
+          reasonCode: "email_conflict",
+          method: pendingSignup.profile.provider,
+          userId: asUuid(existingEmailUser.id),
+          identifierHash: this.authAuditService.hashIdentifier(
+            pendingSignup.profile.email,
+          ),
+          context: input.audit,
+        });
         throw new ConflictError(
           "An account with this email already exists. Sign in with the original method before linking a social provider.",
         );
@@ -205,42 +257,106 @@ export class OAuthAccountsService {
           client: input.client,
           rememberMe: pendingSignup.rememberMe,
           deviceId: input.deviceId ?? pendingSignup.deviceId,
+          audit: input.audit,
         },
       );
       await this.oauthSignupStore.delete(input.signupToken);
+      await this.recordOAuthSuccess(
+        "oauth.signup.completed",
+        user,
+        pendingSignup.profile,
+        session.sessionId,
+        input.audit,
+      );
       return { ...session, isNewUser: true };
     } finally {
       await completionLock.release();
     }
   }
 
+  private async authenticateProvider(
+    provider: OAuthProvider,
+    input: OAuthAuthenticateInput,
+    verify: () => Promise<VerifiedOAuthProfile>,
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+    let profile: VerifiedOAuthProfile;
+
+    try {
+      profile = await verify();
+      this.requireVerifiedOAuthProfile(profile);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        await this.recordOAuthFailure({
+          reasonCode: "token_invalid",
+          method: provider,
+          context: input.audit,
+        });
+      }
+      throw error;
+    }
+
+    return this.authenticateOAuthProfile(profile, input);
+  }
+
   private async authenticateOAuthProfile(
     profile: VerifiedOAuthProfile,
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    this.requireVerifiedOAuthProfile(profile);
-
     const linkedUser = await this.usersRepository.findUserByOAuthIdentity(
       profile.provider,
       profile.providerUserId,
     );
 
     if (linkedUser) {
-      await requireLoginMfa(
-        this.mfaTotpService,
-        asUuid(linkedUser.id),
-        linkedUser.email,
-        input.totpCode,
-      );
-      return this.authSessionService.authenticateVerifiedUser(
+      try {
+        await requireLoginMfa(
+          this.mfaTotpService,
+          asUuid(linkedUser.id),
+          linkedUser.email,
+          input.totpCode,
+        );
+      } catch (error) {
+        if (error instanceof UnauthorizedError) {
+          const details = error.details as
+            | { mfaRequired?: boolean }
+            | undefined;
+          await this.recordOAuthFailure({
+            reasonCode: details?.mfaRequired ? "mfa_required" : "mfa_invalid",
+            method: profile.provider,
+            userId: asUuid(linkedUser.id),
+            identifierHash: this.authAuditService.hashIdentifier(profile.email),
+            context: input.audit,
+          });
+        }
+        throw error;
+      }
+      const session = await this.authSessionService.authenticateVerifiedUser(
         linkedUser,
         input,
       );
+      await this.recordOAuthSuccess(
+        "oauth.login.succeeded",
+        linkedUser,
+        profile,
+        session.sessionId,
+        input.audit,
+      );
+      return session;
     }
 
     // Signing in with a provider must not silently take over an address that
     // already has an account: the owner links it from inside that account.
-    if (await this.usersRepository.findUserByEmail(profile.email)) {
+    const existingEmailUser = await this.usersRepository.findUserByEmail(
+      profile.email,
+    );
+    if (existingEmailUser) {
+      await this.recordOAuthFailure({
+        reasonCode: "email_conflict",
+        method: profile.provider,
+        userId: asUuid(existingEmailUser.id),
+        identifierHash: this.authAuditService.hashIdentifier(profile.email),
+        context: input.audit,
+      });
       throw new ConflictError(
         "An account with this email already exists. Sign in with the original method before linking a social provider.",
       );
@@ -270,7 +386,50 @@ export class OAuthAccountsService {
       user,
       input,
     );
+    await this.recordOAuthSuccess(
+      "oauth.signup.completed",
+      user,
+      profile,
+      session.sessionId,
+      input.audit,
+    );
     return { ...session, isNewUser: true };
+  }
+
+  private async recordOAuthSuccess(
+    eventType: "oauth.login.succeeded" | "oauth.signup.completed",
+    user: AuthUserRecord,
+    profile: VerifiedOAuthProfile,
+    sessionId: string | undefined,
+    context: OAuthAuthenticateInput["audit"],
+  ): Promise<void> {
+    await this.authAuditService.recordSafely({
+      eventType,
+      outcome: "success",
+      userId: asUuid(user.id),
+      method: profile.provider,
+      identifierHash: this.authAuditService.hashIdentifier(profile.email),
+      sessionId,
+      context,
+    });
+  }
+
+  private async recordOAuthFailure(input: {
+    reasonCode: AuthAuditReasonCode;
+    method?: OAuthProvider;
+    userId?: Uuid;
+    identifierHash?: string;
+    context: OAuthAuthenticateInput["audit"];
+  }): Promise<void> {
+    await this.authAuditService.recordSafely({
+      eventType: "oauth.login.failed",
+      outcome: "failure",
+      reasonCode: input.reasonCode,
+      method: input.method,
+      userId: input.userId ?? null,
+      identifierHash: input.identifierHash,
+      context: input.context,
+    });
   }
 
   private async createOAuthUserWithSuggestedUsername(

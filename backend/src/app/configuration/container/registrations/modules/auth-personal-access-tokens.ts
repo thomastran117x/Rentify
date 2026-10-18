@@ -17,10 +17,14 @@ export const authPersonalAccessTokensRegistrationModule: ContainerRegistrationMo
       container.register({
         token: containerTokens.personalAccessTokenService,
         lifetime: "singleton",
-        dependencies: [containerTokens.personalAccessTokenRepository],
+        dependencies: [
+          containerTokens.personalAccessTokenRepository,
+          containerTokens.authAuditService,
+        ],
         resolve: ({ resolve }) =>
           new PersonalAccessTokenService(
             resolve(containerTokens.personalAccessTokenRepository),
+            resolve(containerTokens.authAuditService),
           ),
       });
       container.register({
