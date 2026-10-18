@@ -22,6 +22,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { AccountEmailPanel } from "@/components/account/account-email-panel";
+import { SecurityActivityPanel } from "@/components/account/security-activity-panel";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -469,6 +470,16 @@ export default function AccountPage() {
     }
   }
 
+  // "This wasn't me" in Security activity lands here until self-lock (#378)
+  // exists: changing the password is the strongest step a user can take now.
+  function focusPasswordSection() {
+    const section = document.getElementById("account-password");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+    section
+      ?.querySelector<HTMLInputElement>("input:not([type='hidden'])")
+      ?.focus({ preventScroll: true });
+  }
+
   function handleDisableAccount() {
     setDisablePending(true);
     setDisableMessage(
@@ -850,7 +861,10 @@ export default function AccountPage() {
             </div>
 
             {/* Password */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
+            <div
+              id="account-password"
+              className="scroll-mt-24 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6"
+            >
               <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
                   <Shield className="h-5 w-5" aria-hidden="true" />
@@ -1100,6 +1114,8 @@ export default function AccountPage() {
                 )}
               </div>
             </div>
+
+            <SecurityActivityPanel onReportActivity={focusPasswordSection} />
 
             {/* Disable account */}
             <div className="rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 p-6">

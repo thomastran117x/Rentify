@@ -102,6 +102,24 @@ Field details:
 
 The cursor is an opaque wrapper around the last event's ID, and paging uses Prisma's cursor. Prisma compares against that row's stored `created_at` in SQL, so the microsecond precision survives and events written in the same millisecond, such as several sessions revoked at once, are neither skipped nor repeated. A JavaScript `Date` would keep only milliseconds. A cursor naming another user's event, or one since pruned, yields an empty last page.
 
+### On the Account Page
+
+Account → Security shows the list as **Security activity**, below **Registered devices**. The Security tab already asks for the `mfa-management` step-up, so opening the list needs no further prompt. The component is [security-activity-panel.tsx](../frontend/src/components/account/security-activity-panel.tsx), and its API client is in [frontend/src/lib/security-activity](../frontend/src/lib/security-activity).
+
+Each row shows:
+
+- the server label;
+- a relative time, with the full date and time on hover;
+- an icon for the sign-in method;
+- the browser and OS, or "Unknown device" when neither is recognised;
+- the IP address.
+
+Badges mark the current session ("This session") and unregistered devices ("New device"). Failed rows are rose with a "Failed" badge and blocked rows are amber with a "Blocked" badge, so the outcome does not rely on colour alone.
+
+The filter buttons (All, Sign-ins, Security changes, Sessions) restart the list from the newest event. **Load more** follows `nextCursor`, 20 events at a time. Loading, empty ("No recent activity") and error-with-retry states are handled. The list is fetched fresh on every visit, so a refresh shows the same history.
+
+**This wasn't me** appears on every row except the current session's. Until self-lock (#378) lands, it shows advice to change the password and remove unknown devices, then scrolls to the Password section and focuses its first field.
+
 ## Retention
 
 Rows are kept for `authAudit.retentionDays` (`AUTH_AUDIT_RETENTION_DAYS`), 180 days by default, and then deleted. Every event type and outcome follows the same period. That includes rows that suspicious sign-in detection (#379) later flags, unless a later decision gives them their own.
