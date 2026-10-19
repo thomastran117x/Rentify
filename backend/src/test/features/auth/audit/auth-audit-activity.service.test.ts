@@ -85,6 +85,24 @@ describe("AuthAuditActivityService.listForUser", () => {
     ).resolves.toEqual({ items: [], nextCursor: null });
   });
 
+  it("passes the date range as created_at bounds", async () => {
+    const { service, repository } = createService([]);
+
+    await service.listForUser({
+      userId: USER_ID,
+      limit: 5,
+      from: "2026-10-01T00:00:00-04:00",
+      to: "2026-10-08T04:00:00.000Z",
+    });
+
+    expect(repository.listForUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdFrom: new Date("2026-10-01T04:00:00.000Z"),
+        createdBefore: new Date("2026-10-08T04:00:00.000Z"),
+      }),
+    );
+  });
+
   it("decodes the cursor and maps the category to its event types", async () => {
     const afterId = testUuid(9100, 99);
     const { service, repository } = createService([]);

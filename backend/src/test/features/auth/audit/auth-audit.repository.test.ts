@@ -173,6 +173,36 @@ describe("AuthAuditRepository", () => {
     expect(select).not.toHaveProperty("metadata");
   });
 
+  it("bounds created_at by the date range, either side optional", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    const from = new Date("2026-10-01T04:00:00.000Z");
+    const before = new Date("2026-10-08T04:00:00.000Z");
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      createdFrom: from,
+      createdBefore: before,
+      limit: 5,
+    });
+    await repository.listForUser({
+      userId: USER_1_ID,
+      createdBefore: before,
+      limit: 5,
+    });
+
+    expect((findMany.mock.calls[0] as any[])[0].where).toEqual({
+      userId: USER_1_ID,
+      createdAt: { gte: from, lt: before },
+    });
+    expect((findMany.mock.calls[1] as any[])[0].where).toEqual({
+      userId: USER_1_ID,
+      createdAt: { lt: before },
+    });
+  });
+
   it("starts after the cursor row when one is given", async () => {
     const findMany = jest.fn(async () => []);
     const repository = new AuthAuditRepository({

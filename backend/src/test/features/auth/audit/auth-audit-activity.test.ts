@@ -100,11 +100,31 @@ describe("listSecurityActivityQuerySchema", () => {
     ).toEqual({ limit: 5, category: "sessions", cursor: "abc" });
   });
 
+  it("accepts a date range with an offset or Z", () => {
+    expect(
+      listSecurityActivityQuerySchema.parse({
+        from: "2026-10-01T00:00:00-04:00",
+        to: "2026-10-08T04:00:00.000Z",
+      }),
+    ).toEqual({
+      limit: 20,
+      from: "2026-10-01T00:00:00-04:00",
+      to: "2026-10-08T04:00:00.000Z",
+    });
+    expect(
+      listSecurityActivityQuerySchema.parse({ from: "2026-10-01T00:00:00Z" }),
+    ).toEqual({ limit: 20, from: "2026-10-01T00:00:00Z" });
+  });
+
   it.each([
     [{ limit: "0" }],
     [{ limit: "51" }],
     [{ category: "everything" }],
     [{ userId: USER_ID }],
+    [{ from: "2026-10-01" }],
+    [{ to: "yesterday" }],
+    [{ from: "2026-10-08T00:00:00Z", to: "2026-10-01T00:00:00Z" }],
+    [{ from: "2026-10-01T00:00:00Z", to: "2026-10-01T00:00:00Z" }],
   ])("rejects %o", (query) => {
     expect(() => listSecurityActivityQuerySchema.parse(query)).toThrow();
   });

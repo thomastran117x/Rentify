@@ -334,8 +334,56 @@ describe("Security activity (GET /auth/audit/me) integration", () => {
     expect(crossCursor).toEqual({ items: [], nextCursor: null });
   });
 
+  it("limits the list to a date range that combines with category and paging", async () => {
+    const renterId = await findUserId(RENTER_EMAIL);
+    const day = (n: number) => new Date(Date.UTC(2026, 8, n, 12, 0, 0));
+    const ids = await seedEvents(renterId, [
+      { eventType: "login.succeeded", outcome: "success", createdAt: day(1) },
+      { eventType: "login.failed", outcome: "failure", createdAt: day(3) },
+      { eventType: "login.succeeded", outcome: "success", createdAt: day(4) },
+      { eventType: "logout", outcome: "success", createdAt: day(5) },
+      { eventType: "login.succeeded", outcome: "success", createdAt: day(9) },
+    ]);
+    const renter = await createAuthenticatedRequestContext({
+      email: RENTER_EMAIL,
+    });
+    const range = `from=${encodeURIComponent("2026-09-03T00:00:00Z")}&to=${encodeURIComponent("2026-09-06T00:00:00Z")}`;
+
+    const all = await readPage(
+      await getActivity(`?${range}`, renter.headers()),
+    );
+    expect(all.items.map((item) => item.id)).toEqual([ids[3], ids[2], ids[1]]);
+
+    const signIns = await readPage(
+      await getActivity(`?${range}&category=sign_in&limit=1`, renter.headers()),
+    );
+    expect(signIns.items.map((item) => item.id)).toEqual([ids[2]]);
+    const next = await readPage(
+      await getActivity(
+        `?${range}&category=sign_in&limit=1&cursor=${signIns.nextCursor}`,
+        renter.headers(),
+      ),
+    );
+    expect(next.items.map((item) => item.id)).toEqual([ids[1]]);
+    expect(next.nextCursor).toBeNull();
+
+    // `to` is exclusive: an event exactly on the bound is left out.
+    const exclusive = await readPage(
+      await getActivity(
+        `?from=${encodeURIComponent(day(4).toISOString())}&to=${encodeURIComponent(day(5).toISOString())}`,
+        renter.headers(),
+      ),
+    );
+    expect(exclusive.items.map((item) => item.id)).toEqual([ids[2]]);
+  });
+
   it.each([
     ["an unknown parameter", `?userId=${randomUUID()}`],
+    ["a date without a time", "?from=2026-09-01"],
+    [
+      "a range that ends before it starts",
+      `?from=${encodeURIComponent("2026-09-05T00:00:00Z")}&to=${encodeURIComponent("2026-09-01T00:00:00Z")}`,
+    ],
     ["a malformed cursor", "?cursor=not-a-cursor"],
     ["an out-of-range limit", "?limit=51"],
     ["an unknown category", "?category=everything"],

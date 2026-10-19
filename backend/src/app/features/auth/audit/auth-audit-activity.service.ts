@@ -37,6 +37,8 @@ export class AuthAuditActivityService {
           ? SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES[input.category]
           : undefined,
         afterId,
+        createdFrom: input.from ? new Date(input.from) : undefined,
+        createdBefore: input.to ? new Date(input.to) : undefined,
         limit: input.limit + 1,
       }),
       this.deviceRepository.listKnownDevices(input.userId),

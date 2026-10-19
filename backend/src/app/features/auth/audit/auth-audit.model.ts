@@ -150,8 +150,17 @@ export const listSecurityActivityQuerySchema = z
       .max(SECURITY_ACTIVITY_MAX_LIMIT)
       .default(SECURITY_ACTIVITY_DEFAULT_LIMIT),
     category: z.enum(SECURITY_ACTIVITY_CATEGORIES).optional(),
+    /** Inclusive lower bound on when the event happened. */
+    from: z.iso.datetime({ offset: true }).optional(),
+    /** Exclusive upper bound on when the event happened. */
+    to: z.iso.datetime({ offset: true }).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (query) =>
+      !query.from || !query.to || Date.parse(query.from) < Date.parse(query.to),
+    { path: ["to"], message: "`to` must be later than `from`." },
+  );
 
 export type ListSecurityActivityQuery = z.infer<
   typeof listSecurityActivityQuerySchema

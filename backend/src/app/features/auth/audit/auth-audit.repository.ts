@@ -22,6 +22,10 @@ export interface ListAuthAuditEventsForUserInput {
   eventTypes?: readonly string[];
   /** Id of the last event already returned; the page starts after it. */
   afterId?: string;
+  /** Inclusive lower bound on created_at. */
+  createdFrom?: Date;
+  /** Exclusive upper bound on created_at. */
+  createdBefore?: Date;
   limit: number;
 }
 
@@ -124,6 +128,14 @@ export class AuthAuditRepository extends BaseRepository {
           userId: input.userId,
           ...(input.eventTypes
             ? { eventType: { in: [...input.eventTypes] } }
+            : {}),
+          ...(input.createdFrom || input.createdBefore
+            ? {
+                createdAt: {
+                  ...(input.createdFrom ? { gte: input.createdFrom } : {}),
+                  ...(input.createdBefore ? { lt: input.createdBefore } : {}),
+                },
+              }
             : {}),
         },
         select: ACTIVITY_COLUMNS,
