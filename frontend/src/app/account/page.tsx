@@ -618,7 +618,9 @@ export default function AccountPage() {
                   ? void activateSecurityTab()
                   : setActiveTab(tab)
               }
-              className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
+              // No `transition`: crossfading the solid active background
+              // flashes two grey boxes while switching tabs.
+              className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium ${
                 activeTab === tab
                   ? "bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900"

@@ -54,6 +54,16 @@ const METHOD_NAMES: Record<SecurityActivityMethod, string> = {
   pat: "Personal access token",
 };
 
+// Both states share the border so the pill keeps its size, and no state
+// animates its background: fading the old pill out of solid black while the
+// new one snaps to black reads as a dark box flashing between the two.
+const filterPillBaseClass =
+  "inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold";
+const filterPillSelectedClass =
+  "border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950";
+const filterPillIdleClass =
+  "border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
+
 const secondaryButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -265,11 +275,9 @@ export function SecurityActivityPanel({
                   setCategory(filter.value);
                 }
               }}
-              className={
-                selected
-                  ? "inline-flex h-8 items-center rounded-full bg-slate-950 dark:bg-white px-3 text-xs font-semibold text-white dark:text-slate-950"
-                  : "inline-flex h-8 items-center rounded-full border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800"
-              }
+              className={`${filterPillBaseClass} ${
+                selected ? filterPillSelectedClass : filterPillIdleClass
+              }`}
             >
               {filter.label}
             </button>
