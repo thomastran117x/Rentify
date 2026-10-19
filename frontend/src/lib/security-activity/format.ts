@@ -54,6 +54,45 @@ export function formatAbsoluteTime(value: string): string {
   }).format(date);
 }
 
+function parseDateInput(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/**
+ * Turns the From and To values of `<input type="date">` (local calendar days)
+ * into the API's `from` (inclusive) and `to` (exclusive) bounds, so the whole
+ * To day is included. Empty or malformed values leave that side open.
+ */
+export function toActivityDateRange(
+  fromDate: string,
+  toDate: string,
+): { from?: string; to?: string } {
+  const from = parseDateInput(fromDate);
+  const to = parseDateInput(toDate);
+
+  if (to) {
+    to.setDate(to.getDate() + 1);
+  }
+
+  return {
+    from: from ? from.toISOString() : undefined,
+    to: to ? to.toISOString() : undefined,
+  };
+}
+
+/** Today's local date in the `YYYY-MM-DD` form date inputs use. */
+export function todayDateInputValue(now: Date = new Date()): string {
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function describeDevice(
   item: Pick<SecurityActivityItem, "browser" | "os">,
 ): string {

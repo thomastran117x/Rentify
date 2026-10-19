@@ -19,6 +19,8 @@ export const securityActivityApi = {
         cursor: input.cursor,
         limit: input.limit,
         category: input.category,
+        from: input.from,
+        to: input.to,
       }),
       undefined,
       undefined,

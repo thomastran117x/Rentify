@@ -36,13 +36,19 @@ describe("securityActivityApi.listMine", () => {
     const controller = new AbortController();
 
     await securityActivityApi.listMine(
-      { cursor: "abc_-", limit: 10, category: "security_changes" },
+      {
+        cursor: "abc_-",
+        limit: 10,
+        category: "security_changes",
+        from: "2026-10-01T04:00:00.000Z",
+        to: "2026-10-08T04:00:00.000Z",
+      },
       controller.signal,
     );
 
     expect(authenticatedJsonMock).toHaveBeenCalledWith(
       "GET",
-      "/auth/audit/me?cursor=abc_-&limit=10&category=security_changes",
+      "/auth/audit/me?cursor=abc_-&limit=10&category=security_changes&from=2026-10-01T04%3A00%3A00.000Z&to=2026-10-08T04%3A00%3A00.000Z",
       undefined,
       undefined,
       controller.signal,

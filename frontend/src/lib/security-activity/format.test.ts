@@ -3,6 +3,8 @@ import {
   describeDevice,
   formatAbsoluteTime,
   formatRelativeTime,
+  toActivityDateRange,
+  todayDateInputValue,
 } from "@/lib/security-activity/format";
 
 const NOW = new Date("2026-10-18T12:00:00.000Z");
@@ -36,6 +38,40 @@ describe("formatAbsoluteTime", () => {
   it("formats a valid timestamp and echoes an invalid one", () => {
     expect(formatAbsoluteTime(NOW.toISOString())).toMatch(/2026/);
     expect(formatAbsoluteTime("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("toActivityDateRange", () => {
+  it("covers whole local days, with the To day included", () => {
+    expect(toActivityDateRange("2026-10-01", "2026-10-07")).toEqual({
+      from: new Date(2026, 9, 1).toISOString(),
+      to: new Date(2026, 9, 8).toISOString(),
+    });
+  });
+
+  it("rolls the day after To over month ends", () => {
+    expect(toActivityDateRange("", "2026-10-31").to).toBe(
+      new Date(2026, 10, 1).toISOString(),
+    );
+  });
+
+  it("leaves an empty or malformed side open", () => {
+    expect(toActivityDateRange("", "")).toEqual({
+      from: undefined,
+      to: undefined,
+    });
+    expect(toActivityDateRange("10/01/2026", "")).toEqual({
+      from: undefined,
+      to: undefined,
+    });
+  });
+});
+
+describe("todayDateInputValue", () => {
+  it("formats the local date with zero padding", () => {
+    expect(todayDateInputValue(new Date(2026, 0, 5, 23, 30))).toBe(
+      "2026-01-05",
+    );
   });
 });
 

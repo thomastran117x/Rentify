@@ -18,6 +18,8 @@ import {
   describeDevice,
   formatAbsoluteTime,
   formatRelativeTime,
+  toActivityDateRange,
+  todayDateInputValue,
 } from "@/lib/security-activity/format";
 import type {
   SecurityActivityCategory,
@@ -63,6 +65,9 @@ const filterPillSelectedClass =
   "border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950";
 const filterPillIdleClass =
   "border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
+
+const dateInputClass =
+  "h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 aria-[invalid=true]:border-rose-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]";
 
 const secondaryButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40";
@@ -123,6 +128,8 @@ export function SecurityActivityPanel({
   onReportActivity,
 }: SecurityActivityPanelProps) {
   const [category, setCategory] = useState<CategoryFilter>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [items, setItems] = useState<SecurityActivityItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -136,6 +143,12 @@ export function SecurityActivityPanel({
   // Bumped whenever the list restarts, so a "Load more" response for an
   // earlier filter is dropped instead of appended to the new one.
   const generationRef = useRef(0);
+  // Both are YYYY-MM-DD, so string order is date order.
+  const rangeError =
+    fromDate && toDate && fromDate > toDate
+      ? "The To date must be on or after the From date."
+      : null;
+  const hasDateRange = Boolean(fromDate || toDate);
 
   // The fetch effect below only loads; whatever restarts the list (a filter
   // change or a retry) clears it first, here.
@@ -151,6 +164,11 @@ export function SecurityActivityPanel({
 
   useEffect(() => {
     const generation = ++generationRef.current;
+
+    if (rangeError) {
+      return;
+    }
+
     const controller = new AbortController();
 
     securityActivityApi
@@ -158,6 +176,7 @@ export function SecurityActivityPanel({
         {
           limit: PAGE_SIZE,
           category: category === "all" ? undefined : category,
+          ...toActivityDateRange(fromDate, toDate),
         },
         controller.signal,
       )
@@ -185,7 +204,7 @@ export function SecurityActivityPanel({
     return () => {
       controller.abort();
     };
-  }, [category, reloadKey]);
+  }, [category, fromDate, toDate, rangeError, reloadKey]);
 
   async function handleLoadMore() {
     if (!nextCursor || loadingMore) {
@@ -201,6 +220,7 @@ export function SecurityActivityPanel({
         cursor: nextCursor,
         limit: PAGE_SIZE,
         category: category === "all" ? undefined : category,
+        ...toActivityDateRange(fromDate, toDate),
       });
       if (generation !== generationRef.current) {
         return;
@@ -285,7 +305,70 @@ export function SecurityActivityPanel({
         })}
       </div>
 
-      {status === "loading" ? (
+      <div
+        role="group"
+        aria-label="Filter security activity by date"
+        className="mb-4 flex flex-wrap items-end gap-3"
+      >
+        <label className="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          From
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || todayDateInputValue()}
+            onChange={(event) => {
+              resetList();
+              setFromDate(event.target.value);
+            }}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={
+              rangeError ? "security-activity-range-error" : undefined
+            }
+            className={dateInputClass}
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          To
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            max={todayDateInputValue()}
+            onChange={(event) => {
+              resetList();
+              setToDate(event.target.value);
+            }}
+            aria-invalid={Boolean(rangeError)}
+            aria-describedby={
+              rangeError ? "security-activity-range-error" : undefined
+            }
+            className={dateInputClass}
+          />
+        </label>
+        {hasDateRange ? (
+          <button
+            type="button"
+            onClick={() => {
+              resetList();
+              setFromDate("");
+              setToDate("");
+            }}
+            className={secondaryButtonClass}
+          >
+            Clear dates
+          </button>
+        ) : null}
+      </div>
+
+      {rangeError ? (
+        <p
+          id="security-activity-range-error"
+          role="alert"
+          className="rounded-xl border border-dashed border-rose-300 dark:border-rose-800 px-4 py-4 text-sm text-rose-700 dark:text-rose-300"
+        >
+          {rangeError}
+        </p>
+      ) : status === "loading" ? (
         <div
           className="grid gap-3"
           role="status"
@@ -314,7 +397,9 @@ export function SecurityActivityPanel({
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
-          No recent activity
+          {hasDateRange
+            ? "No activity in this date range"
+            : "No recent activity"}
         </div>
       ) : (
         <>

@@ -1,7 +1,14 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiServerError } from "@/lib/api/types";
+import { toActivityDateRange } from "@/lib/security-activity/format";
 import type {
   SecurityActivityItem,
   SecurityActivityList,
@@ -261,6 +268,104 @@ describe("SecurityActivityPanel", () => {
       expect(screen.queryByText("Late arrival")).not.toBeInTheDocument(),
     );
     expect(screen.getByText("No recent activity")).toBeInTheDocument();
+  });
+
+  it("filters by a local date range, combined with the category and Load more", async () => {
+    const user = userEvent.setup();
+    listMineMock
+      .mockResolvedValueOnce(page([item()]))
+      .mockResolvedValueOnce(page([item()]))
+      .mockResolvedValueOnce(page([item({ id: "in-range" })], "cursor-1"))
+      .mockResolvedValueOnce(page([item({ id: "older", label: "Older" })]));
+    render(<SecurityActivityPanel />);
+    await screen.findByText("Signed in with password");
+    const range = toActivityDateRange("2026-10-01", "2026-10-07");
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-10-01" },
+    });
+    await waitFor(() =>
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        { limit: 20, category: undefined, from: range.from, to: undefined },
+        expect.any(AbortSignal),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-10-07" },
+    });
+    await waitFor(() =>
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        { limit: 20, category: undefined, ...range },
+        expect.any(AbortSignal),
+      ),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+    expect(listMineMock).toHaveBeenLastCalledWith({
+      cursor: "cursor-1",
+      limit: 20,
+      category: undefined,
+      ...range,
+    });
+    expect(await screen.findByText("Older")).toBeInTheDocument();
+  });
+
+  it("explains an inverted range without querying, then recovers", async () => {
+    listMineMock.mockResolvedValue(page([]));
+    render(<SecurityActivityPanel />);
+    await screen.findByText("No recent activity");
+
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-10-01" },
+    });
+    await screen.findByText("No activity in this date range");
+    const callsBefore = listMineMock.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-10-05" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The To date must be on or after the From date.",
+    );
+    expect(screen.getByLabelText("From")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(listMineMock).toHaveBeenCalledTimes(callsBefore);
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-09-25" },
+    });
+    expect(
+      await screen.findByText("No activity in this date range"),
+    ).toBeInTheDocument();
+    expect(listMineMock).toHaveBeenCalledTimes(callsBefore + 1);
+  });
+
+  it("clears the date range and reloads the unfiltered list", async () => {
+    const user = userEvent.setup();
+    listMineMock.mockResolvedValue(page([item()]));
+    render(<SecurityActivityPanel />);
+    await screen.findByText("Signed in with password");
+    expect(
+      screen.queryByRole("button", { name: "Clear dates" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-10-01" },
+    });
+    await user.click(
+      await screen.findByRole("button", { name: "Clear dates" }),
+    );
+
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    await waitFor(() =>
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        { limit: 20, category: undefined, from: undefined, to: undefined },
+        expect.any(AbortSignal),
+      ),
+    );
   });
 
   it("reports an event that was not the user and shows guidance", async () => {
