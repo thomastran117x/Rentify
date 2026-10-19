@@ -1117,7 +1117,10 @@ export default function AccountPage() {
               </div>
             </div>
 
-            <SecurityActivityPanel onReportActivity={focusPasswordSection} />
+            <SecurityActivityPanel
+              userId={session.user.id}
+              onReportActivity={focusPasswordSection}
+            />
 
             {/* Disable account */}
             <div className="rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 p-6">

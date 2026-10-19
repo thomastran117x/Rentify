@@ -15,6 +15,11 @@ import {
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { securityActivityApi } from "@/lib/security-activity/api";
 import {
+  activityCacheKey,
+  readActivityCache,
+  writeActivityCache,
+} from "@/lib/security-activity/cache";
+import {
   describeDevice,
   formatAbsoluteTime,
   formatRelativeTime,
@@ -145,24 +150,76 @@ function rowAppearance(item: SecurityActivityItem): {
 
 export interface SecurityActivityPanelProps {
   /**
+   * Scopes the in-memory cache, so another account signed in on the same tab
+   * never sees this one's history. Without it nothing is cached.
+   */
+  userId?: string;
+  /**
    * Called when the user reports an event as not theirs. The account page
    * takes them to the password form until self-lock (#378) exists.
    */
   onReportActivity?: (item: SecurityActivityItem) => void;
 }
 
+interface ActivityFilters {
+  category: CategoryFilter;
+  outcome: OutcomeFilter;
+  fromDate: string;
+  toDate: string;
+}
+
+const DEFAULT_FILTERS: ActivityFilters = {
+  category: "all",
+  outcome: "all",
+  fromDate: "",
+  toDate: "",
+};
+
+// Both dates are YYYY-MM-DD, so string order is date order.
+function rangeErrorFor(filters: ActivityFilters): string | null {
+  return filters.fromDate && filters.toDate && filters.fromDate > filters.toDate
+    ? "The To date must be on or after the From date."
+    : null;
+}
+
+function cacheKeyFor(
+  userId: string | undefined,
+  filters: ActivityFilters,
+): string | null {
+  return userId
+    ? activityCacheKey(
+        userId,
+        toListInput(
+          filters.category,
+          filters.outcome,
+          filters.fromDate,
+          filters.toDate,
+        ),
+      )
+    : null;
+}
+
 export function SecurityActivityPanel({
+  userId,
   onReportActivity,
 }: SecurityActivityPanelProps) {
-  const [category, setCategory] = useState<CategoryFilter>("all");
-  const [outcome, setOutcome] = useState<OutcomeFilter>("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [filters, setFilters] = useState<ActivityFilters>(DEFAULT_FILTERS);
+  const { category, outcome, fromDate, toDate } = filters;
   const [reloadKey, setReloadKey] = useState(0);
-  const [items, setItems] = useState<SecurityActivityItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading",
+  // Returning to the tab shows the cached first page at once rather than a
+  // skeleton; the fetch effect then decides whether it needs refreshing.
+  const [initialCache] = useState(() => {
+    const key = cacheKeyFor(userId, DEFAULT_FILTERS);
+    return key ? readActivityCache(key) : null;
+  });
+  const [items, setItems] = useState<SecurityActivityItem[]>(
+    () => initialCache?.list.items ?? [],
+  );
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    () => initialCache?.list.nextCursor ?? null,
+  );
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(() =>
+    initialCache ? "ready" : "loading",
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -171,24 +228,41 @@ export function SecurityActivityPanel({
   // Bumped whenever the list restarts, so a "Load more" response for an
   // earlier filter is dropped instead of appended to the new one.
   const generationRef = useRef(0);
-  // Both are YYYY-MM-DD, so string order is date order.
-  const rangeError =
-    fromDate && toDate && fromDate > toDate
-      ? "The To date must be on or after the From date."
-      : null;
+  // The cache key whose entry is on screen, if the list came from the cache.
+  const shownFromCacheRef = useRef<string | null>(
+    initialCache ? cacheKeyFor(userId, DEFAULT_FILTERS) : null,
+  );
+  const forceReloadRef = useRef(false);
+  const rangeError = rangeErrorFor(filters);
   const hasDateRange = Boolean(fromDate || toDate);
   const hasNarrowingFilters = hasDateRange || outcome !== "all";
 
-  // The fetch effect below only loads; whatever restarts the list (a filter
-  // change or a retry) clears it first, here.
-  function resetList() {
-    setStatus("loading");
+  /**
+   * Applies new filters and restarts the list. A cached first page for them
+   * is shown at once; otherwise the list clears to the loading state. The
+   * fetch effect below then loads or refreshes it.
+   */
+  function restart(
+    changes: Partial<ActivityFilters>,
+    options: { force?: boolean } = {},
+  ) {
+    const next = { ...filters, ...changes };
+    const key = rangeErrorFor(next) ? null : cacheKeyFor(userId, next);
+    const cached = key && !options.force ? readActivityCache(key) : null;
+
+    forceReloadRef.current = Boolean(options.force);
+    shownFromCacheRef.current = cached ? key : null;
     setErrorMessage(null);
     setLoadMoreError(null);
     setLoadingMore(false);
-    setItems([]);
-    setNextCursor(null);
     setReportedId(null);
+    setItems(cached?.list.items ?? []);
+    setNextCursor(cached?.list.nextCursor ?? null);
+    setStatus(cached ? "ready" : "loading");
+    setFilters(next);
+    if (options.force) {
+      setReloadKey((value) => value + 1);
+    }
   }
 
   useEffect(() => {
@@ -198,23 +272,35 @@ export function SecurityActivityPanel({
       return;
     }
 
+    const input = toListInput(category, outcome, fromDate, toDate);
+    const key = userId ? activityCacheKey(userId, input) : null;
+    const force = forceReloadRef.current;
+    forceReloadRef.current = false;
+    const showingCache = key !== null && shownFromCacheRef.current === key;
+
+    if (showingCache && !force && readActivityCache(key)?.fresh) {
+      return;
+    }
+
     const controller = new AbortController();
 
     securityActivityApi
-      .listMine(
-        toListInput(category, outcome, fromDate, toDate),
-        controller.signal,
-      )
+      .listMine(input, controller.signal)
       .then((result) => {
         if (generation !== generationRef.current) {
           return;
         }
+        if (key) {
+          writeActivityCache(key, result);
+        }
+        shownFromCacheRef.current = null;
         setItems(result.items);
         setNextCursor(result.nextCursor);
         setStatus("ready");
       })
       .catch((error: unknown) => {
-        if (generation !== generationRef.current) {
+        // A failed background refresh keeps the cached list on screen.
+        if (generation !== generationRef.current || showingCache) {
           return;
         }
         setErrorMessage(
@@ -229,7 +315,7 @@ export function SecurityActivityPanel({
     return () => {
       controller.abort();
     };
-  }, [category, outcome, fromDate, toDate, rangeError, reloadKey]);
+  }, [userId, category, outcome, fromDate, toDate, rangeError, reloadKey]);
 
   async function handleLoadMore() {
     if (!nextCursor || loadingMore) {
@@ -298,6 +384,16 @@ export function SecurityActivityPanel({
             Recent sign-ins and security changes on your account
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => restart({}, { force: true })}
+          disabled={status === "loading" && !rangeError}
+          aria-label="Refresh security activity"
+          title="Refresh"
+          className={`${secondaryButtonClass} ml-auto shrink-0 px-2`}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
 
       <div
@@ -314,8 +410,7 @@ export function SecurityActivityPanel({
               aria-pressed={selected}
               onClick={() => {
                 if (!selected) {
-                  resetList();
-                  setCategory(filter.value);
+                  restart({ category: filter.value });
                 }
               }}
               className={`${filterPillBaseClass} ${
@@ -337,10 +432,9 @@ export function SecurityActivityPanel({
           Status
           <select
             value={outcome}
-            onChange={(event) => {
-              resetList();
-              setOutcome(event.target.value as OutcomeFilter);
-            }}
+            onChange={(event) =>
+              restart({ outcome: event.target.value as OutcomeFilter })
+            }
             className={dateInputClass}
           >
             {OUTCOME_FILTERS.map((option) => (
@@ -356,10 +450,7 @@ export function SecurityActivityPanel({
             type="date"
             value={fromDate}
             max={toDate || todayDateInputValue()}
-            onChange={(event) => {
-              resetList();
-              setFromDate(event.target.value);
-            }}
+            onChange={(event) => restart({ fromDate: event.target.value })}
             aria-invalid={Boolean(rangeError)}
             aria-describedby={
               rangeError ? "security-activity-range-error" : undefined
@@ -374,10 +465,7 @@ export function SecurityActivityPanel({
             value={toDate}
             min={fromDate || undefined}
             max={todayDateInputValue()}
-            onChange={(event) => {
-              resetList();
-              setToDate(event.target.value);
-            }}
+            onChange={(event) => restart({ toDate: event.target.value })}
             aria-invalid={Boolean(rangeError)}
             aria-describedby={
               rangeError ? "security-activity-range-error" : undefined
@@ -388,11 +476,7 @@ export function SecurityActivityPanel({
         {hasDateRange ? (
           <button
             type="button"
-            onClick={() => {
-              resetList();
-              setFromDate("");
-              setToDate("");
-            }}
+            onClick={() => restart({ fromDate: "", toDate: "" })}
             className={secondaryButtonClass}
           >
             Clear dates
@@ -426,10 +510,7 @@ export function SecurityActivityPanel({
           <p role="alert">{errorMessage}</p>
           <button
             type="button"
-            onClick={() => {
-              resetList();
-              setReloadKey((key) => key + 1);
-            }}
+            onClick={() => restart({}, { force: true })}
             className={secondaryButtonClass}
           >
             Try again

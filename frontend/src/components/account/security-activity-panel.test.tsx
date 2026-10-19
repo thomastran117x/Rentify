@@ -8,6 +8,10 @@ import {
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiServerError } from "@/lib/api/types";
+import {
+  ACTIVITY_CACHE_FRESH_MS,
+  clearActivityCache,
+} from "@/lib/security-activity/cache";
 import { toActivityDateRange } from "@/lib/security-activity/format";
 import type {
   SecurityActivityItem,
@@ -67,6 +71,8 @@ function rows() {
 describe("SecurityActivityPanel", () => {
   beforeEach(() => {
     listMineMock.mockReset();
+    clearActivityCache();
+    vi.restoreAllMocks();
   });
 
   it("shows a loading state, then the rows with their details", async () => {
@@ -416,6 +422,128 @@ describe("SecurityActivityPanel", () => {
         expect.any(AbortSignal),
       ),
     );
+  });
+
+  describe("caching", () => {
+    function at(ms: number) {
+      vi.spyOn(Date, "now").mockReturnValue(ms);
+    }
+
+    it("shows a fresh cached list on return without a request or skeleton", async () => {
+      at(1_000_000);
+      listMineMock.mockResolvedValueOnce(page([item()], "cursor-1"));
+      const first = render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("Signed in with password");
+      first.unmount();
+
+      at(1_000_000 + ACTIVITY_CACHE_FRESH_MS - 1);
+      render(<SecurityActivityPanel userId="user-1" />);
+
+      expect(screen.getByText("Signed in with password")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("status", { name: "Loading security activity" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled();
+      expect(listMineMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a stale cached list at once, then replaces it with fresh data", async () => {
+      at(1_000_000);
+      listMineMock
+        .mockResolvedValueOnce(page([item({ label: "Cached row" })]))
+        .mockResolvedValueOnce(page([item({ label: "Fresh row" })]));
+      const first = render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("Cached row");
+      first.unmount();
+
+      at(1_000_000 + ACTIVITY_CACHE_FRESH_MS + 1);
+      render(<SecurityActivityPanel userId="user-1" />);
+
+      expect(screen.getByText("Cached row")).toBeInTheDocument();
+      expect(await screen.findByText("Fresh row")).toBeInTheDocument();
+      expect(listMineMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the stale list when the background refresh fails", async () => {
+      at(1_000_000);
+      listMineMock
+        .mockResolvedValueOnce(page([item({ label: "Cached row" })]))
+        .mockRejectedValueOnce(new Error("offline"));
+      const first = render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("Cached row");
+      first.unmount();
+
+      at(1_000_000 + ACTIVITY_CACHE_FRESH_MS + 1);
+      render(<SecurityActivityPanel userId="user-1" />);
+      await waitFor(() => expect(listMineMock).toHaveBeenCalledTimes(2));
+
+      expect(screen.getByText("Cached row")).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("serves a filter visited moments ago straight from the cache", async () => {
+      const user = userEvent.setup();
+      at(1_000_000);
+      listMineMock
+        .mockResolvedValueOnce(page([item({ label: "All rows" })]))
+        .mockResolvedValueOnce(page([item({ label: "Session rows" })]));
+      render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("All rows");
+
+      await user.click(screen.getByRole("button", { name: "Sessions" }));
+      await screen.findByText("Session rows");
+      await user.click(screen.getByRole("button", { name: "All" }));
+
+      expect(screen.getByText("All rows")).toBeInTheDocument();
+      expect(listMineMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("refetches on Refresh even while the cache is fresh", async () => {
+      const user = userEvent.setup();
+      at(1_000_000);
+      listMineMock
+        .mockResolvedValueOnce(page([item({ label: "Cached row" })]))
+        .mockResolvedValueOnce(page([item({ label: "Refreshed row" })]));
+      render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("Cached row");
+
+      await user.click(
+        screen.getByRole("button", { name: "Refresh security activity" }),
+      );
+
+      expect(await screen.findByText("Refreshed row")).toBeInTheDocument();
+      expect(listMineMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("never shows one user's cached history to another", async () => {
+      at(1_000_000);
+      listMineMock
+        .mockResolvedValueOnce(page([item({ label: "User one row" })]))
+        .mockResolvedValueOnce(page([]));
+      const first = render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("User one row");
+      first.unmount();
+
+      render(<SecurityActivityPanel userId="user-2" />);
+
+      expect(screen.queryByText("User one row")).not.toBeInTheDocument();
+      expect(await screen.findByText("No recent activity")).toBeInTheDocument();
+      expect(listMineMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("caches nothing without a user id", async () => {
+      listMineMock.mockResolvedValue(page([item()]));
+      const first = render(<SecurityActivityPanel />);
+      await screen.findByText("Signed in with password");
+      first.unmount();
+
+      render(<SecurityActivityPanel />);
+
+      expect(
+        screen.getByRole("status", { name: "Loading security activity" }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(listMineMock).toHaveBeenCalledTimes(2));
+    });
   });
 
   it("reports an event that was not the user and shows guidance", async () => {

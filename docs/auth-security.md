@@ -116,7 +116,13 @@ Each row shows:
 
 Badges mark the current session ("This session") and unregistered devices ("New device"). Failed rows are rose with a "Failed" badge and blocked rows are amber with a "Blocked" badge, so the outcome does not rely on colour alone.
 
-The filter buttons (All, Sign-ins, Security changes, Sessions), the **Status** select (Any status, Succeeded, Failed, Blocked) and the **From** and **To** dates all combine, and changing any of them restarts the list from the newest event. Both dates are local days and both are included: the page sends the start of From and the start of the day after To. A To date before From shows an inline error and loads nothing until it is fixed. **Clear dates** removes the range. When a status or date narrows the list to nothing, it reads "No activity matches these filters". **Load more** follows `nextCursor`, 20 events at a time. Loading, empty ("No recent activity") and error-with-retry states are handled. The list is fetched fresh on every visit, so a refresh shows the same history.
+The filter buttons (All, Sign-ins, Security changes, Sessions), the **Status** select (Any status, Succeeded, Failed, Blocked) and the **From** and **To** dates all combine, and changing any of them restarts the list from the newest event. Both dates are local days and both are included: the page sends the start of From and the start of the day after To. A To date before From shows an inline error and loads nothing until it is fixed. **Clear dates** removes the range. When a status or date narrows the list to nothing, it reads "No activity matches these filters". **Load more** follows `nextCursor`, 20 events at a time. Loading, empty ("No recent activity") and error-with-retry states are handled. First pages are cached in memory (`frontend/src/lib/security-activity/cache.ts`), keyed by the user ID and every filter, so switching tabs or filters back and forth does not refetch:
+
+- a cached page up to 60 seconds old is shown with no request;
+- one up to 5 minutes old is shown at once and refreshed in the background, and if that refresh fails the cached list stays;
+- older entries are dropped, and at most 20 filter combinations are kept.
+
+The cache never touches browser storage, so a page reload starts empty, and a different account signed in on the same tab never sees another user's entries. The **Refresh** button in the section header, and **Try again** after an error, always fetch.
 
 **This wasn't me** appears on every row except the current session's. Until self-lock (#378) lands, it shows advice to change the password and remove unknown devices, then scrolls to the Password section and focuses its first field.
 
