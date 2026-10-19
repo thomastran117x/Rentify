@@ -286,7 +286,13 @@ describe("SecurityActivityPanel", () => {
     });
     await waitFor(() =>
       expect(listMineMock).toHaveBeenLastCalledWith(
-        { limit: 20, category: undefined, from: range.from, to: undefined },
+        {
+          limit: 20,
+          category: undefined,
+          outcome: undefined,
+          from: range.from,
+          to: undefined,
+        },
         expect.any(AbortSignal),
       ),
     );
@@ -311,6 +317,50 @@ describe("SecurityActivityPanel", () => {
     expect(await screen.findByText("Older")).toBeInTheDocument();
   });
 
+  it("filters by status alongside the category and Load more", async () => {
+    const user = userEvent.setup();
+    listMineMock
+      .mockResolvedValueOnce(page([item()]))
+      .mockResolvedValueOnce(
+        page(
+          [
+            item({
+              id: "failed",
+              outcome: "failure",
+              label: "Failed sign-in: wrong password",
+              current: false,
+            }),
+          ],
+          "cursor-1",
+        ),
+      )
+      .mockResolvedValueOnce(page([]));
+    render(<SecurityActivityPanel />);
+    await screen.findByText("Signed in with password");
+
+    await user.selectOptions(screen.getByLabelText("Status"), "Failed");
+
+    expect(
+      await screen.findByText("Failed sign-in: wrong password"),
+    ).toBeInTheDocument();
+    expect(listMineMock).toHaveBeenLastCalledWith(
+      { limit: 20, category: undefined, outcome: "failure" },
+      expect.any(AbortSignal),
+    );
+    expect(
+      screen.queryByText("Signed in with password"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(listMineMock).toHaveBeenLastCalledWith({
+      limit: 20,
+      category: undefined,
+      outcome: "failure",
+      cursor: "cursor-1",
+    });
+  });
+
   it("explains an inverted range without querying, then recovers", async () => {
     listMineMock.mockResolvedValue(page([]));
     render(<SecurityActivityPanel />);
@@ -319,7 +369,7 @@ describe("SecurityActivityPanel", () => {
     fireEvent.change(screen.getByLabelText("To"), {
       target: { value: "2026-10-01" },
     });
-    await screen.findByText("No activity in this date range");
+    await screen.findByText("No activity matches these filters");
     const callsBefore = listMineMock.mock.calls.length;
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-10-05" },
@@ -338,7 +388,7 @@ describe("SecurityActivityPanel", () => {
       target: { value: "2026-09-25" },
     });
     expect(
-      await screen.findByText("No activity in this date range"),
+      await screen.findByText("No activity matches these filters"),
     ).toBeInTheDocument();
     expect(listMineMock).toHaveBeenCalledTimes(callsBefore + 1);
   });

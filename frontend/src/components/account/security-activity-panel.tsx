@@ -22,9 +22,11 @@ import {
   todayDateInputValue,
 } from "@/lib/security-activity/format";
 import type {
+  ListSecurityActivityInput,
   SecurityActivityCategory,
   SecurityActivityItem,
   SecurityActivityMethod,
+  SecurityActivityOutcome,
 } from "@/lib/security-activity/types";
 
 const PAGE_SIZE = 20;
@@ -37,6 +39,30 @@ const CATEGORY_FILTERS: Array<{ value: CategoryFilter; label: string }> = [
   { value: "security_changes", label: "Security changes" },
   { value: "sessions", label: "Sessions" },
 ];
+
+type OutcomeFilter = SecurityActivityOutcome | "all";
+
+const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
+  { value: "all", label: "Any status" },
+  { value: "success", label: "Succeeded" },
+  { value: "failure", label: "Failed" },
+  { value: "blocked", label: "Blocked" },
+];
+
+/** The first-page request for the current filters; Load more adds a cursor. */
+function toListInput(
+  category: CategoryFilter,
+  outcome: OutcomeFilter,
+  fromDate: string,
+  toDate: string,
+): ListSecurityActivityInput {
+  return {
+    limit: PAGE_SIZE,
+    category: category === "all" ? undefined : category,
+    outcome: outcome === "all" ? undefined : outcome,
+    ...toActivityDateRange(fromDate, toDate),
+  };
+}
 
 const METHOD_ICONS: Record<SecurityActivityMethod, LucideIcon> = {
   password: KeyRound,
@@ -66,6 +92,7 @@ const filterPillSelectedClass =
 const filterPillIdleClass =
   "border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
 
+// Shared by the date inputs and the status select.
 const dateInputClass =
   "h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 aria-[invalid=true]:border-rose-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]";
 
@@ -128,6 +155,7 @@ export function SecurityActivityPanel({
   onReportActivity,
 }: SecurityActivityPanelProps) {
   const [category, setCategory] = useState<CategoryFilter>("all");
+  const [outcome, setOutcome] = useState<OutcomeFilter>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -149,6 +177,7 @@ export function SecurityActivityPanel({
       ? "The To date must be on or after the From date."
       : null;
   const hasDateRange = Boolean(fromDate || toDate);
+  const hasNarrowingFilters = hasDateRange || outcome !== "all";
 
   // The fetch effect below only loads; whatever restarts the list (a filter
   // change or a retry) clears it first, here.
@@ -173,11 +202,7 @@ export function SecurityActivityPanel({
 
     securityActivityApi
       .listMine(
-        {
-          limit: PAGE_SIZE,
-          category: category === "all" ? undefined : category,
-          ...toActivityDateRange(fromDate, toDate),
-        },
+        toListInput(category, outcome, fromDate, toDate),
         controller.signal,
       )
       .then((result) => {
@@ -204,7 +229,7 @@ export function SecurityActivityPanel({
     return () => {
       controller.abort();
     };
-  }, [category, fromDate, toDate, rangeError, reloadKey]);
+  }, [category, outcome, fromDate, toDate, rangeError, reloadKey]);
 
   async function handleLoadMore() {
     if (!nextCursor || loadingMore) {
@@ -217,10 +242,8 @@ export function SecurityActivityPanel({
 
     try {
       const result = await securityActivityApi.listMine({
+        ...toListInput(category, outcome, fromDate, toDate),
         cursor: nextCursor,
-        limit: PAGE_SIZE,
-        category: category === "all" ? undefined : category,
-        ...toActivityDateRange(fromDate, toDate),
       });
       if (generation !== generationRef.current) {
         return;
@@ -307,9 +330,26 @@ export function SecurityActivityPanel({
 
       <div
         role="group"
-        aria-label="Filter security activity by date"
+        aria-label="Filter security activity by status and date"
         className="mb-4 flex flex-wrap items-end gap-3"
       >
+        <label className="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          Status
+          <select
+            value={outcome}
+            onChange={(event) => {
+              resetList();
+              setOutcome(event.target.value as OutcomeFilter);
+            }}
+            className={dateInputClass}
+          >
+            {OUTCOME_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="grid gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
           From
           <input
@@ -397,8 +437,8 @@ export function SecurityActivityPanel({
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
-          {hasDateRange
-            ? "No activity in this date range"
+          {hasNarrowingFilters
+            ? "No activity matches these filters"
             : "No recent activity"}
         </div>
       ) : (

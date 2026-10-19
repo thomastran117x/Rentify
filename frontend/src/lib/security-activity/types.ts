@@ -37,6 +37,7 @@ export interface ListSecurityActivityInput {
   cursor?: string;
   limit?: number;
   category?: SecurityActivityCategory;
+  outcome?: SecurityActivityOutcome;
   /** Inclusive lower bound, an ISO 8601 date-time. */
   from?: string;
   /** Exclusive upper bound, an ISO 8601 date-time. */
