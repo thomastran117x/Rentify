@@ -367,6 +367,13 @@ describe("Security activity (GET /auth/audit/me) integration", () => {
     expect(next.items.map((item) => item.id)).toEqual([ids[1]]);
     expect(next.nextCursor).toBeNull();
 
+    const failures = await readPage(
+      await getActivity(`?${range}&outcome=failure`, renter.headers()),
+    );
+    expect(failures.items.map((item) => [item.id, item.outcome])).toEqual([
+      [ids[1], "failure"],
+    ]);
+
     // `to` is exclusive: an event exactly on the bound is left out.
     const exclusive = await readPage(
       await getActivity(
@@ -380,6 +387,7 @@ describe("Security activity (GET /auth/audit/me) integration", () => {
   it.each([
     ["an unknown parameter", `?userId=${randomUUID()}`],
     ["a date without a time", "?from=2026-09-01"],
+    ["an unknown outcome", "?outcome=succeeded"],
     [
       "a range that ends before it starts",
       `?from=${encodeURIComponent("2026-09-05T00:00:00Z")}&to=${encodeURIComponent("2026-09-01T00:00:00Z")}`,

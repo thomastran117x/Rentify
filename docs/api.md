@@ -76,7 +76,8 @@ Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
 step-up (`mfa-management` scope), returns only the caller's events newest
 first, and pages with an opaque `cursor`. `limit` is 1 to 50 (default 20),
-`category` is `sign_in`, `security_changes` or `sessions`, and the optional
+`category` is `sign_in`, `security_changes` or `sessions`, `outcome` is
+`success`, `failure` or `blocked`, and the optional
 `from` (inclusive) and `to` (exclusive) ISO date-times bound the time range. Each item is a
 user-safe projection with a server-written `label`. Identifier hashes, actor
 IDs, request IDs, session and device IDs, raw user agents and metadata are

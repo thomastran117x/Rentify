@@ -36,6 +36,7 @@ export class AuthAuditActivityService {
         eventTypes: input.category
           ? SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES[input.category]
           : undefined,
+        outcome: input.outcome,
         afterId,
         createdFrom: input.from ? new Date(input.from) : undefined,
         createdBefore: input.to ? new Date(input.to) : undefined,

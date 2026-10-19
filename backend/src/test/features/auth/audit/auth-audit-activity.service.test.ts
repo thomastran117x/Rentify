@@ -85,6 +85,20 @@ describe("AuthAuditActivityService.listForUser", () => {
     ).resolves.toEqual({ items: [], nextCursor: null });
   });
 
+  it("passes the outcome filter through", async () => {
+    const { service, repository } = createService([]);
+
+    await service.listForUser({
+      userId: USER_ID,
+      limit: 5,
+      outcome: "blocked",
+    });
+
+    expect(repository.listForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "blocked" }),
+    );
+  });
+
   it("passes the date range as created_at bounds", async () => {
     const { service, repository } = createService([]);
 

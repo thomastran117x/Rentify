@@ -20,6 +20,7 @@ function truncate(value: string | undefined, limit: number): string | null {
 export interface ListAuthAuditEventsForUserInput {
   userId: Uuid;
   eventTypes?: readonly string[];
+  outcome?: string;
   /** Id of the last event already returned; the page starts after it. */
   afterId?: string;
   /** Inclusive lower bound on created_at. */
@@ -129,6 +130,7 @@ export class AuthAuditRepository extends BaseRepository {
           ...(input.eventTypes
             ? { eventType: { in: [...input.eventTypes] } }
             : {}),
+          ...(input.outcome ? { outcome: input.outcome } : {}),
           ...(input.createdFrom || input.createdBefore
             ? {
                 createdAt: {

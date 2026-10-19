@@ -1,10 +1,11 @@
 import { RequestValidationError } from "@/configuration/validation/request";
 import { isUuid } from "@/configuration/validation/uuid";
-import type {
-  AuthAuditActivityRow,
-  AuthAuditMethod,
-  AuthAuditOutcome,
-  SecurityActivityItem,
+import {
+  AUTH_AUDIT_OUTCOMES,
+  type AuthAuditActivityRow,
+  type AuthAuditMethod,
+  type AuthAuditOutcome,
+  type SecurityActivityItem,
 } from "@/features/auth/audit/auth-audit.model";
 
 const CURSOR_PREFIX = "v1:";
@@ -38,7 +39,6 @@ export function decodeActivityCursor(cursor: string): string {
   return id;
 }
 
-const OUTCOMES: readonly AuthAuditOutcome[] = ["success", "failure", "blocked"];
 const METHODS: readonly AuthAuditMethod[] = [
   "password",
   "google",
@@ -54,7 +54,7 @@ const PROVIDER_NAMES: Partial<Record<AuthAuditMethod, string>> = {
 };
 
 function toOutcome(value: string): AuthAuditOutcome {
-  return (OUTCOMES as readonly string[]).includes(value)
+  return (AUTH_AUDIT_OUTCOMES as readonly string[]).includes(value)
     ? (value as AuthAuditOutcome)
     : "failure";
 }

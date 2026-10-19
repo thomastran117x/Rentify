@@ -2678,7 +2678,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "listMySecurityActivity",
       summary: "List my security activity",
       description:
-        "Returns the signed-in user's own authentication history, newest first: sign-ins, failed and blocked attempts, sign-outs and security changes. Only the caller's events are ever returned. Each item is a user-safe projection with a server-side label; identifier hashes, actor ids, request ids, session and device ids, raw user agents and metadata are never included. Requires a signed-in session with a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise); PAT authentication is rejected. Optional `from` (inclusive) and `to` (exclusive) bound the time range and combine with `category`; a `to` that is not later than `from` is a 400. Page with the opaque `nextCursor`, which is null on the last page.",
+        "Returns the signed-in user's own authentication history, newest first: sign-ins, failed and blocked attempts, sign-outs and security changes. Only the caller's events are ever returned. Each item is a user-safe projection with a server-side label; identifier hashes, actor ids, request ids, session and device ids, raw user agents and metadata are never included. Requires a signed-in session with a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise); PAT authentication is rejected. Optional `from` (inclusive) and `to` (exclusive) bound the time range, and `outcome` keeps only successful, failed or blocked events; all filters combine; a `to` that is not later than `from` is a 400. Page with the opaque `nextCursor`, which is null on the last page.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -2703,6 +2703,12 @@ function buildOperations(): OperationDefinition[] {
           schemaRef("SecurityActivityCategory"),
           "Restricts the list to one group of events.",
           "sign_in",
+        ),
+        queryParam(
+          "outcome",
+          { type: "string", enum: ["success", "failure", "blocked"] },
+          "Restricts the list to events with this outcome.",
+          "failure",
         ),
         queryParam(
           "from",

@@ -33,7 +33,9 @@ export type AuthAuditEventType =
   | "pat.revoked"
   | "rate_limit.exceeded";
 
-export type AuthAuditOutcome = "success" | "failure" | "blocked";
+export const AUTH_AUDIT_OUTCOMES = ["success", "failure", "blocked"] as const;
+
+export type AuthAuditOutcome = (typeof AUTH_AUDIT_OUTCOMES)[number];
 
 export type AuthAuditReasonCode =
   | "bad_credentials"
@@ -150,6 +152,7 @@ export const listSecurityActivityQuerySchema = z
       .max(SECURITY_ACTIVITY_MAX_LIMIT)
       .default(SECURITY_ACTIVITY_DEFAULT_LIMIT),
     category: z.enum(SECURITY_ACTIVITY_CATEGORIES).optional(),
+    outcome: z.enum(AUTH_AUDIT_OUTCOMES).optional(),
     /** Inclusive lower bound on when the event happened. */
     from: z.iso.datetime({ offset: true }).optional(),
     /** Exclusive upper bound on when the event happened. */

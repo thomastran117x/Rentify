@@ -100,6 +100,15 @@ describe("listSecurityActivityQuerySchema", () => {
     ).toEqual({ limit: 5, category: "sessions", cursor: "abc" });
   });
 
+  it("accepts each outcome", () => {
+    for (const outcome of ["success", "failure", "blocked"]) {
+      expect(listSecurityActivityQuerySchema.parse({ outcome })).toEqual({
+        limit: 20,
+        outcome,
+      });
+    }
+  });
+
   it("accepts a date range with an offset or Z", () => {
     expect(
       listSecurityActivityQuerySchema.parse({
@@ -120,6 +129,7 @@ describe("listSecurityActivityQuerySchema", () => {
     [{ limit: "0" }],
     [{ limit: "51" }],
     [{ category: "everything" }],
+    [{ outcome: "succeeded" }],
     [{ userId: USER_ID }],
     [{ from: "2026-10-01" }],
     [{ to: "yesterday" }],
