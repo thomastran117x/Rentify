@@ -235,9 +235,13 @@ export function SecurityActivityPanel({
   // A cached page is on screen and its replacement is being fetched. Load
   // more waits for it: the cached cursor would page from a stale position
   // and the refresh would then replace the page it appended to.
-  const [refreshing, setRefreshing] = useState(
-    () => initialCache !== null && !initialCache.fresh,
-  );
+  const [refreshing, setRefreshing] = useState(() => initialCache !== null);
+  // Every mount refreshes what the cache showed, even a fresh entry, so
+  // anything the user just did elsewhere on the page shows up. Only after
+  // that may filter switches within this visit be served from the cache
+  // without a request. A ref rather than the first effect run, because
+  // StrictMode mounts twice and aborts the first request.
+  const revalidatedRef = useRef(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [reportedId, setReportedId] = useState<string | null>(null);
   // Bumped whenever the list restarts, so a "Load more" response for an
@@ -270,7 +274,9 @@ export function SecurityActivityPanel({
     setErrorMessage(null);
     setLoadMoreError(null);
     setLoadingMore(false);
-    setRefreshing(cached !== null && !cached.fresh);
+    setRefreshing(
+      cached !== null && (!cached.fresh || !revalidatedRef.current),
+    );
     setReportedId(null);
     setItems(cached?.list.items ?? []);
     setNextCursor(cached?.list.nextCursor ?? null);
@@ -294,7 +300,12 @@ export function SecurityActivityPanel({
     forceReloadRef.current = false;
     const showingCache = key !== null && shownFromCacheRef.current === key;
 
-    if (showingCache && !force && readActivityCache(key)?.fresh) {
+    if (
+      showingCache &&
+      !force &&
+      revalidatedRef.current &&
+      readActivityCache(key)?.fresh
+    ) {
       return;
     }
 
@@ -309,6 +320,7 @@ export function SecurityActivityPanel({
         if (key) {
           writeActivityCache(key, result);
         }
+        revalidatedRef.current = true;
         shownFromCacheRef.current = null;
         setRefreshing(false);
         setItems(result.items);
@@ -319,6 +331,7 @@ export function SecurityActivityPanel({
         if (generation !== generationRef.current) {
           return;
         }
+        revalidatedRef.current = true;
         setRefreshing(false);
         // A failed background refresh keeps the cached list on screen.
         if (showingCache) {

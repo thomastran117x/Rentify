@@ -459,22 +459,31 @@ describe("SecurityActivityPanel", () => {
       vi.spyOn(Date, "now").mockReturnValue(ms);
     }
 
-    it("shows a fresh cached list on return without a request or skeleton", async () => {
+    it("shows a fresh cached list on return at once, then revalidates it", async () => {
       at(1_000_000);
-      listMineMock.mockResolvedValueOnce(page([item()], "cursor-1"));
+      listMineMock
+        .mockResolvedValueOnce(
+          page([item({ label: "Cached row" })], "cursor-1"),
+        )
+        .mockResolvedValueOnce(
+          page([item({ id: "new", label: "Password changed" })], "cursor-2"),
+        );
       const first = render(<SecurityActivityPanel userId="user-1" />);
-      await screen.findByText("Signed in with password");
+      await screen.findByText("Cached row");
       first.unmount();
 
       at(1_000_000 + ACTIVITY_CACHE_FRESH_MS - 1);
       render(<SecurityActivityPanel userId="user-1" />);
 
-      expect(screen.getByText("Signed in with password")).toBeInTheDocument();
+      expect(screen.getByText("Cached row")).toBeInTheDocument();
       expect(
         screen.queryByRole("status", { name: "Loading security activity" }),
       ).not.toBeInTheDocument();
+      // Something done just before returning, such as a password change,
+      // still shows up.
+      expect(await screen.findByText("Password changed")).toBeInTheDocument();
+      expect(listMineMock).toHaveBeenCalledTimes(2);
       expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled();
-      expect(listMineMock).toHaveBeenCalledTimes(1);
     });
 
     it("shows a stale cached list at once, then replaces it with fresh data", async () => {
@@ -547,7 +556,7 @@ describe("SecurityActivityPanel", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
-    it("serves a filter visited moments ago straight from the cache", async () => {
+    it("serves a filter visited moments ago in the same visit straight from the cache", async () => {
       const user = userEvent.setup();
       at(1_000_000);
       listMineMock

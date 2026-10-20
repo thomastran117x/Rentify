@@ -1,3 +1,7 @@
+import {
+  readStoredSession,
+  subscribeToStoredSession,
+} from "@/lib/auth/storage";
 import type {
   ListSecurityActivityInput,
   SecurityActivityList,
@@ -18,6 +22,31 @@ interface CacheEntry {
 // Module memory only: nothing reaches localStorage, so a signed-out user's
 // history does not survive a reload or reach another tab.
 const entries = new Map<string, CacheEntry>();
+let watchingSession = false;
+
+/**
+ * Empties the cache whenever the signed-in user changes, sign-out included.
+ * Signing out and back in as the same account passes through "no user", so
+ * a new session never sees the previous one's "This session" flags.
+ */
+function watchSession(): void {
+  if (watchingSession) {
+    return;
+  }
+
+  watchingSession = true;
+  let userId = readStoredSession()?.user.id ?? null;
+
+  subscribeToStoredSession(() => {
+    const nextUserId = readStoredSession()?.user.id ?? null;
+
+    if (nextUserId !== userId) {
+      entries.clear();
+    }
+
+    userId = nextUserId;
+  });
+}
 
 /**
  * Scoped by user so another account signed in on the same tab never sees
@@ -62,6 +91,7 @@ export function writeActivityCache(
   list: SecurityActivityList,
   now: number = Date.now(),
 ): void {
+  watchSession();
   entries.delete(key);
   entries.set(key, { list, storedAt: now });
 

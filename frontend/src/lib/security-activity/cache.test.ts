@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { clearStoredSession, writeStoredSession } from "@/lib/auth/storage";
+import type { StoredAuthSession } from "@/lib/auth/types";
 import {
   ACTIVITY_CACHE_FRESH_MS,
   ACTIVITY_CACHE_MAX_AGE_MS,
@@ -64,6 +66,28 @@ describe("security activity cache", () => {
     expect(
       readActivityCache(`key-${ACTIVITY_CACHE_MAX_ENTRIES}`, 1_000),
     ).not.toBeNull();
+  });
+
+  it("empties when the signed-in user changes or signs out", () => {
+    const session = (id: string) =>
+      ({
+        accessToken: "token",
+        user: { id, email: `${id}@example.test`, username: id, role: "user" },
+      }) as unknown as StoredAuthSession;
+
+    writeStoredSession(session("user-1"));
+    writeActivityCache("key", LIST, 1_000);
+    // A token refresh for the same user keeps the cache.
+    writeStoredSession(session("user-1"));
+    expect(readActivityCache("key", 1_000)).not.toBeNull();
+
+    clearStoredSession();
+    expect(readActivityCache("key", 1_000)).toBeNull();
+
+    writeActivityCache("key", LIST, 1_000);
+    writeStoredSession(session("user-2"));
+    expect(readActivityCache("key", 1_000)).toBeNull();
+    clearStoredSession();
   });
 
   it("refreshes an entry's position when it is stored again", () => {
