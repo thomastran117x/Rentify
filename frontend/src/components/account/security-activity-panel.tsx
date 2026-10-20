@@ -561,11 +561,6 @@ export function SecurityActivityPanel({
                               This session
                             </span>
                           ) : null}
-                          {!item.deviceKnown && (item.browser || item.os) ? (
-                            <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              New device
-                            </span>
-                          ) : null}
                         </div>
                         <p className="mt-0.5 break-words text-xs text-slate-500 dark:text-slate-400">
                           <time

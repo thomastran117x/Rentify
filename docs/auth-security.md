@@ -92,7 +92,7 @@ Field details:
 - When `actor_user_id` is set and is not the user, the label reads as an administrator action, for example "An administrator locked your account". The administrator is never identified. That row's IP address, user agent, method and device belong to the administrator's request, so the item returns them as null and `current` as false.
 - `browser` and `os` come from a small in-house user-agent parser (`parseUserAgent`). Unrecognised agents are null, and the account page shows them as "Unknown device".
 - `current` is true when the event's session is the caller's current session.
-- `deviceKnown` is true when the event's device ID matches one of the user's registered devices.
+- `deviceKnown` is true when the event's device ID matches one of the user's currently registered devices, false when it does not, and null when the event recorded no device or an administrator acted. It reflects today's device list, so removing a device turns its past events false. Whether a device was new when an event happened is recorded separately as `device.new_detected`, which appears in the list as "New device detected".
 
 | Category           | Event types                                                                                                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -114,7 +114,7 @@ Each row shows:
 - the browser and OS, or "Unknown device" when neither is recognised;
 - the IP address.
 
-Badges mark the current session ("This session") and unregistered devices ("New device"). Failed rows are rose with a "Failed" badge and blocked rows are amber with a "Blocked" badge, so the outcome does not rely on colour alone.
+A badge marks the current session ("This session"). There is no per-row "New device" badge, because `deviceKnown` reflects today's registered devices: removing a device would brand its own past sign-ins as new. The "New device detected" event carries that signal instead. Failed rows are rose with a "Failed" badge and blocked rows are amber with a "Blocked" badge, so the outcome does not rely on colour alone.
 
 The filter buttons (All, Sign-ins, Security changes, Sessions), the **Status** select (Any status, Succeeded, Failed, Blocked) and the **From** and **To** dates all combine, and changing any of them restarts the list from the newest event. Both dates are local days and both are included: the page sends the start of From and the start of the day after To. A To date before From shows an inline error and loads nothing until it is fixed. **Clear dates** removes the range. When a status or date narrows the list to nothing, it reads "No activity matches these filters". **Load more** follows `nextCursor`, 20 events at a time. Loading, empty ("No recent activity") and error-with-retry states are handled. First pages are cached in memory (`frontend/src/lib/security-activity/cache.ts`), keyed by the user ID and every filter, so switching tabs or filters back and forth does not refetch:
 

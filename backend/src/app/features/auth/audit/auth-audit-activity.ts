@@ -253,7 +253,7 @@ export function toSecurityActivityItem(
       ipAddress: null,
       browser: null,
       os: null,
-      deviceKnown: false,
+      deviceKnown: null,
       current: false,
     };
   }
@@ -271,7 +271,7 @@ export function toSecurityActivityItem(
     browser,
     os,
     deviceKnown:
-      row.deviceId !== null && context.knownDeviceIds.has(row.deviceId),
+      row.deviceId === null ? null : context.knownDeviceIds.has(row.deviceId),
     current:
       Boolean(context.currentSessionId) &&
       row.sessionId === context.currentSessionId,

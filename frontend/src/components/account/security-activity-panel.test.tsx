@@ -102,7 +102,7 @@ describe("SecurityActivityPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("marks failed and blocked events distinctly and flags unknown devices", async () => {
+  it("marks failed and blocked events distinctly without claiming new devices", async () => {
     listMineMock.mockResolvedValueOnce(
       page([
         item({
@@ -129,7 +129,9 @@ describe("SecurityActivityPanel", () => {
 
     expect(failed).toHaveAttribute("data-outcome", "failure");
     expect(within(failed!).getByText("Failed")).toBeInTheDocument();
-    expect(within(failed!).getByText("New device")).toBeInTheDocument();
+    // deviceKnown reflects today's registered devices, so it is not shown as
+    // a "new device" claim about the past.
+    expect(within(failed!).queryByText("New device")).not.toBeInTheDocument();
     expect(blocked).toHaveAttribute("data-outcome", "blocked");
     expect(within(blocked!).getByText("Blocked")).toBeInTheDocument();
     expect(within(blocked!).getByText(/Unknown device/)).toBeInTheDocument();

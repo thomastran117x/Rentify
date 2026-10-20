@@ -344,7 +344,7 @@ describe("toSecurityActivityItem", () => {
       ipAddress: null,
       browser: null,
       os: null,
-      deviceKnown: false,
+      deviceKnown: null,
       current: false,
     });
   });
@@ -359,14 +359,14 @@ describe("toSecurityActivityItem", () => {
     expect(item.deviceKnown).toBe(false);
   });
 
-  it("never marks a session-less event as current", () => {
+  it("never marks a session-less event as current, and reports no device as null", () => {
     const item = toSecurityActivityItem(
       createRow({ sessionId: null, deviceId: null }),
-      { currentSessionId: undefined, knownDeviceIds: new Set() },
+      { currentSessionId: undefined, knownDeviceIds: new Set(["device-1"]) },
     );
 
     expect(item.current).toBe(false);
-    expect(item.deviceKnown).toBe(false);
+    expect(item.deviceKnown).toBeNull();
   });
 
   it("normalises unexpected outcome and method values", () => {

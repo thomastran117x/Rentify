@@ -10593,8 +10593,9 @@ function buildComponents(): Record<string, unknown> {
           },
           deviceKnown: {
             type: "boolean",
+            nullable: true,
             description:
-              "Whether the event came from one of the user's known devices.",
+              "Whether the event's device is one of the user's currently registered devices; null when the event recorded no device or an administrator acted. It reflects today's device list, not whether the device was new at the time; that is the separate `device.new_detected` event.",
           },
           current: {
             type: "boolean",

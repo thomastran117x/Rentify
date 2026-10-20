@@ -191,7 +191,13 @@ export interface SecurityActivityItem {
   ipAddress: string | null;
   browser: string | null;
   os: string | null;
-  deviceKnown: boolean;
+  /**
+   * Whether the event's device is one of the user's currently registered
+   * devices; null when the event recorded no device. This is today's device
+   * list, not whether the device was new when the event happened: that is
+   * the separate `device.new_detected` event.
+   */
+  deviceKnown: boolean | null;
   current: boolean;
 }
 

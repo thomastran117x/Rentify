@@ -24,7 +24,8 @@ export interface SecurityActivityItem {
   ipAddress: string | null;
   browser: string | null;
   os: string | null;
-  deviceKnown: boolean;
+  /** Matches a currently registered device; null when no device was recorded. */
+  deviceKnown: boolean | null;
   current: boolean;
 }
 
