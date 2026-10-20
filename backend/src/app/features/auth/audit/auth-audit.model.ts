@@ -50,13 +50,16 @@ export type AuthAuditReasonCode =
   | "email_conflict"
   | "signup_expired";
 
-export type AuthAuditMethod =
-  | "password"
-  | "google"
-  | "microsoft"
-  | "apple"
-  | "refresh"
-  | "pat";
+export const AUTH_AUDIT_METHODS = [
+  "password",
+  "google",
+  "microsoft",
+  "apple",
+  "refresh",
+  "pat",
+] as const;
+
+export type AuthAuditMethod = (typeof AUTH_AUDIT_METHODS)[number];
 
 /**
  * Where an auth request came from, as the request middleware already resolved

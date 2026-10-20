@@ -31,7 +31,7 @@ export class AuthAuditActivityService {
     const afterId = input.cursor
       ? decodeActivityCursor(input.cursor)
       : undefined;
-    const [rows, devices] = await Promise.all([
+    const [rows, deviceIds] = await Promise.all([
       this.repository.listForUser({
         userId: input.userId,
         eventTypes: input.category
@@ -43,7 +43,7 @@ export class AuthAuditActivityService {
         createdBefore: input.to ? new Date(input.to) : undefined,
         limit: input.limit + 1,
       }),
-      this.deviceRepository.listKnownDevices(input.userId),
+      this.deviceRepository.listKnownDeviceIds(input.userId),
     ]);
 
     if (!rows) {
@@ -52,7 +52,7 @@ export class AuthAuditActivityService {
 
     const page = rows.slice(0, input.limit);
     const knownDeviceIds = new Set(
-      devices.map((device) => device.deviceId.slice(0, AUDIT_DEVICE_ID_LENGTH)),
+      deviceIds.map((deviceId) => deviceId.slice(0, AUDIT_DEVICE_ID_LENGTH)),
     );
     const last = page.at(-1);
 

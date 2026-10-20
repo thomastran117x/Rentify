@@ -168,6 +168,18 @@ export class DeviceRepository extends BaseRepository {
     return devices.map((device) => this.mapDevice(device));
   }
 
+  /** Just the ids of the user's registered devices, for membership checks. */
+  async listKnownDeviceIds(userId: Uuid): Promise<string[]> {
+    const devices = await this.executeAsync(() =>
+      this.prisma.device.findMany({
+        where: { userId },
+        select: { deviceId: true },
+      }),
+    );
+
+    return devices.map((device) => device.deviceId);
+  }
+
   async removeKnownDevice(userId: Uuid, deviceId: string): Promise<boolean> {
     const result = await this.executeAsync(() =>
       this.prisma.device.deleteMany({

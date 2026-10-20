@@ -1,6 +1,7 @@
 import { RequestValidationError } from "@/configuration/validation/request";
 import { isUuid } from "@/configuration/validation/uuid";
 import {
+  AUTH_AUDIT_METHODS,
   AUTH_AUDIT_OUTCOMES,
   type AuthAuditActivityRow,
   type AuthAuditMethod,
@@ -48,14 +49,6 @@ export function invalidCursorError(): RequestValidationError {
   ]);
 }
 
-const METHODS: readonly AuthAuditMethod[] = [
-  "password",
-  "google",
-  "microsoft",
-  "apple",
-  "refresh",
-  "pat",
-];
 const PROVIDER_NAMES: Partial<Record<AuthAuditMethod, string>> = {
   google: "Google",
   microsoft: "Microsoft",
@@ -69,7 +62,7 @@ function toOutcome(value: string): AuthAuditOutcome {
 }
 
 function toMethod(value: string | null): AuthAuditMethod | null {
-  return value && (METHODS as readonly string[]).includes(value)
+  return value && (AUTH_AUDIT_METHODS as readonly string[]).includes(value)
     ? (value as AuthAuditMethod)
     : null;
 }

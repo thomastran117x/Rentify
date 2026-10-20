@@ -33,9 +33,7 @@ function createService(rows: AuthAuditActivityRow[], deviceIds: string[] = []) {
     listForUser: jest.fn(async () => rows),
   };
   const deviceRepository = {
-    listKnownDevices: jest.fn(async () =>
-      deviceIds.map((deviceId) => ({ deviceId })),
-    ),
+    listKnownDeviceIds: jest.fn(async () => deviceIds),
   };
 
   return {
@@ -177,7 +175,7 @@ describe("AuthAuditActivityService.listForUser", () => {
       limit: 20,
     });
 
-    expect(deviceRepository.listKnownDevices).toHaveBeenCalledWith(USER_ID);
+    expect(deviceRepository.listKnownDeviceIds).toHaveBeenCalledWith(USER_ID);
     expect(
       result.items.map((item) => [item.deviceKnown, item.current]),
     ).toEqual([
