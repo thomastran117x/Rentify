@@ -23,6 +23,7 @@ import {
   describeDevice,
   formatAbsoluteTime,
   formatRelativeTime,
+  isValidDateInput,
   toActivityDateRange,
   todayDateInputValue,
 } from "@/lib/security-activity/format";
@@ -175,8 +176,16 @@ const DEFAULT_FILTERS: ActivityFilters = {
   toDate: "",
 };
 
-// Both dates are YYYY-MM-DD, so string order is date order.
 function rangeErrorFor(filters: ActivityFilters): string | null {
+  if (!isValidDateInput(filters.fromDate)) {
+    return "Enter a From date between the years 1000 and 9999.";
+  }
+
+  if (!isValidDateInput(filters.toDate)) {
+    return "Enter a To date between the years 1000 and 9999.";
+  }
+
+  // Both are valid YYYY-MM-DD here, so string order is date order.
   return filters.fromDate && filters.toDate && filters.fromDate > filters.toDate
     ? "The To date must be on or after the From date."
     : null;

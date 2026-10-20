@@ -3,6 +3,7 @@ import {
   describeDevice,
   formatAbsoluteTime,
   formatRelativeTime,
+  isValidDateInput,
   toActivityDateRange,
   todayDateInputValue,
 } from "@/lib/security-activity/format";
@@ -64,6 +65,42 @@ describe("toActivityDateRange", () => {
       from: undefined,
       to: undefined,
     });
+  });
+});
+
+describe("toActivityDateRange with out-of-range input", () => {
+  it.each([
+    ["0020-05-01"],
+    ["0999-12-31"],
+    ["20266-01-01"],
+    ["2026-02-31"],
+    ["2026-13-01"],
+  ])("treats %s as no bound", (value) => {
+    expect(toActivityDateRange(value, value)).toEqual({
+      from: undefined,
+      to: undefined,
+    });
+  });
+
+  it("keeps the edge years", () => {
+    expect(toActivityDateRange("1000-01-01", "9999-12-30")).toEqual({
+      from: new Date(1000, 0, 1, 0, 0, 0).toISOString(),
+      to: new Date(9999, 11, 31).toISOString(),
+    });
+  });
+});
+
+describe("isValidDateInput", () => {
+  it.each([
+    ["", true],
+    ["2026-10-19", true],
+    ["2024-02-29", true],
+    ["2026-02-29", false],
+    ["0020-05-01", false],
+    ["20266-01-01", false],
+    ["19-10-2026", false],
+  ])("judges %p as %p", (value, expected) => {
+    expect(isValidDateInput(value)).toBe(expected);
   });
 });
 

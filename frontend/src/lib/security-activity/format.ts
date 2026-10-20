@@ -54,14 +54,45 @@ export function formatAbsoluteTime(value: string): string {
   }).format(date);
 }
 
+const MIN_INPUT_YEAR = 1000;
+const MAX_INPUT_YEAR = 9999;
+
+/**
+ * Local midnight for a `YYYY-MM-DD` date input value, or null. Years outside
+ * 1000-9999 are rejected: a date input passes intermediate values such as
+ * `0020-05-01` while the year is being typed, and `new Date(20, ...)` would
+ * read that as 1920, while a five-digit year serialises as `+020266-...`,
+ * which the API does not accept.
+ */
 function parseDateInput(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const match = /^(\d{4,})-(\d{2})-(\d{2})$/.exec(value);
 
   if (!match) {
     return null;
   }
 
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+
+  if (year < MIN_INPUT_YEAR || year > MAX_INPUT_YEAR) {
+    return null;
+  }
+
+  const date = new Date(2000, 0, 1);
+  date.setFullYear(year, month, day);
+
+  // Reject roll-over such as 2026-02-31 becoming 3 March.
+  return date.getFullYear() === year &&
+    date.getMonth() === month &&
+    date.getDate() === day
+    ? date
+    : null;
+}
+
+/** Empty, or a real calendar date with a four-digit year. */
+export function isValidDateInput(value: string): boolean {
+  return value === "" || parseDateInput(value) !== null;
 }
 
 /**

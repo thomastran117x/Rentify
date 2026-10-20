@@ -401,6 +401,34 @@ describe("SecurityActivityPanel", () => {
     expect(listMineMock).toHaveBeenCalledTimes(callsBefore + 1);
   });
 
+  it("rejects an out-of-range year inline without querying", async () => {
+    listMineMock.mockResolvedValue(page([item()]));
+    render(<SecurityActivityPanel />);
+    await screen.findByText("Signed in with password");
+    const callsBefore = listMineMock.mock.calls.length;
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "0020-05-01" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a From date between the years 1000 and 9999.",
+    );
+    expect(listMineMock).toHaveBeenCalledTimes(callsBefore);
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2020-05-01" },
+    });
+    await waitFor(() =>
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: new Date(2020, 4, 1).toISOString(),
+        }),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
   it("clears the date range and reloads the unfiltered list", async () => {
     const user = userEvent.setup();
     listMineMock.mockResolvedValue(page([item()]));
