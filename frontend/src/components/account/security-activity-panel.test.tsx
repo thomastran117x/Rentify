@@ -494,6 +494,42 @@ describe("SecurityActivityPanel", () => {
       expect(listMineMock).toHaveBeenCalledTimes(2);
     });
 
+    it("holds Load more until the background refresh lands, then pages from the fresh cursor", async () => {
+      const user = userEvent.setup();
+      at(1_000_000);
+      const refresh = deferred<SecurityActivityList>();
+      listMineMock
+        .mockResolvedValueOnce(
+          page([item({ label: "Cached row" })], "stale-cursor"),
+        )
+        .mockReturnValueOnce(refresh.promise)
+        .mockResolvedValueOnce(
+          page([item({ id: "older", label: "Older row" })]),
+        );
+      const first = render(<SecurityActivityPanel userId="user-1" />);
+      await screen.findByText("Cached row");
+      first.unmount();
+
+      at(1_000_000 + ACTIVITY_CACHE_FRESH_MS + 1);
+      render(<SecurityActivityPanel userId="user-1" />);
+
+      expect(
+        screen.getByRole("button", { name: "Updating..." }),
+      ).toBeDisabled();
+
+      refresh.resolve(
+        page([item({ id: "fresh", label: "Fresh row" })], "fresh-cursor"),
+      );
+      await screen.findByText("Fresh row");
+      await user.click(screen.getByRole("button", { name: "Load more" }));
+
+      expect(listMineMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cursor: "fresh-cursor" }),
+      );
+      expect(await screen.findByText("Older row")).toBeInTheDocument();
+      expect(rows()).toHaveLength(2);
+    });
+
     it("keeps the stale list when the background refresh fails", async () => {
       at(1_000_000);
       listMineMock

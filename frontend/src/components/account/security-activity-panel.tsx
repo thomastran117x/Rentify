@@ -232,6 +232,12 @@ export function SecurityActivityPanel({
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // A cached page is on screen and its replacement is being fetched. Load
+  // more waits for it: the cached cursor would page from a stale position
+  // and the refresh would then replace the page it appended to.
+  const [refreshing, setRefreshing] = useState(
+    () => initialCache !== null && !initialCache.fresh,
+  );
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [reportedId, setReportedId] = useState<string | null>(null);
   // Bumped whenever the list restarts, so a "Load more" response for an
@@ -264,6 +270,7 @@ export function SecurityActivityPanel({
     setErrorMessage(null);
     setLoadMoreError(null);
     setLoadingMore(false);
+    setRefreshing(cached !== null && !cached.fresh);
     setReportedId(null);
     setItems(cached?.list.items ?? []);
     setNextCursor(cached?.list.nextCursor ?? null);
@@ -303,13 +310,18 @@ export function SecurityActivityPanel({
           writeActivityCache(key, result);
         }
         shownFromCacheRef.current = null;
+        setRefreshing(false);
         setItems(result.items);
         setNextCursor(result.nextCursor);
         setStatus("ready");
       })
       .catch((error: unknown) => {
+        if (generation !== generationRef.current) {
+          return;
+        }
+        setRefreshing(false);
         // A failed background refresh keeps the cached list on screen.
-        if (generation !== generationRef.current || showingCache) {
+        if (showingCache) {
           return;
         }
         setErrorMessage(
@@ -327,7 +339,7 @@ export function SecurityActivityPanel({
   }, [userId, category, outcome, fromDate, toDate, rangeError, reloadKey]);
 
   async function handleLoadMore() {
-    if (!nextCursor || loadingMore) {
+    if (!nextCursor || loadingMore || refreshing) {
       return;
     }
 
@@ -622,10 +634,14 @@ export function SecurityActivityPanel({
               <button
                 type="button"
                 onClick={() => void handleLoadMore()}
-                disabled={loadingMore}
+                disabled={loadingMore || refreshing}
                 className={secondaryButtonClass}
               >
-                {loadingMore ? "Loading..." : "Load more"}
+                {refreshing
+                  ? "Updating..."
+                  : loadingMore
+                    ? "Loading..."
+                    : "Load more"}
               </button>
             </div>
           ) : null}
