@@ -319,6 +319,36 @@ describe("toSecurityActivityItem", () => {
     });
   });
 
+  it("hides the administrator's IP, device and method on events they performed", () => {
+    const item = toSecurityActivityItem(
+      createRow({
+        eventType: "login.locked",
+        outcome: "blocked",
+        actorUserId: ADMIN_ID,
+        method: "password",
+        ipAddress: "192.0.2.99",
+        userAgent: CHROME_WINDOWS,
+        deviceId: "device-1",
+        sessionId: "session-1",
+      }),
+      { currentSessionId: "session-1", knownDeviceIds: new Set(["device-1"]) },
+    );
+
+    expect(item).toEqual({
+      id: EVENT_ID,
+      type: "login.locked",
+      outcome: "blocked",
+      label: "An administrator locked your account",
+      occurredAt: "2026-10-18T14:02:11.482Z",
+      method: null,
+      ipAddress: null,
+      browser: null,
+      os: null,
+      deviceKnown: false,
+      current: false,
+    });
+  });
+
   it("flags other sessions and unknown devices", () => {
     const item = toSecurityActivityItem(
       createRow({ sessionId: "session-2", deviceId: "device-9" }),

@@ -89,7 +89,7 @@ Order events by `created_at`, never by insert order or `id`. Rows outlive their 
 Field details:
 
 - `label` is server-side wording keyed by event type and refined by reason and method, for example "Signed in with password", "Failed sign-in: wrong password" or "Signed in with Google". An event type with no wording yet reads "Account activity".
-- When `actor_user_id` is set and is not the user, the label reads as an administrator action, for example "An administrator locked your account". The administrator is never identified.
+- When `actor_user_id` is set and is not the user, the label reads as an administrator action, for example "An administrator locked your account". The administrator is never identified. That row's IP address, user agent, method and device belong to the administrator's request, so the item returns them as null and `current` as false.
 - `browser` and `os` come from a small in-house user-agent parser (`parseUserAgent`). Unrecognised agents are null, and the account page shows them as "Unknown device".
 - `current` is true when the event's session is the caller's current session.
 - `deviceKnown` is true when the event's device ID matches one of the user's registered devices.

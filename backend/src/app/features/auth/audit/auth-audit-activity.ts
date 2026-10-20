@@ -123,6 +123,16 @@ const STATIC_LABELS: Record<string, string> = {
   "rate_limit.exceeded": "Too many attempts: temporarily blocked",
 };
 
+/**
+ * True when someone other than the account holder performed the event, such
+ * as an administrator. Such events never reveal who acted or from where.
+ */
+export function isActedByAnother(
+  row: Pick<AuthAuditActivityRow, "userId" | "actorUserId">,
+): boolean {
+  return row.actorUserId !== null && row.actorUserId !== row.userId;
+}
+
 /** Server-side wording keyed by event type, refined by outcome and reason. */
 export function labelForAuthAuditEvent(
   row: Pick<
@@ -130,7 +140,7 @@ export function labelForAuthAuditEvent(
     "eventType" | "reasonCode" | "method" | "userId" | "actorUserId"
   >,
 ): string {
-  if (row.actorUserId && row.actorUserId !== row.userId) {
+  if (isActedByAnother(row)) {
     return (
       ADMIN_LABELS[row.eventType] ??
       "An administrator changed your account security"
@@ -224,11 +234,30 @@ export interface SecurityActivityProjectionContext {
  * Builds the user-safe view of one event field by field. Never spread the row:
  * the identifier hash, actor id, reason, request id, session and device ids,
  * raw user agent and metadata must not reach the caller.
+ *
+ * When an administrator acted, the IP, user agent, method and device on the
+ * row are the administrator's own, so the item carries none of them.
  */
 export function toSecurityActivityItem(
   row: AuthAuditActivityRow,
   context: SecurityActivityProjectionContext,
 ): SecurityActivityItem {
+  if (isActedByAnother(row)) {
+    return {
+      id: row.id,
+      type: row.eventType,
+      outcome: toOutcome(row.outcome),
+      label: labelForAuthAuditEvent(row),
+      occurredAt: row.createdAt.toISOString(),
+      method: null,
+      ipAddress: null,
+      browser: null,
+      os: null,
+      deviceKnown: false,
+      current: false,
+    };
+  }
+
   const { browser, os } = parseUserAgent(row.userAgent);
 
   return {
