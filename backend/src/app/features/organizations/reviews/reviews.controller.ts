@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import { getQuery } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
-import { parseRequestBody } from "@/configuration/validation/request";
+import {
+  parseRequestBody,
+  parseRequestQuery,
+} from "@/configuration/validation/request";
 import {
   requireAuth,
   requireOrganizationId,
@@ -20,7 +23,10 @@ export class OrganizationReviewsController {
   constructor(private readonly reviewsService: OrganizationReviewService) {}
 
   list = async (request: Request, response: Response): Promise<void> => {
-    const query = listOrganizationReviewsQuerySchema.parse(getQuery(request));
+    const query = parseRequestQuery(
+      getQuery(request),
+      listOrganizationReviewsQuerySchema,
+    );
     const result = await this.reviewsService.list({
       ...query,
       organizationId: asUuid(requireOrganizationId(request)),
