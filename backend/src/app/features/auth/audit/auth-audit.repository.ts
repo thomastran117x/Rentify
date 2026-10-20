@@ -1,6 +1,10 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
-import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
-import { newUuid } from "@/configuration/validation/uuid";
+import type {
+  AuthAuditActivityRow,
+  RecordAuthAuditEventInput,
+} from "@/features/auth/audit/auth-audit.model";
+import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const COLUMN_LIMITS = {
   ipAddress: 45,
@@ -13,6 +17,34 @@ const COLUMN_LIMITS = {
 function truncate(value: string | undefined, limit: number): string | null {
   return value ? value.slice(0, limit) : null;
 }
+
+export interface ListAuthAuditEventsForUserInput {
+  userId: Uuid;
+  eventTypes?: readonly string[];
+  outcome?: string;
+  /** Id of the last event already returned; the page starts after it. */
+  afterId?: string;
+  /** Inclusive lower bound on created_at. */
+  createdFrom?: Date;
+  /** Exclusive upper bound on created_at. */
+  createdBefore?: Date;
+  limit: number;
+}
+
+const ACTIVITY_COLUMNS = {
+  id: true,
+  userId: true,
+  actorUserId: true,
+  eventType: true,
+  outcome: true,
+  reasonCode: true,
+  method: true,
+  ipAddress: true,
+  userAgent: true,
+  deviceId: true,
+  sessionId: true,
+  createdAt: true,
+} as const;
 
 export class AuthAuditRepository extends BaseRepository {
   /**
@@ -79,5 +111,67 @@ export class AuthAuditRepository extends BaseRepository {
     );
 
     return result.count;
+  }
+
+  /**
+   * One user's events, newest first, served by the (user_id, created_at)
+   * index, or null when `afterId` is not one of this user's events under
+   * these same filters.
+   *
+   * Paging uses Prisma's cursor, which compares against the cursor row's
+   * stored values in SQL, so created_at keeps its microseconds and events
+   * sharing a millisecond are neither skipped nor repeated. Prisma finds
+   * that row by id alone, though, and `skip: 1` then drops whichever row
+   * comes first. A cursor naming another user's event, or one of this
+   * user's events the filters exclude, would therefore drop a row the
+   * caller never saw. The cursor row is checked against the same filters
+   * first to rule that out.
+   */
+  async listForUser(
+    input: ListAuthAuditEventsForUserInput,
+  ): Promise<AuthAuditActivityRow[] | null> {
+    const where = this.activityWhere(input);
+
+    if (input.afterId) {
+      const afterId = input.afterId;
+      const cursorRow = await this.executeAsync(() =>
+        this.prisma.authAuditEvent.findFirst({
+          where: { ...where, id: afterId },
+          select: { id: true },
+        }),
+      );
+
+      if (!cursorRow) {
+        return null;
+      }
+    }
+
+    return this.executeAsync(() =>
+      this.prisma.authAuditEvent.findMany({
+        where,
+        select: ACTIVITY_COLUMNS,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: input.limit,
+        ...(input.afterId ? { cursor: { id: input.afterId }, skip: 1 } : {}),
+      }),
+    );
+  }
+
+  private activityWhere(
+    input: ListAuthAuditEventsForUserInput,
+  ): Prisma.AuthAuditEventWhereInput {
+    return {
+      userId: input.userId,
+      ...(input.eventTypes ? { eventType: { in: [...input.eventTypes] } } : {}),
+      ...(input.outcome ? { outcome: input.outcome } : {}),
+      ...(input.createdFrom || input.createdBefore
+        ? {
+            createdAt: {
+              ...(input.createdFrom ? { gte: input.createdFrom } : {}),
+              ...(input.createdBefore ? { lt: input.createdBefore } : {}),
+            },
+          }
+        : {}),
+    };
   }
 }

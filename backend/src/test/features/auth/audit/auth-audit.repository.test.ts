@@ -145,4 +145,126 @@ describe("AuthAuditRepository", () => {
       where: { id: { in: ["a", "b"] }, createdAt: { lt: cutoff } },
     });
   });
+
+  it("lists one user's events newest first, filtered by type", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      eventTypes: ["logout", "session.revoked"],
+      limit: 21,
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        userId: USER_1_ID,
+        eventType: { in: ["logout", "session.revoked"] },
+      },
+      select: expect.objectContaining({ id: true, createdAt: true }),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 21,
+    });
+    const select = (findMany.mock.calls[0] as any[])[0].select;
+    expect(select).not.toHaveProperty("identifierHash");
+    expect(select).not.toHaveProperty("requestId");
+    expect(select).not.toHaveProperty("metadata");
+  });
+
+  it("filters by outcome", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      outcome: "failure",
+      limit: 5,
+    });
+
+    expect((findMany.mock.calls[0] as any[])[0].where).toEqual({
+      userId: USER_1_ID,
+      outcome: "failure",
+    });
+  });
+
+  it("bounds created_at by the date range, either side optional", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    const from = new Date("2026-10-01T04:00:00.000Z");
+    const before = new Date("2026-10-08T04:00:00.000Z");
+
+    await repository.listForUser({
+      userId: USER_1_ID,
+      createdFrom: from,
+      createdBefore: before,
+      limit: 5,
+    });
+    await repository.listForUser({
+      userId: USER_1_ID,
+      createdBefore: before,
+      limit: 5,
+    });
+
+    expect((findMany.mock.calls[0] as any[])[0].where).toEqual({
+      userId: USER_1_ID,
+      createdAt: { gte: from, lt: before },
+    });
+    expect((findMany.mock.calls[1] as any[])[0].where).toEqual({
+      userId: USER_1_ID,
+      createdAt: { lt: before },
+    });
+  });
+
+  it("checks the cursor row against the same filters, then starts after it", async () => {
+    const findFirst = jest.fn(async () => ({ id: "event-9" }));
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findFirst, findMany },
+    } as any);
+
+    await expect(
+      repository.listForUser({
+        userId: USER_1_ID,
+        outcome: "failure",
+        afterId: "event-9",
+        limit: 3,
+      }),
+    ).resolves.toEqual([]);
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { userId: USER_1_ID, outcome: "failure", id: "event-9" },
+      select: { id: true },
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: USER_1_ID, outcome: "failure" },
+        cursor: { id: "event-9" },
+        skip: 1,
+        take: 3,
+      }),
+    );
+  });
+
+  it("returns null without listing when the cursor row is not the caller's under these filters", async () => {
+    const findFirst = jest.fn(async () => null);
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findFirst, findMany },
+    } as any);
+
+    await expect(
+      repository.listForUser({
+        userId: USER_1_ID,
+        afterId: "someone-elses-event",
+        limit: 3,
+      }),
+    ).resolves.toBeNull();
+    expect(findMany).not.toHaveBeenCalled();
+  });
 });

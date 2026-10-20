@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { parseRequestQuery } from "@/configuration/validation/request";
 import { getQuery } from "@/configuration/http/request";
 import { ok, paginationMeta } from "@/configuration/http/responses";
 import {
@@ -18,7 +19,10 @@ export class OrganizationAuditController {
 
   list = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
-    const query = listOrganizationAuditQuerySchema.parse(getQuery(request));
+    const query = parseRequestQuery(
+      getQuery(request),
+      listOrganizationAuditQuerySchema,
+    );
     const result = await this.auditService.list({
       ...query,
       organizationId: asUuid(requireOrganizationId(request)),

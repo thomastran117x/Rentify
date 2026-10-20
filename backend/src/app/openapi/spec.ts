@@ -452,6 +452,37 @@ const knownDevicesExample = {
     },
   ],
 };
+const securityActivityListExample = {
+  items: [
+    {
+      id: "6f1c2a40-8d1e-4b7a-9c3f-2e5d8a7b1c90",
+      type: "login.succeeded",
+      outcome: "success",
+      label: "Signed in with password",
+      occurredAt: "2026-10-18T14:02:11.482Z",
+      method: "password",
+      ipAddress: "203.0.113.24",
+      browser: "Chrome",
+      os: "Windows",
+      deviceKnown: true,
+      current: true,
+    },
+    {
+      id: "4b8e1d22-3a5f-4c6b-8e2d-9f1a7c3b5e60",
+      type: "login.failed",
+      outcome: "failure",
+      label: "Failed sign-in: wrong password",
+      occurredAt: "2026-10-18T14:01:47.103Z",
+      method: "password",
+      ipAddress: "203.0.113.24",
+      browser: "Chrome",
+      os: "Windows",
+      deviceKnown: true,
+      current: false,
+    },
+  ],
+  nextCursor: "djE6NGI4ZTFkMjItM2E1Zi00YzZiLThlMmQtOWYxYTdjM2I1ZTYw",
+};
 const verificationStatusExample = {
   verified: true,
   auth: {
@@ -2637,6 +2668,67 @@ function buildOperations(): OperationDefinition[] {
           "Known device removed successfully.",
           "ActionOkResult",
           actionOkExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/audit/me",
+      operationId: "listMySecurityActivity",
+      summary: "List my security activity",
+      description:
+        "Returns the signed-in user's own authentication history, newest first: sign-ins, failed and blocked attempts, sign-outs and security changes. Only the caller's events are ever returned. Each item is a user-safe projection with a server-side label; identifier hashes, actor ids, request ids, session and device ids, raw user agents and metadata are never included. Requires a signed-in session with a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise); PAT authentication is rejected. Optional `from` (inclusive) and `to` (exclusive) bound the time range, and `outcome` keeps only successful, failed or blocked events; all filters combine; a `to` that is not later than `from` is a 400. Page with the opaque `nextCursor`, which is null on the last page.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "cursor",
+          { type: "string", maxLength: 200 },
+          "Opaque cursor from a previous page's `nextCursor`, sent with the same filters. A cursor that does not name one of the caller's events under those filters is a 400.",
+        ),
+        queryParam(
+          "limit",
+          { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          "Maximum number of events to return.",
+          20,
+        ),
+        queryParam(
+          "category",
+          schemaRef("SecurityActivityCategory"),
+          "Restricts the list to one group of events.",
+          "sign_in",
+        ),
+        queryParam(
+          "outcome",
+          { type: "string", enum: ["success", "failure", "blocked"] },
+          "Restricts the list to events with this outcome.",
+          "failure",
+        ),
+        queryParam(
+          "from",
+          { type: "string", format: "date-time" },
+          "Inclusive lower bound on when the event happened. ISO 8601 date-time with `Z` or an offset.",
+          "2026-10-01T00:00:00-04:00",
+        ),
+        queryParam(
+          "to",
+          { type: "string", format: "date-time" },
+          "Exclusive upper bound on when the event happened. Must be later than `from`.",
+          "2026-10-08T00:00:00-04:00",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SecurityActivityList",
+          securityActivityListExample,
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
       },
@@ -10437,6 +10529,95 @@ function buildComponents(): Record<string, unknown> {
                 linkedAt: { type: "string", format: "date-time" },
               },
             },
+          },
+        },
+      },
+      SecurityActivityCategory: {
+        type: "string",
+        enum: ["sign_in", "security_changes", "sessions"],
+        description:
+          "sign_in: sign-in attempts, lockouts, identity checks and rate limits. security_changes: password, email, authenticator, linked sign-in and access token changes. sessions: sign-outs, revoked sessions and new devices.",
+      },
+      SecurityActivityItem: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "type",
+          "outcome",
+          "label",
+          "occurredAt",
+          "method",
+          "ipAddress",
+          "browser",
+          "os",
+          "deviceKnown",
+          "current",
+        ],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          type: {
+            type: "string",
+            description:
+              "The audit event type, such as `login.succeeded`. New types may be added.",
+          },
+          outcome: { type: "string", enum: ["success", "failure", "blocked"] },
+          label: {
+            type: "string",
+            description: "Human-readable description written by the server.",
+          },
+          occurredAt: { type: "string", format: "date-time" },
+          method: {
+            type: "string",
+            nullable: true,
+            enum: [
+              "password",
+              "google",
+              "microsoft",
+              "apple",
+              "refresh",
+              "pat",
+            ],
+          },
+          ipAddress: { type: "string", nullable: true },
+          browser: {
+            type: "string",
+            nullable: true,
+            description: "Coarse browser name; null when unrecognised.",
+          },
+          os: {
+            type: "string",
+            nullable: true,
+            description:
+              "Coarse operating system name; null when unrecognised.",
+          },
+          deviceKnown: {
+            type: "boolean",
+            nullable: true,
+            description:
+              "Whether the event's device is one of the user's currently registered devices; null when the event recorded no device or an administrator acted. It reflects today's device list, not whether the device was new at the time; that is the separate `device.new_detected` event.",
+          },
+          current: {
+            type: "boolean",
+            description:
+              "Whether the event came from the caller's current session.",
+          },
+        },
+      },
+      SecurityActivityList: {
+        type: "object",
+        additionalProperties: false,
+        required: ["items", "nextCursor"],
+        properties: {
+          items: {
+            type: "array",
+            items: schemaRef("SecurityActivityItem"),
+          },
+          nextCursor: {
+            type: "string",
+            nullable: true,
+            description:
+              "Pass as `cursor` to fetch the next page; null on the last page.",
           },
         },
       },

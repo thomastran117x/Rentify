@@ -4,6 +4,7 @@ import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import {
   parseRequestBody,
   parseRequestBodyWithRichText,
+  parseRequestQuery,
 } from "@/configuration/validation/request";
 import {
   requireAuth,
@@ -27,7 +28,10 @@ export class OrganizationBlogController {
 
   list = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
-    const query = listOrganizationBlogQuerySchema.parse(getQuery(request));
+    const query = parseRequestQuery(
+      getQuery(request),
+      listOrganizationBlogQuerySchema,
+    );
     const result = await this.blogService.list({
       ...query,
       organizationId: asUuid(requireOrganizationId(request)),
@@ -87,8 +91,9 @@ export class OrganizationBlogController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    const query = listPublicOrganizationBlogQuerySchema.parse(
+    const query = parseRequestQuery(
       getQuery(request),
+      listPublicOrganizationBlogQuerySchema,
     );
     const result = await this.blogService.listPublished({
       ...query,
@@ -118,7 +123,10 @@ export class OrganizationBlogController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    const query = listPublicBlogFeedQuerySchema.parse(getQuery(request));
+    const query = parseRequestQuery(
+      getQuery(request),
+      listPublicBlogFeedQuerySchema,
+    );
     const result = await this.blogService.searchGlobal(query);
     ok(response, result, { meta: paginationMeta(result) });
   };

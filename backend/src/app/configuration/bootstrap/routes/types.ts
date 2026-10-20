@@ -6,6 +6,7 @@ export const ROUTE_MODULE_IDS = [
   "auth-local",
   "auth-oauth",
   "auth-devices",
+  "auth-audit",
   "auth-personal-access-tokens",
   "auth-mfa-verification",
   "auth-mfa-totp",

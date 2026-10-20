@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { parseRequestQuery } from "@/configuration/validation/request";
 import { getQuery } from "@/configuration/http/request";
 import { created, ok, paginationMeta } from "@/configuration/http/responses";
 import { parseRequestBody } from "@/configuration/validation/request";
@@ -23,8 +24,9 @@ export class OrganizationAnnouncementsController {
 
   list = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
-    const query = listOrganizationAnnouncementsQuerySchema.parse(
+    const query = parseRequestQuery(
       getQuery(request),
+      listOrganizationAnnouncementsQuerySchema,
     );
     const result = await this.announcementsService.list({
       ...query,
