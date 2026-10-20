@@ -323,15 +323,72 @@ describe("Security activity (GET /auth/audit/me) integration", () => {
       "Password changed",
     ]);
 
-    // A cursor naming another user's event matches none of the caller's rows,
-    // so it yields an empty last page rather than anything of theirs.
-    const crossCursor = await readPage(
+    // A cursor naming another user's event is rejected outright.
+    const crossCursor = await getActivity(
+      `?cursor=${encodeActivityCursor(ownerIds[0]!)}`,
+      renter.headers(),
+    );
+    expect(crossCursor.status).toBe(400);
+  });
+
+  it("rejects a cursor that is not one of the caller's events under the current filters", async () => {
+    const renterId = await findUserId(RENTER_EMAIL);
+    const ownerId = await findUserId(OWNER_EMAIL);
+    const base = Date.UTC(2026, 9, 1, 12, 0, 0);
+    const [oldest, older, newer] = await seedEvents(renterId, [
+      {
+        eventType: "login.succeeded",
+        outcome: "success",
+        createdAt: new Date(base - 1_000),
+      },
+      {
+        eventType: "login.succeeded",
+        outcome: "success",
+        createdAt: new Date(base),
+      },
+      {
+        eventType: "login.failed",
+        outcome: "failure",
+        createdAt: new Date(base + 2_000),
+      },
+    ]);
+    const [foreign] = await seedEvents(ownerId, [
+      {
+        eventType: "login.succeeded",
+        outcome: "success",
+        createdAt: new Date(base + 500),
+      },
+    ]);
+    const renter = await createAuthenticatedRequestContext({
+      email: RENTER_EMAIL,
+    });
+
+    // Another user's event, and one of the caller's own events that the
+    // current filter excludes, would both position the page somewhere and
+    // then skip a row that was never shown.
+    for (const query of [
+      `?cursor=${encodeActivityCursor(foreign!)}`,
+      `?outcome=failure&cursor=${encodeActivityCursor(older!)}`,
+    ]) {
+      const response = await getActivity(query, renter.headers());
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "VALIDATION_ERROR" },
+      });
+    }
+
+    // A cursor from the same filters still pages without losing a row.
+    const firstPage = await readPage(
+      await getActivity("?limit=1", renter.headers()),
+    );
+    expect(firstPage.items.map((item) => item.id)).toEqual([newer]);
+    const rest = await readPage(
       await getActivity(
-        `?cursor=${encodeActivityCursor(ownerIds[0]!)}`,
+        `?limit=5&cursor=${firstPage.nextCursor}`,
         renter.headers(),
       ),
     );
-    expect(crossCursor).toEqual({ items: [], nextCursor: null });
+    expect(rest.items.map((item) => item.id)).toEqual([older, oldest]);
   });
 
   it("limits the list to a date range that combines with category and paging", async () => {

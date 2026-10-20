@@ -2690,7 +2690,7 @@ function buildOperations(): OperationDefinition[] {
         queryParam(
           "cursor",
           { type: "string", maxLength: 200 },
-          "Opaque cursor from a previous page's `nextCursor`.",
+          "Opaque cursor from a previous page's `nextCursor`, sent with the same filters. A cursor that does not name one of the caller's events under those filters is a 400.",
         ),
         queryParam(
           "limit",

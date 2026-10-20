@@ -31,12 +31,21 @@ export function decodeActivityCursor(cursor: string): string {
     : "";
 
   if (!isUuid(id)) {
-    throw new RequestValidationError("Request query validation failed.", [
-      { path: "cursor", message: "Invalid cursor." },
-    ]);
+    throw invalidCursorError();
   }
 
   return id;
+}
+
+/**
+ * The cursor is malformed, or names an event that is not the caller's under
+ * the current filters: another user's, one the filters exclude, or one
+ * since pruned.
+ */
+export function invalidCursorError(): RequestValidationError {
+  return new RequestValidationError("Request query validation failed.", [
+    { path: "cursor", message: "Invalid cursor." },
+  ]);
 }
 
 const METHODS: readonly AuthAuditMethod[] = [

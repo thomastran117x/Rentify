@@ -3,6 +3,7 @@ import {
   AUDIT_DEVICE_ID_LENGTH,
   decodeActivityCursor,
   encodeActivityCursor,
+  invalidCursorError,
   toSecurityActivityItem,
 } from "@/features/auth/audit/auth-audit-activity";
 import {
@@ -44,6 +45,11 @@ export class AuthAuditActivityService {
       }),
       this.deviceRepository.listKnownDevices(input.userId),
     ]);
+
+    if (!rows) {
+      throw invalidCursorError();
+    }
+
     const page = rows.slice(0, input.limit);
     const knownDeviceIds = new Set(
       devices.map((device) => device.deviceId.slice(0, AUDIT_DEVICE_ID_LENGTH)),

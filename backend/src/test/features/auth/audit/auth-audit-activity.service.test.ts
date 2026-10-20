@@ -141,6 +141,19 @@ describe("AuthAuditActivityService.listForUser", () => {
     });
   });
 
+  it("rejects a cursor the repository does not accept for these filters", async () => {
+    const { service, repository } = createService([]);
+    repository.listForUser.mockResolvedValueOnce(null as never);
+
+    await expect(
+      service.listForUser({
+        userId: USER_ID,
+        limit: 5,
+        cursor: encodeActivityCursor(testUuid(9100, 98)),
+      }),
+    ).rejects.toBeInstanceOf(RequestValidationError);
+  });
+
   it("rejects a malformed cursor before querying", async () => {
     const { service, repository } = createService([]);
 
