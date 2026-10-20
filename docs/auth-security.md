@@ -104,7 +104,7 @@ The cursor is an opaque wrapper around the last event's ID, and paging uses Pris
 
 ### On the Account Page
 
-Account → Security shows the list as **Security activity**, below **Registered devices**. The Security tab already asks for the `mfa-management` step-up, so opening the list needs no further prompt. The component is [security-activity-panel.tsx](../frontend/src/components/account/security-activity-panel.tsx), and its API client is in [frontend/src/lib/security-activity](../frontend/src/lib/security-activity).
+Account → Security shows the list as **Security activity**, below **Registered devices**. The Security tab already asks for the `mfa-management` step-up, so opening the list needs no further prompt. If that step-up expires while the tab is open, the next load, refresh or Load more gets `401 MFA_VERIFICATION_REQUIRED`, and the page locks the tab again with "Your identity check has expired" and the usual Verify button, rather than leaving an error that retrying cannot fix. The component is [security-activity-panel.tsx](../frontend/src/components/account/security-activity-panel.tsx), and its API client is in [frontend/src/lib/security-activity](../frontend/src/lib/security-activity).
 
 Each row shows:
 

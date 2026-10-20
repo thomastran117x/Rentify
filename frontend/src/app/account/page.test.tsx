@@ -76,12 +76,22 @@ vi.mock("@/components/home/home-password-panel", () => ({
 vi.mock("@/components/account/security-activity-panel", () => ({
   SecurityActivityPanel: ({
     onReportActivity,
+    onVerificationRequired,
   }: {
     onReportActivity?: (item: { id: string }) => void;
+    onVerificationRequired?: () => void;
   }) => (
-    <button type="button" onClick={() => onReportActivity?.({ id: "event-1" })}>
-      Report activity
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onReportActivity?.({ id: "event-1" })}
+      >
+        Report activity
+      </button>
+      <button type="button" onClick={() => onVerificationRequired?.()}>
+        Expire verification
+      </button>
+    </>
   ),
 }));
 vi.mock("@/components/account/account-email-panel", () => ({
@@ -363,6 +373,25 @@ describe("AccountPage", () => {
       block: "start",
     });
     expect(screen.getByLabelText("Current password")).toHaveFocus();
+  });
+
+  it("locks Security again with an explanation when the step-up expires", async () => {
+    const user = userEvent.setup();
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Expire verification" }),
+    );
+
+    expect(
+      await screen.findByText(/Your identity check has expired/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Verify to continue" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Password" }),
+    ).not.toBeInTheDocument();
   });
 
   it("creates a personal access token from the developer tab", async () => {

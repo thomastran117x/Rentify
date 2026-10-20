@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiServerError } from "@/lib/api/types";
+import { ApiClientError, ApiServerError } from "@/lib/api/types";
 import {
   ACTIVITY_CACHE_FRESH_MS,
   clearActivityCache,
@@ -618,6 +618,77 @@ describe("SecurityActivityPanel", () => {
         screen.getByRole("status", { name: "Loading security activity" }),
       ).toBeInTheDocument();
       await waitFor(() => expect(listMineMock).toHaveBeenCalledTimes(2));
+    });
+  });
+
+  describe("expired step-up", () => {
+    function verificationRequired() {
+      return new ApiClientError("Recent MFA verification is required.", {
+        code: "MFA_VERIFICATION_REQUIRED",
+        status: 401,
+        request: {
+          method: "GET",
+          path: "/auth/audit/me",
+          requestUrl: "http://localhost:8040/api/v1",
+        },
+      });
+    }
+
+    it("hands a load failure to the page instead of a dead-end error", async () => {
+      const onVerificationRequired = vi.fn();
+      listMineMock.mockRejectedValueOnce(verificationRequired());
+      render(
+        <SecurityActivityPanel
+          onVerificationRequired={onVerificationRequired}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(onVerificationRequired).toHaveBeenCalledTimes(1),
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("hands a Load more failure to the page", async () => {
+      const user = userEvent.setup();
+      const onVerificationRequired = vi.fn();
+      listMineMock
+        .mockResolvedValueOnce(page([item()], "cursor-1"))
+        .mockRejectedValueOnce(verificationRequired());
+      render(
+        <SecurityActivityPanel
+          onVerificationRequired={onVerificationRequired}
+        />,
+      );
+      await screen.findByText("Signed in with password");
+
+      await user.click(screen.getByRole("button", { name: "Load more" }));
+
+      await waitFor(() =>
+        expect(onVerificationRequired).toHaveBeenCalledTimes(1),
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("still shows the error when no handler is given", async () => {
+      listMineMock.mockRejectedValueOnce(verificationRequired());
+      render(<SecurityActivityPanel />);
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+
+    it("does not refetch when only the callback identity changes", async () => {
+      listMineMock.mockResolvedValue(page([item()]));
+      const view = render(
+        <SecurityActivityPanel onVerificationRequired={() => undefined} />,
+      );
+      await screen.findByText("Signed in with password");
+
+      view.rerender(
+        <SecurityActivityPanel onVerificationRequired={() => undefined} />,
+      );
+
+      expect(listMineMock).toHaveBeenCalledTimes(1);
     });
   });
 

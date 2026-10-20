@@ -12,6 +12,7 @@ import {
   Terminal,
   type LucideIcon,
 } from "lucide-react";
+import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { securityActivityApi } from "@/lib/security-activity/api";
 import {
@@ -160,6 +161,16 @@ export interface SecurityActivityPanelProps {
    * takes them to the password form until self-lock (#378) exists.
    */
   onReportActivity?: (item: SecurityActivityItem) => void;
+  /**
+   * Called when the session's `mfa-management` step-up has expired. The
+   * account page locks the Security tab again so the user can re-verify;
+   * without it the panel shows the error with Try again.
+   */
+  onVerificationRequired?: () => void;
+}
+
+function isVerificationRequired(error: unknown): boolean {
+  return isApiClientError(error) && error.code === "MFA_VERIFICATION_REQUIRED";
 }
 
 interface ActivityFilters {
@@ -211,6 +222,7 @@ function cacheKeyFor(
 export function SecurityActivityPanel({
   userId,
   onReportActivity,
+  onVerificationRequired,
 }: SecurityActivityPanelProps) {
   const [filters, setFilters] = useState<ActivityFilters>(DEFAULT_FILTERS);
   const { category, outcome, fromDate, toDate } = filters;
@@ -242,6 +254,8 @@ export function SecurityActivityPanel({
   // without a request. A ref rather than the first effect run, because
   // StrictMode mounts twice and aborts the first request.
   const revalidatedRef = useRef(false);
+  // Kept in a ref so a new callback identity does not re-run the fetch.
+  const onVerificationRequiredRef = useRef(onVerificationRequired);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [reportedId, setReportedId] = useState<string | null>(null);
   // Bumped whenever the list restarts, so a "Load more" response for an
@@ -285,6 +299,22 @@ export function SecurityActivityPanel({
     if (options.force) {
       setReloadKey((value) => value + 1);
     }
+  }
+
+  useEffect(() => {
+    onVerificationRequiredRef.current = onVerificationRequired;
+  }, [onVerificationRequired]);
+
+  /** Hands an expired step-up to the page; false when nobody handles it. */
+  function handOffVerification(error: unknown): boolean {
+    const handler = onVerificationRequiredRef.current;
+
+    if (!handler || !isVerificationRequired(error)) {
+      return false;
+    }
+
+    handler();
+    return true;
   }
 
   useEffect(() => {
@@ -333,6 +363,9 @@ export function SecurityActivityPanel({
         }
         revalidatedRef.current = true;
         setRefreshing(false);
+        if (handOffVerification(error)) {
+          return;
+        }
         // A failed background refresh keeps the cached list on screen.
         if (showingCache) {
           return;
@@ -377,7 +410,7 @@ export function SecurityActivityPanel({
       });
       setNextCursor(result.nextCursor);
     } catch (error) {
-      if (generation !== generationRef.current) {
+      if (generation !== generationRef.current || handOffVerification(error)) {
         return;
       }
       setLoadMoreError(

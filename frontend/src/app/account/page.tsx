@@ -128,6 +128,10 @@ export default function AccountPage() {
 
   // Security tab MFA gate
   const [securityUnlocked, setSecurityUnlocked] = useState(false);
+  // Set when a step-up expired while the Security tab was open, so the gate
+  // says why it is back.
+  const [securityVerificationExpired, setSecurityVerificationExpired] =
+    useState(false);
   const [securityChecking, setSecurityChecking] = useState(false);
   const [verificationDialogOptions, setVerificationDialogOptions] =
     useState<MfaVerificationOptionsResult | null>(null);
@@ -418,6 +422,7 @@ export default function AccountPage() {
 
     setVerificationDialogOptions(null);
     if (verified) {
+      setSecurityVerificationExpired(false);
       setSecurityUnlocked(true);
     }
   }
@@ -821,8 +826,9 @@ export default function AccountPage() {
                 Verify your identity
               </h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                For your security, confirm your identity before accessing
-                security settings.
+                {securityVerificationExpired
+                  ? "Your identity check has expired. Verify again to keep managing security settings."
+                  : "For your security, confirm your identity before accessing security settings."}
               </p>
             </div>
             {securityChecking ? (
@@ -1120,6 +1126,10 @@ export default function AccountPage() {
             <SecurityActivityPanel
               userId={session.user.id}
               onReportActivity={focusPasswordSection}
+              onVerificationRequired={() => {
+                setSecurityVerificationExpired(true);
+                setSecurityUnlocked(false);
+              }}
             />
 
             {/* Disable account */}
