@@ -13,6 +13,7 @@ import {
   Gauge,
   Heart,
   History,
+  ShieldAlert,
   ShieldCheck,
   UserCog,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   type AppUserRole,
   canManageOrganizationPostings,
   canReadOrganizationPostings,
+  isAdminRole,
   isModeratorRole,
   isOwnerRole,
 } from "@/lib/auth/roles";
@@ -33,6 +35,7 @@ export type AppNavItemId =
   | "postings"
   | "create-posting"
   | "moderation"
+  | "admin"
   | "bookings"
   | "saved"
   | "saved-searches"
@@ -103,6 +106,15 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     canAccess: ({ role }) => isModeratorRole(role),
   },
   {
+    id: "admin",
+    href: "/admin/security",
+    label: "Admin",
+    icon: ShieldAlert,
+    group: "workspace",
+    matchPrefixes: ["/admin"],
+    canAccess: ({ role }) => isAdminRole(role),
+  },
+  {
     id: "bookings",
     href: "/bookings",
     label: "Bookings",
@@ -167,6 +179,7 @@ export const WORKSPACE_ROUTE_PREFIXES: string[] = [
   "/rentings",
   "/saved",
   "/moderation",
+  "/admin",
   "/account",
 ];
 

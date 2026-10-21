@@ -31,6 +31,7 @@ describe("isWorkspaceRoute", () => {
     "/saved",
     "/saved/searches",
     "/moderation",
+    "/admin/security",
     "/account",
   ])("renders the shell on %s", (pathname) => {
     expect(isWorkspaceRoute(pathname)).toBe(true);
@@ -84,6 +85,14 @@ describe("getAccessibleNavItems", () => {
     expect(hrefs({ role: "owner" })).not.toContain("/moderation");
   });
 
+  it("shows the admin link to admins only", () => {
+    expect(hrefs({ role: "admin" })).toContain("/admin/security");
+
+    for (const role of ["user", "owner", "moderator"] as const) {
+      expect(hrefs({ role })).not.toContain("/admin/security");
+    }
+  });
+
   it("shows organizations, account, and personal activity to every role", () => {
     for (const role of ["user", "owner", "moderator", "admin"] as const) {
       const visible = hrefs({ role });
@@ -117,6 +126,8 @@ describe("findActiveNavItem", () => {
     ["/postings/manage", "postings"],
     ["/postings/create", "create-posting"],
     ["/account", "account"],
+    ["/admin/security", "admin"],
+    ["/admin", "admin"],
   ])("marks %s active as %s", (pathname, expected) => {
     expect(findActiveNavItem(pathname)?.id).toBe(expected);
   });

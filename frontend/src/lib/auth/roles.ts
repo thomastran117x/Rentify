@@ -14,6 +14,10 @@ export function isModeratorRole(role?: AppUserRole): boolean {
   return role === "moderator" || role === "admin";
 }
 
+export function isAdminRole(role?: AppUserRole): boolean {
+  return role === "admin";
+}
+
 export function isMarketplaceUserRole(role?: AppUserRole): boolean {
   return role === "user" || isOwnerRole(role) || isModeratorRole(role);
 }
