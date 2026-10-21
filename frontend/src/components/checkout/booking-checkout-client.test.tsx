@@ -647,7 +647,11 @@ describe("BookingCheckoutClient", () => {
       expect(
         await screen.findByText("Returning to your booking"),
       ).toBeInTheDocument();
-      expect(routerReplaceMock).toHaveBeenCalledWith("/bookings/booking-1");
+      // The redirect runs in an effect after the notice renders, so on a
+      // slow runner it can land just after the text appears.
+      await waitFor(() =>
+        expect(routerReplaceMock).toHaveBeenCalledWith("/bookings/booking-1"),
+      );
     },
   );
 
