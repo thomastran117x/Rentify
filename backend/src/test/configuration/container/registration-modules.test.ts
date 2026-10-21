@@ -19,6 +19,8 @@ import { BestEffortMediaMetrics } from "@/features/media/media-metrics";
 import { MediaRepository } from "@/features/media/media.repository";
 import { AuthAuditActivityService } from "@/features/auth/audit/auth-audit-activity.service";
 import { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
+import { AuthAuditAdminController } from "@/features/auth/audit/auth-audit-admin.controller";
+import { AuthAuditAdminService } from "@/features/auth/audit/auth-audit-admin.service";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
 import { PersonalAccessTokenRepository } from "@/features/auth/personal-access-token/personal-access-token.repository";
@@ -94,6 +96,38 @@ describe("targeted container registration modules", () => {
     expect(
       find(containerTokens.authAuditController).resolve({ resolve }),
     ).toBeInstanceOf(AuthAuditController);
+  });
+
+  it("registers the admin audit reader and its controller", () => {
+    const registrations: Array<{
+      token: unknown;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authAuditRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const find = (token: unknown) =>
+      registrations.find((candidate) => candidate.token === token)!;
+    const resolve = () => ({});
+
+    expect(find(containerTokens.authAuditAdminService).dependencies).toEqual([
+      containerTokens.authAuditRepository,
+      containerTokens.authAuditService,
+      containerTokens.authUsersRepository,
+      containerTokens.deviceRepository,
+      containerTokens.loginLockoutService,
+    ]);
+    expect(
+      find(containerTokens.authAuditAdminService).resolve({ resolve }),
+    ).toBeInstanceOf(AuthAuditAdminService);
+    expect(
+      find(containerTokens.authAuditAdminController).resolve({ resolve }),
+    ).toBeInstanceOf(AuthAuditAdminController);
   });
 
   it("registers and resolves the personal access token graph", () => {

@@ -1,6 +1,7 @@
 import yaml from "js-yaml";
 
 import { UUID_PATTERN_SOURCE } from "@/configuration/validation/uuid";
+import { AUTH_AUDIT_EVENT_TYPES } from "@/features/auth/audit/auth-audit.model";
 
 type HttpMethod = "get" | "post" | "put" | "delete" | "patch";
 
@@ -482,6 +483,81 @@ const securityActivityListExample = {
     },
   ],
   nextCursor: "djE6NGI4ZTFkMjItM2E1Zi00YzZiLThlMmQtOWYxYTdjM2I1ZTYw",
+};
+
+const adminAuthAuditEventExample = {
+  id: "4b8e1d22-3a5f-4c6b-8e2d-9f1a7c3b5e60",
+  eventType: "login.failed",
+  outcome: "failure",
+  reasonCode: "bad_credentials",
+  method: "password",
+  ipAddress: "203.0.113.24",
+  userAgent:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+  browser: "Chrome",
+  os: "Windows",
+  deviceId: "renter-laptop",
+  sessionId: null,
+  requestId: "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
+  metadata: null,
+  occurredAt: "2026-10-18T14:01:47.103Z",
+  subject: {
+    id: "00000000-0000-0000-1040-000000000101",
+    email: "user1@rentify.local",
+    username: "renter-one",
+  },
+  actor: null,
+};
+
+const adminAuthAuditEventListExample = {
+  items: [
+    adminAuthAuditEventExample,
+    {
+      ...adminAuthAuditEventExample,
+      id: "7c1d9e3f-2b4a-4d6c-8e1f-3a5b7c9d1e2f",
+      deviceId: null,
+      requestId: "2a4c6e8f-1b3d-4f5a-9c7e-0d2f4a6c8e1b",
+      occurredAt: "2026-10-18T14:01:12.551Z",
+      subject: null,
+    },
+  ],
+  nextCursor: "djE6N2MxZDllM2YtMmI0YS00ZDZjLThlMWYtM2E1YjdjOWQxZTJm",
+  range: {
+    from: "2026-10-11T14:05:00.000Z",
+    to: "2026-10-18T14:05:00.000Z",
+  },
+};
+
+const adminUserSecuritySummaryExample = {
+  user: {
+    id: "00000000-0000-0000-1040-000000000101",
+    email: "user1@rentify.local",
+    username: "renter-one",
+    role: "user",
+  },
+  accountStatus: "active",
+  lastLoginAt: "2026-10-17T09:12:44.218Z",
+  failedSignIns: { last24Hours: 5, last7Days: 6 },
+  lockout: {
+    locked: true,
+    failedAttempts: 5,
+    lockedAt: "2026-10-18T14:01:47.098Z",
+    lockedUntil: "2026-10-18T14:31:47.098Z",
+  },
+  devices: [
+    {
+      id: "6f1c2a40-8d1e-4b7a-9c3f-2e5d8a7b1c90",
+      deviceId: "renter-laptop",
+      type: "desktop",
+      platform: "Windows",
+      browser: "Chrome",
+      os: "Windows",
+      lastIpAddress: "203.0.113.24",
+      firstSeenAt: "2026-09-02T18:20:11.000Z",
+      lastSeenAt: "2026-10-17T09:12:44.218Z",
+    },
+  ],
+  recentEvents: [adminAuthAuditEventExample],
 };
 const verificationStatusExample = {
   verified: true,
@@ -5463,6 +5539,120 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/auth/audit",
+      operationId: "listAdminAuthAuditEvents",
+      summary: "Search the auth audit log",
+      description:
+        "Returns authentication audit events across every account, newest first, for investigating suspicious sign-in activity. Each item carries every stored column except the identifier hash, plus `subject` (the account the event is about; null for an attempt against an unknown username or a deleted account) and `actor` (set only when someone other than the subject acted). `user` takes an email or a username and is resolved server side; one that matches no account is matched against the keyed hash that sign-in and unlock events record, so attempts against an unknown username are still found. `userId` and `user` are mutually exclusive. `eventType` may be repeated. `to` defaults to now and `from` to seven days before `to`; the window may not exceed 90 days, and the applied window is echoed in `range`. Every call, including each further page, first records an `admin.audit_viewed` event with the caller as actor and the filters as metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        queryParam(
+          "userId",
+          { type: "string", pattern: UUID_PATTERN_SOURCE },
+          "Only events about this account. Cannot be combined with `user`.",
+          "00000000-0000-0000-1040-000000000101",
+        ),
+        queryParam(
+          "user",
+          { type: "string", minLength: 1, maxLength: 255 },
+          "An email or username, resolved to an account server side. One that matches no account finds the sign-in and unlock attempts made with it.",
+          "renter-one",
+        ),
+        queryParam(
+          "ip",
+          { type: "string", maxLength: 45 },
+          "Only events from this IPv4 or IPv6 address.",
+          "203.0.113.24",
+        ),
+        queryParam(
+          "eventType",
+          {
+            type: "array",
+            maxItems: 10,
+            items: { type: "string", enum: [...AUTH_AUDIT_EVENT_TYPES] },
+          },
+          "Only events of these types. Repeat the parameter for several.",
+          ["login.failed", "login.locked"],
+        ),
+        queryParam(
+          "outcome",
+          { type: "string", enum: ["success", "failure", "blocked"] },
+          "Only events with this outcome.",
+          "failure",
+        ),
+        queryParam(
+          "from",
+          { type: "string", format: "date-time" },
+          "Inclusive lower bound on when the event happened. Defaults to seven days before `to`.",
+          "2026-10-11T00:00:00Z",
+        ),
+        queryParam(
+          "to",
+          { type: "string", format: "date-time" },
+          "Exclusive upper bound on when the event happened. Defaults to now. Must be later than `from` and at most 90 days after it.",
+          "2026-10-18T00:00:00Z",
+        ),
+        queryParam(
+          "cursor",
+          { type: "string", maxLength: 200 },
+          "Opaque cursor from a previous page's `nextCursor`, sent with the same filters. A cursor that does not name an event under those filters is a 400.",
+        ),
+        queryParam(
+          "limit",
+          { type: "integer", minimum: 1, maximum: 100, default: 25 },
+          "Maximum number of events to return.",
+          25,
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "AdminAuthAuditEventList",
+          adminAuthAuditEventListExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/users/:id/security",
+      operationId: "getAdminUserSecuritySummary",
+      summary: "Get a user's security summary",
+      description:
+        "Summarizes one account's sign-in security for an administrator: account status (always `active` until durable account status ships), last sign-in, failed sign-ins in the last 24 hours and 7 days, the current lockout state read live from the cache, registered devices, and the 20 most recent audit events from the last 90 days. The call first records an `admin.audit_viewed` event naming the account in its metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "id",
+          "Account identifier.",
+          "00000000-0000-0000-1040-000000000101",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "AdminUserSecuritySummary",
+          adminUserSecuritySummaryExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },
     {
@@ -10618,6 +10808,225 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
             description:
               "Pass as `cursor` to fetch the next page; null on the last page.",
+          },
+        },
+      },
+      AuthAuditUserSummary: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "email", "username"],
+        properties: {
+          id: { type: "string", pattern: UUID_PATTERN_SOURCE },
+          email: { type: "string", format: "email" },
+          username: { type: "string", nullable: true },
+        },
+      },
+      AdminAuthAuditEvent: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "eventType",
+          "outcome",
+          "reasonCode",
+          "method",
+          "ipAddress",
+          "userAgent",
+          "browser",
+          "os",
+          "deviceId",
+          "sessionId",
+          "requestId",
+          "metadata",
+          "occurredAt",
+          "subject",
+          "actor",
+        ],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          eventType: {
+            type: "string",
+            description:
+              "The audit event type, such as `login.failed`. New types may be added.",
+          },
+          outcome: { type: "string", enum: ["success", "failure", "blocked"] },
+          reasonCode: {
+            type: "string",
+            nullable: true,
+            description:
+              "Why a failure or block happened, such as `bad_credentials`.",
+          },
+          method: {
+            type: "string",
+            nullable: true,
+            enum: [
+              "password",
+              "google",
+              "microsoft",
+              "apple",
+              "refresh",
+              "pat",
+            ],
+          },
+          ipAddress: { type: "string", nullable: true },
+          userAgent: { type: "string", nullable: true },
+          browser: {
+            type: "string",
+            nullable: true,
+            description: "Coarse browser name parsed from the user agent.",
+          },
+          os: {
+            type: "string",
+            nullable: true,
+            description:
+              "Coarse operating system name parsed from the user agent.",
+          },
+          deviceId: { type: "string", nullable: true },
+          sessionId: { type: "string", nullable: true },
+          requestId: { type: "string", nullable: true },
+          metadata: {
+            type: "object",
+            nullable: true,
+            additionalProperties: true,
+            description: "Small, non-secret extras recorded with the event.",
+          },
+          occurredAt: { type: "string", format: "date-time" },
+          subject: {
+            ...schemaRef("AuthAuditUserSummary"),
+            nullable: true,
+            description:
+              "The account the event is about; null when the identifier matched no account or the account was deleted.",
+          },
+          actor: {
+            ...schemaRef("AuthAuditUserSummary"),
+            nullable: true,
+            description:
+              "Who performed the event when it was not the subject, such as the administrator behind `admin.audit_viewed`.",
+          },
+        },
+      },
+      AdminAuthAuditEventList: {
+        type: "object",
+        additionalProperties: false,
+        required: ["items", "nextCursor", "range"],
+        properties: {
+          items: {
+            type: "array",
+            items: schemaRef("AdminAuthAuditEvent"),
+          },
+          nextCursor: {
+            type: "string",
+            nullable: true,
+            description:
+              "Pass as `cursor` with the same filters to fetch the next page; null on the last page.",
+          },
+          range: {
+            type: "object",
+            additionalProperties: false,
+            required: ["from", "to"],
+            description: "The window searched, after defaults were applied.",
+            properties: {
+              from: { type: "string", format: "date-time" },
+              to: { type: "string", format: "date-time" },
+            },
+          },
+        },
+      },
+      AdminUserSecuritySummary: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "user",
+          "accountStatus",
+          "lastLoginAt",
+          "failedSignIns",
+          "lockout",
+          "devices",
+          "recentEvents",
+        ],
+        properties: {
+          user: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "email", "username", "role"],
+            properties: {
+              id: { type: "string", pattern: UUID_PATTERN_SOURCE },
+              email: { type: "string", format: "email" },
+              username: { type: "string", nullable: true },
+              role: {
+                type: "string",
+                enum: ["user", "owner", "moderator", "admin"],
+              },
+            },
+          },
+          accountStatus: {
+            type: "string",
+            enum: ["active"],
+            description:
+              "Always `active` until durable account status ships; more values will be added.",
+          },
+          lastLoginAt: { type: "string", format: "date-time", nullable: true },
+          failedSignIns: {
+            type: "object",
+            additionalProperties: false,
+            required: ["last24Hours", "last7Days"],
+            description:
+              "Counts of `login.failed` and `oauth.login.failed` events about the account.",
+            properties: {
+              last24Hours: { type: "integer", minimum: 0 },
+              last7Days: { type: "integer", minimum: 0 },
+            },
+          },
+          lockout: {
+            type: "object",
+            additionalProperties: false,
+            required: ["locked", "failedAttempts", "lockedAt", "lockedUntil"],
+            description:
+              "The password sign-in lockout record as sign-in reads it now. Failed attempts reset 15 minutes after the last one; a lock lasts 30 minutes unless lifted with an unlock code.",
+            properties: {
+              locked: { type: "boolean" },
+              failedAttempts: { type: "integer", minimum: 0 },
+              lockedAt: { type: "string", format: "date-time", nullable: true },
+              lockedUntil: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+            },
+          },
+          devices: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "id",
+                "deviceId",
+                "type",
+                "platform",
+                "browser",
+                "os",
+                "lastIpAddress",
+                "firstSeenAt",
+                "lastSeenAt",
+              ],
+              properties: {
+                id: { type: "string", pattern: UUID_PATTERN_SOURCE },
+                deviceId: { type: "string" },
+                type: { type: "string" },
+                platform: { type: "string", nullable: true },
+                browser: { type: "string", nullable: true },
+                os: { type: "string", nullable: true },
+                lastIpAddress: { type: "string", nullable: true },
+                firstSeenAt: { type: "string", format: "date-time" },
+                lastSeenAt: { type: "string", format: "date-time" },
+              },
+            },
+          },
+          recentEvents: {
+            type: "array",
+            maxItems: 20,
+            items: schemaRef("AdminAuthAuditEvent"),
           },
         },
       },

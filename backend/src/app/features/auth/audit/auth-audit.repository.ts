@@ -4,6 +4,7 @@ import type {
   AuthAuditActivityRow,
   RecordAuthAuditEventInput,
 } from "@/features/auth/audit/auth-audit.model";
+import type { AuthAuditAdminRow } from "@/features/auth/audit/auth-audit-admin.model";
 import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 
 const COLUMN_LIMITS = {
@@ -31,6 +32,32 @@ export interface ListAuthAuditEventsForUserInput {
   limit: number;
 }
 
+/**
+ * An administrator's search. Each equality filter is the leading column of an
+ * index that ends in created_at, and the range is always bounded, so MySQL
+ * can serve the search from whichever index is most selective.
+ */
+export interface ListAuthAuditEventsForAdminInput {
+  userId?: Uuid;
+  identifierHash?: string;
+  ipAddress?: string;
+  eventTypes?: readonly string[];
+  outcome?: string;
+  afterId?: string;
+  /** Inclusive lower bound on created_at. */
+  createdFrom: Date;
+  /** Exclusive upper bound on created_at. */
+  createdBefore: Date;
+  limit: number;
+}
+
+export interface CountAuthAuditEventsForUserInput {
+  userId: Uuid;
+  eventTypes: readonly string[];
+  /** Inclusive lower bound on created_at. */
+  createdFrom: Date;
+}
+
 const ACTIVITY_COLUMNS = {
   id: true,
   userId: true,
@@ -44,6 +71,12 @@ const ACTIVITY_COLUMNS = {
   deviceId: true,
   sessionId: true,
   createdAt: true,
+} as const;
+
+const ADMIN_COLUMNS = {
+  ...ACTIVITY_COLUMNS,
+  requestId: true,
+  metadata: true,
 } as const;
 
 export class AuthAuditRepository extends BaseRepository {
@@ -117,23 +150,68 @@ export class AuthAuditRepository extends BaseRepository {
    * One user's events, newest first, served by the (user_id, created_at)
    * index, or null when `afterId` is not one of this user's events under
    * these same filters.
+   */
+  async listForUser(
+    input: ListAuthAuditEventsForUserInput,
+  ): Promise<AuthAuditActivityRow[] | null> {
+    return this.listPage(
+      this.activityWhere(input),
+      ACTIVITY_COLUMNS,
+      input.afterId,
+      input.limit,
+    );
+  }
+
+  /**
+   * Events matching an administrator's filters across every user, newest
+   * first, or null when `afterId` is not an event under these same filters.
+   */
+  async listForAdmin(
+    input: ListAuthAuditEventsForAdminInput,
+  ): Promise<AuthAuditAdminRow[] | null> {
+    const where: Prisma.AuthAuditEventWhereInput = {
+      ...(input.userId ? { userId: input.userId } : {}),
+      ...(input.identifierHash ? { identifierHash: input.identifierHash } : {}),
+      ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+      ...(input.eventTypes ? { eventType: { in: [...input.eventTypes] } } : {}),
+      ...(input.outcome ? { outcome: input.outcome } : {}),
+      createdAt: { gte: input.createdFrom, lt: input.createdBefore },
+    };
+
+    return this.listPage(where, ADMIN_COLUMNS, input.afterId, input.limit);
+  }
+
+  /** How many of one user's events of these types happened since a time. */
+  async countForUser(input: CountAuthAuditEventsForUserInput): Promise<number> {
+    return this.executeAsync(() =>
+      this.prisma.authAuditEvent.count({
+        where: {
+          userId: input.userId,
+          eventType: { in: [...input.eventTypes] },
+          createdAt: { gte: input.createdFrom },
+        },
+      }),
+    );
+  }
+
+  /**
+   * One page, newest first, or null when `afterId` is not a row under `where`.
    *
    * Paging uses Prisma's cursor, which compares against the cursor row's
    * stored values in SQL, so created_at keeps its microseconds and events
    * sharing a millisecond are neither skipped nor repeated. Prisma finds
    * that row by id alone, though, and `skip: 1` then drops whichever row
-   * comes first. A cursor naming another user's event, or one of this
-   * user's events the filters exclude, would therefore drop a row the
-   * caller never saw. The cursor row is checked against the same filters
-   * first to rule that out.
+   * comes first. A cursor naming a row the filters exclude, such as another
+   * user's event, would therefore drop a row the caller never saw. The
+   * cursor row is checked against the same filters first to rule that out.
    */
-  async listForUser(
-    input: ListAuthAuditEventsForUserInput,
-  ): Promise<AuthAuditActivityRow[] | null> {
-    const where = this.activityWhere(input);
-
-    if (input.afterId) {
-      const afterId = input.afterId;
+  private async listPage<TSelect extends Prisma.AuthAuditEventSelect>(
+    where: Prisma.AuthAuditEventWhereInput,
+    select: TSelect,
+    afterId: string | undefined,
+    limit: number,
+  ): Promise<Prisma.AuthAuditEventGetPayload<{ select: TSelect }>[] | null> {
+    if (afterId) {
       const cursorRow = await this.executeAsync(() =>
         this.prisma.authAuditEvent.findFirst({
           where: { ...where, id: afterId },
@@ -146,14 +224,15 @@ export class AuthAuditRepository extends BaseRepository {
       }
     }
 
-    return this.executeAsync(() =>
-      this.prisma.authAuditEvent.findMany({
-        where,
-        select: ACTIVITY_COLUMNS,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: input.limit,
-        ...(input.afterId ? { cursor: { id: input.afterId }, skip: 1 } : {}),
-      }),
+    return this.executeAsync(
+      () =>
+        this.prisma.authAuditEvent.findMany({
+          where,
+          select,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: limit,
+          ...(afterId ? { cursor: { id: afterId }, skip: 1 } : {}),
+        }) as Promise<Prisma.AuthAuditEventGetPayload<{ select: TSelect }>[]>,
     );
   }
 

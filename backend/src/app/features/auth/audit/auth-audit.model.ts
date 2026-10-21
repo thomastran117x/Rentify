@@ -5,33 +5,37 @@ import type { Uuid } from "@/configuration/validation/uuid";
  * Every kind of event the auth audit log records. The catalogue, with the
  * outcome and reason each one carries, is documented in docs/auth-security.md.
  */
-export type AuthAuditEventType =
-  | "login.succeeded"
-  | "login.failed"
-  | "login.mfa_challenged"
-  | "login.locked"
-  | "login.unlock_requested"
-  | "login.unlocked"
-  | "logout"
-  | "oauth.login.succeeded"
-  | "oauth.login.failed"
-  | "oauth.signup.completed"
-  | "oauth.linked"
-  | "oauth.unlinked"
-  | "session.refresh_reuse_detected"
-  | "session.revoked"
-  | "device.new_detected"
-  | "password.changed"
-  | "password.reset"
-  | "password.set"
-  | "email.changed"
-  | "mfa.totp_enabled"
-  | "mfa.totp_disabled"
-  | "mfa.step_up_failed"
-  | "mfa.step_up_locked"
-  | "pat.created"
-  | "pat.revoked"
-  | "rate_limit.exceeded";
+export const AUTH_AUDIT_EVENT_TYPES = [
+  "login.succeeded",
+  "login.failed",
+  "login.mfa_challenged",
+  "login.locked",
+  "login.unlock_requested",
+  "login.unlocked",
+  "logout",
+  "oauth.login.succeeded",
+  "oauth.login.failed",
+  "oauth.signup.completed",
+  "oauth.linked",
+  "oauth.unlinked",
+  "session.refresh_reuse_detected",
+  "session.revoked",
+  "device.new_detected",
+  "password.changed",
+  "password.reset",
+  "password.set",
+  "email.changed",
+  "mfa.totp_enabled",
+  "mfa.totp_disabled",
+  "mfa.step_up_failed",
+  "mfa.step_up_locked",
+  "pat.created",
+  "pat.revoked",
+  "rate_limit.exceeded",
+  "admin.audit_viewed",
+] as const;
+
+export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
 
 export const AUTH_AUDIT_OUTCOMES = ["success", "failure", "blocked"] as const;
 

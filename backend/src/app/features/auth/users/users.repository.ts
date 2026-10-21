@@ -2,6 +2,7 @@ import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
+  type AppRole,
   type AuthUserOrganizationMembershipRecord,
   type CreateLocalUserInput,
   type AuthUserRecord,
@@ -20,6 +21,20 @@ import {
   newUuid,
   type Uuid,
 } from "@/configuration/validation/uuid";
+
+export interface UserIdentitySummary {
+  id: string;
+  email: string;
+  username: string | null;
+}
+
+export interface UserSecurityProfile {
+  id: Uuid;
+  email: string;
+  username: string | null;
+  role: AppRole;
+  lastLoginAt: string | null;
+}
 
 type AuthUserPersistence = {
   id: string;
@@ -198,6 +213,63 @@ export class UsersRepository extends BaseRepository {
     );
 
     return user?.id ?? null;
+  }
+
+  /**
+   * Id, email and username for each listed account that still exists, in one
+   * query. Used to name the subjects and actors on a page of audit events.
+   */
+  async listIdentitySummariesByIds(
+    ids: readonly string[],
+  ): Promise<UserIdentitySummary[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const users = await this.executeAsync(() =>
+      this.prisma.user.findMany({
+        where: { id: { in: [...ids] } },
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { username: true } },
+        },
+      }),
+    );
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.profile?.username ?? null,
+    }));
+  }
+
+  /** The account fields an administrator's security summary shows. */
+  async findSecurityProfile(id: Uuid): Promise<UserSecurityProfile | null> {
+    const user = await this.executeAsync(() =>
+      this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          lastLoginAt: true,
+          profile: { select: { username: true } },
+        },
+      }),
+    );
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: asUuid(user.id),
+      email: user.email,
+      username: user.profile?.username ?? null,
+      role: normalizeAppRole(user.role),
+      lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    };
   }
 
   async createLocalUser(

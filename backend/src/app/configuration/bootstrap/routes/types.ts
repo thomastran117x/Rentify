@@ -42,6 +42,7 @@ export const ROUTE_MODULE_IDS = [
   "rentings",
   "postings-public",
   "admin-feature-flags",
+  "admin-auth-audit",
 ] as const;
 
 export type RouteModuleId = (typeof ROUTE_MODULE_IDS)[number];

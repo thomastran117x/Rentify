@@ -1,6 +1,8 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { AuthAuditActivityService } from "@/features/auth/audit/auth-audit-activity.service";
+import { AuthAuditAdminController } from "@/features/auth/audit/auth-audit-admin.controller";
+import { AuthAuditAdminService } from "@/features/auth/audit/auth-audit-admin.service";
 import { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
 import { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
@@ -55,6 +57,34 @@ export const authAuditRegistrationModule: ContainerRegistrationModule = {
         new AuthAuditController(
           resolve(containerTokens.authAuditActivityService),
           resolve(containerTokens.mfaVerificationService),
+        ),
+    });
+    container.register({
+      token: containerTokens.authAuditAdminService,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.authAuditRepository,
+        containerTokens.authAuditService,
+        containerTokens.authUsersRepository,
+        containerTokens.deviceRepository,
+        containerTokens.loginLockoutService,
+      ],
+      resolve: ({ resolve }) =>
+        new AuthAuditAdminService(
+          resolve(containerTokens.authAuditRepository),
+          resolve(containerTokens.authAuditService),
+          resolve(containerTokens.authUsersRepository),
+          resolve(containerTokens.deviceRepository),
+          resolve(containerTokens.loginLockoutService),
+        ),
+    });
+    container.register({
+      token: containerTokens.authAuditAdminController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.authAuditAdminService],
+      resolve: ({ resolve }) =>
+        new AuthAuditAdminController(
+          resolve(containerTokens.authAuditAdminService),
         ),
     });
   },

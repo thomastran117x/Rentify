@@ -1,6 +1,6 @@
 # Authentication Audit Log
 
-The backend records authentication activity in the `auth_audit_events` table and writes one structured log line for each event. The record answers "who tried to sign in to which account, from where, and what happened". Users read their own history through `GET /auth/audit/me` (see [Reading Your Own Activity](#reading-your-own-activity)); there is no admin read API yet.
+The backend records authentication activity in the `auth_audit_events` table and writes one structured log line for each event. The record answers "who tried to sign in to which account, from where, and what happened". Users read their own history through `GET /auth/audit/me` (see [Reading Your Own Activity](#reading-your-own-activity)). Administrators search every account's events through `GET /admin/auth/audit` and `GET /admin/users/:id/security` (see [Investigating Sign-in Activity](#investigating-sign-in-activity)).
 
 Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/auth/audit). Flows write through `AuthAuditService.recordSafely`, which never fails or retries. If the insert fails, the error is logged and the authentication operation goes ahead unchanged.
 
@@ -42,6 +42,7 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 | `pat.created`                    | `success` |                               | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ... }`, never the token.                    |
 | `pat.revoked`                    | `success` |                               | A personal access token changed from active to revoked. Repeated revoke calls write no event.                                    |
 | `rate_limit.exceeded`            | `blocked` | `rate_limited`                | A Redis-backed `auth-sensitive` or `auth-refresh` policy returned 429. See dedupe rules below.                                   |
+| `admin.audit_viewed`             | `success` |                               | An administrator read the audit log. `user_id` is null, `actor_user_id` is the reader and `metadata` holds the filters used.     |
 
 Each local sign-in attempt writes exactly one event. The fifth failed attempt, the one that sets the lock, is recorded as `login.locked`, not as `login.failed`.
 
@@ -126,6 +127,58 @@ The filter buttons (All, Sign-ins, Security changes, Sessions), the **Status** s
 While a cached page is being refreshed, **Load more** reads "Updating..." and waits, so it never pages from a stale cursor. The cache never touches browser storage, so a page reload starts empty. It empties whenever the signed-in user changes, sign-out included, so a new session never sees the previous one's "This session" flags and a different account never sees another user's entries. The **Refresh** button in the section header, and **Try again** after an error, always fetch.
 
 **This wasn't me** appears on every row except the current session's. Until self-lock (#378) lands, it shows advice to change the password and remove unknown devices, then scrolls to the Password section and focuses its first field.
+
+## Investigating Sign-in Activity
+
+Administrators read every account's events through two endpoints, served by `AuthAuditAdminController` and `AuthAuditAdminService` and documented in the OpenAPI spec as `listAdminAuthAuditEvents` and `getAdminUserSecuritySummary`.
+
+- **Who can call them.** Only the `admin` role, from a signed-in session. Users, owners and moderators get `403`, because the view exposes other people's IP addresses, user agents and devices. Personal access tokens are rejected. The role is checked before the query is validated, so a non-admin learns nothing from a validation error. There is no MFA step-up, matching `/admin/feature-flags`.
+- **Every read is itself audited.** Before returning anything, each call, including every further page, writes an `admin.audit_viewed` event with the reader as `actor_user_id`, the reader's IP, user agent and request ID, and the filters in `metadata`: `view`, the `filter_*` keys, `limit`, and, for a summary, `target_user_id`. The cursor is not recorded. `user_id` stays null, so these rows never appear in the subject's own security activity. The write uses `record`, not `recordSafely`: if it fails, the read fails, so nobody can look without leaving a trace.
+
+### Searching Events
+
+`GET /admin/auth/audit` returns events newest first.
+
+| Parameter   | Meaning                                                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `userId`    | Events about this account.                                                                                                                                |
+| `user`      | An email or username, resolved server side. One that matches no account is hashed and matched against `identifier_hash` instead. Exclusive with `userId`. |
+| `ip`        | Events from this IPv4 or IPv6 address.                                                                                                                    |
+| `eventType` | One or more event types; repeat the parameter (`?eventType=login.failed&eventType=login.locked`). At most 10.                                             |
+| `outcome`   | `success`, `failure` or `blocked`.                                                                                                                        |
+| `from`/`to` | Inclusive and exclusive bounds. `to` defaults to now and `from` to seven days before `to`. The window is at most 90 days; a wider one is a `400`.         |
+| `cursor`    | The previous page's `nextCursor`. Send it with the same filters; one that names no event under them is a `400`.                                           |
+| `limit`     | 1 to 100, default 25.                                                                                                                                     |
+
+The response carries `items`, `nextCursor` and `range`, the window actually searched. Each item has every column except `identifier_hash`, plus `browser` and `os` parsed from the user agent, `subject` (`{ id, email, username }` of the account the event is about) and `actor` (set only when someone other than the subject acted). `subject` is null for an attempt against an unknown username and for an account deleted since.
+
+Each filter is the leading column of one of the table's indexes, and the window bounds `created_at` on both sides, so MySQL serves a search from `(user_id, created_at)`, `(ip_address, created_at)`, `(event_type, created_at)` or `(identifier_hash, created_at)` as a short range scan. That is why the window is capped rather than open-ended.
+
+A search's window ends when the request starts, so its own `admin.audit_viewed` row is never part of its result; the next search sees it.
+
+### A User's Security Summary
+
+`GET /admin/users/:id/security` returns, for one account:
+
+- `user` (`id`, `email`, `username`, `role`) and `accountStatus`, which is always `active` until durable account status (#377) lands;
+- `lastLoginAt`, from `users.last_login_at`;
+- `failedSignIns.last24Hours` and `last7Days`, counting `login.failed` and `oauth.login.failed` events. The attempt that sets a lock is recorded as `login.locked`, so it is not counted;
+- `lockout`, read live from the same Redis record sign-in uses: `locked`, `failedAttempts`, `lockedAt`, and `lockedUntil`, which is 30 minutes after `lockedAt`. Failed attempts that have not locked the account expire 15 minutes after the last one, so `failedAttempts` can be lower than the 24-hour count;
+- `devices`, the account's registered devices with their last IP address;
+- `recentEvents`, the 20 newest events from the last 90 days, in the same shape as the search.
+
+An unknown ID is a `404` and a malformed one a `400`; neither writes an `admin.audit_viewed` row.
+
+### Runbook
+
+1. **Start from the account.** Search with `user` set to the email or username the report names. Look for `login.failed` rows with `bad_credentials`, then `login.locked` and `login.unlock_requested`.
+2. **Check the current state.** Open the account's security summary. `lockout.locked` says whether sign-in is refusing the account right now and until when; `devices` and their last IPs show where it is normally used.
+3. **Pivot to the IP.** Search with `ip` set to an address from those failures. Several accounts, or many `subject: null` rows, from one address in a short window is the signature of credential stuffing.
+4. **Find attempts on names that do not exist.** Search with `user` set to the username that was typed. It matches no account, so the search falls back to the keyed hash and returns those attempts with `subject: null`.
+5. **Narrow the window.** Add `from`/`to` around the burst and `eventType` or `outcome` to cut noise. A wider look-back than seven days needs explicit dates, up to 90 days at a time.
+6. **Review who has been looking.** Search with `eventType=admin.audit_viewed`. Each row's `actor` is the administrator and `metadata` holds what they searched for.
+
+Locking, suspending and reinstating accounts from the summary is #377. Automatic flagging, and a `flagged` filter, is #379.
 
 ## Retention
 
