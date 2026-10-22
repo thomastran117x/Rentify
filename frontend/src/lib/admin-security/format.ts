@@ -41,6 +41,9 @@ const EVENT_TYPE_LABELS: Record<AuthAuditEventType, string> = {
   "pat.revoked": "Access token revoked",
   "rate_limit.exceeded": "Rate limit hit",
   "admin.audit_viewed": "Audit log viewed",
+  "account.locked": "Security hold placed",
+  "account.suspended": "Account suspended",
+  "account.reinstated": "Account reinstated",
 };
 
 function isKnownEventType(value: string): value is AuthAuditEventType {
@@ -86,6 +89,9 @@ export const EVENT_TYPE_GROUPS: Array<{
       "oauth.unlinked",
       "pat.created",
       "pat.revoked",
+      "account.locked",
+      "account.suspended",
+      "account.reinstated",
     ],
   },
   {

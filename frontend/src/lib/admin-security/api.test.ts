@@ -68,4 +68,21 @@ describe("adminSecurityApi", () => {
       controller.signal,
     );
   });
+
+  it.each(["lock", "suspend", "reinstate"] as const)(
+    "posts the reason to %s an account",
+    async (action) => {
+      await adminSecurityApi.changeAccountStatus(
+        "user/1",
+        action,
+        "Reported account takeover",
+      );
+
+      expect(authenticatedJsonMock).toHaveBeenCalledWith(
+        "POST",
+        "/admin/users/user%2F1/" + action,
+        { reason: "Reported account takeover" },
+      );
+    },
+  );
 });

@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-context";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { adminSecurityApi } from "@/lib/admin-security/api";
 import {
@@ -65,6 +66,7 @@ export function AdminSecurityWorkspace() {
   const cursors = paging.paramsKey === paramsKey ? paging.cursors : [];
   const cursor = cursors.at(-1);
 
+  const { session } = useAuth();
   const [refreshCount, setRefreshCount] = useState(0);
   const requestKey = `${paramsKey}|${cursor ?? ""}|${refreshCount}`;
   const [result, setResult] = useState<LoadResult | null>(null);
@@ -263,8 +265,10 @@ export function AdminSecurityWorkspace() {
         <AdminUserSecurityDrawer
           key={selectedUser.id}
           user={selectedUser}
+          viewerId={session?.user.id ?? null}
           onClose={() => setSelectedUser(null)}
           onShowEvents={showUserEvents}
+          onStatusChanged={() => setRefreshCount((value) => value + 1)}
         />
       ) : null}
     </WorkspaceShell>

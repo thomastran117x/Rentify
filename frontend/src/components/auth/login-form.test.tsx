@@ -643,6 +643,59 @@ describe("LoginForm", () => {
     expect(screen.queryByText("MFA dialog")).not.toBeInTheDocument();
   });
 
+  it("sends a security hold to password reset instead of the unlock code", async () => {
+    const user = userEvent.setup();
+    loginMock.mockRejectedValue(
+      clientError(
+        423,
+        "ACCOUNT_LOCKED",
+        "This account is on a security hold. Reset your password to recover it.",
+        { reason: "security_hold", recovery: "password_reset" },
+      ),
+    );
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText(
+        "This account is on a security hold to protect it. Reset your password to get back in.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Unlock panel/)).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Reset your password" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Reset password" }),
+    ).toBeInTheDocument();
+  });
+
+  it("tells a suspended account to contact support, with no reset offered", async () => {
+    const user = userEvent.setup();
+    loginMock.mockRejectedValue(
+      clientError(403, "ACCOUNT_SUSPENDED", "This account has been suspended."),
+    );
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText(
+        "This account has been suspended. Contact support if you believe this is a mistake.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reset your password" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("switches to unlock mode for locked-account responses with a resolved email", async () => {
     const user = userEvent.setup();
     loginMock.mockRejectedValue(

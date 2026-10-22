@@ -23,10 +23,15 @@ import {
   formatRelativeTime,
 } from "@/lib/security-activity/format";
 import type {
+  AccountStatus,
+  AccountStatusAction,
+  AdminAccountStatusChangeResult,
   AdminUserSecuritySummary,
   AuthAuditUserSummary,
 } from "@/lib/admin-security/types";
+import { AdminAccountStatusDialog } from "./admin-account-status-dialog";
 import { OutcomeBadge } from "./admin-security-event-table";
+import { getFocusableElements, trapTabKey } from "./focusable";
 
 /** Devices listed before "Show all"; test accounts can have hundreds. */
 const DEVICES_SHOWN = 5;
@@ -36,12 +41,55 @@ type LoadState =
   | { kind: "ready"; summary: AdminUserSecuritySummary }
   | { kind: "error"; message: string; retryable: boolean };
 
-function getFocusableElements(root: HTMLElement): HTMLElement[] {
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  );
+const STATUS_APPEARANCE: Record<
+  AccountStatus,
+  { label: string; className: string }
+> = {
+  active: {
+    label: "Active",
+    className:
+      "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
+  },
+  locked: {
+    label: "Security hold",
+    className:
+      "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200",
+  },
+  suspended: {
+    label: "Suspended",
+    className:
+      "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300",
+  },
+};
+
+/** What an admin can do from each status. */
+const STATUS_ACTIONS: Record<AccountStatus, AccountStatusAction[]> = {
+  active: ["lock", "suspend"],
+  locked: ["suspend", "reinstate"],
+  suspended: ["reinstate"],
+};
+
+const ACTION_LABELS: Record<AccountStatusAction, string> = {
+  lock: "Place security hold",
+  suspend: "Suspend",
+  reinstate: "Reinstate",
+};
+
+function describeStatusChange(
+  action: AccountStatusAction,
+  result: AdminAccountStatusChangeResult,
+): string {
+  if (action === "lock") {
+    return "Security hold placed. The account's sessions and access tokens have ended.";
+  }
+
+  if (action === "suspend") {
+    return "Account suspended. The account's sessions and access tokens have ended.";
+  }
+
+  return result.changed
+    ? "Account reinstated. The user can sign in again."
+    : "The account was already active.";
 }
 
 function formatTime(value: string | null, empty = "Never"): string {
@@ -50,8 +98,12 @@ function formatTime(value: string | null, empty = "Never"): string {
 
 interface AdminUserSecurityDrawerProps {
   user: AuthAuditUserSummary;
+  /** The signed-in admin, who cannot change their own status. */
+  viewerId?: string | null;
   onClose: () => void;
   onShowEvents: (user: AuthAuditUserSummary) => void;
+  /** Called after a status change, so new audit events can be shown. */
+  onStatusChanged?: () => void;
 }
 
 /**
@@ -61,17 +113,28 @@ interface AdminUserSecurityDrawerProps {
  */
 export function AdminUserSecurityDrawer({
   user,
+  viewerId = null,
   onClose,
   onShowEvents,
+  onStatusChanged,
 }: AdminUserSecurityDrawerProps) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [statusAction, setStatusAction] = useState<AccountStatusAction | null>(
+    null,
+  );
+  const [notice, setNotice] = useState<string | null>(null);
+  // Set from a status change until the refreshed summary arrives, so the
+  // previous status's actions cannot be clicked against the new status.
+  const [statusRefreshing, setStatusRefreshing] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
 
   useEffect(() => {
     // The parent keys the drawer by account, so a new account starts in the
-    // loading state; Try again resets it before bumping the attempt.
+    // loading state; Try again resets it before bumping the attempt. A status
+    // change bumps it without resetting, so the summary stays up while it
+    // refreshes.
     const controller = new AbortController();
 
     adminSecurityApi
@@ -79,12 +142,15 @@ export function AdminUserSecurityDrawer({
       .then((summary) => {
         if (!controller.signal.aborted) {
           setState({ kind: "ready", summary });
+          setStatusRefreshing(false);
         }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
           return;
         }
+
+        setStatusRefreshing(false);
 
         if (isNotFoundError(error)) {
           setState({
@@ -137,7 +203,8 @@ export function AdminUserSecurityDrawer({
     (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
 
-      if (!dialog) {
+      // The reason dialog on top handles its own keys.
+      if (!dialog || statusAction) {
         return;
       }
 
@@ -147,29 +214,28 @@ export function AdminUserSecurityDrawer({
         return;
       }
 
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const focusable = getFocusableElements(dialog);
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (!first || !last) {
-        event.preventDefault();
-        return;
-      }
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      trapTabKey(event, dialog);
     },
-    [onClose],
+    [onClose, statusAction],
   );
+
+  async function handleStatusChange(reason: string) {
+    if (!statusAction) {
+      return;
+    }
+
+    const result = await adminSecurityApi.changeAccountStatus(
+      user.id,
+      statusAction,
+      reason,
+    );
+
+    setStatusAction(null);
+    setNotice(describeStatusChange(statusAction, result));
+    setStatusRefreshing(true);
+    setAttempt((value) => value + 1);
+    onStatusChanged?.();
+  }
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -258,20 +324,44 @@ export function AdminUserSecurityDrawer({
           {state.kind === "ready" ? (
             <SummaryBody
               summary={state.summary}
+              canChangeStatus={state.summary.user.id !== viewerId}
+              statusRefreshing={statusRefreshing}
+              notice={notice}
+              onStatusAction={(action) => {
+                setNotice(null);
+                setStatusAction(action);
+              }}
               onShowEvents={() => onShowEvents(user)}
             />
           ) : null}
         </div>
       </div>
+
+      {statusAction ? (
+        <AdminAccountStatusDialog
+          action={statusAction}
+          user={user}
+          onConfirm={handleStatusChange}
+          onCancel={() => setStatusAction(null)}
+        />
+      ) : null}
     </div>
   );
 }
 
 function SummaryBody({
   summary,
+  canChangeStatus,
+  statusRefreshing,
+  notice,
+  onStatusAction,
   onShowEvents,
 }: {
   summary: AdminUserSecuritySummary;
+  canChangeStatus: boolean;
+  statusRefreshing: boolean;
+  notice: string | null;
+  onStatusAction: (action: AccountStatusAction) => void;
   onShowEvents: () => void;
 }) {
   const { lockout } = summary;
@@ -284,8 +374,10 @@ function SummaryBody({
     <>
       <section aria-label="Account" className="grid gap-3 sm:grid-cols-2">
         <Stat label="Status">
-          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium capitalize text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-            {summary.accountStatus}
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_APPEARANCE[summary.accountStatus].className}`}
+          >
+            {STATUS_APPEARANCE[summary.accountStatus].label}
           </span>
           <span className="ml-2 text-xs capitalize text-slate-500 dark:text-slate-400">
             {summary.user.role}
@@ -300,6 +392,14 @@ function SummaryBody({
         </Stat>
       </section>
 
+      <AccountStatusPanel
+        summary={summary}
+        canChangeStatus={canChangeStatus}
+        statusRefreshing={statusRefreshing}
+        notice={notice}
+        onStatusAction={onStatusAction}
+      />
+
       <section
         aria-label="Sign-in lockout"
         className={`rounded-xl border px-4 py-4 text-sm ${
@@ -309,7 +409,9 @@ function SummaryBody({
         }`}
       >
         <p className="font-semibold">
-          {lockout.locked ? "Password sign-in is locked" : "Not locked"}
+          {lockout.locked
+            ? "Password sign-in is locked"
+            : "Password sign-in is not locked"}
         </p>
         <p className="mt-1">
           {lockout.locked && lockout.lockedUntil
@@ -412,6 +514,92 @@ function SummaryBody({
         )}
       </section>
     </>
+  );
+}
+
+function AccountStatusPanel({
+  summary,
+  canChangeStatus,
+  statusRefreshing,
+  notice,
+  onStatusAction,
+}: {
+  summary: AdminUserSecuritySummary;
+  canChangeStatus: boolean;
+  statusRefreshing: boolean;
+  notice: string | null;
+  onStatusAction: (action: AccountStatusAction) => void;
+}) {
+  const change = summary.accountStatusChange;
+
+  return (
+    <section
+      aria-labelledby="admin-security-status"
+      className="rounded-xl border border-slate-200 px-4 py-4 text-sm dark:border-slate-800"
+    >
+      <h3
+        id="admin-security-status"
+        className="font-semibold text-slate-950 dark:text-white"
+      >
+        Account status
+      </h3>
+      {change ? (
+        <dl className="mt-2 grid gap-1 text-slate-600 dark:text-slate-300">
+          <div>
+            <dt className="sr-only">Reason</dt>
+            <dd className="text-slate-900 dark:text-white">
+              {change.reason ?? "No reason recorded."}
+            </dd>
+          </div>
+          <div>
+            <dt className="sr-only">Changed</dt>
+            <dd className="text-xs">
+              Changed {formatAbsoluteTime(change.changedAt)}
+              {change.changedBy
+                ? ` by ${describeUser(change.changedBy)}`
+                : " by the user or the system"}
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="mt-2 text-slate-600 dark:text-slate-300">
+          The status has never been changed.
+        </p>
+      )}
+
+      {notice ? (
+        <p
+          role="status"
+          className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+        >
+          {notice}
+        </p>
+      ) : null}
+
+      {canChangeStatus ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {STATUS_ACTIONS[summary.accountStatus].map((action) => (
+            <button
+              key={action}
+              type="button"
+              onClick={() => onStatusAction(action)}
+              disabled={statusRefreshing}
+              className={`rounded-full border px-4 py-1.5 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                action === "reinstate"
+                  ? "border-slate-300 text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                  : "border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+              }`}
+            >
+              {ACTION_LABELS[action]}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          You can&apos;t change the status of your own account.
+        </p>
+      )}
+    </section>
   );
 }
 

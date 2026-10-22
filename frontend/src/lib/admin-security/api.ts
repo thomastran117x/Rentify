@@ -1,5 +1,7 @@
 import { authenticatedJson, buildPathWithQuery } from "@/lib/api/client";
 import type {
+  AccountStatusAction,
+  AdminAccountStatusChangeResult,
   AdminAuthAuditEventList,
   AdminUserSecuritySummary,
   ListAdminAuthAuditInput,
@@ -45,5 +47,22 @@ export const adminSecurityApi = {
       undefined,
       signal,
     );
+  },
+
+  /**
+   * Locks, suspends or reinstates an account. Admin only, and never the
+   * caller's own account. The reason is an admin note the user never sees.
+   */
+  changeAccountStatus(
+    userId: string,
+    action: AccountStatusAction,
+    reason: string,
+  ): Promise<AdminAccountStatusChangeResult> {
+    return authenticatedJson<
+      AdminAccountStatusChangeResult,
+      { reason: string }
+    >("POST", `/admin/users/${encodeURIComponent(userId)}/${action}`, {
+      reason,
+    });
   },
 };

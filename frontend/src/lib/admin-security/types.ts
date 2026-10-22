@@ -33,6 +33,9 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "pat.revoked",
   "rate_limit.exceeded",
   "admin.audit_viewed",
+  "account.locked",
+  "account.suspended",
+  "account.reinstated",
 ] as const;
 
 export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
@@ -100,6 +103,33 @@ export interface AdminUserKnownDevice {
   lastSeenAt: string;
 }
 
+/**
+ * `locked` is a security hold the user can clear with a password reset;
+ * `suspended` is a policy action only an admin can reverse.
+ */
+export type AccountStatus = "active" | "locked" | "suspended";
+
+export type AccountStatusAction = "lock" | "suspend" | "reinstate";
+
+export interface AdminAccountStatusChange {
+  /** The admin's note; never shown to the user. */
+  reason: string | null;
+  changedAt: string;
+  /** Null when the system or the user made the change. */
+  changedBy: AuthAuditUserSummary | null;
+}
+
+/** The response of `POST /admin/users/:id/lock`, `/suspend` and `/reinstate`. */
+export interface AdminAccountStatusChangeResult {
+  userId: string;
+  status: AccountStatus;
+  statusReason: string | null;
+  statusChangedAt: string | null;
+  statusChangedBy: string | null;
+  /** False when a reinstated account was already active. */
+  changed: boolean;
+}
+
 export interface AdminUserSecuritySummary {
   user: {
     id: string;
@@ -107,7 +137,9 @@ export interface AdminUserSecuritySummary {
     username: string | null;
     role: AppUserRole;
   };
-  accountStatus: "active";
+  accountStatus: AccountStatus;
+  /** The latest status change, or null when it was never changed. */
+  accountStatusChange: AdminAccountStatusChange | null;
   lastLoginAt: string | null;
   failedSignIns: { last24Hours: number; last7Days: number };
   lockout: {
