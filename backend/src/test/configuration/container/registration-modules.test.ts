@@ -1,5 +1,8 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { authAuditRegistrationModule } from "@/configuration/container/registrations/modules/auth-audit";
+import { authAccountStatusRegistrationModule } from "@/configuration/container/registrations/modules/auth-account-status";
+import { AccountStatusAdminController } from "@/features/auth/account-status/account-status-admin.controller";
+import { AccountStatusService } from "@/features/auth/account-status/account-status.service";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { mediaRegistrationModule } from "@/configuration/container/registrations/modules/media";
@@ -96,6 +99,37 @@ describe("targeted container registration modules", () => {
     expect(
       find(containerTokens.authAuditController).resolve({ resolve }),
     ).toBeInstanceOf(AuthAuditController);
+  });
+
+  it("registers the account status service and its admin controller", () => {
+    const registrations: Array<{
+      token: unknown;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authAccountStatusRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const find = (token: unknown) =>
+      registrations.find((candidate) => candidate.token === token)!;
+    const resolve = () => ({});
+
+    expect(find(containerTokens.accountStatusService).dependencies).toEqual([
+      containerTokens.authUsersRepository,
+      containerTokens.tokenService,
+      containerTokens.authAuditService,
+      containerTokens.emailService,
+    ]);
+    expect(
+      find(containerTokens.accountStatusService).resolve({ resolve }),
+    ).toBeInstanceOf(AccountStatusService);
+    expect(
+      find(containerTokens.accountStatusAdminController).resolve({ resolve }),
+    ).toBeInstanceOf(AccountStatusAdminController);
   });
 
   it("registers the admin audit reader and its controller", () => {

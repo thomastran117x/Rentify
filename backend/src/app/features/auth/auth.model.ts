@@ -51,6 +51,25 @@ export function normalizeAppRole(role: string | null | undefined): AppRole {
   throw new Error(`Unsupported application role: ${role ?? "undefined"}.`);
 }
 
+/**
+ * Durable account status. `locked` is a security hold the user can clear with a
+ * password reset; `suspended` is a policy action only an admin can reverse.
+ */
+export const accountStatusSchema = z.enum(["active", "locked", "suspended"]);
+export type AccountStatus = z.infer<typeof accountStatusSchema>;
+
+/**
+ * An unrecognised stored value is treated as `suspended`, never `active`, so a
+ * bad write fails closed instead of reopening the account.
+ */
+export function normalizeAccountStatus(
+  status: string | null | undefined,
+): AccountStatus {
+  const parsedStatus = accountStatusSchema.safeParse(status ?? "active");
+
+  return parsedStatus.success ? parsedStatus.data : "suspended";
+}
+
 export function isStrongPassword(password: string): boolean {
   return (
     password.length >= 8 &&
@@ -144,6 +163,7 @@ export interface AuthUserRecord {
   firstName?: string;
   lastName?: string;
   role: AppRole;
+  status: AccountStatus;
   emailVerified: boolean;
   profile: UserProfileRecord;
   oauthIdentities: OAuthIdentityRecord[];

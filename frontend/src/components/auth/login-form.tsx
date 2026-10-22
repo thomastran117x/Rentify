@@ -28,6 +28,7 @@ import { validateUsernameFormat } from "@/lib/auth/username";
 import { theme } from "@/styles/theme";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { AccountRecoveryDialog } from "@/components/auth/account-recovery-dialog";
+import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
 import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
 import {
   mfaVerificationApi,
@@ -69,9 +70,22 @@ type LoginFailureResult = {
   generalError: string | null;
   fieldErrors?: Partial<LoginErrors>;
   unlockEmail?: string;
+  /** A security hold, which a password reset clears. */
+  passwordResetRequired?: boolean;
 };
 
 function getLoginFailureResult(error: unknown): LoginFailureResult {
+  // Checked first: a security hold is also a 423, but it is cleared by a
+  // password reset, not by the emailed unlock code.
+  const statusBlock = getAccountStatusBlock(error);
+
+  if (statusBlock) {
+    return {
+      generalError: statusBlock.message,
+      passwordResetRequired: statusBlock.kind === "security_hold",
+    };
+  }
+
   if (error instanceof ApiClientError) {
     const { status, code, message } = error;
     const details =
@@ -199,6 +213,10 @@ export function LoginForm({
   const [unlockEmail, setUnlockEmail] = useState<string | null>(null);
   const [accountRecoveryOpen, setAccountRecoveryOpen] =
     useState(initialRecoveryOpen);
+  const [recoveryView, setRecoveryView] = useState<"options" | "password">(
+    "options",
+  );
+  const [passwordResetRequired, setPasswordResetRequired] = useState(false);
   const [welcomeSession, setWelcomeSession] = useState<AuthResponseBody | null>(
     null,
   );
@@ -479,6 +497,7 @@ export function LoginForm({
     const nextErrors = validateLogin({ username, password, captchaToken });
     setErrors(nextErrors);
     setGeneralError(null);
+    setPasswordResetRequired(false);
     setUnlockEmail(null);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -500,6 +519,7 @@ export function LoginForm({
       const failure = getLoginFailureResult(error);
 
       setGeneralError(failure.generalError);
+      setPasswordResetRequired(Boolean(failure.passwordResetRequired));
       setUnlockEmail(failure.unlockEmail ?? null);
       if (failure.unlockEmail) {
         writePersistedAuthPendingFlow({
@@ -567,11 +587,12 @@ export function LoginForm({
   return (
     <div className="space-y-5">
       <AccountRecoveryDialog
-        initialView={forgotPasswordPending ? "password" : "options"}
+        initialView={forgotPasswordPending ? "password" : recoveryView}
         open={accountRecoveryOpen || forgotPasswordPending}
         onClose={() => {
           clearPersistedAuthPendingFlowByType("forgot-password-reset");
           setAccountRecoveryOpen(false);
+          setRecoveryView("options");
         }}
       />
       {deviceMfaDialogState ? (
@@ -600,7 +621,10 @@ export function LoginForm({
       ) : null}
       <AuthOAuthButtons
         onSuccess={handleOAuthSuccess}
-        onError={setGeneralError}
+        onError={(message) => {
+          setPasswordResetRequired(false);
+          setGeneralError(message);
+        }}
         onSignupRequired={setOAuthSignupPending}
       />
 
@@ -616,6 +640,18 @@ export function LoginForm({
             title="Couldn't sign you in"
             message={generalError}
           />
+        ) : null}
+        {generalError && passwordResetRequired ? (
+          <button
+            type="button"
+            onClick={() => {
+              setRecoveryView("password");
+              setAccountRecoveryOpen(true);
+            }}
+            className={theme.auth.textLink}
+          >
+            Reset your password
+          </button>
         ) : null}
 
         <AuthField

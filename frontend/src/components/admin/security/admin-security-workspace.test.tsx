@@ -23,6 +23,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsRef.current,
 }));
 
+vi.mock("@/components/auth/auth-context", () => ({
+  useAuth: () => ({ session: { user: { id: "admin-1" } } }),
+}));
+
 vi.mock("@/lib/admin-security/api", () => ({
   adminSecurityApi: {
     listEvents: listEventsMock,
@@ -88,6 +92,7 @@ function summary(): AdminUserSecuritySummary {
   return {
     user: { ...RENTER, role: "user" },
     accountStatus: "active",
+    accountStatusChange: null,
     lastLoginAt: "2026-10-17T09:00:00.000Z",
     failedSignIns: { last24Hours: 5, last7Days: 6 },
     lockout: {

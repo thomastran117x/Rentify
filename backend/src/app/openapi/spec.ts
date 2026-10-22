@@ -528,6 +528,15 @@ const adminAuthAuditEventListExample = {
   },
 };
 
+const adminAccountStatusChangeResultExample = {
+  userId: "00000000-0000-0000-1040-000000000101",
+  status: "locked",
+  statusReason: "Reported account takeover; holding until the owner resets.",
+  statusChangedAt: "2026-10-18T14:05:00.000Z",
+  statusChangedBy: "00000000-0000-0000-1000-000000000010",
+  changed: true,
+};
+
 const adminUserSecuritySummaryExample = {
   user: {
     id: "00000000-0000-0000-1040-000000000101",
@@ -535,7 +544,16 @@ const adminUserSecuritySummaryExample = {
     username: "renter-one",
     role: "user",
   },
-  accountStatus: "active",
+  accountStatus: "locked",
+  accountStatusChange: {
+    reason: "Reported account takeover; holding until the owner resets.",
+    changedAt: "2026-10-18T14:05:00.000Z",
+    changedBy: {
+      id: "00000000-0000-0000-1000-000000000010",
+      email: "admin1@rentify.local",
+      username: "admin-one",
+    },
+  },
   lastLoginAt: "2026-10-17T09:12:44.218Z",
   failedSignIns: { last24Hours: 5, last7Days: 6 },
   lockout: {
@@ -1497,6 +1515,90 @@ function errorResponse(
   };
 }
 
+/**
+ * One error status with several named examples, for a status a single
+ * operation can return for more than one reason.
+ */
+function errorResponseExamples(
+  description: string,
+  examples: Record<
+    string,
+    { summary: string; message: string; code: string; details?: unknown }
+  >,
+): Record<string, unknown> {
+  return {
+    description,
+    content: {
+      "application/json": {
+        schema: schemaRef("ApiErrorEnvelope"),
+        examples: Object.fromEntries(
+          Object.entries(examples).map(
+            ([name, { summary, message, code, details }]) => [
+              name,
+              {
+                summary,
+                value: {
+                  success: false,
+                  message,
+                  data: null,
+                  error: {
+                    code,
+                    ...(details !== undefined ? { details } : {}),
+                  },
+                  meta: {
+                    requestId: requestIdExample,
+                  },
+                },
+              },
+            ],
+          ),
+        ),
+      },
+    },
+  };
+}
+
+const forbiddenErrorExample = {
+  summary: "The request is not allowed.",
+  message: "You do not have permission to perform this action.",
+  code: "FORBIDDEN",
+};
+
+const accountSuspendedErrorExample = {
+  summary: "The account is suspended; only an admin can reinstate it.",
+  message:
+    "This account has been suspended. Contact support if you believe this is a mistake.",
+  code: "ACCOUNT_SUSPENDED",
+};
+
+const securityHoldErrorExample = {
+  summary: "The account is on a security hold; a password reset recovers it.",
+  message:
+    "This account is on a security hold. Reset your password to recover it.",
+  code: "ACCOUNT_LOCKED",
+  details: {
+    reason: "security_hold",
+    recovery: "password_reset",
+  },
+};
+
+/**
+ * The durable account-status refusals a sign-in can return once the
+ * credentials are proven. Spread after commonErrors so the 403 here replaces
+ * the generic one.
+ */
+function accountStatusSignInErrors(): Record<string, unknown> {
+  return {
+    "403": errorResponseExamples("Forbidden, or the account is suspended.", {
+      forbidden: forbiddenErrorExample,
+      accountSuspended: accountSuspendedErrorExample,
+    }),
+    "423": errorResponseExamples("The account is on a security hold.", {
+      securityHold: securityHoldErrorExample,
+    }),
+  };
+}
+
 function commonErrors(
   statuses: Array<
     400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503
@@ -1715,7 +1817,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localLogin",
       summary: "Authenticate with username and password",
       description:
-        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED until it is unlocked through POST /auth/local/unlock or the lock expires. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1738,16 +1840,31 @@ function buildOperations(): OperationDefinition[] {
           "AuthSessionResponseData",
           authSessionExample,
         ),
-        "423": errorResponse(
-          "Local sign-in is locked.",
-          "This sign-in is locked. Use the code we emailed you to unlock it.",
-          "ACCOUNT_LOCKED",
+        ...commonErrors([400, 401, 403, 429, 500]),
+        "403": errorResponseExamples(
+          "Forbidden, or the account is suspended.",
           {
-            email: "owner1@rentify.local",
-            unlockRequired: true,
+            forbidden: forbiddenErrorExample,
+            accountSuspended: accountSuspendedErrorExample,
           },
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        "423": errorResponseExamples(
+          "The sign-in is locked, or the account is on a security hold.",
+          {
+            loginLockout: {
+              summary:
+                "Too many failed attempts; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+            securityHold: securityHoldErrorExample,
+          },
+        ),
       },
     },
     {
@@ -2011,7 +2128,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resetPassword",
       summary: "Complete a password reset",
       description:
-        "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
+        "Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, a suspended account is refused with 403 ACCOUNT_SUSPENDED before anything is written. A completed reset clears a security hold: a locked account is set back to active (recorded as account.reinstated with source user) before the session is issued.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2033,6 +2150,13 @@ function buildOperations(): OperationDefinition[] {
           authSessionExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "403": errorResponseExamples(
+          "Forbidden, or the account is suspended.",
+          {
+            forbidden: forbiddenErrorExample,
+            accountSuspended: accountSuspendedErrorExample,
+          },
+        ),
       },
     },
     {
@@ -2478,6 +2602,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -2515,6 +2640,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -2552,6 +2678,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -5630,7 +5757,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "getAdminUserSecuritySummary",
       summary: "Get a user's security summary",
       description:
-        "Summarizes one account's sign-in security for an administrator: account status (always `active` until durable account status ships), last sign-in, failed sign-ins in the last 24 hours and 7 days, the current lockout state read live from the cache, registered devices, and the 20 most recent audit events from the last 90 days. The call first records an `admin.audit_viewed` event naming the account in its metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "Summarizes one account's sign-in security for an administrator: the durable account status and its latest change, last sign-in, failed sign-ins in the last 24 hours and 7 days, the current lockout state read live from the cache, registered devices, and the 20 most recent audit events from the last 90 days. The call first records an `admin.audit_viewed` event naming the account in its metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
       tags: ["auth"],
       security: ownerSecurity,
       permissions: {
@@ -5653,6 +5780,108 @@ function buildOperations(): OperationDefinition[] {
           adminUserSecuritySummaryExample,
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/users/:id/lock",
+      operationId: "lockAdminUser",
+      summary: "Put an account on a security hold",
+      description:
+        "Sets the account's status to `locked`: a security hold the user can clear by resetting their password. The token version is bumped in the same write, ending every session and refresh token, every Redis session is revoked, and personal access tokens stop working. Records `account.locked` with the admin as actor and `metadata.source` `admin`, and queues an `account_locked` email that does not include the reason. Locking an already-locked account records the new reason and ends sessions again without a second email; a suspended account returns 409 and must be reinstated first. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "id",
+          "Account identifier.",
+          "00000000-0000-0000-1040-000000000101",
+        ),
+      ],
+      requestBody: requestBody("AdminAccountStatusChangeRequest", {
+        reason: "Reported account takeover; holding until the owner resets.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Account put on a security hold.",
+          "AdminAccountStatusChangeResult",
+          adminAccountStatusChangeResultExample,
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/users/:id/suspend",
+      operationId: "suspendAdminUser",
+      summary: "Suspend an account",
+      description:
+        "Sets the account's status to `suspended`: a policy action only an admin can reverse. Ends every session and personal access token as a lock does, records `account.suspended`, and queues an `account_suspended` email that does not include the reason. Suspending an already-suspended account records the new reason without a second email. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "id",
+          "Account identifier.",
+          "00000000-0000-0000-1040-000000000101",
+        ),
+      ],
+      requestBody: requestBody("AdminAccountStatusChangeRequest", {
+        reason: "Reported account takeover; holding until the owner resets.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Account suspended.",
+          "AdminAccountStatusChangeResult",
+          { ...adminAccountStatusChangeResultExample, status: "suspended" },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/admin/users/:id/reinstate",
+      operationId: "reinstateAdminUser",
+      summary: "Reinstate an account",
+      description:
+        "Sets a locked or suspended account back to `active`, records `account.reinstated` and queues an `account_reinstated` email. Sessions are not restored; the user signs in again. Reinstating an account that is already active changes, records and sends nothing, and returns `changed: false` with the existing status details. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "id",
+          "Account identifier.",
+          "00000000-0000-0000-1040-000000000101",
+        ),
+      ],
+      requestBody: requestBody("AdminAccountStatusChangeRequest", {
+        reason: "Reported account takeover; holding until the owner resets.",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Account reinstated.",
+          "AdminAccountStatusChangeResult",
+          { ...adminAccountStatusChangeResultExample, status: "active" },
+        ),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {
@@ -10938,6 +11167,7 @@ function buildComponents(): Record<string, unknown> {
         required: [
           "user",
           "accountStatus",
+          "accountStatusChange",
           "lastLoginAt",
           "failedSignIns",
           "lockout",
@@ -10961,9 +11191,34 @@ function buildComponents(): Record<string, unknown> {
           },
           accountStatus: {
             type: "string",
-            enum: ["active"],
+            enum: ["active", "locked", "suspended"],
             description:
-              "Always `active` until durable account status ships; more values will be added.",
+              "`locked` is a security hold the user can clear with a password reset; `suspended` is a policy action only an admin can reverse.",
+          },
+          accountStatusChange: {
+            type: "object",
+            nullable: true,
+            additionalProperties: false,
+            required: ["reason", "changedAt", "changedBy"],
+            description:
+              "The latest status change, or null when the status was never changed.",
+            properties: {
+              reason: { type: "string", nullable: true },
+              changedAt: { type: "string", format: "date-time" },
+              changedBy: {
+                type: "object",
+                nullable: true,
+                additionalProperties: false,
+                required: ["id", "email", "username"],
+                description:
+                  "The admin who made the change; null for the system, the user or a deleted admin.",
+                properties: {
+                  id: { type: "string", pattern: UUID_PATTERN_SOURCE },
+                  email: { type: "string", format: "email" },
+                  username: { type: "string", nullable: true },
+                },
+              },
+            },
           },
           lastLoginAt: { type: "string", format: "date-time", nullable: true },
           failedSignIns: {
@@ -11683,6 +11938,53 @@ function buildComponents(): Record<string, unknown> {
       FeatureFlagListResult: {
         type: "array",
         items: schemaRef("ResolvedFeatureFlag"),
+      },
+      AdminAccountStatusChangeRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reason"],
+        properties: {
+          reason: {
+            type: "string",
+            minLength: 5,
+            maxLength: 255,
+            description:
+              "An admin note, trimmed before its length is checked. Kept on the account and in the audit event; never sent to the user.",
+          },
+        },
+      },
+      AdminAccountStatusChangeResult: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "userId",
+          "status",
+          "statusReason",
+          "statusChangedAt",
+          "statusChangedBy",
+          "changed",
+        ],
+        properties: {
+          userId: { type: "string", pattern: UUID_PATTERN_SOURCE },
+          status: { type: "string", enum: ["active", "locked", "suspended"] },
+          statusReason: { type: "string", nullable: true },
+          statusChangedAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+          },
+          statusChangedBy: {
+            type: "string",
+            pattern: UUID_PATTERN_SOURCE,
+            nullable: true,
+            description: "The admin's id, or null for the system or the user.",
+          },
+          changed: {
+            type: "boolean",
+            description:
+              "False when a reinstated account was already active, so nothing was written.",
+          },
+        },
       },
       SetFeatureFlagRequest: {
         type: "object",

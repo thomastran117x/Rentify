@@ -4,12 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError, ApiServerError } from "@/lib/api/types";
 import type { AdminUserSecuritySummary } from "@/lib/admin-security/types";
 
-const { getUserSummaryMock } = vi.hoisted(() => ({
+const { getUserSummaryMock, changeAccountStatusMock } = vi.hoisted(() => ({
   getUserSummaryMock: vi.fn(),
+  changeAccountStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/admin-security/api", () => ({
-  adminSecurityApi: { getUserSummary: getUserSummaryMock },
+  adminSecurityApi: {
+    getUserSummary: getUserSummaryMock,
+    changeAccountStatus: changeAccountStatusMock,
+  },
 }));
 
 const { AdminUserSecurityDrawer } = await import(
@@ -34,6 +38,7 @@ function summary(
   return {
     user: { ...USER, role: "user" },
     accountStatus: "active",
+    accountStatusChange: null,
     lastLoginAt: null,
     failedSignIns: { last24Hours: 0, last7Days: 0 },
     lockout: {
@@ -56,22 +61,25 @@ function clientError(status: number) {
   });
 }
 
-function renderDrawer() {
+function renderDrawer(viewerId: string | null = "admin-1") {
   const onClose = vi.fn();
   const onShowEvents = vi.fn();
+  const onStatusChanged = vi.fn();
 
   render(
     <>
       <button type="button">Opener</button>
       <AdminUserSecurityDrawer
         user={USER}
+        viewerId={viewerId}
         onClose={onClose}
         onShowEvents={onShowEvents}
+        onStatusChanged={onStatusChanged}
       />
     </>,
   );
 
-  return { onClose, onShowEvents };
+  return { onClose, onShowEvents, onStatusChanged };
 }
 
 describe("AdminUserSecurityDrawer", () => {
@@ -144,13 +152,15 @@ describe("AdminUserSecurityDrawer", () => {
     ).toBeInTheDocument();
 
     const dialog = await screen.findByRole("dialog", { name: "renter-one" });
-    expect(await within(dialog).findByText("Not locked")).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("Password sign-in is not locked"),
+    ).toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "2 recent failed attempts; the account locks at 5.",
       ),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText("active")).toBeInTheDocument();
+    expect(within(dialog).getByText("Active")).toBeInTheDocument();
     expect(within(dialog).getByText("Chrome on Windows")).toBeInTheDocument();
     expect(within(dialog).getByText("mobile")).toBeInTheDocument();
     expect(within(dialog).getByText(/from 203\.0\.113\.7/)).toBeInTheDocument();
@@ -262,7 +272,9 @@ describe("AdminUserSecurityDrawer", () => {
 
     await user.click(await screen.findByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("Not locked")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Password sign-in is not locked"),
+    ).toBeInTheDocument();
     expect(getUserSummaryMock).toHaveBeenCalledTimes(2);
   });
 
@@ -271,7 +283,7 @@ describe("AdminUserSecurityDrawer", () => {
     getUserSummaryMock.mockResolvedValue(summary());
 
     const { onClose, onShowEvents } = renderDrawer();
-    await screen.findByText("Not locked");
+    await screen.findByText("Password sign-in is not locked");
 
     const close = screen.getByRole("button", {
       name: "Close account security",
@@ -294,5 +306,289 @@ describe("AdminUserSecurityDrawer", () => {
 
     await user.click(screen.getByRole("button", { name: "Show all events" }));
     expect(onShowEvents).toHaveBeenCalledWith(USER);
+  });
+});
+
+describe("AdminUserSecurityDrawer account status actions", () => {
+  const REASON = "Reported account takeover";
+
+  beforeEach(() => {
+    getUserSummaryMock.mockReset();
+    changeAccountStatusMock.mockReset();
+  });
+
+  function statusResult(status: "active" | "locked" | "suspended") {
+    return {
+      userId: USER.id,
+      status,
+      statusReason: REASON,
+      statusChangedAt: "2026-10-21T09:00:00.000Z",
+      statusChangedBy: "admin-1",
+      changed: true,
+    };
+  }
+
+  function actionLabels(panel: HTMLElement): Array<string | null> {
+    return within(panel)
+      .queryAllByRole("button")
+      .map((button) => button.textContent);
+  }
+
+  it("offers a hold and a suspension for an active account", async () => {
+    getUserSummaryMock.mockResolvedValueOnce(summary());
+    renderDrawer();
+
+    const panel = await screen.findByRole("region", { name: "Account status" });
+
+    expect(
+      within(panel).getByText("The status has never been changed."),
+    ).toBeInTheDocument();
+    expect(actionLabels(panel)).toEqual(["Place security hold", "Suspend"]);
+  });
+
+  it("validates the reason, disables the dialog while saving, then refreshes the summary", async () => {
+    const user = userEvent.setup();
+    getUserSummaryMock.mockResolvedValueOnce(summary()).mockResolvedValueOnce(
+      summary({
+        accountStatus: "locked",
+        accountStatusChange: {
+          reason: REASON,
+          changedAt: "2026-10-21T09:00:00.000Z",
+          changedBy: {
+            id: "admin-1",
+            email: "admin1@rentify.local",
+            username: "admin-one",
+          },
+        },
+      }),
+    );
+    let resolveChange: (value: unknown) => void = () => undefined;
+    changeAccountStatusMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveChange = resolve;
+      }),
+    );
+    const { onClose, onStatusChanged } = renderDrawer();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Place security hold" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Put on a security hold",
+    });
+    const reason = within(dialog).getByLabelText("Reason");
+    expect(reason).toHaveFocus();
+
+    await user.type(reason, " no ");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Place security hold" }),
+    );
+    expect(
+      within(dialog).getByText("Give a reason of at least 5 characters."),
+    ).toBeInTheDocument();
+    expect(changeAccountStatusMock).not.toHaveBeenCalled();
+
+    await user.clear(reason);
+    await user.type(reason, "  " + REASON + " ");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Place security hold" }),
+    );
+
+    expect(changeAccountStatusMock).toHaveBeenCalledWith(
+      USER.id,
+      "lock",
+      REASON,
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Placing hold..." }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeDisabled();
+
+    let resolveRefresh: (value: unknown) => void = () => undefined;
+    getUserSummaryMock.mockReset();
+    getUserSummaryMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    resolveChange(statusResult("locked"));
+
+    // Until the refreshed summary arrives, the old status's actions are off.
+    expect(
+      await screen.findByText(
+        "Security hold placed. The account's sessions and access tokens have ended.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Suspend" })).toBeDisabled();
+
+    resolveRefresh(
+      summary({
+        accountStatus: "locked",
+        accountStatusChange: {
+          reason: REASON,
+          changedAt: "2026-10-21T09:00:00.000Z",
+          changedBy: {
+            id: "admin-1",
+            email: "admin1@rentify.local",
+            username: "admin-one",
+          },
+        },
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Security hold placed. The account's sessions and access tokens have ended.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Put on a security hold" }),
+    ).toBeNull();
+    expect(await screen.findByText("Security hold")).toBeInTheDocument();
+    expect(screen.getByText(REASON)).toBeInTheDocument();
+    expect(screen.getByText(/by admin-one/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reinstate" })).toBeEnabled();
+    expect(getUserSummaryMock).toHaveBeenCalledTimes(1);
+    expect(onStatusChanged).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with the API's reason when the change is refused", async () => {
+    const user = userEvent.setup();
+    getUserSummaryMock.mockResolvedValueOnce(
+      summary({ accountStatus: "locked" }),
+    );
+    changeAccountStatusMock.mockRejectedValueOnce(
+      new ApiClientError("You cannot change your own account status.", {
+        code: "FORBIDDEN",
+        status: 403,
+        request: REQUEST,
+      }),
+    );
+    renderDrawer();
+
+    await user.click(await screen.findByRole("button", { name: "Suspend" }));
+    const dialog = screen.getByRole("dialog", { name: "Suspend account" });
+    await user.type(within(dialog).getByLabelText("Reason"), REASON);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Suspend account" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "You cannot change your own account status.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Suspend account" }),
+    ).toBeEnabled();
+  });
+
+  it("shows a 400's field message under the reason", async () => {
+    const user = userEvent.setup();
+    getUserSummaryMock.mockResolvedValueOnce(
+      summary({ accountStatus: "suspended" }),
+    );
+    changeAccountStatusMock.mockRejectedValueOnce(
+      new ApiClientError("Request body validation failed.", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        details: { reason: ["Reason must be at most 255 characters."] },
+        request: REQUEST,
+      }),
+    );
+    renderDrawer();
+
+    await user.click(await screen.findByRole("button", { name: "Reinstate" }));
+    const dialog = screen.getByRole("dialog", { name: "Reinstate account" });
+    await user.type(within(dialog).getByLabelText("Reason"), REASON);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reinstate account" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Reason must be at most 255 characters."),
+    ).toBeInTheDocument();
+  });
+
+  it("says when a reinstated account was already active", async () => {
+    const user = userEvent.setup();
+    getUserSummaryMock
+      .mockResolvedValueOnce(summary({ accountStatus: "locked" }))
+      .mockResolvedValueOnce(summary());
+    changeAccountStatusMock.mockResolvedValueOnce({
+      ...statusResult("active"),
+      changed: false,
+    });
+    renderDrawer();
+
+    await user.click(await screen.findByRole("button", { name: "Reinstate" }));
+    const dialog = screen.getByRole("dialog", { name: "Reinstate account" });
+    await user.type(within(dialog).getByLabelText("Reason"), REASON);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reinstate account" }),
+    );
+
+    expect(
+      await screen.findByText("The account was already active."),
+    ).toBeInTheDocument();
+  });
+
+  it("closes only the dialog on Escape and returns focus to the action", async () => {
+    const user = userEvent.setup();
+    getUserSummaryMock.mockResolvedValueOnce(summary());
+    const { onClose } = renderDrawer();
+
+    const trigger = await screen.findByRole("button", { name: "Suspend" });
+    await user.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Suspend account" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.queryByRole("dialog", { name: "Suspend account" }),
+    ).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("offers only reinstatement for a suspended account and says who acted", async () => {
+    getUserSummaryMock.mockResolvedValueOnce(
+      summary({
+        accountStatus: "suspended",
+        accountStatusChange: {
+          reason: null,
+          changedAt: "2026-10-21T09:00:00.000Z",
+          changedBy: null,
+        },
+      }),
+    );
+    renderDrawer();
+
+    const panel = await screen.findByRole("region", { name: "Account status" });
+
+    expect(within(panel).getByText("No reason recorded.")).toBeInTheDocument();
+    expect(
+      within(panel).getByText(/by the user or the system/),
+    ).toBeInTheDocument();
+    expect(actionLabels(panel)).toEqual(["Reinstate"]);
+  });
+
+  it("hides the actions on the admin's own account", async () => {
+    getUserSummaryMock.mockResolvedValueOnce(summary());
+    renderDrawer(USER.id);
+
+    const panel = await screen.findByRole("region", { name: "Account status" });
+
+    expect(actionLabels(panel)).toEqual([]);
+    expect(
+      within(panel).getByText(
+        "You can't change the status of your own account.",
+      ),
+    ).toBeInTheDocument();
   });
 });

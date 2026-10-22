@@ -42,6 +42,7 @@ function createTokenRecord(
       id: USER_1_ID,
       email: "user@example.com",
       role: "owner",
+      status: "active",
     },
     ...overrides,
   };
@@ -244,6 +245,43 @@ describe("PersonalAccessTokenService", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
     expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
   });
+
+  it.each(["locked", "suspended"] as const)(
+    "rejects a valid PAT once its owner is %s",
+    async (status) => {
+      const repository = createRepositoryMock();
+      const createState = installCreateMock(repository);
+      const service = createService(repository);
+      const created = await service.create({
+        userId: USER_1_ID,
+        name: "Rentify MCP",
+        scopes: ["mcp:read"],
+        expiresInDays: 30,
+      });
+      const [, publicId] = created.token.split("_");
+
+      repository.findByPublicId.mockResolvedValue(
+        createTokenRecord({
+          publicId,
+          secretHash: createState.getLatestInput()?.secretHash as string,
+          user: {
+            id: USER_1_ID,
+            email: "user@example.com",
+            role: "owner",
+            status,
+          },
+        }),
+      );
+
+      await expect(
+        service.authenticateToken(created.token),
+      ).rejects.toMatchObject({
+        status: 401,
+        message: "Personal access token is no longer valid.",
+      });
+      expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
+    },
+  );
 
   it("revokes tokens for the owning user", async () => {
     const repository = createRepositoryMock();

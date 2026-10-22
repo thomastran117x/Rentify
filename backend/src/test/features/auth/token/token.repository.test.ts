@@ -12,11 +12,13 @@ describe("TokenRepository", () => {
       .mockResolvedValueOnce({
         tokenVersion: 7,
         role: "admin",
+        status: "locked",
       })
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         tokenVersion: 9,
         role: "owner",
+        status: "active",
       });
     const repository = new TokenRepository({
       user: {
@@ -29,6 +31,7 @@ describe("TokenRepository", () => {
     ).resolves.toEqual({
       tokenVersion: 7,
       role: "admin",
+      status: "locked",
     });
     await expect(
       repository.findSessionValidationByUserId(MISSING_USER_ID),

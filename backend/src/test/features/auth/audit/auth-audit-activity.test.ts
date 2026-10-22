@@ -48,6 +48,9 @@ const ALL_EVENT_TYPES: AuthAuditEventType[] = [
   "pat.created",
   "pat.revoked",
   "rate_limit.exceeded",
+  "account.locked",
+  "account.suspended",
+  "account.reinstated",
 ];
 
 function createRow(

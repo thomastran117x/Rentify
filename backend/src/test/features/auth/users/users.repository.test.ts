@@ -607,6 +607,77 @@ describe("UsersRepository", () => {
     });
   });
 
+  describe("updateAccountStatus", () => {
+    const changedAt = new Date("2026-10-21T09:00:00.000Z");
+
+    it("sets the status and bumps the token version in one conditional write", async () => {
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      const applied = await repository.updateAccountStatus(USER_1_ID, {
+        expectedStatus: "active",
+        status: "locked",
+        reason: "Possible takeover",
+        changedAt,
+        changedBy: USER_2_ID,
+        rotateTokenVersion: true,
+      });
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: USER_1_ID, status: "active" },
+        data: {
+          status: "locked",
+          statusReason: "Possible takeover",
+          statusChangedAt: changedAt,
+          statusChangedBy: USER_2_ID,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      expect(applied).toBe(true);
+    });
+
+    it("reports nothing written when the status has already moved on", async () => {
+      const updateMany = jest.fn(async () => ({ count: 0 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await expect(
+        repository.updateAccountStatus(USER_1_ID, {
+          expectedStatus: "locked",
+          status: "active",
+          reason: "Cleared",
+          changedAt,
+          changedBy: null,
+          rotateTokenVersion: false,
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("leaves the token version alone on a reinstatement", async () => {
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await repository.updateAccountStatus(USER_1_ID, {
+        expectedStatus: "suspended",
+        status: "active",
+        reason: "Cleared",
+        changedAt,
+        changedBy: null,
+        rotateTokenVersion: false,
+      });
+
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            status: "active",
+            statusReason: "Cleared",
+            statusChangedAt: changedAt,
+            statusChangedBy: null,
+          },
+        }),
+      );
+    });
+  });
+
   describe("findSecurityProfile", () => {
     it("maps the account fields the security summary shows", async () => {
       const findUnique = jest.fn(async () => ({
@@ -614,6 +685,10 @@ describe("UsersRepository", () => {
         email: "one@example.com",
         role: "admin",
         lastLoginAt: new Date("2026-10-16T09:00:00.000Z"),
+        status: "locked",
+        statusReason: "Possible takeover",
+        statusChangedAt: new Date("2026-10-17T09:00:00.000Z"),
+        statusChangedBy: USER_2_ID,
         profile: { username: "user-one" },
       }));
       const repository = new UsersRepository({
@@ -626,6 +701,10 @@ describe("UsersRepository", () => {
         username: "user-one",
         role: "admin",
         lastLoginAt: "2026-10-16T09:00:00.000Z",
+        status: "locked",
+        statusReason: "Possible takeover",
+        statusChangedAt: "2026-10-17T09:00:00.000Z",
+        statusChangedBy: USER_2_ID,
       });
     });
 
@@ -635,6 +714,10 @@ describe("UsersRepository", () => {
         email: "one@example.com",
         role: "user",
         lastLoginAt: null,
+        status: "active",
+        statusReason: null,
+        statusChangedAt: null,
+        statusChangedBy: null,
         profile: null,
       }));
       const repository = new UsersRepository({
@@ -643,7 +726,12 @@ describe("UsersRepository", () => {
 
       await expect(
         repository.findSecurityProfile(USER_1_ID),
-      ).resolves.toMatchObject({ username: null, lastLoginAt: null });
+      ).resolves.toMatchObject({
+        username: null,
+        lastLoginAt: null,
+        statusChangedAt: null,
+        statusChangedBy: null,
+      });
     });
 
     it("returns null for an unknown account", async () => {

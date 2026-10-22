@@ -82,4 +82,22 @@ describe("EmailService", () => {
       token: "invite-token-1",
     });
   });
+
+  it("queues one job kind per account status change", async () => {
+    const enqueueEmailJob = jest.fn(async () => undefined);
+    const service = new EmailService({
+      enqueueEmailJob,
+    } as any);
+    const input = { to: "user@example.com", firstName: "Jane" };
+
+    await service.sendAccountLockedEmail(input);
+    await service.sendAccountSuspendedEmail(input);
+    await service.sendAccountReinstatedEmail(input);
+
+    expect(enqueueEmailJob.mock.calls).toEqual([
+      ["account_locked", input],
+      ["account_suspended", input],
+      ["account_reinstated", input],
+    ]);
+  });
 });

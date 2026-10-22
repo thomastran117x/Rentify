@@ -7,6 +7,7 @@ import type { SavedSearchEmailComposer } from "@/features/postings/saved-searche
 import { buildSavedSearchQueryString } from "@/features/postings/saved-searches/saved-searches.model";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import type {
+  SendAccountStatusEmailInput,
   SendBookingMessageNotificationEmailInput,
   SendLoginUnlockEmailInput,
   SendEmailChangeCodeEmailInput,
@@ -197,6 +198,15 @@ export class EmailDeliveryService {
       case "organization_invite":
         await this.sendOrganizationInviteEmail(payload.input);
         return;
+      case "account_locked":
+        await this.sendAccountLockedEmail(payload.input);
+        return;
+      case "account_suspended":
+        await this.sendAccountSuspendedEmail(payload.input);
+        return;
+      case "account_reinstated":
+        await this.sendAccountReinstatedEmail(payload.input);
+        return;
     }
   }
 
@@ -386,6 +396,100 @@ export class EmailDeliveryService {
           this.buildAlertBox(
             `If this wasn&rsquo;t you, <strong>change your password and review account access immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>`,
             "warning",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendAccountLockedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const recoveryUrl = `${this.appBaseUrl}/login?recovery=account`;
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Your Rentify account is on a security hold",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        "We put your Rentify account on a security hold because it may have been used by someone else. You have been signed out everywhere, and your personal access tokens no longer work.",
+        "",
+        `To get back in, reset your password: ${recoveryUrl}`,
+        "",
+        "Resetting your password lifts the hold and signs you in.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your account is on a security hold</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">We put your Rentify account on a security hold because it may have been used by someone else. You have been signed out everywhere, and your personal access tokens no longer work.</p>`,
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">Resetting your password lifts the hold and signs you in.</p>`,
+          this.buildCTAButton(escapeHtml(recoveryUrl), "Reset your password"),
+          this.buildAlertBox(
+            "Choose a password you have not used before, and review your devices and personal access tokens once you are back in.",
+            "warning",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendAccountSuspendedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Your Rentify account has been suspended",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        "Your Rentify account has been suspended. You have been signed out everywhere, and you cannot sign in while it is suspended.",
+        "",
+        "If you believe this is a mistake, contact Rentify support.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your account has been suspended</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">Your Rentify account has been suspended. You have been signed out everywhere, and you cannot sign in while it is suspended.</p>`,
+          this.buildAlertBox(
+            "If you believe this is a mistake, contact Rentify support.",
+            "info",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendAccountReinstatedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const signInUrl = `${this.appBaseUrl}/login`;
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Your Rentify account is active again",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        `Your Rentify account is active again, and you can sign in: ${signInUrl}`,
+        "",
+        "If you did not expect this, reset your password.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your account is active again</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">Your Rentify account is active again, and you can sign in.</p>`,
+          this.buildCTAButton(escapeHtml(signInUrl), "Sign in"),
+          this.buildAlertBox(
+            "Didn&rsquo;t expect this? Reset your password to make sure only you can sign in.",
+            "info",
           ),
         ].join(""),
       ),

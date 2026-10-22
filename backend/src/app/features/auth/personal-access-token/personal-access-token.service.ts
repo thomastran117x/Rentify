@@ -144,6 +144,13 @@ export class PersonalAccessTokenService {
       throw new UnauthorizedError("Personal access token is invalid.");
     }
 
+    // A personal access token carries no token version, so rotating it when
+    // an account is locked or suspended does not reach this path; the status
+    // has to be checked here directly.
+    if (token.user.status !== "active") {
+      throw new UnauthorizedError("Personal access token is no longer valid.");
+    }
+
     await this.personalAccessTokenRepository.touchLastUsedAt(token.id);
 
     return {

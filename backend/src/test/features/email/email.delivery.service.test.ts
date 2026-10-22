@@ -656,3 +656,75 @@ describe("EmailDeliveryService email change templates", () => {
     expect(transporter.sendMail).not.toHaveBeenCalled();
   });
 });
+
+describe("EmailDeliveryService account status templates", () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  function deliverStatusEmail(
+    service: EmailDeliveryService,
+    kind: "account_locked" | "account_suspended" | "account_reinstated",
+    to = "user@example.com",
+  ) {
+    return service.deliver({
+      jobId: `job-${kind}`,
+      kind,
+      input: { to, firstName: "Jane" },
+      attempt: 1,
+      occurredAt: "2026-10-21T00:00:00.000Z",
+    });
+  }
+
+  function sentMessage(transporter: ReturnType<typeof createTransporterMock>) {
+    return transporter.sendMail.mock.calls[0]![0] as {
+      to: string;
+      subject: string;
+      text: string;
+      html: string;
+    };
+  }
+
+  it.each([
+    [
+      "account_locked",
+      "Your Rentify account is on a security hold",
+      "https://app.example.com/login?recovery=account",
+    ],
+    [
+      "account_suspended",
+      "Your Rentify account has been suspended",
+      "contact Rentify support",
+    ],
+    [
+      "account_reinstated",
+      "Your Rentify account is active again",
+      "https://app.example.com/login",
+    ],
+  ] as const)(
+    "sends %s with its subject and next step",
+    async (kind, subject, nextStep) => {
+      const transporter = createTransporterMock();
+      const service = createService(transporter);
+
+      await deliverStatusEmail(service, kind);
+
+      const message = sentMessage(transporter);
+      expect(message.to).toBe("user@example.com");
+      expect(message.subject).toBe(subject);
+      expect(message.text).toContain("Hi Jane,");
+      expect(message.text).toContain(nextStep);
+      expect(message.html).toContain(nextStep);
+    },
+  );
+
+  it("suppresses status emails for non-deliverable local recipients", async () => {
+    const transporter = createTransporterMock();
+    const service = createService(transporter);
+
+    await deliverStatusEmail(service, "account_locked", "user1@rentify.local");
+
+    expect(transporter.sendMail).not.toHaveBeenCalled();
+  });
+});

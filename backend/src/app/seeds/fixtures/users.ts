@@ -229,6 +229,22 @@ const BASE_SEED_USERS: SeedUserFixture[] = [
     trustworthinessScore: 70,
   },
   {
+    // Starts on a durable security hold, so the locked sign-in message and
+    // the password-reset recovery are reachable locally without an admin
+    // locking someone first.
+    id: createFixtureId(1000, 35),
+    email: "locked1@rentify.local",
+    password: "Rentify123!",
+    username: "locked-one",
+    firstName: "Lee",
+    lastName: "Holden",
+    role: "user",
+    emailVerified: true,
+    trustworthinessScore: 50,
+    status: "locked",
+    statusReason: "Seeded security hold for local testing.",
+  },
+  {
     id: createFixtureId(1000, 14),
     email: "user8@rentify.local",
     password: "Rentify123!",

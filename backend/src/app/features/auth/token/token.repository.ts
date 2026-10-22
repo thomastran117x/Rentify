@@ -1,11 +1,18 @@
 import { BaseRepository } from "@/features/base/base.repository";
-import { type AppRole, normalizeAppRole } from "@/features/auth/auth.model";
+import {
+  type AccountStatus,
+  type AppRole,
+  normalizeAccountStatus,
+  normalizeAppRole,
+} from "@/features/auth/auth.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 export class TokenRepository extends BaseRepository {
-  async findSessionValidationByUserId(
-    userId: Uuid,
-  ): Promise<{ tokenVersion: number; role: AppRole } | null> {
+  async findSessionValidationByUserId(userId: Uuid): Promise<{
+    tokenVersion: number;
+    role: AppRole;
+    status: AccountStatus;
+  } | null> {
     const user = await this.executeAsync(() =>
       this.prisma.user.findUnique({
         where: {
@@ -14,6 +21,7 @@ export class TokenRepository extends BaseRepository {
         select: {
           tokenVersion: true,
           role: true,
+          status: true,
         },
       }),
     );
@@ -25,6 +33,7 @@ export class TokenRepository extends BaseRepository {
     return {
       tokenVersion: user.tokenVersion,
       role: normalizeAppRole(user.role),
+      status: normalizeAccountStatus(user.status),
     };
   }
 

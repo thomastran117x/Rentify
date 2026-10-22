@@ -9,6 +9,7 @@ import type {
   AuthResponseBody,
   LinkedOAuthProvidersResult,
 } from "@/lib/auth/types";
+import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
 import { isOAuthSignupRequired } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
@@ -651,9 +652,10 @@ export function AuthOAuthButtons({
       onSuccess?.(result);
     } catch (error) {
       onError(
-        error instanceof Error
-          ? error.message
-          : "OAuth sign-in could not be completed.",
+        getAccountStatusBlock(error)?.message ??
+          (error instanceof Error
+            ? error.message
+            : "OAuth sign-in could not be completed."),
       );
     } finally {
       setPendingProvider(null);

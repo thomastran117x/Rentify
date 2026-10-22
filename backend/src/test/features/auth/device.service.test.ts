@@ -21,6 +21,7 @@ function createUser(): AuthUserRecord {
     firstName: "Test",
     lastName: "User",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],

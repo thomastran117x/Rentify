@@ -37,6 +37,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     firstName: "Test",
     lastName: "User",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],
@@ -520,6 +521,42 @@ describe("OAuthAccountsService sign-in", () => {
       }),
     );
   });
+
+  it.each([
+    {
+      status: "locked" as const,
+      reasonCode: "account_locked",
+      error: { status: 423, code: "ACCOUNT_LOCKED" },
+    },
+    {
+      status: "suspended" as const,
+      reasonCode: "account_suspended",
+      error: { status: 403, code: "ACCOUNT_SUSPENDED" },
+    },
+  ])(
+    "refuses a $status linked account before MFA or a session",
+    async ({ status, reasonCode, error }) => {
+      const harness = createHarness();
+      harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+        createUser({ oauthIdentities: [googleIdentity], status }),
+      );
+      harness.mfaTotpService.isEnabled.mockResolvedValue(true);
+
+      await expect(
+        harness.service.googleAuthenticate(oauthInput),
+      ).rejects.toMatchObject(error);
+      expect(harness.mfaTotpService.isEnabled).not.toHaveBeenCalled();
+      expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "oauth.login.failed",
+          outcome: "blocked",
+          reasonCode,
+          userId: USER_1_ID,
+          method: "google",
+        }),
+      );
+    },
+  );
 
   it("authenticates through Microsoft", async () => {
     const harness = createHarness();
