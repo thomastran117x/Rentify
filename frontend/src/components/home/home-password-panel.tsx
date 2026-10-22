@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import { PasswordRequirementsChecklist } from "@/components/auth/password-requirements-checklist";
 import { authApi } from "@/lib/auth/api";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -359,6 +360,12 @@ export function HomePasswordPanel({
             name="newPassword"
             type="password"
             autoComplete="new-password"
+            aria-invalid={Boolean(errors.newPassword)}
+            aria-describedby={
+              errors.newPassword
+                ? "home-new-password-error home-new-password-requirements"
+                : "home-new-password-requirements"
+            }
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
@@ -370,10 +377,18 @@ export function HomePasswordPanel({
             }`}
           />
           {errors.newPassword ? (
-            <p className="text-sm text-rose-700 dark:text-rose-300">
+            <p
+              id="home-new-password-error"
+              className="text-sm text-rose-700 dark:text-rose-300"
+            >
               {errors.newPassword}
             </p>
           ) : null}
+          <PasswordRequirementsChecklist
+            id="home-new-password-requirements"
+            password={newPassword}
+            invalid={Boolean(errors.newPassword)}
+          />
         </div>
 
         <div className="space-y-2">
