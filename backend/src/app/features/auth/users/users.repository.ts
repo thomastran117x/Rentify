@@ -43,6 +43,11 @@ export interface UserSecurityProfile {
 }
 
 export interface UpdateAccountStatusInput {
+  /**
+   * The status the caller read. The write applies only while the account is
+   * still in it, so two changes racing each other cannot both land.
+   */
+  expectedStatus: AccountStatus;
   status: AccountStatus;
   reason: string;
   changedAt: Date;
@@ -299,15 +304,16 @@ export class UsersRepository extends BaseRepository {
   /**
    * Sets the status and, for a lock or suspension, bumps the token version in
    * the same write, so no session can be minted against the new status with
-   * the old version in between.
+   * the old version in between. Returns false, writing nothing, when the
+   * account is no longer in `expectedStatus`.
    */
   async updateAccountStatus(
     id: Uuid,
     input: UpdateAccountStatusInput,
-  ): Promise<AuthUserRecord> {
-    const user = await this.executeAsync(() =>
-      this.prisma.user.update({
-        where: { id },
+  ): Promise<boolean> {
+    const result = await this.executeAsync(() =>
+      this.prisma.user.updateMany({
+        where: { id, status: input.expectedStatus },
         data: {
           status: input.status,
           statusReason: input.reason,
@@ -317,11 +323,10 @@ export class UsersRepository extends BaseRepository {
             ? { tokenVersion: { increment: 1 } }
             : {}),
         },
-        include: this.buildAuthUserInclude(),
       }),
     );
 
-    return this.mapUser(user);
+    return result.count > 0;
   }
 
   async createLocalUser(

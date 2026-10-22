@@ -3,6 +3,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
+  AccountStatus,
   AuthUserRecord,
   OAuthIdentityRecord,
 } from "@/features/auth/auth.model";
@@ -115,7 +116,7 @@ function createHarness() {
     recordSafely: jest.fn(async () => undefined),
   };
   const accountStatusService = {
-    reinstate: jest.fn(async () => ({})),
+    liftSecurityHold: jest.fn(async (): Promise<AccountStatus> => "active"),
   };
   const publicOtpService = new PublicOtpService(
     cacheService as never,
@@ -373,7 +374,9 @@ describe("PasswordService.resetPassword", () => {
       }),
     ).rejects.toMatchObject({ code: "ACCOUNT_SUSPENDED" });
     expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
-    expect(harness.accountStatusService.reinstate).not.toHaveBeenCalled();
+    expect(
+      harness.accountStatusService.liftSecurityHold,
+    ).not.toHaveBeenCalled();
   }, 20_000);
 
   it("lifts a security hold once the new password is written", async () => {
@@ -390,31 +393,60 @@ describe("PasswordService.resetPassword", () => {
     });
 
     expect(session.accessToken).toBe("access-token");
-    expect(harness.accountStatusService.reinstate).toHaveBeenCalledWith(
+    expect(harness.accountStatusService.liftSecurityHold).toHaveBeenCalledWith(
       USER_1_ID,
-      expect.objectContaining({ source: "user", actorUserId: null }),
+      expect.objectContaining({
+        reason: "Security hold cleared by a password reset.",
+      }),
     );
     expect(
       harness.authRepository.updatePasswordHash.mock.invocationCallOrder[0],
     ).toBeLessThan(
-      harness.accountStatusService.reinstate.mock.invocationCallOrder[0]!,
+      harness.accountStatusService.liftSecurityHold.mock
+        .invocationCallOrder[0]!,
     );
   }, 20_000);
 
-  it("leaves an active account's status alone", async () => {
+  /**
+   * The account was locked when the reset began, and an admin suspended it
+   * before the hold was lifted. The status is read again at that point, so
+   * the suspension stands and no session is issued.
+   */
+  it("issues no session when the account was suspended during the reset", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByUsername.mockResolvedValue(
+      createUser({ ...(await localUser()), status: "locked" }),
+    );
+    harness.accountStatusService.liftSecurityHold.mockResolvedValueOnce(
+      "suspended",
+    );
+
+    await expect(
+      harness.service.resetPassword({
+        client: createClient(),
+        username: "test-user",
+        code: "123456",
+        newPassword: NEW_PASSWORD,
+      }),
+    ).rejects.toMatchObject({ code: "ACCOUNT_SUSPENDED" });
+    expect(harness.authRepository.rotateTokenVersion).not.toHaveBeenCalled();
+    expect(harness.tokenService.createSession).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("issues a session when the account is still active", async () => {
     const harness = createHarness();
     harness.authRepository.findUserByUsername.mockResolvedValue(
       await localUser(),
     );
 
-    await harness.service.resetPassword({
-      client: createClient(),
-      username: "test-user",
-      code: "123456",
-      newPassword: NEW_PASSWORD,
-    });
-
-    expect(harness.accountStatusService.reinstate).not.toHaveBeenCalled();
+    await expect(
+      harness.service.resetPassword({
+        client: createClient(),
+        username: "test-user",
+        code: "123456",
+        newPassword: NEW_PASSWORD,
+      }),
+    ).resolves.toMatchObject({ accessToken: "access-token" });
   }, 20_000);
 });
 

@@ -5788,7 +5788,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "lockAdminUser",
       summary: "Put an account on a security hold",
       description:
-        "Sets the account's status to `locked`: a security hold the user can clear by resetting their password. The token version is bumped in the same write, ending every session and refresh token, every Redis session is revoked, and personal access tokens stop working. Records `account.locked` with the admin as actor and `metadata.source` `admin`, and queues an `account_locked` email that does not include the reason. Locking an already-locked account records the new reason and ends sessions again without a second email; a suspended account returns 409 and must be reinstated first. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "Sets the account's status to `locked`: a security hold the user can clear by resetting their password. The token version is bumped in the same write, ending every session and refresh token, every Redis session is revoked, and personal access tokens stop working. Records `account.locked` with the admin as actor and `metadata.source` `admin`, and queues an `account_locked` email that does not include the reason. Locking an already-locked account records the new reason and ends sessions again without a second email; a suspended account returns 409 and must be reinstated first. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
       tags: ["auth"],
       security: ownerSecurity,
       permissions: {
@@ -5822,7 +5822,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "suspendAdminUser",
       summary: "Suspend an account",
       description:
-        "Sets the account's status to `suspended`: a policy action only an admin can reverse. Ends every session and personal access token as a lock does, records `account.suspended`, and queues an `account_suspended` email that does not include the reason. Suspending an already-suspended account records the new reason without a second email. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "Sets the account's status to `suspended`: a policy action only an admin can reverse. Ends every session and personal access token as a lock does, records `account.suspended`, and queues an `account_suspended` email that does not include the reason. Suspending an already-suspended account records the new reason without a second email. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
       tags: ["auth"],
       security: ownerSecurity,
       permissions: {
@@ -5847,7 +5847,7 @@ function buildOperations(): OperationDefinition[] {
           "AdminAccountStatusChangeResult",
           { ...adminAccountStatusChangeResultExample, status: "suspended" },
         ),
-        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {
@@ -5856,7 +5856,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "reinstateAdminUser",
       summary: "Reinstate an account",
       description:
-        "Sets a locked or suspended account back to `active`, records `account.reinstated` and queues an `account_reinstated` email. Sessions are not restored; the user signs in again. Reinstating an account that is already active changes, records and sends nothing, and returns `changed: false` with the existing status details. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "Sets a locked or suspended account back to `active`, records `account.reinstated` and queues an `account_reinstated` email. Sessions are not restored; the user signs in again. Reinstating an account that is already active changes, records and sends nothing, and returns `changed: false` with the existing status details. Every change applies only if the status is still the one read at the start of the request; a concurrent change returns 409 and nothing is written. An admin cannot change their own status, whatever the casing of the ID (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
       tags: ["auth"],
       security: ownerSecurity,
       permissions: {
@@ -5881,7 +5881,7 @@ function buildOperations(): OperationDefinition[] {
           "AdminAccountStatusChangeResult",
           { ...adminAccountStatusChangeResultExample, status: "active" },
         ),
-        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
       },
     },
     {

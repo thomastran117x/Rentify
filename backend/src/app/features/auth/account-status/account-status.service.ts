@@ -57,14 +57,18 @@ export class AccountStatusService {
       );
     }
 
-    return this.apply(user, "locked", input);
+    return this.applyOrConflict(user, "locked", input);
   }
 
   async suspend(
     userId: Uuid,
     input: AccountStatusChangeInput,
   ): Promise<AccountStatusChangeResult> {
-    return this.apply(await this.requireUser(userId), "suspended", input);
+    return this.applyOrConflict(
+      await this.requireUser(userId),
+      "suspended",
+      input,
+    );
   }
 
   /** Reinstating an active account changes, records and sends nothing. */
@@ -87,7 +91,49 @@ export class AccountStatusService {
       };
     }
 
-    return this.apply(user, "active", input);
+    return this.applyOrConflict(user, "active", input);
+  }
+
+  /**
+   * The user's own recovery: a completed password reset clears a security
+   * hold. Only `locked` becomes `active`; an account that is active, or that
+   * an admin suspended while the reset was running, is left as it is. Returns
+   * the status the account ends up in, which the caller must check before
+   * issuing a session.
+   */
+  async liftSecurityHold(
+    userId: Uuid,
+    input: Pick<AccountStatusChangeInput, "reason" | "context">,
+  ): Promise<AccountStatus> {
+    const user = await this.requireUser(userId);
+
+    if (user.status !== "locked") {
+      return user.status;
+    }
+
+    const result = await this.apply(user, "active", {
+      ...input,
+      source: "user",
+      actorUserId: null,
+    });
+
+    return result ? result.status : (await this.requireUser(userId)).status;
+  }
+
+  private async applyOrConflict(
+    user: AuthUserRecord,
+    status: AccountStatus,
+    input: AccountStatusChangeInput,
+  ): Promise<AccountStatusChangeResult> {
+    const result = await this.apply(user, status, input);
+
+    if (!result) {
+      throw new ConflictError(
+        "This account's status changed while the request was running. Reload it and try again.",
+      );
+    }
+
+    return result;
   }
 
   private async requireUser(userId: Uuid): Promise<AuthUserRecord> {
@@ -100,23 +146,33 @@ export class AccountStatusService {
     return user;
   }
 
+  /**
+   * Writes the change only while the account is still in the status that was
+   * read, and returns null, with nothing written, recorded or sent, when
+   * another change got there first.
+   */
   private async apply(
     user: AuthUserRecord,
     status: AccountStatus,
     input: AccountStatusChangeInput,
-  ): Promise<AccountStatusChangeResult> {
+  ): Promise<AccountStatusChangeResult | null> {
     const previousStatus = user.status;
     const changedAt = this.now();
     const changedBy = input.actorUserId ?? null;
     const endsSessions = status !== "active";
 
-    await this.usersRepository.updateAccountStatus(user.id, {
+    const applied = await this.usersRepository.updateAccountStatus(user.id, {
+      expectedStatus: previousStatus,
       status,
       reason: input.reason,
       changedAt,
       changedBy,
       rotateTokenVersion: endsSessions,
     });
+
+    if (!applied) {
+      return null;
+    }
 
     if (endsSessions) {
       await this.revokeSessions(user.id);

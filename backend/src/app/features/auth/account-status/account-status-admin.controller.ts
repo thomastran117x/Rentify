@@ -57,7 +57,9 @@ export class AccountStatusAdminController {
     const adminId = asUuid(auth.sub);
     const userId = requireUuidRouteParam(request, "id");
 
-    if (userId === adminId) {
+    // UUIDs are accepted in either case and MySQL compares IDs without
+    // regard to case, so the self check must not depend on the casing sent.
+    if (userId.toLowerCase() === adminId.toLowerCase()) {
       throw new ForbiddenError("You cannot change your own account status.");
     }
 

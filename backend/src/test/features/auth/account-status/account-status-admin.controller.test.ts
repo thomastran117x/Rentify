@@ -7,6 +7,7 @@ import {
   createContext,
   invoke,
 } from "../../../support/auth-controller-harness";
+import { asUuid } from "@/configuration/validation/uuid";
 import { testUuid } from "../../../support/uuid";
 
 const ADMIN_ID = testUuid(9000, 377301);
@@ -96,6 +97,25 @@ describe("AccountStatusAdminController", () => {
       expect(accountStatusService.lock).not.toHaveBeenCalled();
     },
   );
+
+  it("forbids an admin from targeting themself with different UUID casing", async () => {
+    const { controller, accountStatusService } = createController();
+    const mixedCaseAdminId = asUuid("00000000-0000-0000-00ab-0000000000cd");
+    mockRequireSessionAuth.mockResolvedValue(
+      createClaims({ sub: mixedCaseAdminId, role: "admin" }),
+    );
+
+    await expect(
+      invoke(
+        controller.lock,
+        createContext({
+          params: { id: mixedCaseAdminId.toUpperCase() },
+          body: { reason: REASON },
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(accountStatusService.lock).not.toHaveBeenCalled();
+  });
 
   it("forbids an admin from changing their own status", async () => {
     const { controller, accountStatusService } = createController();

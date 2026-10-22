@@ -228,7 +228,7 @@ The security-hold `423` carries `details: { "reason": "security_hold", "recovery
 
 ### Recovering From a Security Hold
 
-The security-hold `423` sends the user to password reset. Once the emailed code is proven and the new password is written, `PasswordService.resetPassword` sets the account back to `active` through `AccountStatusService.reinstate` with `source: "user"` and no actor, then issues the session. The password is written first, so a failed write cannot reinstate a compromised account on its old password. The user's own suspicious-activity lock is #378.
+The security-hold `423` sends the user to password reset. Once the emailed code is proven and the new password is written, `PasswordService.resetPassword` calls `AccountStatusService.liftSecurityHold`, which changes `locked` to `active` (with `source: "user"` and no actor) and nothing else, then issues the session only if the account is now active. The password is written first, so a failed write cannot reinstate a compromised account on its old password. The status is read again at that point rather than trusted from the start of the request, so an admin's suspension that lands mid-reset stands and the reset ends in `403 ACCOUNT_SUSPENDED`. The user's own suspicious-activity lock is #378.
 
 An account with no local password (social sign-in only) cannot reset one, so only an admin can lift its hold.
 
@@ -238,7 +238,7 @@ On the sign-in page, a security hold reads "This account is on a security hold t
 
 `AccountStatusService` (`lock`, `suspend`, `reinstate`) is the only place the status changes. Each change:
 
-1. Writes the status, reason, time and actor. A lock or suspension bumps `token_version` in the same write, which ends every access and refresh token at once; their 900-second lifetime does not matter.
+1. Writes the status, reason, time and actor, but only while the account is still in the status that was read. If another change got there first, nothing is written, recorded or sent, and an admin gets `409`. A lock or suspension bumps `token_version` in the same write, which ends every access and refresh token at once; their 900-second lifetime does not matter.
 2. Revokes every Redis session record for the user (best effort; the token version already ended them).
 3. Records `account.locked`, `account.suspended` or `account.reinstated` with `metadata.source` `admin`, `system` or `user`.
 4. Queues an `account_locked`, `account_suspended` or `account_reinstated` email when the status actually moved. The email explains what the status means and what to do; it never includes the reason, which may be an internal note.
@@ -252,7 +252,7 @@ The audit write and email are best effort, like the rest of the auth audit log, 
 | Suspend a locked account | Allowed.                                                                               |
 | Reinstate an active one  | `200` with `changed: false`; nothing is written, recorded or sent.                     |
 
-Admins call `POST /admin/users/:id/lock`, `/suspend` and `/reinstate` with `{ "reason": "..." }`, 5 to 255 characters after trimming. They need an admin signed-in session; every other role gets `403` and personal access tokens are rejected. An admin cannot change their own status (`403`), but can change another admin's. An unknown ID is a `404`.
+Admins call `POST /admin/users/:id/lock`, `/suspend` and `/reinstate` with `{ "reason": "..." }`, 5 to 255 characters after trimming. They need an admin signed-in session; every other role gets `403` and personal access tokens are rejected. An admin cannot change their own status (`403`), whatever the casing of the ID, but can change another admin's. An unknown ID is a `404`.
 
 #### Admin Runbook
 

@@ -49,7 +49,7 @@ function createUser(status: AccountStatus): AuthUserRecord {
 function createHarness(status: AccountStatus | null = "active") {
   const usersRepository = {
     findUserById: jest.fn(async () => (status ? createUser(status) : null)),
-    updateAccountStatus: jest.fn(async () => createUser("active")),
+    updateAccountStatus: jest.fn(async () => true),
     findSecurityProfile: jest.fn(async () => ({
       statusReason: "Earlier reason",
       statusChangedAt: "2026-10-01T00:00:00.000Z",
@@ -100,6 +100,7 @@ describe("AccountStatusService.lock", () => {
     expect(harness.usersRepository.updateAccountStatus).toHaveBeenCalledWith(
       USER_ID,
       {
+        expectedStatus: "active",
         status: "locked",
         reason: "Reported account takeover",
         changedAt: NOW,
@@ -282,5 +283,85 @@ describe("AccountStatusService best-effort side effects", () => {
       harness.service.suspend(USER_ID, adminInput),
     ).resolves.toMatchObject({ status: "suspended" });
     expect(harness.authAuditService.recordSafely).toHaveBeenCalled();
+  });
+});
+
+describe("AccountStatusService concurrent changes", () => {
+  it("refuses an admin change when the status moved after it was read", async () => {
+    const harness = createHarness("active");
+    harness.usersRepository.updateAccountStatus.mockResolvedValueOnce(false);
+
+    await expect(
+      harness.service.suspend(USER_ID, adminInput),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(harness.tokenService.revokeSessionsForUser).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+    expect(
+      harness.emailService.sendAccountSuspendedEmail,
+    ).not.toHaveBeenCalled();
+  });
+});
+
+describe("AccountStatusService.liftSecurityHold", () => {
+  const recovery = {
+    reason: "Security hold cleared by a password reset.",
+    context: CONTEXT,
+  };
+
+  it("lifts only a hold, recording the user as the source", async () => {
+    const harness = createHarness("locked");
+
+    await expect(
+      harness.service.liftSecurityHold(USER_ID, recovery),
+    ).resolves.toBe("active");
+    expect(harness.usersRepository.updateAccountStatus).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({
+        expectedStatus: "locked",
+        status: "active",
+        changedBy: null,
+      }),
+    );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "account.reinstated",
+        actorUserId: null,
+        metadata: expect.objectContaining({
+          source: "user",
+          previousStatus: "locked",
+        }),
+      }),
+    );
+  });
+
+  it.each(["active", "suspended"] as const)(
+    "leaves a %s account as it is",
+    async (status) => {
+      const harness = createHarness(status);
+
+      await expect(
+        harness.service.liftSecurityHold(USER_ID, recovery),
+      ).resolves.toBe(status);
+      expect(
+        harness.usersRepository.updateAccountStatus,
+      ).not.toHaveBeenCalled();
+      expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports a suspension that landed between the read and the write", async () => {
+    const harness = createHarness("locked");
+    harness.usersRepository.updateAccountStatus.mockResolvedValueOnce(false);
+    harness.usersRepository.findUserById
+      .mockResolvedValueOnce(createUser("locked"))
+      .mockResolvedValueOnce(createUser("suspended"));
+
+    await expect(
+      harness.service.liftSecurityHold(USER_ID, recovery),
+    ).resolves.toBe("suspended");
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+    expect(
+      harness.emailService.sendAccountReinstatedEmail,
+    ).not.toHaveBeenCalled();
   });
 });

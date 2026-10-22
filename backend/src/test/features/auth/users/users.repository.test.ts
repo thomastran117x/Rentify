@@ -610,13 +610,12 @@ describe("UsersRepository", () => {
   describe("updateAccountStatus", () => {
     const changedAt = new Date("2026-10-21T09:00:00.000Z");
 
-    it("sets the status and bumps the token version in one write", async () => {
-      const update = jest.fn(async () =>
-        createUserPersistence({ status: "locked", tokenVersion: 4 }),
-      );
-      const repository = new UsersRepository({ user: { update } } as any);
+    it("sets the status and bumps the token version in one conditional write", async () => {
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
 
-      const user = await repository.updateAccountStatus(USER_1_ID, {
+      const applied = await repository.updateAccountStatus(USER_1_ID, {
+        expectedStatus: "active",
         status: "locked",
         reason: "Possible takeover",
         changedAt,
@@ -624,26 +623,41 @@ describe("UsersRepository", () => {
         rotateTokenVersion: true,
       });
 
-      expect(update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: USER_1_ID },
-          data: {
-            status: "locked",
-            statusReason: "Possible takeover",
-            statusChangedAt: changedAt,
-            statusChangedBy: USER_2_ID,
-            tokenVersion: { increment: 1 },
-          },
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: USER_1_ID, status: "active" },
+        data: {
+          status: "locked",
+          statusReason: "Possible takeover",
+          statusChangedAt: changedAt,
+          statusChangedBy: USER_2_ID,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      expect(applied).toBe(true);
+    });
+
+    it("reports nothing written when the status has already moved on", async () => {
+      const updateMany = jest.fn(async () => ({ count: 0 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await expect(
+        repository.updateAccountStatus(USER_1_ID, {
+          expectedStatus: "locked",
+          status: "active",
+          reason: "Cleared",
+          changedAt,
+          changedBy: null,
+          rotateTokenVersion: false,
         }),
-      );
-      expect(user).toMatchObject({ status: "locked", tokenVersion: 4 });
+      ).resolves.toBe(false);
     });
 
     it("leaves the token version alone on a reinstatement", async () => {
-      const update = jest.fn(async () => createUserPersistence());
-      const repository = new UsersRepository({ user: { update } } as any);
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
 
       await repository.updateAccountStatus(USER_1_ID, {
+        expectedStatus: "suspended",
         status: "active",
         reason: "Cleared",
         changedAt,
@@ -651,7 +665,7 @@ describe("UsersRepository", () => {
         rotateTokenVersion: false,
       });
 
-      expect(update).toHaveBeenCalledWith(
+      expect(updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: {
             status: "active",

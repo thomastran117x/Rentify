@@ -32,6 +32,7 @@ import type {
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import AccountSuspendedError from "@/errors/http/account-suspended.error";
+import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
 import type { AccountStatusService } from "@/features/auth/account-status/account-status.service";
 
 /**
@@ -99,11 +100,19 @@ export class PasswordService {
       passwordHash,
     );
     // Only once the new password is written, so a failed write cannot leave
-    // a compromised account reinstated on its old password.
-    const resetUser =
-      eligibleUser.status === "locked"
-        ? await this.liftSecurityHold(eligibleUser, input)
-        : eligibleUser;
+    // a compromised account reinstated on its old password. The status is
+    // read again here rather than trusted from the start of the request: an
+    // admin may have locked or suspended the account in between, and only a
+    // hold may be lifted.
+    const status = await this.accountStatusService.liftSecurityHold(
+      asUuid(eligibleUser.id),
+      {
+        reason: "Security hold cleared by a password reset.",
+        context: input.audit,
+      },
+    );
+    const resetUser: AuthUserRecord = { ...eligibleUser, status };
+    assertAccountIsActive(resetUser);
 
     return this.finishPasswordWrite(
       resetUser,
@@ -112,24 +121,6 @@ export class PasswordService {
       "password.reset",
       this.authAuditService.hashIdentifier(input.username),
     );
-  }
-
-  /**
-   * The owner proved control of the email on file and replaced the password,
-   * which is the recovery a security hold asks for.
-   */
-  private async liftSecurityHold(
-    user: AuthUserRecord,
-    input: Pick<ResetPasswordInput, "audit">,
-  ): Promise<AuthUserRecord> {
-    await this.accountStatusService.reinstate(asUuid(user.id), {
-      reason: "Security hold cleared by a password reset.",
-      source: "user",
-      actorUserId: null,
-      context: input.audit,
-    });
-
-    return { ...user, status: "active" };
   }
 
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
