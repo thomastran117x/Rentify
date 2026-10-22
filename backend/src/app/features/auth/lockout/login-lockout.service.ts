@@ -14,7 +14,7 @@ import { asUuid } from "@/configuration/validation/uuid";
 
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
-const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
+export const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
 
 /**
  * Throttles local credential guessing by locking an account after repeated

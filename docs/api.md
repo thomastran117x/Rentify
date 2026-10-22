@@ -84,6 +84,27 @@ IDs, request IDs, session and device IDs, raw user agents and metadata are
 never returned. See
 [auth-security.md](./auth-security.md#reading-your-own-activity).
 
+Administrators investigate sign-in activity across every account through two
+admin-only endpoints. Both need an `admin` signed-in session; every other role
+gets `403` and personal access tokens are rejected. Each call first records an
+`admin.audit_viewed` audit event with the reader as actor and the filters as
+metadata, and fails if that write fails.
+
+- `GET /admin/auth/audit` searches events newest first. Filters are `userId`,
+  `user` (an email or username resolved server side; one matching no account
+  finds the attempts made with it), `ip`, a repeatable `eventType`, `outcome`,
+  and `from`/`to`. The window defaults to the last seven days and may not
+  exceed 90 days. `limit` is 1 to 100 (default 25), and paging uses an opaque
+  `cursor`. Each item carries every stored column except the identifier hash,
+  plus `subject` and `actor` summaries (`{ id, email, username }`); the
+  response also echoes the `range` searched.
+- `GET /admin/users/:id/security` summarizes one account: account status,
+  last sign-in, failed sign-ins in the last 24 hours and 7 days, the live
+  lockout state, registered devices and the 20 most recent events. An unknown
+  ID is a `404`.
+
+See [auth-security.md](./auth-security.md#investigating-sign-in-activity).
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them

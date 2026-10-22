@@ -267,4 +267,115 @@ describe("AuthAuditRepository", () => {
     ).resolves.toBeNull();
     expect(findMany).not.toHaveBeenCalled();
   });
+  describe("listForAdmin", () => {
+    const from = new Date("2026-10-11T00:00:00.000Z");
+    const before = new Date("2026-10-18T00:00:00.000Z");
+
+    it("searches across users with every filter and a bounded range", async () => {
+      const findMany = jest.fn(async () => []);
+      const repository = new AuthAuditRepository({
+        authAuditEvent: { findMany },
+      } as any);
+
+      await repository.listForAdmin({
+        userId: USER_1_ID,
+        ipAddress: "203.0.113.7",
+        eventTypes: ["login.failed", "login.locked"],
+        outcome: "failure",
+        createdFrom: from,
+        createdBefore: before,
+        limit: 26,
+      });
+
+      expect(findMany).toHaveBeenCalledWith({
+        where: {
+          userId: USER_1_ID,
+          ipAddress: "203.0.113.7",
+          eventType: { in: ["login.failed", "login.locked"] },
+          outcome: "failure",
+          createdAt: { gte: from, lt: before },
+        },
+        select: expect.objectContaining({
+          requestId: true,
+          metadata: true,
+          userAgent: true,
+        }),
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 26,
+      });
+      const select = (findMany.mock.calls[0] as any[])[0].select;
+      expect(select).not.toHaveProperty("identifierHash");
+    });
+
+    it("filters by identifier hash and range alone", async () => {
+      const findMany = jest.fn(async () => []);
+      const repository = new AuthAuditRepository({
+        authAuditEvent: { findMany },
+      } as any);
+
+      await repository.listForAdmin({
+        identifierHash: "b".repeat(64),
+        createdFrom: from,
+        createdBefore: before,
+        limit: 5,
+      });
+
+      expect((findMany.mock.calls[0] as any[])[0].where).toEqual({
+        identifierHash: "b".repeat(64),
+        createdAt: { gte: from, lt: before },
+      });
+    });
+
+    it("rejects a cursor that names no event under the same filters", async () => {
+      const findFirst = jest.fn(async () => null);
+      const findMany = jest.fn(async () => []);
+      const repository = new AuthAuditRepository({
+        authAuditEvent: { findFirst, findMany },
+      } as any);
+
+      await expect(
+        repository.listForAdmin({
+          ipAddress: "203.0.113.7",
+          afterId: "event-9",
+          createdFrom: from,
+          createdBefore: before,
+          limit: 5,
+        }),
+      ).resolves.toBeNull();
+
+      expect(findFirst).toHaveBeenCalledWith({
+        where: {
+          ipAddress: "203.0.113.7",
+          createdAt: { gte: from, lt: before },
+          id: "event-9",
+        },
+        select: { id: true },
+      });
+      expect(findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("counts one user's events of the given types since a time", async () => {
+    const count = jest.fn(async () => 4);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { count },
+    } as any);
+    const since = new Date("2026-10-17T00:00:00.000Z");
+
+    await expect(
+      repository.countForUser({
+        userId: USER_1_ID,
+        eventTypes: ["login.failed", "oauth.login.failed"],
+        createdFrom: since,
+      }),
+    ).resolves.toBe(4);
+
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        userId: USER_1_ID,
+        eventType: { in: ["login.failed", "oauth.login.failed"] },
+        createdAt: { gte: since },
+      },
+    });
+  });
 });

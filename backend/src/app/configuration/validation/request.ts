@@ -110,10 +110,12 @@ export async function parseRequestBodyWithRichText<TSchema extends ZodType>(
 
 /**
  * Validates the query string against a schema. Schema failures become a 400
- * `VALIDATION_ERROR` rather than escaping as a raw `ZodError`.
+ * `VALIDATION_ERROR` rather than escaping as a raw `ZodError`. Values are
+ * single strings from `getQuery`; a caller that accepts a repeated parameter
+ * passes that key as an array.
  */
 export function parseRequestQuery<TSchema extends ZodType>(
-  query: Record<string, string>,
+  query: Record<string, string | string[]>,
   schema: TSchema,
 ): output<TSchema> {
   try {

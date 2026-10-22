@@ -1,0 +1,121 @@
+import type { AppUserRole } from "@/lib/auth/roles";
+import type {
+  SecurityActivityMethod,
+  SecurityActivityOutcome,
+} from "@/lib/security-activity/types";
+
+/** The auth audit event types the backend records; new ones may appear. */
+export const AUTH_AUDIT_EVENT_TYPES = [
+  "login.succeeded",
+  "login.failed",
+  "login.mfa_challenged",
+  "login.locked",
+  "login.unlock_requested",
+  "login.unlocked",
+  "logout",
+  "oauth.login.succeeded",
+  "oauth.login.failed",
+  "oauth.signup.completed",
+  "oauth.linked",
+  "oauth.unlinked",
+  "session.refresh_reuse_detected",
+  "session.revoked",
+  "device.new_detected",
+  "password.changed",
+  "password.reset",
+  "password.set",
+  "email.changed",
+  "mfa.totp_enabled",
+  "mfa.totp_disabled",
+  "mfa.step_up_failed",
+  "mfa.step_up_locked",
+  "pat.created",
+  "pat.revoked",
+  "rate_limit.exceeded",
+  "admin.audit_viewed",
+] as const;
+
+export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
+
+export type AuthAuditOutcome = SecurityActivityOutcome;
+
+export interface AuthAuditUserSummary {
+  id: string;
+  email: string;
+  username: string | null;
+}
+
+/** One event from `GET /admin/auth/audit`. */
+export interface AdminAuthAuditEvent {
+  id: string;
+  /** Usually one of AUTH_AUDIT_EVENT_TYPES; the backend may add more. */
+  eventType: string;
+  outcome: AuthAuditOutcome;
+  reasonCode: string | null;
+  method: SecurityActivityMethod | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  browser: string | null;
+  os: string | null;
+  deviceId: string | null;
+  sessionId: string | null;
+  requestId: string | null;
+  metadata: Record<string, unknown> | null;
+  occurredAt: string;
+  /** Null for an unknown-username attempt or a deleted account. */
+  subject: AuthAuditUserSummary | null;
+  /** Set only when someone other than the subject acted. */
+  actor: AuthAuditUserSummary | null;
+}
+
+export interface AdminAuthAuditEventList {
+  items: AdminAuthAuditEvent[];
+  nextCursor: string | null;
+  /** The window the backend searched, after its defaults. */
+  range: { from: string; to: string };
+}
+
+export interface ListAdminAuthAuditInput {
+  user?: string;
+  ip?: string;
+  eventType?: AuthAuditEventType[];
+  outcome?: AuthAuditOutcome;
+  /** Inclusive lower bound, an ISO 8601 date-time. */
+  from?: string;
+  /** Exclusive upper bound, an ISO 8601 date-time. */
+  to?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface AdminUserKnownDevice {
+  id: string;
+  deviceId: string;
+  type: string;
+  platform: string | null;
+  browser: string | null;
+  os: string | null;
+  lastIpAddress: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface AdminUserSecuritySummary {
+  user: {
+    id: string;
+    email: string;
+    username: string | null;
+    role: AppUserRole;
+  };
+  accountStatus: "active";
+  lastLoginAt: string | null;
+  failedSignIns: { last24Hours: number; last7Days: number };
+  lockout: {
+    locked: boolean;
+    failedAttempts: number;
+    lockedAt: string | null;
+    lockedUntil: string | null;
+  };
+  devices: AdminUserKnownDevice[];
+  recentEvents: AdminAuthAuditEvent[];
+}

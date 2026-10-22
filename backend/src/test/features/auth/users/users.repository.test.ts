@@ -563,4 +563,97 @@ describe("UsersRepository", () => {
       ).resolves.toBeNull();
     });
   });
+
+  describe("listIdentitySummariesByIds", () => {
+    it("loads id, email and username for every listed account in one query", async () => {
+      const findMany = jest.fn(async () => [
+        {
+          id: USER_1_ID,
+          email: "one@example.com",
+          profile: { username: "user-one" },
+        },
+        { id: USER_2_ID, email: "two@example.com", profile: null },
+      ]);
+      const repository = new UsersRepository({
+        user: { findMany },
+      } as any);
+
+      await expect(
+        repository.listIdentitySummariesByIds([USER_1_ID, USER_2_ID]),
+      ).resolves.toEqual([
+        { id: USER_1_ID, email: "one@example.com", username: "user-one" },
+        { id: USER_2_ID, email: "two@example.com", username: null },
+      ]);
+      expect(findMany).toHaveBeenCalledWith({
+        where: { id: { in: [USER_1_ID, USER_2_ID] } },
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { username: true } },
+        },
+      });
+    });
+
+    it("skips the query when there is nothing to look up", async () => {
+      const findMany = jest.fn();
+      const repository = new UsersRepository({
+        user: { findMany },
+      } as any);
+
+      await expect(repository.listIdentitySummariesByIds([])).resolves.toEqual(
+        [],
+      );
+      expect(findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findSecurityProfile", () => {
+    it("maps the account fields the security summary shows", async () => {
+      const findUnique = jest.fn(async () => ({
+        id: USER_1_ID,
+        email: "one@example.com",
+        role: "admin",
+        lastLoginAt: new Date("2026-10-16T09:00:00.000Z"),
+        profile: { username: "user-one" },
+      }));
+      const repository = new UsersRepository({
+        user: { findUnique },
+      } as any);
+
+      await expect(repository.findSecurityProfile(USER_1_ID)).resolves.toEqual({
+        id: USER_1_ID,
+        email: "one@example.com",
+        username: "user-one",
+        role: "admin",
+        lastLoginAt: "2026-10-16T09:00:00.000Z",
+      });
+    });
+
+    it("reports a missing username and a first sign-in that never happened as null", async () => {
+      const findUnique = jest.fn(async () => ({
+        id: USER_1_ID,
+        email: "one@example.com",
+        role: "user",
+        lastLoginAt: null,
+        profile: null,
+      }));
+      const repository = new UsersRepository({
+        user: { findUnique },
+      } as any);
+
+      await expect(
+        repository.findSecurityProfile(USER_1_ID),
+      ).resolves.toMatchObject({ username: null, lastLoginAt: null });
+    });
+
+    it("returns null for an unknown account", async () => {
+      const repository = new UsersRepository({
+        user: { findUnique: jest.fn(async () => null) },
+      } as any);
+
+      await expect(
+        repository.findSecurityProfile(USER_1_ID),
+      ).resolves.toBeNull();
+    });
+  });
 });
