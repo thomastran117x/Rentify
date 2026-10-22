@@ -301,6 +301,34 @@ describe("TokenService", () => {
     },
   );
 
+  it("revokes a user's sessions by device or across every device", async () => {
+    const { service } = createService();
+    const OTHER_USER_ID = testUuid(9000, 994259);
+    const sessions = [
+      { sessionId: "laptop-1", userId: USER_1_ID, deviceId: "laptop" },
+      { sessionId: "laptop-2", userId: USER_1_ID, deviceId: "laptop" },
+      { sessionId: "phone-1", userId: USER_1_ID, deviceId: "phone" },
+      { sessionId: "other-1", userId: OTHER_USER_ID, deviceId: "laptop" },
+    ];
+    for (const session of sessions) {
+      await service.createSession({ ...session, tokenVersion: 2 }, 600);
+    }
+
+    await expect(
+      service.revokeSessionsForDevice(USER_1_ID, "laptop"),
+    ).resolves.toEqual(["laptop-1", "laptop-2"]);
+    // Already-revoked sessions are skipped, and other users are untouched.
+    await expect(service.revokeSessionsForUser(USER_1_ID)).resolves.toEqual([
+      "phone-1",
+    ]);
+    await expect(
+      service.assertSessionIsUsable(OTHER_USER_ID, "other-1", 2),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.assertSessionIsUsable(USER_1_ID, "phone-1", 2),
+    ).rejects.toMatchObject({ message: "Session is no longer valid." });
+  });
+
   it("rejects access tokens when the authenticated user no longer exists", async () => {
     const { service } = createService({
       tokenVersion: null,

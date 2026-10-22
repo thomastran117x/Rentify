@@ -77,6 +77,8 @@ const FAILED_SIGN_IN_LABELS: Record<string, string> = {
   mfa_invalid: "Failed sign-in: wrong verification code",
   locked: "Sign-in blocked: account locked",
   rate_limited: "Sign-in blocked: too many attempts",
+  account_locked: "Sign-in blocked: account on a security hold",
+  account_suspended: "Sign-in blocked: account suspended",
 };
 
 /**
@@ -92,6 +94,9 @@ const ADMIN_LABELS: Record<string, string> = {
   "email.changed": "An administrator changed your email address",
   "mfa.totp_disabled": "An administrator turned off your authenticator app",
   "pat.revoked": "An administrator revoked a personal access token",
+  "account.locked": "An administrator put your account on a security hold",
+  "account.suspended": "An administrator suspended your account",
+  "account.reinstated": "An administrator reinstated your account",
 };
 
 const STATIC_LABELS: Record<string, string> = {
@@ -114,6 +119,9 @@ const STATIC_LABELS: Record<string, string> = {
   "pat.created": "Personal access token created",
   "pat.revoked": "Personal access token revoked",
   "rate_limit.exceeded": "Too many attempts: temporarily blocked",
+  "account.locked": "Account put on a security hold",
+  "account.suspended": "Account suspended",
+  "account.reinstated": "Account reinstated",
 };
 
 /**

@@ -103,7 +103,24 @@ metadata, and fails if that write fails.
   lockout state, registered devices and the 20 most recent events. An unknown
   ID is a `404`.
 
-See [auth-security.md](./auth-security.md#investigating-sign-in-activity).
+Administrators change an account's durable status through three more
+admin-only endpoints, with the same access rules. Each takes
+`{ "reason": "..." }` (5 to 255 characters), returns the new status details,
+records an `account.*` audit event and queues an email to the user. An admin
+cannot change their own status (`403`).
+
+- `POST /admin/users/:id/lock` puts the account on a security hold, ending
+  every session and personal access token. A suspended account is a `409`.
+- `POST /admin/users/:id/suspend` suspends the account, ending every session
+  and personal access token.
+- `POST /admin/users/:id/reinstate` sets the account back to active. An
+  account that is already active returns `changed: false`.
+
+A locked account's sign-in returns `423 ACCOUNT_LOCKED` with
+`details.reason` `security_hold`, and a suspended one `403 ACCOUNT_SUSPENDED`.
+
+See [auth-security.md](./auth-security.md#investigating-sign-in-activity) and
+[Account Status](./auth-security.md#account-status).
 
 ## Realtime Surfaces
 

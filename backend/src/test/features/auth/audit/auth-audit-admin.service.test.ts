@@ -72,6 +72,10 @@ function createService(rows: AuthAuditAdminRow[] | null = []) {
         username: "user-one",
         role: "user",
         lastLoginAt: "2026-10-17T09:00:00.000Z",
+        status: "active",
+        statusReason: null,
+        statusChangedAt: null,
+        statusChangedBy: null,
       }),
     ),
   };
@@ -316,6 +320,7 @@ describe("AuthAuditAdminService.getUserSecuritySummary", () => {
         role: "user",
       },
       accountStatus: "active",
+      accountStatusChange: null,
       lastLoginAt: "2026-10-17T09:00:00.000Z",
       failedSignIns: { last24Hours: 3, last7Days: 7 },
       lockout: {
@@ -339,6 +344,64 @@ describe("AuthAuditAdminService.getUserSecuritySummary", () => {
       ],
       recentEvents: [expect.objectContaining({ id: testUuid(9100, 1) })],
     });
+  });
+
+  it("reports the status and who last changed it", async () => {
+    const { service, usersRepository } = createService();
+    const ADMIN_ID = testUuid(9300, 1);
+    usersRepository.findSecurityProfile.mockResolvedValueOnce({
+      id: USER_ID,
+      email: "user@example.com",
+      username: "user-one",
+      role: "user",
+      lastLoginAt: null,
+      status: "suspended",
+      statusReason: "Repeated policy violations",
+      statusChangedAt: "2026-10-18T10:00:00.000Z",
+      statusChangedBy: ADMIN_ID,
+    });
+    usersRepository.listIdentitySummariesByIds.mockResolvedValueOnce([
+      { id: ADMIN_ID, email: "admin@example.com", username: "admin-one" },
+    ]);
+
+    const summary = await service.getUserSecuritySummary(USER_ID, READER);
+
+    expect(summary.accountStatus).toBe("suspended");
+    expect(summary.accountStatusChange).toEqual({
+      reason: "Repeated policy violations",
+      changedAt: "2026-10-18T10:00:00.000Z",
+      changedBy: {
+        id: ADMIN_ID,
+        email: "admin@example.com",
+        username: "admin-one",
+      },
+    });
+    expect(usersRepository.listIdentitySummariesByIds).toHaveBeenCalledWith([
+      ADMIN_ID,
+    ]);
+  });
+
+  it("reports a change the user or system made without an actor", async () => {
+    const { service, usersRepository } = createService();
+    usersRepository.findSecurityProfile.mockResolvedValueOnce({
+      id: USER_ID,
+      email: "user@example.com",
+      username: "user-one",
+      role: "user",
+      lastLoginAt: null,
+      status: "active",
+      statusReason: "Security hold cleared by a password reset.",
+      statusChangedAt: "2026-10-18T10:00:00.000Z",
+      statusChangedBy: null,
+    });
+    usersRepository.listIdentitySummariesByIds.mockClear();
+
+    const summary = await service.getUserSecuritySummary(USER_ID, READER);
+
+    expect(summary.accountStatusChange).toMatchObject({ changedBy: null });
+    expect(usersRepository.listIdentitySummariesByIds).not.toHaveBeenCalledWith(
+      [null],
+    );
   });
 
   it("reports failed attempts that have not locked the account yet", async () => {

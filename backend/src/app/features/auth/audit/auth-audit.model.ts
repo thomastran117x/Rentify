@@ -33,6 +33,9 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "pat.revoked",
   "rate_limit.exceeded",
   "admin.audit_viewed",
+  "account.locked",
+  "account.suspended",
+  "account.reinstated",
 ] as const;
 
 export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
@@ -139,6 +142,9 @@ export const SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES: Record<
     "oauth.unlinked",
     "pat.created",
     "pat.revoked",
+    "account.locked",
+    "account.suspended",
+    "account.reinstated",
   ],
   sessions: [
     "logout",

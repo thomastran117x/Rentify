@@ -722,7 +722,7 @@ paths:
     post:
       operationId: resetPassword
       summary: Complete a password reset
-      description: Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, an account on a security hold or a suspended account is refused before anything is written.
+      description: 'Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, a suspended account is refused with 403 ACCOUNT_SUSPENDED before anything is written. A completed reset clears a security hold: a locked account is set back to active (recorded as account.reinstated with source user) before the session is issued.'
       tags:
         - auth
       x-rentify-permissions:
@@ -813,26 +813,6 @@ paths:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '409':
           $ref: '#/components/responses/Conflict'
-        '423':
-          description: The account is on a security hold.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-              examples:
-                securityHold:
-                  summary: The account is on a security hold; a password reset recovers it.
-                  value:
-                    success: false
-                    message: This account is on a security hold. Reset your password to recover it.
-                    data: null
-                    error:
-                      code: ACCOUNT_LOCKED
-                      details:
-                        reason: security_hold
-                        recovery: password_reset
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -8668,6 +8648,9 @@ paths:
                 - pat.revoked
                 - rate_limit.exceeded
                 - admin.audit_viewed
+                - account.locked
+                - account.suspended
+                - account.reinstated
           example:
             - login.failed
             - login.locked
@@ -8790,7 +8773,7 @@ paths:
     get:
       operationId: getAdminUserSecuritySummary
       summary: Get a user's security summary
-      description: 'Summarizes one account''s sign-in security for an administrator: account status (always `active` until durable account status ships), last sign-in, failed sign-ins in the last 24 hours and 7 days, the current lockout state read live from the cache, registered devices, and the 20 most recent audit events from the last 90 days. The call first records an `admin.audit_viewed` event naming the account in its metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.'
+      description: 'Summarizes one account''s sign-in security for an administrator: the durable account status and its latest change, last sign-in, failed sign-ins in the last 24 hours and 7 days, the current lockout state read live from the cache, registered devices, and the 20 most recent audit events from the last 90 days. The call first records an `admin.audit_viewed` event naming the account in its metadata, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.'
       tags:
         - auth
       security:
@@ -8830,7 +8813,14 @@ paths:
                     email: user1@rentify.local
                     username: renter-one
                     role: user
-                  accountStatus: active
+                  accountStatus: locked
+                  accountStatusChange:
+                    reason: Reported account takeover; holding until the owner resets.
+                    changedAt: '2026-10-18T14:05:00.000Z'
+                    changedBy:
+                      id: 00000000-0000-0000-1000-000000000010
+                      email: admin1@rentify.local
+                      username: admin-one
                   lastLoginAt: '2026-10-17T09:12:44.218Z'
                   failedSignIns:
                     last24Hours: 5
@@ -8870,6 +8860,212 @@ paths:
                         email: user1@rentify.local
                         username: renter-one
                       actor: null
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/users/{id}/lock:
+    post:
+      operationId: lockAdminUser
+      summary: Put an account on a security hold
+      description: 'Sets the account''s status to `locked`: a security hold the user can clear by resetting their password. The token version is bumped in the same write, ending every session and refresh token, every Redis session is revoked, and personal access tokens stop working. Records `account.locked` with the admin as actor and `metadata.source` `admin`, and queues an `account_locked` email that does not include the reason. Locking an already-locked account records the new reason and ends sessions again without a second email; a suspended account returns 409 and must be reinstated first. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.'
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account identifier.
+          schema:
+            type: string
+          example: 00000000-0000-0000-1040-000000000101
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAccountStatusChangeRequest'
+            example:
+              reason: Reported account takeover; holding until the owner resets.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminAccountStatusChangeResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Account put on a security hold.
+                data:
+                  userId: 00000000-0000-0000-1040-000000000101
+                  status: locked
+                  statusReason: Reported account takeover; holding until the owner resets.
+                  statusChangedAt: '2026-10-18T14:05:00.000Z'
+                  statusChangedBy: 00000000-0000-0000-1000-000000000010
+                  changed: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/users/{id}/suspend:
+    post:
+      operationId: suspendAdminUser
+      summary: Suspend an account
+      description: 'Sets the account''s status to `suspended`: a policy action only an admin can reverse. Ends every session and personal access token as a lock does, records `account.suspended`, and queues an `account_suspended` email that does not include the reason. Suspending an already-suspended account records the new reason without a second email. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.'
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account identifier.
+          schema:
+            type: string
+          example: 00000000-0000-0000-1040-000000000101
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAccountStatusChangeRequest'
+            example:
+              reason: Reported account takeover; holding until the owner resets.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminAccountStatusChangeResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Account suspended.
+                data:
+                  userId: 00000000-0000-0000-1040-000000000101
+                  status: suspended
+                  statusReason: Reported account takeover; holding until the owner resets.
+                  statusChangedAt: '2026-10-18T14:05:00.000Z'
+                  statusChangedBy: 00000000-0000-0000-1000-000000000010
+                  changed: true
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /admin/users/{id}/reinstate:
+    post:
+      operationId: reinstateAdminUser
+      summary: Reinstate an account
+      description: 'Sets a locked or suspended account back to `active`, records `account.reinstated` and queues an `account_reinstated` email. Sessions are not restored; the user signs in again. Reinstating an account that is already active changes, records and sends nothing, and returns `changed: false` with the existing status details. An admin cannot change their own status (403). Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.'
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: admin
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Account identifier.
+          schema:
+            type: string
+          example: 00000000-0000-0000-1040-000000000101
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAccountStatusChangeRequest'
+            example:
+              reason: Reported account takeover; holding until the owner resets.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminAccountStatusChangeResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Account reinstated.
+                data:
+                  userId: 00000000-0000-0000-1040-000000000101
+                  status: active
+                  statusReason: Reported account takeover; holding until the owner resets.
+                  statusChangedAt: '2026-10-18T14:05:00.000Z'
+                  statusChangedBy: 00000000-0000-0000-1000-000000000010
+                  changed: true
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
@@ -20263,6 +20459,7 @@ components:
       required:
         - user
         - accountStatus
+        - accountStatusChange
         - lastLoginAt
         - failedSignIns
         - lockout
@@ -20298,7 +20495,44 @@ components:
           type: string
           enum:
             - active
-          description: Always `active` until durable account status ships; more values will be added.
+            - locked
+            - suspended
+          description: '`locked` is a security hold the user can clear with a password reset; `suspended` is a policy action only an admin can reverse.'
+        accountStatusChange:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required:
+            - reason
+            - changedAt
+            - changedBy
+          description: The latest status change, or null when the status was never changed.
+          properties:
+            reason:
+              type: string
+              nullable: true
+            changedAt:
+              type: string
+              format: date-time
+            changedBy:
+              type: object
+              nullable: true
+              additionalProperties: false
+              required:
+                - id
+                - email
+                - username
+              description: The admin who made the change; null for the system, the user or a deleted admin.
+              properties:
+                id:
+                  type: string
+                  pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                  nullable: true
         lastLoginAt:
           type: string
           format: date-time
@@ -21174,6 +21408,52 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/ResolvedFeatureFlag'
+    AdminAccountStatusChangeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 255
+          description: An admin note, trimmed before its length is checked. Kept on the account and in the audit event; never sent to the user.
+    AdminAccountStatusChangeResult:
+      type: object
+      additionalProperties: false
+      required:
+        - userId
+        - status
+        - statusReason
+        - statusChangedAt
+        - statusChangedBy
+        - changed
+      properties:
+        userId:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+        status:
+          type: string
+          enum:
+            - active
+            - locked
+            - suspended
+        statusReason:
+          type: string
+          nullable: true
+        statusChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        statusChangedBy:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+          nullable: true
+          description: The admin's id, or null for the system or the user.
+        changed:
+          type: boolean
+          description: False when a reinstated account was already active, so nothing was written.
     SetFeatureFlagRequest:
       type: object
       required:

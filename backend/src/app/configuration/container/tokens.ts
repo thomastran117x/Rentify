@@ -119,6 +119,8 @@ import { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository
 import { AuthAuditActivityService } from "@/features/auth/audit/auth-audit-activity.service";
 import { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
 import { AuthAuditAdminController } from "@/features/auth/audit/auth-audit-admin.controller";
+import { AccountStatusAdminController } from "@/features/auth/account-status/account-status-admin.controller";
+import { AccountStatusService } from "@/features/auth/account-status/account-status.service";
 import { AuthAuditAdminService } from "@/features/auth/audit/auth-audit-admin.service";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
@@ -435,6 +437,13 @@ export const containerTokens = {
   authAuditAdminController: createServiceToken<AuthAuditAdminController>(
     "AuthAuditAdminController",
   ),
+  accountStatusService: createServiceToken<AccountStatusService>(
+    "AccountStatusService",
+  ),
+  accountStatusAdminController:
+    createServiceToken<AccountStatusAdminController>(
+      "AccountStatusAdminController",
+    ),
   loginLockoutService: createServiceToken<LoginLockoutService>(
     "LoginLockoutService",
   ),

@@ -31,7 +31,8 @@ import type {
 } from "@/features/auth/password/password.model";
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
+import AccountSuspendedError from "@/errors/http/account-suspended.error";
+import type { AccountStatusService } from "@/features/auth/account-status/account-status.service";
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -52,6 +53,7 @@ export class PasswordService {
     private readonly loginLockoutService: LoginLockoutService,
     private readonly publicOtpService: PublicOtpService,
     private readonly authAuditService: AuthAuditService,
+    private readonly accountStatusService: AccountStatusService,
   ) {}
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{
@@ -79,8 +81,12 @@ export class PasswordService {
       user,
       "This account cannot reset a password.",
     );
-    // After the code is proven, and before anything is written.
-    assertAccountIsActive(eligibleUser);
+    // After the code is proven, and before anything is written. A suspension
+    // is a policy action the user cannot reset their way out of; a security
+    // hold is exactly what a completed reset is meant to clear.
+    if (eligibleUser.status === "suspended") {
+      throw new AccountSuspendedError();
+    }
     const passwordHash = await hashPassword(input.newPassword);
 
     await rejectIfPasswordMatchesCurrent(
@@ -88,13 +94,42 @@ export class PasswordService {
       eligibleUser.passwordHash,
     );
 
-    return this.applyNewPassword(
-      eligibleUser,
+    await this.passwordRepository.updatePasswordHash(
+      eligibleUser.id,
+      passwordHash,
+    );
+    // Only once the new password is written, so a failed write cannot leave
+    // a compromised account reinstated on its old password.
+    const resetUser =
+      eligibleUser.status === "locked"
+        ? await this.liftSecurityHold(eligibleUser, input)
+        : eligibleUser;
+
+    return this.finishPasswordWrite(
+      resetUser,
       passwordHash,
       input,
       "password.reset",
       this.authAuditService.hashIdentifier(input.username),
     );
+  }
+
+  /**
+   * The owner proved control of the email on file and replaced the password,
+   * which is the recovery a security hold asks for.
+   */
+  private async liftSecurityHold(
+    user: AuthUserRecord,
+    input: Pick<ResetPasswordInput, "audit">,
+  ): Promise<AuthUserRecord> {
+    await this.accountStatusService.reinstate(asUuid(user.id), {
+      reason: "Security hold cleared by a password reset.",
+      source: "user",
+      actorUserId: null,
+      context: input.audit,
+    });
+
+    return { ...user, status: "active" };
   }
 
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {

@@ -1,7 +1,7 @@
 import { isIP } from "node:net";
 import { z } from "zod";
 import { uuidSchema, type Uuid } from "@/configuration/validation/uuid";
-import type { AppRole } from "@/features/auth/auth.model";
+import type { AccountStatus, AppRole } from "@/features/auth/auth.model";
 import type { UserIdentitySummary } from "@/features/auth/users/users.repository";
 import {
   AUTH_AUDIT_EVENT_TYPES,
@@ -150,6 +150,13 @@ export interface AdminUserKnownDevice {
   lastSeenAt: string;
 }
 
+export interface AdminAccountStatusChange {
+  reason: string | null;
+  changedAt: string;
+  /** The admin who made it; null for the system, the user or a deleted admin. */
+  changedBy: { id: string; email: string; username: string | null } | null;
+}
+
 export interface AdminUserSecuritySummary {
   user: {
     id: string;
@@ -157,8 +164,9 @@ export interface AdminUserSecuritySummary {
     username: string | null;
     role: AppRole;
   };
-  /** Always `active` until durable account status (#377) lands. */
-  accountStatus: "active";
+  accountStatus: AccountStatus;
+  /** The latest status change, or null when the status was never changed. */
+  accountStatusChange: AdminAccountStatusChange | null;
   lastLoginAt: string | null;
   failedSignIns: {
     last24Hours: number;

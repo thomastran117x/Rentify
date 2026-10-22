@@ -19,6 +19,7 @@ import {
   ADMIN_AUTH_AUDIT_MAX_RANGE_MS,
   ADMIN_USER_SECURITY_RECENT_EVENTS,
   FAILED_SIGN_IN_EVENT_TYPES,
+  type AdminAccountStatusChange,
   type AdminAuditReader,
   type AdminAuditSubjectFilter,
   type AdminAuthAuditEvent,
@@ -33,7 +34,10 @@ import {
   LOCAL_LOGIN_LOCK_TTL_IN_SECONDS,
   type LoginLockoutService,
 } from "@/features/auth/lockout/login-lockout.service";
-import type { UsersRepository } from "@/features/auth/users/users.repository";
+import type {
+  UserSecurityProfile,
+  UsersRepository,
+} from "@/features/auth/users/users.repository";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -137,7 +141,8 @@ export class AuthAuditAdminService {
         username: user.username,
         role: user.role,
       },
-      accountStatus: "active",
+      accountStatus: user.status,
+      accountStatusChange: await this.toAccountStatusChange(user),
       lastLoginAt: user.lastLoginAt,
       failedSignIns: { last24Hours, last7Days },
       lockout,
@@ -157,6 +162,26 @@ export class AuthAuditAdminService {
         };
       }),
       recentEvents: await this.toEvents(rows ?? []),
+    };
+  }
+
+  private async toAccountStatusChange(
+    user: UserSecurityProfile,
+  ): Promise<AdminAccountStatusChange | null> {
+    if (!user.statusChangedAt) {
+      return null;
+    }
+
+    const [changedBy] = user.statusChangedBy
+      ? await this.usersRepository.listIdentitySummariesByIds([
+          user.statusChangedBy,
+        ])
+      : [];
+
+    return {
+      reason: user.statusReason,
+      changedAt: user.statusChangedAt,
+      changedBy: changedBy ?? null,
     };
   }
 

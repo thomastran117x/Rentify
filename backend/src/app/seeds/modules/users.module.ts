@@ -17,6 +17,8 @@ import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 const BCRYPT_SALT_ROUNDS = 12;
 const DEFAULT_SEED_DATE_OF_BIRTH = "1990-01-01";
 const DEFAULT_SEED_DATE_OF_BIRTH_PROVIDED_AT = "2026-01-01T00:00:00.000Z";
+// A fixed time, so re-seeding a seeded status does not keep moving it.
+const SEEDED_STATUS_CHANGED_AT = new Date("2026-01-01T00:00:00.000Z");
 
 interface OrganizationBlogPostSeed {
   title: string;
@@ -174,6 +176,14 @@ export const usersSeedModule: SeedModule = {
         throw new Error(`Missing password hash for ${fixtureUser.email}.`);
       }
 
+      const seededStatus = fixtureUser.status
+        ? {
+            status: fixtureUser.status,
+            statusReason: fixtureUser.statusReason ?? null,
+            statusChangedAt: SEEDED_STATUS_CHANGED_AT,
+            statusChangedBy: null,
+          }
+        : {};
       const user = await prisma.user.upsert({
         where: {
           email: fixtureUser.email,
@@ -191,6 +201,7 @@ export const usersSeedModule: SeedModule = {
           ),
           role: fixtureUser.role,
           emailVerified: fixtureUser.emailVerified,
+          ...seededStatus,
         },
         create: {
           id: fixtureUser.id,
@@ -207,6 +218,7 @@ export const usersSeedModule: SeedModule = {
           ),
           role: fixtureUser.role,
           emailVerified: fixtureUser.emailVerified,
+          ...seededStatus,
         },
         select: {
           id: true,

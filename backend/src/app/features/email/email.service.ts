@@ -44,6 +44,16 @@ export interface SendNewDeviceEmailInput {
   detectedAt?: Date;
 }
 
+/**
+ * A durable account status change. The admin's reason is deliberately not
+ * part of it: it may be an internal note, so the email explains only what the
+ * status means and what to do next.
+ */
+export interface SendAccountStatusEmailInput {
+  to: string;
+  firstName?: string;
+}
+
 export interface SendLoginUnlockEmailInput {
   to: string;
   unlockCode: string;
@@ -134,6 +144,24 @@ export class EmailService {
 
   async sendNewDeviceEmail(input: SendNewDeviceEmailInput): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("new_device", input);
+  }
+
+  async sendAccountLockedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("account_locked", input);
+  }
+
+  async sendAccountSuspendedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("account_suspended", input);
+  }
+
+  async sendAccountReinstatedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("account_reinstated", input);
   }
 
   async sendLoginUnlockEmail(input: SendLoginUnlockEmailInput): Promise<void> {

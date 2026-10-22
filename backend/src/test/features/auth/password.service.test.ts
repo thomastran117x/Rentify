@@ -114,6 +114,9 @@ function createHarness() {
     hashIdentifier: jest.fn((value: string) => `hash:${value}`),
     recordSafely: jest.fn(async () => undefined),
   };
+  const accountStatusService = {
+    reinstate: jest.fn(async () => ({})),
+  };
   const publicOtpService = new PublicOtpService(
     cacheService as never,
     otpService as never,
@@ -128,6 +131,7 @@ function createHarness() {
     emailService,
     tokenService,
     authAuditService,
+    accountStatusService,
     service: new PasswordService(
       authRepository as never,
       authRepository as never,
@@ -152,6 +156,7 @@ function createHarness() {
       ),
       publicOtpService,
       authAuditService as never,
+      accountStatusService as never,
     ),
   };
 }
@@ -353,29 +358,64 @@ describe("PasswordService.resetPassword", () => {
     expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
   }, 20_000);
 
-  it.each([
-    { status: "suspended" as const, code: "ACCOUNT_SUSPENDED" },
-    { status: "locked" as const, code: "ACCOUNT_LOCKED" },
-  ])(
-    "refuses a $status account before writing anything",
-    async ({ status, code }) => {
-      const harness = createHarness();
-      harness.authRepository.findUserByUsername.mockResolvedValue(
-        createUser({ ...(await localUser()), status }),
-      );
+  it("refuses a suspended account before writing anything", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByUsername.mockResolvedValue(
+      createUser({ ...(await localUser()), status: "suspended" }),
+    );
 
-      await expect(
-        harness.service.resetPassword({
-          client: createClient(),
-          username: "test-user",
-          code: "123456",
-          newPassword: NEW_PASSWORD,
-        }),
-      ).rejects.toMatchObject({ code });
-      expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
-    },
-    20_000,
-  );
+    await expect(
+      harness.service.resetPassword({
+        client: createClient(),
+        username: "test-user",
+        code: "123456",
+        newPassword: NEW_PASSWORD,
+      }),
+    ).rejects.toMatchObject({ code: "ACCOUNT_SUSPENDED" });
+    expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(harness.accountStatusService.reinstate).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("lifts a security hold once the new password is written", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByUsername.mockResolvedValue(
+      createUser({ ...(await localUser()), status: "locked" }),
+    );
+
+    const session = await harness.service.resetPassword({
+      client: createClient(),
+      username: "test-user",
+      code: "123456",
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(session.accessToken).toBe("access-token");
+    expect(harness.accountStatusService.reinstate).toHaveBeenCalledWith(
+      USER_1_ID,
+      expect.objectContaining({ source: "user", actorUserId: null }),
+    );
+    expect(
+      harness.authRepository.updatePasswordHash.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      harness.accountStatusService.reinstate.mock.invocationCallOrder[0]!,
+    );
+  }, 20_000);
+
+  it("leaves an active account's status alone", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByUsername.mockResolvedValue(
+      await localUser(),
+    );
+
+    await harness.service.resetPassword({
+      client: createClient(),
+      username: "test-user",
+      code: "123456",
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(harness.accountStatusService.reinstate).not.toHaveBeenCalled();
+  }, 20_000);
 });
 
 describe("PasswordService.changePassword", () => {

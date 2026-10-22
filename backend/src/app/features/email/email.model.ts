@@ -1,4 +1,5 @@
 import type {
+  SendAccountStatusEmailInput,
   SendBookingMessageNotificationEmailInput,
   SendEmailChangeCodeEmailInput,
   SendEmailChangeNoticeEmailInput,
@@ -25,7 +26,10 @@ export type EmailJobKind =
   | "organization_invite"
   | "booking_message"
   | "posting_expiring_soon"
-  | "saved_search_matches";
+  | "saved_search_matches"
+  | "account_locked"
+  | "account_suspended"
+  | "account_reinstated";
 
 export type EmailJobInputByKind = {
   verification: SendVerificationEmailInput;
@@ -40,6 +44,9 @@ export type EmailJobInputByKind = {
   booking_message: SendBookingMessageNotificationEmailInput;
   posting_expiring_soon: SendPostingExpiringSoonEmailInput;
   saved_search_matches: SendSavedSearchMatchesEmailInput;
+  account_locked: SendAccountStatusEmailInput;
+  account_suspended: SendAccountStatusEmailInput;
+  account_reinstated: SendAccountStatusEmailInput;
 };
 
 export type EmailJobPayload =
@@ -124,6 +131,13 @@ export type EmailJobPayload =
       jobId: string;
       kind: "saved_search_matches";
       input: SendSavedSearchMatchesEmailInput;
+      attempt: number;
+      occurredAt: string;
+    }
+  | {
+      jobId: string;
+      kind: "account_locked" | "account_suspended" | "account_reinstated";
+      input: SendAccountStatusEmailInput;
       attempt: number;
       occurredAt: string;
     };

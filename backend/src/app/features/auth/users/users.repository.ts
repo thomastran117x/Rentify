@@ -2,6 +2,7 @@ import { referenceImageVariants } from "@/features/media/image-variants";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import {
+  type AccountStatus,
   type AppRole,
   type AuthUserOrganizationMembershipRecord,
   type CreateLocalUserInput,
@@ -35,6 +36,19 @@ export interface UserSecurityProfile {
   username: string | null;
   role: AppRole;
   lastLoginAt: string | null;
+  status: AccountStatus;
+  statusReason: string | null;
+  statusChangedAt: string | null;
+  statusChangedBy: Uuid | null;
+}
+
+export interface UpdateAccountStatusInput {
+  status: AccountStatus;
+  reason: string;
+  changedAt: Date;
+  changedBy: Uuid | null;
+  /** True for a lock or suspension, which must end every session. */
+  rotateTokenVersion: boolean;
 }
 
 type AuthUserPersistence = {
@@ -256,6 +270,10 @@ export class UsersRepository extends BaseRepository {
           email: true,
           role: true,
           lastLoginAt: true,
+          status: true,
+          statusReason: true,
+          statusChangedAt: true,
+          statusChangedBy: true,
           profile: { select: { username: true } },
         },
       }),
@@ -271,7 +289,39 @@ export class UsersRepository extends BaseRepository {
       username: user.profile?.username ?? null,
       role: normalizeAppRole(user.role),
       lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+      status: normalizeAccountStatus(user.status),
+      statusReason: user.statusReason,
+      statusChangedAt: user.statusChangedAt?.toISOString() ?? null,
+      statusChangedBy: asOptionalUuid(user.statusChangedBy) ?? null,
     };
+  }
+
+  /**
+   * Sets the status and, for a lock or suspension, bumps the token version in
+   * the same write, so no session can be minted against the new status with
+   * the old version in between.
+   */
+  async updateAccountStatus(
+    id: Uuid,
+    input: UpdateAccountStatusInput,
+  ): Promise<AuthUserRecord> {
+    const user = await this.executeAsync(() =>
+      this.prisma.user.update({
+        where: { id },
+        data: {
+          status: input.status,
+          statusReason: input.reason,
+          statusChangedAt: input.changedAt,
+          statusChangedBy: input.changedBy,
+          ...(input.rotateTokenVersion
+            ? { tokenVersion: { increment: 1 } }
+            : {}),
+        },
+        include: this.buildAuthUserInclude(),
+      }),
+    );
+
+    return this.mapUser(user);
   }
 
   async createLocalUser(

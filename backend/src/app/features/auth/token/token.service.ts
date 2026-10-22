@@ -276,18 +276,30 @@ export class TokenService {
     userId: Uuid,
     deviceId: string,
   ): Promise<string[]> {
+    return this.revokeMatchingSessions(
+      (session) => session.userId === userId && session.deviceId === deviceId,
+    );
+  }
+
+  /**
+   * Revokes every active session the user holds, on any device. Rotating the
+   * token version already ends them; this makes the Redis records agree, so a
+   * session listing does not show a dead session as active.
+   */
+  async revokeSessionsForUser(userId: Uuid): Promise<string[]> {
+    return this.revokeMatchingSessions((session) => session.userId === userId);
+  }
+
+  private async revokeMatchingSessions(
+    matches: (session: AuthSessionState) => boolean,
+  ): Promise<string[]> {
     const sessionKeys = await this.cache.scanKeys(this.getSessionScanPattern());
     const revokedSessionIds: string[] = [];
 
     for (const sessionKey of sessionKeys) {
       const session = await this.cache.getJson<AuthSessionState>(sessionKey);
 
-      if (
-        !session ||
-        session.userId !== userId ||
-        session.deviceId !== deviceId ||
-        session.status === "revoked"
-      ) {
+      if (!session || session.status === "revoked" || !matches(session)) {
         continue;
       }
 

@@ -55,6 +55,7 @@ import { rentingsRouteModule } from "@/configuration/bootstrap/routes/modules/re
 import { systemRouteModule } from "@/configuration/bootstrap/routes/modules/system.routes";
 import { adminFeatureFlagsRouteModule } from "@/configuration/bootstrap/routes/modules/admin-feature-flags.routes";
 import { adminAuthAuditRouteModule } from "@/configuration/bootstrap/routes/modules/admin-auth-audit.routes";
+import { adminAccountStatusRouteModule } from "@/configuration/bootstrap/routes/modules/admin-account-status.routes";
 import type {
   RouteModule,
   RouteModuleHelpers,
@@ -115,6 +116,7 @@ export const routeModuleRegistry: RouteModule[] = [
   postingsPublicRouteModule,
   adminFeatureFlagsRouteModule,
   adminAuthAuditRouteModule,
+  adminAccountStatusRouteModule,
 ];
 
 const routeModuleHelpers: RouteModuleHelpers = {
