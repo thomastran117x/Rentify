@@ -5,6 +5,7 @@ import type {
   PersonalAccessTokenScope,
 } from "./personal-access-token.model";
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
+import { normalizeAccountStatus } from "@/features/auth/auth.model";
 
 type PersonalAccessTokenPersistence = {
   id: string;
@@ -23,6 +24,7 @@ type PersonalAccessTokenPersistence = {
     id: string;
     email: string;
     role: string;
+    status: string;
   };
 };
 
@@ -54,6 +56,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
               id: true,
               email: true,
               role: true,
+              status: true,
             },
           },
         },
@@ -78,6 +81,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
               id: true,
               email: true,
               role: true,
+              status: true,
             },
           },
         },
@@ -103,6 +107,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
               id: true,
               email: true,
               role: true,
+              status: true,
             },
           },
         },
@@ -126,6 +131,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
               id: true,
               email: true,
               role: true,
+              status: true,
             },
           },
         },
@@ -181,6 +187,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
         id: asUuid(token.user.id),
         email: token.user.email,
         role: token.user.role,
+        status: normalizeAccountStatus(token.user.status),
       },
     };
   }

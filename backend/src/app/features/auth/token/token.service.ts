@@ -664,7 +664,13 @@ export class TokenService {
       throw new UnauthorizedError("Authenticated user could not be found.");
     }
 
-    if (normalizedTokenVersion !== sessionValidation.tokenVersion) {
+    // A locked or suspended account also rotates its token version, but the
+    // status is checked on its own too, so a session minted in the window
+    // between the two writes cannot outlive the change.
+    if (
+      normalizedTokenVersion !== sessionValidation.tokenVersion ||
+      sessionValidation.status !== "active"
+    ) {
       throw new UnauthorizedError("Session is no longer valid.");
     }
 

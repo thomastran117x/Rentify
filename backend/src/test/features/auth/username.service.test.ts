@@ -32,6 +32,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     tokenVersion: 1,
     firstName: "Test",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],

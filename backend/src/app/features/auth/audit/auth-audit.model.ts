@@ -52,7 +52,9 @@ export type AuthAuditReasonCode =
   | "otp_invalid"
   | "token_invalid"
   | "email_conflict"
-  | "signup_expired";
+  | "signup_expired"
+  | "account_locked"
+  | "account_suspended";
 
 export const AUTH_AUDIT_METHODS = [
   "password",

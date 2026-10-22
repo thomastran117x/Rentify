@@ -12,6 +12,10 @@ import type {
 import { isLocalPasswordAccount } from "@/features/auth/local-account-eligibility";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import {
+  assertAccountIsActive,
+  toBlockedAccountReasonCode,
+} from "@/features/auth/account-status/account-status.guard";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
@@ -34,7 +38,10 @@ import type { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store"
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import type { AuthAuditReasonCode } from "@/features/auth/audit/auth-audit.model";
+import type {
+  AuthAuditOutcome,
+  AuthAuditReasonCode,
+} from "@/features/auth/audit/auth-audit.model";
 
 const OAUTH_USERNAME_ALLOCATION_ATTEMPTS = 5;
 
@@ -308,6 +315,19 @@ export class OAuthAccountsService {
     );
 
     if (linkedUser) {
+      // The provider has proven who this is, so the status can be revealed.
+      if (linkedUser.status !== "active") {
+        await this.recordOAuthFailure({
+          reasonCode: toBlockedAccountReasonCode(linkedUser.status),
+          outcome: "blocked",
+          method: profile.provider,
+          userId: asUuid(linkedUser.id),
+          identifierHash: this.authAuditService.hashIdentifier(profile.email),
+          context: input.audit,
+        });
+        assertAccountIsActive(linkedUser);
+      }
+
       try {
         await requireLoginMfa(
           this.mfaTotpService,
@@ -416,6 +436,7 @@ export class OAuthAccountsService {
 
   private async recordOAuthFailure(input: {
     reasonCode: AuthAuditReasonCode;
+    outcome?: AuthAuditOutcome;
     method?: OAuthProvider;
     userId?: Uuid;
     identifierHash?: string;
@@ -423,7 +444,7 @@ export class OAuthAccountsService {
   }): Promise<void> {
     await this.authAuditService.recordSafely({
       eventType: "oauth.login.failed",
-      outcome: "failure",
+      outcome: input.outcome ?? "failure",
       reasonCode: input.reasonCode,
       method: input.method,
       userId: input.userId ?? null,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { AccountStatus } from "@/features/auth/auth.model";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 const UNSAFE_PAT_INPUT_MESSAGE =
@@ -99,6 +100,7 @@ export interface PersonalAccessTokenRecord {
     id: Uuid;
     email: string;
     role: string;
+    status: AccountStatus;
   };
 }
 

@@ -9,6 +9,7 @@ import {
   type OAuthIdentityRecord,
   type OAuthProvider,
   type UserProfileRecord,
+  normalizeAccountStatus,
   normalizeAppRole,
   oauthProviderSchema,
 } from "@/features/auth/auth.model";
@@ -44,6 +45,7 @@ type AuthUserPersistence = {
   firstName: string | null;
   lastName: string | null;
   role: string;
+  status: string;
   emailVerified: boolean;
   oauthIdentities: OAuthIdentityPersistence[];
   profile: AuthProfilePersistence | null;
@@ -496,6 +498,7 @@ export class UsersRepository extends BaseRepository {
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
       role: normalizeAppRole(user.role),
+      status: normalizeAccountStatus(user.status),
       emailVerified: user.emailVerified,
       profile: this.mapProfile(user.profile),
       oauthIdentities: user.oauthIdentities.map((identity) =>

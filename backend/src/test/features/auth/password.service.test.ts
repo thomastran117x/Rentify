@@ -36,6 +36,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     tokenVersion: 2,
     firstName: "Test",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],
@@ -351,6 +352,30 @@ describe("PasswordService.resetPassword", () => {
     ).rejects.toBeInstanceOf(ConflictError);
     expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
   }, 20_000);
+
+  it.each([
+    { status: "suspended" as const, code: "ACCOUNT_SUSPENDED" },
+    { status: "locked" as const, code: "ACCOUNT_LOCKED" },
+  ])(
+    "refuses a $status account before writing anything",
+    async ({ status, code }) => {
+      const harness = createHarness();
+      harness.authRepository.findUserByUsername.mockResolvedValue(
+        createUser({ ...(await localUser()), status }),
+      );
+
+      await expect(
+        harness.service.resetPassword({
+          client: createClient(),
+          username: "test-user",
+          code: "123456",
+          newPassword: NEW_PASSWORD,
+        }),
+      ).rejects.toMatchObject({ code });
+      expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    },
+    20_000,
+  );
 });
 
 describe("PasswordService.changePassword", () => {

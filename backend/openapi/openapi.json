@@ -299,7 +299,7 @@
       "post": {
         "operationId": "localLogin",
         "summary": "Authenticate with username and password",
-        "description": "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED until it is unlocked through POST /auth/local/unlock or the lock expires. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "description": "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
         "tags": [
           "auth"
         ],
@@ -391,28 +391,88 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "423": {
-            "description": "Local sign-in is locked.",
+            "description": "Forbidden, or the account is suspended.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorEnvelope"
                 },
-                "example": {
-                  "success": false,
-                  "message": "This sign-in is locked. Use the code we emailed you to unlock it.",
-                  "data": null,
-                  "error": {
-                    "code": "ACCOUNT_LOCKED",
-                    "details": {
-                      "email": "owner1@rentify.local",
-                      "unlockRequired": true
+                "examples": {
+                  "forbidden": {
+                    "summary": "The request is not allowed.",
+                    "value": {
+                      "success": false,
+                      "message": "You do not have permission to perform this action.",
+                      "data": null,
+                      "error": {
+                        "code": "FORBIDDEN"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
                     }
                   },
-                  "meta": {
-                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The sign-in is locked, or the account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "loginLockout": {
+                    "summary": "Too many failed attempts; the emailed unlock code clears it.",
+                    "value": {
+                      "success": false,
+                      "message": "This sign-in is locked. Use the code we emailed you to unlock it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "email": "owner1@rentify.local",
+                          "unlockRequired": true
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
                   }
                 }
               }
@@ -1029,7 +1089,7 @@
       "post": {
         "operationId": "resetPassword",
         "summary": "Complete a password reset",
-        "description": "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
+        "description": "Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, an account on a security hold or a suspended account is refused before anything is written.",
         "tags": [
           "auth"
         ],
@@ -1119,10 +1179,77 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Forbidden, or the account is suspended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "forbidden": {
+                    "summary": "The request is not allowed.",
+                    "value": {
+                      "success": false,
+                      "message": "You do not have permission to perform this action.",
+                      "data": null,
+                      "error": {
+                        "code": "FORBIDDEN"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "description": "The account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -2567,10 +2694,77 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Forbidden, or the account is suspended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "forbidden": {
+                    "summary": "The request is not allowed.",
+                    "value": {
+                      "success": false,
+                      "message": "You do not have permission to perform this action.",
+                      "data": null,
+                      "error": {
+                        "code": "FORBIDDEN"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "description": "The account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -2714,10 +2908,77 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Forbidden, or the account is suspended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "forbidden": {
+                    "summary": "The request is not allowed.",
+                    "value": {
+                      "success": false,
+                      "message": "You do not have permission to perform this action.",
+                      "data": null,
+                      "error": {
+                        "code": "FORBIDDEN"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "description": "The account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -2861,10 +3122,77 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Forbidden, or the account is suspended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "forbidden": {
+                    "summary": "The request is not allowed.",
+                    "value": {
+                      "success": false,
+                      "message": "You do not have permission to perform this action.",
+                      "data": null,
+                      "error": {
+                        "code": "FORBIDDEN"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "description": "The account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

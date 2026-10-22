@@ -29,6 +29,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     tokenVersion: 7,
     firstName: "Test",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],
@@ -240,6 +241,32 @@ describe("AuthSessionService.authenticateVerifiedUser", () => {
     const [first, second] = harness.tokenService.createAccessToken.mock
       .calls as unknown as Array<[{ sessionId: string }]>;
     expect(first[0].sessionId).not.toBe(second[0].sessionId);
+  });
+});
+
+describe("AuthSessionService account status backstop", () => {
+  it.each([
+    { status: "locked" as const, code: "ACCOUNT_LOCKED" },
+    { status: "suspended" as const, code: "ACCOUNT_SUSPENDED" },
+  ])("issues no session to a $status account", async ({ status, code }) => {
+    const harness = createHarness();
+    const user = createUser({ status });
+
+    await expect(
+      harness.service.authenticateVerifiedUser(user, {
+        client: createClient(),
+        deviceId: DEVICE_1_ID,
+      }),
+    ).rejects.toMatchObject({ code });
+    await expect(
+      harness.service.reissueSessionForUser(user, createClient()),
+    ).rejects.toMatchObject({ code });
+    expect(
+      harness.deviceService.evaluateSuccessfulAuthentication,
+    ).not.toHaveBeenCalled();
+    expect(
+      harness.deviceService.evaluateExistingSessionDevice,
+    ).not.toHaveBeenCalled();
   });
 });
 

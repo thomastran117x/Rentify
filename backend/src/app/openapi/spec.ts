@@ -1497,6 +1497,90 @@ function errorResponse(
   };
 }
 
+/**
+ * One error status with several named examples, for a status a single
+ * operation can return for more than one reason.
+ */
+function errorResponseExamples(
+  description: string,
+  examples: Record<
+    string,
+    { summary: string; message: string; code: string; details?: unknown }
+  >,
+): Record<string, unknown> {
+  return {
+    description,
+    content: {
+      "application/json": {
+        schema: schemaRef("ApiErrorEnvelope"),
+        examples: Object.fromEntries(
+          Object.entries(examples).map(
+            ([name, { summary, message, code, details }]) => [
+              name,
+              {
+                summary,
+                value: {
+                  success: false,
+                  message,
+                  data: null,
+                  error: {
+                    code,
+                    ...(details !== undefined ? { details } : {}),
+                  },
+                  meta: {
+                    requestId: requestIdExample,
+                  },
+                },
+              },
+            ],
+          ),
+        ),
+      },
+    },
+  };
+}
+
+const forbiddenErrorExample = {
+  summary: "The request is not allowed.",
+  message: "You do not have permission to perform this action.",
+  code: "FORBIDDEN",
+};
+
+const accountSuspendedErrorExample = {
+  summary: "The account is suspended; only an admin can reinstate it.",
+  message:
+    "This account has been suspended. Contact support if you believe this is a mistake.",
+  code: "ACCOUNT_SUSPENDED",
+};
+
+const securityHoldErrorExample = {
+  summary: "The account is on a security hold; a password reset recovers it.",
+  message:
+    "This account is on a security hold. Reset your password to recover it.",
+  code: "ACCOUNT_LOCKED",
+  details: {
+    reason: "security_hold",
+    recovery: "password_reset",
+  },
+};
+
+/**
+ * The durable account-status refusals a sign-in can return once the
+ * credentials are proven. Spread after commonErrors so the 403 here replaces
+ * the generic one.
+ */
+function accountStatusSignInErrors(): Record<string, unknown> {
+  return {
+    "403": errorResponseExamples("Forbidden, or the account is suspended.", {
+      forbidden: forbiddenErrorExample,
+      accountSuspended: accountSuspendedErrorExample,
+    }),
+    "423": errorResponseExamples("The account is on a security hold.", {
+      securityHold: securityHoldErrorExample,
+    }),
+  };
+}
+
 function commonErrors(
   statuses: Array<
     400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503
@@ -1715,7 +1799,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localLogin",
       summary: "Authenticate with username and password",
       description:
-        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED until it is unlocked through POST /auth/local/unlock or the lock expires. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1738,16 +1822,31 @@ function buildOperations(): OperationDefinition[] {
           "AuthSessionResponseData",
           authSessionExample,
         ),
-        "423": errorResponse(
-          "Local sign-in is locked.",
-          "This sign-in is locked. Use the code we emailed you to unlock it.",
-          "ACCOUNT_LOCKED",
+        ...commonErrors([400, 401, 403, 429, 500]),
+        "403": errorResponseExamples(
+          "Forbidden, or the account is suspended.",
           {
-            email: "owner1@rentify.local",
-            unlockRequired: true,
+            forbidden: forbiddenErrorExample,
+            accountSuspended: accountSuspendedErrorExample,
           },
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        "423": errorResponseExamples(
+          "The sign-in is locked, or the account is on a security hold.",
+          {
+            loginLockout: {
+              summary:
+                "Too many failed attempts; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+            securityHold: securityHoldErrorExample,
+          },
+        ),
       },
     },
     {
@@ -2011,7 +2110,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resetPassword",
       summary: "Complete a password reset",
       description:
-        "Completes a local password reset with the code sent to the email on file and returns an authenticated session.",
+        "Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, an account on a security hold or a suspended account is refused before anything is written.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2033,6 +2132,7 @@ function buildOperations(): OperationDefinition[] {
           authSessionExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -2478,6 +2578,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -2515,6 +2616,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {
@@ -2552,6 +2654,7 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        ...accountStatusSignInErrors(),
       },
     },
     {

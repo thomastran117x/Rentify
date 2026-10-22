@@ -6,43 +6,45 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 
 ## What Is Recorded
 
-| Event type                       | Outcome   | Reason                        | Written when                                                                                                                     |
-| -------------------------------- | --------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `login.succeeded`                | `success` |                               | A local password sign-in issues a session. Carries `session_id`.                                                                 |
-| `login.failed`                   | `failure` | `bad_credentials`             | The username is unknown or the password is wrong                                                                                 |
-| `login.failed`                   | `failure` | `email_unverified`            | The password is right but the email address was never verified                                                                   |
-| `login.failed`                   | `failure` | `mfa_invalid`                 | The password is right but the authenticator code was rejected                                                                    |
-| `login.mfa_challenged`           | `success` | `mfa_required`                | The password is right, and the account needs an authenticator code that was not sent. The first factor passed.                   |
-| `login.locked`                   | `blocked` | `locked`                      | Each attempt answered with `423`. On the attempt that set the lock, `metadata` is `{ "triggered": true, "failureReason": ... }`. |
-| `login.unlock_requested`         | `success` |                               | `POST /auth/local/unlock/resend` emailed an unlock code                                                                          |
-| `login.unlock_requested`         | `failure` | `not_locked`                  | The address is unknown or not locked, so nothing was sent                                                                        |
-| `login.unlock_requested`         | `blocked` | `rate_limited`                | The resend was rate-limited                                                                                                      |
-| `login.unlocked`                 | `success` |                               | `POST /auth/local/unlock` accepted the code                                                                                      |
-| `login.unlocked`                 | `failure` | `otp_invalid`                 | The unlock code was rejected                                                                                                     |
-| `logout`                         | `success` |                               | `POST /auth/logout`. `method` is `pat` when a personal access token signed out.                                                  |
-| `oauth.login.succeeded`          | `success` |                               | A linked provider signs in. Carries the provider method, verified-email HMAC, user and new session.                              |
-| `oauth.login.failed`             | `failure` | `token_invalid`               | Provider verification failed. The user and identifier hash are null/absent.                                                      |
-| `oauth.login.failed`             | `failure` | `email_conflict`              | A verified provider email already belongs to another sign-in method.                                                             |
-| `oauth.login.failed`             | `failure` | `signup_expired`              | A signup continuation is missing, expired, or already consumed. Provider context is included only when it is still available.    |
-| `oauth.login.failed`             | `failure` | `mfa_required`, `mfa_invalid` | A linked OAuth account needs MFA or rejected its MFA code.                                                                       |
-| `oauth.signup.completed`         | `success` |                               | Direct or continued OAuth signup creates the user and session. Issuing a continuation token alone writes no event.               |
-| `oauth.linked`                   | `success` |                               | A provider identity was newly linked. Carries the provider, user and acting session.                                             |
-| `oauth.unlinked`                 | `success` |                               | A provider identity was actually removed. Carries the provider, user and acting session.                                         |
-| `session.refresh_reuse_detected` | `blocked` |                               | A consumed refresh token was replayed outside its five-second grace period. Carries method `refresh` and the revoked session.    |
-| `session.revoked`                | `success` |                               | Device removal revoked an active session. One row is written per revoked session; metadata is `{ "source": "device" }`.          |
-| `device.new_detected`            | `success` |                               | An unknown device was detected. Metadata records `emailNotification` as `sent` or `suppressed`.                                  |
-| `password.changed`               | `success` |                               | A local password was replaced using the current password. Carries method `password` and the replacement session.                 |
-| `password.reset`                 | `success` |                               | Password recovery completed. Also carries the normalized username HMAC.                                                          |
-| `password.set`                   | `success` |                               | A social-only account added its first local password.                                                                            |
-| `email.changed`                  | `success` |                               | Email change completed. Metadata contains only `oldEmailMasked` and `newEmailMasked`.                                            |
-| `mfa.totp_enabled`               | `success` |                               | A pending TOTP factor was activated.                                                                                             |
-| `mfa.totp_disabled`              | `success` |                               | An active TOTP factor was removed; pending/missing factors do not emit it.                                                       |
-| `mfa.step_up_failed`             | `failure` | `mfa_invalid` or blank        | A confirm code was invalid, or challenge delivery failed. Metadata contains only stage, scope, factor and result.                |
-| `mfa.step_up_locked`             | `blocked` | `rate_limited`                | Challenge/confirm windows, OTP cooldown, repeated-code lock, and attempts during that lock.                                      |
-| `pat.created`                    | `success` |                               | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ... }`, never the token.                    |
-| `pat.revoked`                    | `success` |                               | A personal access token changed from active to revoked. Repeated revoke calls write no event.                                    |
-| `rate_limit.exceeded`            | `blocked` | `rate_limited`                | A Redis-backed `auth-sensitive` or `auth-refresh` policy returned 429. See dedupe rules below.                                   |
-| `admin.audit_viewed`             | `success` |                               | An administrator read the audit log. `user_id` is null, `actor_user_id` is the reader and `metadata` holds the filters used.     |
+| Event type                       | Outcome   | Reason                                | Written when                                                                                                                       |
+| -------------------------------- | --------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `login.succeeded`                | `success` |                                       | A local password sign-in issues a session. Carries `session_id`.                                                                   |
+| `login.failed`                   | `failure` | `bad_credentials`                     | The username is unknown or the password is wrong                                                                                   |
+| `login.failed`                   | `failure` | `email_unverified`                    | The password is right but the email address was never verified                                                                     |
+| `login.failed`                   | `failure` | `mfa_invalid`                         | The password is right but the authenticator code was rejected                                                                      |
+| `login.failed`                   | `blocked` | `account_locked`, `account_suspended` | The password is right but the account is locked or suspended. Answered with `423` or `403`; see [Account Status](#account-status). |
+| `login.mfa_challenged`           | `success` | `mfa_required`                        | The password is right, and the account needs an authenticator code that was not sent. The first factor passed.                     |
+| `login.locked`                   | `blocked` | `locked`                              | Each attempt answered with `423`. On the attempt that set the lock, `metadata` is `{ "triggered": true, "failureReason": ... }`.   |
+| `login.unlock_requested`         | `success` |                                       | `POST /auth/local/unlock/resend` emailed an unlock code                                                                            |
+| `login.unlock_requested`         | `failure` | `not_locked`                          | The address is unknown or not locked, so nothing was sent                                                                          |
+| `login.unlock_requested`         | `blocked` | `rate_limited`                        | The resend was rate-limited                                                                                                        |
+| `login.unlocked`                 | `success` |                                       | `POST /auth/local/unlock` accepted the code                                                                                        |
+| `login.unlocked`                 | `failure` | `otp_invalid`                         | The unlock code was rejected                                                                                                       |
+| `logout`                         | `success` |                                       | `POST /auth/logout`. `method` is `pat` when a personal access token signed out.                                                    |
+| `oauth.login.succeeded`          | `success` |                                       | A linked provider signs in. Carries the provider method, verified-email HMAC, user and new session.                                |
+| `oauth.login.failed`             | `failure` | `token_invalid`                       | Provider verification failed. The user and identifier hash are null/absent.                                                        |
+| `oauth.login.failed`             | `failure` | `email_conflict`                      | A verified provider email already belongs to another sign-in method.                                                               |
+| `oauth.login.failed`             | `failure` | `signup_expired`                      | A signup continuation is missing, expired, or already consumed. Provider context is included only when it is still available.      |
+| `oauth.login.failed`             | `failure` | `mfa_required`, `mfa_invalid`         | A linked OAuth account needs MFA or rejected its MFA code.                                                                         |
+| `oauth.login.failed`             | `blocked` | `account_locked`, `account_suspended` | The provider verified a linked account that is locked or suspended. Recorded before MFA.                                           |
+| `oauth.signup.completed`         | `success` |                                       | Direct or continued OAuth signup creates the user and session. Issuing a continuation token alone writes no event.                 |
+| `oauth.linked`                   | `success` |                                       | A provider identity was newly linked. Carries the provider, user and acting session.                                               |
+| `oauth.unlinked`                 | `success` |                                       | A provider identity was actually removed. Carries the provider, user and acting session.                                           |
+| `session.refresh_reuse_detected` | `blocked` |                                       | A consumed refresh token was replayed outside its five-second grace period. Carries method `refresh` and the revoked session.      |
+| `session.revoked`                | `success` |                                       | Device removal revoked an active session. One row is written per revoked session; metadata is `{ "source": "device" }`.            |
+| `device.new_detected`            | `success` |                                       | An unknown device was detected. Metadata records `emailNotification` as `sent` or `suppressed`.                                    |
+| `password.changed`               | `success` |                                       | A local password was replaced using the current password. Carries method `password` and the replacement session.                   |
+| `password.reset`                 | `success` |                                       | Password recovery completed. Also carries the normalized username HMAC.                                                            |
+| `password.set`                   | `success` |                                       | A social-only account added its first local password.                                                                              |
+| `email.changed`                  | `success` |                                       | Email change completed. Metadata contains only `oldEmailMasked` and `newEmailMasked`.                                              |
+| `mfa.totp_enabled`               | `success` |                                       | A pending TOTP factor was activated.                                                                                               |
+| `mfa.totp_disabled`              | `success` |                                       | An active TOTP factor was removed; pending/missing factors do not emit it.                                                         |
+| `mfa.step_up_failed`             | `failure` | `mfa_invalid` or blank                | A confirm code was invalid, or challenge delivery failed. Metadata contains only stage, scope, factor and result.                  |
+| `mfa.step_up_locked`             | `blocked` | `rate_limited`                        | Challenge/confirm windows, OTP cooldown, repeated-code lock, and attempts during that lock.                                        |
+| `pat.created`                    | `success` |                                       | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ... }`, never the token.                      |
+| `pat.revoked`                    | `success` |                                       | A personal access token changed from active to revoked. Repeated revoke calls write no event.                                      |
+| `rate_limit.exceeded`            | `blocked` | `rate_limited`                        | A Redis-backed `auth-sensitive` or `auth-refresh` policy returned 429. See dedupe rules below.                                     |
+| `admin.audit_viewed`             | `success` |                                       | An administrator read the audit log. `user_id` is null, `actor_user_id` is the reader and `metadata` holds the filters used.       |
 
 Each local sign-in attempt writes exactly one event. The fifth failed attempt, the one that sets the lock, is recorded as `login.locked`, not as `login.failed`.
 
@@ -189,6 +191,36 @@ Admins open **Admin** in the app sidebar, which goes to `/admin/security`. The e
 6. **Review who has been looking.** Search with `eventType=admin.audit_viewed`. Each row's `actor` is the administrator and `metadata` holds what they searched for.
 
 Locking, suspending and reinstating accounts from the summary is #377. Automatic flagging, and a `flagged` filter, is #379.
+
+## Account Status
+
+`users.status` is the durable state of an account, separate from the 30-minute password lockout above. Every account starts `active`.
+
+| Status      | Meaning                                          | Who clears it  |
+| ----------- | ------------------------------------------------ | -------------- |
+| `active`    | Normal.                                          |                |
+| `locked`    | A security hold: the account may be compromised. | An admin.      |
+| `suspended` | A policy action.                                 | Only an admin. |
+
+`status_reason`, `status_changed_at` and `status_changed_by` record the latest change. `status_changed_by` is the admin's ID, or null when the system or the user made it. It has no foreign key, so it survives the admin's account being deleted. An unrecognised stored value is read as `suspended`, so a bad write fails closed.
+
+### Where It Is Enforced
+
+| Entry point                                               | A `locked` account gets | A `suspended` account gets |
+| --------------------------------------------------------- | ----------------------- | -------------------------- |
+| Local password sign-in, once the password is proven       | `423 ACCOUNT_LOCKED`    | `403 ACCOUNT_SUSPENDED`    |
+| OAuth sign-in to a linked account, before MFA             | `423 ACCOUNT_LOCKED`    | `403 ACCOUNT_SUSPENDED`    |
+| Password reset, once the emailed code is proven           | `423 ACCOUNT_LOCKED`    | `403 ACCOUNT_SUSPENDED`    |
+| Every access-token request and WebSocket session re-check | `401 UNAUTHORIZED`      | `401 UNAUTHORIZED`         |
+| `POST /auth/refresh`                                      | `401 UNAUTHORIZED`      | `401 UNAUTHORIZED`         |
+| Every personal-access-token request                       | `401 UNAUTHORIZED`      | `401 UNAUTHORIZED`         |
+
+The security-hold `423` carries `details: { "reason": "security_hold", "recovery": "password_reset" }`. The temporary lockout's `423` carries `details.unlockRequired` instead, which is how a client tells them apart.
+
+- **The status is revealed only to someone who proved the credentials.** A wrong password on a suspended account still reads `Invalid username or password.`.
+- **No extra query.** The access-token check already reads `token_version` and `role` from `users` on every request (`TokenRepository.findSessionValidationByUserId`); it now reads `status` in the same query. Refresh and WebSocket re-checks share it.
+- **Personal access tokens are checked on their own.** They carry no token version, so rotating `token_version` does not reach them; `PersonalAccessTokenService.authenticateToken` reads the owner's status with the token.
+- **A backstop.** `AuthSessionService` refuses to issue a session to a non-active account, so a flow that skipped its own check, such as email-verification sign-in, still cannot hand one out.
 
 ## Retention
 

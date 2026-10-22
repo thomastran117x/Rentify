@@ -26,6 +26,15 @@ model User {
   emailVerified Boolean  @default(false) @map("email_verified")
   preferredOrganizationId String? @map("preferred_organization_id") @db.VarChar(36)
   lastLoginAt   DateTime? @map("last_login_at") @db.DateTime(6)
+  // active, locked (a security hold the user can clear with a password reset)
+  // or suspended (a policy action only an admin can reverse). Checked at every
+  // sign-in and on every access-token, refresh and personal-access-token use.
+  status          String    @default("active") @db.VarChar(20)
+  statusReason    String?   @map("status_reason") @db.VarChar(255)
+  statusChangedAt DateTime? @map("status_changed_at") @db.DateTime(6)
+  // The admin who made the change, or null for the system or the user. No
+  // foreign key, so the record survives the admin's account being deleted.
+  statusChangedBy String?   @map("status_changed_by") @db.VarChar(36)
   createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(6)
   devices       Device[]

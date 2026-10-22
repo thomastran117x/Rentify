@@ -31,6 +31,7 @@ import type {
 } from "@/features/auth/password/password.model";
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -78,6 +79,8 @@ export class PasswordService {
       user,
       "This account cannot reset a password.",
     );
+    // After the code is proven, and before anything is written.
+    assertAccountIsActive(eligibleUser);
     const passwordHash = await hashPassword(input.newPassword);
 
     await rejectIfPasswordMatchesCurrent(

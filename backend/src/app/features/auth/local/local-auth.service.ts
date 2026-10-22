@@ -49,6 +49,10 @@ import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import {
+  assertAccountIsActive,
+  toBlockedAccountReasonCode,
+} from "@/features/auth/account-status/account-status.guard";
 import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
@@ -127,6 +131,19 @@ export class LocalAuthService {
         audit,
       );
       throw new UnauthorizedError("Invalid username or password.");
+    }
+
+    // Only after the password is proven, so the status of an account is never
+    // revealed to someone who cannot sign in to it.
+    if (user.status !== "active") {
+      await this.authAuditService.recordSafely({
+        ...audit,
+        eventType: "login.failed",
+        outcome: "blocked",
+        reasonCode: toBlockedAccountReasonCode(user.status),
+        userId: asUuid(user.id),
+      });
+      assertAccountIsActive(user);
     }
 
     if (!user.emailVerified) {

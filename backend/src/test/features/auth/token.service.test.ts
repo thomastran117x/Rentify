@@ -1,5 +1,6 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import type { AccountStatus } from "@/features/auth/auth.model";
 import {
   RefreshTokenReuseDetectedError,
   TokenService,
@@ -26,6 +27,7 @@ function createClaims(overrides: Partial<JwtClaims> = {}): JwtClaims {
 function createAuthRepository(options?: {
   tokenVersion?: number | null;
   role?: JwtClaims["role"];
+  status?: AccountStatus;
 }) {
   return {
     findSessionValidationByUserId: jest.fn(async () => {
@@ -39,6 +41,7 @@ function createAuthRepository(options?: {
       return {
         tokenVersion,
         role: options?.role ?? "user",
+        status: options?.status ?? "active",
       };
     }),
   };
@@ -83,6 +86,7 @@ function createCache() {
 function createService(options?: {
   tokenVersion?: number | null;
   role?: JwtClaims["role"];
+  status?: AccountStatus;
   refreshTokenMode?: "stateless" | "stateful";
   issuer?: string;
   audience?: string;
@@ -96,6 +100,7 @@ function createService(options?: {
   const authRepository = createAuthRepository({
     tokenVersion: options?.tokenVersion,
     role: options?.role,
+    status: options?.status,
   });
   const cache = createCache();
   const service = new TokenService({
@@ -264,6 +269,37 @@ describe("TokenService", () => {
       message: "Session is no longer valid.",
     });
   });
+
+  it.each(["locked", "suspended"] as const)(
+    "rejects access, refresh and socket checks for a %s account",
+    async (status) => {
+      const { service } = createService({
+        refreshTokenMode: "stateless",
+        status,
+      });
+      const accessToken = service.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const refreshToken = await service.createRefreshToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const sessionExpired = {
+        message: "Session is no longer valid.",
+      };
+
+      await expect(
+        service.verifyAccessToken(accessToken),
+      ).rejects.toMatchObject<Partial<UnauthorizedError>>(sessionExpired);
+      await expect(
+        service.verifyRefreshToken(refreshToken),
+      ).rejects.toMatchObject<Partial<UnauthorizedError>>(sessionExpired);
+      await expect(
+        service.assertSessionIsUsable(USER_1_ID, null, 2),
+      ).rejects.toMatchObject<Partial<UnauthorizedError>>(sessionExpired);
+    },
+  );
 
   it("rejects access tokens when the authenticated user no longer exists", async () => {
     const { service } = createService({

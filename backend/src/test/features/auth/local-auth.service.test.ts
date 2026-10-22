@@ -36,6 +36,7 @@ function createUser(): AuthUserRecord {
     firstName: "Test",
     lastName: "User",
     role: "user",
+    status: "active",
     emailVerified: true,
     oauthIdentities: [],
     organizationMemberships: [],
@@ -1709,6 +1710,56 @@ describe("LocalAuthService.localAuthenticate audit events", () => {
         reasonCode: "email_unverified",
         userId: USER_1_ID,
       }),
+    ]);
+  });
+
+  it.each([
+    {
+      status: "locked" as const,
+      reasonCode: "account_locked",
+      error: {
+        status: 423,
+        code: "ACCOUNT_LOCKED",
+        details: { reason: "security_hold", recovery: "password_reset" },
+      },
+    },
+    {
+      status: "suspended" as const,
+      reasonCode: "account_suspended",
+      error: { status: 403, code: "ACCOUNT_SUSPENDED" },
+    },
+  ])(
+    "refuses and records a $status account once the password is proven",
+    async ({ status, reasonCode, error }) => {
+      const { events, service, user } = createAudited();
+      user.status = status;
+
+      await expect(attempt(service)).rejects.toMatchObject(error);
+
+      expect(events).toEqual([
+        {
+          eventType: "login.failed",
+          outcome: "blocked",
+          reasonCode,
+          method: "password",
+          userId: USER_1_ID,
+          identifierHash: expectedHash,
+          context: AUDIT_CONTEXT,
+        },
+      ]);
+    },
+  );
+
+  it("does not reveal a blocked status behind a wrong password", async () => {
+    const { events, service, user } = createAudited();
+    user.status = "suspended";
+
+    await expect(
+      attempt(service, { password: "WrongPassword1!" }),
+    ).rejects.toThrow("Invalid username or password.");
+
+    expect(events).toEqual([
+      expect.objectContaining({ reasonCode: "bad_credentials" }),
     ]);
   });
 

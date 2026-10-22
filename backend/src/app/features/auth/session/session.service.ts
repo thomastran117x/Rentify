@@ -20,6 +20,7 @@ import {
   TokenService,
 } from "@/features/auth/token/token.service";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
+import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
 import { asUuid } from "@/configuration/validation/uuid";
 import { loggerFactory } from "@/configuration/logging";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
@@ -216,6 +217,11 @@ export class AuthSessionService {
       audit?: AuthAuditContext;
     },
   ): Promise<AuthSessionResult> {
+    // Each sign-in flow checks the status itself so it can record why it was
+    // refused; this is the backstop for any path that reaches a session
+    // without doing so.
+    assertAccountIsActive(user);
+
     const deviceStatus =
       await this.deviceService.evaluateSuccessfulAuthentication(
         user,
@@ -261,6 +267,8 @@ export class AuthSessionService {
     deviceId?: string,
     audit?: AuthAuditContext,
   ): Promise<AuthSessionResult> {
+    assertAccountIsActive(user);
+
     const deviceStatus = await this.deviceService.evaluateExistingSessionDevice(
       user,
       client,
