@@ -15,6 +15,7 @@ import {
 } from "@/components/auth/auth-form-steps";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
+import { PasswordRequirementsChecklist } from "@/components/auth/password-requirements-checklist";
 import { OAuthSignupDateOfBirthDialog } from "@/components/auth/oauth-signup-date-of-birth-dialog";
 import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
 import { SignupVerificationPanel } from "@/components/auth/signup-verification-panel";
@@ -590,7 +591,14 @@ export function SignupForm({ nextPath = "/" }: SignupFormProps) {
             placeholder="Create a password"
             error={errors.password}
             errorId="signup-password-error"
-            hint="At least 8 characters, including uppercase, lowercase, a number, and a special character."
+            requirementsId="signup-password-requirements"
+            requirements={
+              <PasswordRequirementsChecklist
+                id="signup-password-requirements"
+                password={password}
+                invalid={Boolean(errors.password)}
+              />
+            }
           />
 
           <AuthPasswordField

@@ -301,6 +301,12 @@ export const theme = {
     fieldText: "text-sm text-slate-500 dark:text-slate-400",
     fieldErrorText: "text-sm text-rose-700 dark:text-rose-300",
 
+    requirementList: "grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2",
+    requirementItem: "flex items-center gap-2 transition-colors duration-200",
+    requirementMet: "text-emerald-700 dark:text-emerald-300",
+    requirementPending: "text-slate-500 dark:text-slate-400",
+    requirementUnmet: "text-rose-700 dark:text-rose-300",
+
     iconButton:
       "absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white dark:focus-visible:ring-slate-600",
 

@@ -23,6 +23,13 @@ interface AuthPasswordFieldProps {
   hint?: ReactNode;
   /** Rendered next to the label, e.g. login's "I can't log in" button. */
   labelAction?: ReactNode;
+  /**
+   * Rendered below the error or hint and never replaced by an error, e.g. the
+   * password requirements checklist the user needs most after a failed submit.
+   */
+  requirements?: ReactNode;
+  /** The `id` of `requirements`, added to the input's `aria-describedby`. */
+  requirementsId?: string;
 }
 
 /**
@@ -43,9 +50,15 @@ export function AuthPasswordField({
   errorId,
   hint,
   labelAction,
+  requirements,
+  requirementsId,
 }: AuthPasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const resolvedErrorId = errorId ?? `${id}-error`;
+  const describedBy =
+    [error ? resolvedErrorId : null, requirements ? requirementsId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <div className="space-y-2">
@@ -82,7 +95,7 @@ export function AuthPasswordField({
           autoComplete={autoComplete}
           placeholder={placeholder}
           aria-invalid={Boolean(error)}
-          aria-describedby={error ? resolvedErrorId : undefined}
+          aria-describedby={describedBy}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={theme.auth.fieldInputWithAction}
@@ -104,6 +117,8 @@ export function AuthPasswordField({
       ) : hint ? (
         <p className={theme.auth.fieldText}>{hint}</p>
       ) : null}
+
+      {requirements}
     </div>
   );
 }

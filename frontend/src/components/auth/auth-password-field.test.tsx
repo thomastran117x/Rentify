@@ -79,6 +79,40 @@ describe("AuthPasswordField", () => {
     );
   });
 
+  it("keeps the requirements visible alongside an error", () => {
+    const requirements = <ul id="password-requirements" />;
+    const { rerender } = renderField({
+      requirements,
+      requirementsId: "password-requirements",
+    });
+
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "aria-describedby",
+      "password-requirements",
+    );
+
+    rerender(
+      <AuthPasswordField
+        id="password"
+        label="Password"
+        value=""
+        onChange={vi.fn()}
+        autoComplete="new-password"
+        error="Password is required."
+        errorId="signup-password-error"
+        requirements={requirements}
+        requirementsId="password-requirements"
+      />,
+    );
+
+    expect(screen.getByText("Password is required.")).toBeInTheDocument();
+    expect(document.getElementById("password-requirements")).not.toBeNull();
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "aria-describedby",
+      "signup-password-error password-requirements",
+    );
+  });
+
   it("renders a label action next to the label", () => {
     renderField({
       labelAction: <button type="button">I can&apos;t log in</button>,

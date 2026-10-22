@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { useAuth } from "@/components/auth/auth-context";
+import { PasswordRequirementsChecklist } from "@/components/auth/password-requirements-checklist";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
@@ -513,7 +514,14 @@ export function ForgotPasswordForm() {
           placeholder="Create a password"
           error={resetErrors.newPassword}
           errorId="forgot-password-new-password-error"
-          hint="At least 8 characters, including uppercase, lowercase, a number, and a special character."
+          requirementsId="forgot-password-new-password-requirements"
+          requirements={
+            <PasswordRequirementsChecklist
+              id="forgot-password-new-password-requirements"
+              password={newPassword}
+              invalid={Boolean(resetErrors.newPassword)}
+            />
+          }
         />
 
         <AuthPasswordField
