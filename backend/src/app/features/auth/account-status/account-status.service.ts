@@ -5,6 +5,7 @@ import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type {
   AccountStatusChangeInput,
   AccountStatusChangeResult,
+  AccountStatusChangeSource,
 } from "@/features/auth/account-status/account-status.model";
 import type { AccountStatus, AuthUserRecord } from "@/features/auth/auth.model";
 import type { AuthAuditEventType } from "@/features/auth/audit/auth-audit.model";
@@ -185,6 +186,7 @@ export class AccountStatusService {
       actorUserId: changedBy,
       context: input.context,
       metadata: {
+        ...input.metadata,
         source: input.source,
         previousStatus,
         reason: input.reason,
@@ -192,7 +194,7 @@ export class AccountStatusService {
     });
 
     if (previousStatus !== status) {
-      await this.sendStatusEmail(user, status);
+      await this.sendStatusEmail(user, status, input.source);
     }
 
     return {
@@ -220,15 +222,22 @@ export class AccountStatusService {
     }
   }
 
-  /** Best effort, for the same reason as {@link revokeSessions}. */
+  /**
+   * Best effort, for the same reason as {@link revokeSessions}. A hold the
+   * user placed themself gets a confirmation instead of the "your account is
+   * on hold" notice.
+   */
   private async sendStatusEmail(
     user: AuthUserRecord,
     status: AccountStatus,
+    source: AccountStatusChangeSource,
   ): Promise<void> {
     const emailInput = { to: user.email, firstName: user.firstName };
 
     try {
-      if (status === "locked") {
+      if (status === "locked" && source === "user") {
+        await this.emailService.sendAccountSelfLockedEmail(emailInput);
+      } else if (status === "locked") {
         await this.emailService.sendAccountLockedEmail(emailInput);
       } else if (status === "suspended") {
         await this.emailService.sendAccountSuspendedEmail(emailInput);

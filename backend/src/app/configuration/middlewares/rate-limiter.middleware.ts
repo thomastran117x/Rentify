@@ -193,6 +193,15 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // Self-lock: the public variant takes a 256-bit token, but it is anonymous
+  // and ends sessions, so it shares the tight bucket with sign-in.
+  if (
+    request.method === "POST" &&
+    /^\/auth\/account\/self-lock(?:\/session)?$/.test(pathname)
+  ) {
+    return true;
+  }
+
   // TOTP enrollment and verification — guessing codes is feasible at the global
   // default rate (60/min) over the 15-minute pending window; apply the same
   // tight bucket used for login.

@@ -152,6 +152,13 @@ export class EmailService {
     await this.emailQueueService.enqueueEmailJob("account_locked", input);
   }
 
+  /** The confirmation a user gets after locking their own account. */
+  async sendAccountSelfLockedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("account_self_locked", input);
+  }
+
   async sendAccountSuspendedEmail(
     input: SendAccountStatusEmailInput,
   ): Promise<void> {

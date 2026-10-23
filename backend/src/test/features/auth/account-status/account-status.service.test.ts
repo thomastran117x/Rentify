@@ -64,6 +64,7 @@ function createHarness(status: AccountStatus | null = "active") {
   };
   const emailService = {
     sendAccountLockedEmail: jest.fn(async () => undefined),
+    sendAccountSelfLockedEmail: jest.fn(async () => undefined),
     sendAccountSuspendedEmail: jest.fn(async () => undefined),
     sendAccountReinstatedEmail: jest.fn(async () => undefined),
   };
@@ -146,6 +147,54 @@ describe("AccountStatusService.lock", () => {
       }),
     );
     expect(harness.emailService.sendAccountLockedEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends a user's own lock a confirmation and records its metadata", async () => {
+    const harness = createHarness("active");
+
+    await harness.service.lock(USER_ID, {
+      reason: "Reported by user",
+      source: "user",
+      actorUserId: null,
+      context: CONTEXT,
+      metadata: { channel: "email_link", sourceEventId: "event-1" },
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "account.locked",
+        actorUserId: null,
+        metadata: {
+          channel: "email_link",
+          sourceEventId: "event-1",
+          source: "user",
+          previousStatus: "active",
+          reason: "Reported by user",
+        },
+      }),
+    );
+    expect(
+      harness.emailService.sendAccountSelfLockedEmail,
+    ).toHaveBeenCalledWith({ to: "user@example.com", firstName: "Jane" });
+    expect(harness.emailService.sendAccountLockedEmail).not.toHaveBeenCalled();
+  });
+
+  it("never lets extra metadata overwrite the recorded source", async () => {
+    const harness = createHarness("active");
+
+    await harness.service.lock(USER_ID, {
+      ...adminInput,
+      metadata: { source: "user", previousStatus: "suspended" },
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          source: "admin",
+          previousStatus: "active",
+        }),
+      }),
+    );
   });
 
   it("refuses to downgrade a suspension to a security hold", async () => {

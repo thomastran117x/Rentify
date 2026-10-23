@@ -28,6 +28,7 @@ export type EmailJobKind =
   | "posting_expiring_soon"
   | "saved_search_matches"
   | "account_locked"
+  | "account_self_locked"
   | "account_suspended"
   | "account_reinstated";
 
@@ -45,6 +46,7 @@ export type EmailJobInputByKind = {
   posting_expiring_soon: SendPostingExpiringSoonEmailInput;
   saved_search_matches: SendSavedSearchMatchesEmailInput;
   account_locked: SendAccountStatusEmailInput;
+  account_self_locked: SendAccountStatusEmailInput;
   account_suspended: SendAccountStatusEmailInput;
   account_reinstated: SendAccountStatusEmailInput;
 };
@@ -136,7 +138,11 @@ export type EmailJobPayload =
     }
   | {
       jobId: string;
-      kind: "account_locked" | "account_suspended" | "account_reinstated";
+      kind:
+        | "account_locked"
+        | "account_self_locked"
+        | "account_suspended"
+        | "account_reinstated";
       input: SendAccountStatusEmailInput;
       attempt: number;
       occurredAt: string;

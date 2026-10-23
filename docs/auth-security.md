@@ -45,7 +45,7 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 | `pat.revoked`                    | `success` |                                       | A personal access token changed from active to revoked. Repeated revoke calls write no event.                                                                                                 |
 | `rate_limit.exceeded`            | `blocked` | `rate_limited`                        | A Redis-backed `auth-sensitive` or `auth-refresh` policy returned 429. See dedupe rules below.                                                                                                |
 | `admin.audit_viewed`             | `success` |                                       | An administrator read the audit log. `user_id` is null, `actor_user_id` is the reader and `metadata` holds the filters used.                                                                  |
-| `account.locked`                 | `success` |                                       | An account was put on a security hold. `actor_user_id` is the admin, or null for the system. `metadata` is `{ "source", "previousStatus", "reason" }`; see [Account Status](#account-status). |
+| `account.locked`                 | `success` |                                       | An account was put on a security hold. `actor_user_id` is the admin, or else null. `metadata` is `{ "source", "previousStatus", "reason" }`, and more; see [Account Status](#account-status). |
 | `account.suspended`              | `success` |                                       | An account was suspended. Same `actor_user_id` and `metadata` as `account.locked`.                                                                                                            |
 | `account.reinstated`             | `success` |                                       | A locked or suspended account was set back to active, by an admin or by the user's own password reset (`metadata.source` `user`, no actor). Reinstating an active account writes nothing.     |
 
@@ -228,11 +228,33 @@ The security-hold `423` carries `details: { "reason": "security_hold", "recovery
 
 ### Recovering From a Security Hold
 
-The security-hold `423` sends the user to password reset. Once the emailed code is proven and the new password is written, `PasswordService.resetPassword` calls `AccountStatusService.liftSecurityHold`, which changes `locked` to `active` (with `source: "user"` and no actor) and nothing else, then issues the session only if the account is now active. The password is written first, so a failed write cannot reinstate a compromised account on its old password. The status is read again at that point rather than trusted from the start of the request, so an admin's suspension that lands mid-reset stands and the reset ends in `403 ACCOUNT_SUSPENDED`. The user's own suspicious-activity lock is #378.
+The security-hold `423` sends the user to password reset. Once the emailed code is proven and the new password is written, `PasswordService.resetPassword` calls `AccountStatusService.liftSecurityHold`, which changes `locked` to `active` (with `source: "user"` and no actor) and nothing else, then issues the session only if the account is now active. The password is written first, so a failed write cannot reinstate a compromised account on its old password. The status is read again at that point rather than trusted from the start of the request, so an admin's suspension that lands mid-reset stands and the reset ends in `403 ACCOUNT_SUSPENDED`. The user can also place the hold themself; see [Locking Your Own Account](#locking-your-own-account).
 
 An account with no local password (social sign-in only) cannot reset one, so only an admin can lift its hold.
 
 On the sign-in page, a security hold reads "This account is on a security hold to protect it. Reset your password to get back in." with a **Reset your password** button that opens the reset form, instead of the unlock-code panel the temporary lockout shows. A suspension reads "This account has been suspended. Contact support if you believe this is a mistake." Provider sign-in shows the same messages. A signed-in user whose account is locked or suspended has their next refresh rejected and is signed out; the reason appears when they next try to sign in.
+
+### Locking Your Own Account
+
+A user who sees activity they don't recognise can put their own account on a security hold. `SelfLockService` does it through `AccountStatusService.lock` with `source: "user"`, no actor and the reason `Reported by user`, so it ends every session and personal access token exactly like an admin's hold. There are two ways in:
+
+- **An emailed link.** `POST /auth/account/self-lock` with `{ "token": "..." }`. It is public: the real user may already have been signed out. The token is 32 random bytes, valid for 24 hours, and stored in Redis only as `auth:self-lock:<sha256 of the token>`, mapping to `{ userId, sourceEventId }`. It is consumed with `GETDEL`, so a link used twice, or by two racing requests, locks at most once. The event records `metadata.channel` `email_link` and the `sourceEventId` of the event whose email carried the link.
+- **A signed-in session.** `POST /auth/account/self-lock/session` needs the same recent `mfa-management` step-up as the Security tab, records `metadata.channel` `session`, and clears the browser's refresh and CSRF cookies.
+
+Both use the `auth-sensitive` rate limit.
+
+| Situation                                    | Result                                                                           |
+| -------------------------------------------- | -------------------------------------------------------------------------------- |
+| A valid token for an active account          | `200 { "locked": true }`; the account is locked.                                 |
+| A valid token for a locked or suspended one  | The same `200`; nothing changes, and a suspension is never downgraded to a hold. |
+| An unknown, expired or already used token    | `410 GONE`, "This link has expired or was already used."; nothing changes.       |
+| An admin's change lands mid-request          | The same `200`; the admin's change stands.                                       |
+| The session variant without a recent step-up | `401 MFA_VERIFICATION_REQUIRED`; nothing changes.                                |
+| The session variant with no local password   | `409` with `details.reason` `password_reset_unavailable`; nothing changes.       |
+
+A valid token's answer never depends on the account's state, so it cannot be used to learn whether an account is held or suspended. Only accounts that can reset a local password (a verified email and a password) can lock themselves, because that reset is the only way back in: a social-only account would otherwise be stranded behind a hold only an admin could lift.
+
+Instead of the `account_locked` notice, the user gets an `account_self_locked` email confirming the lock, with the recovery steps: reset the password from `/login?recovery=account`, choose a new one, then remove devices and tokens they don't recognise. Recovery is the ordinary reset described [above](#recovering-from-a-security-hold), so it still needs the code emailed to the address on file. Someone who controls the user's mailbox could therefore both lock and recover the account; mailbox compromise is outside this threat model.
 
 ### Changing an Account's Status
 
@@ -240,8 +262,8 @@ On the sign-in page, a security hold reads "This account is on a security hold t
 
 1. Writes the status, reason, time and actor, but only while the account is still in the status that was read. If another change got there first, nothing is written, recorded or sent, and an admin gets `409`. A lock or suspension bumps `token_version` in the same write, which ends every access and refresh token at once; their 900-second lifetime does not matter.
 2. Revokes every Redis session record for the user (best effort; the token version already ended them).
-3. Records `account.locked`, `account.suspended` or `account.reinstated` with `metadata.source` `admin`, `system` or `user`.
-4. Queues an `account_locked`, `account_suspended` or `account_reinstated` email when the status actually moved. The email explains what the status means and what to do; it never includes the reason, which may be an internal note.
+3. Records `account.locked`, `account.suspended` or `account.reinstated` with `metadata.source` `admin`, `system` or `user`, plus any extra metadata the caller passes, such as a self-lock's `channel`. The extras never replace `source`, `previousStatus` or `reason`.
+4. Queues an `account_locked`, `account_suspended` or `account_reinstated` email when the status actually moved. A hold the user placed themself queues `account_self_locked` instead. The email explains what the status means and what to do; it never includes the reason, which may be an internal note.
 
 The audit write and email are best effort, like the rest of the auth audit log, so a failure is logged and never undoes a committed change.
 

@@ -119,8 +119,24 @@ cannot change their own status (`403`).
 A locked account's sign-in returns `423 ACCOUNT_LOCKED` with
 `details.reason` `security_hold`, and a suspended one `403 ACCOUNT_SUSPENDED`.
 
-See [auth-security.md](./auth-security.md#investigating-sign-in-activity) and
-[Account Status](./auth-security.md#account-status).
+Users can put their own account on a security hold ("This wasn't me"). Both
+endpoints use the `auth-sensitive` rate limit, record `account.locked` with
+`metadata.source` `user`, and queue an `account_self_locked` confirmation email.
+A password reset lifts the hold.
+
+- `POST /auth/account/self-lock` is public and takes `{ "token": "..." }`, a
+  single-use token from an emailed link that lasts 24 hours. A valid token
+  always returns `200` with `{ "locked": true }`, even when the account was
+  already locked or suspended (neither changes). An unknown, expired or used
+  token returns `410 GONE`.
+- `POST /auth/account/self-lock/session` locks the signed-in caller's account.
+  It needs a recent MFA step-up (`mfa-management` scope) and clears the
+  browser's session cookies. An account with no local password to reset gets
+  `409` with `details.reason` `password_reset_unavailable`.
+
+See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
+[Account Status](./auth-security.md#account-status) and
+[Locking Your Own Account](./auth-security.md#locking-your-own-account).
 
 ## Realtime Surfaces
 
