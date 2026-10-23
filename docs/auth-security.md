@@ -243,6 +243,8 @@ A user who sees activity they don't recognise can put their own account on a sec
 
 Both use the `auth-sensitive` rate limit.
 
+The link opens `/auth/self-lock` ([page.tsx](../frontend/src/app/auth/self-lock/page.tsx), [self-lock-card.tsx](../frontend/src/components/auth/self-lock-card.tsx)). Opening it changes nothing: email link scanners and browser prefetchers issue only `GET` requests, and the token is posted only when the user clicks **Lock my account** (relabelled "Locking..." and disabled while the request runs; **Cancel** returns to sign in). Success shows "Your account is locked" with the recovery steps and a **Reset your password** button to `/login?recovery=account`, and clears any session the browser still holds. A `410`, or a link with no token, shows "This link has expired" and says nothing was changed. Any other failure keeps the confirmation with an inline error so the user can try again. `/auth/self-lock?status=locked` shows the success state without a token; the signed-in variant lands there.
+
 | Situation                                    | Result                                                                           |
 | -------------------------------------------- | -------------------------------------------------------------------------------- |
 | A valid token for an active account          | `200 { "locked": true }`; the account is locked.                                 |
