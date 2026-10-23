@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordForm } from "./forgot-password-form";
@@ -308,6 +308,20 @@ describe("ForgotPasswordForm", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
     expect(resetPasswordMock).not.toHaveBeenCalled();
+
+    const requirements = screen.getByRole("list", {
+      name: "Password requirements",
+    });
+    expect(
+      within(requirements).getByText("At least 8 characters").closest("li"),
+    ).toHaveAttribute("data-state", "unmet");
+    expect(
+      within(requirements).getByText("A lowercase letter").closest("li"),
+    ).toHaveAttribute("data-state", "met");
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "forgot-password-new-password-error forgot-password-new-password-requirements",
+    );
   });
 
   it("requires both password fields when they are empty", async () => {

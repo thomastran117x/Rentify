@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiClientError } from "@/lib/auth/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +101,43 @@ describe("HomePasswordPanel", () => {
       ),
     ).toBeInTheDocument();
     expect(changePasswordMock).not.toHaveBeenCalled();
+
+    const requirements = screen.getByRole("list", {
+      name: "Password requirements",
+    });
+    expect(
+      within(requirements).getByText("A special character").closest("li"),
+    ).toHaveAttribute("data-state", "unmet");
+    expect(
+      within(requirements).getByText("At least 8 characters").closest("li"),
+    ).toHaveAttribute("data-state", "met");
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "home-new-password-error home-new-password-requirements",
+    );
+  });
+
+  it("shows the password requirements under the new password field", async () => {
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    const requirements = screen.getByRole("list", {
+      name: "Password requirements",
+    });
+    expect(
+      within(requirements)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
+    ).toEqual(Array(5).fill("pending"));
+
+    await user.type(screen.getByLabelText("New password"), "Abcdefg1!");
+
+    expect(
+      within(requirements)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
+    ).toEqual(Array(5).fill("met"));
   });
 
   it("rejects a password the backend's unsafe-input rule would refuse", async () => {

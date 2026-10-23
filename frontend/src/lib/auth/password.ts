@@ -18,13 +18,48 @@ export function containsUnsafeAuthInput(value: string): boolean {
   return UNSAFE_AUTH_INPUT_PATTERN.test(value);
 }
 
+export interface PasswordRequirement {
+  id: "length" | "uppercase" | "lowercase" | "number" | "special";
+  label: string;
+  test: (password: string) => boolean;
+}
+
+/**
+ * The character rules `isStrongPassword` enforces, one per checklist row. The
+ * unsafe-input rule is deliberately absent: it is a rejection, not something a
+ * user works towards, so it surfaces only as an error message.
+ */
+export const PASSWORD_REQUIREMENTS: readonly PasswordRequirement[] = [
+  {
+    id: "length",
+    label: "At least 8 characters",
+    test: (password) => password.length >= 8,
+  },
+  {
+    id: "uppercase",
+    label: "An uppercase letter",
+    test: (password) => /[A-Z]/.test(password),
+  },
+  {
+    id: "lowercase",
+    label: "A lowercase letter",
+    test: (password) => /[a-z]/.test(password),
+  },
+  {
+    id: "number",
+    label: "A number",
+    test: (password) => /\d/.test(password),
+  },
+  {
+    id: "special",
+    label: "A special character",
+    test: (password) => /[^A-Za-z0-9]/.test(password),
+  },
+];
+
 export function isStrongPassword(password: string): boolean {
-  return (
-    password.length >= 8 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /\d/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
+  return PASSWORD_REQUIREMENTS.every((requirement) =>
+    requirement.test(password),
   );
 }
 

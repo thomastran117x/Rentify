@@ -382,6 +382,41 @@ describe("SignupForm", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+
+    // The checklist outlives the error and points at what is still missing.
+    const requirements = screen.getByRole("list", {
+      name: "Password requirements",
+    });
+    expect(
+      within(requirements).getByText("An uppercase letter").closest("li"),
+    ).toHaveAttribute("data-state", "unmet");
+    expect(
+      within(requirements).getByText("A number").closest("li"),
+    ).toHaveAttribute("data-state", "met");
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "aria-describedby",
+      "signup-password-error signup-password-requirements",
+    );
+  });
+
+  it("ticks off password requirements as the user types", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    const requirements = screen.getByRole("list", {
+      name: "Password requirements",
+    });
+    const lowercaseRow = within(requirements)
+      .getByText("A lowercase letter")
+      .closest("li");
+    expect(lowercaseRow).toHaveAttribute("data-state", "pending");
+
+    await user.type(screen.getByLabelText("Password"), "abc");
+
+    expect(lowercaseRow).toHaveAttribute("data-state", "met");
+    expect(
+      within(requirements).getByText("At least 8 characters").closest("li"),
+    ).toHaveAttribute("data-state", "pending");
   });
 
   it("submits the account step when Enter is pressed on the first step", async () => {
