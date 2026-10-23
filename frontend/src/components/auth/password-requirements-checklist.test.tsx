@@ -31,7 +31,10 @@ describe("PasswordRequirementsChecklist", () => {
 
   it("ticks off only the requirements the password meets", () => {
     render(
-      <PasswordRequirementsChecklist id="requirements" password="password123" />,
+      <PasswordRequirementsChecklist
+        id="requirements"
+        password="password123"
+      />,
     );
 
     expect(rowStates()).toEqual({

@@ -126,17 +126,17 @@ describe("HomePasswordPanel", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getAllByRole("listitem").map((item) =>
-        item.getAttribute("data-state"),
-      ),
+      within(requirements)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
     ).toEqual(Array(5).fill("pending"));
 
     await user.type(screen.getByLabelText("New password"), "Abcdefg1!");
 
     expect(
-      within(requirements).getAllByRole("listitem").map((item) =>
-        item.getAttribute("data-state"),
-      ),
+      within(requirements)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
     ).toEqual(Array(5).fill("met"));
   });
 
