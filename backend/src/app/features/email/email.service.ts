@@ -42,6 +42,8 @@ export interface SendNewDeviceEmailInput {
   platform?: string;
   userAgent?: string;
   detectedAt?: Date;
+  /** Adds a "This wasn't you? Lock your account" link when present. */
+  selfLockToken?: string;
 }
 
 /**

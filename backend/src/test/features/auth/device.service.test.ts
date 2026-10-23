@@ -11,6 +11,7 @@ const KNOWN_DEVICE_2_ID = testUuid(9000, 135265);
 
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
+const BCRYPT_HASH = `$2b$10$${"a".repeat(53)}`;
 
 function createUser(): AuthUserRecord {
   return {
@@ -116,6 +117,7 @@ function createService(overrides?: {
     detectedAt: Date;
   }) => Promise<void>;
   unknownDeviceAlertCooldownInSeconds?: number;
+  issueSelfLockToken?: () => Promise<string>;
 }) {
   const deviceRepository = {
     findKnownDevice: jest.fn(overrides?.findKnownDevice ?? (async () => null)),
@@ -166,11 +168,15 @@ function createService(overrides?: {
     ),
   };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+  const selfLockTokenStore = {
+    issue: jest.fn(overrides?.issueSelfLockToken ?? (async () => "lock-token")),
+  };
   const service = new DeviceService({
     deviceRepository: deviceRepository as any,
     emailService: emailService as any,
     cache: cache as any,
     authAuditService: authAuditService as any,
+    selfLockTokenStore: selfLockTokenStore as any,
     unknownDeviceAlertCooldownInSeconds:
       overrides?.unknownDeviceAlertCooldownInSeconds,
   });
@@ -181,6 +187,7 @@ function createService(overrides?: {
     emailService,
     cache,
     authAuditService,
+    selfLockTokenStore,
   };
 }
 
@@ -362,6 +369,7 @@ describe("DeviceService", () => {
       detectedAt: expect.any(Date),
     });
     expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: expect.any(String),
       eventType: "device.new_detected",
       outcome: "success",
       userId: USER_1_ID,
@@ -372,6 +380,65 @@ describe("DeviceService", () => {
       },
       metadata: { emailNotification: "sent" },
     });
+  });
+
+  it("puts a self-lock link naming the alert's event in the email of an account that can reset", async () => {
+    const { service, emailService, authAuditService, selfLockTokenStore } =
+      createService();
+
+    await service.evaluateSuccessfulAuthentication(
+      { ...createUser(), passwordHash: BCRYPT_HASH },
+      createClient(),
+      "new-device",
+    );
+
+    const eventId = (
+      authAuditService.recordSafely.mock.calls[0] as unknown as [{ id: string }]
+    )[0].id;
+    expect(eventId).toEqual(expect.any(String));
+    expect(selfLockTokenStore.issue).toHaveBeenCalledWith({
+      userId: USER_1_ID,
+      sourceEventId: eventId,
+    });
+    expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ selfLockToken: "lock-token" }),
+    );
+  });
+
+  it("offers no self-lock link to an account with no password to reset", async () => {
+    const { service, emailService, selfLockTokenStore } = createService();
+
+    await service.evaluateSuccessfulAuthentication(
+      { ...createUser(), passwordHash: undefined },
+      createClient(),
+      "new-device",
+    );
+
+    expect(selfLockTokenStore.issue).not.toHaveBeenCalled();
+    expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
+      expect.not.objectContaining({ selfLockToken: expect.anything() }),
+    );
+  });
+
+  it("still sends the alert, without the link, when the token cannot be issued", async () => {
+    const { service, emailService, authAuditService } = createService({
+      issueSelfLockToken: async () => {
+        throw new Error("redis down");
+      },
+    });
+
+    await service.evaluateSuccessfulAuthentication(
+      { ...createUser(), passwordHash: BCRYPT_HASH },
+      createClient(),
+      "new-device",
+    );
+
+    expect(emailService.sendNewDeviceEmail).toHaveBeenCalledWith(
+      expect.not.objectContaining({ selfLockToken: expect.anything() }),
+    );
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { emailNotification: "sent" } }),
+    );
   });
 
   it("does not auto-register unseen devices during existing-session evaluation", async () => {

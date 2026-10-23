@@ -47,6 +47,24 @@ describe("AuthAuditRepository", () => {
     });
   });
 
+  it("keeps an id the caller chose up front", async () => {
+    const create = jest.fn(async (_args: { data: Record<string, unknown> }) => {
+      return undefined;
+    });
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { create },
+    } as any);
+    const id = testUuid(9000, 378401);
+
+    await repository.create({
+      id,
+      eventType: "device.new_detected",
+      outcome: "success",
+    });
+
+    expect(create.mock.calls[0]![0].data).toMatchObject({ id });
+  });
+
   it("stores nulls for absent fields and cuts client values to column width", async () => {
     const create = jest.fn(async (_args: { data: Record<string, unknown> }) => {
       return undefined;

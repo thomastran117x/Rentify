@@ -93,7 +93,7 @@ export class AuthAuditRepository extends BaseRepository {
       () =>
         this.prisma.authAuditEvent.create({
           data: {
-            id: newUuid(),
+            id: input.id ?? newUuid(),
             userId: input.userId ?? null,
             actorUserId: input.actorUserId ?? null,
             eventType: input.eventType,

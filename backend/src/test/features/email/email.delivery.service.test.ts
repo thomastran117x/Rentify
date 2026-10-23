@@ -263,6 +263,40 @@ describe("EmailDeliveryService", () => {
     );
   });
 
+  it("adds an encoded self-lock link to the new-device email only when it has a token", async () => {
+    const transporter = createTransporterMock();
+    transporter.sendMail.mockResolvedValue(undefined);
+    const service = createService(transporter, {
+      appBaseUrl: "https://app.example.com/",
+    });
+
+    await service.sendNewDeviceEmail({
+      to: "user@example.com",
+      selfLockToken: "abc+/=&<x>",
+    });
+    await service.sendNewDeviceEmail({ to: "user@example.com" });
+
+    const withLink = transporter.sendMail.mock.calls[0]![0] as {
+      text: string;
+      html: string;
+    };
+    const url =
+      "https://app.example.com/auth/self-lock?token=abc%2B%2F%3D%26%3Cx%3E";
+    expect(withLink.text).toContain(`Lock your account now`);
+    expect(withLink.text).toContain(url);
+    expect(withLink.html).toContain(`href="${url}"`);
+    expect(withLink.html).toContain("Lock your account &rarr;");
+    expect(withLink.html).not.toContain("<x>");
+
+    const withoutLink = transporter.sendMail.mock.calls[1]![0] as {
+      text: string;
+      html: string;
+    };
+    expect(withoutLink.text).not.toContain("self-lock");
+    expect(withoutLink.html).not.toContain("self-lock");
+    expect(withoutLink.html).toContain("Go to account security");
+  });
+
   it("renders new-device and organization-invite emails with optional details and encoded URLs", async () => {
     const transporter = createTransporterMock();
     transporter.sendMail.mockResolvedValue(undefined);

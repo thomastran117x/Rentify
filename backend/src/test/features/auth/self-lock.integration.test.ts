@@ -288,6 +288,43 @@ describe("Self-lock (POST /auth/account/self-lock[/session]) integration", () =>
     });
   });
 
+  describe("from the new-device email", () => {
+    it("carries a link whose token locks the account and names the alert's event", async () => {
+      // With no registered devices, this sign-in is from an unknown device
+      // and IP, which is what sends the alert.
+      await persistenceApp.prisma.device.deleteMany({
+        where: { userId: renterId },
+      });
+
+      expect((await login()).status).toBe(200);
+
+      const alert = await waitForRabbitMqPayload<EmailJobPayload>(
+        persistenceApp.infra.rabbitMq,
+        "email.delivery.main",
+        (payload) =>
+          payload.kind === "new_device" && payload.input.to === RENTER_EMAIL,
+      );
+      const token =
+        alert.kind === "new_device" ? alert.input.selfLockToken : undefined;
+      expect(token).toEqual(expect.any(String));
+      const [detected] = await persistenceApp.prisma.authAuditEvent.findMany({
+        where: { eventType: "device.new_detected", userId: renterId },
+      });
+
+      expect((await lockWithToken(token)).status).toBe(200);
+
+      expect(await statusOf(renterId)).toBe("locked");
+      expect(await lockEvents()).toEqual([
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            channel: "email_link",
+            sourceEventId: detected!.id,
+          }),
+        }),
+      ]);
+    });
+  });
+
   describe("from a signed-in session", () => {
     it("requires a recent step-up, then locks and clears the session cookies", async () => {
       const owner = await createAuthenticatedRequestContext({
