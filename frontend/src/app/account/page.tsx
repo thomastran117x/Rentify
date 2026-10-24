@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
@@ -119,6 +120,7 @@ export function deviceLabel(device: KnownDeviceRecord): string {
 }
 
 export default function AccountPage() {
+  const router = useRouter();
   const { status, session } = useAuth();
 
   // Tab state
@@ -475,8 +477,9 @@ export default function AccountPage() {
     }
   }
 
-  // "This wasn't me" in Security activity lands here until self-lock (#378)
-  // exists: changing the password is the strongest step a user can take now.
+  // "This wasn't me" in Security activity lands here when the account has no
+  // password to reset and so cannot be locked: setting one is the strongest
+  // step the user can take.
   function focusPasswordSection() {
     const section = document.getElementById("account-password");
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1125,6 +1128,11 @@ export default function AccountPage() {
 
             <SecurityActivityPanel
               userId={session.user.id}
+              // The lock ended this session too; the confirmation page clears
+              // what the browser still holds and explains how to get back in.
+              onAccountLocked={() =>
+                router.replace("/auth/self-lock?status=locked")
+              }
               onReportActivity={focusPasswordSection}
               onVerificationRequired={() => {
                 setSecurityVerificationExpired(true);

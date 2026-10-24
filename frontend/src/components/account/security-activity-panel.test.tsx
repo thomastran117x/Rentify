@@ -18,10 +18,17 @@ import type {
   SecurityActivityList,
 } from "@/lib/security-activity/types";
 
-const { listMineMock } = vi.hoisted(() => ({ listMineMock: vi.fn() }));
+const { listMineMock, lockCurrentSessionMock } = vi.hoisted(() => ({
+  listMineMock: vi.fn(),
+  lockCurrentSessionMock: vi.fn(),
+}));
 
 vi.mock("@/lib/security-activity/api", () => ({
   securityActivityApi: { listMine: listMineMock },
+}));
+
+vi.mock("@/lib/auth/self-lock-api", () => ({
+  selfLockApi: { lockCurrentSession: lockCurrentSessionMock },
 }));
 
 const { SecurityActivityPanel } = await import(
@@ -71,6 +78,7 @@ function rows() {
 describe("SecurityActivityPanel", () => {
   beforeEach(() => {
     listMineMock.mockReset();
+    lockCurrentSessionMock.mockReset();
     clearActivityCache();
     vi.restoreAllMocks();
   });
@@ -692,23 +700,143 @@ describe("SecurityActivityPanel", () => {
     });
   });
 
-  it("reports an event that was not the user and shows guidance", async () => {
-    const user = userEvent.setup();
-    const onReportActivity = vi.fn();
+  describe("This wasn't me", () => {
     const suspicious = item({
       id: "suspicious",
       outcome: "failure",
       label: "Failed sign-in: wrong password",
       current: false,
     });
-    listMineMock.mockResolvedValueOnce(page([suspicious]));
-    render(<SecurityActivityPanel onReportActivity={onReportActivity} />);
 
-    await user.click(
-      await screen.findByRole("button", { name: "This wasn't me" }),
-    );
+    function clientError(status: number, code: string) {
+      return new ApiClientError("Request failed", {
+        code,
+        status,
+        request: {
+          method: "POST",
+          path: "/auth/account/self-lock/session",
+          requestUrl: "http://localhost:8040/api/v1",
+        },
+      });
+    }
 
-    expect(onReportActivity).toHaveBeenCalledWith(suspicious);
-    expect(screen.getByText(/Change your password now/)).toBeInTheDocument();
+    async function openConfirm(
+      props: Parameters<typeof SecurityActivityPanel>[0] = {},
+    ) {
+      const user = userEvent.setup();
+      listMineMock.mockResolvedValueOnce(page([suspicious]));
+      render(<SecurityActivityPanel {...props} />);
+      await user.click(
+        await screen.findByRole("button", { name: "This wasn't me" }),
+      );
+      return {
+        user,
+        confirm: screen.getByRole("group", { name: "Lock your account" }),
+      };
+    }
+
+    it("asks before locking, and Cancel locks nothing", async () => {
+      const { user, confirm } = await openConfirm();
+
+      expect(confirm).toHaveTextContent("Lock your account?");
+      expect(confirm).toHaveTextContent("including you, is signed out");
+      expect(lockCurrentSessionMock).not.toHaveBeenCalled();
+
+      await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+      expect(
+        screen.queryByRole("group", { name: "Lock your account" }),
+      ).not.toBeInTheDocument();
+      expect(lockCurrentSessionMock).not.toHaveBeenCalled();
+    });
+
+    it("locks the account and hands off to the page", async () => {
+      const onAccountLocked = vi.fn();
+      const response = deferred<{ locked: true }>();
+      lockCurrentSessionMock.mockReturnValueOnce(response.promise);
+      const { user, confirm } = await openConfirm({ onAccountLocked });
+
+      await user.click(
+        within(confirm).getByRole("button", { name: "Lock my account" }),
+      );
+
+      expect(
+        within(confirm).getByRole("button", { name: "Locking..." }),
+      ).toBeDisabled();
+      expect(
+        within(confirm).getByRole("button", { name: "Cancel" }),
+      ).toBeDisabled();
+
+      response.resolve({ locked: true });
+
+      await waitFor(() => expect(onAccountLocked).toHaveBeenCalledTimes(1));
+    });
+
+    it("re-gates the tab when the step-up has expired", async () => {
+      const onAccountLocked = vi.fn();
+      const onVerificationRequired = vi.fn();
+      lockCurrentSessionMock.mockRejectedValueOnce(
+        clientError(401, "MFA_VERIFICATION_REQUIRED"),
+      );
+      const { user, confirm } = await openConfirm({
+        onAccountLocked,
+        onVerificationRequired,
+      });
+
+      await user.click(
+        within(confirm).getByRole("button", { name: "Lock my account" }),
+      );
+
+      await waitFor(() =>
+        expect(onVerificationRequired).toHaveBeenCalledTimes(1),
+      );
+      expect(onAccountLocked).not.toHaveBeenCalled();
+    });
+
+    it("falls back to password advice for an account that cannot be locked", async () => {
+      const onReportActivity = vi.fn();
+      lockCurrentSessionMock.mockRejectedValueOnce(
+        clientError(409, "CONFLICT"),
+      );
+      const { user, confirm } = await openConfirm({ onReportActivity });
+
+      await user.click(
+        within(confirm).getByRole("button", { name: "Lock my account" }),
+      );
+
+      expect(
+        await screen.findByText(/has no password to reset/),
+      ).toBeInTheDocument();
+      expect(onReportActivity).toHaveBeenCalledWith(suspicious);
+      expect(
+        screen.queryByRole("group", { name: "Lock your account" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the confirmation with an error when the lock fails", async () => {
+      const onAccountLocked = vi.fn();
+      lockCurrentSessionMock.mockRejectedValueOnce(
+        new ApiServerError("Server error", {
+          code: "INTERNAL_SERVER_ERROR",
+          status: 500,
+          request: {
+            method: "POST",
+            path: "/auth/account/self-lock/session",
+            requestUrl: "http://localhost:8040/api/v1",
+          },
+        }),
+      );
+      const { user, confirm } = await openConfirm({ onAccountLocked });
+
+      await user.click(
+        within(confirm).getByRole("button", { name: "Lock my account" }),
+      );
+
+      expect(await within(confirm).findByRole("alert")).toBeInTheDocument();
+      expect(
+        within(confirm).getByRole("button", { name: "Lock my account" }),
+      ).toBeEnabled();
+      expect(onAccountLocked).not.toHaveBeenCalled();
+    });
   });
 });
