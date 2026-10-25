@@ -84,7 +84,8 @@ describe("SelfLockCard", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Reset your password with the code we email you.",
     );
-    await waitFor(() => expect(clearSessionMock).toHaveBeenCalled());
+    // The browser may hold another account's session, which the lock leaves alone.
+    expect(clearSessionMock).not.toHaveBeenCalled();
   });
 
   it("shows the expired state for a spent or expired link", async () => {

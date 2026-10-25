@@ -39,12 +39,15 @@ export function SelfLockCard({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Every session has ended, so whatever this browser still holds is dead.
+  // The signed-in variant ended this browser's own session, so drop it. An
+  // emailed link may be opened in a browser signed in to another account,
+  // which the lock does not touch; a session of the locked account fails its
+  // next refresh and signs out on its own.
   useEffect(() => {
-    if (view === "locked") {
+    if (alreadyLocked) {
       clearSession();
     }
-  }, [clearSession, view]);
+  }, [alreadyLocked, clearSession]);
 
   async function handleLock() {
     if (!token) {
