@@ -10,6 +10,7 @@ import {
   SELF_LOCK_REASON,
   type SelfLockChannel,
   type SelfLockResult,
+  type SelfLockTokenPayload,
 } from "@/features/auth/self-lock/self-lock.model";
 import type { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
@@ -38,37 +39,29 @@ export class SelfLockService {
    * one generic `410`. A valid link always answers the same way, whatever the
    * account's state, so it never reveals whether the account was already held
    * or suspended; neither of those changes.
+   *
+   * The link is spent once it has been acted on, including when there was
+   * nothing to change. An unexpected failure, such as a database outage, puts
+   * it back so the user can retry with the same link.
    */
   async lockWithToken(
     token: string,
     context?: AuthAuditContext,
   ): Promise<SelfLockResult> {
-    const payload = await this.selfLockTokenStore.consume(token);
+    const payload = await this.selfLockTokenStore.claim(token);
 
     if (!payload) {
       throw new GoneError(SELF_LOCK_LINK_EXPIRED_MESSAGE);
     }
 
-    const userId = asUuid(payload.userId);
-    const user = await this.usersRepository.findUserById(userId);
-
-    if (!user || user.status !== "active") {
-      return LOCKED;
-    }
-
     try {
-      await this.lock(userId, "email_link", context, payload.sourceEventId);
+      await this.lockClaimedAccount(asUuid(payload.userId), payload, context);
     } catch (error) {
-      // An admin's change landed between the read and the write. Whatever it
-      // was, it is at least as strict as a hold, so there is nothing to undo.
-      if (!(error instanceof ConflictError)) {
-        throw error;
-      }
-
-      this.logger.info("Self-lock skipped: the account status changed.", {
-        userId,
-      });
+      await this.releaseToken(token);
+      throw error;
     }
+
+    await this.selfLockTokenStore.complete(token);
 
     return LOCKED;
   }
@@ -90,6 +83,41 @@ export class SelfLockService {
     await this.lock(userId, "session", context);
 
     return LOCKED;
+  }
+
+  private async lockClaimedAccount(
+    userId: Uuid,
+    payload: SelfLockTokenPayload,
+    context: AuthAuditContext | undefined,
+  ): Promise<void> {
+    const user = await this.usersRepository.findUserById(userId);
+
+    if (!user || user.status !== "active") {
+      return;
+    }
+
+    try {
+      await this.lock(userId, "email_link", context, payload.sourceEventId);
+    } catch (error) {
+      // An admin's change landed between the read and the write. Whatever it
+      // was, it is at least as strict as a hold, so there is nothing to undo.
+      if (!(error instanceof ConflictError)) {
+        throw error;
+      }
+
+      this.logger.info("Self-lock skipped: the account status changed.", {
+        userId,
+      });
+    }
+  }
+
+  /** Best effort: the original failure is the one worth reporting. */
+  private async releaseToken(token: string): Promise<void> {
+    try {
+      await this.selfLockTokenStore.release(token);
+    } catch (error) {
+      this.logger.error("Failed to release a self-lock token.", { error });
+    }
   }
 
   private async lock(

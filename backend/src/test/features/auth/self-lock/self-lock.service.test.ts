@@ -34,10 +34,12 @@ function createUser(
 
 function createHarness(user: AuthUserRecord | null = createUser("active")) {
   const selfLockTokenStore = {
-    consume: jest.fn(async () => ({
+    claim: jest.fn(async () => ({
       userId: USER_ID,
       sourceEventId: EVENT_ID,
     })),
+    complete: jest.fn(async () => undefined),
+    release: jest.fn(async () => undefined),
   };
   const usersRepository = {
     findUserById: jest.fn(async () => user),
@@ -66,7 +68,7 @@ describe("SelfLockService.lockWithToken", () => {
       harness.service.lockWithToken("token-1", CONTEXT),
     ).resolves.toEqual({ locked: true });
 
-    expect(harness.selfLockTokenStore.consume).toHaveBeenCalledWith("token-1");
+    expect(harness.selfLockTokenStore.claim).toHaveBeenCalledWith("token-1");
     expect(harness.accountStatusService.lock).toHaveBeenCalledWith(USER_ID, {
       reason: "Reported by user",
       source: "user",
@@ -74,11 +76,13 @@ describe("SelfLockService.lockWithToken", () => {
       context: CONTEXT,
       metadata: { channel: "email_link", sourceEventId: EVENT_ID },
     });
+    expect(harness.selfLockTokenStore.complete).toHaveBeenCalledWith("token-1");
+    expect(harness.selfLockTokenStore.release).not.toHaveBeenCalled();
   });
 
   it("answers a spent, expired or unknown token with one generic 410", async () => {
     const harness = createHarness();
-    harness.selfLockTokenStore.consume.mockResolvedValueOnce(null as never);
+    harness.selfLockTokenStore.claim.mockResolvedValueOnce(null as never);
 
     const attempt = harness.service.lockWithToken("token-1");
 
@@ -88,10 +92,11 @@ describe("SelfLockService.lockWithToken", () => {
     );
     expect(harness.usersRepository.findUserById).not.toHaveBeenCalled();
     expect(harness.accountStatusService.lock).not.toHaveBeenCalled();
+    expect(harness.selfLockTokenStore.complete).not.toHaveBeenCalled();
   });
 
   it.each(["locked", "suspended"] as const)(
-    "leaves a %s account unchanged and answers as if it locked",
+    "leaves a %s account unchanged, answers as if it locked and spends the link",
     async (status) => {
       const harness = createHarness(createUser(status));
 
@@ -99,6 +104,9 @@ describe("SelfLockService.lockWithToken", () => {
         locked: true,
       });
       expect(harness.accountStatusService.lock).not.toHaveBeenCalled();
+      expect(harness.selfLockTokenStore.complete).toHaveBeenCalledWith(
+        "token-1",
+      );
     },
   );
 
@@ -120,9 +128,10 @@ describe("SelfLockService.lockWithToken", () => {
     await expect(harness.service.lockWithToken("token-1")).resolves.toEqual({
       locked: true,
     });
+    expect(harness.selfLockTokenStore.complete).toHaveBeenCalledWith("token-1");
   });
 
-  it("does not swallow other failures", async () => {
+  it("puts the link back when the lock fails unexpectedly, so a retry can use it", async () => {
     const harness = createHarness();
     harness.accountStatusService.lock.mockRejectedValueOnce(
       new ResourceNotFoundError("User not found."),
@@ -131,6 +140,34 @@ describe("SelfLockService.lockWithToken", () => {
     await expect(
       harness.service.lockWithToken("token-1"),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
+    expect(harness.selfLockTokenStore.release).toHaveBeenCalledWith("token-1");
+    expect(harness.selfLockTokenStore.complete).not.toHaveBeenCalled();
+  });
+
+  it("puts the link back when the account cannot be read", async () => {
+    const harness = createHarness();
+    harness.usersRepository.findUserById.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+
+    await expect(harness.service.lockWithToken("token-1")).rejects.toThrow(
+      "database unavailable",
+    );
+    expect(harness.selfLockTokenStore.release).toHaveBeenCalledWith("token-1");
+  });
+
+  it("reports the original failure even when the link cannot be put back", async () => {
+    const harness = createHarness();
+    harness.accountStatusService.lock.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+    harness.selfLockTokenStore.release.mockRejectedValueOnce(
+      new Error("redis unavailable"),
+    );
+
+    await expect(harness.service.lockWithToken("token-1")).rejects.toThrow(
+      "database unavailable",
+    );
   });
 });
 

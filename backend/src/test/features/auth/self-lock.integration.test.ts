@@ -5,7 +5,11 @@ import { asUuid } from "@/configuration/validation/uuid";
 import type { CacheService } from "@/features/cache/cache.service";
 import { LOCAL_PASSWORD_RESET_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import type { OtpService } from "@/features/auth/otp/otp.service";
-import { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
+import {
+  hashSelfLockToken,
+  SelfLockTokenStore,
+} from "@/features/auth/self-lock/self-lock-token.store";
+import { getRedisClient } from "@/configuration/resources/redis";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import {
   createAuthenticatedRequestContext,
@@ -223,6 +227,31 @@ describe("Self-lock (POST /auth/account/self-lock[/session]) integration", () =>
 
       expect(response.status).toBe(410);
       expect(await statusOf(renterId)).toBe("active");
+    });
+
+    it("claims a token once in Redis, and a released one keeps its expiry and works again", async () => {
+      const store = tokenStore(600);
+      const token = await store.issue({
+        userId: asUuid(renterId),
+        sourceEventId: SOURCE_EVENT_ID,
+      });
+      const key = `auth:self-lock:${hashSelfLockToken(token)}`;
+      const claimedKey = `auth:self-lock:claimed:${hashSelfLockToken(token)}`;
+
+      const [first, second] = await Promise.all([
+        store.claim(token),
+        store.claim(token),
+      ]);
+      expect([first, second].filter(Boolean)).toHaveLength(1);
+      expect(await getRedisClient().ttl(claimedKey)).toBeGreaterThan(590);
+
+      await store.release(token);
+
+      expect(await getRedisClient().exists(claimedKey)).toBe(0);
+      expect(await getRedisClient().ttl(key)).toBeGreaterThan(590);
+      expect((await lockWithToken(token)).status).toBe(200);
+      expect(await getRedisClient().exists(key)).toBe(0);
+      expect(await getRedisClient().exists(claimedKey)).toBe(0);
     });
 
     it("answers an unknown token the same way", async () => {
