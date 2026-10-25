@@ -5,10 +5,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError, ApiNetworkError } from "@/lib/api/types";
 import { SelfLockCard } from "./self-lock-card";
 
-const { clearSessionMock, lockWithTokenMock } = vi.hoisted(() => ({
+const {
+  authState,
+  clearSessionMock,
+  lockWithTokenMock,
+  refreshMock,
+  logoutMock,
+} = vi.hoisted(() => ({
+  authState: {
+    status: "anonymous" as "anonymous" | "authenticated",
+    session: null as { user: { email: string } } | null,
+  },
   clearSessionMock: vi.fn(),
   lockWithTokenMock: vi.fn(),
+  refreshMock: vi.fn(),
+  logoutMock: vi.fn(),
 }));
+
+function signOutLocally() {
+  authState.status = "anonymous";
+  authState.session = null;
+}
 
 vi.mock("next/link", () => ({
   default: ({
@@ -23,7 +40,11 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
-  useAuth: () => ({ clearSession: clearSessionMock }),
+  useAuth: () => ({ ...authState, clearSession: clearSessionMock }),
+}));
+
+vi.mock("@/lib/auth/api", () => ({
+  authApi: { refresh: refreshMock, logout: logoutMock },
 }));
 
 vi.mock("@/lib/auth/self-lock-api", () => ({
@@ -39,6 +60,8 @@ const request = {
 describe("SelfLockCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signOutLocally();
+    clearSessionMock.mockImplementation(signOutLocally);
   });
 
   it("asks for confirmation and locks nothing on its own", () => {
@@ -86,6 +109,69 @@ describe("SelfLockCard", () => {
     );
     // The browser may hold another account's session, which the lock leaves alone.
     expect(clearSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("signs out a browser that was signed in to the locked account, so the reset is reachable", async () => {
+    const user = userEvent.setup();
+    authState.status = "authenticated";
+    authState.session = { user: { email: "owner1@rentify.local" } };
+    lockWithTokenMock.mockResolvedValue({ locked: true });
+    // The lock bumped the token version, so the refresh fails and the client
+    // drops the stored session.
+    refreshMock.mockImplementation(async () => {
+      signOutLocally();
+      return null;
+    });
+    render(<SelfLockCard token="token-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Lock my account" }));
+
+    expect(
+      await screen.findByRole("link", { name: "Reset your password" }),
+    ).toHaveAttribute("href", "/login?recovery=account");
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(logoutMock).not.toHaveBeenCalled();
+  });
+
+  it("asks a browser signed in to another account to sign out before resetting", async () => {
+    const user = userEvent.setup();
+    authState.status = "authenticated";
+    authState.session = { user: { email: "user2@rentify.local" } };
+    lockWithTokenMock.mockResolvedValue({ locked: true });
+    refreshMock.mockResolvedValue({ user: { email: "user2@rentify.local" } });
+    logoutMock.mockResolvedValue({ loggedOut: true });
+    render(<SelfLockCard token="token-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Lock my account" }));
+
+    expect(
+      await screen.findByText(/signed in as user2@rentify.local/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Reset your password" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    expect(clearSessionMock).toHaveBeenCalled();
+    expect(
+      await screen.findByRole("link", { name: "Reset your password" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still signs out locally when the sign-out request fails", async () => {
+    const user = userEvent.setup();
+    authState.status = "authenticated";
+    authState.session = { user: { email: "user2@rentify.local" } };
+    logoutMock.mockRejectedValue(new Error("offline"));
+    render(<SelfLockCard token={null} />);
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(
+      await screen.findByRole("link", { name: "Reset your password" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the expired state for a spent or expired link", async () => {
