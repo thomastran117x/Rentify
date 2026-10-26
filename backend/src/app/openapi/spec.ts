@@ -9796,7 +9796,7 @@ function buildComponents(): Record<string, unknown> {
         "UNPROCESSABLE_ENTITY",
       ),
       TooManyRequests: errorResponse(
-        "Too many requests.",
+        "Too many requests. `Retry-After` gives the seconds to wait. On sign-in and other auth-sensitive routes, `error.details.reason` is `ip_blocked` when suspicious-activity detection has blocked the caller's IP address.",
         "Rate limit exceeded.",
         "TOO_MANY_REQUESTS",
       ),

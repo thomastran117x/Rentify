@@ -781,7 +781,7 @@ limits each statement, not the run. `pruneIntervalMinutes` is at most `35791`
 
 `authSecurity.detection` turns suspicious sign-in detection on and sets its
 thresholds. See
-[auth-security.md](./auth-security.md)
+[Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection)
 for what each rule watches, what it does and how to tune it. Keys below are
 under `authSecurity.detection`.
 

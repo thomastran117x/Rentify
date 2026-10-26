@@ -36,6 +36,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "account.locked",
   "account.suspended",
   "account.reinstated",
+  "security.suspicious_activity",
 ] as const;
 
 export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];

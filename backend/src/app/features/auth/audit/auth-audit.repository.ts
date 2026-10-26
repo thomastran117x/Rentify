@@ -52,6 +52,20 @@ export interface ListAuthAuditEventsForAdminInput {
   limit: number;
 }
 
+/**
+ * The events a detection rule fired on. Each lookup leads with the user or
+ * the IP address, so it is served by `(user_id, created_at)` or
+ * `(ip_address, created_at)`.
+ */
+export interface FindRecentAuthAuditEventIdsInput {
+  userId?: Uuid;
+  ipAddress?: string;
+  eventTypes: readonly string[];
+  /** Inclusive lower bound on created_at. */
+  createdFrom: Date;
+  limit: number;
+}
+
 export interface CountAuthAuditEventsForUserInput {
   userId: Uuid;
   eventTypes: readonly string[];
@@ -183,6 +197,43 @@ export class AuthAuditRepository extends BaseRepository {
     };
 
     return this.listPage(where, ADMIN_COLUMNS, input.afterId, input.limit);
+  }
+
+  /** The newest matching event ids, for a detection rule to flag. */
+  async findRecentEventIds(
+    input: FindRecentAuthAuditEventIdsInput,
+  ): Promise<string[]> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.findMany({
+        where: {
+          ...(input.userId ? { userId: input.userId } : {}),
+          ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+          eventType: { in: [...input.eventTypes] },
+          createdAt: { gte: input.createdFrom },
+        },
+        select: { id: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: input.limit,
+      }),
+    );
+
+    return rows.map((row) => row.id);
+  }
+
+  /** Marks events as flagged by suspicious-activity detection. */
+  async flagEvents(ids: readonly string[]): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    const result = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.updateMany({
+        where: { id: { in: [...ids] }, flagged: false },
+        data: { flagged: true },
+      }),
+    );
+
+    return result.count;
   }
 
   /** How many of one user's events of these types happened since a time. */

@@ -51,6 +51,7 @@ const ALL_EVENT_TYPES: AuthAuditEventType[] = [
   "account.locked",
   "account.suspended",
   "account.reinstated",
+  "security.suspicious_activity",
 ];
 
 function createRow(

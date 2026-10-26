@@ -36,6 +36,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "account.locked",
   "account.suspended",
   "account.reinstated",
+  "security.suspicious_activity",
 ] as const;
 
 export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
@@ -106,6 +107,17 @@ export interface RecordAuthAuditEventInput {
   flagged?: boolean;
 }
 
+/** An event as written, with the id it was stored under. */
+export type RecordedAuthAuditEvent = RecordAuthAuditEventInput & { id: Uuid };
+
+/**
+ * Told about each event `recordSafely` wrote. It runs after the caller has
+ * been answered, so it cannot slow or fail the request that caused the event.
+ */
+export type AuthAuditListener = (
+  event: RecordedAuthAuditEvent,
+) => Promise<void>;
+
 /**
  * The groups the account page filters security activity by. Each event type
  * belongs to at most one; a type left out of every group is shown only when
@@ -137,6 +149,7 @@ export const SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES: Record<
     "mfa.step_up_failed",
     "mfa.step_up_locked",
     "rate_limit.exceeded",
+    "security.suspicious_activity",
   ],
   security_changes: [
     "password.changed",

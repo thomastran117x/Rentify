@@ -44,6 +44,7 @@ const EVENT_TYPE_LABELS: Record<AuthAuditEventType, string> = {
   "account.locked": "Security hold placed",
   "account.suspended": "Account suspended",
   "account.reinstated": "Account reinstated",
+  "security.suspicious_activity": "Suspicious activity",
 };
 
 function isKnownEventType(value: string): value is AuthAuditEventType {
@@ -72,6 +73,7 @@ export const EVENT_TYPE_GROUPS: Array<{
       "oauth.login.failed",
       "oauth.signup.completed",
       "rate_limit.exceeded",
+      "security.suspicious_activity",
     ],
   },
   {

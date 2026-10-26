@@ -124,6 +124,8 @@ import { AccountStatusService } from "@/features/auth/account-status/account-sta
 import { SelfLockController } from "@/features/auth/self-lock/self-lock.controller";
 import { SelfLockService } from "@/features/auth/self-lock/self-lock.service";
 import { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
+import { AuthIpBlockStore } from "@/features/auth/detection/ip-block.store";
+import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious-activity.detector";
 import { AuthAuditAdminService } from "@/features/auth/audit/auth-audit-admin.service";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
@@ -452,6 +454,10 @@ export const containerTokens = {
   selfLockService: createServiceToken<SelfLockService>("SelfLockService"),
   selfLockController:
     createServiceToken<SelfLockController>("SelfLockController"),
+  authIpBlockStore: createServiceToken<AuthIpBlockStore>("AuthIpBlockStore"),
+  suspiciousActivityDetector: createServiceToken<SuspiciousActivityDetector>(
+    "SuspiciousActivityDetector",
+  ),
   loginLockoutService: createServiceToken<LoginLockoutService>(
     "LoginLockoutService",
   ),

@@ -8813,6 +8813,7 @@ paths:
                 - account.locked
                 - account.suspended
                 - account.reinstated
+                - security.suspicious_activity
           example:
             - login.failed
             - login.locked
@@ -18769,7 +18770,7 @@ components:
             meta:
               requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
     TooManyRequests:
-      description: Too many requests.
+      description: Too many requests. `Retry-After` gives the seconds to wait. On sign-in and other auth-sensitive routes, `error.details.reason` is `ip_blocked` when suspicious-activity detection has blocked the caller's IP address.
       content:
         application/json:
           schema:

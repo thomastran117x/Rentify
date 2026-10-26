@@ -56,6 +56,7 @@ const slidingWindowMemoryStore = new Map<string, number[]>();
 const tokenBucketMemoryStore = new Map<string, MemoryTokenBucketState>();
 const REDIS_FALLBACK_LOG_COOLDOWN_MS = 60_000;
 let lastRedisFallbackLogAt = 0;
+let lastIpBlockCheckFailureLogAt = 0;
 const rateLimiterLogger = loggerFactory.forComponent(
   "rate-limiter.middleware",
   "middleware",
@@ -792,6 +793,39 @@ export function resetRateLimiterMemoryFallbackForTests(): void {
   slidingWindowMemoryStore.clear();
   tokenBucketMemoryStore.clear();
   lastRedisFallbackLogAt = 0;
+  lastIpBlockCheckFailureLogAt = 0;
+}
+
+/**
+ * Seconds left on a credential-stuffing block of the caller's IP, or 0. The
+ * block is by address whoever is signed in, since the attack it answers is
+ * unauthenticated. Fails open: an unreadable block list must not lock every
+ * user out of signing in, and the window below still limits the caller.
+ */
+async function readIpBlockSeconds(request: Request): Promise<number> {
+  const ipAddress = request.client?.ip;
+
+  if (!ipAddress) {
+    return 0;
+  }
+
+  try {
+    return await getRequestContainer(request)
+      .resolve(containerTokens.authIpBlockStore)
+      .getRemainingSeconds(ipAddress);
+  } catch (error) {
+    const now = Date.now();
+
+    if (now - lastIpBlockCheckFailureLogAt >= REDIS_FALLBACK_LOG_COOLDOWN_MS) {
+      lastIpBlockCheckFailureLogAt = now;
+      rateLimiterLogger.warn(
+        "Could not read the IP block list; allowing the request.",
+        { error: error instanceof Error ? error.message : error },
+      );
+    }
+
+    return 0;
+  }
 }
 
 async function recordRateLimitExceeded(
@@ -856,6 +890,22 @@ export const rateLimiterMiddleware: RequestHandler = async (
 
   try {
     const policy = resolveRateLimitPolicy(request);
+    const blockedForSeconds =
+      policy.id === "auth-sensitive" ? await readIpBlockSeconds(request) : 0;
+
+    if (blockedForSeconds > 0) {
+      response.setHeader("x-ratelimit-policy", policy.id);
+      response.setHeader("retry-after", String(blockedForSeconds));
+      throw new TooManyRequestError(
+        "Too many requests. Please try again later.",
+        {
+          policy: policy.id,
+          reason: "ip_blocked",
+          retryAfterSeconds: blockedForSeconds,
+        },
+      );
+    }
+
     const identity = await resolveRateLimitIdentity(request);
     const key = buildRateLimitKey(policy, identity.keyPart);
     const strategy = policy.strategy;

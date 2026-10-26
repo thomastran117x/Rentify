@@ -13249,7 +13249,8 @@
                   "admin.audit_viewed",
                   "account.locked",
                   "account.suspended",
-                  "account.reinstated"
+                  "account.reinstated",
+                  "security.suspicious_activity"
                 ]
               }
             },
@@ -27573,7 +27574,7 @@
         }
       },
       "TooManyRequests": {
-        "description": "Too many requests.",
+        "description": "Too many requests. `Retry-After` gives the seconds to wait. On sign-in and other auth-sensitive routes, `error.details.reason` is `ip_blocked` when suspicious-activity detection has blocked the caller's IP address.",
         "content": {
           "application/json": {
             "schema": {

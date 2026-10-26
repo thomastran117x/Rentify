@@ -402,4 +402,69 @@ describe("AuthAuditRepository", () => {
       },
     });
   });
+
+  it("finds a detection rule's recent event ids by user or by IP", async () => {
+    const findMany = jest.fn(async () => [
+      { id: "event-2" },
+      { id: "event-1" },
+    ]);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    const since = new Date("2026-10-26T11:50:00.000Z");
+
+    await expect(
+      repository.findRecentEventIds({
+        userId: USER_1_ID,
+        eventTypes: ["login.locked"],
+        createdFrom: since,
+        limit: 50,
+      }),
+    ).resolves.toEqual(["event-2", "event-1"]);
+    await repository.findRecentEventIds({
+      ipAddress: "198.51.100.23",
+      eventTypes: ["login.failed"],
+      createdFrom: since,
+      limit: 50,
+    });
+
+    expect(findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        userId: USER_1_ID,
+        eventType: { in: ["login.locked"] },
+        createdAt: { gte: since },
+      },
+      select: { id: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 50,
+    });
+    expect(findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          ipAddress: "198.51.100.23",
+          eventType: { in: ["login.failed"] },
+          createdAt: { gte: since },
+        },
+      }),
+    );
+  });
+
+  it("flags only events not already flagged, and skips an empty list", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { updateMany },
+    } as any);
+
+    await expect(repository.flagEvents(["event-1", "event-2"])).resolves.toBe(
+      1,
+    );
+    await expect(repository.flagEvents([])).resolves.toBe(0);
+
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["event-1", "event-2"] }, flagged: false },
+      data: { flagged: true },
+    });
+  });
 });
