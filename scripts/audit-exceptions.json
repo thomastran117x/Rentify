@@ -7,6 +7,14 @@
       "reason": "No patched braces exists (every version through 3.0.3, the latest, is affected), and every micromatch and fast-glob release depends on it. It reaches the frontend only through eslint-config-next -> @next/eslint-plugin-next -> fast-glob@3.3.1 -> micromatch, which expands this repository's own glob patterns while linting. It is never part of the Next build output or the running app, and the stack exhaustion needs an attacker-controlled pattern.",
       "exitCriterion": "A patched braces is published, or @next/eslint-plugin-next stops depending on fast-glob/micromatch; then update and remove this entry.",
       "reviewBy": "2027-01-04"
+    },
+    {
+      "workspace": "backend",
+      "advisory": "GHSA-xcx6-jx8p-x3h5",
+      "package": "@azure/msal-node",
+      "reason": "The advisory covers only MSAL Node's authorization code flow (acquireTokenByCode). The backend reaches msal-node solely through @azure/identity's DefaultAzureCredential (blob storage and Content Safety), which in the containers authenticates with a client secret and never runs the auth code flow; no code calls acquireTokenByCode or AuthorizationCodeCredential. No in-range fix exists: the fix is msal-node 7.1.0, but @azure/identity 4.14.0, the latest, and its 4.15 beta both require msal-node ^6, and an override would force an undeclared major under it.",
+      "exitCriterion": "@azure/identity depends on @azure/msal-node 7.1.0 or later; then update it and remove this entry.",
+      "reviewBy": "2027-01-25"
     }
   ]
 }
