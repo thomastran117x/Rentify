@@ -528,6 +528,8 @@ const adminAuthAuditEventListExample = {
   },
 };
 
+const selfLockResultExample = { locked: true };
+
 const adminAccountStatusChangeResultExample = {
   userId: "00000000-0000-0000-1040-000000000101",
   status: "locked",
@@ -2934,6 +2936,102 @@ function buildOperations(): OperationDefinition[] {
           securityActivityListExample,
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/account/self-lock",
+      operationId: "selfLockAccount",
+      summary: "Lock my account from an emailed link",
+      description:
+        "The \"This wasn't me? Lock your account\" link in a new-device email. Consumes the single-use token, which lasts 24 hours and is not tied to a session, and puts the account on a security hold: the token version is bumped, every session and refresh token ends, personal access tokens stop working, `account.locked` is recorded with `metadata.source` `user`, `metadata.channel` `email_link` and the `sourceEventId` of the email's event, and an `account_self_locked` confirmation email explains recovery by password reset. A valid token always returns the same 200, so the response never reveals the account's state: an account that is already locked or suspended is left unchanged, and a suspension is never downgraded to a hold. An unknown, expired or already used token returns one generic 410 and changes nothing. The browser page asks for an explicit confirmation before posting, so link scanners issuing GET requests never lock anything.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("SelfLockRequest", {
+        token: "kq3H0tM2y0vJ8nE6c1t1oQ5mQ0b4Yx2b8yYp0kZt7aU",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Your account is locked. Reset your password to get back in.",
+          "SelfLockResult",
+          selfLockResultExample,
+        ),
+        ...commonErrors([400, 403, 429, 500]),
+        "410": errorResponseExamples(
+          "The link is unknown, expired or already used.",
+          {
+            linkExpired: {
+              summary: "The token cannot be used.",
+              message: "This link has expired or was already used.",
+              code: "GONE",
+            },
+          },
+        ),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/account/self-lock/session",
+      operationId: "selfLockCurrentSession",
+      summary: "Lock my account from a signed-in session",
+      description:
+        "The \"This wasn't me\" action on the account page's security activity. Puts the caller's account on a security hold exactly as `POST /auth/account/self-lock` does, recorded with `metadata.channel` `session`, ends every session including this one, and clears the browser's refresh and CSRF cookies. Requires a signed-in session with a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise); PAT authentication is rejected. Only an account that can reset a local password can lock itself this way; an account that signs in only through a provider gets 409 with `details.reason` `password_reset_unavailable` and nothing changes.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Your account is locked. Reset your password to get back in.",
+          "SelfLockResult",
+          selfLockResultExample,
+        ),
+        ...commonErrors([401, 403, 409, 429, 500]),
+        "401": errorResponseExamples(
+          "Not signed in, or the session needs a recent MFA step-up.",
+          {
+            unauthorized: {
+              summary: "The session is missing or no longer valid.",
+              message: "Authorization header is required.",
+              code: "UNAUTHORIZED",
+            },
+            mfaVerificationRequired: {
+              summary: "Verify with a second factor, then retry.",
+              message: "Recent MFA verification is required.",
+              code: "MFA_VERIFICATION_REQUIRED",
+              details: {
+                scope: "mfa-management",
+                availableFactors: ["email"],
+                recommendedFactor: "email",
+                verifiedUntil: null,
+              },
+            },
+          },
+        ),
+        "409": errorResponseExamples(
+          "The account has no password it could be recovered with.",
+          {
+            passwordResetUnavailable: {
+              summary: "The account signs in only through a provider.",
+              message:
+                "This account has no password to reset, so it cannot be locked this way. Change your sign-in methods and remove devices you don't recognise instead.",
+              code: "CONFLICT",
+              details: { reason: "password_reset_unavailable" },
+            },
+          },
+        ),
       },
     },
     {
@@ -11983,6 +12081,33 @@ function buildComponents(): Record<string, unknown> {
             type: "boolean",
             description:
               "False when a reinstated account was already active, so nothing was written.",
+          },
+        },
+      },
+      SelfLockRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["token"],
+        properties: {
+          token: {
+            type: "string",
+            minLength: 1,
+            maxLength: 256,
+            description:
+              "The token from the emailed link's `token` query parameter, trimmed.",
+          },
+        },
+      },
+      SelfLockResult: {
+        type: "object",
+        additionalProperties: false,
+        required: ["locked"],
+        properties: {
+          locked: {
+            type: "boolean",
+            enum: [true],
+            description:
+              "Always true for an accepted request, whatever state the account was in.",
           },
         },
       },

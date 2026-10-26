@@ -1,18 +1,22 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import { loggerFactory } from "@/configuration/logging";
 import BadRequestError from "@/errors/http/bad-request.error";
 import type { CacheService } from "@/features/cache/cache.service";
 import { EmailService } from "@/features/email/email.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { DeviceRepository, type KnownDeviceRecord } from "./device.repository";
-import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import { isEligibleForLocalPasswordManagement } from "@/features/auth/local-account-eligibility";
+import type { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 
 interface DeviceServiceOptions {
   deviceRepository: DeviceRepository;
   emailService: EmailService;
   cache: CacheService;
   authAuditService: AuthAuditService;
+  selfLockTokenStore: SelfLockTokenStore;
   unknownDeviceAlertCooldownInSeconds?: number;
 }
 
@@ -29,13 +33,16 @@ export class DeviceService {
   private readonly emailService: EmailService;
   private readonly cache: CacheService;
   private readonly authAuditService: AuthAuditService;
+  private readonly selfLockTokenStore: SelfLockTokenStore;
   private readonly unknownDeviceAlertCooldownInSeconds: number;
+  private readonly logger = loggerFactory.forClass(DeviceService, "service");
 
   constructor(options: DeviceServiceOptions) {
     this.deviceRepository = options.deviceRepository;
     this.emailService = options.emailService;
     this.cache = options.cache;
     this.authAuditService = options.authAuditService;
+    this.selfLockTokenStore = options.selfLockTokenStore;
     this.unknownDeviceAlertCooldownInSeconds =
       options.unknownDeviceAlertCooldownInSeconds ??
       DEFAULT_UNKNOWN_DEVICE_ALERT_COOLDOWN_SECONDS;
@@ -257,6 +264,10 @@ export class DeviceService {
       return;
     }
 
+    // The event's id is chosen up front so the lock link can name it.
+    const eventId = newUuid();
+    const selfLockToken = await this.issueSelfLockToken(user, eventId);
+
     await this.emailService.sendNewDeviceEmail({
       to: user.email,
       firstName: user.firstName,
@@ -265,8 +276,36 @@ export class DeviceService {
       platform: client.device.platform,
       userAgent: client.device.userAgent,
       detectedAt: new Date(),
+      ...(selfLockToken ? { selfLockToken } : {}),
     });
-    await this.recordNewDevice(user, client, deviceId, "sent", audit);
+    await this.recordNewDevice(user, client, deviceId, "sent", audit, eventId);
+  }
+
+  /**
+   * A lock link only for an account that could recover from the lock by
+   * resetting its password. Best effort: a Redis failure costs the link, not
+   * the alert.
+   */
+  private async issueSelfLockToken(
+    user: AuthUserRecord,
+    sourceEventId: Uuid,
+  ): Promise<string | undefined> {
+    if (!isEligibleForLocalPasswordManagement(user)) {
+      return undefined;
+    }
+
+    try {
+      return await this.selfLockTokenStore.issue({
+        userId: asUuid(user.id),
+        sourceEventId,
+      });
+    } catch (error) {
+      this.logger.error("Failed to issue a self-lock token.", {
+        userId: user.id,
+        error,
+      });
+      return undefined;
+    }
   }
 
   private async recordNewDevice(
@@ -275,8 +314,10 @@ export class DeviceService {
     deviceId: string,
     emailNotification: "sent" | "suppressed",
     audit?: AuthAuditContext,
+    eventId?: Uuid,
   ): Promise<void> {
     await this.authAuditService.recordSafely({
+      ...(eventId ? { id: eventId } : {}),
       eventType: "device.new_detected",
       outcome: "success",
       userId: asUuid(user.id),

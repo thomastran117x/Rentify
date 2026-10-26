@@ -15,6 +15,8 @@ export interface AccountStatusChangeInput {
   /** The admin who made the change; null or absent for the system or user. */
   actorUserId?: Uuid | null;
   context?: AuthAuditContext;
+  /** Extra non-secret detail for the audit event, such as how a user locked. */
+  metadata?: Record<string, string>;
 }
 
 export interface AccountStatusChangeResult {

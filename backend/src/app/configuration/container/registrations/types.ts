@@ -24,6 +24,7 @@ export const CONTAINER_REGISTRATION_MODULE_IDS = [
   "auth-password",
   "auth-personal-access-tokens",
   "auth-account-status",
+  "auth-self-lock",
   "organizations-profile",
   "organizations-members",
   "organizations-invitations",

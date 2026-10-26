@@ -263,6 +263,40 @@ describe("EmailDeliveryService", () => {
     );
   });
 
+  it("adds an encoded self-lock link to the new-device email only when it has a token", async () => {
+    const transporter = createTransporterMock();
+    transporter.sendMail.mockResolvedValue(undefined);
+    const service = createService(transporter, {
+      appBaseUrl: "https://app.example.com/",
+    });
+
+    await service.sendNewDeviceEmail({
+      to: "user@example.com",
+      selfLockToken: "abc+/=&<x>",
+    });
+    await service.sendNewDeviceEmail({ to: "user@example.com" });
+
+    const withLink = transporter.sendMail.mock.calls[0]![0] as {
+      text: string;
+      html: string;
+    };
+    const url =
+      "https://app.example.com/auth/self-lock?token=abc%2B%2F%3D%26%3Cx%3E";
+    expect(withLink.text).toContain(`Lock your account now`);
+    expect(withLink.text).toContain(url);
+    expect(withLink.html).toContain(`href="${url}"`);
+    expect(withLink.html).toContain("Lock your account &rarr;");
+    expect(withLink.html).not.toContain("<x>");
+
+    const withoutLink = transporter.sendMail.mock.calls[1]![0] as {
+      text: string;
+      html: string;
+    };
+    expect(withoutLink.text).not.toContain("self-lock");
+    expect(withoutLink.html).not.toContain("self-lock");
+    expect(withoutLink.html).toContain("Go to account security");
+  });
+
   it("renders new-device and organization-invite emails with optional details and encoded URLs", async () => {
     const transporter = createTransporterMock();
     transporter.sendMail.mockResolvedValue(undefined);
@@ -665,7 +699,11 @@ describe("EmailDeliveryService account status templates", () => {
 
   function deliverStatusEmail(
     service: EmailDeliveryService,
-    kind: "account_locked" | "account_suspended" | "account_reinstated",
+    kind:
+      | "account_locked"
+      | "account_self_locked"
+      | "account_suspended"
+      | "account_reinstated",
     to = "user@example.com",
   ) {
     return service.deliver({
@@ -690,6 +728,11 @@ describe("EmailDeliveryService account status templates", () => {
     [
       "account_locked",
       "Your Rentify account is on a security hold",
+      "https://app.example.com/login?recovery=account",
+    ],
+    [
+      "account_self_locked",
+      "You locked your Rentify account",
       "https://app.example.com/login?recovery=account",
     ],
     [
@@ -718,6 +761,20 @@ describe("EmailDeliveryService account status templates", () => {
       expect(message.html).toContain(nextStep);
     },
   );
+
+  it("tells a user who locked their own account how to recover", async () => {
+    const transporter = createTransporterMock();
+    const service = createService(transporter);
+
+    await deliverStatusEmail(service, "account_self_locked");
+
+    const message = sentMessage(transporter);
+    expect(message.text).toContain("signed out everywhere");
+    expect(message.text).toContain("1. Reset your password:");
+    expect(message.text).toContain("someone may have access to your email");
+    expect(message.html).toContain("Reset your password");
+    expect(message.html).toContain("<ol");
+  });
 
   it("suppresses status emails for non-deliverable local recipients", async () => {
     const transporter = createTransporterMock();

@@ -13,6 +13,7 @@ import type { PasswordController } from "@/features/auth/password/password.contr
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
+import type { SelfLockController } from "@/features/auth/self-lock/self-lock.controller";
 import type { RouteModule } from "@/configuration/bootstrap/routes/types";
 
 export const authLocalRouteModule: RouteModule = {
@@ -291,6 +292,26 @@ export const authAuditRouteModule: RouteModule = {
       resolveHandler<AuthAuditController>(
         containerTokens.authAuditController,
         "listMine",
+      ),
+    );
+  },
+};
+
+export const authSelfLockRouteModule: RouteModule = {
+  id: "auth-self-lock",
+  register(app, { resolveHandler }) {
+    app.post(
+      "/auth/account/self-lock",
+      resolveHandler<SelfLockController>(
+        containerTokens.selfLockController,
+        "lockWithToken",
+      ),
+    );
+    app.post(
+      "/auth/account/self-lock/session",
+      resolveHandler<SelfLockController>(
+        containerTokens.selfLockController,
+        "lockCurrentSession",
       ),
     );
   },

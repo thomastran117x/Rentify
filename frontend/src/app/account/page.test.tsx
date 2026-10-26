@@ -8,6 +8,10 @@ import AccountPage, {
   formatLinkedAt,
 } from "./page";
 import { ApiClientError } from "@/lib/auth/types";
+import {
+  resetRouterMocks,
+  routerReplaceMock,
+} from "@/test/mocks/next-navigation";
 
 const {
   useAuthMock,
@@ -38,6 +42,9 @@ const {
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({ useAuth: useAuthMock }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: routerReplaceMock }),
+}));
 vi.mock("@/components/auth/oauth-buttons", () => ({
   AuthOAuthButtons: () => <div>OAuth buttons</div>,
 }));
@@ -75,13 +82,18 @@ vi.mock("@/components/home/home-password-panel", () => ({
 }));
 vi.mock("@/components/account/security-activity-panel", () => ({
   SecurityActivityPanel: ({
+    onAccountLocked,
     onReportActivity,
     onVerificationRequired,
   }: {
+    onAccountLocked?: () => void;
     onReportActivity?: (item: { id: string }) => void;
     onVerificationRequired?: () => void;
   }) => (
     <>
+      <button type="button" onClick={() => onAccountLocked?.()}>
+        Lock account
+      </button>
       <button
         type="button"
         onClick={() => onReportActivity?.({ id: "event-1" })}
@@ -337,7 +349,22 @@ describe("AccountPage", () => {
     expect(listDevicesMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows security activity only after the step-up and routes a report to the password form", async () => {
+  it("sends a self-locked account to the lock confirmation", async () => {
+    const user = userEvent.setup();
+    resetRouterMocks();
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Lock account" }),
+    );
+
+    expect(routerReplaceMock).toHaveBeenCalledWith(
+      "/auth/self-lock?status=locked",
+    );
+  });
+
+  it("shows security activity only after the step-up and routes a report it cannot lock to the password form", async () => {
     const user = userEvent.setup();
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;

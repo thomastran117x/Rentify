@@ -91,11 +91,13 @@ describe("EmailService", () => {
     const input = { to: "user@example.com", firstName: "Jane" };
 
     await service.sendAccountLockedEmail(input);
+    await service.sendAccountSelfLockedEmail(input);
     await service.sendAccountSuspendedEmail(input);
     await service.sendAccountReinstatedEmail(input);
 
     expect(enqueueEmailJob.mock.calls).toEqual([
       ["account_locked", input],
+      ["account_self_locked", input],
       ["account_suspended", input],
       ["account_reinstated", input],
     ]);

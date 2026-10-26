@@ -201,6 +201,9 @@ export class EmailDeliveryService {
       case "account_locked":
         await this.sendAccountLockedEmail(payload.input);
         return;
+      case "account_self_locked":
+        await this.sendAccountSelfLockedEmail(payload.input);
+        return;
       case "account_suspended":
         await this.sendAccountSuspendedEmail(payload.input);
         return;
@@ -372,6 +375,12 @@ export class EmailDeliveryService {
       )
       .join("");
     const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
+    const selfLockUrl = input.selfLockToken
+      ? `${this.appBaseUrl}/auth/self-lock?token=${encodeURIComponent(input.selfLockToken)}`
+      : null;
+    const selfLockLink = selfLockUrl
+      ? `<br /><br /><a href="${escapeHtml(selfLockUrl)}" style="color:#9f1239;font-weight:600;">This wasn&rsquo;t you? Lock your account &rarr;</a>`
+      : "";
 
     await this.sendWithRetry({
       to: input.to,
@@ -385,6 +394,12 @@ export class EmailDeliveryService {
         "",
         "If this was you, no action is needed.",
         "If this wasn't you, please change your password and review account access immediately.",
+        ...(selfLockUrl
+          ? [
+              "",
+              `This wasn't you? Lock your account now, which signs everyone out until you reset your password: ${selfLockUrl}`,
+            ]
+          : []),
       ].join("\n"),
       html: this.buildEmailHtml(
         [
@@ -394,7 +409,7 @@ export class EmailDeliveryService {
           `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px;margin:16px 0;">${htmlDetails}</div>`,
           `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
           this.buildAlertBox(
-            `If this wasn&rsquo;t you, <strong>change your password and review account access immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>`,
+            `If this wasn&rsquo;t you, <strong>change your password and review account access immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${selfLockLink}`,
             "warning",
           ),
         ].join(""),
@@ -429,6 +444,44 @@ export class EmailDeliveryService {
           this.buildCTAButton(escapeHtml(recoveryUrl), "Reset your password"),
           this.buildAlertBox(
             "Choose a password you have not used before, and review your devices and personal access tokens once you are back in.",
+            "warning",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendAccountSelfLockedEmail(
+    input: SendAccountStatusEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const recoveryUrl = `${this.appBaseUrl}/login?recovery=account`;
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "You locked your Rentify account",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        "You locked your Rentify account after reporting activity you didn't recognise. Everyone using it, including you, has been signed out everywhere, and your personal access tokens no longer work.",
+        "",
+        "To get back in:",
+        `1. Reset your password: ${recoveryUrl}`,
+        "2. Choose a password you have not used before.",
+        "3. Once you are signed in, remove any devices and personal access tokens you don't recognise.",
+        "",
+        "Resetting your password lifts the lock and signs you in. If you did not lock your account, reset your password anyway: someone may have access to your email.",
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Your account is locked</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">You locked your Rentify account after reporting activity you didn&rsquo;t recognise. Everyone using it, including you, has been signed out everywhere, and your personal access tokens no longer work.</p>`,
+          `<p style="margin:0 0 8px;font-size:14px;color:#334155;line-height:1.7;">To get back in:</p>`,
+          `<ol style="margin:0 0 0;padding-left:20px;font-size:14px;color:#334155;line-height:1.7;"><li>Reset your password.</li><li>Choose a password you have not used before.</li><li>Once you are signed in, remove any devices and personal access tokens you don&rsquo;t recognise.</li></ol>`,
+          this.buildCTAButton(escapeHtml(recoveryUrl), "Reset your password"),
+          this.buildAlertBox(
+            "If you did not lock your account, reset your password anyway: someone may have access to your email.",
             "warning",
           ),
         ].join(""),

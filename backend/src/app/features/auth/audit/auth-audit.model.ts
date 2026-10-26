@@ -83,6 +83,11 @@ export interface AuthAuditContext {
 }
 
 export interface RecordAuthAuditEventInput {
+  /**
+   * Set only when something else must point at the event before it is
+   * written, such as a self-lock link naming the email that carried it.
+   */
+  id?: Uuid;
   eventType: AuthAuditEventType;
   outcome: AuthAuditOutcome;
   /** The account the event is about. Null when the identifier matched none. */

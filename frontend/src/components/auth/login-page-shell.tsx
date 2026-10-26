@@ -5,13 +5,15 @@ import {
   House,
   KeyRound,
   LayoutDashboard,
+  Lock,
+  LogOut,
   Mail,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { theme } from "@/styles/theme";
 
-type AuthPageVariant = "login" | "signup" | "forgot-password";
+type AuthPageVariant = "login" | "signup" | "forgot-password" | "self-lock";
 
 interface AuthPageShellProps {
   children: ReactNode;
@@ -133,6 +135,32 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
       "Request and resend actions are clearly separated.",
       "Code entry stays readable on mobile and desktop.",
       "Users can return to sign in without losing their place.",
+    ],
+  },
+  "self-lock": {
+    eyebrow: "Protect your account",
+    title: "Didn't sign in? Lock your account until you're back in control.",
+    description:
+      "Locking signs everyone out of your Rentify account, including whoever used it, and keeps them out until you reset your password.",
+    features: [
+      {
+        icon: LogOut,
+        title: "Everyone signed out",
+        description:
+          "Every session ends and personal access tokens stop working at once.",
+      },
+      {
+        icon: Lock,
+        title: "Nothing happens by accident",
+        description:
+          "Opening the link changes nothing. The account locks only when you confirm.",
+      },
+      {
+        icon: KeyRound,
+        title: "You hold the key",
+        description:
+          "Resetting your password with the code we email you lifts the lock.",
+      },
     ],
   },
 };

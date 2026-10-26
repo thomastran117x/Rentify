@@ -3,6 +3,10 @@ import { authAuditRegistrationModule } from "@/configuration/container/registrat
 import { authAccountStatusRegistrationModule } from "@/configuration/container/registrations/modules/auth-account-status";
 import { AccountStatusAdminController } from "@/features/auth/account-status/account-status-admin.controller";
 import { AccountStatusService } from "@/features/auth/account-status/account-status.service";
+import { authSelfLockRegistrationModule } from "@/configuration/container/registrations/modules/auth-self-lock";
+import { SelfLockController } from "@/features/auth/self-lock/self-lock.controller";
+import { SelfLockService } from "@/features/auth/self-lock/self-lock.service";
+import { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 import { authPersonalAccessTokensRegistrationModule } from "@/configuration/container/registrations/modules/auth-personal-access-tokens";
 import { blobRegistrationModule } from "@/configuration/container/registrations/modules/blob";
 import { mediaRegistrationModule } from "@/configuration/container/registrations/modules/media";
@@ -130,6 +134,43 @@ describe("targeted container registration modules", () => {
     expect(
       find(containerTokens.accountStatusAdminController).resolve({ resolve }),
     ).toBeInstanceOf(AccountStatusAdminController);
+  });
+
+  it("registers the self-lock token store, service and controller", () => {
+    const registrations: Array<{
+      token: unknown;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authSelfLockRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const find = (token: unknown) =>
+      registrations.find((candidate) => candidate.token === token)!;
+    const resolve = () => ({});
+
+    expect(find(containerTokens.selfLockService).dependencies).toEqual([
+      containerTokens.selfLockTokenStore,
+      containerTokens.authUsersRepository,
+      containerTokens.accountStatusService,
+    ]);
+    expect(find(containerTokens.selfLockController).dependencies).toEqual([
+      containerTokens.selfLockService,
+      containerTokens.mfaVerificationService,
+    ]);
+    expect(
+      find(containerTokens.selfLockTokenStore).resolve({ resolve }),
+    ).toBeInstanceOf(SelfLockTokenStore);
+    expect(
+      find(containerTokens.selfLockService).resolve({ resolve }),
+    ).toBeInstanceOf(SelfLockService);
+    expect(
+      find(containerTokens.selfLockController).resolve({ resolve }),
+    ).toBeInstanceOf(SelfLockController);
   });
 
   it("registers the admin audit reader and its controller", () => {

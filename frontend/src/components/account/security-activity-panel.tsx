@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import { selfLockApi } from "@/lib/auth/self-lock-api";
 import { securityActivityApi } from "@/lib/security-activity/api";
 import {
   activityCacheKey,
@@ -106,6 +107,9 @@ const dateInputClass =
 const secondaryButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40";
 
+const dangerButtonClass =
+  "inline-flex h-9 items-center justify-center rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60";
+
 function rowAppearance(item: SecurityActivityItem): {
   container: string;
   icon: LucideIcon;
@@ -157,8 +161,14 @@ export interface SecurityActivityPanelProps {
    */
   userId?: string;
   /**
-   * Called when the user reports an event as not theirs. The account page
-   * takes them to the password form until self-lock (#378) exists.
+   * Called after "This wasn't me" locked the account. Every session, this one
+   * included, has ended, so the page should leave.
+   */
+  onAccountLocked?: () => void;
+  /**
+   * Called when a reported event cannot be answered with a lock because the
+   * account has no password to reset. The account page takes the user to the
+   * password form instead.
    */
   onReportActivity?: (item: SecurityActivityItem) => void;
   /**
@@ -221,6 +231,7 @@ function cacheKeyFor(
 
 export function SecurityActivityPanel({
   userId,
+  onAccountLocked,
   onReportActivity,
   onVerificationRequired,
 }: SecurityActivityPanelProps) {
@@ -258,6 +269,9 @@ export function SecurityActivityPanel({
   const onVerificationRequiredRef = useRef(onVerificationRequired);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [reportedId, setReportedId] = useState<string | null>(null);
+  const [lockPending, setLockPending] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+  const [lockUnavailable, setLockUnavailable] = useState(false);
   // Bumped whenever the list restarts, so a "Load more" response for an
   // earlier filter is dropped instead of appended to the new one.
   const generationRef = useRef(0);
@@ -428,7 +442,40 @@ export function SecurityActivityPanel({
 
   function handleReport(item: SecurityActivityItem) {
     setReportedId(item.id);
-    onReportActivity?.(item);
+    setLockError(null);
+    setLockUnavailable(false);
+  }
+
+  function handleCancelReport() {
+    setReportedId(null);
+    setLockError(null);
+  }
+
+  async function handleConfirmLock(item: SecurityActivityItem) {
+    setLockPending(true);
+    setLockError(null);
+
+    try {
+      await selfLockApi.lockCurrentSession();
+      onAccountLocked?.();
+    } catch (error) {
+      if (isVerificationRequired(error) && onVerificationRequired) {
+        onVerificationRequired();
+      } else if (isApiClientError(error) && error.status === 409) {
+        setLockUnavailable(true);
+        onReportActivity?.(item);
+      } else {
+        setLockError(
+          getApiErrorMessage(error, {
+            action: "lock your account",
+            fallback:
+              "We couldn't lock your account right now. Please try again.",
+          }),
+        );
+      }
+    } finally {
+      setLockPending(false);
+    }
   }
 
   return (
@@ -652,14 +699,55 @@ export function SecurityActivityPanel({
                       </button>
                     )}
                   </div>
-                  {reportedId === item.id ? (
+                  {reportedId === item.id && lockUnavailable ? (
                     <p
                       role="status"
                       className="mt-3 rounded-lg bg-white/80 dark:bg-slate-950/60 px-3 py-2 text-xs text-slate-700 dark:text-slate-200"
                     >
-                      Change your password now, then remove any registered
+                      This account has no password to reset, so it can&apos;t be
+                      locked. Set a password now, then remove any registered
                       devices you don&apos;t recognize.
                     </p>
+                  ) : null}
+                  {reportedId === item.id && !lockUnavailable ? (
+                    <div
+                      role="group"
+                      aria-label="Lock your account"
+                      className="mt-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/40 px-3 py-3 text-xs text-rose-900 dark:text-rose-200"
+                    >
+                      <p className="font-semibold">Lock your account?</p>
+                      <p className="mt-1 leading-5">
+                        Everyone using it, including you, is signed out straight
+                        away, and nobody can sign in until the password is reset
+                        with a code we email you.
+                      </p>
+                      {lockError ? (
+                        <p
+                          role="alert"
+                          className="mt-2 font-medium text-rose-700 dark:text-rose-300"
+                        >
+                          {lockError}
+                        </p>
+                      ) : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleConfirmLock(item)}
+                          disabled={lockPending}
+                          className={dangerButtonClass}
+                        >
+                          {lockPending ? "Locking..." : "Lock my account"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelReport}
+                          disabled={lockPending}
+                          className={secondaryButtonClass}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   ) : null}
                 </li>
               );
