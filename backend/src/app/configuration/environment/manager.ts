@@ -299,6 +299,10 @@ export class EnvironmentManager {
     return this.get().authAudit;
   }
 
+  getAuthSecurityConfig(): AppEnvironment["authSecurity"] {
+    return this.get().authSecurity;
+  }
+
   getPostingsPublicCacheConfig(): AppEnvironment["postingsCache"] {
     return this.get().postingsCache;
   }

@@ -8,6 +8,19 @@ export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
 export const MEDIA_SCANNER_KINDS = ["clamav", "none"] as const;
 export type MediaScannerKind = (typeof MEDIA_SCANNER_KINDS)[number];
+export const AUTH_SECURITY_DETECTION_MODES = [
+  "off",
+  "alert",
+  "enforce",
+] as const;
+export type AuthSecurityDetectionMode =
+  (typeof AUTH_SECURITY_DETECTION_MODES)[number];
+/** One detection rule's switch, threshold and sliding window. */
+export interface AuthSecurityDetectionRuleConfig {
+  enabled: boolean;
+  threshold: number;
+  windowMinutes: number;
+}
 export const MEDIA_MODERATION_PROVIDERS = [
   "none",
   "azure-content-safety",
@@ -236,6 +249,19 @@ export type RawEnvironmentValues = {
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
   AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
   AUTH_AUDIT_RETENTION_DAYS?: string;
+  AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES?: string;
+  AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED?: string;
+  AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD?: string;
+  AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES?: string;
+  AUTH_SECURITY_DETECTION_MODE?: string;
+  AUTH_SECURITY_REFRESH_REUSE_ENABLED?: string;
+  AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES?: string;
+  AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED?: string;
+  AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD?: string;
+  AUTH_SECURITY_REPEATED_LOCKOUTS_WINDOW_MINUTES?: string;
+  AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED?: string;
+  AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD?: string;
+  AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
   TELNYX_API_KEY?: string;
@@ -330,6 +356,23 @@ export interface AppEnvironment {
     pruneBatchSize: number;
     /** Wait between prune runs. */
     pruneIntervalMinutes: number;
+  };
+  authSecurity: {
+    detection: {
+      /** off skips detection, alert records and flags, enforce also acts. */
+      mode: AuthSecurityDetectionMode;
+      /** Triggered password lockouts of one account. */
+      repeatedLockouts: AuthSecurityDetectionRuleConfig;
+      /** Distinct sign-in identifiers failing from one IP. */
+      credentialStuffing: AuthSecurityDetectionRuleConfig & {
+        /** How long an enforced block keeps the IP off auth-sensitive routes. */
+        blockMinutes: number;
+      };
+      /** Failed sign-ins before a success from a new device and a new IP. */
+      successAfterFailures: AuthSecurityDetectionRuleConfig;
+      /** Refresh-token reuse; the window only dedupes repeat alerts. */
+      refreshReuse: { enabled: boolean; windowMinutes: number };
+    };
   };
   email: {
     gmailUser: string;
