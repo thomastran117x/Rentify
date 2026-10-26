@@ -510,6 +510,12 @@ const adminAuthAuditEventExample = {
   actor: null,
 };
 
+const authIpBlockListExample = {
+  items: [
+    { ipAddress: "198.51.100.41", expiresAt: "2026-10-26T13:00:00.000Z" },
+  ],
+};
+
 const adminAuthAuditEventListExample = {
   items: [
     adminAuthAuditEventExample,
@@ -5854,6 +5860,56 @@ function buildOperations(): OperationDefinition[] {
           adminAuthAuditEventListExample,
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/admin/auth/ip-blocks",
+      operationId: "listAdminAuthIpBlocks",
+      summary: "List blocked IP addresses",
+      description:
+        "Lists the IP addresses suspicious-activity detection has blocked from the `auth-sensitive` rate-limit policy in enforce mode, soonest to lift first. Each block lifts on its own at `expiresAt`. The call first records an `admin.audit_viewed` event with `metadata.view` `ip_blocks`, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "AuthIpBlockList",
+          authIpBlockListExample,
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/admin/auth/ip-blocks/:ip",
+      operationId: "deleteAdminAuthIpBlock",
+      summary: "Lift an IP block",
+      description:
+        "Lifts a suspicious-activity IP block before it expires, so the address can sign in again at once. Records `admin.ip_unblocked` with the admin as actor and the address in `metadata.ipAddress`. An address that is not blocked is a 404, and one that is not a valid IPv4 or IPv6 address is a 400. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+      tags: ["auth"],
+      security: ownerSecurity,
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "admin",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "ip",
+          "The blocked IPv4 or IPv6 address, URL-encoded.",
+          "198.51.100.41",
+        ),
+      ],
+      responses: {
+        "204": noContentResponse("IP block lifted."),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
       },
     },
     {
@@ -11243,6 +11299,27 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Who performed the event when it was not the subject, such as the administrator behind `admin.audit_viewed`.",
           },
+        },
+      },
+      AuthIpBlock: {
+        type: "object",
+        additionalProperties: false,
+        required: ["ipAddress", "expiresAt"],
+        properties: {
+          ipAddress: { type: "string" },
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            description: "When the block lifts on its own.",
+          },
+        },
+      },
+      AuthIpBlockList: {
+        type: "object",
+        additionalProperties: false,
+        required: ["items"],
+        properties: {
+          items: { type: "array", items: schemaRef("AuthIpBlock") },
         },
       },
       AdminAuthAuditEventList: {

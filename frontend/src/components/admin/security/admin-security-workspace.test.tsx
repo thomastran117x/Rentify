@@ -9,13 +9,17 @@ import type {
 } from "@/lib/admin-security/types";
 import { resetRouterMocks, routerPushMock } from "@/test/mocks/next-navigation";
 
-const { listEventsMock, getUserSummaryMock, searchParamsRef } = vi.hoisted(
-  () => ({
-    listEventsMock: vi.fn(),
-    getUserSummaryMock: vi.fn(),
-    searchParamsRef: { current: new URLSearchParams() },
-  }),
-);
+const {
+  listEventsMock,
+  getUserSummaryMock,
+  listIpBlocksMock,
+  searchParamsRef,
+} = vi.hoisted(() => ({
+  listEventsMock: vi.fn(),
+  getUserSummaryMock: vi.fn(),
+  listIpBlocksMock: vi.fn(),
+  searchParamsRef: { current: new URLSearchParams() },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPushMock }),
@@ -31,6 +35,8 @@ vi.mock("@/lib/admin-security/api", () => ({
   adminSecurityApi: {
     listEvents: listEventsMock,
     getUserSummary: getUserSummaryMock,
+    listIpBlocks: listIpBlocksMock,
+    unblockIp: vi.fn(),
   },
 }));
 
@@ -125,6 +131,8 @@ describe("AdminSecurityWorkspace", () => {
     resetRouterMocks();
     listEventsMock.mockReset();
     getUserSummaryMock.mockReset();
+    listIpBlocksMock.mockReset();
+    listIpBlocksMock.mockResolvedValue({ items: [] });
     searchParamsRef.current = new URLSearchParams();
   });
 

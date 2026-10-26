@@ -41,6 +41,7 @@ const EVENT_TYPE_LABELS: Record<AuthAuditEventType, string> = {
   "pat.revoked": "Access token revoked",
   "rate_limit.exceeded": "Rate limit hit",
   "admin.audit_viewed": "Audit log viewed",
+  "admin.ip_unblocked": "IP address unblocked",
   "account.locked": "Security hold placed",
   "account.suspended": "Account suspended",
   "account.reinstated": "Account reinstated",
@@ -105,7 +106,7 @@ export const EVENT_TYPE_GROUPS: Array<{
       "device.new_detected",
     ],
   },
-  { label: "Admin", types: ["admin.audit_viewed"] },
+  { label: "Admin", types: ["admin.audit_viewed", "admin.ip_unblocked"] },
 ];
 
 export const OUTCOME_APPEARANCE: Record<

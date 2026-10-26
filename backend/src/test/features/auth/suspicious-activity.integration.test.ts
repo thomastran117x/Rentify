@@ -11,6 +11,7 @@ import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious
 import type { SuspiciousActivityDetectionConfig } from "@/features/auth/detection/suspicious-activity.model";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import {
+  createAuthenticatedRequestContext,
   createPersistenceTestApp,
   resetPersistenceState,
   teardownPersistenceTestApp,
@@ -241,6 +242,85 @@ describe("Suspicious sign-in detection integration", () => {
           where: { eventType: "account.locked" },
         }),
       ).toBe(0);
+    });
+
+    it("lets an admin see and lift the block, and no one else", async () => {
+      const ip = "198.51.100.45";
+      await stuff(ip);
+      await waitFor(
+        async () =>
+          (await getRedisClient().exists(`auth:ip-block:${ip}`)) === 1,
+        "the IP block",
+      );
+      const admin = await createAuthenticatedRequestContext({
+        email: "admin1@rentify.local",
+      });
+      const renter = await createAuthenticatedRequestContext({
+        email: RENTER_ONE.email,
+      });
+
+      const list = await request("/admin/auth/ip-blocks", {
+        headers: admin.headers({ origin: ORIGIN }),
+      });
+      expect(list.status).toBe(200);
+      await expect(list.json()).resolves.toMatchObject({
+        data: { items: [{ ipAddress: ip, expiresAt: expect.any(String) }] },
+      });
+
+      expect(
+        (
+          await request("/admin/auth/ip-blocks", {
+            headers: renter.headers({ origin: ORIGIN }),
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await request(`/admin/auth/ip-blocks/${ip}`, {
+            method: "DELETE",
+            headers: renter.headers({ origin: ORIGIN }),
+          })
+        ).status,
+      ).toBe(403);
+
+      const unblock = await request(`/admin/auth/ip-blocks/${ip}`, {
+        method: "DELETE",
+        headers: admin.headers({ origin: ORIGIN }),
+      });
+      expect(unblock.status).toBe(204);
+      expect(
+        (
+          await request(`/admin/auth/ip-blocks/${ip}`, {
+            method: "DELETE",
+            headers: admin.headers({ origin: ORIGIN }),
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await request("/admin/auth/ip-blocks/not-an-ip", {
+            method: "DELETE",
+            headers: admin.headers({ origin: ORIGIN }),
+          })
+        ).status,
+      ).toBe(400);
+
+      const [unblocked] = await persistenceApp.prisma.authAuditEvent.findMany({
+        where: { eventType: "admin.ip_unblocked" },
+      });
+      expect(unblocked).toMatchObject({
+        actorUserId: admin.userId,
+        metadata: { ipAddress: ip },
+      });
+      expect(
+        (
+          await login({
+            username: RENTER_ONE.username,
+            password: PASSWORD,
+            ip,
+          })
+        ).status,
+      ).toBe(200);
     });
 
     it("records and flags in alert mode but never blocks", async () => {

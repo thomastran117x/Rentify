@@ -33,6 +33,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "pat.revoked",
   "rate_limit.exceeded",
   "admin.audit_viewed",
+  "admin.ip_unblocked",
   "account.locked",
   "account.suspended",
   "account.reinstated",

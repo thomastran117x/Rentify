@@ -42,6 +42,8 @@ import { SmsService } from "@/features/sms/sms.service";
 import { authDetectionRegistrationModule } from "@/configuration/container/registrations/modules/auth-detection";
 import { AuthIpBlockStore } from "@/features/auth/detection/ip-block.store";
 import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious-activity.detector";
+import { AuthIpBlockAdminController } from "@/features/auth/detection/ip-block-admin.controller";
+import { AuthIpBlockAdminService } from "@/features/auth/detection/ip-block-admin.service";
 
 jest.mock("@/configuration/resources/database", () => ({
   getDatabaseClient: () => ({}),
@@ -212,6 +214,19 @@ describe("targeted container registration modules", () => {
     expect(
       find(containerTokens.suspiciousActivityDetector).resolve({ resolve }),
     ).toBeInstanceOf(SuspiciousActivityDetector);
+    expect(find(containerTokens.authIpBlockAdminService).dependencies).toEqual([
+      containerTokens.authIpBlockStore,
+      containerTokens.authAuditService,
+    ]);
+    expect(
+      find(containerTokens.authIpBlockAdminService).resolve({ resolve }),
+    ).toBeInstanceOf(AuthIpBlockAdminService);
+    expect(find(containerTokens.authIpBlockAdminController).lifetime).toBe(
+      "scoped",
+    );
+    expect(
+      find(containerTokens.authIpBlockAdminController).resolve({ resolve }),
+    ).toBeInstanceOf(AuthIpBlockAdminController);
   });
 
   it("registers the admin audit reader and its controller", () => {

@@ -1,6 +1,8 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { AuthIpBlockStore } from "@/features/auth/detection/ip-block.store";
+import { AuthIpBlockAdminController } from "@/features/auth/detection/ip-block-admin.controller";
+import { AuthIpBlockAdminService } from "@/features/auth/detection/ip-block-admin.service";
 import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious-activity.detector";
 
 export const authDetectionRegistrationModule: ContainerRegistrationModule = {
@@ -35,6 +37,28 @@ export const authDetectionRegistrationModule: ContainerRegistrationModule = {
           selfLockTokenStore: resolve(containerTokens.selfLockTokenStore),
           ipBlockStore: resolve(containerTokens.authIpBlockStore),
         }),
+    });
+    container.register({
+      token: containerTokens.authIpBlockAdminService,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.authIpBlockStore,
+        containerTokens.authAuditService,
+      ],
+      resolve: ({ resolve }) =>
+        new AuthIpBlockAdminService(
+          resolve(containerTokens.authIpBlockStore),
+          resolve(containerTokens.authAuditService),
+        ),
+    });
+    container.register({
+      token: containerTokens.authIpBlockAdminController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.authIpBlockAdminService],
+      resolve: ({ resolve }) =>
+        new AuthIpBlockAdminController(
+          resolve(containerTokens.authIpBlockAdminService),
+        ),
     });
   },
 };

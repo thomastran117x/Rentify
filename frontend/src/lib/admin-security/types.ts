@@ -33,6 +33,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "pat.revoked",
   "rate_limit.exceeded",
   "admin.audit_viewed",
+  "admin.ip_unblocked",
   "account.locked",
   "account.suspended",
   "account.reinstated",
@@ -79,6 +80,17 @@ export interface AdminAuthAuditEventList {
   nextCursor: string | null;
   /** The window the backend searched, after its defaults. */
   range: { from: string; to: string };
+}
+
+/** An address suspicious-activity detection keeps off sign-in for now. */
+export interface AuthIpBlock {
+  ipAddress: string;
+  /** When the block lifts on its own. */
+  expiresAt: string;
+}
+
+export interface AuthIpBlockList {
+  items: AuthIpBlock[];
 }
 
 export interface ListAdminAuthAuditInput {
