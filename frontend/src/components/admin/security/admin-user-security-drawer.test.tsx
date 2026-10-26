@@ -137,6 +137,7 @@ describe("AdminUserSecurityDrawer", () => {
             sessionId: null,
             requestId: null,
             metadata: null,
+            flagged: false,
             occurredAt: "2026-10-18T11:00:00.000Z",
             subject: USER,
             actor: null,

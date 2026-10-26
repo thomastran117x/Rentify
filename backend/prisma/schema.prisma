@@ -96,6 +96,7 @@ model AuthAuditEvent {
   sessionId      String?  @map("session_id") @db.VarChar(64)
   requestId      String?  @map("request_id") @db.VarChar(64)
   metadata       Json?
+  flagged        Boolean  @default(false)
   createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(6)
   user           User?    @relation("AuthAuditEventUser", fields: [userId], references: [id], onDelete: SetNull)
   actor          User?    @relation("AuthAuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
@@ -105,6 +106,7 @@ model AuthAuditEvent {
   @@index([ipAddress, createdAt])
   @@index([eventType, createdAt])
   @@index([identifierHash, createdAt])
+  @@index([flagged, createdAt])
   @@index([createdAt])
   @@map("auth_audit_events")
 }

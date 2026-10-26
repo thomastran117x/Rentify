@@ -39,6 +39,7 @@ function createRow(index: number, overrides: Partial<AuthAuditAdminRow> = {}) {
     sessionId: null,
     requestId: null,
     metadata: null,
+    flagged: false,
     createdAt: new Date(Date.UTC(2026, 9, 18, 11, 0, 60 - index)),
     ...overrides,
   } satisfies AuthAuditAdminRow;

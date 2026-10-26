@@ -24,6 +24,7 @@ export const adminSecurityApi = {
         // Repeated as `eventType=a&eventType=b`.
         eventType: input.eventType,
         outcome: input.outcome,
+        flagged: input.flagged ? "true" : undefined,
         from: input.from,
         to: input.to,
         cursor: input.cursor,

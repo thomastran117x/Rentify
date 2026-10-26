@@ -25,6 +25,7 @@ describe("AuthAuditRepository", () => {
         requestId: "request-1",
       },
       metadata: { triggered: true },
+      flagged: true,
     });
 
     expect(create).toHaveBeenCalledWith({
@@ -43,6 +44,7 @@ describe("AuthAuditRepository", () => {
         sessionId: "session-1",
         requestId: "request-1",
         metadata: { triggered: true },
+        flagged: true,
       },
     });
   });
@@ -93,6 +95,7 @@ describe("AuthAuditRepository", () => {
       identifierHash: null,
       sessionId: null,
       metadata: undefined,
+      flagged: false,
     });
     expect(data.userAgent).toHaveLength(512);
     expect(data.deviceId).toHaveLength(64);
@@ -300,6 +303,7 @@ describe("AuthAuditRepository", () => {
         ipAddress: "203.0.113.7",
         eventTypes: ["login.failed", "login.locked"],
         outcome: "failure",
+        flagged: true,
         createdFrom: from,
         createdBefore: before,
         limit: 26,
@@ -311,11 +315,13 @@ describe("AuthAuditRepository", () => {
           ipAddress: "203.0.113.7",
           eventType: { in: ["login.failed", "login.locked"] },
           outcome: "failure",
+          flagged: true,
           createdAt: { gte: from, lt: before },
         },
         select: expect.objectContaining({
           requestId: true,
           metadata: true,
+          flagged: true,
           userAgent: true,
         }),
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],

@@ -102,6 +102,8 @@ export interface RecordAuthAuditEventInput {
   context?: AuthAuditContext;
   /** Small, non-secret extras only. */
   metadata?: Record<string, string | number | boolean>;
+  /** Set by suspicious-activity detection on the events it acted on. */
+  flagged?: boolean;
 }
 
 /**

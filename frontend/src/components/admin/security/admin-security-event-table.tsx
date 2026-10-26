@@ -28,6 +28,15 @@ export function OutcomeBadge({ outcome }: { outcome: AuthAuditOutcome }) {
   );
 }
 
+/** Marks an event suspicious-activity detection acted on. */
+export function FlaggedBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+      Flagged
+    </span>
+  );
+}
+
 function UnknownSubject() {
   return (
     <span className="italic text-slate-500 dark:text-slate-400">unknown</span>
@@ -98,7 +107,10 @@ export function AdminSecurityEventTable({
                 </p>
               </td>
               <td className="px-4 py-3">
-                <OutcomeBadge outcome={event.outcome} />
+                <div className="flex flex-wrap gap-1">
+                  <OutcomeBadge outcome={event.outcome} />
+                  {event.flagged ? <FlaggedBadge /> : null}
+                </div>
               </td>
               <td className="px-4 py-3">
                 {event.subject ? (

@@ -137,6 +137,8 @@ export interface AdminSecurityFilters {
   ip: string;
   eventTypes: AuthAuditEventType[];
   outcome: AuthAuditOutcome | "";
+  /** Only the events suspicious-activity detection flagged. */
+  flaggedOnly: boolean;
   /** Local calendar days in `YYYY-MM-DD` form; empty leaves that side open. */
   fromDate: string;
   toDate: string;
@@ -147,6 +149,7 @@ export const EMPTY_FILTERS: AdminSecurityFilters = {
   ip: "",
   eventTypes: [],
   outcome: "",
+  flaggedOnly: false,
   fromDate: "",
   toDate: "",
 };
@@ -168,6 +171,7 @@ export function readFiltersFromSearchParams(
       isKnownEventType,
     ),
     outcome: OUTCOMES.includes(outcome) ? (outcome as AuthAuditOutcome) : "",
+    flaggedOnly: params.get("flagged") === "true",
     fromDate: isValidDateInput(fromDate) ? fromDate : "",
     toDate: isValidDateInput(toDate) ? toDate : "",
   };
@@ -184,6 +188,7 @@ export function filtersToSearchParams(
     params.append("eventType", eventType);
   }
   if (filters.outcome) params.set("outcome", filters.outcome);
+  if (filters.flaggedOnly) params.set("flagged", "true");
   if (filters.fromDate) params.set("from", filters.fromDate);
   if (filters.toDate) params.set("to", filters.toDate);
 
@@ -215,6 +220,7 @@ export function toListInput(
     ip: filters.ip.trim() || undefined,
     eventType: filters.eventTypes.length > 0 ? filters.eventTypes : undefined,
     outcome: filters.outcome || undefined,
+    flagged: filters.flaggedOnly || undefined,
     from: range.from,
     to: range.to,
     cursor,

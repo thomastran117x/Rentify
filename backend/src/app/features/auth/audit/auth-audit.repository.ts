@@ -43,6 +43,7 @@ export interface ListAuthAuditEventsForAdminInput {
   ipAddress?: string;
   eventTypes?: readonly string[];
   outcome?: string;
+  flagged?: boolean;
   afterId?: string;
   /** Inclusive lower bound on created_at. */
   createdFrom: Date;
@@ -77,6 +78,7 @@ const ADMIN_COLUMNS = {
   ...ACTIVITY_COLUMNS,
   requestId: true,
   metadata: true,
+  flagged: true,
 } as const;
 
 export class AuthAuditRepository extends BaseRepository {
@@ -107,6 +109,7 @@ export class AuthAuditRepository extends BaseRepository {
             sessionId: truncate(input.sessionId, COLUMN_LIMITS.sessionId),
             requestId: truncate(context.requestId, COLUMN_LIMITS.requestId),
             metadata: input.metadata,
+            flagged: input.flagged ?? false,
           },
         }),
       { maxRetries: 0 },
@@ -175,6 +178,7 @@ export class AuthAuditRepository extends BaseRepository {
       ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
       ...(input.eventTypes ? { eventType: { in: [...input.eventTypes] } } : {}),
       ...(input.outcome ? { outcome: input.outcome } : {}),
+      ...(input.flagged !== undefined ? { flagged: input.flagged } : {}),
       createdAt: { gte: input.createdFrom, lt: input.createdBefore },
     };
 

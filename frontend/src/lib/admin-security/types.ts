@@ -64,6 +64,8 @@ export interface AdminAuthAuditEvent {
   sessionId: string | null;
   requestId: string | null;
   metadata: Record<string, unknown> | null;
+  /** Set by suspicious-activity detection on the events it acted on. */
+  flagged: boolean;
   occurredAt: string;
   /** Null for an unknown-username attempt or a deleted account. */
   subject: AuthAuditUserSummary | null;
@@ -83,6 +85,8 @@ export interface ListAdminAuthAuditInput {
   ip?: string;
   eventType?: AuthAuditEventType[];
   outcome?: AuthAuditOutcome;
+  /** True keeps only the events detection flagged. */
+  flagged?: boolean;
   /** Inclusive lower bound, an ISO 8601 date-time. */
   from?: string;
   /** Exclusive upper bound, an ISO 8601 date-time. */

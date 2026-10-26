@@ -500,6 +500,7 @@ const adminAuthAuditEventExample = {
   sessionId: null,
   requestId: "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
   metadata: null,
+  flagged: false,
   occurredAt: "2026-10-18T14:01:47.103Z",
   subject: {
     id: "00000000-0000-0000-1040-000000000101",
@@ -5814,6 +5815,12 @@ function buildOperations(): OperationDefinition[] {
           { type: "string", enum: ["success", "failure", "blocked"] },
           "Only events with this outcome.",
           "failure",
+        ),
+        queryParam(
+          "flagged",
+          { type: "string", enum: ["true", "false"] },
+          "`true` returns only events suspicious-activity detection flagged: each `security.suspicious_activity` event and the events it was raised from. `false` returns only unflagged events.",
+          "true",
         ),
         queryParam(
           "from",
@@ -11165,6 +11172,7 @@ function buildComponents(): Record<string, unknown> {
           "sessionId",
           "requestId",
           "metadata",
+          "flagged",
           "occurredAt",
           "subject",
           "actor",
@@ -11216,6 +11224,11 @@ function buildComponents(): Record<string, unknown> {
             nullable: true,
             additionalProperties: true,
             description: "Small, non-secret extras recorded with the event.",
+          },
+          flagged: {
+            type: "boolean",
+            description:
+              "Whether suspicious-activity detection flagged the event, as a `security.suspicious_activity` event or one it was raised from.",
           },
           occurredAt: { type: "string", format: "date-time" },
           subject: {

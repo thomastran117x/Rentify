@@ -66,13 +66,14 @@ describe("filters in the URL", () => {
       ip: "203.0.113.7",
       eventTypes: ["login.failed" as const, "login.locked" as const],
       outcome: "failure" as const,
+      flaggedOnly: true,
       fromDate: "2026-10-01",
       toDate: "2026-10-08",
     };
     const params = filtersToSearchParams(filters);
 
     expect(params.toString()).toBe(
-      "user=renter-one&ip=203.0.113.7&eventType=login.failed&eventType=login.locked&outcome=failure&from=2026-10-01&to=2026-10-08",
+      "user=renter-one&ip=203.0.113.7&eventType=login.failed&eventType=login.locked&outcome=failure&flagged=true&from=2026-10-01&to=2026-10-08",
     );
     expect(readFiltersFromSearchParams(params)).toEqual(filters);
   });
@@ -88,7 +89,7 @@ describe("filters in the URL", () => {
     expect(
       readFiltersFromSearchParams(
         new URLSearchParams(
-          "user=%20x%20&eventType=login.failed&eventType=login.failed&eventType=nope&outcome=maybe&from=2026-02-31&to=soon",
+          "user=%20x%20&eventType=login.failed&eventType=login.failed&eventType=nope&outcome=maybe&flagged=1&from=2026-02-31&to=soon",
         ),
       ),
     ).toEqual({
@@ -120,6 +121,7 @@ describe("toListInput", () => {
       ip: undefined,
       eventType: undefined,
       outcome: undefined,
+      flagged: undefined,
       from: undefined,
       to: undefined,
       cursor: undefined,
@@ -135,6 +137,7 @@ describe("toListInput", () => {
           ip: "203.0.113.7",
           eventTypes: ["login.failed"],
           outcome: "blocked",
+          flaggedOnly: true,
           fromDate: "2026-10-01",
           toDate: "2026-10-08",
         },
@@ -145,6 +148,7 @@ describe("toListInput", () => {
       ip: "203.0.113.7",
       eventType: ["login.failed"],
       outcome: "blocked",
+      flagged: true,
       ...toActivityDateRange("2026-10-01", "2026-10-08"),
       cursor: "cursor-1",
       limit: 25,

@@ -13274,6 +13274,20 @@
             "example": "failure"
           },
           {
+            "name": "flagged",
+            "in": "query",
+            "required": false,
+            "description": "`true` returns only events suspicious-activity detection flagged: each `security.suspicious_activity` event and the events it was raised from. `false` returns only unflagged events.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "example": "true"
+          },
+          {
             "name": "from",
             "in": "query",
             "required": false,
@@ -13361,6 +13375,7 @@
                         "sessionId": null,
                         "requestId": "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:47.103Z",
                         "subject": {
                           "id": "00000000-0000-0000-1040-000000000101",
@@ -13383,6 +13398,7 @@
                         "sessionId": null,
                         "requestId": "2a4c6e8f-1b3d-4f5a-9c7e-0d2f4a6c8e1b",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:12.551Z",
                         "subject": null,
                         "actor": null
@@ -13532,6 +13548,7 @@
                         "sessionId": null,
                         "requestId": "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:47.103Z",
                         "subject": {
                           "id": "00000000-0000-0000-1040-000000000101",
@@ -30067,6 +30084,7 @@
           "sessionId",
           "requestId",
           "metadata",
+          "flagged",
           "occurredAt",
           "subject",
           "actor"
@@ -30140,6 +30158,10 @@
             "nullable": true,
             "additionalProperties": true,
             "description": "Small, non-secret extras recorded with the event."
+          },
+          "flagged": {
+            "type": "boolean",
+            "description": "Whether suspicious-activity detection flagged the event, as a `security.suspicious_activity` event or one it was raised from."
           },
           "occurredAt": {
             "type": "string",
