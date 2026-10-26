@@ -102,4 +102,20 @@ describe("EmailService", () => {
       ["account_reinstated", input],
     ]);
   });
+
+  it("queues a suspicious_login job", async () => {
+    const enqueueEmailJob = jest.fn(async () => undefined);
+    const service = new EmailService({
+      enqueueEmailJob,
+    } as any);
+    const input = {
+      to: "user@example.com",
+      reason: "refresh_reuse" as const,
+      selfLockToken: "lock-token",
+    };
+
+    await service.sendSuspiciousLoginEmail(input);
+
+    expect(enqueueEmailJob).toHaveBeenCalledWith("suspicious_login", input);
+  });
 });

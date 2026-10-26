@@ -18,8 +18,10 @@ import type {
   SendPasswordResetEmailInput,
   SendPostingExpiringSoonEmailInput,
   SendSavedSearchMatchesEmailInput,
+  SendSuspiciousLoginEmailInput,
   SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
+  SuspiciousLoginReason,
 } from "@/features/email/email.service";
 import nodemailer, { type Transporter } from "nodemailer";
 
@@ -64,6 +66,14 @@ const DEFAULTS = {
   maxDelayMs: 2_000,
   backoffMultiplier: 2,
 } as const;
+
+/** The opening line of a suspicious_login email, by what detection saw. */
+const SUSPICIOUS_LOGIN_SUMMARIES: Record<SuspiciousLoginReason, string> = {
+  success_after_failures:
+    "Someone signed in to your account from a new device and a new location, right after several failed attempts to sign in.",
+  refresh_reuse:
+    "A sign-in session on your account was used from two places, which can mean someone copied it. We signed that session out.",
+};
 
 const TRANSIENT_ERROR_CODES = new Set([
   "ECONNRESET",
@@ -209,6 +219,9 @@ export class EmailDeliveryService {
         return;
       case "account_reinstated":
         await this.sendAccountReinstatedEmail(payload.input);
+        return;
+      case "suspicious_login":
+        await this.sendSuspiciousLoginEmail(payload.input);
         return;
     }
   }
@@ -361,26 +374,14 @@ export class EmailDeliveryService {
 
   async sendNewDeviceEmail(input: SendNewDeviceEmailInput): Promise<void> {
     const greetingName = this.resolveGreetingName(input.firstName);
-    const detectedAt =
-      input.detectedAt instanceof Date
-        ? input.detectedAt
-        : typeof input.detectedAt === "string"
-          ? new Date(input.detectedAt)
-          : new Date();
-    const details = this.buildDeviceDetails(input, detectedAt);
-    const htmlDetails = details
-      .map(
-        (detail, index) =>
-          `<div style="padding:8px 0;${index < details.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:13px;color:#334155;line-height:1.6;">${escapeHtml(detail)}</div>`,
-      )
-      .join("");
+    const details = this.buildDeviceDetails(
+      input,
+      this.toDetectedAt(input.detectedAt),
+    );
+    const htmlDetails = this.buildDetailsHtml(details);
     const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
-    const selfLockUrl = input.selfLockToken
-      ? `${this.appBaseUrl}/auth/self-lock?token=${encodeURIComponent(input.selfLockToken)}`
-      : null;
-    const selfLockLink = selfLockUrl
-      ? `<br /><br /><a href="${escapeHtml(selfLockUrl)}" style="color:#9f1239;font-weight:600;">This wasn&rsquo;t you? Lock your account &rarr;</a>`
-      : "";
+    const selfLockUrl = this.buildSelfLockUrl(input.selfLockToken);
+    const selfLockLink = this.buildSelfLockLinkHtml(selfLockUrl);
 
     await this.sendWithRetry({
       to: input.to,
@@ -406,10 +407,58 @@ export class EmailDeliveryService {
           `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">New sign-in detected</h1>`,
           `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
           `<p style="margin:0 0 4px;font-size:14px;color:#334155;line-height:1.7;">We noticed a sign-in from a new device on your account.</p>`,
-          `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px;margin:16px 0;">${htmlDetails}</div>`,
+          htmlDetails,
           `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
           this.buildAlertBox(
             `If this wasn&rsquo;t you, <strong>change your password and review account access immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${selfLockLink}`,
+            "warning",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  async sendSuspiciousLoginEmail(
+    input: SendSuspiciousLoginEmailInput,
+  ): Promise<void> {
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const summary = SUSPICIOUS_LOGIN_SUMMARIES[input.reason];
+    const details = this.buildDeviceDetails(
+      input,
+      this.toDetectedAt(input.detectedAt),
+    );
+    const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
+    const selfLockUrl = this.buildSelfLockUrl(input.selfLockToken);
+    const selfLockLink = this.buildSelfLockLinkHtml(selfLockUrl);
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: "Suspicious activity on your Rentify account",
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        summary,
+        "",
+        ...details.map((detail) => `- ${detail}`),
+        "",
+        "If this was you, no action is needed.",
+        "If this wasn't you, change your password and review your devices and personal access tokens immediately.",
+        ...(selfLockUrl
+          ? [
+              "",
+              `This wasn't you? Lock your account now, which signs everyone out until you reset your password: ${selfLockUrl}`,
+            ]
+          : []),
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">Suspicious activity on your account</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 4px;font-size:14px;color:#334155;line-height:1.7;">${escapeHtml(summary)}</p>`,
+          this.buildDetailsHtml(details),
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
+          this.buildAlertBox(
+            `If this wasn&rsquo;t you, <strong>change your password and review your devices and personal access tokens immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${selfLockLink}`,
             "warning",
           ),
         ].join(""),
@@ -988,8 +1037,43 @@ export class EmailDeliveryService {
     return `This code expires in ${minutes} ${unit}.`;
   }
 
+  /** A queued Date arrives as an ISO string; a missing one means now. */
+  private toDetectedAt(value: Date | string | undefined): Date {
+    if (value instanceof Date) {
+      return value;
+    }
+
+    return typeof value === "string" ? new Date(value) : new Date();
+  }
+
+  private buildSelfLockUrl(token: string | undefined): string | null {
+    return token
+      ? `${this.appBaseUrl}/auth/self-lock?token=${encodeURIComponent(token)}`
+      : null;
+  }
+
+  private buildSelfLockLinkHtml(selfLockUrl: string | null): string {
+    return selfLockUrl
+      ? `<br /><br /><a href="${escapeHtml(selfLockUrl)}" style="color:#9f1239;font-weight:600;">This wasn&rsquo;t you? Lock your account &rarr;</a>`
+      : "";
+  }
+
+  private buildDetailsHtml(details: string[]): string {
+    const rows = details
+      .map(
+        (detail, index) =>
+          `<div style="padding:8px 0;${index < details.length - 1 ? "border-bottom:1px solid #f1f5f9;" : ""}font-size:13px;color:#334155;line-height:1.6;">${escapeHtml(detail)}</div>`,
+      )
+      .join("");
+
+    return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px;margin:16px 0;">${rows}</div>`;
+  }
+
   private buildDeviceDetails(
-    input: SendNewDeviceEmailInput,
+    input: Pick<
+      SendNewDeviceEmailInput,
+      "deviceLabel" | "platform" | "ipAddress" | "userAgent"
+    >,
     detectedAt: Date,
   ): string[] {
     const details = [`Detected at: ${detectedAt.toISOString()}`];

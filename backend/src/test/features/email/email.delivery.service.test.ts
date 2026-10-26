@@ -776,6 +776,66 @@ describe("EmailDeliveryService account status templates", () => {
     expect(message.html).toContain("<ol");
   });
 
+  it.each([
+    ["success_after_failures", "right after several failed attempts"],
+    ["refresh_reuse", "We signed that session out."],
+  ] as const)(
+    "sends a suspicious_login email for %s with the details and a lock link",
+    async (reason, summary) => {
+      const transporter = createTransporterMock();
+      const service = createService(transporter);
+
+      await service.deliver({
+        jobId: `job-${reason}`,
+        kind: "suspicious_login",
+        input: {
+          to: "user@example.com",
+          firstName: "Jane",
+          reason,
+          ipAddress: "198.51.100.7",
+          userAgent: "Mozilla/5.0 <script>",
+          detectedAt: "2026-10-26T09:00:00.000Z" as any,
+          selfLockToken: "lock token",
+        },
+        attempt: 1,
+        occurredAt: "2026-10-26T09:00:00.000Z",
+      });
+
+      const message = sentMessage(transporter);
+      const url = "https://app.example.com/auth/self-lock?token=lock%20token";
+      expect(message.subject).toBe(
+        "Suspicious activity on your Rentify account",
+      );
+      expect(message.text).toContain("Hi Jane,");
+      expect(message.text).toContain(summary);
+      expect(message.text).toContain("Detected at: 2026-10-26T09:00:00.000Z");
+      expect(message.text).toContain("IP address: 198.51.100.7");
+      expect(message.text).toContain(url);
+      expect(message.html).toContain(summary);
+      expect(message.html).toContain(`href="${url}"`);
+      expect(message.html).toContain("Go to account security");
+      expect(message.html).not.toContain("<script>");
+    },
+  );
+
+  it("leaves the lock link out of a suspicious_login email without a token", async () => {
+    const transporter = createTransporterMock();
+    const service = createService(transporter);
+
+    await service.deliver({
+      jobId: "job-no-link",
+      kind: "suspicious_login",
+      input: { to: "user@example.com", reason: "refresh_reuse" },
+      attempt: 1,
+      occurredAt: "2026-10-26T09:00:00.000Z",
+    });
+
+    const message = sentMessage(transporter);
+    expect(message.text).not.toContain("self-lock");
+    expect(message.html).not.toContain("self-lock");
+    expect(message.text).toContain("Detected at:");
+  });
+
   it("suppresses status emails for non-deliverable local recipients", async () => {
     const transporter = createTransporterMock();
     const service = createService(transporter);
