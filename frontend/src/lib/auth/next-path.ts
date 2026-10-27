@@ -41,7 +41,10 @@ export function safeNextPath(
     if (url.origin !== INTERNAL_ORIGIN) {
       return fallback;
     }
-    return `${url.pathname}${url.search}${url.hash}`;
+    // Removing dot segments can expose a protocol-relative path, e.g.
+    // "/a/..//example.org" normalizes to "//example.org".
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    return path.startsWith("//") ? fallback : path;
   } catch {
     return fallback;
   }
