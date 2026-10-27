@@ -94,6 +94,21 @@ describe("authentication routes", () => {
     expect(screen.getAllByText("OAuth complete")).toHaveLength(3);
   });
 
+  it("replaces off-site redirect parameters with /", async () => {
+    render(
+      await LoginPage({
+        searchParams: Promise.resolve({ next: "https://example.org" }),
+      }),
+    );
+    expect(screen.getByText("Login / false")).toBeInTheDocument();
+    render(
+      await SignupPage({
+        searchParams: Promise.resolve({ next: "//example.org" }),
+      }),
+    );
+    expect(screen.getByText("Signup /")).toBeInTheDocument();
+  });
+
   it("passes the self-lock token and status to the card in its own shell", async () => {
     const { container } = render(
       await SelfLockPage({

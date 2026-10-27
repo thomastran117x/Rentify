@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { clearPersistedAuthPendingFlowByType } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { safeNextPath } from "@/lib/auth/next-path";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   ApiClientError,
@@ -125,8 +126,9 @@ interface SignupVerificationPanelProps {
 
 export function SignupVerificationPanel({
   result,
-  nextPath = "/",
+  nextPath: requestedNextPath,
 }: SignupVerificationPanelProps) {
+  const nextPath = safeNextPath(requestedNextPath);
   const router = useRouter();
   const { setSession } = useAuth();
 

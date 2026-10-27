@@ -28,6 +28,7 @@ import {
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { safeNextPath } from "@/lib/auth/next-path";
 import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
 import { getPasswordStrengthError } from "@/lib/auth/password";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
@@ -254,7 +255,8 @@ interface SignupFormProps {
   nextPath?: string;
 }
 
-export function SignupForm({ nextPath = "/" }: SignupFormProps) {
+export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
+  const nextPath = safeNextPath(requestedNextPath);
   const router = useRouter();
   const { status, setSession } = useAuth();
 

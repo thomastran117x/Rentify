@@ -237,6 +237,21 @@ describe("LoginForm", () => {
     });
   });
 
+  it("redirects to / instead of an off-site next path", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+      clearSession: vi.fn(),
+    });
+
+    render(<LoginForm nextPath="https://example.org" />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/");
+    });
+    expect(routerReplaceMock).not.toHaveBeenCalledWith("https://example.org");
+  });
+
   it("shows validation errors for missing form values", async () => {
     const user = userEvent.setup();
     useAuthCaptchaTokenMock.mockReturnValue([
