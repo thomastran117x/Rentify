@@ -6,6 +6,7 @@ import {
 } from "@/configuration/bootstrap/container";
 import { containerTokens } from "@/configuration/container/tokens";
 import { environment, loadEnvironment } from "@/configuration/environment";
+import { describeProxyTrustWarnings } from "@/configuration/http/client-ip";
 import { loggerFactory } from "@/configuration/logging";
 import {
   connectElasticsearch,
@@ -37,6 +38,23 @@ export interface StartupDependencies {
   loadEnvironment(): ReturnType<typeof loadEnvironment>;
   runAutoSeedsIfNeeded(): Promise<unknown>;
   warmIdentityBloomFilters(): Promise<unknown>;
+  warnOnProxyTrustConfiguration(): void;
+}
+
+/**
+ * Flags proxy settings that believe client-supplied headers without a hop
+ * count or proxy range to bound them. Not fatal: the deprecated alias still
+ * resolves to one hop, and a header-only setup is valid behind an edge that
+ * overwrites the header.
+ */
+function warnOnProxyTrustConfiguration(): void {
+  const logger = loggerFactory.forComponent("client-ip", "app");
+
+  for (const warning of describeProxyTrustWarnings(
+    environment.getHttpConfig(),
+  )) {
+    logger.warn(warning);
+  }
 }
 
 /**
@@ -82,6 +100,7 @@ const defaultDependencies: StartupDependencies = {
   loadEnvironment,
   runAutoSeedsIfNeeded,
   warmIdentityBloomFilters,
+  warnOnProxyTrustConfiguration,
 };
 
 export async function initializeServerApplication(
@@ -96,6 +115,7 @@ export async function initializeServerApplication(
   };
 
   dependencies.loadEnvironment();
+  dependencies.warnOnProxyTrustConfiguration();
   const port = environment.getServerPort();
   // Before any I/O with side effects: a process that cannot reach blob
   // storage should not have seeded the database or opened connections.

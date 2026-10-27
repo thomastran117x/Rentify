@@ -96,6 +96,7 @@ export type RawEnvironmentValues = {
   BOOKING_REQUEST_EXPIRY_BATCH_SIZE?: string;
   BOOKING_REQUEST_EXPIRY_POLL_INTERVAL_MS?: string;
   CAPTCHA_ALLOWED_HOSTS?: string;
+  CLIENT_IP_HEADER?: string;
   CLOUDFLARE_TURNSTILE_SECRET_KEY?: string;
   CORS_ALLOWED_ORIGINS?: string;
   CSRF_ALLOWED_ORIGINS?: string;
@@ -270,6 +271,8 @@ export type RawEnvironmentValues = {
   TOKEN_AUDIENCE?: string;
   TOKEN_ISSUER?: string;
   TRUST_PROXY_HEADERS?: string;
+  TRUSTED_PROXY_CIDRS?: string;
+  TRUSTED_PROXY_HOPS?: string;
   USERNAME_BLOOM_ENABLED?: string;
   USERNAME_BLOOM_CAPACITY?: string;
   USERNAME_BLOOM_FALSE_POSITIVE_RATE?: string;
@@ -317,7 +320,14 @@ export interface AppEnvironment {
   http: {
     requestTimeoutMs: number;
     requestBodyMaxBytes: number;
-    trustProxyHeaders: boolean;
+    /** How many proxies sit in front of the backend; 0 ignores X-Forwarded-For. */
+    trustedProxyHops: number;
+    /** Addresses or CIDR ranges of the proxies in front of the backend. */
+    trustedProxyCidrs: string[];
+    /** The one vendor client-IP header to honour, lowercased. */
+    clientIpHeader?: string;
+    /** Set when the deprecated TRUST_PROXY_HEADERS alias supplied the hop count. */
+    deprecatedTrustProxyHeaders: boolean;
   };
   database: {
     url: string;

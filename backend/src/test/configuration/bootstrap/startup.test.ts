@@ -1,4 +1,5 @@
 import { initializeServerApplication } from "@/configuration/bootstrap/startup";
+import { loggerFactory } from "@/configuration/logging";
 
 describe("initializeServerApplication", () => {
   it("runs auto-seeds after the database connects and before the container initializes", async () => {
@@ -40,6 +41,9 @@ describe("initializeServerApplication", () => {
         calls.push("loadEnvironment");
         return {} as any;
       },
+      warnOnProxyTrustConfiguration: () => {
+        calls.push("warnOnProxyTrustConfiguration");
+      },
       checkBlobStorageAccess: async () => {
         calls.push("checkBlobStorageAccess");
       },
@@ -47,6 +51,7 @@ describe("initializeServerApplication", () => {
 
     expect(calls).toEqual([
       "loadEnvironment",
+      "warnOnProxyTrustConfiguration",
       "checkBlobStorageAccess",
       "connectDatabase",
       "runAutoSeedsIfNeeded",
@@ -144,6 +149,36 @@ describe("initializeServerApplication", () => {
     });
 
     expect(result.app).toBe(app);
+  });
+
+  it("warns at startup when the deprecated proxy flag is the only trust setting", async () => {
+    const warn = jest.fn();
+    const forComponent = jest
+      .spyOn(loggerFactory, "forComponent")
+      .mockReturnValue({ warn } as any);
+    const original = process.env.TRUST_PROXY_HEADERS;
+    process.env.TRUST_PROXY_HEADERS = "true";
+
+    try {
+      await initializeServerApplication({
+        loadEnvironment: () => ({}) as any,
+        checkBlobStorageAccess: async () => {
+          throw new Error("stop after the warning");
+        },
+      }).catch(() => undefined);
+
+      expect(forComponent).toHaveBeenCalledWith("client-ip", "app");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("TRUST_PROXY_HEADERS is deprecated"),
+      );
+    } finally {
+      if (original === undefined) {
+        delete process.env.TRUST_PROXY_HEADERS;
+      } else {
+        process.env.TRUST_PROXY_HEADERS = original;
+      }
+      forComponent.mockRestore();
+    }
   });
 
   it("stops before any I/O when blob storage cannot be reached", async () => {

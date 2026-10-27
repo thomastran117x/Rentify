@@ -3,9 +3,12 @@ import type { RouteModuleId } from "@/configuration/bootstrap/routes/types";
 import { DEFAULT_LOG_FALLBACK_DIRECTORY } from "@/configuration/environment/constants";
 import {
   normalizeBaseUrl,
+  normalizeDelimitedList,
+  normalizeOptionalString,
   parseBoolean,
   parseNumber,
 } from "@/configuration/environment/shared";
+import { parseTrustedProxyCidr } from "@/configuration/http/client-ip";
 import type {
   AppEnvironment,
   NodeEnvironment,
@@ -94,6 +97,75 @@ export function buildApplicationConfig(
   };
 }
 
+const HEADER_NAME_PATTERN = /^[a-z0-9-]+$/;
+
+function readClientIpHeader(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): string | undefined {
+  const header = normalizeOptionalString(raw.CLIENT_IP_HEADER)?.toLowerCase();
+
+  if (!header) {
+    return undefined;
+  }
+
+  if (!HEADER_NAME_PATTERN.test(header)) {
+    errors.push("CLIENT_IP_HEADER must be a single HTTP header name.");
+    return undefined;
+  }
+
+  // X-Forwarded-For is a chain, not a single address; it is always walked
+  // from the trusted end instead.
+  if (header === "x-forwarded-for") {
+    errors.push(
+      "CLIENT_IP_HEADER cannot be x-forwarded-for; set TRUSTED_PROXY_HOPS or TRUSTED_PROXY_CIDRS instead.",
+    );
+    return undefined;
+  }
+
+  return header;
+}
+
+function readProxyTrust(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): Pick<
+  AppEnvironment["http"],
+  "trustedProxyHops" | "trustedProxyCidrs" | "deprecatedTrustProxyHeaders"
+> {
+  const hops = parseNumber(raw, "TRUSTED_PROXY_HOPS", 0, errors, {
+    integer: true,
+    min: 0,
+  });
+  const cidrs = normalizeDelimitedList(raw.TRUSTED_PROXY_CIDRS);
+  const invalidCidrs = cidrs.filter((entry) => !parseTrustedProxyCidr(entry));
+
+  if (invalidCidrs.length > 0) {
+    errors.push(
+      `TRUSTED_PROXY_CIDRS contains invalid addresses or ranges: ${invalidCidrs.join(", ")}.`,
+    );
+  }
+
+  if (hops > 0 && cidrs.length > 0) {
+    errors.push(
+      "Set either TRUSTED_PROXY_HOPS or TRUSTED_PROXY_CIDRS, not both.",
+    );
+  }
+
+  // The deprecated boolean only ever meant "one proxy in front"; it stands in
+  // for that when nothing explicit is configured.
+  const deprecatedTrustProxyHeaders =
+    hops === 0 &&
+    cidrs.length === 0 &&
+    parseBoolean(raw.TRUST_PROXY_HEADERS, false);
+
+  return {
+    trustedProxyHops: deprecatedTrustProxyHeaders ? 1 : hops,
+    trustedProxyCidrs: cidrs,
+    deprecatedTrustProxyHeaders,
+  };
+}
+
 export function buildHttpConfig(
   raw: RawEnvironmentValues,
   errors: string[],
@@ -110,7 +182,8 @@ export function buildHttpConfig(
       errors,
       { integer: true, min: 1 },
     ),
-    trustProxyHeaders: parseBoolean(raw.TRUST_PROXY_HEADERS, false),
+    ...readProxyTrust(raw, errors),
+    clientIpHeader: readClientIpHeader(raw, errors),
   };
 }
 
