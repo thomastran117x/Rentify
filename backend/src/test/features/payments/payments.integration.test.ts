@@ -504,6 +504,67 @@ describe("Payments persistence integration", () => {
     ).resolves.toMatchObject({ issuedByUserId: managerUser.id });
   });
 
+  it("does not let a manager refund a payment they made to their own organization", async () => {
+    // renter-one manages owner-one's organization and rented from it.
+    const managerUser = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    const ownPayment = await persistenceApp.prisma.payment.findFirstOrThrow({
+      where: {
+        status: "succeeded",
+        renterId: managerUser.id,
+        organization: {
+          memberships: {
+            some: { userId: managerUser.id, role: "manager" },
+          },
+        },
+      },
+    });
+    const manager = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const beforeRefundCount = await persistenceApp.prisma.refund.count({
+      where: { paymentId: ownPayment.id },
+    });
+    const createRefundStub = persistenceApp.stubs.paymentProvider.createRefund;
+    const beforeProviderRefunds = createRefundStub.mock.calls.length;
+
+    const refundResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${ownPayment.id}/refunds`)}`,
+      {
+        method: "POST",
+        headers: manager.headers({
+          "idempotency-key": "persistence-refund-self",
+        }),
+        body: JSON.stringify({ amount: 1, reason: "self refund" }),
+      },
+    );
+
+    expect(refundResponse.status).toBe(403);
+    expect(
+      await persistenceApp.prisma.refund.count({
+        where: { paymentId: ownPayment.id },
+      }),
+    ).toBe(beforeRefundCount);
+    expect(createRefundStub.mock.calls.length).toBe(beforeProviderRefunds);
+
+    // Reconcile only re-reads PayPal, so their membership still allows it.
+    persistenceApp.stubs.paymentProvider.getPaymentStatus.mockResolvedValueOnce(
+      {
+        providerPaymentId: ownPayment.providerPaymentId,
+        providerOrderId: ownPayment.providerOrderId,
+        status: "COMPLETED",
+        raw: { source: "test" },
+      },
+    );
+    const reconcileResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${ownPayment.id}/reconcile`)}`,
+      { method: "POST", headers: manager.headers() },
+    );
+
+    expect(reconcileResponse.status).toBe(200);
+  });
+
   it("returns a payment by booking request for the renter and org members but not strangers", async () => {
     const booking = SEED_BOOKINGS[11]!;
     const payment = await getPaymentForBooking(persistenceApp, booking.id);

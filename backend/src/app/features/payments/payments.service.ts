@@ -464,11 +464,19 @@ export class PaymentsService {
   }
 
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
-    await this.requirePaymentAccess(
+    const accessible = await this.requirePaymentAccess(
       input.paymentId,
       input.actorUserId,
       "manage",
     );
+
+    // A manager who rented from their own organization would be paying the
+    // refund to themselves; another manager has to issue it.
+    if (accessible.renterId === input.actorUserId) {
+      throw new ForbiddenError(
+        "You cannot refund a payment you made. Ask another manager of this organization to issue it.",
+      );
+    }
 
     const idempotencyKey = createPaymentIdempotencyKey(input.idempotencyKey);
     const { refundId, providerPaymentId, pricingCurrency } =

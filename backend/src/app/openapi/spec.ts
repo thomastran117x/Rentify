@@ -9256,7 +9256,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPaymentRefund",
       summary: "Create a payment refund",
       description:
-        "Creates a refund for a captured payment. Only a manager or primary manager of the payment's organization may refund; the renter, operators and anyone outside the organization receive 403, and nothing is recorded or sent to PayPal. PAT bearer authentication is not allowed.",
+        "Creates a refund for a captured payment. Only a manager or primary manager of the payment's organization may refund; the renter, operators and anyone outside the organization receive 403, and nothing is recorded or sent to PayPal. A manager who is also the payment's renter receives 403 too; another manager must issue that refund. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {

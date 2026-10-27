@@ -555,6 +555,32 @@ describe("PaymentsService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("rejects refunds from a manager who is also the renter", async () => {
+      const { service, paymentsRepository, paymentProvider } = createService();
+
+      await expect(
+        service.createRefund({
+          paymentId: PAYMENT_1_ID,
+          actorUserId: RENTER_1_ID,
+          amount: 1,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        paymentsRepository.createRefundRecord as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentProvider.createRefund as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("lets a manager who is also the renter reconcile", async () => {
+      const { service } = createService();
+
+      await expect(
+        service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).resolves.toMatchObject({ id: PAYMENT_1_ID });
+    });
+
     it("rejects reconcile from the renter without asking the provider", async () => {
       const { service, paymentProvider } = createService({
         orgAccess: { requireMembership: rejectMembership() },
