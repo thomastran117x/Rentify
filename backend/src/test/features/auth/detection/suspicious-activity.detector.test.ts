@@ -332,6 +332,30 @@ describe("SuspiciousActivityDetector", () => {
       },
     );
 
+    it.each([
+      ["has no password (provider sign-in only)", { passwordHash: null }],
+      ["has an unverified email", { emailVerified: false }],
+    ])(
+      "never holds an account that %s, since it could not recover",
+      async (_label, overrides) => {
+        const { detector, repository, accountStatusService } = createDetector(
+          createConfig({ mode: "enforce" }),
+          createUser(overrides),
+        );
+
+        for (let index = 0; index < 3; index += 1) {
+          await detector.handle(lockout());
+        }
+
+        expect(accountStatusService.lock).not.toHaveBeenCalled();
+        expect(suspiciousEvent(repository)).toMatchObject({
+          outcome: "failure",
+          flagged: true,
+          metadata: { action: "skipped" },
+        });
+      },
+    );
+
     it("fires once per window, then again after it", async () => {
       const { detector, repository, cache, advance } = createDetector();
 

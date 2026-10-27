@@ -19,6 +19,7 @@ import {
   type SuspiciousActivityDetectionConfig,
   type SuspiciousActivityRule,
 } from "@/features/auth/detection/suspicious-activity.model";
+import { isEligibleForLocalPasswordManagement } from "@/features/auth/local-account-eligibility";
 import { issueSelfLockLinkToken } from "@/features/auth/self-lock/self-lock-link";
 import type { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
@@ -495,8 +496,9 @@ export class SuspiciousActivityDetector {
   }
 
   /**
-   * Rule (a)'s enforce action. Only an active account is locked: a held one
-   * stays as it is and a suspension is never downgraded to a hold.
+   * Rule (a)'s enforce action. Only an active account that can recover by
+   * resetting its password is locked: a held one stays as it is, a suspension
+   * is never downgraded to a hold, and a provider-only account is left alone.
    */
   private async lockAccount(
     userId: Uuid,
@@ -505,7 +507,14 @@ export class SuspiciousActivityDetector {
   ): Promise<SuspiciousActivityAction> {
     const user = await this.dependencies.usersRepository.findUserById(userId);
 
-    if (!user || user.status !== "active") {
+    // The only way out of a hold without an admin is a password reset, so an
+    // account that cannot reset one (no password, or an unverified email) is
+    // never held automatically. Its lockouts are still recorded and flagged.
+    if (
+      !user ||
+      user.status !== "active" ||
+      !isEligibleForLocalPasswordManagement(user)
+    ) {
       return "skipped";
     }
 
