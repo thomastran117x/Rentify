@@ -95,6 +95,17 @@ type ProviderStatusResult = {
   reconciliationRequired: boolean;
 };
 
+/**
+ * The relationship a caller needs with a payment.
+ *
+ * - `read`: the renter, or any member of the payment's organization.
+ * - `checkout`: the renter only (retry, capture, cancel-checkout).
+ * - `manage`: a manager or primary manager of the payment's organization
+ *   (refunds, reconcile). Being the renter grants nothing here, so a renter who
+ *   is also a manager passes on their membership alone.
+ */
+type PaymentAccess = "read" | "checkout" | "manage";
+
 export class PaymentsService {
   constructor(
     private readonly paymentsRepository: PaymentsRepository,
@@ -263,7 +274,7 @@ export class PaymentsService {
     const payment = await this.requirePaymentAccess(
       input.paymentId,
       input.renterId,
-      "manage",
+      "checkout",
     );
 
     if (!["failed_retryable", "failed_final"].includes(payment.status)) {
@@ -297,8 +308,8 @@ export class PaymentsService {
 
   /**
    * Captures the provider order the buyer approved. Capturing finalizes the
-   * booking, so only the renter or a member who can manage the organization's
-   * payments may do it. Called when the buyer is
+   * booking, so only the renter may do it; organization managers use
+   * reconcile instead. Called when the buyer is
    * redirected back from checkout; the webhook and repair paths cover buyers
    * who never make it back.
    */
@@ -310,7 +321,7 @@ export class PaymentsService {
     const accessible = await this.requirePaymentAccess(
       paymentId,
       userId,
-      "manage",
+      "checkout",
     );
 
     return this.withCheckoutLock(accessible.bookingRequestId, async () => {
@@ -387,7 +398,7 @@ export class PaymentsService {
     const accessible = await this.requirePaymentAccess(
       paymentId,
       userId,
-      "manage",
+      "checkout",
     );
 
     return this.withCheckoutLock(accessible.bookingRequestId, () =>
@@ -453,11 +464,19 @@ export class PaymentsService {
   }
 
   async createRefund(input: CreateRefundInput): Promise<PaymentRecord> {
-    await this.requirePaymentAccess(
+    const accessible = await this.requirePaymentAccess(
       input.paymentId,
       input.actorUserId,
       "manage",
     );
+
+    // A manager who rented from their own organization would be paying the
+    // refund to themselves; another manager has to issue it.
+    if (accessible.renterId === input.actorUserId) {
+      throw new ForbiddenError(
+        "You cannot refund a payment you made. Ask another manager of this organization to issue it.",
+      );
+    }
 
     const idempotencyKey = createPaymentIdempotencyKey(input.idempotencyKey);
     const { refundId, providerPaymentId, pricingCurrency } =
@@ -1149,7 +1168,7 @@ export class PaymentsService {
   private async requirePaymentAccess(
     paymentId: Uuid,
     userId: Uuid,
-    access: "read" | "manage",
+    access: PaymentAccess,
   ): Promise<PaymentRecord> {
     const payment = await this.paymentsRepository.findById(paymentId);
 
@@ -1163,9 +1182,19 @@ export class PaymentsService {
   private async requirePaymentRecordAccess(
     payment: PaymentRecord,
     userId: Uuid,
-    access: "read" | "manage",
+    access: PaymentAccess,
   ): Promise<PaymentRecord> {
-    if (payment.renterId === userId) {
+    if (access === "checkout") {
+      if (payment.renterId !== userId) {
+        throw new ForbiddenError(
+          "Only the renter can complete checkout for this payment.",
+        );
+      }
+
+      return payment;
+    }
+
+    if (access === "read" && payment.renterId === userId) {
       return payment;
     }
 
