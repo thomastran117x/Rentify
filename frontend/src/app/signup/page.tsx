@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SignupForm } from "@/components/auth/signup-form";
 import { SignupFormCard } from "@/components/auth/signup-form-card";
 import { AuthPageShell } from "@/components/auth/auth-page-shell";
+import { safeNextPath } from "@/lib/auth/next-path";
 
 export const metadata: Metadata = {
   title: "Sign Up | Rentify",
@@ -23,13 +24,13 @@ export const metadata: Metadata = {
 
 interface SignupPageProps {
   searchParams?: Promise<{
-    next?: string;
+    next?: string | string[];
   }>;
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const nextPath = resolvedSearchParams?.next || "/";
+  const nextPath = safeNextPath(resolvedSearchParams?.next);
 
   return (
     <AuthPageShell variant="signup">

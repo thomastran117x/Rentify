@@ -252,6 +252,20 @@ describe("SignupForm", () => {
     });
   });
 
+  it("redirects to / instead of an off-site next path", async () => {
+    useAuthMock.mockReturnValue({
+      status: "authenticated",
+      setSession: vi.fn(),
+    });
+
+    render(<SignupForm nextPath="//example.org" />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/");
+    });
+    expect(routerReplaceMock).not.toHaveBeenCalledWith("//example.org");
+  });
+
   it("opens the welcome modal and defers redirect for a first-time OAuth user", async () => {
     const user = userEvent.setup();
     const setSession = vi.fn().mockImplementation(() => {

@@ -18,6 +18,7 @@ import {
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
+import { safeNextPath } from "@/lib/auth/next-path";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   ApiClientError,
@@ -197,9 +198,10 @@ interface DeviceMfaDialogState {
 }
 
 export function LoginForm({
-  nextPath,
+  nextPath: requestedNextPath,
   initialRecoveryOpen = false,
 }: LoginFormProps) {
+  const nextPath = safeNextPath(requestedNextPath);
   const router = useRouter();
   const { status, setSession, clearSession } = useAuth();
 

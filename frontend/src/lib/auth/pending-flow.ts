@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { MfaVerificationChallengeFactor } from "@/lib/auth/mfa-verification-api";
+import { safeNextPath } from "@/lib/auth/next-path";
 
 const AUTH_PENDING_FLOW_STORAGE_KEY = "rentify.auth.pending-flow";
 const AUTH_PENDING_FLOW_EVENT = "rentify-auth-pending-flow-storage";
@@ -81,7 +82,7 @@ export function parsePendingFlow(
         return {
           flow: "signup-verification",
           email: value.email,
-          nextPath: value.nextPath,
+          nextPath: safeNextPath(value.nextPath),
           alreadyPending: value.alreadyPending,
         };
       }
@@ -113,7 +114,7 @@ export function parsePendingFlow(
       ) {
         return {
           flow: "device-login-mfa",
-          nextPath: value.nextPath,
+          nextPath: safeNextPath(value.nextPath),
           selectedFactor: value.selectedFactor,
           challengeSent: value.challengeSent,
         };

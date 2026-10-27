@@ -181,6 +181,39 @@ describe("pending auth flow storage", () => {
     expect(parsePendingFlow(value)).toBeNull();
   });
 
+  it("replaces an off-site next path in a persisted flow with /", () => {
+    expect(
+      parsePendingFlow({
+        flow: "signup-verification",
+        email: "a@b.test",
+        nextPath: "https://example.org",
+        alreadyPending: false,
+      }),
+    ).toEqual({
+      flow: "signup-verification",
+      email: "a@b.test",
+      nextPath: "/",
+      alreadyPending: false,
+    });
+
+    window.sessionStorage.setItem(
+      "rentify.auth.pending-flow",
+      JSON.stringify({
+        flow: "device-login-mfa",
+        nextPath: "//example.org",
+        selectedFactor: "email",
+        challengeSent: true,
+      }),
+    );
+
+    expect(readPersistedAuthPendingFlow()).toEqual({
+      flow: "device-login-mfa",
+      nextPath: "/",
+      selectedFactor: "email",
+      challengeSent: true,
+    });
+  });
+
   it("returns a cached flow and exposes it through the external-store snapshot", () => {
     const flow = {
       flow: "login-unlock" as const,

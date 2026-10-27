@@ -209,6 +209,40 @@ describe("SignupVerificationPanel", () => {
     });
   });
 
+  it("redirects to / instead of an off-site next path after verification", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({ setSession: vi.fn() });
+    verifyEmailMock.mockResolvedValue({
+      accessToken: "access-token",
+      device: { known: true, knownByIp: false },
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        username: "person",
+        role: "user",
+      },
+    });
+
+    render(
+      <SignupVerificationPanel
+        result={{
+          verificationRequired: true,
+          email: "person@example.com",
+          alreadyPending: false,
+        }}
+        nextPath="/\example.org"
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Verification code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/");
+    });
+    expect(routerReplaceMock).not.toHaveBeenCalledWith("/\\example.org");
+  });
+
   it("resends the verification code and clears captcha state", async () => {
     const user = userEvent.setup();
     resendVerificationEmailMock.mockResolvedValue({ accepted: true });

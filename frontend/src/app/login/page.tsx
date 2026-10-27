@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/login-form";
 import { LoginFormCard } from "@/components/auth/login-form-card";
 import { AuthPageShell } from "@/components/auth/auth-page-shell";
+import { safeNextPath } from "@/lib/auth/next-path";
 
 export const metadata: Metadata = {
   title: "Login | Rentify",
@@ -23,14 +24,14 @@ export const metadata: Metadata = {
 
 interface LoginPageProps {
   searchParams?: Promise<{
-    next?: string;
+    next?: string | string[];
     recovery?: string;
   }>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = await searchParams;
-  const nextPath = resolvedSearchParams?.next || "/";
+  const nextPath = safeNextPath(resolvedSearchParams?.next);
   const initialRecoveryOpen = resolvedSearchParams?.recovery === "account";
 
   return (
