@@ -53,14 +53,27 @@ export interface ListAuthAuditEventsForAdminInput {
 }
 
 /**
- * The events a detection rule fired on. Each lookup leads with the user or
- * the IP address, so it is served by `(user_id, created_at)` or
- * `(ip_address, created_at)`.
+ * One kind of event a detection rule counts. `triggeredLockout` keeps only the
+ * `login.locked` attempt that set a lock, whose metadata has `triggered: true`,
+ * not the refusals recorded while the lock lasts.
+ */
+export interface AuthAuditEventMatch {
+  eventType: string;
+  outcome?: string;
+  triggeredLockout?: boolean;
+}
+
+/**
+ * The events a detection rule fired on: those matching any of `matches`. Each
+ * lookup leads with the user or the IP address, so it is served by
+ * `(user_id, created_at)` or `(ip_address, created_at)`.
  */
 export interface FindRecentAuthAuditEventIdsInput {
   userId?: Uuid;
   ipAddress?: string;
-  eventTypes: readonly string[];
+  /** Only events written while serving this request. */
+  requestId?: string;
+  matches: readonly AuthAuditEventMatch[];
   /** Inclusive lower bound on created_at. */
   createdFrom: Date;
   limit: number;
@@ -208,8 +221,15 @@ export class AuthAuditRepository extends BaseRepository {
         where: {
           ...(input.userId ? { userId: input.userId } : {}),
           ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
-          eventType: { in: [...input.eventTypes] },
+          ...(input.requestId ? { requestId: input.requestId } : {}),
           createdAt: { gte: input.createdFrom },
+          OR: input.matches.map((match) => ({
+            eventType: match.eventType,
+            ...(match.outcome ? { outcome: match.outcome } : {}),
+            ...(match.triggeredLockout
+              ? { metadata: { path: "$.triggered", equals: true } }
+              : {}),
+          })),
         },
         select: { id: true },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],

@@ -365,8 +365,11 @@ describe("Suspicious sign-in detection integration", () => {
     it("puts the account on a security hold with source system and emails the user", async () => {
       // Three lockouts, each from its own address so the rate limit never
       // interferes. Clearing the attempt record stands in for its expiry.
+      // The first round also tries once more while locked: that refusal is
+      // recorded as login.locked too, but is not a new lockout.
       for (let round = 0; round < 3; round += 1) {
-        for (let attempt = 0; attempt < 5; attempt += 1) {
+        const attempts = round === 0 ? 6 : 5;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
           const response = await login({
             username: RENTER_TWO.username,
             password: WRONG_PASSWORD,
@@ -410,8 +413,17 @@ describe("Suspicious sign-in detection integration", () => {
       const lockouts = await persistenceApp.prisma.authAuditEvent.findMany({
         where: { eventType: "login.locked", userId: user.id },
       });
-      expect(lockouts).toHaveLength(3);
-      expect(lockouts.every((event) => event.flagged)).toBe(true);
+      // Only the three attempts that set a lock are flagged, not the refusal.
+      expect(lockouts).toHaveLength(4);
+      expect(
+        lockouts
+          .filter((event) => event.flagged)
+          .map((event) => event.metadata),
+      ).toEqual([
+        expect.objectContaining({ triggered: true }),
+        expect.objectContaining({ triggered: true }),
+        expect.objectContaining({ triggered: true }),
+      ]);
 
       await waitForRabbitMqPayload<EmailJobPayload>(
         persistenceApp.infra.rabbitMq,

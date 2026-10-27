@@ -109,7 +109,12 @@ function createDetector(
   const cache = new FakeDetectionCache();
   const repository = {
     create: jest.fn(async () => undefined),
-    findRecentEventIds: jest.fn(async () => ["related-1", "related-2"]),
+    findRecentEventIds: jest.fn(
+      async (_input: { requestId?: string }): Promise<string[]> => [
+        "related-1",
+        "related-2",
+      ],
+    ),
     flagEvents: jest.fn(async (ids: readonly string[]) => ids.length),
   };
   const accountStatusService = {
@@ -216,7 +221,8 @@ describe("SuspiciousActivityDetector", () => {
     it("ignores events no rule watches, including its own", async () => {
       const { detector, cache } = createDetector();
 
-      await detector.handle(event({ eventType: "login.succeeded" }));
+      await detector.handle(event({ eventType: "logout" }));
+      await detector.handle(event({ eventType: "device.new_detected" }));
       await detector.handle(
         event({ eventType: "security.suspicious_activity" }),
       );
@@ -259,7 +265,7 @@ describe("SuspiciousActivityDetector", () => {
       expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
       expect(repository.findRecentEventIds).toHaveBeenCalledWith({
         userId: USER_ID,
-        eventTypes: ["login.locked"],
+        matches: [{ eventType: "login.locked", triggeredLockout: true }],
         createdFrom: new Date("2026-10-25T12:00:00.000Z"),
         limit: 50,
       });
@@ -414,7 +420,7 @@ describe("SuspiciousActivityDetector", () => {
       expect(accountStatusService.lock).not.toHaveBeenCalled();
       expect(repository.findRecentEventIds).toHaveBeenCalledWith({
         ipAddress: IP,
-        eventTypes: ["login.failed"],
+        matches: [{ eventType: "login.failed", outcome: "failure" }],
         createdFrom: new Date("2026-10-26T11:50:00.000Z"),
         limit: 50,
       });
@@ -489,11 +495,26 @@ describe("SuspiciousActivityDetector", () => {
       }
     }
 
+    /** A completed sign-in; the repository mock reports a new device in it. */
+    function signIn(overrides: Partial<RecordedAuthAuditEvent> = {}) {
+      return event({
+        eventType: "login.succeeded",
+        outcome: "success",
+        reasonCode: undefined,
+        context: {
+          ipAddress: "203.0.113.99",
+          userAgent: "New Browser",
+          requestId: "request-sign-in",
+        },
+        ...overrides,
+      });
+    }
+
     it("does not fire with fewer failures than the threshold", async () => {
       const { detector, repository, emailService } = createDetector();
 
       await failTimes(detector, 4);
-      await detector.handle(event({ eventType: "device.new_detected" }));
+      await detector.handle(signIn());
 
       expect(repository.create).not.toHaveBeenCalled();
       expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
@@ -502,17 +523,15 @@ describe("SuspiciousActivityDetector", () => {
     it("emails once, with a working lock link, at the threshold in alert mode", async () => {
       const { detector, repository, emailService, selfLockTokenStore } =
         createDetector();
-      const success = event({
-        eventType: "device.new_detected",
-        outcome: "success",
-        context: { ipAddress: "203.0.113.99", userAgent: "New Browser" },
-      });
+      repository.findRecentEventIds.mockImplementation(
+        async (input: { requestId?: string }) =>
+          input.requestId ? ["new-device-event"] : ["related-1", "related-2"],
+      );
+      const success = signIn();
 
       await failTimes(detector, 5);
       await detector.handle(success);
-      await detector.handle(
-        event({ eventType: "device.new_detected", outcome: "success" }),
-      );
+      await detector.handle(signIn());
 
       const recorded = suspiciousEvent(repository);
       expect(repository.create).toHaveBeenCalledTimes(1);
@@ -530,12 +549,28 @@ describe("SuspiciousActivityDetector", () => {
         detectedAt: new Date("2026-10-26T12:00:00.000Z"),
         selfLockToken: "lock-token",
       });
-      expect(repository.findRecentEventIds).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: USER_ID,
-          eventTypes: ["login.failed", "login.locked"],
-        }),
-      );
+      expect(repository.findRecentEventIds).toHaveBeenCalledWith({
+        userId: USER_ID,
+        requestId: "request-sign-in",
+        matches: [{ eventType: "device.new_detected" }],
+        createdFrom: new Date("2026-10-26T11:00:00.000Z"),
+        limit: 1,
+      });
+      expect(repository.findRecentEventIds).toHaveBeenCalledWith({
+        userId: USER_ID,
+        matches: [
+          { eventType: "login.failed", outcome: "failure" },
+          { eventType: "login.locked", triggeredLockout: true },
+        ],
+        createdFrom: new Date("2026-10-26T11:00:00.000Z"),
+        limit: 50,
+      });
+      expect(repository.flagEvents).toHaveBeenCalledWith([
+        success.id,
+        "new-device-event",
+        "related-1",
+        "related-2",
+      ]);
       expect(recorded).toMatchObject({
         outcome: "failure",
         metadata: {
@@ -546,12 +581,59 @@ describe("SuspiciousActivityDetector", () => {
       });
     });
 
+    it("also fires on a provider sign-in", async () => {
+      const { detector, emailService } = createDetector();
+
+      await failTimes(detector, 5);
+      await detector.handle(
+        signIn({ eventType: "oauth.login.succeeded", method: "google" }),
+      );
+
+      expect(emailService.sendSuspiciousLoginEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fire when the sign-in recorded no new device", async () => {
+      const { detector, repository, emailService } = createDetector();
+      repository.findRecentEventIds.mockImplementation(
+        async (input: { requestId?: string }) =>
+          input.requestId ? [] : ["related-1"],
+      );
+
+      await failTimes(detector, 5);
+      await detector.handle(signIn());
+
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
+    });
+
+    it("ignores a new device seen while refreshing a session", async () => {
+      const { detector, repository, emailService } = createDetector();
+
+      await failTimes(detector, 5);
+      await detector.handle(
+        event({ eventType: "device.new_detected", outcome: "success" }),
+      );
+
+      expect(repository.findRecentEventIds).not.toHaveBeenCalled();
+      expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
+    });
+
+    it("needs the request id to tie the sign-in to its new device", async () => {
+      const { detector, repository, emailService } = createDetector();
+
+      await failTimes(detector, 5);
+      await detector.handle(signIn({ context: { ipAddress: "203.0.113.99" } }));
+
+      expect(repository.findRecentEventIds).not.toHaveBeenCalled();
+      expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
+    });
+
     it("counts the attempt that set a lock as a failure", async () => {
       const { detector, emailService } = createDetector();
 
       await failTimes(detector, 4);
       await detector.handle(lockout({ identifierHash: undefined }));
-      await detector.handle(event({ eventType: "device.new_detected" }));
+      await detector.handle(signIn());
 
       expect(emailService.sendSuspiciousLoginEmail).toHaveBeenCalledTimes(1);
     });
@@ -560,9 +642,7 @@ describe("SuspiciousActivityDetector", () => {
       const { detector, emailService } = createDetector();
 
       await failTimes(detector, 5);
-      await detector.handle(
-        event({ eventType: "device.new_detected", userId: OTHER_USER_ID }),
-      );
+      await detector.handle(signIn({ userId: OTHER_USER_ID }));
 
       expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
     });
@@ -574,7 +654,7 @@ describe("SuspiciousActivityDetector", () => {
       );
 
       await failTimes(detector, 5);
-      await detector.handle(event({ eventType: "device.new_detected" }));
+      await detector.handle(signIn());
 
       expect(selfLockTokenStore.issue).not.toHaveBeenCalled();
       expect(emailService.sendSuspiciousLoginEmail).toHaveBeenCalledWith(
@@ -589,7 +669,7 @@ describe("SuspiciousActivityDetector", () => {
       );
 
       await failTimes(detector, 5);
-      await detector.handle(event({ eventType: "device.new_detected" }));
+      await detector.handle(signIn());
 
       expect(emailService.sendSuspiciousLoginEmail).not.toHaveBeenCalled();
       expect(suspiciousEvent(repository).metadata.action).toBe("skipped");
@@ -613,7 +693,7 @@ describe("SuspiciousActivityDetector", () => {
       );
 
       await failTimes(detector, 2);
-      await detector.handle(event({ eventType: "device.new_detected" }));
+      await detector.handle(signIn());
 
       expect(cache.eval).not.toHaveBeenCalled();
     });

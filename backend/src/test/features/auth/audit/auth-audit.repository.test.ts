@@ -416,23 +416,33 @@ describe("AuthAuditRepository", () => {
     await expect(
       repository.findRecentEventIds({
         userId: USER_1_ID,
-        eventTypes: ["login.locked"],
+        matches: [
+          { eventType: "login.failed", outcome: "failure" },
+          { eventType: "login.locked", triggeredLockout: true },
+        ],
         createdFrom: since,
         limit: 50,
       }),
     ).resolves.toEqual(["event-2", "event-1"]);
     await repository.findRecentEventIds({
       ipAddress: "198.51.100.23",
-      eventTypes: ["login.failed"],
+      requestId: "request-1",
+      matches: [{ eventType: "device.new_detected" }],
       createdFrom: since,
-      limit: 50,
+      limit: 1,
     });
 
     expect(findMany).toHaveBeenNthCalledWith(1, {
       where: {
         userId: USER_1_ID,
-        eventType: { in: ["login.locked"] },
         createdAt: { gte: since },
+        OR: [
+          { eventType: "login.failed", outcome: "failure" },
+          {
+            eventType: "login.locked",
+            metadata: { path: "$.triggered", equals: true },
+          },
+        ],
       },
       select: { id: true },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -443,9 +453,11 @@ describe("AuthAuditRepository", () => {
       expect.objectContaining({
         where: {
           ipAddress: "198.51.100.23",
-          eventType: { in: ["login.failed"] },
+          requestId: "request-1",
           createdAt: { gte: since },
+          OR: [{ eventType: "device.new_detected" }],
         },
+        take: 1,
       }),
     );
   });

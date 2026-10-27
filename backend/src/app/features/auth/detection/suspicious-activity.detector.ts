@@ -6,7 +6,10 @@ import type {
   AuthAuditEventType,
   RecordedAuthAuditEvent,
 } from "@/features/auth/audit/auth-audit.model";
-import type { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
+import type {
+  AuthAuditEventMatch,
+  AuthAuditRepository,
+} from "@/features/auth/audit/auth-audit.repository";
 import type { AuthIpBlockStore } from "@/features/auth/detection/ip-block.store";
 import {
   REPEATED_LOCKOUTS_LOCK_REASON,
@@ -32,10 +35,22 @@ import type {
 const COUNTER_KEY_PREFIX = "auth:detection";
 const FIRED_KEY_PREFIX = "auth:detection:fired";
 
-/** The failures rule (c) counts: a wrong password, or the one that locked. */
-const SIGN_IN_FAILURE_EVENT_TYPES: readonly AuthAuditEventType[] = [
-  "login.failed",
-  "login.locked",
+/** The attempt that set a lock, which rules (a) and (c) count. */
+const TRIGGERED_LOCKOUT: AuthAuditEventMatch = {
+  eventType: "login.locked",
+  triggeredLockout: true,
+};
+
+/** A failed sign-in that was not refused outright, which (b) and (c) count. */
+const SIGN_IN_FAILURE: AuthAuditEventMatch = {
+  eventType: "login.failed",
+  outcome: "failure",
+};
+
+/** The successes rule (c) checks, once a sign-in has completed. */
+const SIGN_IN_SUCCESS_EVENT_TYPES: readonly AuthAuditEventType[] = [
+  "login.succeeded",
+  "oauth.login.succeeded",
 ];
 
 export interface SuspiciousActivityDetectorDependencies {
@@ -62,11 +77,16 @@ interface Firing {
   windowSeconds: number;
   count: number;
   threshold: number;
-  /** Where the events behind the firing are looked up. */
+  /**
+   * Where the events behind the firing are looked up: the same events the
+   * rule's counter counted, so the flags and `relatedEventIds` name them.
+   */
   related: {
     userId?: Uuid;
     ipAddress?: string;
-    eventTypes: readonly AuthAuditEventType[];
+    matches: readonly AuthAuditEventMatch[];
+    /** Events found some other way, flagged with the trigger. */
+    eventIds?: readonly string[];
   };
   /** Takes the rule's action and says what it did. */
   act: (suspiciousEventId: Uuid) => Promise<SuspiciousActivityAction>;
@@ -141,7 +161,8 @@ export class SuspiciousActivityDetector {
           await this.countSignInFailure(event, event.userId, config);
         }
         return;
-      case "device.new_detected":
+      case "login.succeeded":
+      case "oauth.login.succeeded":
         if (event.userId) {
           await this.checkSuccessAfterFailures(event, event.userId, config);
         }
@@ -188,7 +209,7 @@ export class SuspiciousActivityDetector {
       windowSeconds,
       count,
       threshold: rule.threshold,
-      related: { userId, eventTypes: ["login.locked"] },
+      related: { userId, matches: [TRIGGERED_LOCKOUT] },
       act: async (suspiciousEventId) =>
         config.mode === "enforce"
           ? this.lockAccount(userId, event, suspiciousEventId)
@@ -228,7 +249,7 @@ export class SuspiciousActivityDetector {
       windowSeconds,
       count,
       threshold: rule.threshold,
-      related: { ipAddress, eventTypes: ["login.failed"] },
+      related: { ipAddress, matches: [SIGN_IN_FAILURE] },
       act: async () => {
         if (config.mode !== "enforce") {
           return "none";
@@ -266,9 +287,11 @@ export class SuspiciousActivityDetector {
   }
 
   /**
-   * Rule (c), second half. `device.new_detected` is recorded only for a
-   * successful sign-in from a device the account has not used, on an IP it
-   * has not used either, so it is the "new device and new IP" success.
+   * Rule (c), second half, on a completed sign-in. It counts only when the
+   * same request also recorded `device.new_detected`, which a sign-in writes
+   * for a device the account has not used on an IP it has not used either.
+   * Keying on the request matters: refreshing a session can record
+   * `device.new_detected` too, and is not a sign-in.
    */
   private async checkSuccessAfterFailures(
     event: RecordedAuthAuditEvent,
@@ -276,8 +299,9 @@ export class SuspiciousActivityDetector {
     config: SuspiciousActivityDetectionConfig,
   ): Promise<void> {
     const rule = config.successAfterFailures;
+    const requestId = event.context?.requestId;
 
-    if (!rule.enabled) {
+    if (!rule.enabled || !requestId) {
       return;
     }
 
@@ -293,6 +317,21 @@ export class SuspiciousActivityDetector {
       return;
     }
 
+    // The sign-in awaits that write before recording its success, so the
+    // row is already there.
+    const newDeviceEventIds =
+      await this.dependencies.repository.findRecentEventIds({
+        userId,
+        requestId,
+        matches: [{ eventType: "device.new_detected" }],
+        createdFrom: new Date(this.now().getTime() - windowSeconds * 1000),
+        limit: 1,
+      });
+
+    if (newDeviceEventIds.length === 0) {
+      return;
+    }
+
     await this.fire(config, {
       rule: "success_after_failures",
       subject: userId,
@@ -300,7 +339,11 @@ export class SuspiciousActivityDetector {
       windowSeconds,
       count,
       threshold: rule.threshold,
-      related: { userId, eventTypes: SIGN_IN_FAILURE_EVENT_TYPES },
+      related: {
+        userId,
+        matches: [SIGN_IN_FAILURE, TRIGGERED_LOCKOUT],
+        eventIds: newDeviceEventIds,
+      },
       act: (suspiciousEventId) =>
         this.emailUser(
           userId,
@@ -330,7 +373,7 @@ export class SuspiciousActivityDetector {
       windowSeconds: rule.windowMinutes * 60,
       count: 1,
       threshold: 1,
-      related: { eventTypes: [] },
+      related: { matches: [] },
       act: (suspiciousEventId) =>
         this.emailUser(userId, event, suspiciousEventId, "refresh_reuse"),
     });
@@ -399,20 +442,26 @@ export class SuspiciousActivityDetector {
     });
   }
 
-  /** The triggering event first, then the newest others the rule counted. */
+  /**
+   * The triggering event first, then any found with it, then the newest
+   * others the rule counted.
+   */
   private async findRelatedEventIds(
     firing: Firing,
     now: Date,
   ): Promise<string[]> {
-    const ids = new Set<string>([firing.trigger.id]);
+    const ids = new Set<string>([
+      firing.trigger.id,
+      ...(firing.related.eventIds ?? []),
+    ]);
 
-    if (firing.related.eventTypes.length > 0) {
+    if (firing.related.matches.length > 0) {
       const found = await this.dependencies.repository.findRecentEventIds({
         ...(firing.related.userId ? { userId: firing.related.userId } : {}),
         ...(firing.related.ipAddress
           ? { ipAddress: firing.related.ipAddress }
           : {}),
-        eventTypes: firing.related.eventTypes,
+        matches: firing.related.matches,
         createdFrom: new Date(now.getTime() - firing.windowSeconds * 1000),
         limit: SUSPICIOUS_ACTIVITY_MAX_RELATED_EVENTS,
       });
