@@ -412,7 +412,11 @@ Rotating `AUTH_AUDIT_IDENTIFIER_SECRET` breaks correlation between rows written 
 
 ## Client IP Behind a Proxy
 
-`ip_address` is whatever the client-context middleware resolved. It is never re-parsed from headers. With `http.trustProxyHeaders` (`TRUST_PROXY_HEADERS`) off, the address is the socket peer. Behind a reverse proxy, that is the proxy's own address. Turn the setting on only where a trusted proxy sets `X-Forwarded-For`.
+`ip_address` is whatever the client-context middleware resolved. It is never re-parsed from headers. By default, the address is the socket peer and every proxy header is ignored. Behind a reverse proxy, that is the proxy's own address.
+
+To see the client instead, configure which proxies to trust: either `http.trustedProxyHops` (`TRUSTED_PROXY_HOPS`) or `http.trustedProxyCidrs` (`TRUSTED_PROXY_CIDRS`). The middleware then walks `X-Forwarded-For` from the right, past the trusted proxies, and records the first address they did not add. A client can still prepend entries, but they land to the left of the address the proxy appended, so they are never chosen. Rate limits, IP blocks, and detection all key on the same value.
+
+A vendor header such as `cf-connecting-ip` is read only when it is configured as `http.clientIpHeader`. The deprecated `TRUST_PROXY_HEADERS=true` means one hop. See [Client IP behind a reverse proxy](./backend-configuration.md#client-ip-behind-a-reverse-proxy).
 
 ## Inspecting Events Locally
 

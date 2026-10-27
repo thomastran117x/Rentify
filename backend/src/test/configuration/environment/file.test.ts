@@ -128,6 +128,46 @@ describe("YAML configuration files", () => {
     );
   });
 
+  it("accepts the proxy trust keys and rejects mistyped ones", () => {
+    const validPath = join(directory, "proxy.yml");
+    const hopsPath = join(directory, "proxy-hops.yml");
+    const cidrsPath = join(directory, "proxy-cidrs.yml");
+    writeFileSync(
+      validPath,
+      [
+        "http:",
+        "  trustedProxyHops: 0",
+        "  trustedProxyCidrs:",
+        "    - 10.0.0.0/8",
+        "    - 2001:db8::/32",
+        "  clientIpHeader: null",
+        "  trustProxyHeaders: false",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(hopsPath, "http:\n  trustedProxyHops: one\n", "utf8");
+    writeFileSync(
+      cidrsPath,
+      "http:\n  trustedProxyCidrs: 10.0.0.0/8\n",
+      "utf8",
+    );
+
+    expect(
+      flattenConfigurationDocument(readConfigurationDocument(validPath)).raw,
+    ).toEqual({
+      TRUSTED_PROXY_HOPS: "0",
+      TRUSTED_PROXY_CIDRS: "10.0.0.0/8,2001:db8::/32",
+      TRUST_PROXY_HEADERS: "false",
+    });
+    expect(() => readConfigurationDocument(hopsPath)).toThrow(
+      "http.trustedProxyHops must be a number.",
+    );
+    expect(() => readConfigurationDocument(cidrsPath)).toThrow(
+      "http.trustedProxyCidrs must be an array of strings.",
+    );
+  });
+
   it("does not interpolate environment expressions", () => {
     const filePath = join(directory, "literal.yml");
     writeFileSync(filePath, 'application:\n  name: "${APP_NAME}"\n', "utf8");

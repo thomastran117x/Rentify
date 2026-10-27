@@ -214,6 +214,24 @@ function readImageUploadsConfig() {
   };
 }
 
+function readProxyTrustConfig() {
+  const hops = readNumber(process.env.TRUSTED_PROXY_HOPS, 0);
+  const cidrs = (process.env.TRUSTED_PROXY_CIDRS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const deprecatedTrustProxyHeaders =
+    hops === 0 &&
+    cidrs.length === 0 &&
+    readBoolean(process.env.TRUST_PROXY_HEADERS, false);
+
+  return {
+    trustedProxyHops: deprecatedTrustProxyHeaders ? 1 : hops,
+    trustedProxyCidrs: cidrs,
+    deprecatedTrustProxyHeaders,
+  };
+}
+
 function readHttpConfig() {
   return {
     requestTimeoutMs: readNumber(process.env.REQUEST_TIMEOUT_MS, 15_000),
@@ -221,7 +239,9 @@ function readHttpConfig() {
       process.env.REQUEST_BODY_MAX_BYTES,
       1024 * 1024,
     ),
-    trustProxyHeaders: readBoolean(process.env.TRUST_PROXY_HEADERS, false),
+    ...readProxyTrustConfig(),
+    clientIpHeader:
+      process.env.CLIENT_IP_HEADER?.trim().toLowerCase() || undefined,
   };
 }
 

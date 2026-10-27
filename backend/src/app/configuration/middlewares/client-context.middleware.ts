@@ -1,65 +1,34 @@
 import type { Request, RequestHandler } from "express";
 import type { ClientDeviceContext } from "@/configuration/http/bindings";
 import { environment } from "@/configuration/environment";
+import { resolveClientIp } from "@/configuration/http/client-ip";
 import { resolveClientSource } from "@/configuration/http/client-source";
 import { getHeader } from "@/configuration/http/request";
 
-function isTrustedProxyHeaderEnabled(): boolean {
-  return environment.getHttpConfig().trustProxyHeaders;
-}
-
-function readProxyIpAddress(request: Request): string | undefined {
-  const forwardedFor = getHeader(request, "x-forwarded-for");
-
-  if (forwardedFor) {
-    const [firstValue] = forwardedFor.split(",");
-    const ip = firstValue?.trim();
-
-    if (ip) {
-      return ip;
-    }
-  }
-
-  for (const headerName of [
-    "cf-connecting-ip",
-    "x-real-ip",
-    "x-client-ip",
-    "fly-client-ip",
-    "fastly-client-ip",
-    "true-client-ip",
-  ]) {
-    const value = getHeader(request, headerName)?.trim();
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-function readIpAddress(
-  request: Request,
-  remoteAddress?: string,
-): string | undefined {
-  if (isTrustedProxyHeaderEnabled()) {
-    return readProxyIpAddress(request) ?? remoteAddress;
-  }
-
-  return remoteAddress;
-}
-
 /**
- * The peer address of the socket.
+ * The socket peer: the closest hop, and the only address nobody can forge.
  *
- * Replaces `getConnInfo(c).remote.address` from @hono/node-server. Deliberately
- * reads the socket rather than `req.ip`, because `req.ip` would consult
- * Express's own `trust proxy` setting; proxy headers are handled by
- * {@link readProxyIpAddress} under our own TRUST_PROXY_HEADERS flag instead, so
- * the resolution order stays exactly as it was.
+ * Deliberately reads the socket rather than `req.ip`, because `req.ip` would
+ * consult Express's own `trust proxy` setting; proxy headers are handled by
+ * {@link resolveClientIp} under our own `http.trustedProxy*` settings instead.
  */
 function readRemoteAddress(request: Request): string | undefined {
   return request.socket?.remoteAddress ?? undefined;
+}
+
+function readIpAddress(request: Request): string | undefined {
+  const config = environment.getHttpConfig();
+
+  return resolveClientIp(
+    {
+      remoteAddress: readRemoteAddress(request),
+      forwardedFor: getHeader(request, "x-forwarded-for"),
+      clientIpHeaderValue: config.clientIpHeader
+        ? getHeader(request, config.clientIpHeader)
+        : undefined,
+    },
+    config,
+  );
 }
 
 function readPlatform(request: Request): string | undefined {
@@ -128,7 +97,7 @@ export const clientContextMiddleware: RequestHandler = (
   next,
 ) => {
   request.client = {
-    ip: readIpAddress(request, readRemoteAddress(request)),
+    ip: readIpAddress(request),
     device: readDevice(request),
     ...resolveClientSource(request),
   };

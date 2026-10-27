@@ -123,6 +123,65 @@ committed development profile by default. YAML records the API pool default as
 `10/2`, while Compose deliberately pins the API to `10/2` and each worker to
 `5/1` as process-specific deployment overrides.
 
+## Client IP behind a reverse proxy
+
+The client-context middleware resolves `request.client.ip`. That value feeds:
+
+- per-IP rate limits and IP blocks
+- suspicious-activity detection
+- the captcha `remoteIp`
+- new-device and new-IP alerts
+- `auth_audit_events.ip_address`
+
+By default it is the socket peer, and every proxy header is ignored.
+
+| Key                      | Default | Override              | Meaning                                                        |
+| ------------------------ | ------- | --------------------- | -------------------------------------------------------------- |
+| `http.trustedProxyHops`  | `0`     | `TRUSTED_PROXY_HOPS`  | Number of proxies in front of the backend                      |
+| `http.trustedProxyCidrs` | `[]`    | `TRUSTED_PROXY_CIDRS` | Proxy addresses or CIDR ranges, IPv4 or IPv6 (comma-separated) |
+| `http.clientIpHeader`    | `null`  | `CLIENT_IP_HEADER`    | One vendor header that carries the client address              |
+
+Proxies append to `X-Forwarded-For`; they do not replace it. Only the
+right-hand end of the list was written by your own infrastructure. Everything
+to the left is whatever the client sent. The backend therefore treats
+`[...X-Forwarded-For, socket peer]` as one chain and walks it from the right:
+
+- **`trustedProxyHops: N`** returns the address N hops in. With one load
+  balancer, `TRUSTED_PROXY_HOPS=1` returns the entry that the balancer
+  appended. If the chain is shorter than N, the left-most entry is used.
+- **`trustedProxyCidrs`** first checks the socket peer. A peer outside the
+  ranges gets no header trust at all. Otherwise the walk skips every address
+  inside the ranges and returns the first one outside them. Prefer ranges
+  when the proxies have known addresses, for example Azure Front Door or
+  Application Gateway subnets: unlike a hop count, they still hold when a
+  request reaches the backend without passing through every proxy. IPv4-mapped
+  peers such as `::ffff:10.0.0.5` match IPv4 ranges.
+
+Set one of the two, not both; setting both is a startup error. So is an
+invalid range.
+
+An entry that is not an IP address is never trusted; the walk stops at the
+nearest valid hop to its right. A trailing port, as Application Gateway
+appends, is stripped.
+
+`clientIpHeader` names a single header such as `cf-connecting-ip` behind
+Cloudflare. It wins over `X-Forwarded-For` when it holds a valid address. With
+ranges configured, it is read only when the socket peer is inside them. With a
+hop count, or on its own, the peer cannot be checked. No vendor header is
+read unless it is configured here. Configure one only when the edge overwrites
+the header on every request, because a client can send any header it likes.
+`x-forwarded-for` is not a valid value.
+
+`TRUST_PROXY_HEADERS=true` (`http.trustProxyHeaders`) is deprecated. When
+neither a hop count nor a range is set, it means one hop. Explicit settings
+take precedence over it.
+
+The API logs a startup warning in two cases:
+
+- the deprecated flag is the only trust setting
+- `clientIpHeader` is set without a hop count or range, so it is believed from
+  any peer
+
 ## Access-token signing
 
 Access JWTs use `HS256` by default, preserving the existing shared-secret

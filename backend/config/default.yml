@@ -15,7 +15,9 @@ application:
 http:
   requestTimeoutMs: 15000
   requestBodyMaxBytes: 1048576
-  trustProxyHeaders: false
+  trustedProxyHops: 0
+  trustedProxyCidrs: []
+  clientIpHeader: null
 
 database:
   autoSeedEnabled: false

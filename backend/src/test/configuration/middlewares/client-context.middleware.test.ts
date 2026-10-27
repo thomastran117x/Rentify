@@ -12,6 +12,16 @@ jest.mock("@/configuration/environment", () => ({
 const mockGetApplicationConfig = environment.getApplicationConfig as jest.Mock;
 const mockGetHttpConfig = environment.getHttpConfig as jest.Mock;
 
+function httpConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    trustedProxyHops: 0,
+    trustedProxyCidrs: [],
+    clientIpHeader: undefined,
+    deprecatedTrustProxyHeaders: false,
+    ...overrides,
+  };
+}
+
 /**
  * The middleware used to read the peer address through @hono/node-server's
  * getConnInfo; it now reads the socket directly. Tests run over a real loopback
@@ -40,7 +50,7 @@ describe("clientContextMiddleware", () => {
     mockGetApplicationConfig.mockReturnValue({
       frontendUrl: "http://localhost:3040",
     });
-    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: false });
+    mockGetHttpConfig.mockReturnValue(httpConfig());
   });
 
   it("uses the remote socket address when proxy headers are not trusted", async () => {
@@ -72,20 +82,20 @@ describe("clientContextMiddleware", () => {
     });
   });
 
-  it("prefers the first forwarded ip when trusted proxy headers are enabled", async () => {
-    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: true });
+  it("takes the forwarded entry the trusted proxy appended, not the spoofable left-most one", async () => {
+    mockGetHttpConfig.mockReturnValue(httpConfig({ trustedProxyHops: 1 }));
     const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {
       headers: {
-        "x-forwarded-for": "203.0.113.9, 10.0.0.5",
+        "x-forwarded-for": "203.0.113.9, 198.51.100.77",
         "user-agent": "curl/8.0.1",
       },
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      ip: "203.0.113.9",
+      ip: "198.51.100.77",
       source: "api-tool",
       device: {
         type: "bot",
@@ -95,21 +105,44 @@ describe("clientContextMiddleware", () => {
     });
   });
 
-  it("falls back to alternate proxy headers and tolerates missing connection info", async () => {
-    mockGetHttpConfig.mockReturnValue({ trustProxyHeaders: true });
-    const app = createApp(undefined);
+  it("ignores vendor client-ip headers that are not configured", async () => {
+    mockGetHttpConfig.mockReturnValue(httpConfig({ trustedProxyHops: 1 }));
+    const app = createApp("10.0.0.5");
 
     const response = await app.request("http://rent.test/client", {
       headers: {
         "cf-connecting-ip": "198.51.100.7",
-        "x-device-platform": "Linux",
-        "user-agent":
-          "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        "x-real-ip": "198.51.100.8",
+        "true-client-ip": "198.51.100.9",
       },
     });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({ ip: "10.0.0.5" });
+  });
+
+  it("uses the configured client-ip header from a trusted proxy and tolerates missing connection info", async () => {
+    mockGetHttpConfig.mockReturnValue(
+      httpConfig({
+        trustedProxyCidrs: ["10.0.0.0/8"],
+        clientIpHeader: "cf-connecting-ip",
+      }),
+    );
+
+    const trusted = await createApp("10.0.0.5").request(
+      "http://rent.test/client",
+      {
+        headers: {
+          "cf-connecting-ip": "198.51.100.7",
+          "x-device-platform": "Linux",
+          "user-agent":
+            "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        },
+      },
+    );
+
+    expect(trusted.status).toBe(200);
+    await expect(trusted.json()).resolves.toEqual({
       ip: "198.51.100.7",
       source: "unknown",
       device: {
@@ -120,6 +153,14 @@ describe("clientContextMiddleware", () => {
         platform: "Linux",
       },
     });
+
+    const disconnected = await createApp(undefined).request(
+      "http://rent.test/client",
+      { headers: { "cf-connecting-ip": "198.51.100.7" } },
+    );
+
+    expect(disconnected.status).toBe(200);
+    await expect(disconnected.json()).resolves.not.toHaveProperty("ip");
   });
 
   it("carries the declared client app and origin onto the request context", async () => {

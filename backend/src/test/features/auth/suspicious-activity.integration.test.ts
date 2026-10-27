@@ -75,7 +75,7 @@ jest.setTimeout(60_000);
 describe("Suspicious sign-in detection integration", () => {
   let persistenceApp: PersistenceTestApp;
   let config = enforceConfig();
-  const originalTrustProxyHeaders = process.env.TRUST_PROXY_HEADERS;
+  const originalTrustedProxyHops = process.env.TRUSTED_PROXY_HOPS;
 
   function request(path: string, init: RequestInit = {}) {
     return persistenceApp.app.request(
@@ -128,7 +128,7 @@ describe("Suspicious sign-in detection integration", () => {
 
   beforeAll(async () => {
     // Each scenario signs in from its own address.
-    process.env.TRUST_PROXY_HEADERS = "true";
+    process.env.TRUSTED_PROXY_HOPS = "1";
     persistenceApp = await createPersistenceTestApp({
       attachAuthAuditListeners: true,
       registerOverrides: (container) => {
@@ -170,10 +170,10 @@ describe("Suspicious sign-in detection integration", () => {
 
   afterAll(async () => {
     await teardownPersistenceTestApp();
-    if (originalTrustProxyHeaders === undefined) {
-      delete process.env.TRUST_PROXY_HEADERS;
+    if (originalTrustedProxyHops === undefined) {
+      delete process.env.TRUSTED_PROXY_HOPS;
     } else {
-      process.env.TRUST_PROXY_HEADERS = originalTrustProxyHeaders;
+      process.env.TRUSTED_PROXY_HOPS = originalTrustedProxyHops;
     }
   }, 180_000);
 
