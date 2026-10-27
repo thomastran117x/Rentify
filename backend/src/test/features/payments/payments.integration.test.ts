@@ -298,12 +298,34 @@ describe("Payments persistence integration", () => {
       persistenceApp,
       reconcileBooking.id,
     );
+    const reconcileOrganizationManager =
+      await persistenceApp.prisma.organizationMembership.findFirstOrThrow({
+        where: {
+          organizationId: reconcilePayment.organizationId,
+          role: "primary_manager",
+        },
+        include: { user: true },
+      });
+    const reconcileManager = await createAuthenticatedRequestContext({
+      email: reconcileOrganizationManager.user.email,
+    });
+
+    // Reconcile is an organization action; the renter is turned away.
+    const renterReconcileResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/payments/${reconcilePayment.id}/reconcile`)}`,
+      {
+        method: "POST",
+        headers: reconcileRenter.headers(),
+      },
+    );
+
+    expect(renterReconcileResponse.status).toBe(403);
 
     const reconcileResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath(`/payments/${reconcilePayment.id}/reconcile`)}`,
       {
         method: "POST",
-        headers: reconcileRenter.headers(),
+        headers: reconcileManager.headers(),
       },
     );
 
@@ -396,6 +418,90 @@ describe("Payments persistence integration", () => {
     ).toMatchObject({
       status: "succeeded",
     });
+  });
+
+  it("restricts refunds and reconcile to organization managers", async () => {
+    // renter-five is not a member of owner-one's organization, renter-two is
+    // its operator and renter-one its manager.
+    const owner = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "owner1@rentify.local" },
+    });
+    const payment = await persistenceApp.prisma.payment.findFirstOrThrow({
+      where: {
+        status: "succeeded",
+        renter: { email: "user5@rentify.local" },
+        organization: {
+          memberships: {
+            some: { userId: owner.id, role: "primary_manager" },
+          },
+        },
+      },
+    });
+    const renter = await createAuthenticatedRequestContext({
+      email: "user5@rentify.local",
+    });
+    const operator = await createAuthenticatedRequestContext({
+      email: "user2@rentify.local",
+    });
+    const manager = await createAuthenticatedRequestContext({
+      email: "user1@rentify.local",
+    });
+    const refundCount = () =>
+      persistenceApp.prisma.refund.count({ where: { paymentId: payment.id } });
+    const beforeRefundCount = await refundCount();
+    const createRefundStub = persistenceApp.stubs.paymentProvider.createRefund;
+    const getPaymentStatusStub =
+      persistenceApp.stubs.paymentProvider.getPaymentStatus;
+    const beforeProviderRefunds = createRefundStub.mock.calls.length;
+    const beforeProviderLookups = getPaymentStatusStub.mock.calls.length;
+
+    const requestRefund = (
+      actor: Awaited<ReturnType<typeof createAuthenticatedRequestContext>>,
+      idempotencyKey: string,
+    ) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${payment.id}/refunds`)}`,
+        {
+          method: "POST",
+          headers: actor.headers({ "idempotency-key": idempotencyKey }),
+          body: JSON.stringify({ amount: 1, reason: "test" }),
+        },
+      );
+    const requestReconcile = (
+      actor: Awaited<ReturnType<typeof createAuthenticatedRequestContext>>,
+    ) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/payments/${payment.id}/reconcile`)}`,
+        { method: "POST", headers: actor.headers() },
+      );
+
+    for (const [actor, key] of [
+      [renter, "persistence-refund-renter"],
+      [operator, "persistence-refund-operator"],
+    ] as const) {
+      expect((await requestRefund(actor, key)).status).toBe(403);
+      expect((await requestReconcile(actor)).status).toBe(403);
+    }
+
+    expect(await refundCount()).toBe(beforeRefundCount);
+    expect(createRefundStub.mock.calls.length).toBe(beforeProviderRefunds);
+    expect(getPaymentStatusStub.mock.calls.length).toBe(beforeProviderLookups);
+
+    const managerResponse = await requestRefund(
+      manager,
+      "persistence-refund-manager",
+    );
+
+    expect(managerResponse.status).toBe(201);
+    expect(await refundCount()).toBe(beforeRefundCount + 1);
+    const managerUser = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    await expect(
+      persistenceApp.prisma.refund.findFirstOrThrow({
+        where: { paymentId: payment.id, reason: "test" },
+      }),
+    ).resolves.toMatchObject({ issuedByUserId: managerUser.id });
   });
 
   it("returns a payment by booking request for the renter and org members but not strangers", async () => {

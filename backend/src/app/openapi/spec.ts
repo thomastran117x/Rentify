@@ -9226,7 +9226,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "retryPayment",
       summary: "Retry a failed payment",
       description:
-        "Retries payment session creation for a payment that can be retried. PAT bearer authentication is not allowed.",
+        "Retries payment session creation for a payment that can be retried. Only the payment's renter may retry; anyone else receives 403. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {
@@ -9256,7 +9256,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPaymentRefund",
       summary: "Create a payment refund",
       description:
-        "Creates a refund for an accessible payment. PAT bearer authentication is not allowed.",
+        "Creates a refund for a captured payment. Only a manager or primary manager of the payment's organization may refund; the renter, operators and anyone outside the organization receive 403, and nothing is recorded or sent to PayPal. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {
@@ -9305,7 +9305,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "cancelPaymentCheckout",
       summary: "Record an abandoned PayPal checkout",
       description:
-        "Called when the renter returns from PayPal without approving. Pass the `orderId` PayPal returned with; if a newer checkout replaced that order, nothing is cancelled and the response is 409 with `error.details.reason` `stale_order`. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted. Only the renter or a member who can manage the organization's payments may call it. PAT bearer authentication is not allowed.",
+        "Called when the renter returns from PayPal without approving. Pass the `orderId` PayPal returned with; if a newer checkout replaced that order, nothing is cancelled and the response is 409 with `error.details.reason` `stale_order`. The order is checked with PayPal first: an order that was approved or paid is finalized instead. Otherwise the payment is marked cancelled so checkout can be restarted. Only the payment's renter may call it; anyone else receives 403. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {
@@ -9339,7 +9339,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "capturePayment",
       summary: "Capture an approved payment",
       description: [
-        "Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the renter or a member who can manage the organization's payments may capture. Safe to repeat: an already captured payment is returned unchanged.",
+        "Captures the PayPal order the renter approved at checkout and finalizes the payment. Only the payment's renter may capture; anyone else receives 403 (organization managers use reconcile). Safe to repeat: an already captured payment is returned unchanged.",
         "",
         "Pass the approved `orderId` from the JS SDK or the return URL; if a newer checkout replaced that order, nothing is captured and the response is 409 with `error.details.reason` `stale_order`. The order is read from PayPal first and is only captured when it is approved, the booking hold is still live, the order matches this payment's amount and currency, and card orders passed 3-D Secure. An order that is not approved yet leaves the payment unchanged. A refused order ends the attempt with `HOLD_EXPIRED`, `ORDER_MISMATCH`, `CARD_AUTHENTICATION_FAILED` or `CARD_AUTHENTICATION_UNAVAILABLE` and returns the failed payment so the renter can retry.",
         "",
@@ -9380,7 +9380,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "reconcilePayment",
       summary: "Reconcile a payment with the provider",
       description:
-        "Refreshes payment state from the provider and reconciles any required changes. PAT bearer authentication is not allowed.",
+        "Refreshes payment state from the provider and reconciles any required changes. Only a manager or primary manager of the payment's organization may reconcile; the renter, operators and anyone outside the organization receive 403. PAT bearer authentication is not allowed.",
       tags: ["payments"],
       security: ownerSecurity,
       permissions: {

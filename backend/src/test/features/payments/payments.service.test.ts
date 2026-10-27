@@ -461,6 +461,127 @@ describe("PaymentsService", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 
+  it("rejects retry requests from anyone but the renter", async () => {
+    const { service, paymentsRepository, organizationAccessService } =
+      createService({
+        repository: {
+          findById: jest.fn(async () =>
+            createPaymentRecord({ status: "failed_retryable" }),
+          ),
+        },
+      });
+
+    await expect(
+      service.retryPayment({
+        paymentId: PAYMENT_1_ID,
+        renterId: MANAGER_1_ID,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(
+      organizationAccessService.requireMembership as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+    expect(
+      paymentsRepository.createPaymentAttemptForBooking as unknown as jest.Mock,
+    ).not.toHaveBeenCalled();
+  });
+
+  describe("organization-only payment actions", () => {
+    function rejectMembership() {
+      return jest.fn(async () => {
+        throw new ForbiddenError("You do not have access to this payment.");
+      });
+    }
+
+    function rejectManage() {
+      return jest.fn(() => {
+        throw new ForbiddenError(
+          "You do not have permission to manage this payment.",
+        );
+      });
+    }
+
+    it.each([
+      [
+        "a renter outside the organization",
+        { requireMembership: rejectMembership() },
+      ],
+      ["an operator", { assertCanManage: rejectManage() }],
+    ])(
+      "rejects refunds from %s without persisting or calling the provider",
+      async (_label, orgAccess) => {
+        const { service, paymentsRepository, paymentProvider } = createService({
+          orgAccess,
+        });
+
+        await expect(
+          service.createRefund({
+            paymentId: PAYMENT_1_ID,
+            actorUserId: STRANGER_1_ID,
+            amount: 1,
+            reason: "test",
+          }),
+        ).rejects.toBeInstanceOf(ForbiddenError);
+        expect(
+          paymentsRepository.createRefundRecord as unknown as jest.Mock,
+        ).not.toHaveBeenCalled();
+        expect(
+          paymentProvider.createRefund as unknown as jest.Mock,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it("checks the payment organization's membership for the renter too", async () => {
+      const { service, organizationAccessService, paymentProvider } =
+        createService({
+          orgAccess: { requireMembership: rejectMembership() },
+        });
+
+      await expect(
+        service.createRefund({
+          paymentId: PAYMENT_1_ID,
+          actorUserId: RENTER_1_ID,
+          amount: 1,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        organizationAccessService.requireMembership as unknown as jest.Mock,
+      ).toHaveBeenCalledWith(
+        RENTER_1_ID,
+        ORG_1_ID,
+        "You do not have access to this payment.",
+      );
+      expect(
+        paymentProvider.createRefund as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("rejects reconcile from the renter without asking the provider", async () => {
+      const { service, paymentProvider } = createService({
+        orgAccess: { requireMembership: rejectMembership() },
+      });
+
+      await expect(
+        service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("rejects reconcile from an operator", async () => {
+      const { service, paymentProvider } = createService({
+        orgAccess: { assertCanManage: rejectManage() },
+      });
+
+      await expect(
+        service.reconcilePayment(PAYMENT_1_ID, STRANGER_1_ID),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
   it("creates refunds and records refund analytics", async () => {
     const {
       service,
@@ -479,7 +600,7 @@ describe("PaymentsService", () => {
 
     const result = await service.createRefund({
       paymentId: PAYMENT_1_ID,
-      actorUserId: RENTER_1_ID,
+      actorUserId: MANAGER_1_ID,
       amount: 42,
       reason: "Customer requested refund",
       idempotencyKey: "refund-idem-1",
@@ -490,7 +611,7 @@ describe("PaymentsService", () => {
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentId: PAYMENT_1_ID,
-        actorUserId: RENTER_1_ID,
+        actorUserId: MANAGER_1_ID,
         amount: 42,
       }),
     );
@@ -653,7 +774,7 @@ describe("PaymentsService", () => {
     );
 
     await expect(
-      service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+      service.reconcilePayment(PAYMENT_1_ID, MANAGER_1_ID),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(
       (cacheService.acquireLock as unknown as jest.Mock).mock.calls.map(
@@ -676,7 +797,7 @@ describe("PaymentsService", () => {
     });
 
     await expect(
-      service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+      service.reconcilePayment(PAYMENT_1_ID, MANAGER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -807,20 +928,13 @@ describe("PaymentsService", () => {
   });
 
   describe("capturePayment", () => {
-    it("rejects capture by members who cannot manage the organization's payments", async () => {
+    it("rejects capture by anyone but the renter, including organization managers", async () => {
       const { service, paymentProvider, organizationAccessService } =
         createService({
           repository: {
             findById: jest.fn(async () =>
               createPaymentRecord({ status: "processing" }),
             ),
-          },
-          orgAccess: {
-            assertCanManage: jest.fn(() => {
-              throw new ForbiddenError(
-                "You do not have permission to manage this payment.",
-              );
-            }),
           },
         });
 
@@ -829,11 +943,7 @@ describe("PaymentsService", () => {
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(
         organizationAccessService.requireMembership as unknown as jest.Mock,
-      ).toHaveBeenCalledWith(
-        MANAGER_1_ID,
-        ORG_1_ID,
-        "You do not have access to this payment.",
-      );
+      ).not.toHaveBeenCalled();
       expect(
         paymentProvider.capturePayment as unknown as jest.Mock,
       ).not.toHaveBeenCalled();
@@ -1150,7 +1260,7 @@ describe("PaymentsService", () => {
       },
     });
 
-    const result = await service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID);
+    const result = await service.reconcilePayment(PAYMENT_1_ID, MANAGER_1_ID);
 
     expect(
       paymentProvider.capturePayment as unknown as jest.Mock,
@@ -1264,7 +1374,7 @@ describe("PaymentsService", () => {
     });
 
     await expect(
-      service.reconcilePayment(PAYMENT_1_ID, RENTER_1_ID),
+      service.reconcilePayment(PAYMENT_1_ID, MANAGER_1_ID),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 
@@ -1281,7 +1391,7 @@ describe("PaymentsService", () => {
 
     await service.createRefund({
       paymentId: PAYMENT_1_ID,
-      actorUserId: RENTER_1_ID,
+      actorUserId: MANAGER_1_ID,
       amount: 42,
     });
 
@@ -1513,20 +1623,19 @@ describe("PaymentsService", () => {
       ).rejects.toBeInstanceOf(ServiceNotAvaliableError);
     });
 
-    it("requires manage access for organization members", async () => {
-      const { service } = createService({
-        orgAccess: {
-          assertCanManage: jest.fn(() => {
-            throw new ForbiddenError(
-              "You do not have permission to manage this payment.",
-            );
-          }),
-        },
-      });
+    it("rejects cancellation by anyone but the renter, including organization managers", async () => {
+      const { service, paymentProvider, organizationAccessService } =
+        createService();
 
       await expect(
         service.cancelCheckout(PAYMENT_1_ID, MANAGER_1_ID),
       ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(
+        organizationAccessService.requireMembership as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
+      expect(
+        paymentProvider.getPaymentStatus as unknown as jest.Mock,
+      ).not.toHaveBeenCalled();
     });
   });
 
