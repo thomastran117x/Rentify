@@ -73,6 +73,7 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
     outcome: string;
     ipAddress?: string;
     identifierHash?: string;
+    flagged?: boolean;
     createdAt: Date;
   }): Promise<string> {
     const id = randomUUID();
@@ -84,6 +85,7 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
         outcome: input.outcome,
         ipAddress: input.ipAddress ?? "203.0.113.10",
         identifierHash: input.identifierHash ?? "f".repeat(64),
+        flagged: input.flagged ?? false,
         createdAt: input.createdAt,
       },
     });
@@ -213,6 +215,7 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
           eventType: "login.locked",
           outcome: "blocked",
           ipAddress: STUFFING_IP,
+          flagged: true,
           createdAt: hoursAgo(2),
         }),
         renterSucceeded: await seedEvent({
@@ -227,6 +230,7 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
           outcome: "failure",
           ipAddress: STUFFING_IP,
           identifierHash: unknownHash,
+          flagged: true,
           createdAt: hoursAgo(4),
         }),
         ownerSucceeded: await seedEvent({
@@ -314,6 +318,24 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
         ids.renterFailed,
         ids.unknownFailed,
       ]);
+    });
+
+    it("filters by the detection flag", async () => {
+      expect(await listIds("?flagged=true")).toEqual([
+        ids.renterLocked,
+        ids.unknownFailed,
+      ]);
+      expect(await listIds("?flagged=false")).toEqual([
+        ids.renterFailed,
+        ids.renterSucceeded,
+        ids.ownerSucceeded,
+      ]);
+
+      const page = await readPage(await listEvents("?flagged=true"));
+      expect(
+        page.items.find((item) => item.id === ids.renterLocked),
+      ).toMatchObject({ flagged: true });
+      expect((await listEvents("?flagged=yes")).status).toBe(400);
     });
 
     it("filters by an explicit date range", async () => {

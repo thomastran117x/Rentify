@@ -134,9 +134,22 @@ A password reset lifts the hold.
   browser's session cookies. An account with no local password to reset gets
   `409` with `details.reason` `password_reset_unavailable`.
 
+Suspicious-activity detection can block an IP address from the `auth-sensitive`
+policy (`429` with `details.reason` `ip_blocked`). Administrators see and lift
+those blocks:
+
+- `GET /admin/auth/ip-blocks` lists the blocked addresses with `expiresAt`, and
+  records an `admin.audit_viewed` event.
+- `DELETE /admin/auth/ip-blocks/:ip` lifts one block (`204`) and records
+  `admin.ip_unblocked`. An address that is not blocked is a `404`.
+
+Suspicious-activity alerts to the account owner are `suspicious_login` email
+jobs.
+
 See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
-[Account Status](./auth-security.md#account-status) and
-[Locking Your Own Account](./auth-security.md#locking-your-own-account).
+[Account Status](./auth-security.md#account-status),
+[Locking Your Own Account](./auth-security.md#locking-your-own-account) and
+[Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection).
 
 ## Realtime Surfaces
 

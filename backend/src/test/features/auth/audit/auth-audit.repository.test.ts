@@ -25,6 +25,7 @@ describe("AuthAuditRepository", () => {
         requestId: "request-1",
       },
       metadata: { triggered: true },
+      flagged: true,
     });
 
     expect(create).toHaveBeenCalledWith({
@@ -43,6 +44,7 @@ describe("AuthAuditRepository", () => {
         sessionId: "session-1",
         requestId: "request-1",
         metadata: { triggered: true },
+        flagged: true,
       },
     });
   });
@@ -93,6 +95,7 @@ describe("AuthAuditRepository", () => {
       identifierHash: null,
       sessionId: null,
       metadata: undefined,
+      flagged: false,
     });
     expect(data.userAgent).toHaveLength(512);
     expect(data.deviceId).toHaveLength(64);
@@ -300,6 +303,7 @@ describe("AuthAuditRepository", () => {
         ipAddress: "203.0.113.7",
         eventTypes: ["login.failed", "login.locked"],
         outcome: "failure",
+        flagged: true,
         createdFrom: from,
         createdBefore: before,
         limit: 26,
@@ -311,11 +315,13 @@ describe("AuthAuditRepository", () => {
           ipAddress: "203.0.113.7",
           eventType: { in: ["login.failed", "login.locked"] },
           outcome: "failure",
+          flagged: true,
           createdAt: { gte: from, lt: before },
         },
         select: expect.objectContaining({
           requestId: true,
           metadata: true,
+          flagged: true,
           userAgent: true,
         }),
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -394,6 +400,108 @@ describe("AuthAuditRepository", () => {
         eventType: { in: ["login.failed", "oauth.login.failed"] },
         createdAt: { gte: since },
       },
+    });
+  });
+
+  it("finds a detection rule's recent event ids by user or by IP", async () => {
+    const findMany = jest.fn(async () => [
+      { id: "event-2" },
+      { id: "event-1" },
+    ]);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    const since = new Date("2026-10-26T11:50:00.000Z");
+
+    await expect(
+      repository.findRecentEventIds({
+        userId: USER_1_ID,
+        matches: [
+          { eventType: "login.failed", outcome: "failure" },
+          { eventType: "login.locked", triggeredLockout: true },
+        ],
+        createdFrom: since,
+        limit: 50,
+      }),
+    ).resolves.toEqual(["event-2", "event-1"]);
+    await repository.findRecentEventIds({
+      ipAddress: "198.51.100.23",
+      requestId: "request-1",
+      matches: [{ eventType: "device.new_detected" }],
+      createdFrom: since,
+      limit: 1,
+    });
+
+    expect(findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        userId: USER_1_ID,
+        createdAt: { gte: since },
+        OR: [
+          { eventType: "login.failed", outcome: "failure" },
+          {
+            eventType: "login.locked",
+            metadata: { path: "$.triggered", equals: true },
+          },
+        ],
+      },
+      select: { id: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 50,
+    });
+    expect(findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          ipAddress: "198.51.100.23",
+          requestId: "request-1",
+          createdAt: { gte: since },
+          OR: [{ eventType: "device.new_detected" }],
+        },
+        take: 1,
+      }),
+    );
+  });
+
+  it("matches a request id longer than its column as it was stored", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    // The request-id middleware accepts up to 128 characters; create keeps 64.
+    const requestId = `r${"a".repeat(99)}`;
+
+    await repository.findRecentEventIds({
+      userId: USER_1_ID,
+      requestId,
+      matches: [{ eventType: "device.new_detected" }],
+      createdFrom: new Date("2026-10-26T11:00:00.000Z"),
+      limit: 1,
+    });
+
+    expect(
+      (
+        findMany.mock.calls as unknown as Array<
+          [{ where: { requestId: string } }]
+        >
+      )[0]![0].where.requestId,
+    ).toBe(requestId.slice(0, 64));
+  });
+
+  it("flags only events not already flagged, and skips an empty list", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { updateMany },
+    } as any);
+
+    await expect(repository.flagEvents(["event-1", "event-2"])).resolves.toBe(
+      1,
+    );
+    await expect(repository.flagEvents([])).resolves.toBe(0);
+
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["event-1", "event-2"] }, flagged: false },
+      data: { flagged: true },
     });
   });
 });

@@ -65,6 +65,31 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "authAudit.pruneBatchSize": "AUTH_AUDIT_PRUNE_BATCH_SIZE",
   "authAudit.pruneIntervalMinutes": "AUTH_AUDIT_PRUNE_INTERVAL_MINUTES",
   "authAudit.retentionDays": "AUTH_AUDIT_RETENTION_DAYS",
+  "authSecurity.detection.credentialStuffing.blockMinutes":
+    "AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES",
+  "authSecurity.detection.credentialStuffing.enabled":
+    "AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED",
+  "authSecurity.detection.credentialStuffing.threshold":
+    "AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD",
+  "authSecurity.detection.credentialStuffing.windowMinutes":
+    "AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES",
+  "authSecurity.detection.mode": "AUTH_SECURITY_DETECTION_MODE",
+  "authSecurity.detection.refreshReuse.enabled":
+    "AUTH_SECURITY_REFRESH_REUSE_ENABLED",
+  "authSecurity.detection.refreshReuse.windowMinutes":
+    "AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES",
+  "authSecurity.detection.repeatedLockouts.enabled":
+    "AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED",
+  "authSecurity.detection.repeatedLockouts.threshold":
+    "AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD",
+  "authSecurity.detection.repeatedLockouts.windowMinutes":
+    "AUTH_SECURITY_REPEATED_LOCKOUTS_WINDOW_MINUTES",
+  "authSecurity.detection.successAfterFailures.enabled":
+    "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED",
+  "authSecurity.detection.successAfterFailures.threshold":
+    "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD",
+  "authSecurity.detection.successAfterFailures.windowMinutes":
+    "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES",
   "blobStorage.auth": "AZURE_STORAGE_AUTH",
   "blobStorage.accountUrl": "AZURE_STORAGE_ACCOUNT_URL",
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",
@@ -315,6 +340,7 @@ const STRING_FILE_KEYS = new Set([
   "oauth.apple.teamId",
   "oauth.microsoft.tenant",
   "rateLimiter.strategy",
+  "authSecurity.detection.mode",
   "redis.host",
   "sms.fromNumber",
   "sms.provider",

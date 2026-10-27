@@ -1,7 +1,28 @@
 import {
+  attachAuthAuditListeners,
   createRootContainer,
   createServiceToken,
 } from "@/configuration/bootstrap/container";
+import { containerTokens } from "@/configuration/container/tokens";
+
+describe("attachAuthAuditListeners", () => {
+  it("subscribes the detector's handler to auth audit writes", () => {
+    const subscribe = jest.fn();
+    const handle = jest.fn();
+    const container = {
+      resolve: (token: unknown) =>
+        token === containerTokens.authAuditService
+          ? { subscribe }
+          : token === containerTokens.suspiciousActivityDetector
+            ? { handle }
+            : undefined,
+    };
+
+    attachAuthAuditListeners(container as any);
+
+    expect(subscribe).toHaveBeenCalledWith(handle);
+  });
+});
 
 describe("container", () => {
   it("resolves singleton registrations once per root container", () => {

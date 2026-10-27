@@ -70,6 +70,29 @@ authAudit:
   pruneBatchSize: 1000
   pruneIntervalMinutes: 60
 
+# Suspicious sign-in detection over the auth audit log. alert records and flags
+# (and emails the user), enforce also locks accounts and blocks IPs. See
+# docs/auth-security.md#suspicious-activity-detection.
+authSecurity:
+  detection:
+    mode: alert
+    repeatedLockouts:
+      enabled: true
+      threshold: 3
+      windowMinutes: 1440
+    credentialStuffing:
+      enabled: true
+      threshold: 20
+      windowMinutes: 10
+      blockMinutes: 60
+    successAfterFailures:
+      enabled: true
+      threshold: 5
+      windowMinutes: 60
+    refreshReuse:
+      enabled: true
+      windowMinutes: 60
+
 email:
   gmailUser: change-me@example.com
   fromName: Rent

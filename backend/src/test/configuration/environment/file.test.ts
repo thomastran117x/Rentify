@@ -49,6 +49,12 @@ describe("YAML configuration files", () => {
           pruneBatchSize: 500,
           pruneIntervalMinutes: 15,
         },
+        authSecurity: {
+          detection: {
+            mode: "enforce",
+            credentialStuffing: { enabled: false, blockMinutes: 30 },
+          },
+        },
         application: { frontendUrl: "${config.frontendOrigin}" },
         cors: {
           allowedOrigins: ["${config.frontendOrigin}", "https://two.test"],
@@ -66,6 +72,9 @@ describe("YAML configuration files", () => {
         AUTH_AUDIT_RETENTION_DAYS: "30",
         AUTH_AUDIT_PRUNE_BATCH_SIZE: "500",
         AUTH_AUDIT_PRUNE_INTERVAL_MINUTES: "15",
+        AUTH_SECURITY_DETECTION_MODE: "enforce",
+        AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED: "false",
+        AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES: "30",
         FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
         PAYPAL_CHECKOUT_METHODS: "paypal,card",

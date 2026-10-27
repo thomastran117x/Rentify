@@ -26,6 +26,9 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
+      attachAuthAuditListeners: () => {
+        calls.push("attachAuthAuditListeners");
+      },
       warmIdentityBloomFilters: async () => {
         calls.push("warmIdentityBloomFilters");
       },
@@ -51,6 +54,7 @@ describe("initializeServerApplication", () => {
       "connectElasticsearch",
       "connectRabbitMq",
       "initializeContainer",
+      "attachAuthAuditListeners",
       "warmIdentityBloomFilters",
       "createApplication",
     ]);
@@ -84,6 +88,9 @@ describe("initializeServerApplication", () => {
         calls.push("initializeContainer");
         return {} as any;
       },
+      attachAuthAuditListeners: () => {
+        calls.push("attachAuthAuditListeners");
+      },
       warmIdentityBloomFilters: async () => {
         calls.push("warmIdentityBloomFilters");
       },
@@ -108,6 +115,7 @@ describe("initializeServerApplication", () => {
       "connectRedis",
       "connectElasticsearch",
       "initializeContainer",
+      "attachAuthAuditListeners",
       "warmIdentityBloomFilters",
       "createApplication",
     ]);
@@ -127,6 +135,7 @@ describe("initializeServerApplication", () => {
       isRabbitMqEnabled: () => false,
       connectRabbitMq: async () => undefined,
       initializeContainer: () => ({}) as any,
+      attachAuthAuditListeners: () => undefined,
       checkBlobStorageAccess: async () => undefined,
       createApplication: () => app as any,
       loadEnvironment: () => ({}) as any,

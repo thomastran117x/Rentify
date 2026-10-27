@@ -2,7 +2,12 @@ import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 import type { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
 import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
-import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
+import type {
+  AuthAuditListener,
+  RecordAuthAuditEventInput,
+  RecordedAuthAuditEvent,
+} from "@/features/auth/audit/auth-audit.model";
+import { newUuid } from "@/configuration/validation/uuid";
 
 export interface AuthAuditServiceOptions {
   identifierSecret?: string;
@@ -16,6 +21,7 @@ export interface AuthAuditServiceOptions {
 export class AuthAuditService {
   private readonly logger = loggerFactory.forClass(AuthAuditService, "service");
   private readonly identifierSecret?: string;
+  private readonly listeners: AuthAuditListener[] = [];
 
   constructor(
     private readonly repository: AuthAuditRepository,
@@ -37,10 +43,20 @@ export class AuthAuditService {
   }
 
   /**
+   * Adds a listener for every event `recordSafely` writes. Suspicious-activity
+   * detection subscribes once the container is built; it cannot be a
+   * constructor dependency, because what it acts through records here too.
+   */
+  subscribe(listener: AuthAuditListener): void {
+    this.listeners.push(listener);
+  }
+
+  /**
    * Logs the event, then writes it, swallowing a write failure. The log line
    * comes first so the outcome is still visible when the database is not, and
    * it carries only the fields below: never a password, code, token or the
-   * raw typed identifier.
+   * raw typed identifier. Listeners hear only about events that were written,
+   * since anything they flag must exist.
    */
   async recordSafely(input: RecordAuthAuditEventInput): Promise<void> {
     const logger = this.logger.child({ requestId: input.context?.requestId });
@@ -59,8 +75,13 @@ export class AuthAuditService {
       logger.warn("Auth event.", fields);
     }
 
+    const event: RecordedAuthAuditEvent = {
+      ...input,
+      id: input.id ?? newUuid(),
+    };
+
     try {
-      await this.record(input);
+      await this.record(event);
     } catch (error) {
       logger.error("Failed to record auth audit event.", {
         eventType: input.eventType,
@@ -68,6 +89,27 @@ export class AuthAuditService {
         userId: input.userId ?? undefined,
         error,
       });
+      return;
+    }
+
+    this.notifyListeners(event);
+  }
+
+  /**
+   * Starts each listener without waiting for it. A listener that throws or
+   * rejects is logged; the caller of `recordSafely` never sees it.
+   */
+  private notifyListeners(event: RecordedAuthAuditEvent): void {
+    for (const listener of this.listeners) {
+      void Promise.resolve()
+        .then(() => listener(event))
+        .catch((error: unknown) => {
+          this.logger.error("Auth audit listener failed.", {
+            eventType: event.eventType,
+            eventId: event.id,
+            error,
+          });
+        });
     }
   }
 }

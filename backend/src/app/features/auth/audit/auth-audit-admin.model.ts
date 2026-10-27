@@ -56,6 +56,11 @@ export const adminAuthAuditQuerySchema = z
       .max(ADMIN_AUTH_AUDIT_MAX_EVENT_TYPES)
       .optional(),
     outcome: z.enum(AUTH_AUDIT_OUTCOMES).optional(),
+    /** `true` keeps only events suspicious-activity detection flagged. */
+    flagged: z
+      .enum(["true", "false"])
+      .transform((value) => value === "true")
+      .optional(),
     /** Inclusive lower bound; defaults to seven days before `to`. */
     from: z.iso.datetime({ offset: true }).optional(),
     /** Exclusive upper bound; defaults to now. */
@@ -112,6 +117,8 @@ export interface AdminAuthAuditEvent {
   sessionId: string | null;
   requestId: string | null;
   metadata: Record<string, unknown> | null;
+  /** Whether suspicious-activity detection flagged the event. */
+  flagged: boolean;
   occurredAt: string;
   /** Null when the event matched no account, such as an unknown username. */
   subject: AuthAuditUserSummary | null;
@@ -192,5 +199,6 @@ export interface AuthAuditAdminRow {
   sessionId: string | null;
   requestId: string | null;
   metadata: unknown;
+  flagged: boolean;
   createdAt: Date;
 }

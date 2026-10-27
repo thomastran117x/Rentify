@@ -1145,6 +1145,106 @@ describe("EnvironmentManager", () => {
     expect(() => new EnvironmentManager().load()).toThrow(`${name} ${message}`);
   });
 
+  it("defaults suspicious-activity detection to alert and allows overriding it", () => {
+    process.env = buildRequiredEnv({});
+    const defaultManager = new EnvironmentManager();
+    defaultManager.load();
+
+    expect(defaultManager.getAuthSecurityConfig()).toEqual({
+      detection: {
+        mode: "alert",
+        repeatedLockouts: { enabled: true, threshold: 3, windowMinutes: 1440 },
+        credentialStuffing: {
+          enabled: true,
+          threshold: 20,
+          windowMinutes: 10,
+          blockMinutes: 60,
+        },
+        successAfterFailures: {
+          enabled: true,
+          threshold: 5,
+          windowMinutes: 60,
+        },
+        refreshReuse: { enabled: true, windowMinutes: 60 },
+      },
+    });
+
+    process.env = buildRequiredEnv({
+      AUTH_SECURITY_DETECTION_MODE: "ENFORCE",
+      AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED: "false",
+      AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD: "2",
+      AUTH_SECURITY_REPEATED_LOCKOUTS_WINDOW_MINUTES: "60",
+      AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED: "true",
+      AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD: "3",
+      AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES: "5",
+      AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES: "10080",
+      AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED: "0",
+      AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD: "10000",
+      AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES: "30",
+      AUTH_SECURITY_REFRESH_REUSE_ENABLED: "no",
+      AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES: "1",
+    });
+    const overriddenManager = new EnvironmentManager();
+    overriddenManager.load();
+
+    expect(overriddenManager.getAuthSecurityConfig()).toEqual({
+      detection: {
+        mode: "enforce",
+        repeatedLockouts: { enabled: false, threshold: 2, windowMinutes: 60 },
+        credentialStuffing: {
+          enabled: true,
+          threshold: 3,
+          windowMinutes: 5,
+          blockMinutes: 10_080,
+        },
+        successAfterFailures: {
+          enabled: false,
+          threshold: 10_000,
+          windowMinutes: 30,
+        },
+        refreshReuse: { enabled: false, windowMinutes: 1 },
+      },
+    });
+  });
+
+  it.each([
+    [
+      "AUTH_SECURITY_DETECTION_MODE",
+      "block",
+      "must be one of: off, alert, enforce.",
+    ],
+    [
+      "AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    [
+      "AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD",
+      "10001",
+      "must be less than or equal to 10000.",
+    ],
+    [
+      "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD",
+      "2.5",
+      "must be an integer.",
+    ],
+    // Past a week, so a typo cannot block an IP indefinitely.
+    [
+      "AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES",
+      "10081",
+      "must be less than or equal to 10080.",
+    ],
+    [
+      "AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+  ])("rejects %s=%s", (name, value, message) => {
+    process.env = buildRequiredEnv({ [name]: value });
+
+    expect(() => new EnvironmentManager().load()).toThrow(`${name} ${message}`);
+  });
+
   it("keeps abandoned uploads until their upload URL can no longer be used", () => {
     // An hour-long Azure upload URL plus 15 minutes to finish and complete.
     process.env = buildRequiredEnv({

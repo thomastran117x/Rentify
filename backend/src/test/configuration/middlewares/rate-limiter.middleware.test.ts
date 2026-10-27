@@ -48,6 +48,7 @@ class FakeContainer implements ServiceContainer {
     },
     private readonly tokenService: { verifyAccessToken: jest.Mock },
     private readonly authAuditService: { recordSafely: jest.Mock },
+    private readonly authIpBlockStore: { getRemainingSeconds: jest.Mock },
   ) {}
 
   resolve<TValue>(token: unknown): TValue {
@@ -61,6 +62,10 @@ class FakeContainer implements ServiceContainer {
 
     if (token === containerTokens.authAuditService) {
       return this.authAuditService as TValue;
+    }
+
+    if (token === containerTokens.authIpBlockStore) {
+      return this.authIpBlockStore as TValue;
     }
 
     throw new Error(`Unexpected token: ${String(token)}`);
@@ -91,6 +96,7 @@ function createApp(
   verifyAccessToken = jest.fn().mockResolvedValue(createClaims()),
   setIfNotExists = jest.fn().mockResolvedValue(true),
   recordSafely = jest.fn().mockResolvedValue(undefined),
+  getRemainingSeconds = jest.fn().mockResolvedValue(0),
 ) {
   const cacheService = {
     eval: cacheEval,
@@ -124,6 +130,7 @@ function createApp(
         cacheService,
         tokenService,
         authAuditService,
+        { getRemainingSeconds },
       );
       request.logger = requestLogger;
       request.outputFormat = "json";
@@ -148,6 +155,7 @@ function createApp(
     verifyAccessToken,
     setIfNotExists,
     recordSafely,
+    getRemainingSeconds,
     requestLogger,
   };
 }
@@ -363,6 +371,76 @@ describe("rateLimiterMiddleware", () => {
     resetRateLimiterMemoryFallbackForTests();
   });
 
+  it("refuses an auth-sensitive request from a blocked IP before counting it", async () => {
+    const { app, cacheEval, getRemainingSeconds, recordSafely } = createApp(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      jest.fn().mockResolvedValue(1200),
+    );
+
+    const response = await app.request("http://rent.test/auth/local/login", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("1200");
+    expect(response.headers.get("x-ratelimit-policy")).toBe("auth-sensitive");
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "TOO_MANY_REQUESTS",
+        details: {
+          policy: "auth-sensitive",
+          reason: "ip_blocked",
+          retryAfterSeconds: 1200,
+        },
+      },
+    });
+    expect(getRemainingSeconds).toHaveBeenCalledWith("203.0.113.10");
+    expect(cacheEval).not.toHaveBeenCalled();
+    expect(recordSafely).not.toHaveBeenCalled();
+  });
+
+  it("checks the IP block list only on the auth-sensitive policy", async () => {
+    const { app, getRemainingSeconds } = createApp(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      jest.fn().mockResolvedValue(1200),
+    );
+
+    const response = await app.request("http://rent.test/auth/refresh", {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    expect(getRemainingSeconds).not.toHaveBeenCalled();
+  });
+
+  it("allows the request when the IP block list cannot be read", async () => {
+    const { app, cacheEval } = createApp(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      jest.fn().mockRejectedValue(new Error("Redis socket closed")),
+    );
+
+    const first = await app.request("http://rent.test/auth/local/login", {
+      method: "POST",
+    });
+    const second = await app.request("http://rent.test/auth/local/login", {
+      method: "POST",
+    });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(cacheEval).toHaveBeenCalledTimes(2);
+  });
+
   it("uses the stricter auth policy headers on login routes", async () => {
     const { app } = createApp();
     const response = await app.request("http://rent.test/auth/local/login", {
@@ -440,9 +518,12 @@ describe("rateLimiterMiddleware", () => {
             isMobile: false,
           },
         };
-        request.container = new FakeContainer(cacheService, tokenService, {
-          recordSafely: jest.fn().mockResolvedValue(undefined),
-        });
+        request.container = new FakeContainer(
+          cacheService,
+          tokenService,
+          { recordSafely: jest.fn().mockResolvedValue(undefined) },
+          { getRemainingSeconds: jest.fn().mockResolvedValue(0) },
+        );
         request.outputFormat = "json";
         next();
       });

@@ -9,13 +9,17 @@ import type {
 } from "@/lib/admin-security/types";
 import { resetRouterMocks, routerPushMock } from "@/test/mocks/next-navigation";
 
-const { listEventsMock, getUserSummaryMock, searchParamsRef } = vi.hoisted(
-  () => ({
-    listEventsMock: vi.fn(),
-    getUserSummaryMock: vi.fn(),
-    searchParamsRef: { current: new URLSearchParams() },
-  }),
-);
+const {
+  listEventsMock,
+  getUserSummaryMock,
+  listIpBlocksMock,
+  searchParamsRef,
+} = vi.hoisted(() => ({
+  listEventsMock: vi.fn(),
+  getUserSummaryMock: vi.fn(),
+  listIpBlocksMock: vi.fn(),
+  searchParamsRef: { current: new URLSearchParams() },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPushMock }),
@@ -31,6 +35,8 @@ vi.mock("@/lib/admin-security/api", () => ({
   adminSecurityApi: {
     listEvents: listEventsMock,
     getUserSummary: getUserSummaryMock,
+    listIpBlocks: listIpBlocksMock,
+    unblockIp: vi.fn(),
   },
 }));
 
@@ -67,6 +73,7 @@ function event(
     sessionId: null,
     requestId: "request-1",
     metadata: null,
+    flagged: false,
     occurredAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
     subject: RENTER,
     actor: null,
@@ -124,6 +131,8 @@ describe("AdminSecurityWorkspace", () => {
     resetRouterMocks();
     listEventsMock.mockReset();
     getUserSummaryMock.mockReset();
+    listIpBlocksMock.mockReset();
+    listIpBlocksMock.mockResolvedValue({ items: [] });
     searchParamsRef.current = new URLSearchParams();
   });
 
@@ -190,9 +199,9 @@ describe("AdminSecurityWorkspace", () => {
 
   it("searches with the filters in the URL", async () => {
     searchParamsRef.current = new URLSearchParams(
-      "user=renter-one&eventType=login.failed&eventType=login.locked&outcome=failure&from=2026-10-01&to=2026-10-08",
+      "user=renter-one&eventType=login.failed&eventType=login.locked&outcome=failure&flagged=true&from=2026-10-01&to=2026-10-08",
     );
-    listEventsMock.mockResolvedValueOnce(page([event()]));
+    listEventsMock.mockResolvedValueOnce(page([event({ flagged: true })]));
 
     render(<AdminSecurityWorkspace />);
 
@@ -202,12 +211,15 @@ describe("AdminSecurityWorkspace", () => {
         user: "renter-one",
         eventType: ["login.failed", "login.locked"],
         outcome: "failure",
+        flagged: true,
         from: expect.any(String),
         to: expect.any(String),
       }),
       expect.any(AbortSignal),
     );
     expect(screen.getByLabelText("User")).toHaveValue("renter-one");
+    expect(screen.getByLabelText("Flagged only")).toBeChecked();
+    expect(screen.getByText("Flagged")).toBeInTheDocument();
     expect(screen.getByText("2 event types")).toBeInTheDocument();
     expect(screen.queryByText(/\(last 7 days\)/)).not.toBeInTheDocument();
   });
@@ -222,6 +234,7 @@ describe("AdminSecurityWorkspace", () => {
     await user.type(screen.getByLabelText("User"), "user1@rentify.local");
     await user.type(screen.getByLabelText("IP address"), "203.0.113.7");
     await user.selectOptions(screen.getByLabelText("Outcome"), "blocked");
+    await user.click(screen.getByLabelText("Flagged only"));
     await user.click(screen.getByText("All event types"));
     await user.click(screen.getByLabelText("Account locked"));
     await user.click(screen.getByLabelText("Sign-in failed"));
@@ -233,7 +246,7 @@ describe("AdminSecurityWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Apply filters" }));
 
     expect(routerPushMock).toHaveBeenCalledWith(
-      "/admin/security?user=user1%40rentify.local&ip=203.0.113.7&eventType=login.locked&outcome=blocked",
+      "/admin/security?user=user1%40rentify.local&ip=203.0.113.7&eventType=login.locked&outcome=blocked&flagged=true",
       { scroll: false },
     );
   });

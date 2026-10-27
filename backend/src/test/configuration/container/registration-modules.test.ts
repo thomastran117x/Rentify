@@ -39,6 +39,11 @@ import { SmsController } from "@/features/sms/sms.controller";
 import { SmsDeliveryService } from "@/features/sms/sms.delivery.service";
 import { SmsQueueService } from "@/features/sms/sms.queue.service";
 import { SmsService } from "@/features/sms/sms.service";
+import { authDetectionRegistrationModule } from "@/configuration/container/registrations/modules/auth-detection";
+import { AuthIpBlockStore } from "@/features/auth/detection/ip-block.store";
+import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious-activity.detector";
+import { AuthIpBlockAdminController } from "@/features/auth/detection/ip-block-admin.controller";
+import { AuthIpBlockAdminService } from "@/features/auth/detection/ip-block-admin.service";
 
 jest.mock("@/configuration/resources/database", () => ({
   getDatabaseClient: () => ({}),
@@ -171,6 +176,57 @@ describe("targeted container registration modules", () => {
     expect(
       find(containerTokens.selfLockController).resolve({ resolve }),
     ).toBeInstanceOf(SelfLockController);
+  });
+
+  it("registers the IP block store and the suspicious-activity detector as singletons", () => {
+    const registrations: Array<{
+      token: unknown;
+      lifetime: string;
+      dependencies: unknown[];
+      resolve: (context: { resolve: (token: unknown) => unknown }) => unknown;
+    }> = [];
+
+    authDetectionRegistrationModule.register({
+      register: (registration: (typeof registrations)[number]) => {
+        registrations.push(registration);
+      },
+    } as any);
+
+    const find = (token: unknown) =>
+      registrations.find((candidate) => candidate.token === token)!;
+    const resolve = () => ({});
+
+    expect(find(containerTokens.suspiciousActivityDetector)).toMatchObject({
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.cacheService,
+        containerTokens.authAuditRepository,
+        containerTokens.accountStatusService,
+        containerTokens.authUsersRepository,
+        containerTokens.emailService,
+        containerTokens.selfLockTokenStore,
+        containerTokens.authIpBlockStore,
+      ],
+    });
+    expect(
+      find(containerTokens.authIpBlockStore).resolve({ resolve }),
+    ).toBeInstanceOf(AuthIpBlockStore);
+    expect(
+      find(containerTokens.suspiciousActivityDetector).resolve({ resolve }),
+    ).toBeInstanceOf(SuspiciousActivityDetector);
+    expect(find(containerTokens.authIpBlockAdminService).dependencies).toEqual([
+      containerTokens.authIpBlockStore,
+      containerTokens.authAuditService,
+    ]);
+    expect(
+      find(containerTokens.authIpBlockAdminService).resolve({ resolve }),
+    ).toBeInstanceOf(AuthIpBlockAdminService);
+    expect(find(containerTokens.authIpBlockAdminController).lifetime).toBe(
+      "scoped",
+    );
+    expect(
+      find(containerTokens.authIpBlockAdminController).resolve({ resolve }),
+    ).toBeInstanceOf(AuthIpBlockAdminController);
   });
 
   it("registers the admin audit reader and its controller", () => {

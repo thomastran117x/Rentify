@@ -71,6 +71,7 @@ export function toAdminRepositoryFilter(
     ...(query.ip ? { ipAddress: query.ip } : {}),
     ...(query.eventType ? { eventTypes: query.eventType } : {}),
     ...(query.outcome ? { outcome: query.outcome } : {}),
+    ...(query.flagged !== undefined ? { flagged: query.flagged } : {}),
     afterId,
     createdFrom: range.createdFrom,
     createdBefore: range.createdBefore,
@@ -96,6 +97,9 @@ export function toAuditViewedMetadata(
       ? { filter_event_types: query.eventType.join(",") }
       : {}),
     ...(query.outcome ? { filter_outcome: query.outcome } : {}),
+    ...(query.flagged !== undefined
+      ? { filter_flagged: String(query.flagged) }
+      : {}),
     filter_from: range.createdFrom.toISOString(),
     filter_to: range.createdBefore.toISOString(),
     limit: query.limit,
@@ -172,6 +176,7 @@ export function toAdminAuthAuditEvent(
     sessionId: row.sessionId,
     requestId: row.requestId,
     metadata: toMetadata(row.metadata),
+    flagged: row.flagged,
     occurredAt: row.createdAt.toISOString(),
     subject: (row.userId && usersById.get(row.userId)) || null,
     actor:

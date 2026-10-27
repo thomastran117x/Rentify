@@ -777,6 +777,36 @@ carries. A run deletes batch after batch until none is left, so the batch size
 limits each statement, not the run. `pruneIntervalMinutes` is at most `35791`
 (about 24.8 days), the longest delay a Node.js timer can hold.
 
+## Auth security detection
+
+`authSecurity.detection` turns suspicious sign-in detection on and sets its
+thresholds. See
+[Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection)
+for what each rule watches, what it does and how to tune it. Keys below are
+under `authSecurity.detection`.
+
+| Key                                  | Default | Override                                              | Meaning                                                          |
+| ------------------------------------ | ------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `mode`                               | `alert` | `AUTH_SECURITY_DETECTION_MODE`                        | `off`, `alert` or `enforce`                                      |
+| `repeatedLockouts.enabled`           | `true`  | `AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED`             | Rule (a): repeated lockouts of one account                       |
+| `repeatedLockouts.threshold`         | `3`     | `AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD`           | Triggered lockouts that fire the rule                            |
+| `repeatedLockouts.windowMinutes`     | `1440`  | `AUTH_SECURITY_REPEATED_LOCKOUTS_WINDOW_MINUTES`      | Sliding window the lockouts are counted over                     |
+| `credentialStuffing.enabled`         | `true`  | `AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED`           | Rule (b): many sign-in names failing from one IP                 |
+| `credentialStuffing.threshold`       | `20`    | `AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD`         | Distinct sign-in names that fire the rule                        |
+| `credentialStuffing.windowMinutes`   | `10`    | `AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES`    | Sliding window the names are counted over                        |
+| `credentialStuffing.blockMinutes`    | `60`    | `AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES`     | How long `enforce` blocks the IP on the `auth-sensitive` policy  |
+| `successAfterFailures.enabled`       | `true`  | `AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED`        | Rule (c): a sign-in from a new device and IP after failures      |
+| `successAfterFailures.threshold`     | `5`     | `AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD`      | Failed sign-ins that must come first                             |
+| `successAfterFailures.windowMinutes` | `60`    | `AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES` | Sliding window the failures are counted over                     |
+| `refreshReuse.enabled`               | `true`  | `AUTH_SECURITY_REFRESH_REUSE_ENABLED`                 | Rule (d): a refresh token used twice                             |
+| `refreshReuse.windowMinutes`         | `60`    | `AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES`          | Further reuse within this window raises no second alert or email |
+
+`mode` is case-insensitive; any other value is a startup error. Thresholds are
+integers from `1` to `10000`. Every window and `blockMinutes` is an integer from
+`1` to `10080` (a week), so a typo cannot keep a counter, or an IP block, alive
+indefinitely. Detection needs Redis; without it, detection is skipped and
+sign-in carries on.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:

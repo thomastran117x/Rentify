@@ -40,6 +40,7 @@ function createRow(
     sessionId: null,
     requestId: "request-1",
     metadata: null,
+    flagged: false,
     createdAt: new Date("2026-10-18T11:00:00.000Z"),
     ...overrides,
   };
@@ -53,6 +54,7 @@ describe("adminAuthAuditQuerySchema", () => {
         ip: "2001:db8::1",
         eventType: ["login.failed", "admin.audit_viewed"],
         outcome: "blocked",
+        flagged: "true",
         from: "2026-10-11T00:00:00Z",
         to: "2026-10-18T00:00:00-04:00",
       }),
@@ -61,6 +63,7 @@ describe("adminAuthAuditQuerySchema", () => {
       ip: "2001:db8::1",
       eventType: ["login.failed", "admin.audit_viewed"],
       outcome: "blocked",
+      flagged: true,
       from: "2026-10-11T00:00:00Z",
       to: "2026-10-18T00:00:00-04:00",
       limit: 25,
@@ -73,6 +76,7 @@ describe("adminAuthAuditQuerySchema", () => {
     [{ eventType: ["login.nope"] }, "eventType.0"],
     [{ eventType: Array(11).fill("login.failed") }, "eventType"],
     [{ limit: "101" }, "limit"],
+    [{ flagged: "yes" }, "flagged"],
     [{ userId: "renter-one" }, "userId"],
     [{ from: "yesterday" }, "from"],
     [{ unexpected: "1" }, ""],
@@ -139,6 +143,7 @@ describe("toAdminRepositoryFilter", () => {
           ip: "203.0.113.7",
           eventType: ["login.failed"],
           outcome: "failure",
+          flagged: "false",
           limit: "10",
         }),
         { kind: "user", userId: USER_ID },
@@ -150,6 +155,7 @@ describe("toAdminRepositoryFilter", () => {
       ipAddress: "203.0.113.7",
       eventTypes: ["login.failed"],
       outcome: "failure",
+      flagged: false,
       afterId: "event-9",
       createdFrom: range.createdFrom,
       createdBefore: range.createdBefore,
@@ -184,6 +190,7 @@ describe("toAdminRepositoryFilter", () => {
 
     expect(filter).not.toHaveProperty("userId");
     expect(filter).not.toHaveProperty("identifierHash");
+    expect(filter).not.toHaveProperty("flagged");
   });
 });
 
@@ -196,6 +203,7 @@ describe("toAuditViewedMetadata", () => {
           ip: "203.0.113.7",
           eventType: ["login.failed", "login.locked"],
           outcome: "failure",
+          flagged: "true",
           cursor: "abc",
         }),
         {
@@ -209,6 +217,7 @@ describe("toAuditViewedMetadata", () => {
       filter_ip: "203.0.113.7",
       filter_event_types: "login.failed,login.locked",
       filter_outcome: "failure",
+      filter_flagged: "true",
       filter_from: "2026-10-11T00:00:00.000Z",
       filter_to: "2026-10-18T12:00:00.000Z",
       limit: 25,
@@ -264,6 +273,7 @@ describe("toAdminAuthAuditEvent", () => {
       sessionId: null,
       requestId: "request-1",
       metadata: null,
+      flagged: false,
       occurredAt: "2026-10-18T11:00:00.000Z",
       subject: { id: USER_ID, email: "user@example.com", username: "user" },
       actor: null,
@@ -311,6 +321,12 @@ describe("toAdminAuthAuditEvent", () => {
       os: null,
       metadata: null,
     });
+  });
+
+  it("carries the detection flag", () => {
+    expect(
+      toAdminAuthAuditEvent(createRow({ flagged: true }), usersById).flagged,
+    ).toBe(true);
   });
 
   it("does not repeat the subject as the actor when they acted on themselves", () => {

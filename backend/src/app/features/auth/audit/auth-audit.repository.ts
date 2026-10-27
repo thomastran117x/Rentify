@@ -43,11 +43,42 @@ export interface ListAuthAuditEventsForAdminInput {
   ipAddress?: string;
   eventTypes?: readonly string[];
   outcome?: string;
+  flagged?: boolean;
   afterId?: string;
   /** Inclusive lower bound on created_at. */
   createdFrom: Date;
   /** Exclusive upper bound on created_at. */
   createdBefore: Date;
+  limit: number;
+}
+
+/**
+ * One kind of event a detection rule counts. `triggeredLockout` keeps only the
+ * `login.locked` attempt that set a lock, whose metadata has `triggered: true`,
+ * not the refusals recorded while the lock lasts.
+ */
+export interface AuthAuditEventMatch {
+  eventType: string;
+  outcome?: string;
+  triggeredLockout?: boolean;
+}
+
+/**
+ * The events a detection rule fired on: those matching any of `matches`. Each
+ * lookup leads with the user or the IP address, so it is served by
+ * `(user_id, created_at)` or `(ip_address, created_at)`.
+ */
+export interface FindRecentAuthAuditEventIdsInput {
+  userId?: Uuid;
+  ipAddress?: string;
+  /**
+   * Only events written while serving this request. Cut to the column width
+   * here, as `create` cuts it, so a long client-supplied id still matches.
+   */
+  requestId?: string;
+  matches: readonly AuthAuditEventMatch[];
+  /** Inclusive lower bound on created_at. */
+  createdFrom: Date;
   limit: number;
 }
 
@@ -77,6 +108,7 @@ const ADMIN_COLUMNS = {
   ...ACTIVITY_COLUMNS,
   requestId: true,
   metadata: true,
+  flagged: true,
 } as const;
 
 export class AuthAuditRepository extends BaseRepository {
@@ -107,6 +139,7 @@ export class AuthAuditRepository extends BaseRepository {
             sessionId: truncate(input.sessionId, COLUMN_LIMITS.sessionId),
             requestId: truncate(context.requestId, COLUMN_LIMITS.requestId),
             metadata: input.metadata,
+            flagged: input.flagged ?? false,
           },
         }),
       { maxRetries: 0 },
@@ -175,10 +208,59 @@ export class AuthAuditRepository extends BaseRepository {
       ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
       ...(input.eventTypes ? { eventType: { in: [...input.eventTypes] } } : {}),
       ...(input.outcome ? { outcome: input.outcome } : {}),
+      ...(input.flagged !== undefined ? { flagged: input.flagged } : {}),
       createdAt: { gte: input.createdFrom, lt: input.createdBefore },
     };
 
     return this.listPage(where, ADMIN_COLUMNS, input.afterId, input.limit);
+  }
+
+  /** The newest matching event ids, for a detection rule to flag. */
+  async findRecentEventIds(
+    input: FindRecentAuthAuditEventIdsInput,
+  ): Promise<string[]> {
+    const rows = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.findMany({
+        where: {
+          ...(input.userId ? { userId: input.userId } : {}),
+          ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+          ...(input.requestId
+            ? {
+                requestId: truncate(input.requestId, COLUMN_LIMITS.requestId),
+              }
+            : {}),
+          createdAt: { gte: input.createdFrom },
+          OR: input.matches.map((match) => ({
+            eventType: match.eventType,
+            ...(match.outcome ? { outcome: match.outcome } : {}),
+            ...(match.triggeredLockout
+              ? { metadata: { path: "$.triggered", equals: true } }
+              : {}),
+          })),
+        },
+        select: { id: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: input.limit,
+      }),
+    );
+
+    return rows.map((row) => row.id);
+  }
+
+  /** Marks events as flagged by suspicious-activity detection. */
+  async flagEvents(ids: readonly string[]): Promise<number> {
+    if (ids.length === 0) {
+      return 0;
+    }
+
+    const result = await this.executeAsync(() =>
+      this.prisma.authAuditEvent.updateMany({
+        where: { id: { in: [...ids] }, flagged: false },
+        data: { flagged: true },
+      }),
+    );
+
+    return result.count;
   }
 
   /** How many of one user's events of these types happened since a time. */

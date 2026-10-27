@@ -1,5 +1,6 @@
 import { createApplication } from "@/configuration/bootstrap/application";
 import {
+  attachAuthAuditListeners,
   getContainer,
   initializeContainer,
 } from "@/configuration/bootstrap/container";
@@ -24,6 +25,7 @@ import { runAutoSeedsIfNeeded } from "@/seeds/orchestrator";
 import { checkBlobStorageAccess } from "@/features/blob/blob-storage-access";
 
 export interface StartupDependencies {
+  attachAuthAuditListeners(): void;
   checkBlobStorageAccess(): Promise<unknown>;
   connectDatabase(): Promise<unknown>;
   connectElasticsearch(): Promise<unknown>;
@@ -68,6 +70,7 @@ async function warmIdentityBloomFilters(): Promise<void> {
 }
 
 const defaultDependencies: StartupDependencies = {
+  attachAuthAuditListeners: () => attachAuthAuditListeners(),
   checkBlobStorageAccess,
   connectDatabase,
   connectElasticsearch,
@@ -107,6 +110,7 @@ export async function initializeServerApplication(
   }
 
   dependencies.initializeContainer();
+  dependencies.attachAuthAuditListeners();
   await dependencies.warmIdentityBloomFilters();
   const app = dependencies.createApplication();
 

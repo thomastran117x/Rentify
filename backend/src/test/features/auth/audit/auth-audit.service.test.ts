@@ -176,4 +176,101 @@ describe("AuthAuditService", () => {
       expect.objectContaining({ userId: undefined }),
     );
   });
+
+  describe("listeners", () => {
+    /** Lets the listeners `recordSafely` started without waiting run. */
+    function flushListeners() {
+      return new Promise((resolve) => setImmediate(resolve));
+    }
+
+    it("tells each listener about a written event, with the id it was stored under", async () => {
+      const { service, create } = createService();
+      const first = jest.fn(async () => undefined);
+      const second = jest.fn(async () => undefined);
+      service.subscribe(first);
+      service.subscribe(second);
+
+      await service.recordSafely(createInput());
+      await flushListeners();
+
+      const written = (create.mock.calls as unknown as unknown[][])[0]![0] as {
+        id: string;
+      };
+      expect(written.id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(first).toHaveBeenCalledWith({ ...createInput(), id: written.id });
+      expect(second).toHaveBeenCalledWith(written);
+    });
+
+    it("keeps an id the caller chose", async () => {
+      const { service, create } = createService();
+      const listener = jest.fn(async () => undefined);
+      const id = testUuid(9100, 379301);
+      service.subscribe(listener);
+
+      await service.recordSafely(createInput({ id }));
+      await flushListeners();
+
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ id }));
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ id }));
+    });
+
+    it("answers the caller before a listener finishes", async () => {
+      const { service } = createService();
+      let release!: () => void;
+      const listener = jest.fn(
+        () => new Promise<void>((resolve) => (release = resolve)),
+      );
+      service.subscribe(listener);
+
+      await expect(
+        service.recordSafely(createInput()),
+      ).resolves.toBeUndefined();
+      await flushListeners();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      release();
+    });
+
+    it("does not tell listeners about an event that failed to write", async () => {
+      const { service } = createService(
+        jest.fn(async () => {
+          throw new Error("database unavailable");
+        }),
+      );
+      const listener = jest.fn(async () => undefined);
+      service.subscribe(listener);
+
+      await service.recordSafely(createInput());
+      await flushListeners();
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("logs a listener that rejects or throws, and still runs the others", async () => {
+      const { service } = createService();
+      const failure = new Error("listener broke");
+      const rejecting = jest.fn(async () => {
+        throw failure;
+      });
+      const throwing = jest.fn(() => {
+        throw failure;
+      });
+      const healthy = jest.fn(async () => undefined);
+      service.subscribe(rejecting);
+      service.subscribe(throwing as any);
+      service.subscribe(healthy);
+
+      await expect(
+        service.recordSafely(createInput()),
+      ).resolves.toBeUndefined();
+      await flushListeners();
+
+      expect(healthy).toHaveBeenCalledTimes(1);
+      expect(mockLogger.error).toHaveBeenCalledTimes(2);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Auth audit listener failed.",
+        expect.objectContaining({ eventType: "login.failed", error: failure }),
+      );
+    });
+  });
 });

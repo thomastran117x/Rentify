@@ -71,6 +71,21 @@ const rateLimiterConfig = {
   refillTokensPerSecond: 1,
 };
 
+const authSecurityConfig = {
+  detection: {
+    mode: "alert" as const,
+    repeatedLockouts: { enabled: true, threshold: 3, windowMinutes: 1440 },
+    credentialStuffing: {
+      enabled: true,
+      threshold: 20,
+      windowMinutes: 10,
+      blockMinutes: 60,
+    },
+    successAfterFailures: { enabled: true, threshold: 5, windowMinutes: 60 },
+    refreshReuse: { enabled: true, windowMinutes: 60 },
+  },
+};
+
 const paypalConfig = {
   clientId: "paypal-test-client-id",
   clientSecret: "paypal-test-client-secret",
@@ -473,6 +488,9 @@ export const environment = {
       pruneIntervalMinutes: 60,
     };
   },
+  getAuthSecurityConfig() {
+    return authSecurityConfig;
+  },
   getUsernameBloomConfig() {
     return identityBloomConfig;
   },
@@ -517,6 +535,7 @@ export const environment = {
       features: readFeaturesConfig(),
       rabbitmq: readRabbitMqConfig(),
       rateLimiter: rateLimiterConfig,
+      authSecurity: authSecurityConfig,
       server: {
         nodeEnv: readNodeEnvironment(),
         isProduction: readNodeEnvironment() === "production",

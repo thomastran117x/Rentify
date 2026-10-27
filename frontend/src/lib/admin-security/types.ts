@@ -33,9 +33,11 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "pat.revoked",
   "rate_limit.exceeded",
   "admin.audit_viewed",
+  "admin.ip_unblocked",
   "account.locked",
   "account.suspended",
   "account.reinstated",
+  "security.suspicious_activity",
 ] as const;
 
 export type AuthAuditEventType = (typeof AUTH_AUDIT_EVENT_TYPES)[number];
@@ -64,6 +66,8 @@ export interface AdminAuthAuditEvent {
   sessionId: string | null;
   requestId: string | null;
   metadata: Record<string, unknown> | null;
+  /** Set by suspicious-activity detection on the events it acted on. */
+  flagged: boolean;
   occurredAt: string;
   /** Null for an unknown-username attempt or a deleted account. */
   subject: AuthAuditUserSummary | null;
@@ -78,11 +82,24 @@ export interface AdminAuthAuditEventList {
   range: { from: string; to: string };
 }
 
+/** An address suspicious-activity detection keeps off sign-in for now. */
+export interface AuthIpBlock {
+  ipAddress: string;
+  /** When the block lifts on its own. */
+  expiresAt: string;
+}
+
+export interface AuthIpBlockList {
+  items: AuthIpBlock[];
+}
+
 export interface ListAdminAuthAuditInput {
   user?: string;
   ip?: string;
   eventType?: AuthAuditEventType[];
   outcome?: AuthAuditOutcome;
+  /** True keeps only the events detection flagged. */
+  flagged?: boolean;
   /** Inclusive lower bound, an ISO 8601 date-time. */
   from?: string;
   /** Exclusive upper bound, an ISO 8601 date-time. */

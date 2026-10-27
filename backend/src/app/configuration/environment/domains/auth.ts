@@ -9,13 +9,17 @@ import {
 import {
   normalizeBaseUrl,
   normalizeDelimitedList,
+  parseBoolean,
   parseNumber,
 } from "@/configuration/environment/shared";
-import type {
-  AppEnvironment,
-  AccessTokenAlgorithm,
-  RawEnvironmentValues,
-  RefreshTokenMode,
+import {
+  AUTH_SECURITY_DETECTION_MODES,
+  type AppEnvironment,
+  type AccessTokenAlgorithm,
+  type AuthSecurityDetectionMode,
+  type EnvironmentVariableName,
+  type RawEnvironmentValues,
+  type RefreshTokenMode,
 } from "@/configuration/environment/types";
 import { z } from "zod";
 
@@ -270,6 +274,103 @@ export function buildAuthAuditConfig(
       },
     ),
   };
+}
+
+// A week bounds every detection window and IP block, so a typo cannot keep
+// Redis keys, or a blocked IP, around indefinitely.
+const MAX_DETECTION_WINDOW_MINUTES = 7 * 24 * 60;
+const MAX_DETECTION_THRESHOLD = 10_000;
+
+/**
+ * Suspicious sign-in detection. Every rule defaults on with the thresholds in
+ * docs/auth-security.md, and the mode defaults to alert, which never locks an
+ * account or blocks an IP.
+ */
+export function buildAuthSecurityConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["authSecurity"] {
+  const threshold = (name: EnvironmentVariableName, fallback: number): number =>
+    parseNumber(raw, name, fallback, errors, {
+      integer: true,
+      min: 1,
+      max: MAX_DETECTION_THRESHOLD,
+    });
+  const minutes = (name: EnvironmentVariableName, fallback: number): number =>
+    parseNumber(raw, name, fallback, errors, {
+      integer: true,
+      min: 1,
+      max: MAX_DETECTION_WINDOW_MINUTES,
+    });
+
+  return {
+    detection: {
+      mode: parseAuthSecurityDetectionMode(raw, errors),
+      repeatedLockouts: {
+        enabled: parseBoolean(
+          raw.AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED,
+          true,
+        ),
+        threshold: threshold("AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD", 3),
+        windowMinutes: minutes(
+          "AUTH_SECURITY_REPEATED_LOCKOUTS_WINDOW_MINUTES",
+          24 * 60,
+        ),
+      },
+      credentialStuffing: {
+        enabled: parseBoolean(
+          raw.AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED,
+          true,
+        ),
+        threshold: threshold("AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD", 20),
+        windowMinutes: minutes(
+          "AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES",
+          10,
+        ),
+        blockMinutes: minutes(
+          "AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES",
+          60,
+        ),
+      },
+      successAfterFailures: {
+        enabled: parseBoolean(
+          raw.AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED,
+          true,
+        ),
+        threshold: threshold(
+          "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD",
+          5,
+        ),
+        windowMinutes: minutes(
+          "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES",
+          60,
+        ),
+      },
+      refreshReuse: {
+        enabled: parseBoolean(raw.AUTH_SECURITY_REFRESH_REUSE_ENABLED, true),
+        windowMinutes: minutes(
+          "AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES",
+          60,
+        ),
+      },
+    },
+  };
+}
+
+function parseAuthSecurityDetectionMode(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AuthSecurityDetectionMode {
+  const value = raw.AUTH_SECURITY_DETECTION_MODE?.toLowerCase() ?? "alert";
+
+  if ((AUTH_SECURITY_DETECTION_MODES as readonly string[]).includes(value)) {
+    return value as AuthSecurityDetectionMode;
+  }
+
+  errors.push(
+    `AUTH_SECURITY_DETECTION_MODE must be one of: ${AUTH_SECURITY_DETECTION_MODES.join(", ")}.`,
+  );
+  return "alert";
 }
 
 export function buildEmailConfig(

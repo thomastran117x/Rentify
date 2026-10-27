@@ -48,6 +48,25 @@ export function getContainer(): RootServiceContainer {
   return rootContainer;
 }
 
+/**
+ * Subscribes suspicious-activity detection to auth audit writes. Called by
+ * the processes that serve auth requests, once their container is built and
+ * the database and Redis are connected; workers record no auth events and
+ * never call it. Detection cannot be a dependency of `AuthAuditService`,
+ * because the account status service it locks through records there too.
+ */
+export function attachAuthAuditListeners(
+  container: ServiceContainer = getContainer(),
+): void {
+  const detector = container.resolve(
+    containerTokens.suspiciousActivityDetector,
+  );
+
+  container
+    .resolve(containerTokens.authAuditService)
+    .subscribe(detector.handle);
+}
+
 export function setContainer(container: RootServiceContainer): void {
   rootContainer = container;
 }

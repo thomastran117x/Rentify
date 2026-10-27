@@ -122,6 +122,7 @@ const STATIC_LABELS: Record<string, string> = {
   "account.locked": "Account put on a security hold",
   "account.suspended": "Account suspended",
   "account.reinstated": "Account reinstated",
+  "security.suspicious_activity": "Suspicious sign-in activity detected",
 };
 
 /**

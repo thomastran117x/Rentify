@@ -46,6 +46,20 @@ export interface SendNewDeviceEmailInput {
   selfLockToken?: string;
 }
 
+/** What suspicious-activity detection saw, which decides the email's wording. */
+export type SuspiciousLoginReason = "success_after_failures" | "refresh_reuse";
+
+export interface SendSuspiciousLoginEmailInput {
+  to: string;
+  firstName?: string;
+  reason: SuspiciousLoginReason;
+  ipAddress?: string;
+  userAgent?: string;
+  detectedAt?: Date;
+  /** Adds a "This wasn't you? Lock your account" link when present. */
+  selfLockToken?: string;
+}
+
 /**
  * A durable account status change. The admin's reason is deliberately not
  * part of it: it may be an internal note, so the email explains only what the
@@ -171,6 +185,13 @@ export class EmailService {
     input: SendAccountStatusEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("account_reinstated", input);
+  }
+
+  /** An alert from suspicious-activity detection, sent to the account owner. */
+  async sendSuspiciousLoginEmail(
+    input: SendSuspiciousLoginEmailInput,
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob("suspicious_login", input);
   }
 
   async sendLoginUnlockEmail(input: SendLoginUnlockEmailInput): Promise<void> {

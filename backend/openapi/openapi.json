@@ -13247,9 +13247,11 @@
                   "pat.revoked",
                   "rate_limit.exceeded",
                   "admin.audit_viewed",
+                  "admin.ip_unblocked",
                   "account.locked",
                   "account.suspended",
-                  "account.reinstated"
+                  "account.reinstated",
+                  "security.suspicious_activity"
                 ]
               }
             },
@@ -13272,6 +13274,20 @@
               ]
             },
             "example": "failure"
+          },
+          {
+            "name": "flagged",
+            "in": "query",
+            "required": false,
+            "description": "`true` returns only events suspicious-activity detection flagged: each `security.suspicious_activity` event and the events it was raised from. `false` returns only unflagged events.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "example": "true"
           },
           {
             "name": "from",
@@ -13361,6 +13377,7 @@
                         "sessionId": null,
                         "requestId": "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:47.103Z",
                         "subject": {
                           "id": "00000000-0000-0000-1040-000000000101",
@@ -13383,6 +13400,7 @@
                         "sessionId": null,
                         "requestId": "2a4c6e8f-1b3d-4f5a-9c7e-0d2f4a6c8e1b",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:12.551Z",
                         "subject": null,
                         "actor": null
@@ -13410,6 +13428,136 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/admin/auth/ip-blocks": {
+      "get": {
+        "operationId": "listAdminAuthIpBlocks",
+        "summary": "List blocked IP addresses",
+        "description": "Lists the IP addresses suspicious-activity detection has blocked from the `auth-sensitive` rate-limit policy in enforce mode, soonest to lift first. Each block lifts on its own at `expiresAt`. The call first records an `admin.audit_viewed` event with `metadata.view` `ip_blocks`, and fails if that write fails. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AuthIpBlockList"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "items": [
+                      {
+                        "ipAddress": "198.51.100.41",
+                        "expiresAt": "2026-10-26T13:00:00.000Z"
+                      }
+                    ]
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/admin/auth/ip-blocks/{ip}": {
+      "delete": {
+        "operationId": "deleteAdminAuthIpBlock",
+        "summary": "Lift an IP block",
+        "description": "Lifts a suspicious-activity IP block before it expires, so the address can sign in again at once. Records `admin.ip_unblocked` with the admin as actor and the address in `metadata.ipAddress`. An address that is not blocked is a 404, and one that is not a valid IPv4 or IPv6 address is a 400. Requires an admin signed-in session; PAT authentication is rejected and every other role gets 403.",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rentify-permissions": {
+          "authMode": "session-bearer",
+          "minimumRole": "admin",
+          "patAllowed": false
+        },
+        "parameters": [
+          {
+            "name": "ip",
+            "in": "path",
+            "required": true,
+            "description": "The blocked IPv4 or IPv6 address, URL-encoded.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "198.51.100.41"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "IP block lifted."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -13532,6 +13680,7 @@
                         "sessionId": null,
                         "requestId": "9d2f5c1a-7e3b-4a8d-b6c4-1f0e2d3c4b5a",
                         "metadata": null,
+                        "flagged": false,
                         "occurredAt": "2026-10-18T14:01:47.103Z",
                         "subject": {
                           "id": "00000000-0000-0000-1040-000000000101",
@@ -27556,7 +27705,7 @@
         }
       },
       "TooManyRequests": {
-        "description": "Too many requests.",
+        "description": "Too many requests. `Retry-After` gives the seconds to wait. On sign-in and other auth-sensitive routes, `error.details.reason` is `ip_blocked` when suspicious-activity detection has blocked the caller's IP address.",
         "content": {
           "application/json": {
             "schema": {
@@ -30067,6 +30216,7 @@
           "sessionId",
           "requestId",
           "metadata",
+          "flagged",
           "occurredAt",
           "subject",
           "actor"
@@ -30141,6 +30291,10 @@
             "additionalProperties": true,
             "description": "Small, non-secret extras recorded with the event."
           },
+          "flagged": {
+            "type": "boolean",
+            "description": "Whether suspicious-activity detection flagged the event, as a `security.suspicious_activity` event or one it was raised from."
+          },
           "occurredAt": {
             "type": "string",
             "format": "date-time"
@@ -30154,6 +30308,39 @@
             "$ref": "#/components/schemas/AuthAuditUserSummary",
             "nullable": true,
             "description": "Who performed the event when it was not the subject, such as the administrator behind `admin.audit_viewed`."
+          }
+        }
+      },
+      "AuthIpBlock": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ipAddress",
+          "expiresAt"
+        ],
+        "properties": {
+          "ipAddress": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the block lifts on its own."
+          }
+        }
+      },
+      "AuthIpBlockList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthIpBlock"
+            }
           }
         }
       },

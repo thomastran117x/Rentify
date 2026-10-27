@@ -8,7 +8,7 @@ import { DeviceRepository, type KnownDeviceRecord } from "./device.repository";
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
-import { isEligibleForLocalPasswordManagement } from "@/features/auth/local-account-eligibility";
+import { issueSelfLockLinkToken } from "@/features/auth/self-lock/self-lock-link";
 import type { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 
 interface DeviceServiceOptions {
@@ -266,7 +266,12 @@ export class DeviceService {
 
     // The event's id is chosen up front so the lock link can name it.
     const eventId = newUuid();
-    const selfLockToken = await this.issueSelfLockToken(user, eventId);
+    const selfLockToken = await issueSelfLockLinkToken(
+      this.selfLockTokenStore,
+      user,
+      eventId,
+      this.logger,
+    );
 
     await this.emailService.sendNewDeviceEmail({
       to: user.email,
@@ -279,33 +284,6 @@ export class DeviceService {
       ...(selfLockToken ? { selfLockToken } : {}),
     });
     await this.recordNewDevice(user, client, deviceId, "sent", audit, eventId);
-  }
-
-  /**
-   * A lock link only for an account that could recover from the lock by
-   * resetting its password. Best effort: a Redis failure costs the link, not
-   * the alert.
-   */
-  private async issueSelfLockToken(
-    user: AuthUserRecord,
-    sourceEventId: Uuid,
-  ): Promise<string | undefined> {
-    if (!isEligibleForLocalPasswordManagement(user)) {
-      return undefined;
-    }
-
-    try {
-      return await this.selfLockTokenStore.issue({
-        userId: asUuid(user.id),
-        sourceEventId,
-      });
-    } catch (error) {
-      this.logger.error("Failed to issue a self-lock token.", {
-        userId: user.id,
-        error,
-      });
-      return undefined;
-    }
   }
 
   private async recordNewDevice(

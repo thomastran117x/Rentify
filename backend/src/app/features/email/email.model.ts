@@ -10,6 +10,7 @@ import type {
   SendPasswordResetEmailInput,
   SendPostingExpiringSoonEmailInput,
   SendSavedSearchMatchesEmailInput,
+  SendSuspiciousLoginEmailInput,
   SendUsernameReminderEmailInput,
   SendVerificationEmailInput,
 } from "@/features/email/email.service";
@@ -30,7 +31,8 @@ export type EmailJobKind =
   | "account_locked"
   | "account_self_locked"
   | "account_suspended"
-  | "account_reinstated";
+  | "account_reinstated"
+  | "suspicious_login";
 
 export type EmailJobInputByKind = {
   verification: SendVerificationEmailInput;
@@ -49,6 +51,7 @@ export type EmailJobInputByKind = {
   account_self_locked: SendAccountStatusEmailInput;
   account_suspended: SendAccountStatusEmailInput;
   account_reinstated: SendAccountStatusEmailInput;
+  suspicious_login: SendSuspiciousLoginEmailInput;
 };
 
 export type EmailJobPayload =
@@ -144,6 +147,13 @@ export type EmailJobPayload =
         | "account_suspended"
         | "account_reinstated";
       input: SendAccountStatusEmailInput;
+      attempt: number;
+      occurredAt: string;
+    }
+  | {
+      jobId: string;
+      kind: "suspicious_login";
+      input: SendSuspiciousLoginEmailInput;
       attempt: number;
       occurredAt: string;
     };

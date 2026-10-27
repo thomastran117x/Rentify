@@ -24,6 +24,7 @@ import {
   AdminSecurityEventTable,
   AdminSecurityEventTableSkeleton,
 } from "./admin-security-event-table";
+import { AdminIpBlocksPanel } from "./admin-ip-blocks-panel";
 import { AdminUserSecurityDrawer } from "./admin-user-security-drawer";
 
 type LoadResult =
@@ -259,6 +260,11 @@ export function AdminSecurityWorkspace() {
             </nav>
           </div>
         ) : null}
+
+        <AdminIpBlocksPanel
+          refreshKey={refreshCount}
+          onUnblocked={() => setRefreshCount((value) => value + 1)}
+        />
       </section>
 
       {selectedUser ? (

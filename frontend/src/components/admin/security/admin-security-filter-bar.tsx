@@ -171,6 +171,15 @@ export function AdminSecurityFilterBar({
           />
         </label>
 
+        <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+          <input
+            type="checkbox"
+            checked={draft.flaggedOnly}
+            onChange={(event) => update("flaggedOnly", event.target.checked)}
+          />
+          Flagged only
+        </label>
+
         <div className="grid gap-1.5 text-sm sm:col-span-2 lg:col-span-3">
           <span className={LABEL_TEXT_CLASS}>Event type</span>
           <details>

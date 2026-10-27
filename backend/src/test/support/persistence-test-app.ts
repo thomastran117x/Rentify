@@ -11,6 +11,7 @@ import {
 import type { RootServiceContainer } from "@/configuration/container/core";
 import { registerApplicationServices } from "@/configuration/container/registrations";
 import {
+  attachAuthAuditListeners,
   containerTokens,
   createRootContainer,
   disposeContainer,
@@ -192,6 +193,12 @@ export interface PersistenceTestAppOptions {
     container: RootServiceContainer,
     stubs: PersistenceTestStubs,
   ) => void;
+  /**
+   * Subscribes suspicious-activity detection, as the server does. Off by
+   * default: detection writes in the background, and a suite that does not
+   * wait for it could see those writes land after its next reset.
+   */
+  attachAuthAuditListeners?: boolean;
 }
 
 export interface AuthenticatedRequestContext {
@@ -321,6 +328,9 @@ export async function createPersistenceTestApp(
   options.registerOverrides?.(container, stubs);
   container.validate();
   setContainer(container);
+  if (options.attachAuthAuditListeners) {
+    attachAuthAuditListeners(container);
+  }
 
   const app = createFetchApp(createApplication());
   const result = {
