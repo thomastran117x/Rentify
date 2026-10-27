@@ -462,6 +462,31 @@ describe("AuthAuditRepository", () => {
     );
   });
 
+  it("matches a request id longer than its column as it was stored", async () => {
+    const findMany = jest.fn(async () => []);
+    const repository = new AuthAuditRepository({
+      authAuditEvent: { findMany },
+    } as any);
+    // The request-id middleware accepts up to 128 characters; create keeps 64.
+    const requestId = `r${"a".repeat(99)}`;
+
+    await repository.findRecentEventIds({
+      userId: USER_1_ID,
+      requestId,
+      matches: [{ eventType: "device.new_detected" }],
+      createdFrom: new Date("2026-10-26T11:00:00.000Z"),
+      limit: 1,
+    });
+
+    expect(
+      (
+        findMany.mock.calls as unknown as Array<
+          [{ where: { requestId: string } }]
+        >
+      )[0]![0].where.requestId,
+    ).toBe(requestId.slice(0, 64));
+  });
+
   it("flags only events not already flagged, and skips an empty list", async () => {
     const updateMany = jest.fn(async () => ({ count: 1 }));
     const repository = new AuthAuditRepository({

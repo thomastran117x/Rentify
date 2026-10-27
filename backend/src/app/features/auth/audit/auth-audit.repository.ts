@@ -71,7 +71,10 @@ export interface AuthAuditEventMatch {
 export interface FindRecentAuthAuditEventIdsInput {
   userId?: Uuid;
   ipAddress?: string;
-  /** Only events written while serving this request. */
+  /**
+   * Only events written while serving this request. Cut to the column width
+   * here, as `create` cuts it, so a long client-supplied id still matches.
+   */
   requestId?: string;
   matches: readonly AuthAuditEventMatch[];
   /** Inclusive lower bound on created_at. */
@@ -221,7 +224,11 @@ export class AuthAuditRepository extends BaseRepository {
         where: {
           ...(input.userId ? { userId: input.userId } : {}),
           ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
-          ...(input.requestId ? { requestId: input.requestId } : {}),
+          ...(input.requestId
+            ? {
+                requestId: truncate(input.requestId, COLUMN_LIMITS.requestId),
+              }
+            : {}),
           createdAt: { gte: input.createdFrom },
           OR: input.matches.map((match) => ({
             eventType: match.eventType,

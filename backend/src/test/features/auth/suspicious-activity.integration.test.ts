@@ -89,6 +89,7 @@ describe("Suspicious sign-in detection integration", () => {
     password: string;
     ip: string;
     deviceId?: string;
+    requestId?: string;
   }) {
     return request("/auth/local/login", {
       method: "POST",
@@ -98,6 +99,7 @@ describe("Suspicious sign-in detection integration", () => {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "x-device-id": input.deviceId ?? "detection-test-device",
         "x-forwarded-for": input.ip,
+        ...(input.requestId ? { "x-request-id": input.requestId } : {}),
       },
       body: JSON.stringify({
         username: input.username,
@@ -463,6 +465,9 @@ describe("Suspicious sign-in detection integration", () => {
         password: PASSWORD,
         ip: "203.0.113.170",
         deviceId: "never-seen-device",
+        // Longer than the 64 characters the audit table keeps, so the new
+        // device is found by the id as it was stored.
+        requestId: `sign-in-${"x".repeat(92)}`,
       });
       expect(success.status).toBe(200);
 
