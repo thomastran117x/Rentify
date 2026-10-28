@@ -1,6 +1,7 @@
 import ConflictError from "@/errors/http/conflict.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import LockedError from "@/errors/http/locked.error";
+import LoginMfaRequiredError from "@/errors/http/login-mfa-required.error";
 import LoginMfaChallengeInvalidError from "@/errors/http/login-mfa-challenge-invalid.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { loggerFactory, type Logger } from "@/configuration/logging";
@@ -26,7 +27,6 @@ import type {
   LoginMfaChallengeRecord,
   LoginMfaFactor,
   LoginMfaMethod,
-  LoginMfaRequiredResult,
 } from "@/features/auth/mfa/login/login-mfa.model";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
@@ -37,12 +37,12 @@ import type { UsersRepository } from "@/features/auth/users/users.repository";
 /**
  * What the second factor decided about a sign-in whose first factor passed.
  * `verified` carries the factor so the caller can record it against the
- * session it then issues.
+ * session it then issues. A sign-in that still needs a code never gets here:
+ * it is refused with a {@link LoginMfaRequiredError} carrying the challenge.
  */
 export type LoginMfaOutcome =
   | { status: "not_required" }
-  | { status: "verified"; factor: LoginMfaFactor }
-  | { status: "challenge"; challenge: LoginMfaRequiredResult };
+  | { status: "verified"; factor: LoginMfaFactor };
 
 export interface EvaluateLoginMfaInput {
   user: AuthUserRecord;
@@ -84,8 +84,8 @@ export class LoginMfaService {
 
   /**
    * Runs once the first factor (password or provider) has passed. Without a
-   * code, an account with an authenticator gets a challenge instead of a
-   * session; with one, the code is checked here and now.
+   * code, an account with an authenticator is refused with a challenge
+   * instead of a session; with one, the code is checked here and now.
    */
   async evaluateFirstStep(
     input: EvaluateLoginMfaInput,
@@ -129,9 +129,8 @@ export class LoginMfaService {
       userId,
     });
 
-    return {
-      status: "challenge",
-      challenge: await this.loginMfaChallengeStore.issue({
+    throw new LoginMfaRequiredError(
+      await this.loginMfaChallengeStore.issue({
         userId,
         method: input.method,
         username: input.user.profile.username,
@@ -140,7 +139,7 @@ export class LoginMfaService {
         rememberMe: input.rememberMe,
         tokenVersion: input.user.tokenVersion,
       }),
-    };
+    );
   }
 
   async completeLoginMfa(

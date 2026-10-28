@@ -163,7 +163,7 @@ describe("authApi", () => {
     },
   );
 
-  it("returns the login MFA challenge a sign-in answers with", async () => {
+  it("surfaces the login MFA challenge carried by the 401 a sign-in answers with", async () => {
     const challenge = {
       mfaRequired: true,
       mfaChallengeToken: "challenge-token",
@@ -176,26 +176,28 @@ describe("authApi", () => {
         async () =>
           new Response(
             JSON.stringify({
-              success: true,
-              message: "Authenticator code is required to complete sign-in.",
-              data: challenge,
-              error: null,
+              success: false,
+              message: "Authenticator code is required.",
+              data: null,
+              error: { code: "UNAUTHORIZED", details: challenge },
               meta: { requestId: "request-1" },
             }),
-            { status: 202, headers: { "content-type": "application/json" } },
+            { status: 401, headers: { "content-type": "application/json" } },
           ),
       ),
     );
 
     const { authApi } = await import("./api");
-
-    await expect(
-      authApi.login({
+    const { readLoginMfaChallenge } = await import("./types");
+    const error = await authApi
+      .login({
         username: "person",
         password: "secret",
         captchaToken: "captcha-token",
-      }),
-    ).resolves.toEqual(challenge);
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(readLoginMfaChallenge(error)).toEqual(challenge);
   });
 
   it("requests a validated number of username suggestions", async () => {

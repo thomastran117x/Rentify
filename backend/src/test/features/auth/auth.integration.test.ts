@@ -37,7 +37,7 @@ interface LoginSession {
   refreshToken: string | null;
   csrfToken: string | null;
   body: {
-    data?: { accessToken?: string; mfaChallengeToken?: string };
+    data?: { accessToken?: string };
     error?: { code?: string; details?: Record<string, unknown> };
   };
 }
@@ -115,18 +115,27 @@ describe("Auth persistence integration", () => {
     return readSession(response);
   }
 
+  /**
+   * The first step keeps its long-standing 401 with details.mfaRequired, so
+   * older clients still resend with totpCode; the challenge rides along in
+   * the same details.
+   */
   function readChallengeToken(session: LoginSession): string {
-    expect(session.status).toBe(202);
-    expect(session.body.data).toMatchObject({
-      mfaRequired: true,
-      availableFactors: ["totp"],
-      expiresInSeconds: 300,
+    expect(session.status).toBe(401);
+    expect(session.body.error).toMatchObject({
+      code: "UNAUTHORIZED",
+      details: {
+        mfaRequired: true,
+        mfaChallengeToken: expect.any(String),
+        availableFactors: ["totp"],
+        expiresInSeconds: 300,
+      },
     });
     // A challenge is not a session: nothing a client could sign in with yet.
     expect(session.accessToken).toBe("");
     expect(session.refreshToken).toBeNull();
 
-    return session.body.data?.mfaChallengeToken ?? "";
+    return String(session.body.error?.details?.mfaChallengeToken ?? "");
   }
 
   /**

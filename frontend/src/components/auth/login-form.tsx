@@ -26,9 +26,9 @@ import { safeNextPath } from "@/lib/auth/next-path";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   ApiClientError,
-  isLoginMfaRequired,
+  readLoginMfaChallenge,
   type AuthResponseBody,
-  type LoginMfaRequiredResult,
+  type LoginMfaChallenge,
   type OAuthSignupRequiredResult,
 } from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
@@ -510,7 +510,7 @@ export function LoginForm({
   }
 
   function startLoginMfa(
-    result: LoginMfaRequiredResult,
+    result: LoginMfaChallenge,
     method: LoginMfaPendingFlow["method"],
   ) {
     setGeneralError(null);
@@ -586,23 +586,24 @@ export function LoginForm({
     setPending(true);
 
     try {
-      const result = await authApi.login({
+      const session = await authApi.login({
         username: username.trim().toLowerCase(),
         password,
         captchaToken,
       });
 
       clearCaptchaToken();
+      await completeLogin(session);
+    } catch (error) {
+      clearCaptchaToken();
+      const challenge = readLoginMfaChallenge(error);
 
-      if (isLoginMfaRequired(result)) {
-        startLoginMfa(result, "password");
+      if (challenge) {
+        startLoginMfa(challenge, "password");
         return;
       }
 
-      await completeLogin(result);
-    } catch (error) {
       showLoginFailure(error);
-      clearCaptchaToken();
     } finally {
       setPending(false);
     }

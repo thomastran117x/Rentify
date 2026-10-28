@@ -179,38 +179,6 @@ describe("OAuthController sign-in handlers", () => {
     });
   });
 
-  it.each([
-    "googleAuthenticate",
-    "microsoftAuthenticate",
-    "appleAuthenticate",
-  ] as const)(
-    "%s returns an accepted challenge when the account needs an authenticator code",
-    async (handler) => {
-      const { controller, oauthAccountsService } = createController();
-      oauthAccountsService[handler].mockResolvedValueOnce({
-        mfaRequired: true,
-        mfaChallengeToken: "challenge-token",
-        availableFactors: ["totp"],
-        expiresInSeconds: 300,
-      } as never);
-
-      const response = await invoke(
-        controller[handler],
-        createContext({ body: oauthBody }),
-      );
-
-      expect(response.status).toBe(202);
-      await expect(response.json()).resolves.toMatchObject({
-        message: "Authenticator code is required to complete sign-in.",
-        data: {
-          mfaRequired: true,
-          mfaChallengeToken: "challenge-token",
-          availableFactors: ["totp"],
-        },
-      });
-    },
-  );
-
   it("completes an OAuth signup with a valid continuation and date of birth", async () => {
     const { controller, oauthAccountsService } = createController();
 

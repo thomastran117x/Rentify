@@ -3,7 +3,7 @@ import type { CacheService } from "@/features/cache/cache.service";
 import {
   LOGIN_MFA_FACTORS,
   type LoginMfaChallengeRecord,
-  type LoginMfaRequiredResult,
+  type LoginMfaRequiredDetails,
   type NewLoginMfaChallenge,
 } from "@/features/auth/mfa/login/login-mfa.model";
 
@@ -28,7 +28,7 @@ export class LoginMfaChallengeStore {
 
   async issue(
     challenge: NewLoginMfaChallenge,
-  ): Promise<LoginMfaRequiredResult> {
+  ): Promise<LoginMfaRequiredDetails> {
     const token = randomBytes(32).toString("base64url");
     const record: LoginMfaChallengeRecord = {
       ...challenge,

@@ -198,7 +198,7 @@ paths:
     post:
       operationId: localLogin
       summary: Authenticate with username and password
-      description: Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 202 with a login MFA challenge instead of a session; the client finishes with POST /auth/login/mfa and never sends the password again. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.
+      description: 'Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.'
       tags:
         - auth
       x-rentify-permissions:
@@ -258,35 +258,52 @@ paths:
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-        '202':
-          description: An account with an authenticator app gets a short-lived, single-use login MFA challenge instead of a session; finish the sign-in with POST /auth/login/mfa.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: The credentials were rejected, or the account needs an authenticator code.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - $ref: '#/components/schemas/ApiErrorEnvelope'
                   - type: object
                     properties:
-                      data:
-                        $ref: '#/components/schemas/LoginMfaRequiredResult'
-                      meta:
-                        $ref: '#/components/schemas/RequestMeta'
-              example:
-                success: true
-                message: Authenticator code is required to complete sign-in.
-                data:
-                  mfaRequired: true
-                  mfaChallengeToken: opaque-mfa-challenge-token
-                  availableFactors:
-                    - totp
-                  expiresInSeconds: 300
-                error: null
-                meta:
-                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                      error:
+                        type: object
+                        properties:
+                          details:
+                            anyOf:
+                              - $ref: '#/components/schemas/LoginMfaRequiredDetails'
+                              - type: object
+                                additionalProperties: true
+              examples:
+                credentials:
+                  summary: The username or password is wrong.
+                  value:
+                    success: false
+                    message: Invalid username or password.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaRequired:
+                  summary: The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.
+                  value:
+                    success: false
+                    message: Authenticator code is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                      details:
+                        mfaRequired: true
+                        mfaChallengeToken: opaque-mfa-challenge-token
+                        availableFactors:
+                          - totp
+                        expiresInSeconds: 300
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           description: Forbidden, or the account is suspended.
           content:
@@ -355,7 +372,7 @@ paths:
     post:
       operationId: completeLoginMfa
       summary: Finish a sign-in with a second factor
-      description: Completes a password or social sign-in that answered 202 with a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.
+      description: Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.
       tags:
         - auth
       x-rentify-permissions:
@@ -1870,7 +1887,7 @@ paths:
     post:
       operationId: googleAuthenticate
       summary: Authenticate with Google OAuth
-      description: 'Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately, unless the account has an authenticator app: then the API returns 202 with a login MFA challenge to finish through POST /auth/login/mfa. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.'
+      description: 'Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately, unless the account has an authenticator app: then the API returns 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.'
       tags:
         - auth
       x-rentify-permissions:
@@ -1934,7 +1951,7 @@ paths:
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '202':
-          description: The sign-in needs another step before a session is issued.
+          description: Successful response.
           content:
             application/json:
               schema:
@@ -1943,40 +1960,65 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/OAuthContinuationResult'
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
                       meta:
                         $ref: '#/components/schemas/RequestMeta'
-              examples:
-                signupRequired:
-                  summary: A new account needs a date of birth.
-                  value:
-                    success: true
-                    message: Date of birth is required to complete signup.
-                    data:
-                      signupRequired: true
-                      signupToken: opaque-signup-token
-                      expiresInSeconds: 600
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-                mfaRequired:
-                  summary: The account needs an authenticator code.
-                  value:
-                    success: true
-                    message: Authenticator code is required to complete sign-in.
-                    data:
-                      mfaRequired: true
-                      mfaChallengeToken: opaque-mfa-challenge-token
-                      availableFactors:
-                        - totp
-                      expiresInSeconds: 300
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: The credentials were rejected, or the account needs an authenticator code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiErrorEnvelope'
+                  - type: object
+                    properties:
+                      error:
+                        type: object
+                        properties:
+                          details:
+                            anyOf:
+                              - $ref: '#/components/schemas/LoginMfaRequiredDetails'
+                              - type: object
+                                additionalProperties: true
+              examples:
+                credentials:
+                  summary: The provider token could not be verified.
+                  value:
+                    success: false
+                    message: Google ID token is missing required claims.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaRequired:
+                  summary: The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.
+                  value:
+                    success: false
+                    message: Authenticator code is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                      details:
+                        mfaRequired: true
+                        mfaChallengeToken: opaque-mfa-challenge-token
+                        availableFactors:
+                          - totp
+                        expiresInSeconds: 300
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           description: Forbidden, or the account is suspended.
           content:
@@ -2034,7 +2076,7 @@ paths:
     post:
       operationId: microsoftAuthenticate
       summary: Authenticate with Microsoft OAuth
-      description: Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow. An account with an authenticator app gets 202 with a login MFA challenge to finish through POST /auth/login/mfa.
+      description: Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.
       tags:
         - auth
       x-rentify-permissions:
@@ -2094,7 +2136,7 @@ paths:
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '202':
-          description: The sign-in needs another step before a session is issued.
+          description: Successful response.
           content:
             application/json:
               schema:
@@ -2103,40 +2145,65 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/OAuthContinuationResult'
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
                       meta:
                         $ref: '#/components/schemas/RequestMeta'
-              examples:
-                signupRequired:
-                  summary: A new account needs a date of birth.
-                  value:
-                    success: true
-                    message: Date of birth is required to complete signup.
-                    data:
-                      signupRequired: true
-                      signupToken: opaque-signup-token
-                      expiresInSeconds: 600
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-                mfaRequired:
-                  summary: The account needs an authenticator code.
-                  value:
-                    success: true
-                    message: Authenticator code is required to complete sign-in.
-                    data:
-                      mfaRequired: true
-                      mfaChallengeToken: opaque-mfa-challenge-token
-                      availableFactors:
-                        - totp
-                      expiresInSeconds: 300
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: The credentials were rejected, or the account needs an authenticator code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiErrorEnvelope'
+                  - type: object
+                    properties:
+                      error:
+                        type: object
+                        properties:
+                          details:
+                            anyOf:
+                              - $ref: '#/components/schemas/LoginMfaRequiredDetails'
+                              - type: object
+                                additionalProperties: true
+              examples:
+                credentials:
+                  summary: The provider token could not be verified.
+                  value:
+                    success: false
+                    message: Microsoft ID token is missing required claims.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaRequired:
+                  summary: The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.
+                  value:
+                    success: false
+                    message: Authenticator code is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                      details:
+                        mfaRequired: true
+                        mfaChallengeToken: opaque-mfa-challenge-token
+                        availableFactors:
+                          - totp
+                        expiresInSeconds: 300
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           description: Forbidden, or the account is suspended.
           content:
@@ -2194,7 +2261,7 @@ paths:
     post:
       operationId: appleAuthenticate
       summary: Authenticate with Apple OAuth
-      description: Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName. An account with an authenticator app gets 202 with a login MFA challenge to finish through POST /auth/login/mfa.
+      description: Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.
       tags:
         - auth
       x-rentify-permissions:
@@ -2254,7 +2321,7 @@ paths:
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '202':
-          description: The sign-in needs another step before a session is issued.
+          description: Successful response.
           content:
             application/json:
               schema:
@@ -2263,40 +2330,65 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/OAuthContinuationResult'
+                        $ref: '#/components/schemas/OAuthSignupRequiredResult'
                       meta:
                         $ref: '#/components/schemas/RequestMeta'
-              examples:
-                signupRequired:
-                  summary: A new account needs a date of birth.
-                  value:
-                    success: true
-                    message: Date of birth is required to complete signup.
-                    data:
-                      signupRequired: true
-                      signupToken: opaque-signup-token
-                      expiresInSeconds: 600
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
-                mfaRequired:
-                  summary: The account needs an authenticator code.
-                  value:
-                    success: true
-                    message: Authenticator code is required to complete sign-in.
-                    data:
-                      mfaRequired: true
-                      mfaChallengeToken: opaque-mfa-challenge-token
-                      availableFactors:
-                        - totp
-                      expiresInSeconds: 300
-                    error: null
-                    meta:
-                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+              example:
+                success: true
+                message: Date of birth is required to complete signup.
+                data:
+                  signupRequired: true
+                  signupToken: opaque-signup-token
+                  expiresInSeconds: 600
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: The credentials were rejected, or the account needs an authenticator code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiErrorEnvelope'
+                  - type: object
+                    properties:
+                      error:
+                        type: object
+                        properties:
+                          details:
+                            anyOf:
+                              - $ref: '#/components/schemas/LoginMfaRequiredDetails'
+                              - type: object
+                                additionalProperties: true
+              examples:
+                credentials:
+                  summary: The provider token could not be verified.
+                  value:
+                    success: false
+                    message: Apple ID token is missing required claims.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaRequired:
+                  summary: The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.
+                  value:
+                    success: false
+                    message: Authenticator code is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                      details:
+                        mfaRequired: true
+                        mfaChallengeToken: opaque-mfa-challenge-token
+                        availableFactors:
+                          - totp
+                        expiresInSeconds: 300
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           description: Forbidden, or the account is suspended.
           content:
@@ -20716,7 +20808,8 @@ components:
           type: integer
           enum:
             - 600
-    LoginMfaRequiredResult:
+    LoginMfaRequiredDetails:
+      description: error.details of the 401 a sign-in's first step returns when the account needs an authenticator code.
       type: object
       required:
         - mfaRequired
@@ -20742,10 +20835,6 @@ components:
           type: integer
           enum:
             - 300
-    OAuthContinuationResult:
-      oneOf:
-        - $ref: '#/components/schemas/OAuthSignupRequiredResult'
-        - $ref: '#/components/schemas/LoginMfaRequiredResult'
     LoginMfaRequest:
       type: object
       required:

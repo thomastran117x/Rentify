@@ -12,7 +12,6 @@ import type {
 import { isLocalPasswordAccount } from "@/features/auth/local-account-eligibility";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
-import type { LoginMfaRequiredResult } from "@/features/auth/mfa/login/login-mfa.model";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -69,9 +68,7 @@ export class OAuthAccountsService {
 
   async googleAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<
-    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
-  > {
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     return this.authenticateProvider("google", input, () =>
       this.googleOAuthService.verify(input),
     );
@@ -79,9 +76,7 @@ export class OAuthAccountsService {
 
   async microsoftAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<
-    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
-  > {
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     return this.authenticateProvider("microsoft", input, () =>
       this.microsoftOAuthService.verify(input),
     );
@@ -89,9 +84,7 @@ export class OAuthAccountsService {
 
   async appleAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<
-    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
-  > {
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     return this.authenticateProvider("apple", input, () =>
       this.appleOAuthService.verify(input),
     );
@@ -291,9 +284,7 @@ export class OAuthAccountsService {
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
     verify: () => Promise<VerifiedOAuthProfile>,
-  ): Promise<
-    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
-  > {
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     let profile: VerifiedOAuthProfile;
 
     try {
@@ -316,9 +307,7 @@ export class OAuthAccountsService {
   private async authenticateOAuthProfile(
     profile: VerifiedOAuthProfile,
     input: OAuthAuthenticateInput,
-  ): Promise<
-    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
-  > {
+  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     const linkedUser = await this.usersRepository.findUserByOAuthIdentity(
       profile.provider,
       profile.providerUserId,
@@ -355,10 +344,6 @@ export class OAuthAccountsService {
         deviceId: input.deviceId,
         rememberMe: input.rememberMe,
       });
-
-      if (mfa.status === "challenge") {
-        return mfa.challenge;
-      }
 
       const session = await this.authSessionService.authenticateVerifiedUser(
         linkedUser,

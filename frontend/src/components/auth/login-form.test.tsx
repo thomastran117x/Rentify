@@ -964,6 +964,19 @@ describe("LoginForm", () => {
       expiresInSeconds: 300,
     };
 
+    function challengeError() {
+      return new ApiClientError("Authenticator code is required.", {
+        code: "UNAUTHORIZED",
+        status: 401,
+        details: challenge,
+        request: {
+          method: "POST",
+          path: "/auth/local/login",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/login",
+        },
+      });
+    }
+
     function mfaError(status: number, code: string, details?: unknown) {
       return new ApiClientError("Request failed", {
         code,
@@ -1005,7 +1018,7 @@ describe("LoginForm", () => {
     it("asks for the code after a correct password, then signs in with it", async () => {
       const user = userEvent.setup();
       const setSession = authenticateOnSetSession();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
       completeLoginMfaMock.mockResolvedValue(
         loginSession({ known: false, knownByIp: false }),
       );
@@ -1059,7 +1072,7 @@ describe("LoginForm", () => {
 
     it("rejects a short code without calling the api", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
 
       render(<LoginForm nextPath="/dashboard" />);
 
@@ -1077,7 +1090,7 @@ describe("LoginForm", () => {
 
     it("keeps the step open with an error for a wrong code", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
       completeLoginMfaMock.mockRejectedValue(mfaError(400, "INVALID_MFA_CODE"));
 
       render(<LoginForm nextPath="/dashboard" />);
@@ -1101,7 +1114,7 @@ describe("LoginForm", () => {
 
     it("returns to the form when the challenge expired or was used", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
       completeLoginMfaMock.mockRejectedValue(
         mfaError(401, "MFA_CHALLENGE_INVALID"),
       );
@@ -1123,7 +1136,7 @@ describe("LoginForm", () => {
 
     it("switches to the unlock panel when the wrong code set the lock", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
       completeLoginMfaMock.mockRejectedValue(
         mfaError(423, "ACCOUNT_LOCKED", {
           email: "person@example.com",
@@ -1149,7 +1162,7 @@ describe("LoginForm", () => {
 
     it("shows a retryable error when the code cannot be checked", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
       completeLoginMfaMock.mockRejectedValue(
         new ApiNetworkError("Network down", {
           code: "NETWORK_ERROR",
@@ -1175,7 +1188,7 @@ describe("LoginForm", () => {
 
     it("goes back to the form and drops the challenge on cancel", async () => {
       const user = userEvent.setup();
-      loginMock.mockResolvedValue(challenge);
+      loginMock.mockRejectedValue(challengeError());
 
       render(<LoginForm nextPath="/dashboard" />);
 

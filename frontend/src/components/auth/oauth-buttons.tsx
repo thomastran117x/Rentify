@@ -8,10 +8,10 @@ import type {
   OAuthSignupRequiredResult,
   AuthResponseBody,
   LinkedOAuthProvidersResult,
-  LoginMfaRequiredResult,
+  LoginMfaChallenge,
 } from "@/lib/auth/types";
 import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
-import { isLoginMfaRequired, isOAuthSignupRequired } from "@/lib/auth/types";
+import { isOAuthSignupRequired, readLoginMfaChallenge } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 export type OAuthProvider = "google" | "microsoft" | "apple";
@@ -25,7 +25,7 @@ interface AuthOAuthButtonsProps {
   disabledProviders?: OAuthProvider[];
   onSignupRequired?: (result: OAuthSignupRequiredResult) => void;
   /** The account has an authenticator app; the caller asks for the code. */
-  onMfaRequired?: (result: LoginMfaRequiredResult) => void;
+  onMfaRequired?: (challenge: LoginMfaChallenge) => void;
 }
 
 interface PopupAuthResult {
@@ -653,12 +653,15 @@ export function AuthOAuthButtons({
         onSignupRequired?.(result);
         return;
       }
-      if (isLoginMfaRequired(result)) {
-        onMfaRequired?.(result);
-        return;
-      }
       onSuccess?.(result);
     } catch (error) {
+      const challenge = readLoginMfaChallenge(error);
+
+      if (challenge && onMfaRequired) {
+        onMfaRequired(challenge);
+        return;
+      }
+
       onError(
         getAccountStatusBlock(error)?.message ??
           (error instanceof Error

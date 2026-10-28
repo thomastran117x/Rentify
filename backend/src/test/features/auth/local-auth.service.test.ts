@@ -919,9 +919,10 @@ describe("LocalAuthService", () => {
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
       }),
-    ).resolves.toMatchObject({
-      mfaRequired: true,
-      availableFactors: ["totp"],
+    ).rejects.toMatchObject({
+      status: 401,
+      message: "Authenticator code is required.",
+      details: { mfaRequired: true, availableFactors: ["totp"] },
     });
   });
 
@@ -952,11 +953,15 @@ describe("LocalAuthService", () => {
         rememberMe: true,
         deviceId: DEVICE_1_ID,
       }),
-    ).resolves.toEqual({
-      mfaRequired: true,
-      mfaChallengeToken: expect.any(String),
-      availableFactors: ["totp"],
-      expiresInSeconds: 300,
+    ).rejects.toMatchObject({
+      status: 401,
+      code: "UNAUTHORIZED",
+      details: {
+        mfaRequired: true,
+        mfaChallengeToken: expect.any(String),
+        availableFactors: ["totp"],
+        expiresInSeconds: 300,
+      },
     });
 
     expect(cacheSetJson).toHaveBeenCalledTimes(1);
@@ -1183,9 +1188,10 @@ describe("LocalAuthService", () => {
         password: "CorrectHorseBatteryStaple1!",
         deviceId: DEVICE_1_ID,
       }),
-    ).resolves.toMatchObject({
-      mfaRequired: true,
-      availableFactors: ["totp"],
+    ).rejects.toMatchObject({
+      status: 401,
+      message: "Authenticator code is required.",
+      details: { mfaRequired: true, availableFactors: ["totp"] },
     });
   });
 
@@ -1802,8 +1808,8 @@ describe("LocalAuthService.localAuthenticate audit events", () => {
       mfaIsEnabled: async () => true,
     });
 
-    await expect(attempt(service)).resolves.toMatchObject({
-      mfaRequired: true,
+    await expect(attempt(service)).rejects.toMatchObject({
+      details: { mfaRequired: true },
     });
 
     expect(events).toEqual([

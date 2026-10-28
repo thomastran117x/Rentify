@@ -1,6 +1,7 @@
 import ConflictError from "@/errors/http/conflict.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import LockedError from "@/errors/http/locked.error";
+import LoginMfaRequiredError from "@/errors/http/login-mfa-required.error";
 import LoginMfaChallengeInvalidError from "@/errors/http/login-mfa-challenge-invalid.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { environment } from "@/configuration/environment";
@@ -488,7 +489,7 @@ describe("LoginMfaService.evaluateFirstStep", () => {
     expect(harness.loginLockoutService.isLocked).not.toHaveBeenCalled();
   });
 
-  it("issues a challenge and records it as a successful first step", async () => {
+  it("refuses with a challenge and records it as a successful first step", async () => {
     const harness = createHarness();
 
     await expect(
@@ -496,12 +497,17 @@ describe("LoginMfaService.evaluateFirstStep", () => {
         method: "google",
         audit: { ...audit, method: "google" },
       }),
-    ).resolves.toEqual({
-      status: "challenge",
-      challenge: expect.objectContaining({
+    ).rejects.toMatchObject({
+      constructor: LoginMfaRequiredError,
+      status: 401,
+      code: "UNAUTHORIZED",
+      message: "Authenticator code is required.",
+      details: {
         mfaRequired: true,
         mfaChallengeToken: "new-challenge-token",
-      }),
+        availableFactors: ["totp"],
+        expiresInSeconds: 300,
+      },
     });
     expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith({
       userId: USER_1_ID,

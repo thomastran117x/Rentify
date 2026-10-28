@@ -2,6 +2,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import BadGatewayError from "@/errors/http/bad-gateway.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import LockedError from "@/errors/http/locked.error";
+import LoginMfaRequiredError from "@/errors/http/login-mfa-required.error";
 import type { LoginMfaOutcome } from "@/features/auth/mfa/login/login-mfa.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
@@ -509,23 +510,20 @@ describe("OAuthAccountsService sign-in", () => {
     });
   });
 
-  it("returns the login MFA challenge instead of a session", async () => {
+  it("passes on the login MFA challenge without a session", async () => {
     const harness = createHarness();
     harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
       createUser({ oauthIdentities: [googleIdentity] }),
     );
-    const challenge = {
-      mfaRequired: true as const,
+    const challenge = new LoginMfaRequiredError({
+      mfaRequired: true,
       mfaChallengeToken: "challenge-token",
-      availableFactors: ["totp" as const],
+      availableFactors: ["totp"],
       expiresInSeconds: 300,
-    };
-    harness.loginMfaService.evaluateFirstStep.mockResolvedValue({
-      status: "challenge",
-      challenge,
     });
+    harness.loginMfaService.evaluateFirstStep.mockRejectedValue(challenge);
 
-    await expect(harness.service.googleAuthenticate(oauthInput)).resolves.toBe(
+    await expect(harness.service.googleAuthenticate(oauthInput)).rejects.toBe(
       challenge,
     );
     expect(harness.tokenService.createSession).not.toHaveBeenCalled();

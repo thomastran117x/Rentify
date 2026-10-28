@@ -51,7 +51,6 @@ import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
-import type { LoginMfaRequiredResult } from "@/features/auth/mfa/login/login-mfa.model";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -93,12 +92,13 @@ export class LocalAuthService {
    * error goes back. The typed username is recorded only as a keyed hash, so an
    * unknown one is still correlatable without being stored.
    *
-   * An account with an authenticator gets a login MFA challenge instead of a
-   * session, unless the deprecated `totpCode` came with the password.
+   * An account with an authenticator is refused with a login MFA challenge
+   * instead of a session, unless the deprecated `totpCode` came with the
+   * password.
    */
   async localAuthenticate(
     input: LocalAuthenticateInput,
-  ): Promise<AuthSessionResult | LoginMfaRequiredResult> {
+  ): Promise<AuthSessionResult> {
     const audit: LoginAttemptAuditBase = {
       method: "password",
       identifierHash: this.authAuditService.hashIdentifier(input.username),
@@ -154,8 +154,8 @@ export class LocalAuthService {
       );
     }
 
-    // The attempt record stays while a challenge is pending, until the code
-    // checks out too.
+    // A pending challenge throws, leaving the attempt record in place until
+    // the code checks out too.
     const mfa = await this.loginMfaService.evaluateFirstStep({
       user,
       method: "password",
@@ -164,10 +164,6 @@ export class LocalAuthService {
       deviceId: input.deviceId,
       rememberMe: input.rememberMe,
     });
-
-    if (mfa.status === "challenge") {
-      return mfa.challenge;
-    }
 
     // A verified code has already cleared it.
     if (mfa.status === "not_required") {

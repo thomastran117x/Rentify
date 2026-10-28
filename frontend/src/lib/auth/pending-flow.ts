@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import type { MfaVerificationChallengeFactor } from "@/lib/auth/mfa-verification-api";
 import { safeNextPath } from "@/lib/auth/next-path";
-import type { LoginMfaFactor, LoginMfaRequiredResult } from "@/lib/auth/types";
+import type { LoginMfaChallenge, LoginMfaFactor } from "@/lib/auth/types";
 
 const AUTH_PENDING_FLOW_STORAGE_KEY = "rentify.auth.pending-flow";
 const AUTH_PENDING_FLOW_EVENT = "rentify-auth-pending-flow-storage";
@@ -61,7 +61,7 @@ function isLoginMfaFactor(value: unknown): value is LoginMfaFactor {
 }
 
 export function createLoginMfaPendingFlow(
-  result: LoginMfaRequiredResult,
+  result: LoginMfaChallenge,
   method: LoginMfaPendingFlow["method"],
   nextPath: string,
   now = Date.now(),

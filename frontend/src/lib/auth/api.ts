@@ -14,7 +14,6 @@ import type {
   ForgotPasswordAcceptedResult,
   KnownDevicesResult,
   LinkedOAuthProvidersResult,
-  LocalLoginResult,
   LoginMfaFactor,
   OAuthProvider,
   OAuthAuthenticateResult,
@@ -174,9 +173,9 @@ export const authApi = {
   hasRefreshCookieHint(): boolean {
     return hasRefreshCookieHint();
   },
-  login(input: LoginInput): Promise<LocalLoginResult> {
+  login(input: LoginInput): Promise<AuthResponseBody> {
     cancelStoredSessionRefresh();
-    return publicJson<LocalLoginResult, LoginInput>(
+    return publicJson<AuthResponseBody, LoginInput>(
       "POST",
       "/auth/local/login",
       {

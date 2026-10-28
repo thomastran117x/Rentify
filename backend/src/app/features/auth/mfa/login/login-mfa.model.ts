@@ -33,10 +33,11 @@ export const loginMfaRequestSchema = z.object({
 export type LoginMfaRequestBody = z.infer<typeof loginMfaRequestSchema>;
 
 /**
- * What the first step returns instead of a session when the account needs a
- * second factor. The token is the only thing the client keeps between steps.
+ * The `details` of the `401` the first step answers with, instead of a
+ * session, when the account needs a second factor. The token is the only
+ * thing the client keeps between steps.
  */
-export interface LoginMfaRequiredResult {
+export interface LoginMfaRequiredDetails {
   mfaRequired: true;
   mfaChallengeToken: string;
   availableFactors: LoginMfaFactor[];

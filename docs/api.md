@@ -155,21 +155,31 @@ See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
 ### Signing In With an Authenticator App
 
 When the account has an authenticator app, a correct password (or a verified
-Google, Microsoft or Apple sign-in) returns `202` instead of a session:
+Google, Microsoft or Apple sign-in) is refused with the same
+`401 UNAUTHORIZED` and `details.mfaRequired` it has always returned. The
+details now also carry a login MFA challenge:
 
 ```json
 {
-  "mfaRequired": true,
-  "mfaChallengeToken": "opaque-token",
-  "availableFactors": ["totp"],
-  "expiresInSeconds": 300
+  "success": false,
+  "message": "Authenticator code is required.",
+  "error": {
+    "code": "UNAUTHORIZED",
+    "details": {
+      "mfaRequired": true,
+      "mfaChallengeToken": "opaque-token",
+      "availableFactors": ["totp"],
+      "expiresInSeconds": 300
+    }
+  }
 }
 ```
 
 The client finishes with `POST /auth/login/mfa`, sending
 `{ "mfaChallengeToken", "factor": "totp", "code", "deviceId" }`. That returns
 the usual session response. The client never sends the password or the
-provider token again.
+provider token again. A client written before the challenge existed can still
+ignore it and send the credentials again with `totpCode`.
 
 - **Lifetime.** The challenge lasts five minutes. It is single-use: the
   sign-in it completes deletes it, and a concurrent second attempt gets `409`.
