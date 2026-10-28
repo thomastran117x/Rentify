@@ -2678,14 +2678,14 @@ function buildOperations(): OperationDefinition[] {
       operationId: "refreshSession",
       summary: "Refresh an access token",
       description:
-        "Refreshes an access token using either the `refreshToken` request body field for native/API clients or the `refresh_token` cookie for browser clients. Browser clients must also send the `x-csrf-token` header when a CSRF cookie is present.",
+        "Refreshes an access token using either the `refreshToken` request body field for native/API clients or the refresh-token cookie for browser clients. Over HTTPS the cookies are `__Host-rentify_refresh` and `__Host-rentify_csrf`; a session issued before the rename may still present `refresh_token` and `csrf_token`, which are accepted and replaced with the `__Host-` cookies. Local deployments without `Secure` cookies keep `refresh_token` and `csrf_token`. Browser clients must also send the CSRF cookie's value in the `x-csrf-token` header.",
       tags: ["auth"],
       permissions: {
         authMode: "refresh-token",
         minimumRole: null,
         patAllowed: false,
         cookieAuth: {
-          cookie: "refresh_token",
+          cookie: "__Host-rentify_refresh",
           csrfHeader: "x-csrf-token",
         },
         rateLimitPolicy: "auth-refresh",
@@ -2717,7 +2717,7 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
         cookieAuth: {
-          cookie: "refresh_token",
+          cookie: "__Host-rentify_refresh",
           csrfHeader: "x-csrf-token",
         },
         rateLimitPolicy: "auth-session",
@@ -9961,7 +9961,9 @@ function buildComponents(): Record<string, unknown> {
       refreshTokenCookie: {
         type: "apiKey",
         in: "cookie",
-        name: "refresh_token",
+        name: "__Host-rentify_refresh",
+        description:
+          "httpOnly refresh-token cookie for browser clients. Named `refresh_token` where cookies are not `Secure` (local http), and accepted under that name from sessions issued before the `__Host-` rename.",
       },
       csrfHeader: {
         type: "apiKey",
@@ -14223,7 +14225,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         "",
         "Authentication notes:",
         "- Most protected routes use a bearer token in the `Authorization` header.",
-        "- Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.",
+        "- Browser refresh/logout flows use the `__Host-rentify_refresh` cookie (`refresh_token` over local http) and must echo the `__Host-rentify_csrf` (`csrf_token`) cookie in `x-csrf-token`.",
         "- Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.",
         "- `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.",
         "- `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.",

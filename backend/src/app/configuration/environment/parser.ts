@@ -139,6 +139,7 @@ export function parseEnvironmentState(
       personalAccessTokenSecret,
       authAuditIdentifierSecret,
       mfaTotpEncryptionKey,
+      nodeEnv,
     ),
     authAudit: buildAuthAuditConfig(raw, errors),
     authSecurity: buildAuthSecurityConfig(raw, errors),

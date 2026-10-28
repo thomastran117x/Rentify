@@ -4,7 +4,6 @@ import {
   clearBrowserSessionCookies,
   createCsrfToken,
   isBrowserRequest,
-  isSecureCookieEnabled,
   setBrowserSessionCookies,
   toAuthResponseBody,
   writeAuthSessionResponse,
@@ -59,16 +58,6 @@ describe("isBrowserRequest", () => {
 
   it("treats a request with none of them as an API client", () => {
     expect(isBrowserRequest(createMockRequest())).toBe(false);
-  });
-});
-
-describe("isSecureCookieEnabled", () => {
-  it("follows the environment", () => {
-    jest.spyOn(environment, "isProduction").mockReturnValue(true);
-    expect(isSecureCookieEnabled()).toBe(true);
-
-    jest.spyOn(environment, "isProduction").mockReturnValue(false);
-    expect(isSecureCookieEnabled()).toBe(false);
   });
 });
 
@@ -137,18 +126,36 @@ describe("setBrowserSessionCookies", () => {
     expect(header).not.toContain("Secure");
   });
 
-  it("marks the cookies secure in production", () => {
+  it("writes neither __Host- cookie when cookies are not secure", () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    const recorder = createMockResponse();
+
+    setBrowserSessionCookies(recorder.response, createSessionResult());
+
+    expect(recorder.headers()["set-cookie"]).not.toContain("__Host-");
+  });
+
+  it("writes the __Host- cookies in production and expires the legacy ones", () => {
     jest.spyOn(environment, "isProduction").mockReturnValue(true);
     const recorder = createMockResponse();
 
     setBrowserSessionCookies(recorder.response, createSessionResult());
 
-    expect(recorder.headers()["set-cookie"]).toContain("Secure");
+    const header = recorder.headers()["set-cookie"];
+    expect(header).toMatch(
+      /__Host-rentify_refresh=refresh-token; Max-Age=3600; Path=\/; HttpOnly; Secure; SameSite=Lax/,
+    );
+    expect(header).toMatch(
+      /__Host-rentify_csrf=[^;]+; Max-Age=3600; Path=\/; Secure; SameSite=Lax/,
+    );
+    expect(header).not.toContain("Domain=");
+    expect(header).toMatch(/(^|, )refresh_token=; Max-Age=0; Path=\/;/);
+    expect(header).toMatch(/(^|, )csrf_token=; Max-Age=0; Path=\/;/);
   });
 });
 
 describe("clearBrowserSessionCookies", () => {
-  it("expires both session cookies", () => {
+  it("expires both legacy session cookies when cookies are not secure", () => {
     jest.spyOn(environment, "isProduction").mockReturnValue(false);
     const recorder = createMockResponse();
 
@@ -158,6 +165,24 @@ describe("clearBrowserSessionCookies", () => {
     expect(header).toContain("refresh_token=");
     expect(header).toContain("csrf_token=");
     expect(header).toContain("HttpOnly");
+    expect(header).not.toContain("__Host-");
+  });
+
+  it("expires the __Host- and the legacy cookies in production", () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const recorder = createMockResponse();
+
+    clearBrowserSessionCookies(recorder.response);
+
+    const header = recorder.headers()["set-cookie"];
+    for (const name of [
+      "refresh_token",
+      "csrf_token",
+      "__Host-rentify_refresh",
+      "__Host-rentify_csrf",
+    ]) {
+      expect(header).toMatch(new RegExp(`(^|, )${name}=; Max-Age=0; Path=/;`));
+    }
   });
 });
 

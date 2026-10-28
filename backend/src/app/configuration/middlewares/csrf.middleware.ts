@@ -4,16 +4,12 @@ import {
   normalizeOrigin,
   readCsrfAllowedOrigins,
 } from "@/configuration/http/allowed-origins";
-import {
-  getHeader,
-  getPathname,
-  readCookie,
-} from "@/configuration/http/request";
+import { getHeader, getPathname } from "@/configuration/http/request";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import {
-  CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_HEADER_NAME,
-  REFRESH_TOKEN_COOKIE_NAME,
+  readCsrfTokenCookie,
+  readRefreshTokenCookie,
 } from "@/features/auth/auth.cookies";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -55,10 +51,7 @@ function requiresCookieBackedCsrf(path: string, request: Request): boolean {
     return true;
   }
 
-  return (
-    getHeader(request, "cookie")?.includes(`${REFRESH_TOKEN_COOKIE_NAME}=`) ??
-    false
-  );
+  return readRefreshTokenCookie(request) !== undefined;
 }
 
 export const csrfMiddleware: RequestHandler = (request, _response, next) => {
@@ -93,7 +86,7 @@ export const csrfMiddleware: RequestHandler = (request, _response, next) => {
   }
 
   if (requiresCookieBackedCsrf(path, request)) {
-    const csrfCookie = readCookie(request, CSRF_TOKEN_COOKIE_NAME);
+    const csrfCookie = readCsrfTokenCookie(request);
     const csrfHeader = getHeader(request, CSRF_TOKEN_HEADER_NAME);
 
     if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {

@@ -256,6 +256,7 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES?: string;
   AUTH_SECURITY_DETECTION_MODE?: string;
   AUTH_SECURITY_REFRESH_REUSE_ENABLED?: string;
+  AUTH_COOKIE_SECURE?: string;
   AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES?: string;
   AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED?: string;
   AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD?: string;
@@ -358,6 +359,11 @@ export interface AppEnvironment {
     authAuditIdentifierSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
+    /**
+     * Whether session cookies are `Secure`, which also switches them to their
+     * `__Host-` names. Production always; elsewhere only when opted in.
+     */
+    secureCookies: boolean;
   };
   authAudit: {
     /** Rows older than this many days are deleted by the prune worker. */

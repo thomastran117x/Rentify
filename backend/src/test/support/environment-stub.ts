@@ -448,7 +448,13 @@ export const environment = {
     return readDatabaseConfig();
   },
   getTokenConfig() {
-    return tokenConfig;
+    return {
+      ...tokenConfig,
+      secureCookies: readBoolean(
+        process.env.AUTH_COOKIE_SECURE,
+        environment.isProduction(),
+      ),
+    };
   },
   getSmsConfig() {
     return smsConfig;

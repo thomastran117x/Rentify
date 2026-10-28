@@ -161,6 +161,35 @@ See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
 [Locking Your Own Account](./auth-security.md#locking-your-own-account) and
 [Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection).
 
+### Session Cookies
+
+Browser sign-in, refresh and logout keep the session in two cookies. Native
+and API clients send the refresh token in the request body instead and get no
+cookies.
+
+| Cookie                   | Over plain http | Attributes                             | Holds                               |
+| ------------------------ | --------------- | -------------------------------------- | ----------------------------------- |
+| `__Host-rentify_refresh` | `refresh_token` | `HttpOnly; Secure; SameSite=Lax`       | The refresh token                   |
+| `__Host-rentify_csrf`    | `csrf_token`    | `Secure; SameSite=Lax`, readable by JS | The token to echo in `x-csrf-token` |
+
+Both have `Path=/` and no `Domain`, and live as long as the refresh token. The
+`__Host-` prefix makes the browser refuse either cookie unless it is `Secure`,
+host-only and on `/`, so a sibling subdomain can neither set nor overwrite it.
+The frontend reads the CSRF cookie the API sets, so the frontend and the API
+must be served from the same host; the port may differ.
+
+Cookies are `Secure` in production, and locally only when `AUTH_COOKIE_SECURE`
+is set (see [backend configuration](./backend-configuration.md#session-cookies)).
+Over plain http they keep the `refresh_token` and `csrf_token` names, since a
+`__Host-` cookie cannot be set without `Secure`.
+
+Sessions issued before the rename still carry `refresh_token` and `csrf_token`.
+The API accepts them as a pair, writes the `__Host-` cookies on the next
+refresh and expires the old ones in the same response; logout clears all four.
+It never pairs a `__Host-` refresh cookie with a legacy CSRF cookie. The legacy
+fallback can be removed once one remember-me refresh-token lifetime (90 days,
+`REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS`) has passed since the rename shipped.
+
 ### Signing In With an Authenticator App
 
 When the account has an authenticator app, a correct password (or a verified

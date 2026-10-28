@@ -40,6 +40,7 @@ import {
 } from "@/configuration/resources/rabbitmq";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { TokenService } from "@/features/auth/token/token.service";
+import { getSessionCookieNames } from "@/features/auth/auth.cookies";
 import { runSeedOrchestrator } from "@/seeds/orchestrator";
 import { SEED_DEVICES } from "@/seeds/fixtures/users";
 import {
@@ -657,7 +658,7 @@ export async function createAuthenticatedRequestContext(input: {
     },
     cookieHeader(extraCookies = {}) {
       const cookies = {
-        refresh_token: refreshToken,
+        [getSessionCookieNames().refresh]: refreshToken,
         ...extraCookies,
       };
       return Object.entries(cookies)

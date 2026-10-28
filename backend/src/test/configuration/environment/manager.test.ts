@@ -251,6 +251,42 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it("makes session cookies secure in production and opt-in elsewhere", () => {
+    process.env = buildRequiredEnv();
+    const developmentManager = new EnvironmentManager();
+    developmentManager.load();
+    expect(developmentManager.getTokenConfig().secureCookies).toBe(false);
+
+    process.env = buildRequiredEnv({ AUTH_COOKIE_SECURE: "true" });
+    const optedInManager = new EnvironmentManager();
+    optedInManager.load();
+    expect(optedInManager.getTokenConfig().secureCookies).toBe(true);
+
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+      MEDIA_SCANNER: "clamav",
+    });
+    const productionManager = new EnvironmentManager();
+    productionManager.load();
+    expect(productionManager.getTokenConfig().secureCookies).toBe(true);
+  });
+
+  it("refuses to turn secure session cookies off in production", () => {
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+      MEDIA_SCANNER: "clamav",
+      AUTH_COOKIE_SECURE: "false",
+    });
+
+    const manager = new EnvironmentManager();
+
+    expect(() => manager.load()).toThrow(
+      "AUTH_COOKIE_SECURE cannot be false in production.",
+    );
+  });
+
   it("reports production and test node environments correctly", () => {
     const productionManager = new EnvironmentManager();
     process.env = buildRequiredEnv({

@@ -55,6 +55,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.accessTokenAlgorithm": "ACCESS_TOKEN_ALGORITHM",
   "auth.accessTokenTtlSeconds": "ACCESS_TOKEN_TTL_SECONDS",
   "auth.audience": "TOKEN_AUDIENCE",
+  "auth.cookies.secure": "AUTH_COOKIE_SECURE",
   "auth.issuer": "TOKEN_ISSUER",
   "auth.mfaBypassEmails": "MFA_BYPASS_EMAILS",
   "auth.refreshTokenCachePrefix": "REFRESH_TOKEN_CACHE_PREFIX",
@@ -529,6 +530,7 @@ function validateConfigurationValueType(
   )[path];
   const isBoolean =
     variableName.endsWith("_ENABLED") ||
+    variableName === "AUTH_COOKIE_SECURE" ||
     variableName === "DATABASE_AUTO_SEED_REFRESH" ||
     variableName === "LOG_SILENT" ||
     variableName === "MEDIA_QUARANTINE_LEGACY_FALLBACK" ||

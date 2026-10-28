@@ -45,7 +45,9 @@ interface PerformJsonRequestOptions<TBody> extends JsonRequestOptions<TBody> {
   includeAuthorization: boolean;
 }
 
-const CSRF_COOKIE_NAME = "csrf_token";
+// The API sets `__Host-rentify_csrf` when its cookies are Secure, and
+// `csrf_token` over plain http (and on sessions issued before the rename).
+const CSRF_COOKIE_NAMES = ["__Host-rentify_csrf", "csrf_token"];
 const CSRF_HEADER_NAME = "x-csrf-token";
 let refreshSessionPromise: Promise<AuthResponseBody | null> | null = null;
 let refreshSessionController: AbortController | null = null;
@@ -69,8 +71,15 @@ function readCookie(name: string): string | undefined {
 }
 
 function readCsrfToken(): string | undefined {
-  const token = readCookie(CSRF_COOKIE_NAME);
-  return token ? decodeURIComponent(token) : undefined;
+  for (const name of CSRF_COOKIE_NAMES) {
+    const token = readCookie(name);
+
+    if (token) {
+      return decodeURIComponent(token);
+    }
+  }
+
+  return undefined;
 }
 
 function shouldIncludeJsonContentType(
