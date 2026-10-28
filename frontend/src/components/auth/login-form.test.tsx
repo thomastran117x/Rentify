@@ -1038,7 +1038,6 @@ describe("LoginForm", () => {
         mfaChallengeToken: "challenge-token",
         method: "password",
         factor: "totp",
-        nextPath: "/dashboard",
       });
       expect(JSON.stringify(readPersistedAuthPendingFlow())).not.toContain(
         "secret-password",
@@ -1207,7 +1206,6 @@ describe("LoginForm", () => {
         factor: "totp",
         method: "password",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
-        nextPath: "/dashboard",
       });
 
       render(<LoginForm nextPath="/dashboard" />);
@@ -1225,7 +1223,6 @@ describe("LoginForm", () => {
         factor: "totp",
         method: "password",
         expiresAt: new Date(Date.now() - 1_000).toISOString(),
-        nextPath: "/dashboard",
       });
 
       render(<LoginForm nextPath="/dashboard" />);
@@ -1234,6 +1231,52 @@ describe("LoginForm", () => {
         await screen.findByText("Your sign-in expired. Please sign in again."),
       ).toBeInTheDocument();
       expect(screen.queryByLabelText("Authenticator code")).toBeNull();
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+    });
+
+    it("returns to the form when the challenge expires while the step is open", async () => {
+      writePersistedAuthPendingFlow({
+        flow: "login-mfa",
+        mfaChallengeToken: "expiring-token",
+        availableFactors: ["totp"],
+        factor: "totp",
+        method: "password",
+        expiresAt: new Date(Date.now() + 300).toISOString(),
+      });
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      expect(
+        await screen.findByLabelText("Authenticator code"),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByText("Your sign-in expired. Please sign in again."),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText("Authenticator code")).toBeNull();
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+    });
+
+    it("returns to the form when the stored challenge is rejected as malformed", async () => {
+      const user = userEvent.setup();
+      loginMock.mockRejectedValue(challengeError());
+      completeLoginMfaMock.mockRejectedValue(
+        mfaError(400, "VALIDATION_ERROR", {
+          mfaChallengeToken: ["MFA challenge token is required."],
+        }),
+      );
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        await screen.findByText("Your sign-in expired. Please sign in again."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeVisible();
       expect(readPersistedAuthPendingFlow()).toBeNull();
     });
 
@@ -1250,7 +1293,6 @@ describe("LoginForm", () => {
         factor: "totp",
         method: "password",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
-        nextPath: "/dashboard",
       });
 
       render(<LoginForm nextPath="/dashboard" />);

@@ -540,7 +540,7 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
               // An existing account signed in from the signup page. The code
               // step lives on the sign-in page, which picks the flow up.
               writePersistedAuthPendingFlow(
-                createLoginMfaPendingFlow(result, "oauth", nextPath),
+                createLoginMfaPendingFlow(result, "oauth"),
               );
               router.push(`/login?next=${encodeURIComponent(nextPath)}`);
             }}

@@ -32,7 +32,11 @@ const FACTOR_COPY: Record<
   },
 };
 
-/** Errors the user can fix by entering another code, shown on the field. */
+/**
+ * Errors the user can fix by entering another code, shown on the field. A
+ * 400 about anything else, such as the stored challenge token, cannot be fixed
+ * from here, so it goes back to the sign-in form.
+ */
 function getCodeError(error: unknown): string | null {
   if (!(error instanceof ApiClientError) || error.status !== 400) {
     return null;
@@ -42,7 +46,16 @@ function getCodeError(error: unknown): string | null {
     return "That code is incorrect. Check your authenticator app and try again.";
   }
 
-  return error.message || "Enter the 6-digit code from your authenticator app.";
+  const details = error.details as Record<string, unknown> | undefined;
+  const codeMessages = details?.code;
+
+  if (error.code === "VALIDATION_ERROR" && Array.isArray(codeMessages)) {
+    return typeof codeMessages[0] === "string"
+      ? codeMessages[0]
+      : "Enter the 6-digit code from your authenticator app.";
+  }
+
+  return null;
 }
 
 /**
@@ -93,7 +106,7 @@ export function LoginMfaPanel({
         setCodeError(nextCodeError);
       } else if (
         error instanceof ApiClientError &&
-        (error.status === 401 || error.status === 403 || error.status === 423)
+        [400, 401, 403, 423].includes(error.status)
       ) {
         onFailure(error);
       } else {

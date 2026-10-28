@@ -20,13 +20,18 @@ const flow: LoginMfaPendingFlow = {
   factor: "totp",
   method: "password",
   expiresAt: "2099-01-01T00:00:00.000Z",
-  nextPath: "/dashboard",
 };
 
-function clientError(status: number, code: string, message = "Failed") {
+function clientError(
+  status: number,
+  code: string,
+  message = "Failed",
+  details?: unknown,
+) {
   return new ApiClientError(message, {
     code,
     status,
+    details,
     request: {
       method: "POST",
       path: "/auth/login/mfa",
@@ -77,10 +82,12 @@ describe("LoginMfaPanel", () => {
     );
   });
 
-  it("shows a validation message from the api on the field", async () => {
+  it("shows a validation message about the code on the field", async () => {
     const user = userEvent.setup();
     completeLoginMfaMock.mockRejectedValue(
-      clientError(400, "VALIDATION_ERROR", "Code is required."),
+      clientError(400, "VALIDATION_ERROR", "Request body validation failed.", {
+        code: ["Code is required."],
+      }),
     );
     const props = renderPanel();
 
@@ -94,6 +101,8 @@ describe("LoginMfaPanel", () => {
   });
 
   it.each([
+    [400, "VALIDATION_ERROR"],
+    [400, "INVALID_REQUEST"],
     [401, "MFA_CHALLENGE_INVALID"],
     [403, "ACCOUNT_SUSPENDED"],
     [423, "ACCOUNT_LOCKED"],

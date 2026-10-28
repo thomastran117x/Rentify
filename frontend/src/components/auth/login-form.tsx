@@ -16,7 +16,6 @@ import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
   createLoginMfaPendingFlow,
-  isLoginMfaPendingFlowExpired,
   usePersistedAuthPendingFlow,
   writePersistedAuthPendingFlow,
   type LoginMfaPendingFlow,
@@ -270,8 +269,9 @@ export function LoginForm({
     }
   }, [authFlowRestorePending, deviceLoginPendingFlow, status]);
 
-  // A challenge left over from an earlier visit cannot be finished once it has
-  // expired, and is moot once some other tab has signed in.
+  // The one place a pending code step ends without the user: when its
+  // challenge expires, whether that happened while the page was open or
+  // before it was restored, and when some other tab has signed in.
   useEffect(() => {
     if (authFlowRestorePending || !loginMfaPendingFlow) {
       return;
@@ -279,10 +279,18 @@ export function LoginForm({
 
     if (status === "authenticated") {
       clearPersistedAuthPendingFlowByType("login-mfa");
-    } else if (isLoginMfaPendingFlowExpired(loginMfaPendingFlow)) {
-      clearPersistedAuthPendingFlowByType("login-mfa");
-      setGeneralError(LOGIN_MFA_EXPIRED_MESSAGE);
+      return;
     }
+
+    const timer = window.setTimeout(
+      () => {
+        clearPersistedAuthPendingFlowByType("login-mfa");
+        setGeneralError(LOGIN_MFA_EXPIRED_MESSAGE);
+      },
+      Math.max(0, Date.parse(loginMfaPendingFlow.expiresAt) - Date.now()),
+    );
+
+    return () => window.clearTimeout(timer);
   }, [authFlowRestorePending, loginMfaPendingFlow, status]);
 
   useEffect(() => {
@@ -518,9 +526,7 @@ export function LoginForm({
     setUnlockEmail(null);
     clearPersistedAuthPendingFlowByType("login-unlock");
     setPassword("");
-    writePersistedAuthPendingFlow(
-      createLoginMfaPendingFlow(result, method, nextPath),
-    );
+    writePersistedAuthPendingFlow(createLoginMfaPendingFlow(result, method));
   }
 
   async function handleLoginMfaSuccess(
@@ -636,11 +642,7 @@ export function LoginForm({
     return null;
   }
 
-  if (
-    loginMfaPendingFlow &&
-    status === "anonymous" &&
-    !isLoginMfaPendingFlowExpired(loginMfaPendingFlow)
-  ) {
+  if (loginMfaPendingFlow && status === "anonymous") {
     return (
       <LoginMfaPanel
         key={loginMfaPendingFlow.mfaChallengeToken}
@@ -650,6 +652,14 @@ export function LoginForm({
         }
         onFailure={(error) => {
           clearPersistedAuthPendingFlowByType("login-mfa");
+
+          // A 400 that is not about the code means the stored challenge
+          // cannot be used; signing in again is the only way on.
+          if (error instanceof ApiClientError && error.status === 400) {
+            setGeneralError(LOGIN_MFA_EXPIRED_MESSAGE);
+            return;
+          }
+
           showLoginFailure(error);
         }}
         onFactorChange={(factor) =>

@@ -3,7 +3,11 @@
 import { useSyncExternalStore } from "react";
 import type { MfaVerificationChallengeFactor } from "@/lib/auth/mfa-verification-api";
 import { safeNextPath } from "@/lib/auth/next-path";
-import type { LoginMfaChallenge, LoginMfaFactor } from "@/lib/auth/types";
+import {
+  LOGIN_MFA_FACTORS,
+  type LoginMfaChallenge,
+  type LoginMfaFactor,
+} from "@/lib/auth/types";
 
 const AUTH_PENDING_FLOW_STORAGE_KEY = "rentify.auth.pending-flow";
 const AUTH_PENDING_FLOW_EVENT = "rentify-auth-pending-flow-storage";
@@ -44,7 +48,6 @@ export interface LoginMfaPendingFlow {
   /** How the first step signed in, which decides what happens after. */
   method: "password" | "oauth";
   expiresAt: string;
-  nextPath: string;
 }
 
 export type PersistedAuthPendingFlow =
@@ -54,36 +57,29 @@ export type PersistedAuthPendingFlow =
   | DeviceLoginMfaPendingFlow
   | LoginMfaPendingFlow;
 
-const LOGIN_MFA_FACTORS: readonly LoginMfaFactor[] = ["totp"];
-
 function isLoginMfaFactor(value: unknown): value is LoginMfaFactor {
-  return LOGIN_MFA_FACTORS.includes(value as LoginMfaFactor);
+  return (LOGIN_MFA_FACTORS as readonly unknown[]).includes(value);
 }
 
+/**
+ * Where to go afterwards is not stored: it comes from the sign-in page's
+ * `next` parameter, which every entry to the code step keeps.
+ */
 export function createLoginMfaPendingFlow(
-  result: LoginMfaChallenge,
+  challenge: LoginMfaChallenge,
   method: LoginMfaPendingFlow["method"],
-  nextPath: string,
   now = Date.now(),
 ): LoginMfaPendingFlow {
-  const availableFactors = result.availableFactors.filter(isLoginMfaFactor);
+  const availableFactors = challenge.availableFactors.filter(isLoginMfaFactor);
 
   return {
     flow: "login-mfa",
-    mfaChallengeToken: result.mfaChallengeToken,
+    mfaChallengeToken: challenge.mfaChallengeToken,
     availableFactors,
     factor: availableFactors[0] ?? "totp",
     method,
-    expiresAt: new Date(now + result.expiresInSeconds * 1000).toISOString(),
-    nextPath: safeNextPath(nextPath),
+    expiresAt: new Date(now + challenge.expiresInSeconds * 1000).toISOString(),
   };
-}
-
-export function isLoginMfaPendingFlowExpired(
-  flow: LoginMfaPendingFlow,
-  now = Date.now(),
-): boolean {
-  return Date.parse(flow.expiresAt) <= now;
 }
 
 let cachedRawPendingFlow: string | null | undefined;
@@ -182,8 +178,7 @@ export function parsePendingFlow(
         availableFactors.includes(value.factor) &&
         (value.method === "password" || value.method === "oauth") &&
         isNonEmptyString(value.expiresAt) &&
-        !Number.isNaN(Date.parse(value.expiresAt)) &&
-        isNonEmptyString(value.nextPath)
+        !Number.isNaN(Date.parse(value.expiresAt))
       ) {
         return {
           flow: "login-mfa",
@@ -192,7 +187,6 @@ export function parsePendingFlow(
           factor: value.factor,
           method: value.method,
           expiresAt: value.expiresAt,
-          nextPath: safeNextPath(value.nextPath),
         };
       }
       return null;

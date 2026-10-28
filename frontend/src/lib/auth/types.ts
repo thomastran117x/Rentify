@@ -71,10 +71,13 @@ export interface OAuthSignupRequiredResult {
 }
 
 /**
- * The second factors a sign-in can be finished with. Recovery codes and
- * passkeys will join this list without changing the challenge's shape.
+ * The second factors a sign-in can be finished with, and the only list of
+ * them. Recovery codes and passkeys join it without changing the challenge's
+ * shape; a factor this client does not list is dropped from a challenge.
  */
-export type LoginMfaFactor = "totp";
+export const LOGIN_MFA_FACTORS = ["totp"] as const;
+
+export type LoginMfaFactor = (typeof LOGIN_MFA_FACTORS)[number];
 
 /**
  * The challenge a correct password or provider sign-in carries, instead of a

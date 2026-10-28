@@ -3,7 +3,6 @@ import {
   clearPersistedAuthPendingFlow,
   clearPersistedAuthPendingFlowByType,
   createLoginMfaPendingFlow,
-  isLoginMfaPendingFlowExpired,
   getPersistedAuthPendingFlowSnapshot,
   parsePendingFlow,
   readPersistedAuthPendingFlow,
@@ -192,7 +191,6 @@ describe("pending auth flow storage", () => {
       factor: "totp" as const,
       method: "password" as const,
       expiresAt: "2026-10-27T12:05:00.000Z",
-      nextPath: "/dashboard",
     };
 
     it("builds the flow from a challenge with its absolute expiry", () => {
@@ -205,13 +203,12 @@ describe("pending auth flow storage", () => {
             expiresInSeconds: 300,
           },
           "password",
-          "/dashboard",
           now,
         ),
       ).toEqual(flow);
     });
 
-    it("drops factors this client does not know and keeps the next path on-site", () => {
+    it("drops factors this client does not know", () => {
       expect(
         createLoginMfaPendingFlow(
           {
@@ -221,14 +218,12 @@ describe("pending auth flow storage", () => {
             expiresInSeconds: 300,
           },
           "oauth",
-          "https://example.org",
           now,
         ),
       ).toMatchObject({
         availableFactors: ["totp"],
         factor: "totp",
         method: "oauth",
-        nextPath: "/",
       });
     });
 
@@ -238,13 +233,6 @@ describe("pending auth flow storage", () => {
       expect(readPersistedAuthPendingFlow()).toEqual(flow);
     });
 
-    it("reports expiry", () => {
-      expect(isLoginMfaPendingFlowExpired(flow, now)).toBe(false);
-      expect(
-        isLoginMfaPendingFlowExpired(flow, Date.parse(flow.expiresAt)),
-      ).toBe(true);
-    });
-
     it.each([
       { ...flow, mfaChallengeToken: "" },
       { ...flow, availableFactors: [] },
@@ -252,7 +240,6 @@ describe("pending auth flow storage", () => {
       { ...flow, factor: "sms" },
       { ...flow, method: "magic-link" },
       { ...flow, expiresAt: "not-a-date" },
-      { ...flow, nextPath: "" },
     ])("rejects a malformed login MFA flow %#", (value) => {
       expect(parsePendingFlow(value)).toBeNull();
     });

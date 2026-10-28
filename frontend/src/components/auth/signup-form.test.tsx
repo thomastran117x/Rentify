@@ -366,7 +366,6 @@ describe("SignupForm", () => {
       flow: "login-mfa",
       mfaChallengeToken: "challenge-token",
       method: "oauth",
-      nextPath: "/dashboard",
     });
     expect(routerPushMock).toHaveBeenCalledWith("/login?next=%2Fdashboard");
     clearPersistedAuthPendingFlow();
