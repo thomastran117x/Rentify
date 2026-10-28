@@ -188,7 +188,8 @@ provider token again.
 
 `totpCode` on `/auth/local/login` and `/auth/oauth/*` is **deprecated**. It is
 still accepted for API clients that send the code together with the first
-step, and a wrong one still counts towards the lockout.
+step. A wrong one still counts towards the lockout, and a correct one clears
+it, for social sign-ins too.
 
 Locally, almost every seeded account is on `auth.mfaBypassEmails` in
 `backend/config/development.yml` and never sees this step. `totp-one`

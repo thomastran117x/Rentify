@@ -177,6 +177,7 @@ function createHarness() {
     isLocked: jest.fn(async () => false),
     recordFailedLogin: jest.fn(async () => undefined),
     recordLockedLogin: jest.fn(async () => undefined),
+    clearAttemptRecord: jest.fn(async () => undefined),
     throwLockedLogin: jest.fn(async () => {
       throw new LockedError("This sign-in is locked.");
     }),
@@ -554,6 +555,52 @@ describe("OAuthAccountsService sign-in", () => {
         audit: expect.objectContaining({ method: "google" }),
       }),
     );
+  });
+
+  it("clears earlier failures once an inline OAuth login MFA code checks out", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
+
+    await expect(
+      harness.service.googleAuthenticate({ ...oauthInput, totpCode: "123456" }),
+    ).resolves.toMatchObject({ accessToken: "access-token" });
+    expect(harness.loginLockoutService.clearAttemptRecord).toHaveBeenCalledWith(
+      "test-user",
+    );
+  });
+
+  it("keeps earlier failures while a challenge is still pending", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
+
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).resolves.toMatchObject({ mfaRequired: true });
+    expect(
+      harness.loginLockoutService.clearAttemptRecord,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("leaves the attempt record alone for an account without an authenticator", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+
+    await harness.service.googleAuthenticate({
+      ...oauthInput,
+      totpCode: "123456",
+    });
+
+    expect(
+      harness.loginLockoutService.clearAttemptRecord,
+    ).not.toHaveBeenCalled();
   });
 
   it("does not count a non-authentication failure from OAuth login MFA", async () => {

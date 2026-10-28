@@ -439,7 +439,8 @@ export class OAuthAccountsService {
   /**
    * The provider proved who this is; the authenticator still has to. Wrong
    * codes count against the same username lockout as a password sign-in, so
-   * a locked account cannot keep guessing through a provider either.
+   * a locked account cannot keep guessing through a provider either, and a
+   * code that checks out clears the count the same way a sign-in does.
    */
   private async evaluateOAuthLoginMfa(
     user: AuthUserRecord,
@@ -452,8 +453,10 @@ export class OAuthAccountsService {
       context: input.audit,
     };
 
+    const mfaEnabled = await this.mfaTotpService.isEnabled(asUuid(user.id));
+
     if (
-      (await this.mfaTotpService.isEnabled(asUuid(user.id))) &&
+      mfaEnabled &&
       (await this.loginLockoutService.isLocked(user.profile.username))
     ) {
       await this.loginLockoutService.recordLockedLogin(user, audit);
@@ -461,12 +464,22 @@ export class OAuthAccountsService {
     }
 
     try {
-      return await evaluateLoginMfa(
+      const evaluation = await evaluateLoginMfa(
         this.mfaTotpService,
         asUuid(user.id),
         user.email,
         input.totpCode,
       );
+
+      // Only a code that was checked clears it: issuing a challenge proves
+      // nothing yet, and an account without an authenticator never counted.
+      if (evaluation === "satisfied" && mfaEnabled && input.totpCode) {
+        await this.loginLockoutService.clearAttemptRecord(
+          user.profile.username,
+        );
+      }
+
+      return evaluation;
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         await this.loginLockoutService.recordFailedLogin({
