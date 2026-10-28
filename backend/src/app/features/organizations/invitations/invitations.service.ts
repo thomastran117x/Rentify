@@ -1,7 +1,7 @@
-import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
+import type { AuthUserRecord } from "@/features/auth/auth.model";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { EmailService } from "@/features/email/email.service";
 import { requireExistingUser } from "@/features/organizations/require-existing-user";
@@ -207,50 +207,14 @@ export class OrganizationInvitationsService {
     }
 
     if (invitation.status === "accepted") {
-      const existingMember =
-        await this.organizationsMembersRepository.findMemberByUserId(
-          asUuid(invitation.organization.id),
-          user.id,
-        );
-
-      if (!existingMember) {
-        throw new ConflictError(
-          "This invitation was already accepted, but the membership record is missing.",
-        );
-      }
-
-      const memberships =
-        await this.organizationsMembersRepository.listMembershipsByUserId(
-          asUuid(user.id),
-          user.preferredOrganizationId,
-        );
-      const membership = memberships.find(
-        (entry) => entry.membershipId === existingMember.membershipId,
-      );
-
-      if (!membership) {
-        throw new ConflictError(
-          "This organization membership could not be found.",
-        );
-      }
-
-      return {
-        accepted: true,
-        organization: {
-          id: invitation.organization.id,
-          slug: invitation.organization.slug,
-          name: invitation.organization.name,
-          role: membership.role,
-        },
-        membership,
-      };
+      return this.resolveAcceptedInvitation(invitation, user);
     }
 
     if (invitation.status !== "pending") {
-      throw new BadRequestError("This invitation can no longer be accepted.");
+      throw new ConflictError("This invitation can no longer be accepted.");
     }
 
-    const { invitation: acceptedInvitation, membership } =
+    const accepted =
       await this.organizationsInvitationsRepository.acceptInvitation({
         invitationId: asUuid(invitation.id),
         organizationId: asUuid(invitation.organization.id),
@@ -258,6 +222,21 @@ export class OrganizationInvitationsService {
         role: invitation.role,
         now: new Date(),
       });
+
+    if (!accepted) {
+      // A revoke, expiry, reissue, or a concurrent accept by this same user
+      // committed between the pre-check and the write. Only the last one is
+      // still a success for the caller.
+      const current = await this.requireInvitationByToken(input.token);
+
+      if (current.status === "accepted") {
+        return this.resolveAcceptedInvitation(current, user);
+      }
+
+      throw new ConflictError("This invitation can no longer be accepted.");
+    }
+
+    const { invitation: acceptedInvitation, membership } = accepted;
 
     if (!user.preferredOrganizationId) {
       await this.organizationsProfileRepository.setPreferredOrganization(
@@ -360,12 +339,59 @@ export class OrganizationInvitationsService {
     return true;
   }
 
+  /**
+   * Returns the caller's existing membership for an invitation that has
+   * already been accepted, so a repeated accept is idempotent.
+   */
+  private async resolveAcceptedInvitation(
+    invitation: OrganizationInviteAccessRecord,
+    user: AuthUserRecord,
+  ): Promise<AcceptOrganizationInviteResult> {
+    const existingMember =
+      await this.organizationsMembersRepository.findMemberByUserId(
+        asUuid(invitation.organization.id),
+        user.id,
+      );
+
+    if (!existingMember) {
+      throw new ConflictError(
+        "This invitation was already accepted, but the membership record is missing.",
+      );
+    }
+
+    const memberships =
+      await this.organizationsMembersRepository.listMembershipsByUserId(
+        asUuid(user.id),
+        user.preferredOrganizationId,
+      );
+    const membership = memberships.find(
+      (entry) => entry.membershipId === existingMember.membershipId,
+    );
+
+    if (!membership) {
+      throw new ConflictError(
+        "This organization membership could not be found.",
+      );
+    }
+
+    return {
+      accepted: true,
+      organization: {
+        id: invitation.organization.id,
+        slug: invitation.organization.slug,
+        name: invitation.organization.name,
+        role: membership.role,
+      },
+      membership,
+    };
+  }
+
   private assertCanRevokeInvitation(
     actorRole: OrganizationRole,
     invitation: OrganizationInviteAccessRecord,
   ): void {
     if (invitation.status !== "pending") {
-      throw new BadRequestError("Only pending invitations can be revoked.");
+      throw new ConflictError("Only pending invitations can be revoked.");
     }
 
     if (actorRole === "primary_manager") {

@@ -62,27 +62,27 @@ function createInvitationPersistence(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * Builds a database double whose interactive transaction hands the callback
+ * the given invitation (and optionally membership) delegates.
+ */
+function createTransactionDatabase(
+  organizationInvitation: Record<string, unknown>,
+  organizationMembership: Record<string, unknown> = {},
+) {
+  return {
+    $transaction: async <T>(callback: (client: unknown) => Promise<T>) =>
+      callback({ organizationInvitation, organizationMembership }),
+  } as any;
+}
+
 describe("OrganizationsInvitationsRepository", () => {
   it("reissues invitations by revoking prior pending rows and mapping the new invite", async () => {
     const updateMany = jest.fn(async () => ({ count: 1 }));
     const create = jest.fn(async () => createInvitationPersistence());
-    const database = {
-      $transaction: async <T>(
-        callback: (client: {
-          organizationInvitation: {
-            updateMany: typeof updateMany;
-            create: typeof create;
-          };
-        }) => Promise<T>,
-      ) =>
-        callback({
-          organizationInvitation: {
-            updateMany,
-            create,
-          },
-        }),
-    };
-    const repository = new OrganizationsInvitationsRepository(database as any);
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, create }),
+    );
     const now = new Date("2026-06-01T00:00:00.000Z");
     const expiresAt = new Date("2026-06-08T00:00:00.000Z");
 
@@ -122,52 +122,115 @@ describe("OrganizationsInvitationsRepository", () => {
     expect(result.emailHint).toBe("t***@example.com");
   });
 
-  it("returns null when revoking a missing or non-pending invitation", async () => {
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(
-        createInvitationPersistence({
-          status: "accepted",
-        }),
-      );
-    const update = jest.fn(async () => createInvitationPersistence());
-    const database = {
-      $transaction: async <T>(
-        callback: (client: {
-          organizationInvitation: {
-            findUnique: typeof findUnique;
-            update: typeof update;
-          };
-        }) => Promise<T>,
-      ) =>
-        callback({
-          organizationInvitation: {
-            findUnique,
-            update,
-          },
-        }),
-    };
-    const repository = new OrganizationsInvitationsRepository(database as any);
+  it("revokes an invitation only while it is still pending", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const findUniqueOrThrow = jest.fn(async () =>
+      createInvitationPersistence({
+        status: "revoked",
+        revokedAt: new Date("2026-06-01T00:00:00.000Z"),
+      }),
+    );
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }),
+    );
     const now = new Date("2026-06-01T00:00:00.000Z");
 
+    const result = await repository.revokeInvitation(INVITE_1_ID, now);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: INVITE_1_ID,
+        status: "pending",
+      },
+      data: {
+        status: "revoked",
+        revokedAt: now,
+      },
+    });
+    expect(findUniqueOrThrow).toHaveBeenCalledWith({
+      where: {
+        id: INVITE_1_ID,
+      },
+      include: expect.any(Object),
+    });
+    expect(result).toMatchObject({
+      id: INVITE_1_ID,
+      status: "revoked",
+      revokedAt: "2026-06-01T00:00:00.000Z",
+    });
+  });
+
+  it("returns null when revoking a missing or non-pending invitation", async () => {
+    const updateMany = jest.fn(async () => ({ count: 0 }));
+    const findUniqueOrThrow = jest.fn();
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }),
+    );
+
     await expect(
-      repository.revokeInvitation(INVITE_1_ID, now),
+      repository.revokeInvitation(
+        INVITE_2_ID,
+        new Date("2026-06-01T00:00:00.000Z"),
+      ),
     ).resolves.toBeNull();
+    expect(findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("expires an invitation only while it is still pending", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const findUniqueOrThrow = jest.fn(async () =>
+      createInvitationPersistence({
+        status: "expired",
+      }),
+    );
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }),
+    );
+    const now = new Date("2026-06-01T00:00:00.000Z");
+
+    const result = await repository.expireInvitation(INVITE_1_ID, now);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: INVITE_1_ID,
+        status: "pending",
+      },
+      data: {
+        status: "expired",
+        updatedAt: now,
+      },
+    });
+    expect(result).toMatchObject({
+      id: INVITE_1_ID,
+      status: "expired",
+    });
+  });
+
+  it("returns null when expiring an invitation that is no longer pending", async () => {
+    const updateMany = jest.fn(async () => ({ count: 0 }));
+    const findUniqueOrThrow = jest.fn();
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }),
+    );
+
     await expect(
-      repository.revokeInvitation(INVITE_2_ID, now),
+      repository.expireInvitation(
+        INVITE_1_ID,
+        new Date("2026-06-01T00:00:00.000Z"),
+      ),
     ).resolves.toBeNull();
-    expect(update).not.toHaveBeenCalled();
+    expect(findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it("accepts invitations and maps both the invitation and created membership", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
     const upsert = jest.fn(async () =>
       createMembershipPersistence({
         id: "membership-9",
         role: "operator",
       }),
     );
-    const update = jest.fn(async () =>
+    const findUniqueOrThrow = jest.fn(async () =>
       createInvitationPersistence({
         status: "accepted",
         acceptedAt: new Date("2026-06-01T00:00:00.000Z"),
@@ -180,27 +243,9 @@ describe("OrganizationsInvitationsRepository", () => {
         },
       }),
     );
-    const database = {
-      $transaction: async <T>(
-        callback: (client: {
-          organizationMembership: {
-            upsert: typeof upsert;
-          };
-          organizationInvitation: {
-            update: typeof update;
-          };
-        }) => Promise<T>,
-      ) =>
-        callback({
-          organizationMembership: {
-            upsert,
-          },
-          organizationInvitation: {
-            update,
-          },
-        }),
-    };
-    const repository = new OrganizationsInvitationsRepository(database as any);
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }, { upsert }),
+    );
     const now = new Date("2026-06-01T00:00:00.000Z");
 
     const result = await repository.acceptInvitation({
@@ -211,6 +256,24 @@ describe("OrganizationsInvitationsRepository", () => {
       now,
     });
 
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: INVITE_1_ID,
+        status: "pending",
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        status: "accepted",
+        acceptedByUserId: USER_9_ID,
+        acceptedAt: now,
+      },
+    });
+    expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      upsert.mock.invocationCallOrder[0],
+    );
     expect(upsert).toHaveBeenCalledWith({
       where: {
         organizationId_userId: {
@@ -227,15 +290,9 @@ describe("OrganizationsInvitationsRepository", () => {
       }),
       include: expect.any(Object),
     });
-    expect(update).toHaveBeenCalledWith({
+    expect(findUniqueOrThrow).toHaveBeenCalledWith({
       where: {
         id: INVITE_1_ID,
-      },
-      data: {
-        status: "accepted",
-        acceptedByUserId: USER_9_ID,
-        acceptedAt: now,
-        revokedAt: null,
       },
       include: expect.any(Object),
     });
@@ -275,5 +332,26 @@ describe("OrganizationsInvitationsRepository", () => {
         joinedAt: "2026-05-01T00:00:00.000Z",
       },
     });
+  });
+
+  it("returns null without creating a membership when the invitation can no longer be accepted", async () => {
+    const updateMany = jest.fn(async () => ({ count: 0 }));
+    const upsert = jest.fn();
+    const findUniqueOrThrow = jest.fn();
+    const repository = new OrganizationsInvitationsRepository(
+      createTransactionDatabase({ updateMany, findUniqueOrThrow }, { upsert }),
+    );
+
+    await expect(
+      repository.acceptInvitation({
+        invitationId: INVITE_1_ID,
+        organizationId: ORG_1_ID,
+        userId: USER_9_ID,
+        role: "operator",
+        now: new Date("2026-06-01T00:00:00.000Z"),
+      }),
+    ).resolves.toBeNull();
+    expect(upsert).not.toHaveBeenCalled();
+    expect(findUniqueOrThrow).not.toHaveBeenCalled();
   });
 });

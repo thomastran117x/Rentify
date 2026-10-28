@@ -173,56 +173,50 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     };
   }
 
+  /**
+   * Revokes the invitation only while it is still pending. The status guard
+   * lives in the update itself so a concurrent accept or expiry that commits
+   * first makes this a no-op instead of being overwritten.
+   */
   async revokeInvitation(
     invitationId: Uuid,
     now: Date,
   ): Promise<OrganizationInvitationRecord | null> {
     return this.executeTransaction(async (transaction) => {
-      const invitation = await transaction.organizationInvitation.findUnique({
+      const { count } = await transaction.organizationInvitation.updateMany({
         where: {
           id: invitationId,
-        },
-        include: {
-          organization: true,
-          invitedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-          acceptedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
-
-      if (!invitation || invitation.status !== "pending") {
-        return null;
-      }
-
-      const updated = await transaction.organizationInvitation.update({
-        where: {
-          id: invitationId,
+          status: "pending",
         },
         data: {
           status: "revoked",
           revokedAt: now,
         },
-        include: {
-          organization: true,
-          invitedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-          acceptedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-        },
       });
+
+      if (count === 0) {
+        return null;
+      }
+
+      const updated =
+        await transaction.organizationInvitation.findUniqueOrThrow({
+          where: {
+            id: invitationId,
+          },
+          include: {
+            organization: true,
+            invitedByUser: {
+              include: {
+                profile: true,
+              },
+            },
+            acceptedByUser: {
+              include: {
+                profile: true,
+              },
+            },
+          },
+        });
 
       return this.mapInvitationRecord(updated);
     });
@@ -233,56 +227,51 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
     now: Date,
   ): Promise<OrganizationInvitationRecord | null> {
     return this.executeTransaction(async (transaction) => {
-      const invitation = await transaction.organizationInvitation.findUnique({
+      const { count } = await transaction.organizationInvitation.updateMany({
         where: {
           id: invitationId,
-        },
-        include: {
-          organization: true,
-          invitedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-          acceptedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
-
-      if (!invitation || invitation.status !== "pending") {
-        return null;
-      }
-
-      const updated = await transaction.organizationInvitation.update({
-        where: {
-          id: invitationId,
+          status: "pending",
         },
         data: {
           status: "expired",
           updatedAt: now,
         },
-        include: {
-          organization: true,
-          invitedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-          acceptedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-        },
       });
+
+      if (count === 0) {
+        return null;
+      }
+
+      const updated =
+        await transaction.organizationInvitation.findUniqueOrThrow({
+          where: {
+            id: invitationId,
+          },
+          include: {
+            organization: true,
+            invitedByUser: {
+              include: {
+                profile: true,
+              },
+            },
+            acceptedByUser: {
+              include: {
+                profile: true,
+              },
+            },
+          },
+        });
 
       return this.mapInvitationRecord(updated);
     });
   }
 
+  /**
+   * Accepts the invitation and creates the membership, or returns null without
+   * writing anything when the invitation is no longer pending, was revoked, or
+   * has expired at the moment of the write. The invitation row is claimed
+   * first so a concurrent revoke, expiry, or reissue that commits first wins.
+   */
   async acceptInvitation(input: {
     invitationId: Uuid;
     organizationId: Uuid;
@@ -292,8 +281,28 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
   }): Promise<{
     invitation: OrganizationInvitationRecord;
     membership: OrganizationMemberRecord;
-  }> {
+  } | null> {
     return this.executeTransaction(async (transaction) => {
+      const { count } = await transaction.organizationInvitation.updateMany({
+        where: {
+          id: input.invitationId,
+          status: "pending",
+          revokedAt: null,
+          expiresAt: {
+            gt: input.now,
+          },
+        },
+        data: {
+          status: "accepted",
+          acceptedByUserId: input.userId,
+          acceptedAt: input.now,
+        },
+      });
+
+      if (count === 0) {
+        return null;
+      }
+
       const membership = await transaction.organizationMembership.upsert({
         where: {
           organizationId_userId: {
@@ -318,30 +327,25 @@ export class OrganizationsInvitationsRepository extends BaseRepository {
         },
       });
 
-      const invitation = await transaction.organizationInvitation.update({
-        where: {
-          id: input.invitationId,
-        },
-        data: {
-          status: "accepted",
-          acceptedByUserId: input.userId,
-          acceptedAt: input.now,
-          revokedAt: null,
-        },
-        include: {
-          organization: true,
-          invitedByUser: {
-            include: {
-              profile: true,
+      const invitation =
+        await transaction.organizationInvitation.findUniqueOrThrow({
+          where: {
+            id: input.invitationId,
+          },
+          include: {
+            organization: true,
+            invitedByUser: {
+              include: {
+                profile: true,
+              },
+            },
+            acceptedByUser: {
+              include: {
+                profile: true,
+              },
             },
           },
-          acceptedByUser: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
+        });
 
       return {
         invitation: this.mapInvitationRecord(invitation),
