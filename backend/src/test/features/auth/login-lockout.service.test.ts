@@ -165,6 +165,99 @@ describe("LoginLockoutService attempt tracking", () => {
   });
 });
 
+describe("LoginLockoutService.recordFailedLogin", () => {
+  const audit = {
+    method: "password" as const,
+    identifierHash: "hash:test-user",
+    context: AUDIT_CONTEXT,
+  };
+
+  it("counts the failure and records it as login.failed by default", async () => {
+    const harness = createHarness();
+
+    await harness.service.recordFailedLogin({
+      username: "test-user",
+      user: createUser(),
+      reasonCode: "mfa_invalid",
+      audit,
+    });
+
+    expect(harness.store.get(LOCK_KEY)).toEqual({ failedAttempts: 1 });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      ...audit,
+      eventType: "login.failed",
+      outcome: "failure",
+      reasonCode: "mfa_invalid",
+      userId: USER_1_ID,
+    });
+  });
+
+  it("records the failure under the event type it is given", async () => {
+    const harness = createHarness();
+
+    await harness.service.recordFailedLogin({
+      username: "test-user",
+      user: createUser(),
+      reasonCode: "mfa_invalid",
+      audit: { ...audit, method: "google" },
+      failureEventType: "oauth.login.failed",
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        method: "google",
+        reasonCode: "mfa_invalid",
+      }),
+    );
+  });
+
+  it("records an unknown account with no user id", async () => {
+    const harness = createHarness();
+
+    await harness.service.recordFailedLogin({
+      username: "test-user",
+      user: null,
+      reasonCode: "bad_credentials",
+      audit,
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null }),
+    );
+  });
+
+  it("turns the failure that sets the lock into login.locked and refuses", async () => {
+    const harness = createHarness();
+    harness.store.set(LOCK_KEY, { failedAttempts: 4 });
+
+    await expect(
+      harness.service.recordFailedLogin({
+        username: "test-user",
+        user: createUser(),
+        reasonCode: "mfa_invalid",
+        audit,
+      }),
+    ).rejects.toMatchObject({
+      status: 423,
+      details: { email: "user@example.com", unlockRequired: true },
+    });
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      ...audit,
+      eventType: "login.locked",
+      outcome: "blocked",
+      reasonCode: "locked",
+      userId: USER_1_ID,
+      metadata: { triggered: true, failureReason: "mfa_invalid" },
+    });
+    expect(harness.emailService.sendLoginUnlockEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "user@example.com" }),
+    );
+  });
+});
+
 describe("LoginLockoutService.buildLockedLoginDetails", () => {
   it("includes the email when the account exists", () => {
     expect(

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
-import LockedError from "@/errors/http/locked.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { DeviceService } from "@/features/auth/device/device.service";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -29,7 +28,10 @@ import {
 } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
-import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import {
+  LoginLockoutService,
+  type LoginAttemptAuditBase,
+} from "@/features/auth/lockout/login-lockout.service";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -62,16 +64,6 @@ import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import type {
-  AuthAuditReasonCode,
-  RecordAuthAuditEventInput,
-} from "@/features/auth/audit/auth-audit.model";
-
-/** The fields every audit event for one local sign-in attempt shares. */
-type LocalLoginAuditBase = Pick<
-  RecordAuthAuditEventInput,
-  "method" | "identifierHash" | "context"
->;
 
 export class LocalAuthService {
   private readonly logger: Logger;
@@ -104,7 +96,7 @@ export class LocalAuthService {
   async localAuthenticate(
     input: LocalAuthenticateInput,
   ): Promise<AuthSessionResult> {
-    const audit: LocalLoginAuditBase = {
+    const audit: LoginAttemptAuditBase = {
       method: "password",
       identifierHash: this.authAuditService.hashIdentifier(input.username),
       context: input.audit,
@@ -119,17 +111,17 @@ export class LocalAuthService {
     );
 
     if (loginAttemptRecord?.lockedAt) {
-      await this.recordLockedLogin(user, audit);
-      await this.throwLockedLogin(user);
+      await this.loginLockoutService.recordLockedLogin(user, audit);
+      await this.loginLockoutService.throwLockedLogin(user);
     }
 
     if (!user || !isPasswordValid) {
-      await this.recordFailedLoginAttempt(
-        input.username,
+      await this.loginLockoutService.recordFailedLogin({
+        username: input.username,
         user,
-        "bad_credentials",
+        reasonCode: "bad_credentials",
         audit,
-      );
+      });
       throw new UnauthorizedError("Invalid username or password.");
     }
 
@@ -169,12 +161,12 @@ export class LocalAuthService {
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         if (input.totpCode) {
-          await this.recordFailedLoginAttempt(
-            input.username,
+          await this.loginLockoutService.recordFailedLogin({
+            username: input.username,
             user,
-            "mfa_invalid",
+            reasonCode: "mfa_invalid",
             audit,
-          );
+          });
         } else {
           // The password was right; the client must now ask for a code.
           await this.authAuditService.recordSafely({
@@ -206,59 +198,6 @@ export class LocalAuthService {
     });
 
     return session;
-  }
-
-  /**
-   * Counts the failure and records it, as `login.failed`, or as the
-   * `login.locked` it turned into when it was the attempt that set the lock.
-   */
-  private async recordFailedLoginAttempt(
-    username: string,
-    user: AuthUserRecord | null,
-    reasonCode: AuthAuditReasonCode,
-    audit: LocalLoginAuditBase,
-  ): Promise<void> {
-    const updatedAttemptRecord =
-      await this.loginLockoutService.recordFailedAttempt(username);
-
-    if (updatedAttemptRecord.lockedAt) {
-      await this.recordLockedLogin(user, audit, {
-        triggered: true,
-        failureReason: reasonCode,
-      });
-      await this.throwLockedLogin(user);
-    }
-
-    await this.authAuditService.recordSafely({
-      ...audit,
-      eventType: "login.failed",
-      outcome: "failure",
-      reasonCode,
-      userId: user ? asUuid(user.id) : null,
-    });
-  }
-
-  private async recordLockedLogin(
-    user: AuthUserRecord | null,
-    audit: LocalLoginAuditBase,
-    metadata?: RecordAuthAuditEventInput["metadata"],
-  ): Promise<void> {
-    await this.authAuditService.recordSafely({
-      ...audit,
-      eventType: "login.locked",
-      outcome: "blocked",
-      reasonCode: "locked",
-      userId: user ? asUuid(user.id) : null,
-      metadata,
-    });
-  }
-
-  private async throwLockedLogin(user: AuthUserRecord | null): Promise<never> {
-    await this.loginLockoutService.sendUnlockCode(user);
-    throw new LockedError(
-      "This sign-in is locked. Use the code we emailed you to unlock it.",
-      this.loginLockoutService.buildLockedLoginDetails(user),
-    );
   }
 
   async localSignup(
