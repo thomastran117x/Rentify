@@ -245,6 +245,20 @@ const BASE_SEED_USERS: SeedUserFixture[] = [
     statusReason: "Seeded security hold for local testing.",
   },
   {
+    // Kept off auth.mfaBypassEmails in development.yml, so signing in after
+    // enrolling an authenticator app goes through the real login MFA step.
+    // The TOTP Playwright spec enrolls and removes the authenticator itself.
+    id: createFixtureId(1000, 36),
+    email: "totp1@rentify.local",
+    password: "Rentify123!",
+    username: "totp-one",
+    firstName: "Tessa",
+    lastName: "Price",
+    role: "user",
+    emailVerified: true,
+    trustworthinessScore: 75,
+  },
+  {
     id: createFixtureId(1000, 14),
     email: "user8@rentify.local",
     password: "Rentify123!",

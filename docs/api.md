@@ -190,6 +190,13 @@ provider token again.
 still accepted for API clients that send the code together with the first
 step, and a wrong one still counts towards the lockout.
 
+Locally, almost every seeded account is on `auth.mfaBypassEmails` in
+`backend/config/development.yml` and never sees this step. `totp-one`
+(`totp1@rentify.local`, `Rentify123!`) is seeded off that list for trying it:
+enroll an authenticator app from **Account → Security**, sign out, and sign in
+again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
+same and removes the authenticator afterwards.
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them
