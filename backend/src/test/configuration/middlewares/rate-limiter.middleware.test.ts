@@ -212,22 +212,23 @@ describe("resolveRateLimitPolicy", () => {
     });
   });
 
-  it.each(["/auth/account/self-lock", "/auth/account/self-lock/session"])(
-    "assigns the auth policy to %s",
-    (path) => {
-      const policy = resolveRateLimitPolicy(
-        policyRequest(`http://rent.test${buildApiPath(path)}`, {
-          method: "POST",
-        }),
-      );
+  it.each([
+    "/auth/login/mfa",
+    "/auth/account/self-lock",
+    "/auth/account/self-lock/session",
+  ])("assigns the auth policy to %s", (path) => {
+    const policy = resolveRateLimitPolicy(
+      policyRequest(`http://rent.test${buildApiPath(path)}`, {
+        method: "POST",
+      }),
+    );
 
-      expect(policy).toMatchObject({
-        id: "auth-sensitive",
-        limit: 10,
-        bucketKey: "POST:auth-sensitive",
-      });
-    },
-  );
+    expect(policy).toMatchObject({
+      id: "auth-sensitive",
+      limit: 10,
+      bucketKey: "POST:auth-sensitive",
+    });
+  });
 
   it("assigns a dedicated policy to the username availability check", () => {
     const policy = resolveRateLimitPolicy(

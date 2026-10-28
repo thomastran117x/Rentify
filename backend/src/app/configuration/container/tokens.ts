@@ -28,6 +28,9 @@ import { PasswordRepository } from "@/features/auth/password/password.repository
 import { MfaVerificationRepository } from "@/features/auth/mfa/verification/mfa-verification.repository";
 import { LocalAuthController } from "@/features/auth/local/local-auth.controller";
 import { LocalAuthService } from "@/features/auth/local/local-auth.service";
+import { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
+import { LoginMfaController } from "@/features/auth/mfa/login/login-mfa.controller";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { AuthSessionController } from "@/features/auth/session/session.controller";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
@@ -479,6 +482,12 @@ export const containerTokens = {
   localAuthController: createServiceToken<LocalAuthController>(
     "LocalAuthController",
   ),
+  loginMfaChallengeStore: createServiceToken<LoginMfaChallengeStore>(
+    "LoginMfaChallengeStore",
+  ),
+  loginMfaService: createServiceToken<LoginMfaService>("LoginMfaService"),
+  loginMfaController:
+    createServiceToken<LoginMfaController>("LoginMfaController"),
   personalAccessTokenController:
     createServiceToken<PersonalAccessTokenController>(
       "PersonalAccessTokenController",

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthOAuthButtons } from "./oauth-buttons";
+import { ApiClientError } from "@/lib/auth/types";
 
 const {
   authenticateGoogleMock,
@@ -157,6 +158,51 @@ describe("AuthOAuthButtons", () => {
         signupToken: "signup-token",
         expiresInSeconds: 600,
       }),
+    );
+  });
+
+  it("routes an authenticator-protected sign-in to the MFA callback", async () => {
+    const user = userEvent.setup();
+    const onSuccess = vi.fn();
+    const onMfaRequired = vi.fn();
+    const challenge = {
+      mfaRequired: true,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp"],
+      expiresInSeconds: 300,
+    };
+    authenticateGoogleMock.mockRejectedValue(
+      new ApiClientError("Authenticator code is required.", {
+        code: "UNAUTHORIZED",
+        status: 401,
+        details: challenge,
+        request: {
+          method: "POST",
+          path: "/auth/oauth/google",
+          requestUrl: "http://localhost:8040/api/v1/auth/oauth/google",
+        },
+      }),
+    );
+    const onError = vi.fn();
+    render(
+      <AuthOAuthButtons
+        onError={onError}
+        onSuccess={onSuccess}
+        onMfaRequired={onMfaRequired}
+      />,
+    );
+
+    await openAndRespond(
+      user,
+      "Continue with Google",
+      (state) => `?code=code-1&state=${state}`,
+    );
+
+    await waitFor(() => expect(onMfaRequired).toHaveBeenCalledWith(challenge));
+    expect(onSuccess).not.toHaveBeenCalled();
+    // onError("") clears the previous message when the click starts.
+    expect(onError).not.toHaveBeenCalledWith(
+      expect.stringMatching(/Authenticator code/),
     );
   });
 

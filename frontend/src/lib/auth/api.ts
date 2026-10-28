@@ -14,6 +14,7 @@ import type {
   ForgotPasswordAcceptedResult,
   KnownDevicesResult,
   LinkedOAuthProvidersResult,
+  LoginMfaFactor,
   OAuthProvider,
   OAuthAuthenticateResult,
   PersonalAccessTokenListResult,
@@ -34,6 +35,13 @@ interface LoginInput {
   rememberMe?: boolean;
   deviceId?: string;
 }
+interface CompleteLoginMfaInput {
+  mfaChallengeToken: string;
+  factor: LoginMfaFactor;
+  code: string;
+  deviceId?: string;
+}
+
 interface SignupInput {
   firstName: string;
   lastName: string;
@@ -170,6 +178,22 @@ export const authApi = {
     return publicJson<AuthResponseBody, LoginInput>(
       "POST",
       "/auth/local/login",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
+  },
+  /**
+   * The second step of a sign-in that answered with a login MFA challenge.
+   * The device id must match the first step's, which `getDeviceId` keeps
+   * stable for the browser.
+   */
+  completeLoginMfa(input: CompleteLoginMfaInput): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
+    return publicJson<AuthResponseBody, CompleteLoginMfaInput>(
+      "POST",
+      "/auth/login/mfa",
       {
         ...input,
         deviceId: input.deviceId ?? getDeviceId(),

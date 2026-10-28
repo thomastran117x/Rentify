@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
-import LockedError from "@/errors/http/locked.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { DeviceService } from "@/features/auth/device/device.service";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -29,7 +28,10 @@ import {
 } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
-import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import {
+  LoginLockoutService,
+  type LoginAttemptAuditBase,
+} from "@/features/auth/lockout/login-lockout.service";
 import {
   isEligibleForLocalPasswordManagement,
   isLocalPasswordAccount,
@@ -48,7 +50,7 @@ import {
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
-import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -56,22 +58,11 @@ import {
 import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
-import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import type {
-  AuthAuditReasonCode,
-  RecordAuthAuditEventInput,
-} from "@/features/auth/audit/auth-audit.model";
-
-/** The fields every audit event for one local sign-in attempt shares. */
-type LocalLoginAuditBase = Pick<
-  RecordAuthAuditEventInput,
-  "method" | "identifierHash" | "context"
->;
 
 export class LocalAuthService {
   private readonly logger: Logger;
@@ -83,7 +74,6 @@ export class LocalAuthService {
     private readonly deviceService: DeviceService,
     private readonly emailService: EmailService,
     private readonly cacheService: CacheService,
-    private readonly mfaTotpService: MfaTotpService,
     private readonly usernameBloomService: IdentityBloomService,
     private readonly emailBloomService: IdentityBloomService,
     private readonly authSessionService: AuthSessionService,
@@ -92,6 +82,7 @@ export class LocalAuthService {
     private readonly usernameService: UsernameService,
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
+    private readonly loginMfaService: LoginMfaService,
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -100,11 +91,15 @@ export class LocalAuthService {
    * Every outcome below writes exactly one audit event, before the response or
    * error goes back. The typed username is recorded only as a keyed hash, so an
    * unknown one is still correlatable without being stored.
+   *
+   * An account with an authenticator is refused with a login MFA challenge
+   * instead of a session, unless the deprecated `totpCode` came with the
+   * password.
    */
   async localAuthenticate(
     input: LocalAuthenticateInput,
   ): Promise<AuthSessionResult> {
-    const audit: LocalLoginAuditBase = {
+    const audit: LoginAttemptAuditBase = {
       method: "password",
       identifierHash: this.authAuditService.hashIdentifier(input.username),
       context: input.audit,
@@ -119,17 +114,17 @@ export class LocalAuthService {
     );
 
     if (loginAttemptRecord?.lockedAt) {
-      await this.recordLockedLogin(user, audit);
-      await this.throwLockedLogin(user);
+      await this.loginLockoutService.recordLockedLogin(user, audit);
+      await this.loginLockoutService.throwLockedLogin(user);
     }
 
     if (!user || !isPasswordValid) {
-      await this.recordFailedLoginAttempt(
-        input.username,
+      await this.loginLockoutService.recordFailedLogin({
+        username: input.username,
         user,
-        "bad_credentials",
+        reasonCode: "bad_credentials",
         audit,
-      );
+      });
       throw new UnauthorizedError("Invalid username or password.");
     }
 
@@ -159,43 +154,34 @@ export class LocalAuthService {
       );
     }
 
-    try {
-      await requireLoginMfa(
-        this.mfaTotpService,
-        asUuid(user.id),
-        user.email,
-        input.totpCode,
-      );
-    } catch (error) {
-      if (error instanceof UnauthorizedError) {
-        if (input.totpCode) {
-          await this.recordFailedLoginAttempt(
-            input.username,
-            user,
-            "mfa_invalid",
-            audit,
-          );
-        } else {
-          // The password was right; the client must now ask for a code.
-          await this.authAuditService.recordSafely({
-            ...audit,
-            eventType: "login.mfa_challenged",
-            outcome: "success",
-            reasonCode: "mfa_required",
-            userId: asUuid(user.id),
-          });
-        }
-      }
+    // A pending challenge throws, leaving the attempt record in place until
+    // the code checks out too.
+    const mfa = await this.loginMfaService.evaluateFirstStep({
+      user,
+      method: "password",
+      audit,
+      totpCode: input.totpCode,
+      deviceId: input.deviceId,
+      rememberMe: input.rememberMe,
+    });
 
-      throw error;
+    // A verified code has already cleared it.
+    if (mfa.status === "not_required") {
+      await this.loginLockoutService.clearAttemptRecord(input.username);
     }
-
-    await this.loginLockoutService.clearAttemptRecord(input.username);
 
     const session = await this.authSessionService.authenticateVerifiedUser(
       user,
       input,
     );
+
+    if (mfa.status === "verified") {
+      await this.loginMfaService.recordVerifiedSignIn(
+        user,
+        session,
+        mfa.factor,
+      );
+    }
 
     await this.authAuditService.recordSafely({
       ...audit,
@@ -206,59 +192,6 @@ export class LocalAuthService {
     });
 
     return session;
-  }
-
-  /**
-   * Counts the failure and records it, as `login.failed`, or as the
-   * `login.locked` it turned into when it was the attempt that set the lock.
-   */
-  private async recordFailedLoginAttempt(
-    username: string,
-    user: AuthUserRecord | null,
-    reasonCode: AuthAuditReasonCode,
-    audit: LocalLoginAuditBase,
-  ): Promise<void> {
-    const updatedAttemptRecord =
-      await this.loginLockoutService.recordFailedAttempt(username);
-
-    if (updatedAttemptRecord.lockedAt) {
-      await this.recordLockedLogin(user, audit, {
-        triggered: true,
-        failureReason: reasonCode,
-      });
-      await this.throwLockedLogin(user);
-    }
-
-    await this.authAuditService.recordSafely({
-      ...audit,
-      eventType: "login.failed",
-      outcome: "failure",
-      reasonCode,
-      userId: user ? asUuid(user.id) : null,
-    });
-  }
-
-  private async recordLockedLogin(
-    user: AuthUserRecord | null,
-    audit: LocalLoginAuditBase,
-    metadata?: RecordAuthAuditEventInput["metadata"],
-  ): Promise<void> {
-    await this.authAuditService.recordSafely({
-      ...audit,
-      eventType: "login.locked",
-      outcome: "blocked",
-      reasonCode: "locked",
-      userId: user ? asUuid(user.id) : null,
-      metadata,
-    });
-  }
-
-  private async throwLockedLogin(user: AuthUserRecord | null): Promise<never> {
-    await this.loginLockoutService.sendUnlockCode(user);
-    throw new LockedError(
-      "This sign-in is locked. Use the code we emailed you to unlock it.",
-      this.loginLockoutService.buildLockedLoginDetails(user),
-    );
   }
 
   async localSignup(

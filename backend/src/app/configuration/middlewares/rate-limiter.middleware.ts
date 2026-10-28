@@ -184,6 +184,12 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // The second step of a sign-in takes an authenticator code against a
+  // challenge the first step issued, so it guesses as cheaply as the first.
+  if (request.method === "POST" && pathname === "/auth/login/mfa") {
+    return true;
+  }
+
   // Email change — /confirm accepts a 6-digit code over a 10-minute window, and
   // the request and resend endpoints each send mail to an address the caller
   // supplies. The default 60/min is too loose for all three.

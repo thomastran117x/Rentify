@@ -10,11 +10,22 @@ import type {
   UnlockLocalLoginInput,
 } from "@/features/auth/lockout/login-lockout.model";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type {
+  AuthAuditReasonCode,
+  RecordAuthAuditEventInput,
+} from "@/features/auth/audit/auth-audit.model";
+import LockedError from "@/errors/http/locked.error";
 import { asUuid } from "@/configuration/validation/uuid";
 
 const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
 const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
 export const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
+
+/** The fields every audit event for one sign-in attempt shares. */
+export type LoginAttemptAuditBase = Pick<
+  RecordAuthAuditEventInput,
+  "method" | "identifierHash" | "context"
+>;
 
 /**
  * Throttles local credential guessing by locking an account after repeated
@@ -67,6 +78,60 @@ export class LoginLockoutService {
     );
 
     return nextRecord;
+  }
+
+  /**
+   * Counts the failure and records it, as `failureEventType`, or as the
+   * `login.locked` it turned into when it was the attempt that set the lock.
+   */
+  async recordFailedLogin(input: {
+    username: string;
+    user: AuthUserRecord | null;
+    reasonCode: AuthAuditReasonCode;
+    audit: LoginAttemptAuditBase;
+    failureEventType?: "login.failed" | "oauth.login.failed";
+  }): Promise<void> {
+    const updatedAttemptRecord = await this.recordFailedAttempt(input.username);
+
+    if (updatedAttemptRecord.lockedAt) {
+      await this.recordLockedLogin(input.user, input.audit, {
+        triggered: true,
+        failureReason: input.reasonCode,
+      });
+      await this.throwLockedLogin(input.user);
+    }
+
+    await this.authAuditService.recordSafely({
+      ...input.audit,
+      eventType: input.failureEventType ?? "login.failed",
+      outcome: "failure",
+      reasonCode: input.reasonCode,
+      userId: input.user ? asUuid(input.user.id) : null,
+    });
+  }
+
+  async recordLockedLogin(
+    user: AuthUserRecord | null,
+    audit: LoginAttemptAuditBase,
+    metadata?: RecordAuthAuditEventInput["metadata"],
+  ): Promise<void> {
+    await this.authAuditService.recordSafely({
+      ...audit,
+      eventType: "login.locked",
+      outcome: "blocked",
+      reasonCode: "locked",
+      userId: user ? asUuid(user.id) : null,
+      metadata,
+    });
+  }
+
+  /** Emails the unlock code, then refuses the sign-in. */
+  async throwLockedLogin(user: AuthUserRecord | null): Promise<never> {
+    await this.sendUnlockCode(user);
+    throw new LockedError(
+      "This sign-in is locked. Use the code we emailed you to unlock it.",
+      this.buildLockedLoginDetails(user),
+    );
   }
 
   async clearAttemptRecord(username: string): Promise<void> {

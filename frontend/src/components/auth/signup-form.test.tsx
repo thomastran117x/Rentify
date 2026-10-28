@@ -8,10 +8,15 @@ import {
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupForm } from "./signup-form";
-import { writePersistedAuthPendingFlow } from "@/lib/auth/pending-flow";
+import {
+  clearPersistedAuthPendingFlow,
+  readPersistedAuthPendingFlow,
+  writePersistedAuthPendingFlow,
+} from "@/lib/auth/pending-flow";
 import { ApiClientError, ApiServerError } from "@/lib/auth/types";
 import {
   resetRouterMocks,
+  routerPushMock,
   routerReplaceMock,
 } from "@/test/mocks/next-navigation";
 
@@ -38,6 +43,7 @@ const {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     replace: routerReplaceMock,
+    push: routerPushMock,
   }),
 }));
 
@@ -70,12 +76,32 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
 vi.mock("@/components/auth/oauth-buttons", () => ({
   AuthOAuthButtons: ({
     onSuccess,
+    onMfaRequired,
   }: {
     onSuccess: (session: unknown) => void;
+    onMfaRequired?: (result: unknown) => void;
   }) => (
-    <button type="button" onClick={() => onSuccess(oauthSuccessSessionMock())}>
-      Trigger OAuth success
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onSuccess(oauthSuccessSessionMock())}
+      >
+        Trigger OAuth success
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onMfaRequired?.({
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["totp"],
+            expiresInSeconds: 300,
+          })
+        }
+      >
+        Trigger OAuth MFA
+      </button>
+    </>
   ),
 }));
 
@@ -326,6 +352,23 @@ describe("SignupForm", () => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
     });
     expect(screen.queryByText(/Welcome modal for/)).not.toBeInTheDocument();
+  });
+
+  it("hands an authenticator-protected OAuth sign-in to the sign-in page", async () => {
+    const user = userEvent.setup();
+    clearPersistedAuthPendingFlow();
+
+    render(<SignupForm nextPath="/dashboard" />);
+
+    await user.click(screen.getByRole("button", { name: "Trigger OAuth MFA" }));
+
+    expect(readPersistedAuthPendingFlow()).toMatchObject({
+      flow: "login-mfa",
+      mfaChallengeToken: "challenge-token",
+      method: "oauth",
+    });
+    expect(routerPushMock).toHaveBeenCalledWith("/login?next=%2Fdashboard");
+    clearPersistedAuthPendingFlow();
   });
 
   it("keeps an empty first step from advancing", async () => {

@@ -5,13 +5,18 @@ import ConflictError from "@/errors/http/conflict.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { LocalAuthService } from "@/features/auth/local/local-auth.service";
-import type { AuthUserRecord } from "@/features/auth/auth.model";
+import type {
+  AuthSessionResult,
+  AuthUserRecord,
+} from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { UsernameService } from "@/features/auth/username/username.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
 import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
@@ -572,6 +577,16 @@ function createService(overrides?: {
     authAuditService as any,
   );
 
+  const loginMfaService = new LoginMfaService(
+    authRepository as any,
+    new LoginMfaChallengeStore(cacheService as any),
+    mfaTotpService as any,
+    { recordLoginProof: async () => undefined } as any,
+    authSessionService,
+    loginLockoutService,
+    authAuditService as any,
+  );
+
   const service = new LocalAuthService(
     authRepository as any,
     tokenService as any,
@@ -579,7 +594,6 @@ function createService(overrides?: {
     deviceService as any,
     emailService as any,
     cacheService as any,
-    mfaTotpService as any,
     usernameBloomService as any,
     emailBloomService as any,
     authSessionService,
@@ -588,6 +602,7 @@ function createService(overrides?: {
     usernameService,
     loginLockoutService,
     authAuditService as any,
+    loginMfaService,
   );
 
   return service;
@@ -754,14 +769,14 @@ describe("LocalAuthService", () => {
         rememberMe ? 2_592_000 : 86_400,
     });
 
-    const session = await service.localAuthenticate({
+    const session = (await service.localAuthenticate({
       client: createClient(),
       audit: AUDIT_CONTEXT,
       username: user.profile.username,
       password: "CorrectHorseBatteryStaple1!",
       rememberMe: true,
       deviceId: DEVICE_1_ID,
-    });
+    })) as AuthSessionResult;
 
     expect(session.refreshToken).toBe("refresh-token-remembered");
     expect(session.refreshTokenExpiresInSeconds).toBe(2_592_000);
@@ -905,11 +920,13 @@ describe("LocalAuthService", () => {
         deviceId: DEVICE_1_ID,
       }),
     ).rejects.toMatchObject({
+      status: 401,
       message: "Authenticator code is required.",
+      details: { mfaRequired: true, availableFactors: ["totp"] },
     });
   });
 
-  it("does not count or clear the missing-code login MFA challenge", async () => {
+  it("issues a challenge without counting or clearing the attempt record", async () => {
     const user = {
       ...createUser(),
       passwordHash: FAST_TEST_PASSWORD_HASH,
@@ -933,14 +950,35 @@ describe("LocalAuthService", () => {
         audit: AUDIT_CONTEXT,
         username: user.profile.username,
         password: "CorrectHorseBatteryStaple1!",
+        rememberMe: true,
         deviceId: DEVICE_1_ID,
       }),
     ).rejects.toMatchObject({
       status: 401,
-      details: { mfaRequired: true },
+      code: "UNAUTHORIZED",
+      details: {
+        mfaRequired: true,
+        mfaChallengeToken: expect.any(String),
+        availableFactors: ["totp"],
+        expiresInSeconds: 300,
+      },
     });
 
-    expect(cacheSetJson).not.toHaveBeenCalled();
+    expect(cacheSetJson).toHaveBeenCalledTimes(1);
+    expect(cacheSetJson).toHaveBeenCalledWith(
+      expect.stringMatching(/^auth:login-mfa:[0-9a-f]{64}$/),
+      {
+        userId: user.id,
+        method: "password",
+        username: user.profile.username,
+        identifierHash: expect.any(String),
+        deviceId: DEVICE_1_ID,
+        rememberMe: true,
+        tokenVersion: user.tokenVersion,
+        createdAt: expect.any(String),
+      },
+      300,
+    );
     expect(cacheDelete).not.toHaveBeenCalled();
   });
 
@@ -1151,7 +1189,9 @@ describe("LocalAuthService", () => {
         deviceId: DEVICE_1_ID,
       }),
     ).rejects.toMatchObject({
+      status: 401,
       message: "Authenticator code is required.",
+      details: { mfaRequired: true, availableFactors: ["totp"] },
     });
   });
 
@@ -1639,7 +1679,7 @@ describe("LocalAuthService.localAuthenticate audit events", () => {
   it("records a successful sign-in with its session", async () => {
     const { events, service } = createAudited();
 
-    const session = await attempt(service);
+    const session = (await attempt(service)) as AuthSessionResult;
 
     expect(events).toEqual([
       {

@@ -81,6 +81,18 @@ const oauthSignupRequiredExample = {
   signupToken: "opaque-signup-token",
   expiresInSeconds: 600,
 };
+const loginMfaRequiredExample = {
+  mfaRequired: true,
+  mfaChallengeToken: "opaque-mfa-challenge-token",
+  availableFactors: ["totp"],
+  expiresInSeconds: 300,
+};
+const totpCodeDeprecatedProperty = {
+  type: "string",
+  deprecated: true,
+  description:
+    "Deprecated: the authenticator code sent together with the first step. Still accepted, and a wrong one counts towards the lockout. Omit it and finish through POST /auth/login/mfa instead.",
+};
 const organizationSummaryExample = {
   id: "org-1",
   slug: "northwind",
@@ -1608,6 +1620,63 @@ function accountStatusSignInErrors(): Record<string, unknown> {
   };
 }
 
+/**
+ * The 401 of a sign-in's first step: the credentials were wrong, or they
+ * passed and the account needs an authenticator code. The second carries a
+ * login MFA challenge in `details` for POST /auth/login/mfa; clients that
+ * predate it can still send the credentials again with `totpCode`.
+ */
+function signInUnauthorizedResponse(credentialsExample: {
+  summary: string;
+  message: string;
+  code: string;
+}): Record<string, unknown> {
+  const examples = errorResponseExamples(
+    "The credentials were rejected, or the account needs an authenticator code.",
+    {
+      credentials: credentialsExample,
+      mfaRequired: {
+        summary:
+          "The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.",
+        message: "Authenticator code is required.",
+        code: "UNAUTHORIZED",
+        details: loginMfaRequiredExample,
+      },
+    },
+  );
+  const content = examples.content as Record<string, Record<string, unknown>>;
+
+  return {
+    ...examples,
+    content: {
+      "application/json": {
+        ...content["application/json"],
+        schema: {
+          allOf: [
+            schemaRef("ApiErrorEnvelope"),
+            {
+              type: "object",
+              properties: {
+                error: {
+                  type: "object",
+                  properties: {
+                    details: {
+                      anyOf: [
+                        schemaRef("LoginMfaRequiredDetails"),
+                        { type: "object", additionalProperties: true },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
 function commonErrors(
   statuses: Array<
     400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503
@@ -1826,7 +1895,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "localLogin",
       summary: "Authenticate with username and password",
       description:
-        "Creates an authenticated session with local credentials. Five combined invalid password or supplied authenticator-code attempts within 15 minutes lock the username for 30 minutes; an omitted authenticator code that requests the MFA challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -1850,11 +1919,104 @@ function buildOperations(): OperationDefinition[] {
           authSessionExample,
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
+        "401": signInUnauthorizedResponse({
+          summary: "The username or password is wrong.",
+          message: "Invalid username or password.",
+          code: "UNAUTHORIZED",
+        }),
         "403": errorResponseExamples(
           "Forbidden, or the account is suspended.",
           {
             forbidden: forbiddenErrorExample,
             accountSuspended: accountSuspendedErrorExample,
+          },
+        ),
+        "423": errorResponseExamples(
+          "The sign-in is locked, or the account is on a security hold.",
+          {
+            loginLockout: {
+              summary:
+                "Too many failed attempts; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+            securityHold: securityHoldErrorExample,
+          },
+        ),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/login/mfa",
+      operationId: "completeLoginMfa",
+      summary: "Finish a sign-in with a second factor",
+      description:
+        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("LoginMfaRequest", {
+        mfaChallengeToken: "opaque-mfa-challenge-token",
+        factor: "totp",
+        code: "123456",
+        deviceId: "device-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticated successfully.",
+          "AuthSessionResponseData",
+          authSessionExample,
+        ),
+        ...commonErrors([429, 500]),
+        "400": errorResponseExamples(
+          "The request is invalid, or the code is wrong.",
+          {
+            validation: {
+              summary: "The body failed validation.",
+              message: "Request body validation failed.",
+              code: "VALIDATION_ERROR",
+              details: { code: ["Code is required."] },
+            },
+            invalidCode: {
+              summary: "The authenticator code is wrong or was already used.",
+              message: "The authenticator code is incorrect.",
+              code: "INVALID_MFA_CODE",
+            },
+          },
+        ),
+        "401": errorResponseExamples(
+          "The challenge cannot be used; sign in again.",
+          {
+            challengeInvalid: {
+              summary:
+                "Unknown, expired, already used, voided, or from another device.",
+              message: "This sign-in has expired. Sign in again to continue.",
+              code: "MFA_CHALLENGE_INVALID",
+            },
+          },
+        ),
+        "403": errorResponseExamples("The account is suspended.", {
+          accountSuspended: accountSuspendedErrorExample,
+        }),
+        "409": errorResponseExamples(
+          "Another request is verifying the same challenge.",
+          {
+            inProgress: {
+              summary: "A concurrent request holds the challenge.",
+              message: "This sign-in is already being verified.",
+              code: "CONFLICT",
+            },
           },
         ),
         "423": errorResponseExamples(
@@ -2578,7 +2740,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "googleAuthenticate",
       summary: "Authenticate with Google OAuth",
       description:
-        "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.",
+        "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately, unless the account has an authenticator app: then the API returns 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2611,6 +2773,11 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": signInUnauthorizedResponse({
+          summary: "The provider token could not be verified.",
+          message: "Google ID token is missing required claims.",
+          code: "UNAUTHORIZED",
+        }),
         ...accountStatusSignInErrors(),
       },
     },
@@ -2620,7 +2787,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "microsoftAuthenticate",
       summary: "Authenticate with Microsoft OAuth",
       description:
-        "Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow.",
+        "Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2649,6 +2816,11 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": signInUnauthorizedResponse({
+          summary: "The provider token could not be verified.",
+          message: "Microsoft ID token is missing required claims.",
+          code: "UNAUTHORIZED",
+        }),
         ...accountStatusSignInErrors(),
       },
     },
@@ -2658,7 +2830,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "appleAuthenticate",
       summary: "Authenticate with Apple OAuth",
       description:
-        "Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName.",
+        "Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2687,6 +2859,11 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": signInUnauthorizedResponse({
+          summary: "The provider token could not be verified.",
+          message: "Apple ID token is missing required claims.",
+          code: "UNAUTHORIZED",
+        }),
         ...accountStatusSignInErrors(),
       },
     },
@@ -11083,6 +11260,46 @@ function buildComponents(): Record<string, unknown> {
           expiresInSeconds: { type: "integer", enum: [600] },
         },
       },
+      LoginMfaRequiredDetails: {
+        description:
+          "error.details of the 401 a sign-in's first step returns when the account needs an authenticator code.",
+        type: "object",
+        required: [
+          "mfaRequired",
+          "mfaChallengeToken",
+          "availableFactors",
+          "expiresInSeconds",
+        ],
+        properties: {
+          mfaRequired: { type: "boolean", enum: [true] },
+          mfaChallengeToken: {
+            type: "string",
+            description:
+              "Opaque, single-use token for POST /auth/login/mfa. Bound to the user, sign-in method and device that started the sign-in.",
+          },
+          availableFactors: {
+            type: "array",
+            items: { type: "string", enum: ["totp"] },
+            description:
+              "The factors the sign-in can be finished with. New factors may be added.",
+          },
+          expiresInSeconds: { type: "integer", enum: [300] },
+        },
+      },
+      LoginMfaRequest: {
+        type: "object",
+        required: ["mfaChallengeToken", "factor", "code"],
+        properties: {
+          mfaChallengeToken: { type: "string" },
+          factor: { type: "string", enum: ["totp"] },
+          code: { type: "string", description: "The authenticator code." },
+          deviceId: {
+            type: "string",
+            description:
+              "Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.",
+          },
+        },
+      },
       SessionVerificationResult: {
         type: "object",
         additionalProperties: true,
@@ -11500,6 +11717,7 @@ function buildComponents(): Record<string, unknown> {
           captchaToken: { type: "string" },
           rememberMe: { type: "boolean" },
           deviceId: { type: "string" },
+          totpCode: totpCodeDeprecatedProperty,
         },
       },
       LocalSignupRequest: {
@@ -11664,6 +11882,7 @@ function buildComponents(): Record<string, unknown> {
           deviceId: { type: "string" },
           firstName: { type: "string" },
           lastName: { type: "string" },
+          totpCode: totpCodeDeprecatedProperty,
           dateOfBirth: {
             type: "string",
             format: "date",

@@ -196,6 +196,42 @@ describe("MfaVerificationService", () => {
     });
   });
 
+  it("records a completed sign-in's factor as the session's device-login proof", async () => {
+    const { service, cache } = createService({
+      securityContext: createSecurityContext({
+        mfaTotp: {
+          status: "active",
+          updatedAt: "2026-06-27T15:00:00.000Z",
+          confirmedAt: "2026-06-27T15:00:00.000Z",
+        },
+      }),
+    });
+
+    await service.recordLoginProof({
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      factor: "totp",
+    });
+
+    expect(cache.service.setJson).toHaveBeenCalledWith(
+      "auth:mfa-proof:session-1:device-login",
+      expect.objectContaining({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        scope: MFA_DEVICE_LOGIN_SCOPE,
+        factor: "totp",
+      }),
+      900,
+    );
+    await expect(
+      service.getOptions({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        scope: MFA_DEVICE_LOGIN_SCOPE,
+      }),
+    ).resolves.toMatchObject({ verified: true });
+  });
+
   it("treats allowlisted users as already verified in getOptions", async () => {
     const { service } = createService({
       securityContext: createSecurityContext({

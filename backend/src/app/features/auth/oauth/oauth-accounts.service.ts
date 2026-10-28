@@ -11,12 +11,11 @@ import type {
 } from "@/features/auth/auth.model";
 import { isLocalPasswordAccount } from "@/features/auth/local-account-eligibility";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
-import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
 } from "@/features/auth/account-status/account-status.guard";
-import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { AppleOAuthService } from "@/features/auth/oauth/apple.service";
 import { GoogleOAuthService } from "@/features/auth/oauth/google.service";
 import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
@@ -61,10 +60,10 @@ export class OAuthAccountsService {
     private readonly usernameBloomService: IdentityBloomService,
     private readonly emailBloomService: IdentityBloomService,
     private readonly usernameService: UsernameService,
-    private readonly mfaTotpService: MfaTotpService,
     private readonly authSessionService: AuthSessionService,
     private readonly oauthSignupStore: OAuthSignupStore,
     private readonly authAuditService: AuthAuditService,
+    private readonly loginMfaService: LoginMfaService,
   ) {}
 
   async googleAuthenticate(
@@ -315,6 +314,10 @@ export class OAuthAccountsService {
     );
 
     if (linkedUser) {
+      const identifierHash = this.authAuditService.hashIdentifier(
+        profile.email,
+      );
+
       // The provider has proven who this is, so the status can be revealed.
       if (linkedUser.status !== "active") {
         await this.recordOAuthFailure({
@@ -322,38 +325,37 @@ export class OAuthAccountsService {
           outcome: "blocked",
           method: profile.provider,
           userId: asUuid(linkedUser.id),
-          identifierHash: this.authAuditService.hashIdentifier(profile.email),
+          identifierHash,
           context: input.audit,
         });
         assertAccountIsActive(linkedUser);
       }
 
-      try {
-        await requireLoginMfa(
-          this.mfaTotpService,
-          asUuid(linkedUser.id),
-          linkedUser.email,
-          input.totpCode,
-        );
-      } catch (error) {
-        if (error instanceof UnauthorizedError) {
-          const details = error.details as
-            | { mfaRequired?: boolean }
-            | undefined;
-          await this.recordOAuthFailure({
-            reasonCode: details?.mfaRequired ? "mfa_required" : "mfa_invalid",
-            method: profile.provider,
-            userId: asUuid(linkedUser.id),
-            identifierHash: this.authAuditService.hashIdentifier(profile.email),
-            context: input.audit,
-          });
-        }
-        throw error;
-      }
+      // The provider proved who this is; the authenticator still has to.
+      const mfa = await this.loginMfaService.evaluateFirstStep({
+        user: linkedUser,
+        method: profile.provider,
+        audit: {
+          method: profile.provider,
+          identifierHash,
+          context: input.audit,
+        },
+        totpCode: input.totpCode,
+        deviceId: input.deviceId,
+        rememberMe: input.rememberMe,
+      });
+
       const session = await this.authSessionService.authenticateVerifiedUser(
         linkedUser,
         input,
       );
+      if (mfa.status === "verified") {
+        await this.loginMfaService.recordVerifiedSignIn(
+          linkedUser,
+          session,
+          mfa.factor,
+        );
+      }
       await this.recordOAuthSuccess(
         "oauth.login.succeeded",
         linkedUser,

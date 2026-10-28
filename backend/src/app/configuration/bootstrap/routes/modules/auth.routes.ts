@@ -1,6 +1,7 @@
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { environment } from "@/configuration/environment";
 import type { LocalAuthController } from "@/features/auth/local/local-auth.controller";
+import type { LoginMfaController } from "@/features/auth/mfa/login/login-mfa.controller";
 import type { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { AuthAuditController } from "@/features/auth/audit/auth-audit.controller";
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
@@ -24,6 +25,13 @@ export const authLocalRouteModule: RouteModule = {
       resolveHandler<LocalAuthController>(
         containerTokens.localAuthController,
         "localAuthenticate",
+      ),
+    );
+    app.post(
+      "/auth/login/mfa",
+      resolveHandler<LoginMfaController>(
+        containerTokens.loginMfaController,
+        "completeLoginMfa",
       ),
     );
     app.post(

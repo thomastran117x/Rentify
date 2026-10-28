@@ -53,17 +53,18 @@ network failures do not display request IDs. There is no separate trace ID.
 ## Authentication Security
 
 Local sign-in failures are tracked in Redis by normalized username. Five
-combined invalid-password or supplied-invalid-TOTP attempts within 15 minutes
-lock that username for 30 minutes. While the lock is active, every local login
-attempt returns `423 ACCOUNT_LOCKED`, even when the password and authenticator
-code are correct, and no session is issued.
+combined invalid-password or invalid-authenticator-code attempts within 15
+minutes lock that username for 30 minutes. While the lock is active, every
+local login attempt returns `423 ACCOUNT_LOCKED`, even when the password and
+authenticator code are correct, and no session is issued.
 
-The first MFA round trip, where the password is correct but no TOTP code was
-supplied, returns an `mfaRequired` challenge and does not count as a failure.
-The failure record is cleared only after the password, email-verification, and
-login MFA checks all succeed. Unknown usernames use the same schedule and a
-timing-safe dummy password hash so the lockout behavior does not disclose
-whether an account exists.
+When the password is correct but the account needs an authenticator code,
+the response is a login MFA challenge (see
+[Signing In With an Authenticator App](#signing-in-with-an-authenticator-app)).
+Issuing it does not count as a failure. The failure record is cleared only
+after the password, email-verification, and login MFA checks all succeed.
+Unknown usernames use the same schedule and a timing-safe dummy password hash
+so the lockout behavior does not disclose whether an account exists.
 
 A locked user can recover with the emailed code through
 `POST /auth/local/unlock`; successful verification clears the shared failure
@@ -150,6 +151,63 @@ See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
 [Account Status](./auth-security.md#account-status),
 [Locking Your Own Account](./auth-security.md#locking-your-own-account) and
 [Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection).
+
+### Signing In With an Authenticator App
+
+When the account has an authenticator app, a correct password (or a verified
+Google, Microsoft or Apple sign-in) is refused with the same
+`401 UNAUTHORIZED` and `details.mfaRequired` it has always returned. The
+details now also carry a login MFA challenge:
+
+```json
+{
+  "success": false,
+  "message": "Authenticator code is required.",
+  "error": {
+    "code": "UNAUTHORIZED",
+    "details": {
+      "mfaRequired": true,
+      "mfaChallengeToken": "opaque-token",
+      "availableFactors": ["totp"],
+      "expiresInSeconds": 300
+    }
+  }
+}
+```
+
+The client finishes with `POST /auth/login/mfa`, sending
+`{ "mfaChallengeToken", "factor": "totp", "code", "deviceId" }`. That returns
+the usual session response. The client never sends the password or the
+provider token again. A client written before the challenge existed can still
+ignore it and send the credentials again with `totpCode`.
+
+- **Lifetime.** The challenge lasts five minutes. It is single-use: the
+  sign-in it completes deletes it, and a concurrent second attempt gets `409`.
+- **Binding.** The challenge belongs to the user, sign-in method and device
+  that started it. Send the same `deviceId` as the first step. A challenge
+  that is unknown, expired, already used, sent from another device, or voided
+  by a password change or sign-out-everywhere returns
+  `401 MFA_CHALLENGE_INVALID`, and the client starts again.
+- **Wrong codes.** A wrong code returns `400 INVALID_MFA_CODE` and counts
+  towards the username lockout described earlier, whichever way the sign-in
+  started. The fifth locks the username, which also voids the challenge. A
+  locked username gets `423 ACCOUNT_LOCKED` from this step even with a
+  correct code.
+- **New devices.** The code that completes the sign-in also counts as the
+  `device-login` step-up for the new session, so the new-device check does
+  not ask for a second code.
+
+`totpCode` on `/auth/local/login` and `/auth/oauth/*` is **deprecated**. It is
+still accepted for API clients that send the code together with the first
+step. A wrong one still counts towards the lockout, and a correct one clears
+it, for social sign-ins too.
+
+Locally, almost every seeded account is on `auth.mfaBypassEmails` in
+`backend/config/development.yml` and never sees this step. `totp-one`
+(`totp1@rentify.local`, `Rentify123!`) is seeded off that list for trying it:
+enroll an authenticator app from **Account → Security**, sign out, and sign in
+again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
+same and removes the authenticator afterwards.
 
 ## Realtime Surfaces
 

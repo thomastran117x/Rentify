@@ -24,6 +24,7 @@ import { FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
+  createLoginMfaPendingFlow,
   usePersistedAuthPendingFlow,
   writePersistedAuthPendingFlow,
 } from "@/lib/auth/pending-flow";
@@ -535,6 +536,14 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
             onSuccess={handleOAuthSuccess}
             onError={setGeneralError}
             onSignupRequired={setOAuthSignupPending}
+            onMfaRequired={(result) => {
+              // An existing account signed in from the signup page. The code
+              // step lives on the sign-in page, which picks the flow up.
+              writePersistedAuthPendingFlow(
+                createLoginMfaPendingFlow(result, "oauth"),
+              );
+              router.push(`/login?next=${encodeURIComponent(nextPath)}`);
+            }}
           />
 
           <div className="flex items-center gap-3">

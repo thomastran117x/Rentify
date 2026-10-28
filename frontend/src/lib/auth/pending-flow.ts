@@ -3,6 +3,11 @@
 import { useSyncExternalStore } from "react";
 import type { MfaVerificationChallengeFactor } from "@/lib/auth/mfa-verification-api";
 import { safeNextPath } from "@/lib/auth/next-path";
+import {
+  LOGIN_MFA_FACTORS,
+  type LoginMfaChallenge,
+  type LoginMfaFactor,
+} from "@/lib/auth/types";
 
 const AUTH_PENDING_FLOW_STORAGE_KEY = "rentify.auth.pending-flow";
 const AUTH_PENDING_FLOW_EVENT = "rentify-auth-pending-flow-storage";
@@ -31,11 +36,51 @@ export interface DeviceLoginMfaPendingFlow {
   challengeSent: boolean;
 }
 
+/**
+ * A sign-in waiting for its authenticator code. Kept so a refresh returns to
+ * the code step; it holds the challenge token, never the password.
+ */
+export interface LoginMfaPendingFlow {
+  flow: "login-mfa";
+  mfaChallengeToken: string;
+  availableFactors: LoginMfaFactor[];
+  factor: LoginMfaFactor;
+  /** How the first step signed in, which decides what happens after. */
+  method: "password" | "oauth";
+  expiresAt: string;
+}
+
 export type PersistedAuthPendingFlow =
   | SignupVerificationPendingFlow
   | ForgotPasswordResetPendingFlow
   | LoginUnlockPendingFlow
-  | DeviceLoginMfaPendingFlow;
+  | DeviceLoginMfaPendingFlow
+  | LoginMfaPendingFlow;
+
+function isLoginMfaFactor(value: unknown): value is LoginMfaFactor {
+  return (LOGIN_MFA_FACTORS as readonly unknown[]).includes(value);
+}
+
+/**
+ * Where to go afterwards is not stored: it comes from the sign-in page's
+ * `next` parameter, which every entry to the code step keeps.
+ */
+export function createLoginMfaPendingFlow(
+  challenge: LoginMfaChallenge,
+  method: LoginMfaPendingFlow["method"],
+  now = Date.now(),
+): LoginMfaPendingFlow {
+  const availableFactors = challenge.availableFactors.filter(isLoginMfaFactor);
+
+  return {
+    flow: "login-mfa",
+    mfaChallengeToken: challenge.mfaChallengeToken,
+    availableFactors,
+    factor: availableFactors[0] ?? "totp",
+    method,
+    expiresAt: new Date(now + challenge.expiresInSeconds * 1000).toISOString(),
+  };
+}
 
 let cachedRawPendingFlow: string | null | undefined;
 let cachedParsedPendingFlow: PersistedAuthPendingFlow | null | undefined;
@@ -120,6 +165,32 @@ export function parsePendingFlow(
         };
       }
       return null;
+
+    case "login-mfa": {
+      const availableFactors = Array.isArray(value.availableFactors)
+        ? value.availableFactors.filter(isLoginMfaFactor)
+        : [];
+
+      if (
+        isNonEmptyString(value.mfaChallengeToken) &&
+        availableFactors.length > 0 &&
+        isLoginMfaFactor(value.factor) &&
+        availableFactors.includes(value.factor) &&
+        (value.method === "password" || value.method === "oauth") &&
+        isNonEmptyString(value.expiresAt) &&
+        !Number.isNaN(Date.parse(value.expiresAt))
+      ) {
+        return {
+          flow: "login-mfa",
+          mfaChallengeToken: value.mfaChallengeToken,
+          availableFactors,
+          factor: value.factor,
+          method: value.method,
+          expiresAt: value.expiresAt,
+        };
+      }
+      return null;
+    }
 
     default:
       return null;

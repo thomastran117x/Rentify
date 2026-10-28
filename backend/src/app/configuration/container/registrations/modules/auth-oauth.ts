@@ -64,10 +64,10 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
         containerTokens.usernameBloomService,
         containerTokens.emailBloomService,
         containerTokens.usernameService,
-        containerTokens.mfaTotpService,
         containerTokens.authSessionService,
         containerTokens.oauthSignupStore,
         containerTokens.authAuditService,
+        containerTokens.loginMfaService,
       ],
       resolve: ({ resolve }) =>
         new OAuthAccountsService(
@@ -79,10 +79,10 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.usernameBloomService),
           resolve(containerTokens.emailBloomService),
           resolve(containerTokens.usernameService),
-          resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.authSessionService),
           resolve(containerTokens.oauthSignupStore),
           resolve(containerTokens.authAuditService),
+          resolve(containerTokens.loginMfaService),
         ),
     });
     container.register({
