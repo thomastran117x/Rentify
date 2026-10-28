@@ -49,6 +49,10 @@ export function createApplication(): Express {
   app.set("case sensitive routing", true);
   app.set("strict routing", true);
 
+  // First, on the app rather than the API router, so every response carries
+  // the headers: CORS preflights, CSRF 403s, 429s and the 404 below included.
+  app.use(securityHeadersMiddleware);
+
   const api = express.Router({ caseSensitive: true, strict: true });
   app.use(getApiRoutePrefix(), api);
 
@@ -68,7 +72,6 @@ export function createApplication(): Express {
   api.use(outputFormatMiddleware);
   // After outputFormatMiddleware: it wraps the res.json that one installs.
   api.use(imageVariantsMiddleware);
-  api.use(securityHeadersMiddleware);
   api.use(httpLoggingMiddleware);
 
   // Body parsing sits last, immediately before the routes: under Hono the body

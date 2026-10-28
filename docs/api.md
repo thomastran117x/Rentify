@@ -38,6 +38,15 @@ Most JSON responses use the shared envelope below:
 }
 ```
 
+## Security Headers
+
+Every response carries `Content-Security-Policy`, `Permissions-Policy`,
+`Referrer-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`
+and `X-Permitted-Cross-Domain-Policies`, plus `Strict-Transport-Security` in
+production. `securityHeadersMiddleware` is mounted on the app ahead of every
+other middleware, so CORS preflights, CSRF `403`s, `429`s and `404`s carry them
+too.
+
 ## Reporting Server Errors
 
 For HTTP 500–599 failures, client error messages include `Request ID: <id>` when

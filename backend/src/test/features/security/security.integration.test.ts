@@ -35,6 +35,16 @@ describe("Security middleware persistence integration", () => {
     );
   }
 
+  function expectSecurityHeaders(response: Response): void {
+    expect(response.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    );
+    expect(response.headers.get("permissions-policy")).toContain("camera=()");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+  }
+
   function readCookieValue(header: string, name: string): string {
     return header.match(new RegExp(`${name}=([^;]+)`))?.[1] ?? "";
   }
@@ -96,10 +106,26 @@ describe("Security middleware persistence integration", () => {
     });
 
     expect(response.status).toBe(403);
+    expectSecurityHeaders(response);
     await expect(response.json()).resolves.toMatchObject({
       success: false,
       error: { code: "FORBIDDEN" },
     });
+  });
+
+  it("sends the security headers on a CORS preflight", async () => {
+    const response = await request("/auth/local/login", {
+      method: "OPTIONS",
+      headers: {
+        origin: ORIGIN,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expectSecurityHeaders(response);
   });
 
   it("accepts a cookie-backed refresh from a trusted origin", async () => {
@@ -146,6 +172,7 @@ describe("Security middleware persistence integration", () => {
 
   it("rate limits repeated sign-in attempts from one client", async () => {
     const statuses: number[] = [];
+    let limited: Response | undefined;
 
     for (let attempt = 0; attempt < 40; attempt++) {
       const response = await request("/auth/local/login", {
@@ -165,11 +192,13 @@ describe("Security middleware persistence integration", () => {
 
       statuses.push(response.status);
       if (response.status === 429) {
+        limited = response;
         break;
       }
     }
 
     expect(statuses).toContain(429);
+    expectSecurityHeaders(limited!);
   }, 180_000);
 
   it("rejects an invalid bearer token on a protected route", async () => {
