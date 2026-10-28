@@ -355,7 +355,7 @@ paths:
     post:
       operationId: completeLoginMfa
       summary: Finish a sign-in with a second factor
-      description: Completes a password or social sign-in that answered 202 with a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; five wrong codes also use up the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.
+      description: Completes a password or social sign-in that answered 202 with a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.
       tags:
         - auth
       x-rentify-permissions:

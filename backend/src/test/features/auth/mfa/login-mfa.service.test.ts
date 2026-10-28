@@ -3,16 +3,14 @@ import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import LockedError from "@/errors/http/locked.error";
 import LoginMfaChallengeInvalidError from "@/errors/http/login-mfa-challenge-invalid.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { environment } from "@/configuration/environment";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import type {
   CompleteLoginMfaInput,
   LoginMfaChallengeRecord,
 } from "@/features/auth/mfa/login/login-mfa.model";
-import {
-  LoginMfaService,
-  MAX_LOGIN_MFA_CHALLENGE_ATTEMPTS,
-} from "@/features/auth/mfa/login/login-mfa.service";
+import { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import { createSessionResult } from "../../../support/auth-controller-harness";
 import { testUuid } from "../../../support/uuid";
 
@@ -63,7 +61,6 @@ function createChallenge(
     deviceId: "device-1",
     rememberMe: true,
     tokenVersion: 1,
-    failedAttempts: 0,
     createdAt: "2026-10-27T00:00:00.000Z",
     ...overrides,
   };
@@ -102,9 +99,12 @@ function createHarness(
   const loginMfaChallengeStore = {
     acquireCompletionLock: jest.fn(async () => lock as typeof lock | null),
     read: jest.fn(async (token: string) => challenges.get(token) ?? null),
-    update: jest.fn(async (token: string, record: LoginMfaChallengeRecord) => {
-      challenges.set(token, record);
-    }),
+    issue: jest.fn(async () => ({
+      mfaRequired: true as const,
+      mfaChallengeToken: "new-challenge-token",
+      availableFactors: ["totp" as const],
+      expiresInSeconds: 300,
+    })),
     delete: jest.fn(async (token: string) => {
       challenges.delete(token);
     }),
@@ -114,7 +114,10 @@ function createHarness(
       options.user === undefined ? createUser() : options.user,
     ),
   };
-  const mfaTotpService = { verifyCode: jest.fn(async () => undefined) };
+  const mfaTotpService = {
+    isEnabled: jest.fn(async () => true),
+    verifyCode: jest.fn(async () => undefined),
+  };
   const mfaVerificationService = {
     recordLoginProof: jest.fn(async () => undefined),
   };
@@ -321,7 +324,7 @@ describe("LoginMfaService.completeLoginMfa", () => {
     expect(harness.loginLockoutService.recordLockedLogin).toHaveBeenCalled();
   });
 
-  it("counts a wrong code against the challenge and the username lockout", async () => {
+  it("counts a wrong code against the username lockout and keeps the challenge", async () => {
     const harness = createHarness({
       challenge: createChallenge({ method: "apple" }),
     });
@@ -333,7 +336,7 @@ describe("LoginMfaService.completeLoginMfa", () => {
       harness.service.completeLoginMfa(createInput({ code: "000000" })),
     ).rejects.toBeInstanceOf(InvalidMfaCodeError);
 
-    expect(harness.challenges.get(TOKEN)?.failedAttempts).toBe(1);
+    expect(harness.challenges.has(TOKEN)).toBe(true);
     expect(harness.loginLockoutService.recordFailedLogin).toHaveBeenCalledWith({
       username: "test-user",
       user: expect.objectContaining({ id: USER_1_ID }),
@@ -353,24 +356,6 @@ describe("LoginMfaService.completeLoginMfa", () => {
     ).not.toHaveBeenCalled();
   });
 
-  it("uses up the challenge after the last allowed wrong code", async () => {
-    const harness = createHarness({
-      challenge: createChallenge({
-        failedAttempts: MAX_LOGIN_MFA_CHALLENGE_ATTEMPTS - 1,
-      }),
-    });
-    harness.mfaTotpService.verifyCode.mockRejectedValue(
-      new UnauthorizedError("MFA verification failed."),
-    );
-
-    await expect(
-      harness.service.completeLoginMfa(createInput()),
-    ).rejects.toBeInstanceOf(InvalidMfaCodeError);
-
-    expect(harness.challenges.has(TOKEN)).toBe(false);
-    expect(harness.loginMfaChallengeStore.update).not.toHaveBeenCalled();
-  });
-
   it("voids the challenge when the wrong code sets the lock", async () => {
     const harness = createHarness();
     harness.mfaTotpService.verifyCode.mockRejectedValue(
@@ -385,6 +370,7 @@ describe("LoginMfaService.completeLoginMfa", () => {
     ).rejects.toBeInstanceOf(LockedError);
 
     expect(harness.challenges.has(TOKEN)).toBe(false);
+    expect(harness.loginMfaChallengeStore.delete).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the challenge when recording the failure fails for another reason", async () => {
@@ -400,7 +386,7 @@ describe("LoginMfaService.completeLoginMfa", () => {
       harness.service.completeLoginMfa(createInput()),
     ).rejects.toThrow("redis unavailable");
 
-    expect(harness.challenges.get(TOKEN)?.failedAttempts).toBe(1);
+    expect(harness.challenges.has(TOKEN)).toBe(true);
   });
 
   it("does not count an error that is not a rejected code", async () => {
@@ -416,7 +402,7 @@ describe("LoginMfaService.completeLoginMfa", () => {
     expect(
       harness.loginLockoutService.recordFailedLogin,
     ).not.toHaveBeenCalled();
-    expect(harness.challenges.get(TOKEN)?.failedAttempts).toBe(0);
+    expect(harness.challenges.has(TOKEN)).toBe(true);
   });
 
   it("still signs in when the device-login proof cannot be written", async () => {
@@ -441,5 +427,183 @@ describe("LoginMfaService.completeLoginMfa", () => {
     expect(
       harness.mfaVerificationService.recordLoginProof,
     ).not.toHaveBeenCalled();
+  });
+});
+
+describe("LoginMfaService.evaluateFirstStep", () => {
+  const audit = {
+    method: "password" as const,
+    identifierHash: "hash:test-user",
+    context: AUDIT_CONTEXT,
+  };
+
+  function evaluate(
+    harness: ReturnType<typeof createHarness>,
+    overrides: Partial<
+      Parameters<LoginMfaService["evaluateFirstStep"]>[0]
+    > = {},
+  ) {
+    return harness.service.evaluateFirstStep({
+      user: createUser(),
+      method: "password",
+      audit,
+      deviceId: "device-1",
+      rememberMe: true,
+      ...overrides,
+    });
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("needs nothing from an account without an authenticator", async () => {
+    const harness = createHarness();
+    harness.mfaTotpService.isEnabled.mockResolvedValue(false);
+    harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+    await expect(evaluate(harness)).resolves.toEqual({
+      status: "not_required",
+    });
+    // The lock guards code guessing, so an account without a code skips it.
+    expect(harness.loginLockoutService.isLocked).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+  });
+
+  it("skips everything for a bypass-eligible address, lock included", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      mfaBypassEmails: ["bypass@rentify.local"],
+    });
+    const harness = createHarness();
+    harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+    await expect(
+      evaluate(harness, {
+        user: createUser({ email: "bypass@rentify.local" }),
+      }),
+    ).resolves.toEqual({ status: "not_required" });
+    expect(harness.mfaTotpService.isEnabled).not.toHaveBeenCalled();
+    expect(harness.loginLockoutService.isLocked).not.toHaveBeenCalled();
+  });
+
+  it("issues a challenge and records it as a successful first step", async () => {
+    const harness = createHarness();
+
+    await expect(
+      evaluate(harness, {
+        method: "google",
+        audit: { ...audit, method: "google" },
+      }),
+    ).resolves.toEqual({
+      status: "challenge",
+      challenge: expect.objectContaining({
+        mfaRequired: true,
+        mfaChallengeToken: "new-challenge-token",
+      }),
+    });
+    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith({
+      userId: USER_1_ID,
+      method: "google",
+      username: "test-user",
+      identifierHash: "hash:test-user",
+      deviceId: "device-1",
+      rememberMe: true,
+      tokenVersion: 1,
+    });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      ...audit,
+      method: "google",
+      eventType: "login.mfa_challenged",
+      outcome: "success",
+      reasonCode: "mfa_required",
+      userId: USER_1_ID,
+    });
+    expect(
+      harness.loginLockoutService.clearAttemptRecord,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("refuses a locked username before issuing a challenge or checking a code", async () => {
+    const harness = createHarness();
+    harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+    await expect(
+      evaluate(harness, { totpCode: "123456" }),
+    ).rejects.toBeInstanceOf(LockedError);
+    expect(harness.loginLockoutService.recordLockedLogin).toHaveBeenCalled();
+    expect(harness.mfaTotpService.verifyCode).not.toHaveBeenCalled();
+    expect(harness.loginMfaChallengeStore.issue).not.toHaveBeenCalled();
+  });
+
+  it("verifies a code sent with the first step and clears the count", async () => {
+    const harness = createHarness();
+
+    await expect(evaluate(harness, { totpCode: "123456" })).resolves.toEqual({
+      status: "verified",
+      factor: "totp",
+    });
+    expect(harness.mfaTotpService.verifyCode).toHaveBeenCalledWith(
+      USER_1_ID,
+      "123456",
+    );
+    expect(harness.loginLockoutService.clearAttemptRecord).toHaveBeenCalledWith(
+      "test-user",
+    );
+    expect(harness.loginMfaChallengeStore.issue).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["password", "login.failed"],
+    ["microsoft", "oauth.login.failed"],
+  ] as const)(
+    "counts a wrong %s first-step code and rethrows the rejection",
+    async (method, failureEventType) => {
+      const harness = createHarness();
+      const rejection = new UnauthorizedError("MFA verification failed.");
+      harness.mfaTotpService.verifyCode.mockRejectedValue(rejection);
+
+      await expect(
+        evaluate(harness, {
+          method,
+          audit: { ...audit, method },
+          totpCode: "000000",
+        }),
+      ).rejects.toBe(rejection);
+      expect(
+        harness.loginLockoutService.recordFailedLogin,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: "test-user",
+          reasonCode: "mfa_invalid",
+          failureEventType,
+        }),
+      );
+      expect(
+        harness.loginLockoutService.clearAttemptRecord,
+      ).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("LoginMfaService.recordVerifiedSignIn", () => {
+  it("records the factor as the session's device-login proof", async () => {
+    const harness = createHarness();
+
+    await harness.service.recordVerifiedSignIn(
+      createUser(),
+      harness.session,
+      "totp",
+    );
+
+    expect(
+      harness.mfaVerificationService.recordLoginProof,
+    ).toHaveBeenCalledWith({
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      factor: "totp",
+    });
   });
 });

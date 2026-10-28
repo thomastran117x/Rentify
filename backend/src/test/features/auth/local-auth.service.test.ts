@@ -16,6 +16,7 @@ import { UsernameService } from "@/features/auth/username/username.service";
 import { ContentSanitizationService } from "@/features/security/content-sanitization.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
 import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
@@ -576,6 +577,16 @@ function createService(overrides?: {
     authAuditService as any,
   );
 
+  const loginMfaService = new LoginMfaService(
+    authRepository as any,
+    new LoginMfaChallengeStore(cacheService as any),
+    mfaTotpService as any,
+    { recordLoginProof: async () => undefined } as any,
+    authSessionService,
+    loginLockoutService,
+    authAuditService as any,
+  );
+
   const service = new LocalAuthService(
     authRepository as any,
     tokenService as any,
@@ -583,7 +594,6 @@ function createService(overrides?: {
     deviceService as any,
     emailService as any,
     cacheService as any,
-    mfaTotpService as any,
     usernameBloomService as any,
     emailBloomService as any,
     authSessionService,
@@ -592,7 +602,7 @@ function createService(overrides?: {
     usernameService,
     loginLockoutService,
     authAuditService as any,
-    new LoginMfaChallengeStore(cacheService as any),
+    loginMfaService,
   );
 
   return service;
@@ -960,7 +970,6 @@ describe("LocalAuthService", () => {
         deviceId: DEVICE_1_ID,
         rememberMe: true,
         tokenVersion: user.tokenVersion,
-        failedAttempts: 0,
         createdAt: expect.any(String),
       },
       300,

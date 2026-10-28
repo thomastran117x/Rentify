@@ -32,7 +32,6 @@ export class LoginMfaChallengeStore {
     const token = randomBytes(32).toString("base64url");
     const record: LoginMfaChallengeRecord = {
       ...challenge,
-      failedAttempts: 0,
       createdAt: new Date().toISOString(),
     };
 
@@ -54,18 +53,6 @@ export class LoginMfaChallengeStore {
     return this.cacheService.getJson<LoginMfaChallengeRecord>(
       this.getKey(token),
     );
-  }
-
-  /** Writes back a changed record without extending how long it lives. */
-  async update(token: string, record: LoginMfaChallengeRecord): Promise<void> {
-    const key = this.getKey(token);
-    const remainingSeconds = await this.cacheService.ttl(key);
-
-    if (remainingSeconds <= 0) {
-      return;
-    }
-
-    await this.cacheService.setJson(key, record, remainingSeconds);
   }
 
   async delete(token: string): Promise<void> {

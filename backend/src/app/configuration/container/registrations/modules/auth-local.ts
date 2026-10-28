@@ -42,7 +42,6 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
         containerTokens.deviceService,
         containerTokens.emailService,
         containerTokens.cacheService,
-        containerTokens.mfaTotpService,
         containerTokens.usernameBloomService,
         containerTokens.emailBloomService,
         containerTokens.authSessionService,
@@ -51,7 +50,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
         containerTokens.usernameService,
         containerTokens.loginLockoutService,
         containerTokens.authAuditService,
-        containerTokens.loginMfaChallengeStore,
+        containerTokens.loginMfaService,
       ],
       resolve: ({ resolve }) =>
         new LocalAuthService(
@@ -61,7 +60,6 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.deviceService),
           resolve(containerTokens.emailService),
           resolve(containerTokens.cacheService),
-          resolve(containerTokens.mfaTotpService),
           resolve(containerTokens.usernameBloomService),
           resolve(containerTokens.emailBloomService),
           resolve(containerTokens.authSessionService),
@@ -70,7 +68,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.usernameService),
           resolve(containerTokens.loginLockoutService),
           resolve(containerTokens.authAuditService),
-          resolve(containerTokens.loginMfaChallengeStore),
+          resolve(containerTokens.loginMfaService),
         ),
     });
     container.register({

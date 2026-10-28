@@ -180,8 +180,9 @@ provider token again.
   `401 MFA_CHALLENGE_INVALID`, and the client starts again.
 - **Wrong codes.** A wrong code returns `400 INVALID_MFA_CODE` and counts
   towards the username lockout described earlier, whichever way the sign-in
-  started. Five wrong codes also use up the challenge. A locked username gets
-  `423 ACCOUNT_LOCKED` from this step even with a correct code.
+  started. The fifth locks the username, which also voids the challenge. A
+  locked username gets `423 ACCOUNT_LOCKED` from this step even with a
+  correct code.
 - **New devices.** The code that completes the sign-in also counts as the
   `device-login` step-up for the new session, so the new-device check does
   not ask for a second code.

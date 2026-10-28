@@ -50,21 +50,20 @@ export interface LoginMfaRequiredResult {
 export interface LoginMfaChallengeRecord {
   userId: Uuid;
   method: LoginMfaMethod;
-  /** The lockout key: failed codes count against the same username lock. */
+  /**
+   * The lockout key. Wrong codes count against the username lock, which is
+   * what limits guessing; the challenge itself keeps no count.
+   */
   username: string;
   identifierHash?: string;
   deviceId?: string;
   rememberMe?: boolean;
   /** A password change or sign-out-everywhere in between voids the challenge. */
   tokenVersion: number;
-  failedAttempts: number;
   createdAt: string;
 }
 
-export type NewLoginMfaChallenge = Omit<
-  LoginMfaChallengeRecord,
-  "failedAttempts" | "createdAt"
->;
+export type NewLoginMfaChallenge = Omit<LoginMfaChallengeRecord, "createdAt">;
 
 export interface CompleteLoginMfaInput {
   client: ClientRequestContext;

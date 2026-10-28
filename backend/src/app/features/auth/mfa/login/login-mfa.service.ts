@@ -19,26 +19,53 @@ import type {
   LoginAttemptAuditBase,
   LoginLockoutService,
 } from "@/features/auth/lockout/login-lockout.service";
+import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import type { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
 import type {
   CompleteLoginMfaInput,
   LoginMfaChallengeRecord,
+  LoginMfaFactor,
+  LoginMfaMethod,
+  LoginMfaRequiredResult,
 } from "@/features/auth/mfa/login/login-mfa.model";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
+import { redactEmail } from "@/features/auth/redact-email";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 
-/** Wrong codes one challenge accepts before the user has to sign in again. */
-export const MAX_LOGIN_MFA_CHALLENGE_ATTEMPTS = 5;
+/**
+ * What the second factor decided about a sign-in whose first factor passed.
+ * `verified` carries the factor so the caller can record it against the
+ * session it then issues.
+ */
+export type LoginMfaOutcome =
+  | { status: "not_required" }
+  | { status: "verified"; factor: LoginMfaFactor }
+  | { status: "challenge"; challenge: LoginMfaRequiredResult };
+
+export interface EvaluateLoginMfaInput {
+  user: AuthUserRecord;
+  method: LoginMfaMethod;
+  audit: LoginAttemptAuditBase;
+  /** The deprecated one-request form; omitted by clients that use challenges. */
+  totpCode?: string;
+  deviceId?: string;
+  rememberMe?: boolean;
+}
 
 /**
- * The second step of a sign-in, shared by password and social sign-in. The
- * first step left a challenge naming the user, method and device; this checks
- * the code against it and issues the session the first step held back.
+ * The login-time second factor for every sign-in method. Distinct from
+ * {@link import("@/features/auth/mfa/verification/mfa-verification.guard").requireRecentMfaVerification},
+ * which re-checks an already-authenticated session before a sensitive action.
  *
- * Audit events match what the one-request flow records for the same method,
- * so `login.*` for a password sign-in and `oauth.login.*` for a provider one.
+ * This is the one place that checks the username lock before a code, counts a
+ * wrong code towards it, clears it once a code checks out, and records the
+ * verified factor as the session's device-login proof, whether the code came
+ * with the first step or through `POST /auth/login/mfa`.
+ *
+ * Audit events follow the method of the first step: `login.*` for a password
+ * sign-in and `oauth.login.*` for a provider one.
  */
 export class LoginMfaService {
   private readonly logger: Logger;
@@ -53,6 +80,67 @@ export class LoginMfaService {
     private readonly authAuditService: AuthAuditService,
   ) {
     this.logger = loggerFactory.forClass(LoginMfaService, "service");
+  }
+
+  /**
+   * Runs once the first factor (password or provider) has passed. Without a
+   * code, an account with an authenticator gets a challenge instead of a
+   * session; with one, the code is checked here and now.
+   */
+  async evaluateFirstStep(
+    input: EvaluateLoginMfaInput,
+  ): Promise<LoginMfaOutcome> {
+    const userId = asUuid(input.user.id);
+
+    if (isMfaBypassEligible(input.user.email)) {
+      this.logger.info("MFA bypass used", {
+        userId,
+        email: redactEmail(input.user.email),
+        result: "bypass",
+        timestamp: new Date().toISOString(),
+      });
+      return { status: "not_required" };
+    }
+
+    if (!(await this.mfaTotpService.isEnabled(userId))) {
+      return { status: "not_required" };
+    }
+
+    await this.refuseIfLocked(input.user, input.audit);
+
+    if (input.totpCode) {
+      await this.verifyCode(
+        input.user,
+        input.audit,
+        this.failureEventType(input.method),
+        input.totpCode,
+      );
+      return { status: "verified", factor: "totp" };
+    }
+
+    // The first factor passed; the client must now ask for a code. Recorded
+    // as a success so an MFA user's activity does not show a failed sign-in
+    // before every real one.
+    await this.authAuditService.recordSafely({
+      ...input.audit,
+      eventType: "login.mfa_challenged",
+      outcome: "success",
+      reasonCode: "mfa_required",
+      userId,
+    });
+
+    return {
+      status: "challenge",
+      challenge: await this.loginMfaChallengeStore.issue({
+        userId,
+        method: input.method,
+        username: input.user.profile.username,
+        identifierHash: input.audit.identifierHash,
+        deviceId: input.deviceId,
+        rememberMe: input.rememberMe,
+        tokenVersion: input.user.tokenVersion,
+      }),
+    };
   }
 
   async completeLoginMfa(
@@ -94,16 +182,27 @@ export class LoginMfaService {
         audit,
       );
 
-      if (await this.loginLockoutService.isLocked(challenge.username)) {
-        await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
-        await this.loginLockoutService.recordLockedLogin(user, audit);
-        await this.loginLockoutService.throwLockedLogin(user);
+      try {
+        await this.refuseIfLocked(user, audit);
+        await this.verifyCode(
+          user,
+          audit,
+          this.failureEventType(challenge.method),
+          input.code,
+        );
+      } catch (error) {
+        if (error instanceof LockedError) {
+          // The lock outlives the challenge, so a later code could never
+          // finish this sign-in anyway.
+          await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
+        }
+        if (error instanceof UnauthorizedError) {
+          throw new InvalidMfaCodeError("The authenticator code is incorrect.");
+        }
+        throw error;
       }
 
-      await this.verifyCode(input, challenge, user, audit);
-
       await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
-      await this.loginLockoutService.clearAttemptRecord(challenge.username);
 
       const session = await this.authSessionService.authenticateVerifiedUser(
         user,
@@ -115,7 +214,7 @@ export class LoginMfaService {
         },
       );
 
-      await this.recordDeviceLoginProof(user, session, input);
+      await this.recordVerifiedSignIn(user, session, input.factor);
       await this.authAuditService.recordSafely({
         ...audit,
         eventType:
@@ -130,6 +229,35 @@ export class LoginMfaService {
       return session;
     } finally {
       await completionLock.release();
+    }
+  }
+
+  /**
+   * Records the factor a sign-in was completed with as the new session's
+   * device-login proof, so the new-device check that follows does not ask for
+   * the same factor again. Best effort: the session is already issued, and
+   * without the proof the check only asks for a factor again.
+   */
+  async recordVerifiedSignIn(
+    user: AuthUserRecord,
+    session: AuthSessionResult,
+    factor: LoginMfaFactor,
+  ): Promise<void> {
+    if (!session.sessionId) {
+      return;
+    }
+
+    try {
+      await this.mfaVerificationService.recordLoginProof({
+        userId: asUuid(user.id),
+        sessionId: session.sessionId,
+        factor,
+      });
+    } catch (error) {
+      this.logger.error("Failed to record the device-login MFA proof.", {
+        userId: user.id,
+        error,
+      });
     }
   }
 
@@ -154,7 +282,7 @@ export class LoginMfaService {
       await this.loginMfaChallengeStore.delete(token);
       await this.authAuditService.recordSafely({
         ...audit,
-        eventType: this.failureEventType(challenge),
+        eventType: this.failureEventType(challenge.method),
         outcome: "blocked",
         reasonCode: toBlockedAccountReasonCode(user.status),
         userId: asUuid(user.id),
@@ -165,79 +293,43 @@ export class LoginMfaService {
     return user;
   }
 
-  /**
-   * A wrong code uses up one of the challenge's attempts and counts towards
-   * the username lockout, exactly as a wrong one-request code does.
-   */
-  private async verifyCode(
-    input: CompleteLoginMfaInput,
-    challenge: LoginMfaChallengeRecord,
+  /** A locked username gets no code checked, right or wrong. */
+  private async refuseIfLocked(
     user: AuthUserRecord,
     audit: LoginAttemptAuditBase,
   ): Promise<void> {
-    try {
-      await this.mfaTotpService.verifyCode(asUuid(user.id), input.code);
-      return;
-    } catch (error) {
-      if (!(error instanceof UnauthorizedError)) {
-        throw error;
-      }
+    if (await this.loginLockoutService.isLocked(user.profile.username)) {
+      await this.loginLockoutService.recordLockedLogin(user, audit);
+      await this.loginLockoutService.throwLockedLogin(user);
     }
+  }
 
-    const failedAttempts = challenge.failedAttempts + 1;
-
-    if (failedAttempts >= MAX_LOGIN_MFA_CHALLENGE_ATTEMPTS) {
-      await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
-    } else {
-      await this.loginMfaChallengeStore.update(input.mfaChallengeToken, {
-        ...challenge,
-        failedAttempts,
-      });
-    }
-
+  /**
+   * A wrong code counts towards the username lockout and rethrows the
+   * rejection; a right one clears the count the way a sign-in does.
+   */
+  private async verifyCode(
+    user: AuthUserRecord,
+    audit: LoginAttemptAuditBase,
+    failureEventType: "login.failed" | "oauth.login.failed",
+    code: string,
+  ): Promise<void> {
     try {
-      await this.loginLockoutService.recordFailedLogin({
-        username: challenge.username,
-        user,
-        reasonCode: "mfa_invalid",
-        audit,
-        failureEventType: this.failureEventType(challenge),
-      });
+      await this.mfaTotpService.verifyCode(asUuid(user.id), code);
     } catch (error) {
-      if (error instanceof LockedError) {
-        await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
+      if (error instanceof UnauthorizedError) {
+        await this.loginLockoutService.recordFailedLogin({
+          username: user.profile.username,
+          user,
+          reasonCode: "mfa_invalid",
+          audit,
+          failureEventType,
+        });
       }
       throw error;
     }
 
-    throw new InvalidMfaCodeError("The authenticator code is incorrect.");
-  }
-
-  /**
-   * Best effort: the session is already issued, and without the proof the
-   * new-device check only asks for a factor again.
-   */
-  private async recordDeviceLoginProof(
-    user: AuthUserRecord,
-    session: AuthSessionResult,
-    input: CompleteLoginMfaInput,
-  ): Promise<void> {
-    if (!session.sessionId) {
-      return;
-    }
-
-    try {
-      await this.mfaVerificationService.recordLoginProof({
-        userId: asUuid(user.id),
-        sessionId: session.sessionId,
-        factor: input.factor,
-      });
-    } catch (error) {
-      this.logger.error("Failed to record the device-login MFA proof.", {
-        userId: user.id,
-        error,
-      });
-    }
+    await this.loginLockoutService.clearAttemptRecord(user.profile.username);
   }
 
   private async recordFailure(
@@ -247,7 +339,7 @@ export class LoginMfaService {
   ): Promise<void> {
     await this.authAuditService.recordSafely({
       ...audit,
-      eventType: this.failureEventType(challenge),
+      eventType: this.failureEventType(challenge.method),
       outcome: "failure",
       reasonCode,
       userId: challenge.userId,
@@ -255,10 +347,8 @@ export class LoginMfaService {
   }
 
   private failureEventType(
-    challenge: LoginMfaChallengeRecord,
+    method: LoginMfaMethod,
   ): "login.failed" | "oauth.login.failed" {
-    return challenge.method === "password"
-      ? "login.failed"
-      : "oauth.login.failed";
+    return method === "password" ? "login.failed" : "oauth.login.failed";
   }
 }

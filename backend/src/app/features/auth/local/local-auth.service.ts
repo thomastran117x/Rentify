@@ -50,11 +50,7 @@ import {
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
-import {
-  evaluateLoginMfa,
-  type LoginMfaEvaluation,
-} from "@/features/auth/mfa/login-mfa.guard";
-import type { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
 import type { LoginMfaRequiredResult } from "@/features/auth/mfa/login/login-mfa.model";
 import {
   assertAccountIsActive,
@@ -63,7 +59,6 @@ import {
 import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
-import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { TokenService } from "@/features/auth/token/token.service";
 import type { AuthPrincipal } from "@/features/auth/auth.principal";
 import { loggerFactory, type Logger } from "@/configuration/logging";
@@ -80,7 +75,6 @@ export class LocalAuthService {
     private readonly deviceService: DeviceService,
     private readonly emailService: EmailService,
     private readonly cacheService: CacheService,
-    private readonly mfaTotpService: MfaTotpService,
     private readonly usernameBloomService: IdentityBloomService,
     private readonly emailBloomService: IdentityBloomService,
     private readonly authSessionService: AuthSessionService,
@@ -89,7 +83,7 @@ export class LocalAuthService {
     private readonly usernameService: UsernameService,
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
-    private readonly loginMfaChallengeStore: LoginMfaChallengeStore,
+    private readonly loginMfaService: LoginMfaService,
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -160,56 +154,38 @@ export class LocalAuthService {
       );
     }
 
-    let mfaEvaluation: LoginMfaEvaluation;
+    // The attempt record stays while a challenge is pending, until the code
+    // checks out too.
+    const mfa = await this.loginMfaService.evaluateFirstStep({
+      user,
+      method: "password",
+      audit,
+      totpCode: input.totpCode,
+      deviceId: input.deviceId,
+      rememberMe: input.rememberMe,
+    });
 
-    try {
-      mfaEvaluation = await evaluateLoginMfa(
-        this.mfaTotpService,
-        asUuid(user.id),
-        user.email,
-        input.totpCode,
-      );
-    } catch (error) {
-      if (error instanceof UnauthorizedError) {
-        await this.loginLockoutService.recordFailedLogin({
-          username: input.username,
-          user,
-          reasonCode: "mfa_invalid",
-          audit,
-        });
-      }
-
-      throw error;
+    if (mfa.status === "challenge") {
+      return mfa.challenge;
     }
 
-    if (mfaEvaluation === "challenge") {
-      // The password was right; the client must now ask for a code. The
-      // attempt record stays until the code checks out too.
-      await this.authAuditService.recordSafely({
-        ...audit,
-        eventType: "login.mfa_challenged",
-        outcome: "success",
-        reasonCode: "mfa_required",
-        userId: asUuid(user.id),
-      });
-
-      return this.loginMfaChallengeStore.issue({
-        userId: asUuid(user.id),
-        method: "password",
-        username: user.profile.username,
-        identifierHash: audit.identifierHash,
-        deviceId: input.deviceId,
-        rememberMe: input.rememberMe,
-        tokenVersion: user.tokenVersion,
-      });
+    // A verified code has already cleared it.
+    if (mfa.status === "not_required") {
+      await this.loginLockoutService.clearAttemptRecord(input.username);
     }
-
-    await this.loginLockoutService.clearAttemptRecord(input.username);
 
     const session = await this.authSessionService.authenticateVerifiedUser(
       user,
       input,
     );
+
+    if (mfa.status === "verified") {
+      await this.loginMfaService.recordVerifiedSignIn(
+        user,
+        session,
+        mfa.factor,
+      );
+    }
 
     await this.authAuditService.recordSafely({
       ...audit,

@@ -2,6 +2,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import BadGatewayError from "@/errors/http/bad-gateway.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import LockedError from "@/errors/http/locked.error";
+import type { LoginMfaOutcome } from "@/features/auth/mfa/login/login-mfa.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
@@ -121,10 +122,6 @@ function createHarness() {
     check: jest.fn(() => "definitely-absent" as const),
     add: jest.fn(async () => undefined),
   };
-  const mfaTotpService = {
-    isEnabled: jest.fn(async () => false),
-    verifyCode: jest.fn(async () => undefined),
-  };
   const tokenService = {
     createAccessToken: jest.fn(() => "access-token"),
     createRefreshToken: jest.fn(async () => "refresh-token"),
@@ -165,22 +162,11 @@ function createHarness() {
     hashIdentifier: jest.fn((value: string) => `hash:${value}`),
     recordSafely: jest.fn(async () => undefined),
   };
-  const loginMfaChallengeStore = {
-    issue: jest.fn(async () => ({
-      mfaRequired: true as const,
-      mfaChallengeToken: "challenge-token",
-      availableFactors: ["totp" as const],
-      expiresInSeconds: 300,
-    })),
-  };
-  const loginLockoutService = {
-    isLocked: jest.fn(async () => false),
-    recordFailedLogin: jest.fn(async () => undefined),
-    recordLockedLogin: jest.fn(async () => undefined),
-    clearAttemptRecord: jest.fn(async () => undefined),
-    throwLockedLogin: jest.fn(async () => {
-      throw new LockedError("This sign-in is locked.");
-    }),
+  const loginMfaService = {
+    evaluateFirstStep: jest.fn(
+      async (): Promise<LoginMfaOutcome> => ({ status: "not_required" }),
+    ),
+    recordVerifiedSignIn: jest.fn(async () => undefined),
   };
 
   return {
@@ -192,11 +178,9 @@ function createHarness() {
     emailBloomService,
     usernameService,
     oauthSignupStore,
-    mfaTotpService,
     tokenService,
     authAuditService,
-    loginMfaChallengeStore,
-    loginLockoutService,
+    loginMfaService,
     service: new OAuthAccountsService(
       authRepository as never,
       authRepository as never,
@@ -206,7 +190,6 @@ function createHarness() {
       usernameBloomService as never,
       emailBloomService as never,
       usernameService as never,
-      mfaTotpService as never,
       new AuthSessionService(
         authRepository as never,
         authRepository as never,
@@ -216,8 +199,7 @@ function createHarness() {
       ),
       oauthSignupStore as never,
       authAuditService as never,
-      loginMfaChallengeStore as never,
-      loginLockoutService as never,
+      loginMfaService as never,
     ),
   };
 }
@@ -502,154 +484,105 @@ describe("OAuthAccountsService sign-in", () => {
     ).rejects.toThrow("OAuth account email must be verified.");
   });
 
-  it("issues a login MFA challenge for a linked account instead of a session", async () => {
+  it("asks the login MFA service about a linked account, as its provider", async () => {
     const harness = createHarness();
     const user = createUser({ oauthIdentities: [googleIdentity] });
     harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(user);
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-
-    await expect(
-      harness.service.googleAuthenticate({ ...oauthInput, rememberMe: true }),
-    ).resolves.toMatchObject({
-      mfaRequired: true,
-      mfaChallengeToken: "challenge-token",
-    });
-    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith({
-      userId: USER_1_ID,
-      method: "google",
-      username: user.profile.username,
-      identifierHash: `hash:${googleProfile.email}`,
-      deviceId: "device-1",
-      rememberMe: true,
-      tokenVersion: user.tokenVersion,
-    });
-    expect(harness.tokenService.createSession).not.toHaveBeenCalled();
-    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "oauth.login.failed",
-        reasonCode: "mfa_required",
-        userId: USER_1_ID,
-        method: "google",
-      }),
-    );
-  });
-
-  it("records an invalid OAuth login MFA code", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-    harness.mfaTotpService.verifyCode.mockRejectedValue(
-      new UnauthorizedError("MFA verification failed."),
-    );
-
-    await expect(
-      harness.service.googleAuthenticate({ ...oauthInput, totpCode: "000000" }),
-    ).rejects.toBeInstanceOf(UnauthorizedError);
-    expect(harness.loginLockoutService.recordFailedLogin).toHaveBeenCalledWith(
-      expect.objectContaining({
-        username: "test-user",
-        reasonCode: "mfa_invalid",
-        failureEventType: "oauth.login.failed",
-        audit: expect.objectContaining({ method: "google" }),
-      }),
-    );
-  });
-
-  it("clears earlier failures once an inline OAuth login MFA code checks out", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-
-    await expect(
-      harness.service.googleAuthenticate({ ...oauthInput, totpCode: "123456" }),
-    ).resolves.toMatchObject({ accessToken: "access-token" });
-    expect(harness.loginLockoutService.clearAttemptRecord).toHaveBeenCalledWith(
-      "test-user",
-    );
-  });
-
-  it("keeps earlier failures while a challenge is still pending", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-
-    await expect(
-      harness.service.googleAuthenticate(oauthInput),
-    ).resolves.toMatchObject({ mfaRequired: true });
-    expect(
-      harness.loginLockoutService.clearAttemptRecord,
-    ).not.toHaveBeenCalled();
-  });
-
-  it("leaves the attempt record alone for an account without an authenticator", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
 
     await harness.service.googleAuthenticate({
+      ...oauthInput,
+      rememberMe: true,
+      totpCode: "123456",
+    });
+
+    expect(harness.loginMfaService.evaluateFirstStep).toHaveBeenCalledWith({
+      user,
+      method: "google",
+      audit: {
+        method: "google",
+        identifierHash: `hash:${googleProfile.email}`,
+        context: undefined,
+      },
+      totpCode: "123456",
+      deviceId: "device-1",
+      rememberMe: true,
+    });
+  });
+
+  it("returns the login MFA challenge instead of a session", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    const challenge = {
+      mfaRequired: true as const,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp" as const],
+      expiresInSeconds: 300,
+    };
+    harness.loginMfaService.evaluateFirstStep.mockResolvedValue({
+      status: "challenge",
+      challenge,
+    });
+
+    await expect(harness.service.googleAuthenticate(oauthInput)).resolves.toBe(
+      challenge,
+    );
+    expect(harness.tokenService.createSession).not.toHaveBeenCalled();
+    expect(harness.loginMfaService.recordVerifiedSignIn).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "oauth.login.succeeded" }),
+    );
+    // The provider email is hashed once and shared with the MFA step.
+    expect(harness.authAuditService.hashIdentifier).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a code verified with the sign-in against the new session", async () => {
+    const harness = createHarness();
+    const user = createUser({ oauthIdentities: [googleIdentity] });
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(user);
+    harness.loginMfaService.evaluateFirstStep.mockResolvedValue({
+      status: "verified",
+      factor: "totp",
+    });
+
+    const session = await harness.service.googleAuthenticate({
       ...oauthInput,
       totpCode: "123456",
     });
 
-    expect(
-      harness.loginLockoutService.clearAttemptRecord,
-    ).not.toHaveBeenCalled();
+    expect(harness.loginMfaService.recordVerifiedSignIn).toHaveBeenCalledWith(
+      user,
+      session,
+      "totp",
+    );
   });
 
-  it("does not count a non-authentication failure from OAuth login MFA", async () => {
+  it("records no proof when no code was needed", async () => {
     const harness = createHarness();
     harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
       createUser({ oauthIdentities: [googleIdentity] }),
     );
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-    harness.mfaTotpService.verifyCode.mockRejectedValue(
-      new Error("MFA store unavailable."),
-    );
-
-    await expect(
-      harness.service.googleAuthenticate({ ...oauthInput, totpCode: "123456" }),
-    ).rejects.toThrow("MFA store unavailable.");
-    expect(
-      harness.loginLockoutService.recordFailedLogin,
-    ).not.toHaveBeenCalled();
-  });
-
-  it("refuses an authenticator-protected account while its username is locked", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
-    harness.mfaTotpService.isEnabled.mockResolvedValue(true);
-    harness.loginLockoutService.isLocked.mockResolvedValue(true);
-
-    await expect(
-      harness.service.googleAuthenticate(oauthInput),
-    ).rejects.toBeInstanceOf(LockedError);
-    expect(harness.loginLockoutService.isLocked).toHaveBeenCalledWith(
-      "test-user",
-    );
-    expect(harness.loginLockoutService.recordLockedLogin).toHaveBeenCalled();
-    expect(harness.loginMfaChallengeStore.issue).not.toHaveBeenCalled();
-  });
-
-  it("does not consult the lockout for an account without an authenticator", async () => {
-    const harness = createHarness();
-    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
-      createUser({ oauthIdentities: [googleIdentity] }),
-    );
-    harness.loginLockoutService.isLocked.mockResolvedValue(true);
 
     await expect(
       harness.service.googleAuthenticate(oauthInput),
     ).resolves.toMatchObject({ accessToken: "access-token" });
-    expect(harness.loginLockoutService.isLocked).not.toHaveBeenCalled();
+    expect(harness.loginMfaService.recordVerifiedSignIn).not.toHaveBeenCalled();
+  });
+
+  it("passes on a refusal from the login MFA step without a session", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    harness.loginMfaService.evaluateFirstStep.mockRejectedValue(
+      new LockedError("This sign-in is locked."),
+    );
+
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).rejects.toBeInstanceOf(LockedError);
+    expect(harness.tokenService.createSession).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -670,12 +603,11 @@ describe("OAuthAccountsService sign-in", () => {
       harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
         createUser({ oauthIdentities: [googleIdentity], status }),
       );
-      harness.mfaTotpService.isEnabled.mockResolvedValue(true);
 
       await expect(
         harness.service.googleAuthenticate(oauthInput),
       ).rejects.toMatchObject(error);
-      expect(harness.mfaTotpService.isEnabled).not.toHaveBeenCalled();
+      expect(harness.loginMfaService.evaluateFirstStep).not.toHaveBeenCalled();
       expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: "oauth.login.failed",

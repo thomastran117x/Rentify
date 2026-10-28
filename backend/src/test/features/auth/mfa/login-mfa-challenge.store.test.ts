@@ -34,7 +34,7 @@ describe("LoginMfaChallengeStore", () => {
     expect(result.mfaChallengeToken.length).toBeGreaterThanOrEqual(40);
     expect(cacheService.setJson).toHaveBeenCalledWith(
       keyFor(result.mfaChallengeToken),
-      { ...challenge, failedAttempts: 0, createdAt: expect.any(String) },
+      { ...challenge, createdAt: expect.any(String) },
       300,
     );
     expect(JSON.stringify(cacheService.setJson.mock.calls)).not.toContain(
@@ -74,44 +74,4 @@ describe("LoginMfaChallengeStore", () => {
       10_000,
     );
   });
-
-  it("updates a record without extending its remaining lifetime", async () => {
-    const cacheService = {
-      ttl: jest.fn(async () => 120),
-      setJson: jest.fn(async () => undefined),
-    };
-    const store = new LoginMfaChallengeStore(cacheService as never);
-    const record = {
-      ...challenge,
-      failedAttempts: 1,
-      createdAt: "2026-10-27T00:00:00.000Z",
-    };
-
-    await store.update("token-1", record);
-
-    expect(cacheService.setJson).toHaveBeenCalledWith(
-      keyFor("token-1"),
-      record,
-      120,
-    );
-  });
-
-  it.each([0, -2])(
-    "does not resurrect a record whose TTL is %i",
-    async (remaining) => {
-      const cacheService = {
-        ttl: jest.fn(async () => remaining),
-        setJson: jest.fn(async () => undefined),
-      };
-      const store = new LoginMfaChallengeStore(cacheService as never);
-
-      await store.update("token-1", {
-        ...challenge,
-        failedAttempts: 1,
-        createdAt: "2026-10-27T00:00:00.000Z",
-      });
-
-      expect(cacheService.setJson).not.toHaveBeenCalled();
-    },
-  );
 });

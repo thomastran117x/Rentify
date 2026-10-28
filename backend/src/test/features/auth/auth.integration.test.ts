@@ -931,6 +931,16 @@ describe("Auth persistence integration", () => {
       });
       expect(legacySession.status).toBe(200);
       expect(legacySession.accessToken).not.toBe("");
+
+      // A code sent with the password proves the same factor as the second
+      // step, so it covers the new-device check too.
+      const legacyDeviceLogin = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/mfa/verify/options?scope=device-login")}`,
+        { headers: sessionHeaders(legacySession) },
+      );
+      await expect(legacyDeviceLogin.json()).resolves.toMatchObject({
+        data: { scope: "device-login", verified: true },
+      });
     } finally {
       clock.restore();
     }
@@ -1041,15 +1051,27 @@ describe("Auth persistence integration", () => {
     const events = await persistenceApp.prisma.authAuditEvent.findMany({
       where: {
         userId: user.id,
-        eventType: { in: ["oauth.login.failed", "oauth.login.succeeded"] },
+        eventType: {
+          in: [
+            "login.mfa_challenged",
+            "oauth.login.failed",
+            "oauth.login.succeeded",
+          ],
+        },
       },
       orderBy: { createdAt: "asc" },
     });
+    // Being asked for a code is not a failed sign-in, for a provider either.
     expect(
-      events.map((event) => [event.eventType, event.reasonCode, event.method]),
+      events.map((event) => [
+        event.eventType,
+        event.outcome,
+        event.reasonCode,
+        event.method,
+      ]),
     ).toEqual([
-      ["oauth.login.failed", "mfa_required", "google"],
-      ["oauth.login.succeeded", null, "google"],
+      ["login.mfa_challenged", "success", "mfa_required", "google"],
+      ["oauth.login.succeeded", "success", null, "google"],
     ]);
   }, 120_000);
 
