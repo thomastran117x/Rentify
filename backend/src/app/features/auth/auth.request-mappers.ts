@@ -45,6 +45,10 @@ import type {
   SetPasswordRequestBody,
 } from "@/features/auth/password/password.model";
 import type {
+  CompleteLoginMfaInput,
+  LoginMfaRequestBody,
+} from "@/features/auth/mfa/login/login-mfa.model";
+import type {
   ResendUnlockLocalLoginInput,
   ResendUnlockLocalLoginRequestBody,
   UnlockLocalLoginInput,
@@ -175,6 +179,22 @@ export function toLocalAuthenticateInput(
     client: request.client,
     deviceId,
     totpCode: input.totpCode,
+    audit: toAuthAuditContext(request, deviceId),
+  };
+}
+
+export function toCompleteLoginMfaInput(
+  request: Request,
+  input: LoginMfaRequestBody,
+): CompleteLoginMfaInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
+  return {
+    client: request.client,
+    mfaChallengeToken: input.mfaChallengeToken,
+    factor: input.factor,
+    code: input.code,
+    deviceId,
     audit: toAuthAuditContext(request, deviceId),
   };
 }

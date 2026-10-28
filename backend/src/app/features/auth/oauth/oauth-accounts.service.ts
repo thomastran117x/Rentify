@@ -11,7 +11,13 @@ import type {
 } from "@/features/auth/auth.model";
 import { isLocalPasswordAccount } from "@/features/auth/local-account-eligibility";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
-import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import {
+  evaluateLoginMfa,
+  type LoginMfaEvaluation,
+} from "@/features/auth/mfa/login-mfa.guard";
+import type { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import type { LoginMfaRequiredResult } from "@/features/auth/mfa/login/login-mfa.model";
+import type { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -65,11 +71,15 @@ export class OAuthAccountsService {
     private readonly authSessionService: AuthSessionService,
     private readonly oauthSignupStore: OAuthSignupStore,
     private readonly authAuditService: AuthAuditService,
+    private readonly loginMfaChallengeStore: LoginMfaChallengeStore,
+    private readonly loginLockoutService: LoginLockoutService,
   ) {}
 
   async googleAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+  ): Promise<
+    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
+  > {
     return this.authenticateProvider("google", input, () =>
       this.googleOAuthService.verify(input),
     );
@@ -77,7 +87,9 @@ export class OAuthAccountsService {
 
   async microsoftAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+  ): Promise<
+    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
+  > {
     return this.authenticateProvider("microsoft", input, () =>
       this.microsoftOAuthService.verify(input),
     );
@@ -85,7 +97,9 @@ export class OAuthAccountsService {
 
   async appleAuthenticate(
     input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+  ): Promise<
+    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
+  > {
     return this.authenticateProvider("apple", input, () =>
       this.appleOAuthService.verify(input),
     );
@@ -285,7 +299,9 @@ export class OAuthAccountsService {
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
     verify: () => Promise<VerifiedOAuthProfile>,
-  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+  ): Promise<
+    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
+  > {
     let profile: VerifiedOAuthProfile;
 
     try {
@@ -308,7 +324,9 @@ export class OAuthAccountsService {
   private async authenticateOAuthProfile(
     profile: VerifiedOAuthProfile,
     input: OAuthAuthenticateInput,
-  ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
+  ): Promise<
+    AuthSessionResult | OAuthSignupRequiredResult | LoginMfaRequiredResult
+  > {
     const linkedUser = await this.usersRepository.findUserByOAuthIdentity(
       profile.provider,
       profile.providerUserId,
@@ -328,27 +346,29 @@ export class OAuthAccountsService {
         assertAccountIsActive(linkedUser);
       }
 
-      try {
-        await requireLoginMfa(
-          this.mfaTotpService,
-          asUuid(linkedUser.id),
-          linkedUser.email,
-          input.totpCode,
-        );
-      } catch (error) {
-        if (error instanceof UnauthorizedError) {
-          const details = error.details as
-            | { mfaRequired?: boolean }
-            | undefined;
-          await this.recordOAuthFailure({
-            reasonCode: details?.mfaRequired ? "mfa_required" : "mfa_invalid",
-            method: profile.provider,
-            userId: asUuid(linkedUser.id),
-            identifierHash: this.authAuditService.hashIdentifier(profile.email),
-            context: input.audit,
-          });
-        }
-        throw error;
+      const mfaEvaluation = await this.evaluateOAuthLoginMfa(
+        linkedUser,
+        profile,
+        input,
+      );
+
+      if (mfaEvaluation === "challenge") {
+        await this.recordOAuthFailure({
+          reasonCode: "mfa_required",
+          method: profile.provider,
+          userId: asUuid(linkedUser.id),
+          identifierHash: this.authAuditService.hashIdentifier(profile.email),
+          context: input.audit,
+        });
+        return this.loginMfaChallengeStore.issue({
+          userId: asUuid(linkedUser.id),
+          method: profile.provider,
+          username: linkedUser.profile.username,
+          identifierHash: this.authAuditService.hashIdentifier(profile.email),
+          deviceId: input.deviceId,
+          rememberMe: input.rememberMe,
+          tokenVersion: linkedUser.tokenVersion,
+        });
       }
       const session = await this.authSessionService.authenticateVerifiedUser(
         linkedUser,
@@ -414,6 +434,51 @@ export class OAuthAccountsService {
       input.audit,
     );
     return { ...session, isNewUser: true };
+  }
+
+  /**
+   * The provider proved who this is; the authenticator still has to. Wrong
+   * codes count against the same username lockout as a password sign-in, so
+   * a locked account cannot keep guessing through a provider either.
+   */
+  private async evaluateOAuthLoginMfa(
+    user: AuthUserRecord,
+    profile: VerifiedOAuthProfile,
+    input: OAuthAuthenticateInput,
+  ): Promise<LoginMfaEvaluation> {
+    const audit = {
+      method: profile.provider,
+      identifierHash: this.authAuditService.hashIdentifier(profile.email),
+      context: input.audit,
+    };
+
+    if (
+      (await this.mfaTotpService.isEnabled(asUuid(user.id))) &&
+      (await this.loginLockoutService.isLocked(user.profile.username))
+    ) {
+      await this.loginLockoutService.recordLockedLogin(user, audit);
+      await this.loginLockoutService.throwLockedLogin(user);
+    }
+
+    try {
+      return await evaluateLoginMfa(
+        this.mfaTotpService,
+        asUuid(user.id),
+        user.email,
+        input.totpCode,
+      );
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        await this.loginLockoutService.recordFailedLogin({
+          username: user.profile.username,
+          user,
+          reasonCode: "mfa_invalid",
+          audit,
+          failureEventType: "oauth.login.failed",
+        });
+      }
+      throw error;
+    }
   }
 
   private async recordOAuthSuccess(

@@ -200,7 +200,7 @@ async function invoke(
 }
 
 function createController(overrides?: {
-  localAuthenticate?: (input: unknown) => Promise<AuthSessionResult>;
+  localAuthenticate?: (input: unknown) => Promise<unknown>;
   localSignup?: (input: unknown) => Promise<unknown>;
   forgotPassword?: (input: unknown) => Promise<unknown>;
   forgotUsername?: (input: unknown) => Promise<unknown>;
@@ -521,6 +521,36 @@ describe("LocalAuthController", () => {
       meta: {
         requestId: "request-123",
       },
+    });
+  });
+
+  it("localAuthenticate answers an authenticator-protected sign-in with an accepted challenge and no cookies", async () => {
+    const challenge = {
+      mfaRequired: true,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp"],
+      expiresInSeconds: 300,
+    };
+    const { controller } = createController({
+      localAuthenticate: async () => challenge,
+    });
+    const context = createContext({
+      body: {
+        username: "test-user",
+        password: "Password1!",
+        captchaToken: "captcha-token",
+      },
+      headers: { origin: "http://localhost:3040" },
+    });
+
+    const response = await invoke(controller.localAuthenticate, context);
+
+    expect(response.status).toBe(202);
+    expect(mockSetCookie).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      message: "Authenticator code is required to complete sign-in.",
+      data: challenge,
     });
   });
 

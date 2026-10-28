@@ -230,7 +230,7 @@ describe("Auth audit events persistence integration", () => {
 
     expect(
       (await login({ username: USERNAME, password: PASSWORD })).status,
-    ).toBe(401);
+    ).toBe(202);
 
     const events = await listEvents();
     expect(events).toHaveLength(1);

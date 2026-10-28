@@ -388,6 +388,28 @@ export class MfaVerificationService {
     };
   }
 
+  /**
+   * Records the factor a sign-in was just completed with as a device-login
+   * proof for the session it created, so the new-device check that follows
+   * does not ask for the same factor a second time.
+   */
+  async recordLoginProof(input: {
+    userId: Uuid;
+    sessionId: string;
+    factor: MfaVerificationChallengeFactor;
+  }): Promise<void> {
+    const factorState = await this.resolveFactorState(
+      input.userId,
+      MFA_DEVICE_LOGIN_SCOPE,
+    );
+
+    await this.persistProof({
+      ...input,
+      scope: MFA_DEVICE_LOGIN_SCOPE,
+      factorState,
+    });
+  }
+
   private async resolveFactorState(
     userId: Uuid,
     scope: MfaVerificationScope,

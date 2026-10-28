@@ -38,6 +38,13 @@ export class LocalAuthController {
       toLocalAuthenticateInput(request, input),
     );
 
+    if ("mfaRequired" in result) {
+      accepted(response, result, {
+        message: "Authenticator code is required to complete sign-in.",
+      });
+      return;
+    }
+
     writeAuthSessionResponse(request, response, result, {
       message: "Authenticated successfully.",
     });

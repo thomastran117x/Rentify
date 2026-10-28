@@ -30,6 +30,12 @@ export class OAuthController {
     const result = await this.oauthAccountsService.googleAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("mfaRequired" in result) {
+      accepted(response, result, {
+        message: "Authenticator code is required to complete sign-in.",
+      });
+      return;
+    }
     if ("signupRequired" in result) {
       accepted(response, result, {
         message: "Date of birth is required to complete signup.",
@@ -52,6 +58,12 @@ export class OAuthController {
     const result = await this.oauthAccountsService.microsoftAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("mfaRequired" in result) {
+      accepted(response, result, {
+        message: "Authenticator code is required to complete sign-in.",
+      });
+      return;
+    }
     if ("signupRequired" in result) {
       accepted(response, result, {
         message: "Date of birth is required to complete signup.",
@@ -74,6 +86,12 @@ export class OAuthController {
     const result = await this.oauthAccountsService.appleAuthenticate(
       toOAuthAuthenticateInput(request, input),
     );
+    if ("mfaRequired" in result) {
+      accepted(response, result, {
+        message: "Authenticator code is required to complete sign-in.",
+      });
+      return;
+    }
     if ("signupRequired" in result) {
       accepted(response, result, {
         message: "Date of birth is required to complete signup.",

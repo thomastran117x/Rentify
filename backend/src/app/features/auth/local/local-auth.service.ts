@@ -50,7 +50,12 @@ import {
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
-import { requireLoginMfa } from "@/features/auth/mfa/login-mfa.guard";
+import {
+  evaluateLoginMfa,
+  type LoginMfaEvaluation,
+} from "@/features/auth/mfa/login-mfa.guard";
+import type { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
+import type { LoginMfaRequiredResult } from "@/features/auth/mfa/login/login-mfa.model";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -84,6 +89,7 @@ export class LocalAuthService {
     private readonly usernameService: UsernameService,
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
+    private readonly loginMfaChallengeStore: LoginMfaChallengeStore,
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -92,10 +98,13 @@ export class LocalAuthService {
    * Every outcome below writes exactly one audit event, before the response or
    * error goes back. The typed username is recorded only as a keyed hash, so an
    * unknown one is still correlatable without being stored.
+   *
+   * An account with an authenticator gets a login MFA challenge instead of a
+   * session, unless the deprecated `totpCode` came with the password.
    */
   async localAuthenticate(
     input: LocalAuthenticateInput,
-  ): Promise<AuthSessionResult> {
+  ): Promise<AuthSessionResult | LoginMfaRequiredResult> {
     const audit: LoginAttemptAuditBase = {
       method: "password",
       identifierHash: this.authAuditService.hashIdentifier(input.username),
@@ -151,8 +160,10 @@ export class LocalAuthService {
       );
     }
 
+    let mfaEvaluation: LoginMfaEvaluation;
+
     try {
-      await requireLoginMfa(
+      mfaEvaluation = await evaluateLoginMfa(
         this.mfaTotpService,
         asUuid(user.id),
         user.email,
@@ -160,26 +171,37 @@ export class LocalAuthService {
       );
     } catch (error) {
       if (error instanceof UnauthorizedError) {
-        if (input.totpCode) {
-          await this.loginLockoutService.recordFailedLogin({
-            username: input.username,
-            user,
-            reasonCode: "mfa_invalid",
-            audit,
-          });
-        } else {
-          // The password was right; the client must now ask for a code.
-          await this.authAuditService.recordSafely({
-            ...audit,
-            eventType: "login.mfa_challenged",
-            outcome: "success",
-            reasonCode: "mfa_required",
-            userId: asUuid(user.id),
-          });
-        }
+        await this.loginLockoutService.recordFailedLogin({
+          username: input.username,
+          user,
+          reasonCode: "mfa_invalid",
+          audit,
+        });
       }
 
       throw error;
+    }
+
+    if (mfaEvaluation === "challenge") {
+      // The password was right; the client must now ask for a code. The
+      // attempt record stays until the code checks out too.
+      await this.authAuditService.recordSafely({
+        ...audit,
+        eventType: "login.mfa_challenged",
+        outcome: "success",
+        reasonCode: "mfa_required",
+        userId: asUuid(user.id),
+      });
+
+      return this.loginMfaChallengeStore.issue({
+        userId: asUuid(user.id),
+        method: "password",
+        username: user.profile.username,
+        identifierHash: audit.identifierHash,
+        deviceId: input.deviceId,
+        rememberMe: input.rememberMe,
+        tokenVersion: user.tokenVersion,
+      });
     }
 
     await this.loginLockoutService.clearAttemptRecord(input.username);

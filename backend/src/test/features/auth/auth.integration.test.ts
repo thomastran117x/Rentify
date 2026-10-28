@@ -37,7 +37,7 @@ interface LoginSession {
   refreshToken: string | null;
   csrfToken: string | null;
   body: {
-    data?: { accessToken?: string };
+    data?: { accessToken?: string; mfaChallengeToken?: string };
     error?: { code?: string; details?: Record<string, unknown> };
   };
 }
@@ -50,6 +50,7 @@ describe("Auth persistence integration", () => {
     password: string;
     totpCode?: string;
     rememberMe?: boolean;
+    deviceId?: string;
   }): Promise<LoginSession> {
     const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/local/login")}`,
@@ -66,10 +67,15 @@ describe("Auth persistence integration", () => {
           captchaToken: "captcha-ok-login",
           rememberMe: input.rememberMe ?? false,
           ...(input.totpCode ? { totpCode: input.totpCode } : {}),
+          ...(input.deviceId ? { deviceId: input.deviceId } : {}),
         }),
       },
     );
 
+    return readSession(response);
+  }
+
+  async function readSession(response: Response): Promise<LoginSession> {
     const body = (await response.json()) as LoginSession["body"];
     const setCookieHeader = response.headers.get("set-cookie") ?? "";
 
@@ -80,6 +86,104 @@ describe("Auth persistence integration", () => {
       csrfToken: readCookieValue(setCookieHeader, CSRF_TOKEN_COOKIE_NAME),
       body,
     };
+  }
+
+  /** The second step of a sign-in that answered with a login MFA challenge. */
+  async function completeLoginMfa(input: {
+    mfaChallengeToken: string;
+    code: string;
+    deviceId?: string;
+  }): Promise<LoginSession> {
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/login/mfa")}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        },
+        body: JSON.stringify({
+          mfaChallengeToken: input.mfaChallengeToken,
+          factor: "totp",
+          code: input.code,
+          ...(input.deviceId ? { deviceId: input.deviceId } : {}),
+        }),
+      },
+    );
+
+    return readSession(response);
+  }
+
+  function readChallengeToken(session: LoginSession): string {
+    expect(session.status).toBe(202);
+    expect(session.body.data).toMatchObject({
+      mfaRequired: true,
+      availableFactors: ["totp"],
+      expiresInSeconds: 300,
+    });
+    // A challenge is not a session: nothing a client could sign in with yet.
+    expect(session.accessToken).toBe("");
+    expect(session.refreshToken).toBeNull();
+
+    return session.body.data?.mfaChallengeToken ?? "";
+  }
+
+  /**
+   * Moves the server's clock, which runs in this process, one TOTP step per
+   * code. Replay protection only accepts a strictly newer step, so a test that
+   * needs several codes cannot take them all from the current window.
+   */
+  function useTotpClock(secret: string) {
+    const realNow = Date.now.bind(Date);
+    let offsetMs = 0;
+    const spy = jest
+      .spyOn(Date, "now")
+      .mockImplementation(() => realNow() + offsetMs);
+
+    return {
+      nextCode(): string {
+        offsetMs += 30_000;
+        return generateTotpCode(secret, { timestampMs: Date.now() });
+      },
+      restore(): void {
+        spy.mockRestore();
+      },
+    };
+  }
+
+  /** Steps up, then enrolls an authenticator and returns its secret. */
+  async function enrollTotp(
+    session: LoginSession,
+    accountName: string,
+  ): Promise<{ secret: string; enrollmentCode: string }> {
+    await completeMfaStepUp(session);
+
+    const beginResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/totp/begin")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ accountName }),
+      },
+    );
+    expect(beginResponse.status).toBe(200);
+    const { secret } = (
+      (await beginResponse.json()) as { data: { secret: string } }
+    ).data;
+
+    const enrollmentCode = generateTotpCode(secret);
+    const confirmResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/totp/confirm")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ code: enrollmentCode }),
+      },
+    );
+    expect(confirmResponse.status).toBe(200);
+
+    return { secret, enrollmentCode };
   }
 
   function sessionHeaders(
@@ -738,28 +842,98 @@ describe("Auth persistence integration", () => {
     });
 
     // Enrollment is observed by a subsequent login, not just by reading status.
-    const challenged = await login({ username, password });
-    expect(challenged.status).toBe(401);
-    expect(challenged.body.error?.details).toMatchObject({ mfaRequired: true });
+    const deviceId = "totp-device";
+    const challenged = await login({ username, password, deviceId });
+    const mfaChallengeToken = readChallengeToken(challenged);
+    const owner = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "owner1@rentify.local" },
+    });
+    expect(
+      await persistenceApp.prisma.authAuditEvent.findMany({
+        where: { userId: owner.id, eventType: "login.mfa_challenged" },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        outcome: "success",
+        reasonCode: "mfa_required",
+      }),
+    ]);
 
     // The enrollment code is burned: replaying it must not authenticate.
-    const replayed = await login({
-      username,
-      password,
-      totpCode: enrollmentCode,
+    const replayed = await completeLoginMfa({
+      mfaChallengeToken,
+      code: enrollmentCode,
+      deviceId,
     });
-    expect(replayed.status).toBe(401);
+    expect(replayed.status).toBe(400);
+    expect(replayed.body.error?.code).toBe("INVALID_MFA_CODE");
+    expect(replayed.refreshToken).toBeNull();
+
+    // The challenge belongs to the device that started the sign-in.
+    const nextStepCode = generateTotpCode(secret, {
+      timestampMs: Date.now() + 30_000,
+    });
+    const otherDevice = await completeLoginMfa({
+      mfaChallengeToken,
+      code: nextStepCode,
+      deviceId: "another-device",
+    });
+    expect(otherDevice.status).toBe(401);
+    expect(otherDevice.body.error?.code).toBe("MFA_CHALLENGE_INVALID");
 
     // A code from the next time step is strictly newer and still inside the
-    // verification window, so it is accepted.
-    const mfaSession = await login({
-      username,
-      password,
-      totpCode: generateTotpCode(secret, {
-        timestampMs: Date.now() + 30_000,
-      }),
+    // verification window, so it completes the sign-in on the right device.
+    const mfaSession = await completeLoginMfa({
+      mfaChallengeToken,
+      code: nextStepCode,
+      deviceId,
     });
     expect(mfaSession.status).toBe(200);
+    expect(mfaSession.accessToken).not.toBe("");
+    expect(mfaSession.refreshToken).not.toBeNull();
+    expect(
+      await persistenceApp.prisma.authAuditEvent.findMany({
+        where: { userId: owner.id, eventType: "login.succeeded" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      }),
+    ).toEqual([
+      expect.objectContaining({ method: "password", outcome: "success" }),
+    ]);
+
+    // The code that signed in also satisfies the new-device check, so the
+    // client is not asked for a second code it could not produce yet.
+    const deviceLoginOptions = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/mfa/verify/options?scope=device-login")}`,
+      { headers: sessionHeaders(mfaSession) },
+    );
+    await expect(deviceLoginOptions.json()).resolves.toMatchObject({
+      data: { scope: "device-login", verified: true },
+    });
+
+    // Single use: the challenge cannot sign anybody in a second time.
+    const reused = await completeLoginMfa({
+      mfaChallengeToken,
+      code: nextStepCode,
+      deviceId,
+    });
+    expect(reused.status).toBe(401);
+    expect(reused.body.error?.code).toBe("MFA_CHALLENGE_INVALID");
+
+    // The deprecated one-request form still works for API clients.
+    const clock = useTotpClock(secret);
+    try {
+      clock.nextCode();
+      const legacySession = await login({
+        username,
+        password,
+        totpCode: clock.nextCode(),
+      });
+      expect(legacySession.status).toBe(200);
+      expect(legacySession.accessToken).not.toBe("");
+    } finally {
+      clock.restore();
+    }
 
     await completeMfaStepUp(mfaSession);
 
@@ -774,6 +948,109 @@ describe("Auth persistence integration", () => {
     expect(disableResponse.status).toBe(200);
 
     expect((await login({ username, password })).status).toBe(200);
+  }, 120_000);
+
+  it("counts wrong login MFA codes towards the username lockout", async () => {
+    const username = "owner-two";
+    const password = "Rentify123!";
+    const { secret } = await enrollTotp(
+      await login({ username, password }),
+      "owner2@rentify.local",
+    );
+
+    const mfaChallengeToken = readChallengeToken(
+      await login({ username, password }),
+    );
+
+    const failures: number[] = [];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      failures.push(
+        (await completeLoginMfa({ mfaChallengeToken, code: "000000" })).status,
+      );
+    }
+
+    // Issuing the challenge did not count; the fifth wrong code locks.
+    expect(failures).toEqual([400, 400, 400, 400, 423]);
+
+    const owner = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "owner2@rentify.local" },
+    });
+    const events = await persistenceApp.prisma.authAuditEvent.findMany({
+      where: {
+        userId: owner.id,
+        eventType: { in: ["login.failed", "login.locked"] },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(events.map((event) => [event.eventType, event.reasonCode])).toEqual([
+      ["login.failed", "mfa_invalid"],
+      ["login.failed", "mfa_invalid"],
+      ["login.failed", "mfa_invalid"],
+      ["login.failed", "mfa_invalid"],
+      ["login.locked", "locked"],
+    ]);
+
+    // The lock binds a fresh sign-in, and the locked challenge is gone even
+    // with a correct code.
+    const lockedLogin = await login({ username, password });
+    expect(lockedLogin.status).toBe(423);
+    const lockedChallenge = await completeLoginMfa({
+      mfaChallengeToken,
+      code: generateTotpCode(secret, { timestampMs: Date.now() + 30_000 }),
+    });
+    expect(lockedChallenge.status).toBe(401);
+    expect(lockedChallenge.body.error?.code).toBe("MFA_CHALLENGE_INVALID");
+  }, 120_000);
+
+  it("finishes a Google sign-in with an authenticator code", async () => {
+    const signIn = (deviceId: string) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            idToken: "google-id-token",
+            nonce: `nonce-${deviceId}`,
+            deviceId,
+            dateOfBirth: "2012-06-15",
+          }),
+        },
+      );
+
+    const created = await readSession(await signIn("google-setup-device"));
+    expect(created.status).toBe(200);
+    const { secret } = await enrollTotp(created, "google-user@rentify.local");
+
+    const deviceId = "google-mfa-device";
+    const mfaChallengeToken = readChallengeToken(
+      await readSession(await signIn(deviceId)),
+    );
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "google-user@rentify.local" },
+    });
+
+    const session = await completeLoginMfa({
+      mfaChallengeToken,
+      code: generateTotpCode(secret, { timestampMs: Date.now() + 30_000 }),
+      deviceId,
+    });
+
+    expect(session.status).toBe(200);
+    expect(session.refreshToken).not.toBeNull();
+    const events = await persistenceApp.prisma.authAuditEvent.findMany({
+      where: {
+        userId: user.id,
+        eventType: { in: ["oauth.login.failed", "oauth.login.succeeded"] },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(
+      events.map((event) => [event.eventType, event.reasonCode, event.method]),
+    ).toEqual([
+      ["oauth.login.failed", "mfa_required", "google"],
+      ["oauth.login.succeeded", null, "google"],
+    ]);
   }, 120_000);
 
   it("authenticates through the Google and Apple OAuth providers", async () => {
