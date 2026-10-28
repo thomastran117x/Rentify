@@ -250,7 +250,7 @@ export class OrganizationInvitationsService {
       throw new BadRequestError("This invitation can no longer be accepted.");
     }
 
-    const { invitation: acceptedInvitation, membership } =
+    const accepted =
       await this.organizationsInvitationsRepository.acceptInvitation({
         invitationId: asUuid(invitation.id),
         organizationId: asUuid(invitation.organization.id),
@@ -258,6 +258,12 @@ export class OrganizationInvitationsService {
         role: invitation.role,
         now: new Date(),
       });
+
+    if (!accepted) {
+      throw new ConflictError("This invitation can no longer be accepted.");
+    }
+
+    const { invitation: acceptedInvitation, membership } = accepted;
 
     if (!user.preferredOrganizationId) {
       await this.organizationsProfileRepository.setPreferredOrganization(
