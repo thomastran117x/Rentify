@@ -118,6 +118,86 @@ describe("authApi", () => {
     );
   });
 
+  it.each([
+    ["the browser's device id", undefined, "device-1"],
+    ["an explicit device id", "device-2", "device-2"],
+  ])(
+    "finishes a sign-in with a login MFA code and %s",
+    async (_case, deviceId, expectedDeviceId) => {
+      const fetchMock = vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              message: "ok",
+              data: sampleSession,
+              error: null,
+              meta: { requestId: "request-1" },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { authApi } = await import("./api");
+      const result = await authApi.completeLoginMfa({
+        mfaChallengeToken: "challenge-token",
+        factor: "totp",
+        code: "123456",
+        deviceId,
+      });
+
+      expect(result).toEqual(sampleSession);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8040/api/v1/auth/login/mfa",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            mfaChallengeToken: "challenge-token",
+            factor: "totp",
+            code: "123456",
+            deviceId: expectedDeviceId,
+          }),
+        }),
+      );
+    },
+  );
+
+  it("returns the login MFA challenge a sign-in answers with", async () => {
+    const challenge = {
+      mfaRequired: true,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp"],
+      expiresInSeconds: 300,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              message: "Authenticator code is required to complete sign-in.",
+              data: challenge,
+              error: null,
+              meta: { requestId: "request-1" },
+            }),
+            { status: 202, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+
+    const { authApi } = await import("./api");
+
+    await expect(
+      authApi.login({
+        username: "person",
+        password: "secret",
+        captchaToken: "captcha-token",
+      }),
+    ).resolves.toEqual(challenge);
+  });
+
   it("requests a validated number of username suggestions", async () => {
     const fetchMock = vi.fn(
       async () =>

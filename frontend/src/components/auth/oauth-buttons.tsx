@@ -8,9 +8,10 @@ import type {
   OAuthSignupRequiredResult,
   AuthResponseBody,
   LinkedOAuthProvidersResult,
+  LoginMfaRequiredResult,
 } from "@/lib/auth/types";
 import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
-import { isOAuthSignupRequired } from "@/lib/auth/types";
+import { isLoginMfaRequired, isOAuthSignupRequired } from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 export type OAuthProvider = "google" | "microsoft" | "apple";
@@ -23,6 +24,8 @@ interface AuthOAuthButtonsProps {
   onError: (message: string) => void;
   disabledProviders?: OAuthProvider[];
   onSignupRequired?: (result: OAuthSignupRequiredResult) => void;
+  /** The account has an authenticator app; the caller asks for the code. */
+  onMfaRequired?: (result: LoginMfaRequiredResult) => void;
 }
 
 interface PopupAuthResult {
@@ -590,6 +593,7 @@ export function AuthOAuthButtons({
   onError,
   disabledProviders = [],
   onSignupRequired,
+  onMfaRequired,
 }: AuthOAuthButtonsProps) {
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
     null,
@@ -647,6 +651,10 @@ export function AuthOAuthButtons({
       const result = await authenticateWithProvider(provider, input, nonce);
       if (isOAuthSignupRequired(result)) {
         onSignupRequired?.(result);
+        return;
+      }
+      if (isLoginMfaRequired(result)) {
+        onMfaRequired?.(result);
         return;
       }
       onSuccess?.(result);

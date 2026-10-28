@@ -6,6 +6,7 @@ import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { AuthField } from "@/components/auth/auth-field";
 import { UserIcon } from "@/components/auth/auth-field-icons";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
+import { LoginMfaPanel } from "@/components/auth/login-mfa-panel";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { OAuthSignupDateOfBirthDialog } from "@/components/auth/oauth-signup-date-of-birth-dialog";
@@ -14,15 +15,20 @@ import { FormErrorMessage } from "@/components/errors";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
+  createLoginMfaPendingFlow,
+  isLoginMfaPendingFlowExpired,
   usePersistedAuthPendingFlow,
   writePersistedAuthPendingFlow,
+  type LoginMfaPendingFlow,
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
   ApiClientError,
+  isLoginMfaRequired,
   type AuthResponseBody,
+  type LoginMfaRequiredResult,
   type OAuthSignupRequiredResult,
 } from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
@@ -74,6 +80,8 @@ type LoginFailureResult = {
   /** A security hold, which a password reset clears. */
   passwordResetRequired?: boolean;
 };
+
+const LOGIN_MFA_EXPIRED_MESSAGE = "Your sign-in expired. Please sign in again.";
 
 function getLoginFailureResult(error: unknown): LoginFailureResult {
   // Checked first: a security hold is also a 423, but it is cleared by a
@@ -132,6 +140,10 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
     }
 
     if (status === 401) {
+      if (code === "MFA_CHALLENGE_INVALID") {
+        return { generalError: LOGIN_MFA_EXPIRED_MESSAGE };
+      }
+
       return {
         generalError: "The username or password you entered is incorrect.",
       };
@@ -238,6 +250,8 @@ export function LoginForm({
     persistedAuthFlow?.flow === "login-unlock" ? persistedAuthFlow : null;
   const deviceLoginPendingFlow =
     persistedAuthFlow?.flow === "device-login-mfa" ? persistedAuthFlow : null;
+  const loginMfaPendingFlow =
+    persistedAuthFlow?.flow === "login-mfa" ? persistedAuthFlow : null;
   const activeUnlockEmail = unlockEmail ?? unlockPendingFlow?.email ?? null;
 
   useEffect(() => {
@@ -255,6 +269,21 @@ export function LoginForm({
       clearPersistedAuthPendingFlowByType("device-login-mfa");
     }
   }, [authFlowRestorePending, deviceLoginPendingFlow, status]);
+
+  // A challenge left over from an earlier visit cannot be finished once it has
+  // expired, and is moot once some other tab has signed in.
+  useEffect(() => {
+    if (authFlowRestorePending || !loginMfaPendingFlow) {
+      return;
+    }
+
+    if (status === "authenticated") {
+      clearPersistedAuthPendingFlowByType("login-mfa");
+    } else if (isLoginMfaPendingFlowExpired(loginMfaPendingFlow)) {
+      clearPersistedAuthPendingFlowByType("login-mfa");
+      setGeneralError(LOGIN_MFA_EXPIRED_MESSAGE);
+    }
+  }, [authFlowRestorePending, loginMfaPendingFlow, status]);
 
   useEffect(() => {
     if (
@@ -480,6 +509,54 @@ export function LoginForm({
     }
   }
 
+  function startLoginMfa(
+    result: LoginMfaRequiredResult,
+    method: LoginMfaPendingFlow["method"],
+  ) {
+    setGeneralError(null);
+    setPasswordResetRequired(false);
+    setUnlockEmail(null);
+    clearPersistedAuthPendingFlowByType("login-unlock");
+    setPassword("");
+    writePersistedAuthPendingFlow(
+      createLoginMfaPendingFlow(result, method, nextPath),
+    );
+  }
+
+  async function handleLoginMfaSuccess(
+    flow: LoginMfaPendingFlow,
+    session: AuthResponseBody,
+  ) {
+    clearPersistedAuthPendingFlowByType("login-mfa");
+
+    if (flow.method === "oauth") {
+      handleOAuthSuccess(session);
+      return;
+    }
+
+    await completeLogin(session);
+  }
+
+  function showLoginFailure(error: unknown) {
+    const failure = getLoginFailureResult(error);
+
+    setGeneralError(failure.generalError);
+    setPasswordResetRequired(Boolean(failure.passwordResetRequired));
+    setUnlockEmail(failure.unlockEmail ?? null);
+    if (failure.unlockEmail) {
+      writePersistedAuthPendingFlow({
+        flow: "login-unlock",
+        email: failure.unlockEmail,
+      });
+    } else {
+      clearPersistedAuthPendingFlowByType("login-unlock");
+    }
+    setErrors((current) => ({
+      ...current,
+      ...(failure.fieldErrors ?? {}),
+    }));
+  }
+
   function handleWelcomeUsernameSaved(nextUsername: string) {
     if (!welcomeSession) {
       return;
@@ -509,32 +586,22 @@ export function LoginForm({
     setPending(true);
 
     try {
-      const session = await authApi.login({
+      const result = await authApi.login({
         username: username.trim().toLowerCase(),
         password,
         captchaToken,
       });
 
       clearCaptchaToken();
-      await completeLogin(session);
-    } catch (error) {
-      const failure = getLoginFailureResult(error);
 
-      setGeneralError(failure.generalError);
-      setPasswordResetRequired(Boolean(failure.passwordResetRequired));
-      setUnlockEmail(failure.unlockEmail ?? null);
-      if (failure.unlockEmail) {
-        writePersistedAuthPendingFlow({
-          flow: "login-unlock",
-          email: failure.unlockEmail,
-        });
-      } else {
-        clearPersistedAuthPendingFlowByType("login-unlock");
+      if (isLoginMfaRequired(result)) {
+        startLoginMfa(result, "password");
+        return;
       }
-      setErrors((current) => ({
-        ...current,
-        ...(failure.fieldErrors ?? {}),
-      }));
+
+      await completeLogin(result);
+    } catch (error) {
+      showLoginFailure(error);
       clearCaptchaToken();
     } finally {
       setPending(false);
@@ -566,6 +633,33 @@ export function LoginForm({
       );
     }
     return null;
+  }
+
+  if (
+    loginMfaPendingFlow &&
+    status === "anonymous" &&
+    !isLoginMfaPendingFlowExpired(loginMfaPendingFlow)
+  ) {
+    return (
+      <LoginMfaPanel
+        key={loginMfaPendingFlow.mfaChallengeToken}
+        flow={loginMfaPendingFlow}
+        onSuccess={(session) =>
+          handleLoginMfaSuccess(loginMfaPendingFlow, session)
+        }
+        onFailure={(error) => {
+          clearPersistedAuthPendingFlowByType("login-mfa");
+          showLoginFailure(error);
+        }}
+        onFactorChange={(factor) =>
+          writePersistedAuthPendingFlow({ ...loginMfaPendingFlow, factor })
+        }
+        onCancel={() => {
+          clearPersistedAuthPendingFlowByType("login-mfa");
+          setGeneralError(null);
+        }}
+      />
+    );
   }
 
   if (activeUnlockEmail) {
@@ -628,6 +722,7 @@ export function LoginForm({
           setGeneralError(message);
         }}
         onSignupRequired={setOAuthSignupPending}
+        onMfaRequired={(result) => startLoginMfa(result, "oauth")}
       />
 
       <div className="flex items-center gap-3">

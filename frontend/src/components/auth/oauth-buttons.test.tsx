@@ -160,6 +160,35 @@ describe("AuthOAuthButtons", () => {
     );
   });
 
+  it("routes an authenticator-protected sign-in to the MFA callback", async () => {
+    const user = userEvent.setup();
+    const onSuccess = vi.fn();
+    const onMfaRequired = vi.fn();
+    const challenge = {
+      mfaRequired: true,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp"],
+      expiresInSeconds: 300,
+    };
+    authenticateGoogleMock.mockResolvedValue(challenge);
+    render(
+      <AuthOAuthButtons
+        onError={vi.fn()}
+        onSuccess={onSuccess}
+        onMfaRequired={onMfaRequired}
+      />,
+    );
+
+    await openAndRespond(
+      user,
+      "Continue with Google",
+      (state) => `?code=code-1&state=${state}`,
+    );
+
+    await waitFor(() => expect(onMfaRequired).toHaveBeenCalledWith(challenge));
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
   it("hides providers disabled by configuration", () => {
     render(
       <AuthOAuthButtons

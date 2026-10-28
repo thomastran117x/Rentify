@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearPersistedAuthPendingFlow,
   clearPersistedAuthPendingFlowByType,
+  createLoginMfaPendingFlow,
+  isLoginMfaPendingFlowExpired,
   getPersistedAuthPendingFlowSnapshot,
   parsePendingFlow,
   readPersistedAuthPendingFlow,
@@ -179,6 +181,81 @@ describe("pending auth flow storage", () => {
     },
   ])("rejects malformed flow %#", (value) => {
     expect(parsePendingFlow(value)).toBeNull();
+  });
+
+  describe("login MFA flow", () => {
+    const now = Date.parse("2026-10-27T12:00:00.000Z");
+    const flow = {
+      flow: "login-mfa" as const,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp" as const],
+      factor: "totp" as const,
+      method: "password" as const,
+      expiresAt: "2026-10-27T12:05:00.000Z",
+      nextPath: "/dashboard",
+    };
+
+    it("builds the flow from a challenge with its absolute expiry", () => {
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["totp"],
+            expiresInSeconds: 300,
+          },
+          "password",
+          "/dashboard",
+          now,
+        ),
+      ).toEqual(flow);
+    });
+
+    it("drops factors this client does not know and keeps the next path on-site", () => {
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["passkey", "totp"] as never,
+            expiresInSeconds: 300,
+          },
+          "oauth",
+          "https://example.org",
+          now,
+        ),
+      ).toMatchObject({
+        availableFactors: ["totp"],
+        factor: "totp",
+        method: "oauth",
+        nextPath: "/",
+      });
+    });
+
+    it("round-trips through storage", () => {
+      writePersistedAuthPendingFlow(flow);
+
+      expect(readPersistedAuthPendingFlow()).toEqual(flow);
+    });
+
+    it("reports expiry", () => {
+      expect(isLoginMfaPendingFlowExpired(flow, now)).toBe(false);
+      expect(
+        isLoginMfaPendingFlowExpired(flow, Date.parse(flow.expiresAt)),
+      ).toBe(true);
+    });
+
+    it.each([
+      { ...flow, mfaChallengeToken: "" },
+      { ...flow, availableFactors: [] },
+      { ...flow, availableFactors: "totp" },
+      { ...flow, factor: "sms" },
+      { ...flow, method: "magic-link" },
+      { ...flow, expiresAt: "not-a-date" },
+      { ...flow, nextPath: "" },
+    ])("rejects a malformed login MFA flow %#", (value) => {
+      expect(parsePendingFlow(value)).toBeNull();
+    });
   });
 
   it("replaces an off-site next path in a persisted flow with /", () => {

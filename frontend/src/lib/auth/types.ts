@@ -69,9 +69,36 @@ export interface OAuthSignupRequiredResult {
   expiresInSeconds: number;
 }
 
+/**
+ * The second factors a sign-in can be finished with. Recovery codes and
+ * passkeys will join this list without changing the challenge's shape.
+ */
+export type LoginMfaFactor = "totp";
+
+/**
+ * What a correct password or provider sign-in returns, instead of a session,
+ * when the account has an authenticator app. The token is the only thing kept
+ * between the two steps; the password is never sent again.
+ */
+export interface LoginMfaRequiredResult {
+  mfaRequired: true;
+  mfaChallengeToken: string;
+  availableFactors: LoginMfaFactor[];
+  expiresInSeconds: number;
+}
+
+export type LocalLoginResult = AuthResponseBody | LoginMfaRequiredResult;
+
 export type OAuthAuthenticateResult =
   | AuthResponseBody
-  | OAuthSignupRequiredResult;
+  | OAuthSignupRequiredResult
+  | LoginMfaRequiredResult;
+
+export function isLoginMfaRequired(
+  result: LocalLoginResult | OAuthAuthenticateResult,
+): result is LoginMfaRequiredResult {
+  return "mfaRequired" in result;
+}
 
 export function isOAuthSignupRequired(
   result: OAuthAuthenticateResult,

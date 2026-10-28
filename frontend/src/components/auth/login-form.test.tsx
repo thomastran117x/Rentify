@@ -23,6 +23,8 @@ const {
   logoutMock,
   getOptionsMock,
   oauthSuccessSessionMock,
+  completeLoginMfaMock,
+  oauthMfaRequiredMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
@@ -32,6 +34,8 @@ const {
   logoutMock: vi.fn(),
   getOptionsMock: vi.fn(),
   oauthSuccessSessionMock: vi.fn(),
+  completeLoginMfaMock: vi.fn(),
+  oauthMfaRequiredMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -65,6 +69,7 @@ vi.mock("@/lib/auth/api", () => ({
     login: loginMock,
     logout: logoutMock,
     verifyDevice: verifyDeviceMock,
+    completeLoginMfa: completeLoginMfaMock,
   },
 }));
 
@@ -86,12 +91,25 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
 vi.mock("@/components/auth/oauth-buttons", () => ({
   AuthOAuthButtons: ({
     onSuccess,
+    onMfaRequired,
   }: {
     onSuccess: (session: unknown) => void;
+    onMfaRequired?: (result: unknown) => void;
   }) => (
-    <button type="button" onClick={() => onSuccess(oauthSuccessSessionMock())}>
-      Trigger OAuth success
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onSuccess(oauthSuccessSessionMock())}
+      >
+        Trigger OAuth success
+      </button>
+      <button
+        type="button"
+        onClick={() => onMfaRequired?.(oauthMfaRequiredMock())}
+      >
+        Trigger OAuth MFA
+      </button>
+    </>
   ),
 }));
 
@@ -936,5 +954,334 @@ describe("LoginForm", () => {
     expect(
       await screen.findByRole("heading", { name: "I can't log in" }),
     ).toBeInTheDocument();
+  });
+
+  describe("authenticator step", () => {
+    const challenge = {
+      mfaRequired: true as const,
+      mfaChallengeToken: "challenge-token",
+      availableFactors: ["totp" as const],
+      expiresInSeconds: 300,
+    };
+
+    function mfaError(status: number, code: string, details?: unknown) {
+      return new ApiClientError("Request failed", {
+        code,
+        status,
+        details,
+        request: {
+          method: "POST",
+          path: "/auth/login/mfa",
+          requestUrl: "http://localhost:8040/api/v1/auth/login/mfa",
+        },
+      });
+    }
+
+    function authenticateOnSetSession() {
+      const setSession = vi.fn().mockImplementation(() => {
+        useAuthMock.mockReturnValue({
+          status: "authenticated",
+          setSession,
+          clearSession: vi.fn(),
+        });
+      });
+      useAuthMock.mockReturnValue({
+        status: "anonymous",
+        setSession,
+        clearSession: vi.fn(),
+      });
+      return setSession;
+    }
+
+    async function signInWithPassword(
+      user: ReturnType<typeof userEvent.setup>,
+    ) {
+      await user.type(screen.getByLabelText("Username"), "person");
+      await user.type(screen.getByLabelText("Password"), "secret-password");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+      return screen.findByLabelText("Authenticator code");
+    }
+
+    it("asks for the code after a correct password, then signs in with it", async () => {
+      const user = userEvent.setup();
+      const setSession = authenticateOnSetSession();
+      loginMock.mockResolvedValue(challenge);
+      completeLoginMfaMock.mockResolvedValue(
+        loginSession({ known: false, knownByIp: false }),
+      );
+      getOptionsMock.mockResolvedValue({
+        scope: "device-login",
+        verified: true,
+        verifiedUntil: null,
+        availableFactors: ["totp"],
+        recommendedFactor: "totp",
+      });
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      expect(readPersistedAuthPendingFlow()).toMatchObject({
+        flow: "login-mfa",
+        mfaChallengeToken: "challenge-token",
+        method: "password",
+        factor: "totp",
+        nextPath: "/dashboard",
+      });
+      expect(JSON.stringify(readPersistedAuthPendingFlow())).not.toContain(
+        "secret-password",
+      );
+      expect(
+        screen.queryByRole("button", { name: /different method/i }),
+      ).not.toBeInTheDocument();
+
+      await user.type(codeInput, "12a3 456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      await waitFor(() => {
+        expect(completeLoginMfaMock).toHaveBeenCalledWith({
+          mfaChallengeToken: "challenge-token",
+          factor: "totp",
+          code: "123456",
+        });
+      });
+      expect(setSession).toHaveBeenCalled();
+      // The code that signed in already covers the new-device check.
+      await waitFor(() => {
+        expect(verifyDeviceMock).toHaveBeenCalled();
+      });
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+      await waitFor(() => {
+        expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+      });
+    });
+
+    it("rejects a short code without calling the api", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "123");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        screen.getByText("Enter the 6-digit code from your authenticator app."),
+      ).toBeInTheDocument();
+      expect(completeLoginMfaMock).not.toHaveBeenCalled();
+    });
+
+    it("keeps the step open with an error for a wrong code", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+      completeLoginMfaMock.mockRejectedValue(mfaError(400, "INVALID_MFA_CODE"));
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "000000");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        await screen.findByText(
+          "That code is incorrect. Check your authenticator app and try again.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Authenticator code")).toHaveValue("");
+      expect(readPersistedAuthPendingFlow()).toMatchObject({
+        flow: "login-mfa",
+      });
+    });
+
+    it("returns to the form when the challenge expired or was used", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+      completeLoginMfaMock.mockRejectedValue(
+        mfaError(401, "MFA_CHALLENGE_INVALID"),
+      );
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        await screen.findByText("Your sign-in expired. Please sign in again."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeVisible();
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+    });
+
+    it("switches to the unlock panel when the wrong code set the lock", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+      completeLoginMfaMock.mockRejectedValue(
+        mfaError(423, "ACCOUNT_LOCKED", {
+          email: "person@example.com",
+          unlockRequired: true,
+        }),
+      );
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "000000");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        await screen.findByText("Unlock panel for person@example.com"),
+      ).toBeInTheDocument();
+      expect(readPersistedAuthPendingFlow()).toMatchObject({
+        flow: "login-unlock",
+      });
+    });
+
+    it("shows a retryable error when the code cannot be checked", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+      completeLoginMfaMock.mockRejectedValue(
+        new ApiNetworkError("Network down", {
+          code: "NETWORK_ERROR",
+          request: {
+            method: "POST",
+            path: "/auth/login/mfa",
+            requestUrl: "http://localhost:8040/api/v1/auth/login/mfa",
+          },
+        }),
+      );
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      const codeInput = await signInWithPassword(user);
+      await user.type(codeInput, "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByLabelText("Authenticator code")).toBeInTheDocument();
+    });
+
+    it("goes back to the form and drops the challenge on cancel", async () => {
+      const user = userEvent.setup();
+      loginMock.mockResolvedValue(challenge);
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      await signInWithPassword(user);
+      await user.click(screen.getByRole("button", { name: "Back to sign in" }));
+
+      expect(screen.getByLabelText("Password")).toHaveValue("");
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+    });
+
+    it("restores the code step after a refresh", async () => {
+      writePersistedAuthPendingFlow({
+        flow: "login-mfa",
+        mfaChallengeToken: "restored-token",
+        availableFactors: ["totp"],
+        factor: "totp",
+        method: "password",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        nextPath: "/dashboard",
+      });
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      expect(
+        await screen.findByLabelText("Authenticator code"),
+      ).toBeInTheDocument();
+    });
+
+    it("drops an expired restored step and says so", async () => {
+      writePersistedAuthPendingFlow({
+        flow: "login-mfa",
+        mfaChallengeToken: "stale-token",
+        availableFactors: ["totp"],
+        factor: "totp",
+        method: "password",
+        expiresAt: new Date(Date.now() - 1_000).toISOString(),
+        nextPath: "/dashboard",
+      });
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      expect(
+        await screen.findByText("Your sign-in expired. Please sign in again."),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText("Authenticator code")).toBeNull();
+      expect(readPersistedAuthPendingFlow()).toBeNull();
+    });
+
+    it("drops a pending step once the user is signed in elsewhere", async () => {
+      useAuthMock.mockReturnValue({
+        status: "authenticated",
+        setSession: vi.fn(),
+        clearSession: vi.fn(),
+      });
+      writePersistedAuthPendingFlow({
+        flow: "login-mfa",
+        mfaChallengeToken: "other-tab-token",
+        availableFactors: ["totp"],
+        factor: "totp",
+        method: "password",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        nextPath: "/dashboard",
+      });
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      await waitFor(() => {
+        expect(readPersistedAuthPendingFlow()).toBeNull();
+      });
+      await waitFor(() => {
+        expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+      });
+    });
+
+    it("finishes an OAuth sign-in that needs a code as an OAuth sign-in", async () => {
+      const user = userEvent.setup();
+      const setSession = authenticateOnSetSession();
+      oauthMfaRequiredMock.mockReturnValue(challenge);
+      completeLoginMfaMock.mockResolvedValue(
+        loginSession({ known: false, knownByIp: false }),
+      );
+
+      render(<LoginForm nextPath="/dashboard" />);
+
+      await user.click(
+        screen.getByRole("button", { name: "Trigger OAuth MFA" }),
+      );
+      expect(readPersistedAuthPendingFlow()).toMatchObject({
+        flow: "login-mfa",
+        method: "oauth",
+      });
+
+      await user.type(
+        await screen.findByLabelText("Authenticator code"),
+        "123456",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      await waitFor(() => {
+        expect(setSession).toHaveBeenCalled();
+      });
+      // OAuth sign-ins register the device without the device-login check.
+      expect(getOptionsMock).not.toHaveBeenCalled();
+      expect(verifyDeviceMock).toHaveBeenCalled();
+    });
   });
 });
