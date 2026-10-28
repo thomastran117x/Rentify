@@ -1,4 +1,4 @@
-import BadRequestError from "@/errors/http/bad-request.error";
+import ConflictError from "@/errors/http/conflict.error";
 import ForbiddenError from "@/errors/http/forbidden.error";
 import { OrganizationInvitationsService } from "@/features/organizations/invitations/invitations.service";
 import { testUuid } from "../../../support/uuid";
@@ -367,6 +367,90 @@ describe("OrganizationInvitationsService", () => {
     });
   });
 
+  it.each(["revoked", "expired"])(
+    "rejects accepting a %s invitation with a conflict",
+    async (status) => {
+      const { service, repository } = createService({
+        authRepository: {
+          findUserById: jest.fn(async () =>
+            createUser({ id: USER_2_ID, email: "teammate@example.com" }),
+          ),
+        },
+        repository: {
+          findInvitationByTokenHash: jest.fn(async () =>
+            createInvitation({ status }),
+          ),
+        },
+      });
+
+      await expect(
+        service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(repository.acceptInvitation).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects an accept that loses the write to a revoke", async () => {
+    const { service, repository, auditService } = createService({
+      authRepository: {
+        findUserById: jest.fn(async () =>
+          createUser({ id: USER_2_ID, email: "teammate@example.com" }),
+        ),
+      },
+      repository: {
+        findInvitationByTokenHash: jest
+          .fn()
+          .mockResolvedValueOnce(createInvitation())
+          .mockResolvedValueOnce(createInvitation({ status: "revoked" })),
+        acceptInvitation: jest.fn(async () => null),
+      },
+    });
+
+    await expect(
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(repository.findInvitationByTokenHash).toHaveBeenCalledTimes(2);
+    expect(repository.setPreferredOrganization).not.toHaveBeenCalled();
+    expect(auditService.recordSafely).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing membership when a concurrent accept by the same user won the write", async () => {
+    const { service, auditService } = createService({
+      authRepository: {
+        findUserById: jest.fn(async () =>
+          createUser({ id: USER_2_ID, email: "teammate@example.com" }),
+        ),
+      },
+      repository: {
+        findInvitationByTokenHash: jest
+          .fn()
+          .mockResolvedValueOnce(createInvitation())
+          .mockResolvedValueOnce(createInvitation({ status: "accepted" })),
+        acceptInvitation: jest.fn(async () => null),
+        findMemberByUserId: jest.fn(async () => createMember()),
+        listMembershipsByUserId: jest.fn(async () => [
+          {
+            membershipId: "membership-2",
+            id: ORG_1_ID,
+            name: "Northwind",
+            role: "operator",
+            joinedAt: "2026-05-03T00:00:00.000Z",
+            isActive: true,
+          },
+        ]),
+      },
+    });
+
+    await expect(
+      service.acceptInvitation({ token: "token-123", userId: USER_2_ID }),
+    ).resolves.toMatchObject({
+      accepted: true,
+      organization: { id: ORG_1_ID, role: "operator" },
+      membership: { membershipId: "membership-2" },
+    });
+    expect(auditService.recordSafely).not.toHaveBeenCalled();
+  });
+
   it("revokes an operator invitation as a manager", async () => {
     const { service, repository } = createService({
       repository: {
@@ -412,7 +496,24 @@ describe("OrganizationInvitationsService", () => {
         actorUserId: USER_1_ID,
         invitationId: INVITE_1_ID,
       }),
-    ).rejects.toBeInstanceOf(BadRequestError);
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("rejects revoking an invitation that stopped being pending before the write", async () => {
+    const { service, auditService } = createService({
+      repository: {
+        revokeInvitation: jest.fn(async () => null),
+      },
+    });
+
+    await expect(
+      service.revokeInvitation({
+        organizationId: ORG_1_ID,
+        actorUserId: USER_1_ID,
+        invitationId: INVITE_1_ID,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(auditService.recordSafely).not.toHaveBeenCalled();
   });
 
   it("expires pending invitations in bulk and records an audit entry per invitation", async () => {

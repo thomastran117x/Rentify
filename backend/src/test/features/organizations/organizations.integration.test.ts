@@ -634,6 +634,126 @@ describe("Organizations persistence integration", () => {
     });
   });
 
+  describe("concurrent invitation requests", () => {
+    const invitedEmail = "viewer1@rentify.local";
+
+    async function inviteViewer(
+      owner: Awaited<ReturnType<typeof createAuthenticatedRequestContext>>,
+    ) {
+      const inviteResponse = await request(
+        `/organizations/${ORGANIZATION_ID}/invitations`,
+        {
+          method: "POST",
+          headers: owner.headers(),
+          body: JSON.stringify({ email: invitedEmail, role: "operator" }),
+        },
+      );
+      expect(inviteResponse.status).toBe(201);
+      const { invitation } = await readData<{ invitation: { id: string } }>(
+        inviteResponse,
+      );
+      const job = await readOrganizationInviteJob(persistenceApp, invitedEmail);
+
+      return { invitationId: invitation.id, token: job.input.token };
+    }
+
+    async function readErrorCode(response: Response): Promise<string> {
+      const body = (await response.json()) as { error: { code: string } };
+      return body.error.code;
+    }
+
+    it("lets exactly one of a simultaneous accept and revoke win", async () => {
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const viewer = await createAuthenticatedRequestContext({
+        email: invitedEmail,
+      });
+      const { invitationId, token } = await inviteViewer(owner);
+
+      const [acceptResponse, revokeResponse] = await Promise.all([
+        request(`/organizations/invitations/${token}/accept`, {
+          method: "POST",
+          headers: viewer.headers(),
+        }),
+        request(
+          `/organizations/${ORGANIZATION_ID}/invitations/${invitationId}`,
+          {
+            method: "DELETE",
+            headers: owner.headers(),
+          },
+        ),
+      ]);
+
+      const statuses = [acceptResponse.status, revokeResponse.status];
+      expect([...statuses].sort()).toEqual([200, 409]);
+      const loser =
+        acceptResponse.status === 409 ? acceptResponse : revokeResponse;
+      expect(await readErrorCode(loser)).toBe("CONFLICT");
+
+      const stored =
+        await persistenceApp.prisma.organizationInvitation.findUniqueOrThrow({
+          where: { id: invitationId },
+        });
+      const membership =
+        await persistenceApp.prisma.organizationMembership.findFirst({
+          where: { organizationId: ORGANIZATION_ID, userId: viewer.userId },
+        });
+
+      if (acceptResponse.status === 200) {
+        expect(stored.status).toBe("accepted");
+        expect(stored.revokedAt).toBeNull();
+        expect(membership).not.toBeNull();
+      } else {
+        expect(stored.status).toBe("revoked");
+        expect(stored.revokedAt).not.toBeNull();
+        expect(stored.acceptedAt).toBeNull();
+        expect(membership).toBeNull();
+      }
+    });
+
+    it("rejects accepting an invitation that a reissue replaced", async () => {
+      const owner = await createAuthenticatedRequestContext({
+        email: "owner1@rentify.local",
+      });
+      const viewer = await createAuthenticatedRequestContext({
+        email: invitedEmail,
+      });
+      const original = await inviteViewer(owner);
+
+      const reissueResponse = await request(
+        `/organizations/${ORGANIZATION_ID}/invitations`,
+        {
+          method: "POST",
+          headers: owner.headers(),
+          body: JSON.stringify({ email: invitedEmail, role: "operator" }),
+        },
+      );
+      expect(reissueResponse.status).toBe(201);
+
+      const acceptResponse = await request(
+        `/organizations/invitations/${original.token}/accept`,
+        {
+          method: "POST",
+          headers: viewer.headers(),
+        },
+      );
+
+      expect(acceptResponse.status).toBe(409);
+      expect(await readErrorCode(acceptResponse)).toBe("CONFLICT");
+      expect(
+        await persistenceApp.prisma.organizationInvitation.findUniqueOrThrow({
+          where: { id: original.invitationId },
+        }),
+      ).toMatchObject({ status: "revoked", acceptedAt: null });
+      expect(
+        await persistenceApp.prisma.organizationMembership.findFirst({
+          where: { organizationId: ORGANIZATION_ID, userId: viewer.userId },
+        }),
+      ).toBeNull();
+    });
+  });
+
   it("records a rename in the audit log and restores the previous version", async () => {
     const owner = await createAuthenticatedRequestContext({
       email: "owner1@rentify.local",
