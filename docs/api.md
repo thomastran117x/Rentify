@@ -161,6 +161,41 @@ See [auth-security.md](./auth-security.md#investigating-sign-in-activity),
 [Locking Your Own Account](./auth-security.md#locking-your-own-account) and
 [Suspicious Activity Detection](./auth-security.md#suspicious-activity-detection).
 
+### Captcha
+
+Public endpoints that can be abused anonymously take a Cloudflare Turnstile
+token in the request body as `captchaToken`. A failed check is
+`400 BAD_REQUEST` with the message `Captcha verification failed.` and
+`details.errors` listing why.
+
+Each flow renders its widget with its own Turnstile action, and the API refuses
+a token solved for any other action, so a token cannot be solved on one form
+and spent on another. A screen that both submits a code and resends it shares
+one action.
+
+| Flow                              | Action            | Endpoints                                                                     |
+| --------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| Sign in                           | `login`           | `POST /auth/local/login`                                                      |
+| Sign up                           | `signup`          | `POST /auth/local/signup`                                                     |
+| Resend the verification email     | `verify_email`    | `POST /auth/local/email/resend`                                               |
+| Forgot username                   | `forgot_username` | `POST /auth/local/username/forgot`                                            |
+| Password reset                    | `password_reset`  | `POST /auth/local/password/forgot`, `POST /auth/local/password/forgot/resend` |
+| Unlock a locked sign-in           | `unlock`          | `POST /auth/local/unlock/resend`                                              |
+| Feedback from a signed-out caller | `feedback`        | `POST /feedback`                                                              |
+
+The token is also refused when Turnstile reports it was solved on a hostname
+other than the frontend's (`hostname-mismatch`), since any site using the same
+site key could otherwise mint tokens for us, or for another action
+(`action-mismatch`). The allowed hostnames default to the host of
+`FRONTEND_URL`; see
+[backend configuration](./backend-configuration.md#captcha).
+
+The checks fail closed. When Turnstile cannot be reached, or the widget cannot
+render (for example in an embedded WebView that blocks it), there is no valid
+token and the request is refused; there is no degraded path. Outside
+production, the token `local-dev-bypass` skips verification, and the frontend
+sends it when no site key is configured. Production never accepts it.
+
 ### Session Cookies
 
 Browser sign-in, refresh and logout keep the session in two cookies. Native

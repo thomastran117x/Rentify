@@ -25,6 +25,7 @@ const tokenConfig = {
 const captchaConfig = {
   secretKey: "test-turnstile-secret",
   allowedHosts: ["challenges.cloudflare.com"],
+  allowedHostnames: [] as string[],
 };
 
 const elasticsearchConfig = {

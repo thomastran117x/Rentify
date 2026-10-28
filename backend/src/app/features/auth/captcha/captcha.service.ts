@@ -1,4 +1,6 @@
 import { environment } from "@/configuration/environment";
+import { readFrontendOrigins } from "@/configuration/http/allowed-origins";
+import type { CaptchaAction } from "@/features/auth/captcha/captcha.actions";
 import { assertTrustedOutboundUrl } from "@/features/security/outbound-request-guard";
 
 const TURNSTILE_SITEVERIFY_URL =
@@ -26,6 +28,7 @@ interface CaptchaServiceOptions {
   secretKey?: string;
   verificationUrl?: string;
   allowedHosts?: string[];
+  allowedHostnames?: string[];
   maxRetries?: number;
   initialDelayMs?: number;
   maxDelayMs?: number;
@@ -35,6 +38,8 @@ interface CaptchaServiceOptions {
 
 export interface VerifyCaptchaInput {
   token?: string | null;
+  /** The action the widget for this flow is rendered with. */
+  expectedAction: CaptchaAction;
   remoteIp?: string;
   idempotencyKey?: string;
 }
@@ -62,6 +67,7 @@ export interface CaptchaVerificationResult {
 
 type VerificationPayload = Readonly<{
   token: string;
+  expectedAction: CaptchaAction;
   remoteIp?: string;
   idempotencyKey?: string;
 }>;
@@ -75,6 +81,7 @@ export class CaptchaService {
   private readonly secretKey?: string;
   private readonly verificationUrl: string;
   private readonly allowedHosts: string[];
+  private readonly allowedHostnames: string[];
   private readonly maxRetries: number;
   private readonly initialDelayMs: number;
   private readonly maxDelayMs: number;
@@ -86,6 +93,9 @@ export class CaptchaService {
       options.secretKey ?? environment.getCaptchaConfig().secretKey;
     this.verificationUrl = options.verificationUrl ?? TURNSTILE_SITEVERIFY_URL;
     this.allowedHosts = options.allowedHosts ?? this.readAllowedHosts();
+    this.allowedHostnames = (
+      options.allowedHostnames ?? this.readAllowedHostnames()
+    ).map((hostname) => hostname.toLowerCase());
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.initialDelayMs = options.initialDelayMs ?? DEFAULTS.initialDelayMs;
     this.maxDelayMs = options.maxDelayMs ?? DEFAULTS.maxDelayMs;
@@ -115,7 +125,7 @@ export class CaptchaService {
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
         const response = await this.submitVerification(payload);
-        return this.buildSuccessResult(response);
+        return this.buildSuccessResult(response, payload.expectedAction);
       } catch (error) {
         const normalized = this.normalizeError(error);
 
@@ -152,6 +162,7 @@ export class CaptchaService {
 
     return {
       token,
+      expectedAction: input.expectedAction,
       remoteIp: input.remoteIp,
       idempotencyKey: input.idempotencyKey,
     };
@@ -282,13 +293,33 @@ export class CaptchaService {
     };
   }
 
+  /**
+   * A token Turnstile accepts is still refused when it was solved on a site
+   * other than ours (any site using the same site key) or for another flow's
+   * action, so it cannot be harvested elsewhere and replayed here.
+   */
   private buildSuccessResult(
     response: TurnstileSiteverifyResponse,
+    expectedAction: CaptchaAction,
   ): CaptchaVerificationResult {
+    const errors = [...(response["error-codes"] ?? [])];
+
+    if (response.success) {
+      const hostname = response.hostname?.toLowerCase();
+
+      if (!hostname || !this.allowedHostnames.includes(hostname)) {
+        errors.push("hostname-mismatch");
+      }
+
+      if (response.action !== expectedAction) {
+        errors.push("action-mismatch");
+      }
+    }
+
     return {
-      success: response.success,
+      success: response.success && errors.length === 0,
       failOpen: false,
-      errors: response["error-codes"] ?? [],
+      errors,
       hostname: response.hostname,
       action: response.action,
       challengeTimestamp: response.challenge_ts,
@@ -386,6 +417,20 @@ export class CaptchaService {
     return environment
       .getCaptchaConfig()
       .allowedHosts.map((host) => host.toLowerCase());
+  }
+
+  private readAllowedHostnames(): string[] {
+    const configured = environment.getCaptchaConfig().allowedHostnames;
+
+    if (configured.length) {
+      return configured;
+    }
+
+    return [
+      ...new Set(
+        readFrontendOrigins().map((origin) => new URL(origin).hostname),
+      ),
+    ];
   }
 }
 

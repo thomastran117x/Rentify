@@ -817,6 +817,24 @@ minimum is the longer of `blobStorage.uploadSasTtlSeconds`
 lifetime, plus 15 minutes to finish and complete the upload. A shorter value is
 a startup error. With the maximum one-hour SAS lifetime, that is 75 minutes.
 
+## Captcha
+
+`captcha` configures Cloudflare Turnstile verification. The secret key is
+`CLOUDFLARE_TURNSTILE_SECRET_KEY` and stays out of YAML. See
+[Captcha](./api.md#captcha) for the protected endpoints and their actions.
+
+| Key                | Default                     | Override                    | Meaning                                     |
+| ------------------ | --------------------------- | --------------------------- | ------------------------------------------- |
+| `allowedHosts`     | `challenges.cloudflare.com` | `CAPTCHA_ALLOWED_HOSTS`     | Hosts the siteverify request may be sent to |
+| `allowedHostnames` | the hosts of `FRONTEND_URL` | `CAPTCHA_ALLOWED_HOSTNAMES` | Hostnames a solved challenge may come from  |
+
+A token Turnstile accepts is still refused when its hostname is not on
+`allowedHostnames`. Left empty, the list is the host of every `FRONTEND_URL`
+origin, with `localhost` and `127.0.0.1` standing in for each other. Set it
+when the frontend is served from a host `FRONTEND_URL` does not name. A stack
+using Cloudflare's testing keys gets whatever hostname their siteverify
+responses report, so add that hostname here too.
+
 ## Session cookies
 
 Browser sessions keep their refresh token in an httpOnly cookie and a CSRF

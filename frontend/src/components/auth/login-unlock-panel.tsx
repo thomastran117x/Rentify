@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -119,7 +120,7 @@ export function LoginUnlockPanel({
   const [codeError, setCodeError] = useState<string | null>(null);
   const [resentMessage, setResentMessage] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.unlock);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   async function handleUnlock(event: React.FormEvent<HTMLFormElement>) {
@@ -249,6 +250,7 @@ export function LoginUnlockPanel({
       </form>
 
       <AuthCaptchaPanel
+        action={CAPTCHA_ACTIONS.unlock}
         token={captchaToken}
         error={captchaError ?? undefined}
         onChange={(token) => {

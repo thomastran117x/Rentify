@@ -1,10 +1,12 @@
 "use client";
 
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import type { CaptchaAction } from "@/lib/auth/captcha-actions";
 import { publicEnv } from "@/lib/env";
 import { theme } from "@/styles/theme";
 
 interface AuthCaptchaPanelProps {
+  action: CaptchaAction;
   token: string;
   error?: string;
   onChange: (token: string) => void;
@@ -14,6 +16,7 @@ interface AuthCaptchaPanelProps {
 }
 
 export function AuthCaptchaPanel({
+  action,
   token,
   error,
   onChange,
@@ -23,7 +26,7 @@ export function AuthCaptchaPanel({
 }: AuthCaptchaPanelProps) {
   return (
     <div className={theme.auth.captchaPanel}>
-      <TurnstileWidget value={token} onChange={onChange} />
+      <TurnstileWidget action={action} value={token} onChange={onChange} />
 
       {publicEnv.turnstileSiteKey && token ? (
         <div

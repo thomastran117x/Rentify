@@ -1,8 +1,9 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { CaptchaAction } from "@/lib/auth/captcha-actions";
 
-const CAPTCHA_STORAGE_KEY = "rentify.auth.captcha";
+const CAPTCHA_STORAGE_KEY_PREFIX = "rentify.auth.captcha.";
 const CAPTCHA_STORAGE_EVENT = "rentify-auth-captcha-storage";
 const CAPTCHA_MAX_AGE_MS = 4 * 60 * 1000;
 
@@ -11,8 +12,18 @@ interface StoredCaptchaState {
   createdAt: number;
 }
 
-let cachedRawCaptcha: string | null | undefined;
-let cachedParsedCaptcha: StoredCaptchaState | null | undefined;
+interface CachedCaptchaState {
+  raw: string | null;
+  parsed: StoredCaptchaState | null;
+}
+
+// Each action keeps its own token: the API rejects a token solved for one
+// flow when it is spent on another.
+const cachedCaptchaStates = new Map<CaptchaAction, CachedCaptchaState>();
+
+export function getCaptchaStorageKey(action: CaptchaAction): string {
+  return `${CAPTCHA_STORAGE_KEY_PREFIX}${action}`;
+}
 
 function canUseStorage(): boolean {
   return typeof window !== "undefined";
@@ -30,25 +41,32 @@ function isCaptchaFresh(state: StoredCaptchaState): boolean {
   return Date.now() - state.createdAt < CAPTCHA_MAX_AGE_MS;
 }
 
-function readStoredCaptchaState(): StoredCaptchaState | null {
+function forgetStoredCaptcha(action: CaptchaAction): void {
+  window.sessionStorage.removeItem(getCaptchaStorageKey(action));
+  cachedCaptchaStates.set(action, { raw: null, parsed: null });
+}
+
+function readStoredCaptchaState(
+  action: CaptchaAction,
+): StoredCaptchaState | null {
   if (!canUseStorage()) {
     return null;
   }
 
-  const rawValue = window.sessionStorage.getItem(CAPTCHA_STORAGE_KEY);
+  const rawValue = window.sessionStorage.getItem(getCaptchaStorageKey(action));
+  const cached = cachedCaptchaStates.get(action);
 
-  if (rawValue === cachedRawCaptcha && cachedParsedCaptcha !== undefined) {
-    if (cachedParsedCaptcha && !isCaptchaFresh(cachedParsedCaptcha)) {
-      clearStoredCaptcha();
+  if (cached && rawValue === cached.raw) {
+    if (cached.parsed && !isCaptchaFresh(cached.parsed)) {
+      clearStoredCaptcha(action);
       return null;
     }
 
-    return cachedParsedCaptcha;
+    return cached.parsed;
   }
 
   if (!rawValue) {
-    cachedRawCaptcha = null;
-    cachedParsedCaptcha = null;
+    cachedCaptchaStates.set(action, { raw: null, parsed: null });
     return null;
   }
 
@@ -56,33 +74,16 @@ function readStoredCaptchaState(): StoredCaptchaState | null {
     const parsedCaptcha = JSON.parse(rawValue) as StoredCaptchaState;
 
     if (!parsedCaptcha.token || !isCaptchaFresh(parsedCaptcha)) {
-      window.sessionStorage.removeItem(CAPTCHA_STORAGE_KEY);
-      cachedRawCaptcha = null;
-      cachedParsedCaptcha = null;
+      forgetStoredCaptcha(action);
       return null;
     }
 
-    cachedRawCaptcha = rawValue;
-    cachedParsedCaptcha = parsedCaptcha;
+    cachedCaptchaStates.set(action, { raw: rawValue, parsed: parsedCaptcha });
     return parsedCaptcha;
   } catch {
-    window.sessionStorage.removeItem(CAPTCHA_STORAGE_KEY);
-    cachedRawCaptcha = null;
-    cachedParsedCaptcha = null;
+    forgetStoredCaptcha(action);
     return null;
   }
-}
-
-function getStoredCaptchaToken(): string {
-  return readStoredCaptchaState()?.token ?? "";
-}
-
-function getCaptchaSnapshot(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return getStoredCaptchaToken();
 }
 
 function subscribeToCaptchaStore(onStoreChange: () => void): () => void {
@@ -103,7 +104,7 @@ function subscribeToCaptchaStore(onStoreChange: () => void): () => void {
   };
 }
 
-export function writeStoredCaptcha(token: string): void {
+export function writeStoredCaptcha(action: CaptchaAction, token: string): void {
   if (!canUseStorage()) {
     return;
   }
@@ -114,42 +115,37 @@ export function writeStoredCaptcha(token: string): void {
   };
 
   const serializedState = JSON.stringify(nextState);
-  window.sessionStorage.setItem(CAPTCHA_STORAGE_KEY, serializedState);
-  cachedRawCaptcha = serializedState;
-  cachedParsedCaptcha = nextState;
+  window.sessionStorage.setItem(getCaptchaStorageKey(action), serializedState);
+  cachedCaptchaStates.set(action, { raw: serializedState, parsed: nextState });
   emitCaptchaChange();
 }
 
-export function clearStoredCaptcha(): void {
+export function clearStoredCaptcha(action: CaptchaAction): void {
   if (!canUseStorage()) {
     return;
   }
 
-  window.sessionStorage.removeItem(CAPTCHA_STORAGE_KEY);
-  cachedRawCaptcha = null;
-  cachedParsedCaptcha = null;
+  forgetStoredCaptcha(action);
   emitCaptchaChange();
 }
 
-export function useAuthCaptchaToken(): [
-  string,
-  (token: string) => void,
-  () => void,
-] {
+export function useAuthCaptchaToken(
+  action: CaptchaAction,
+): [string, (token: string) => void, () => void] {
   const token = useSyncExternalStore(
     subscribeToCaptchaStore,
-    getCaptchaSnapshot,
+    () => readStoredCaptchaState(action)?.token ?? "",
     () => "",
   );
 
   function setToken(nextToken: string): void {
     if (!nextToken.trim()) {
-      clearStoredCaptcha();
+      clearStoredCaptcha(action);
       return;
     }
 
-    writeStoredCaptcha(nextToken);
+    writeStoredCaptcha(action, nextToken);
   }
 
-  return [token, setToken, clearStoredCaptcha];
+  return [token, setToken, () => clearStoredCaptcha(action)];
 }

@@ -64,7 +64,10 @@ describe("PasswordController recovery handlers", () => {
     );
 
     expect(captchaService.verify).toHaveBeenCalledWith(
-      expect.objectContaining({ token: "forgot-captcha" }),
+      expect.objectContaining({
+        token: "forgot-captcha",
+        expectedAction: "password_reset",
+      }),
     );
     expect(passwordService.forgotPassword).toHaveBeenCalledWith({
       client: expect.any(Object),

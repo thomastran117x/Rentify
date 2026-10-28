@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 // Read-only assertions run against organization one, which is never renamed.
 const MANAGER_USERNAME = "renter-one";
@@ -15,46 +16,6 @@ const RENAME_ORGANIZATION_NAME = "Alpine Stays";
 
 // Slug edits mutate shared seed state, so these must not interleave.
 test.describe.configure({ mode: "serial" });
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
-
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  const token = await readCaptchaToken();
-
-  if (!token) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
-        }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
-}
 
 async function submitLogin(page: Page, username: string, nextPath: string) {
   await page.goto(`/login?next=${encodeURIComponent(nextPath)}`);

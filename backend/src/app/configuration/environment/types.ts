@@ -96,6 +96,7 @@ export type RawEnvironmentValues = {
   BOOKING_REQUEST_EXPIRY_BATCH_SIZE?: string;
   BOOKING_REQUEST_EXPIRY_POLL_INTERVAL_MS?: string;
   CAPTCHA_ALLOWED_HOSTS?: string;
+  CAPTCHA_ALLOWED_HOSTNAMES?: string;
   CLIENT_IP_HEADER?: string;
   CLOUDFLARE_TURNSTILE_SECRET_KEY?: string;
   CORS_ALLOWED_ORIGINS?: string;
@@ -409,7 +410,13 @@ export interface AppEnvironment {
   };
   captcha: {
     secretKey?: string;
+    /** Hosts the siteverify request may be sent to. */
     allowedHosts: string[];
+    /**
+     * Hostnames a solved challenge may come from. Empty means the hosts of
+     * FRONTEND_URL.
+     */
+    allowedHostnames: string[];
   };
   cors: {
     allowedOrigins: string[];

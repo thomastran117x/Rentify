@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import BadRequestError from "@/errors/http/bad-request.error";
+import type { CaptchaAction } from "@/features/auth/captcha/captcha.actions";
 import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 
 /**
@@ -11,9 +12,11 @@ export async function requireCaptcha(
   request: Request,
   captchaService: CaptchaService,
   captchaToken: string,
+  expectedAction: CaptchaAction,
 ): Promise<void> {
   const result = await captchaService.verify({
     token: captchaToken,
+    expectedAction,
     remoteIp: request.client.ip,
     idempotencyKey: resolveIdempotencyKey(request),
   });

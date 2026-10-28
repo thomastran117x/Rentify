@@ -10,6 +10,7 @@ import {
   toSetPasswordInput,
 } from "@/features/auth/auth.request-mappers";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
 import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
@@ -35,7 +36,12 @@ export class PasswordController {
     response: Response,
   ): Promise<void> => {
     const input = await parseRequestBody(request, forgotPasswordRequestSchema);
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.passwordReset,
+    );
     const result = await this.passwordService.forgotPassword(
       toForgotPasswordInput(request, input),
     );
@@ -52,7 +58,12 @@ export class PasswordController {
       request,
       resendForgotPasswordRequestSchema,
     );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.passwordReset,
+    );
     const result = await this.passwordService.resendForgotPassword(
       toResendForgotPasswordInput(request, input),
     );

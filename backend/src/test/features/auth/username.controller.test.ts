@@ -173,7 +173,10 @@ describe("UsernameController.forgotUsername", () => {
     );
 
     expect(captchaService.verify).toHaveBeenCalledWith(
-      expect.objectContaining({ token: "captcha-ok" }),
+      expect.objectContaining({
+        token: "captcha-ok",
+        expectedAction: "forgot_username",
+      }),
     );
     expect(usernameService.forgotUsername).toHaveBeenCalledWith(
       expect.objectContaining({ email: "user@example.com" }),

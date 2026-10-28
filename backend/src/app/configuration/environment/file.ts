@@ -98,6 +98,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
   "blobStorage.quarantineLegacyFallback": "MEDIA_QUARANTINE_LEGACY_FALLBACK",
   "blobStorage.uploadSasTtlSeconds": "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
+  "captcha.allowedHostnames": "CAPTCHA_ALLOWED_HOSTNAMES",
   "captcha.allowedHosts": "CAPTCHA_ALLOWED_HOSTS",
   "cors.allowedOrigins": "CORS_ALLOWED_ORIGINS",
   "csrf.allowedOrigins": "CSRF_ALLOWED_ORIGINS",
@@ -284,6 +285,7 @@ const KNOWN_FILE_KEYS = new Set<string>(
 
 const ARRAY_FILE_KEYS = new Set([
   "auth.mfaBypassEmails",
+  "captcha.allowedHostnames",
   "captcha.allowedHosts",
   "cors.allowedOrigins",
   "csrf.allowedOrigins",

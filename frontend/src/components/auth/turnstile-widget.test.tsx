@@ -33,19 +33,31 @@ describe("TurnstileWidget", () => {
 
   it("does not rerender the widget when the parent passes a new onChange callback", () => {
     const { rerender } = render(
-      <TurnstileWidget value="" onChange={vi.fn()} />,
+      <TurnstileWidget action="login" value="" onChange={vi.fn()} />,
     );
 
-    rerender(<TurnstileWidget value="" onChange={vi.fn()} />);
+    rerender(<TurnstileWidget action="login" value="" onChange={vi.fn()} />);
 
     expect(renderMock).toHaveBeenCalledTimes(1);
     expect(removeMock).not.toHaveBeenCalled();
   });
 
+  it("renders the widget with the flow's action", () => {
+    render(<TurnstileWidget action="unlock" value="" onChange={vi.fn()} />);
+
+    expect(renderMock).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        sitekey: "test-site-key",
+        action: "unlock",
+      }),
+    );
+  });
+
   it("does not reset the widget on the initial empty state", () => {
     const onChange = vi.fn();
 
-    render(<TurnstileWidget value="" onChange={onChange} />);
+    render(<TurnstileWidget action="login" value="" onChange={onChange} />);
 
     expect(renderMock).toHaveBeenCalledTimes(1);
     expect(resetMock).not.toHaveBeenCalled();
@@ -56,10 +68,14 @@ describe("TurnstileWidget", () => {
 
     const onChange = vi.fn();
     const { rerender } = render(
-      <TurnstileWidget value="captcha-token" onChange={onChange} />,
+      <TurnstileWidget
+        action="login"
+        value="captcha-token"
+        onChange={onChange}
+      />,
     );
 
-    rerender(<TurnstileWidget value="" onChange={onChange} />);
+    rerender(<TurnstileWidget action="login" value="" onChange={onChange} />);
 
     expect(resetMock).not.toHaveBeenCalled();
 
@@ -75,7 +91,7 @@ describe("TurnstileWidget", () => {
     vi.useFakeTimers();
 
     const onChange = vi.fn();
-    render(<TurnstileWidget value="" onChange={onChange} />);
+    render(<TurnstileWidget action="login" value="" onChange={onChange} />);
 
     const options = renderMock.mock.calls[0]?.[1] as
       | {
@@ -96,7 +112,7 @@ describe("TurnstileWidget", () => {
     vi.useFakeTimers();
 
     const onChange = vi.fn();
-    render(<TurnstileWidget value="" onChange={onChange} />);
+    render(<TurnstileWidget action="login" value="" onChange={onChange} />);
 
     const options = renderMock.mock.calls[0]?.[1] as
       | {

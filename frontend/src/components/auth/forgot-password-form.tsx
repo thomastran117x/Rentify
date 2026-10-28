@@ -7,6 +7,7 @@ import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { useAuth } from "@/components/auth/auth-context";
 import { PasswordRequirementsChecklist } from "@/components/auth/password-requirements-checklist";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
@@ -207,7 +208,7 @@ export function ForgotPasswordForm() {
   const [resetPending, setResetPending] = useState(false);
   const [resending, setResending] = useState(false);
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.passwordReset);
   const [captchaConsumed, setCaptchaConsumed] = useState(false);
   const hasHydratedConsumedCaptchaRef = useRef(false);
   const persistedAuthFlow = usePersistedAuthPendingFlow();
@@ -432,6 +433,7 @@ export function ForgotPasswordForm() {
         </div>
 
         <AuthCaptchaPanel
+          action={CAPTCHA_ACTIONS.passwordReset}
           token={captchaToken}
           error={requestErrors.captchaToken}
           onChange={handleCaptchaChange}
@@ -545,6 +547,7 @@ export function ForgotPasswordForm() {
       </form>
 
       <AuthCaptchaPanel
+        action={CAPTCHA_ACTIONS.passwordReset}
         token={captchaToken}
         error={resetErrors.captchaToken}
         stale={captchaConsumed}

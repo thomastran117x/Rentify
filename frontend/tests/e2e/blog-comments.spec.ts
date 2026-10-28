@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const USERNAME = "renter-one";
 const OWNER_USERNAME = "owner-one";
@@ -22,44 +23,6 @@ function collectConsoleErrors(page: Page) {
   });
 
   return errors;
-}
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
-
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  if (!(await readCaptchaToken())) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
-        }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
 }
 
 async function login(page: Page, nextPath: string, username = USERNAME) {

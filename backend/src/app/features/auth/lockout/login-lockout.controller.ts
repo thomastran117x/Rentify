@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import {
   toResendUnlockLocalLoginInput,
@@ -43,7 +44,12 @@ export class LoginLockoutController {
       request,
       resendUnlockLocalLoginRequestSchema,
     );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.unlock,
+    );
     const result = await this.loginLockoutService.resendUnlockLocalLogin(
       toResendUnlockLocalLoginInput(request, input),
     );

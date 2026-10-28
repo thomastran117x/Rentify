@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 /**
  * Recently viewed postings, end to end.
@@ -77,44 +78,6 @@ function unexpected(errors: string[]): string[] {
     (message) =>
       !IGNORED_ERROR_PATTERNS.some((pattern) => message.includes(pattern)),
   );
-}
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
-
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  if (!(await readCaptchaToken())) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
-        }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
 }
 
 async function login(page: Page, nextPath = "/saved/recent") {

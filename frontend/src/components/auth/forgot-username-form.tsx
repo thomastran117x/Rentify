@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -88,7 +89,7 @@ export function ForgotUsernameForm() {
   const [requestPending, setRequestPending] = useState(false);
   const [requestComplete, setRequestComplete] = useState(false);
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.forgotUsername);
 
   function handleCaptchaChange(token: string) {
     setCaptchaToken(token);
@@ -202,6 +203,7 @@ export function ForgotUsernameForm() {
       </div>
 
       <AuthCaptchaPanel
+        action={CAPTCHA_ACTIONS.forgotUsername}
         token={captchaToken}
         error={requestErrors.captchaToken}
         onChange={handleCaptchaChange}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import type { CaptchaAction } from "@/lib/auth/captcha-actions";
 import { publicEnv } from "@/lib/env";
 
 const LOCAL_CAPTCHA_BYPASS_TOKEN = "local-dev-bypass";
@@ -21,6 +22,7 @@ declare global {
         container: HTMLElement,
         options: {
           sitekey: string;
+          action?: string;
           theme?: "light" | "dark" | "auto";
           size?: "normal" | "compact" | "flexible";
           callback?: (token: string) => void;
@@ -35,11 +37,17 @@ declare global {
 }
 
 interface TurnstileWidgetProps {
+  /** Bound into the token; the API checks it against the endpoint's action. */
+  action: CaptchaAction;
   value: string;
   onChange: (value: string) => void;
 }
 
-export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
+export function TurnstileWidget({
+  action,
+  value,
+  onChange,
+}: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const previousValueRef = useRef(value);
@@ -156,6 +164,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
     try {
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: publicEnv.turnstileSiteKey,
+        action,
         theme: "light",
         size: "flexible",
         callback: (token: string) => {
@@ -182,6 +191,7 @@ export function TurnstileWidget({ value, onChange }: TurnstileWidgetProps) {
       disposeWidget();
     };
   }, [
+    action,
     clearResetRecovery,
     disposeWidget,
     emitChange,

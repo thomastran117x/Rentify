@@ -1,41 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const USERNAME = "renter-one";
 const PASSWORD = "Rentify123!";
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        return (
-          (JSON.parse(rawCaptchaState) as { token?: string }).token?.trim() ??
-          ""
-        );
-      } catch {
-        return "";
-      }
-    });
-
-  if (!(await readCaptchaToken())) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({ token: "local-dev-bypass", createdAt: Date.now() }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
-}
 
 async function login(page: Page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {

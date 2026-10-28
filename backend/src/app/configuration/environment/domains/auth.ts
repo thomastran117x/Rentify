@@ -425,6 +425,9 @@ export function buildCaptchaConfig(
     allowedHosts: allowedHosts.length
       ? allowedHosts
       : [DEFAULT_CAPTCHA_ALLOWED_HOST],
+    allowedHostnames: normalizeDelimitedList(raw.CAPTCHA_ALLOWED_HOSTNAMES).map(
+      (hostname) => hostname.toLowerCase(),
+    ),
   };
 }
 

@@ -1,9 +1,11 @@
+import { environment } from "@/configuration/environment";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 
 function createService(options?: {
   secretKey?: string;
   verificationUrl?: string;
   allowedHosts?: string[];
+  allowedHostnames?: string[];
   maxRetries?: number;
   initialDelayMs?: number;
   maxDelayMs?: number;
@@ -14,6 +16,7 @@ function createService(options?: {
     secretKey: options?.secretKey,
     verificationUrl: options?.verificationUrl,
     allowedHosts: options?.allowedHosts,
+    allowedHostnames: options?.allowedHostnames,
     maxRetries: options?.maxRetries,
     initialDelayMs: options?.initialDelayMs,
     maxDelayMs: options?.maxDelayMs,
@@ -34,6 +37,7 @@ describe("CaptchaService", () => {
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "captcha-token",
       }),
     ).resolves.toEqual({
@@ -51,6 +55,7 @@ describe("CaptchaService", () => {
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "local-dev-bypass",
       }),
     ).resolves.toEqual({
@@ -69,6 +74,7 @@ describe("CaptchaService", () => {
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "   ",
       }),
     ).resolves.toEqual({
@@ -101,9 +107,11 @@ describe("CaptchaService", () => {
       verificationUrl:
         "https://challenges.cloudflare.com/turnstile/v0/siteverify",
       allowedHosts: ["challenges.cloudflare.com"],
+      allowedHostnames: ["rent.example.com"],
     });
 
     const result = await service.verify({
+      expectedAction: "login",
       token: " captcha-token ",
       remoteIp: "127.0.0.1",
       idempotencyKey: "request-123",
@@ -142,6 +150,7 @@ describe("CaptchaService", () => {
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "captcha-token",
       }),
     ).resolves.toEqual({
@@ -160,6 +169,7 @@ describe("CaptchaService", () => {
           JSON.stringify({
             success: true,
             hostname: "rent.example.com",
+            action: "login",
           }),
           {
             status: 200,
@@ -174,10 +184,12 @@ describe("CaptchaService", () => {
       maxRetries: 1,
       initialDelayMs: 0,
       maxDelayMs: 0,
+      allowedHostnames: ["rent.example.com"],
     });
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "captcha-token",
       }),
     ).resolves.toEqual({
@@ -185,7 +197,7 @@ describe("CaptchaService", () => {
       failOpen: false,
       errors: [],
       hostname: "rent.example.com",
-      action: undefined,
+      action: "login",
       challengeTimestamp: undefined,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -208,12 +220,165 @@ describe("CaptchaService", () => {
 
     await expect(
       service.verify({
+        expectedAction: "login",
         token: "captcha-token",
       }),
     ).resolves.toEqual({
       success: true,
       failOpen: true,
       errors: ["ETIMEDOUT", "transient-failures:3"],
+    });
+  });
+
+  describe("hostname and action checks", () => {
+    function mockSiteverify(body: Record<string, unknown>) {
+      return jest.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ success: true, ...body }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
+
+    it("rejects a token solved on another hostname", async () => {
+      mockSiteverify({ hostname: "evil.example", action: "login" });
+      const service = createService({
+        secretKey: "test-secret",
+        allowedHostnames: ["rent.example.com"],
+      });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({
+        success: false,
+        failOpen: false,
+        errors: ["hostname-mismatch"],
+        hostname: "evil.example",
+      });
+    });
+
+    it("rejects a token without a hostname", async () => {
+      mockSiteverify({ action: "login" });
+      const service = createService({
+        secretKey: "test-secret",
+        allowedHostnames: ["rent.example.com"],
+      });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({
+        success: false,
+        errors: ["hostname-mismatch"],
+      });
+    });
+
+    it("rejects a token solved for another flow's action", async () => {
+      mockSiteverify({ hostname: "rent.example.com", action: "signup" });
+      const service = createService({
+        secretKey: "test-secret",
+        allowedHostnames: ["rent.example.com"],
+      });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({
+        success: false,
+        failOpen: false,
+        errors: ["action-mismatch"],
+        action: "signup",
+      });
+    });
+
+    it("keeps Turnstile's own rejection as it is", async () => {
+      jest.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            "error-codes": ["timeout-or-duplicate"],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+      const service = createService({ secretKey: "test-secret" });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({
+        success: false,
+        errors: ["timeout-or-duplicate"],
+      });
+    });
+
+    it("compares hostnames case-insensitively", async () => {
+      mockSiteverify({ hostname: "Rent.Example.com", action: "login" });
+      const service = createService({
+        secretKey: "test-secret",
+        allowedHostnames: ["RENT.example.com"],
+      });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({ success: true, errors: [] });
+    });
+
+    it("defaults to the hosts of FRONTEND_URL, both loopback spellings included", async () => {
+      const service = createService({ secretKey: "test-secret" });
+
+      mockSiteverify({ hostname: "127.0.0.1", action: "login" });
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({ success: true });
+
+      mockSiteverify({ hostname: "localhost", action: "login" });
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({ success: true });
+
+      mockSiteverify({ hostname: "rent.example.com", action: "login" });
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({
+        success: false,
+        errors: ["hostname-mismatch"],
+      });
+    });
+
+    it("uses CAPTCHA_ALLOWED_HOSTNAMES instead of FRONTEND_URL when set", async () => {
+      jest.spyOn(environment, "getCaptchaConfig").mockReturnValue({
+        secretKey: "test-secret",
+        allowedHosts: ["challenges.cloudflare.com"],
+        allowedHostnames: ["app.rentify.example"],
+      });
+      const service = createService({ secretKey: "test-secret" });
+
+      mockSiteverify({ hostname: "app.rentify.example", action: "login" });
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({ success: true });
+
+      mockSiteverify({ hostname: "localhost", action: "login" });
+      await expect(
+        service.verify({ expectedAction: "login", token: "captcha-token" }),
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    it("does not honour the development bypass token in production", async () => {
+      jest.spyOn(environment, "isProduction").mockReturnValue(true);
+      const fetchMock = jest.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            "error-codes": ["invalid-input-response"],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+      const service = createService({ secretKey: "test-secret" });
+
+      await expect(
+        service.verify({ expectedAction: "login", token: "local-dev-bypass" }),
+      ).resolves.toMatchObject({ success: false });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 });

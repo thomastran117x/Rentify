@@ -98,7 +98,10 @@ describe("LoginLockoutController.resendUnlockLocalLogin", () => {
     );
 
     expect(captchaService.verify).toHaveBeenCalledWith(
-      expect.objectContaining({ token: "captcha-ok" }),
+      expect.objectContaining({
+        token: "captcha-ok",
+        expectedAction: "unlock",
+      }),
     );
     expect(loginLockoutService.resendUnlockLocalLogin).toHaveBeenCalledWith(
       expect.objectContaining({ email: "user@example.com" }),

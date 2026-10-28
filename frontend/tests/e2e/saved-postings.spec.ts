@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const SEARCH_URL = "/postings?q=Gastown%20Production%20Loft";
 const POSTING_NAME = "Gastown Production Loft";
@@ -17,44 +18,6 @@ function collectConsoleErrors(page: Page) {
   });
 
   return errors;
-}
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
-
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  if (!(await readCaptchaToken())) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
-        }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
 }
 
 async function login(page: Page, nextPath = "/postings") {

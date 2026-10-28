@@ -9,7 +9,8 @@ import {
 describe("captcha store", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    clearStoredCaptcha();
+    clearStoredCaptcha("login");
+    clearStoredCaptcha("unlock");
     window.sessionStorage.clear();
   });
 
@@ -18,7 +19,7 @@ describe("captcha store", () => {
   });
 
   it("writes and clears captcha tokens through the hook", async () => {
-    const { result } = renderHook(() => useAuthCaptchaToken());
+    const { result } = renderHook(() => useAuthCaptchaToken("login"));
 
     expect(result.current[0]).toBe("");
 
@@ -27,23 +28,45 @@ describe("captcha store", () => {
     });
 
     expect(result.current[0]).toBe("captcha-token");
-    expect(window.sessionStorage.getItem("rentify.auth.captcha")).toContain(
-      "captcha-token",
-    );
+    expect(
+      window.sessionStorage.getItem("rentify.auth.captcha.login"),
+    ).toContain("captcha-token");
 
     act(() => {
       result.current[2]();
     });
 
     expect(result.current[0]).toBe("");
-    expect(window.sessionStorage.getItem("rentify.auth.captcha")).toBeNull();
+    expect(
+      window.sessionStorage.getItem("rentify.auth.captcha.login"),
+    ).toBeNull();
+  });
+
+  it("keeps each action's token separate", () => {
+    const login = renderHook(() => useAuthCaptchaToken("login"));
+    const unlock = renderHook(() => useAuthCaptchaToken("unlock"));
+
+    act(() => {
+      writeStoredCaptcha("login", "login-token");
+    });
+
+    expect(login.result.current[0]).toBe("login-token");
+    expect(unlock.result.current[0]).toBe("");
+
+    act(() => {
+      writeStoredCaptcha("unlock", "unlock-token");
+      clearStoredCaptcha("login");
+    });
+
+    expect(login.result.current[0]).toBe("");
+    expect(unlock.result.current[0]).toBe("unlock-token");
   });
 
   it("treats blank tokens as a clear action", async () => {
-    const { result } = renderHook(() => useAuthCaptchaToken());
+    const { result } = renderHook(() => useAuthCaptchaToken("login"));
 
     act(() => {
-      writeStoredCaptcha("captcha-token");
+      writeStoredCaptcha("login", "captcha-token");
     });
 
     expect(result.current[0]).toBe("captcha-token");
@@ -55,12 +78,26 @@ describe("captcha store", () => {
     expect(result.current[0]).toBe("");
   });
 
-  it("ignores malformed stored captcha payloads", () => {
-    window.sessionStorage.setItem("rentify.auth.captcha", "{bad json");
+  it("drops a token once it is older than four minutes", () => {
+    act(() => {
+      writeStoredCaptcha("login", "captcha-token");
+    });
 
-    const { result } = renderHook(() => useAuthCaptchaToken());
+    vi.advanceTimersByTime(4 * 60 * 1000 + 1);
+
+    const { result } = renderHook(() => useAuthCaptchaToken("login"));
 
     expect(result.current[0]).toBe("");
-    expect(window.sessionStorage.getItem("rentify.auth.captcha")).toBeNull();
+  });
+
+  it("ignores malformed stored captcha payloads", () => {
+    window.sessionStorage.setItem("rentify.auth.captcha.login", "{bad json");
+
+    const { result } = renderHook(() => useAuthCaptchaToken("login"));
+
+    expect(result.current[0]).toBe("");
+    expect(
+      window.sessionStorage.getItem("rentify.auth.captcha.login"),
+    ).toBeNull();
   });
 });
