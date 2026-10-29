@@ -238,6 +238,7 @@ describe("Admin account status (POST /admin/users/:id/lock|suspend|reinstate) in
           code: otp!.code,
           newPassword,
           deviceId: "admin-account-status-reset",
+          captchaToken: "captcha-ok-reset",
         }),
       });
     }

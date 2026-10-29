@@ -306,6 +306,7 @@ describe("Self-lock (POST /auth/account/self-lock[/session]) integration", () =>
           code: otp!.code,
           newPassword: "RecoveredPassword1!",
           deviceId: "self-lock-reset",
+          captchaToken: "captcha-ok-reset",
         }),
       });
 

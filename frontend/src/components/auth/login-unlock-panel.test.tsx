@@ -123,11 +123,39 @@ describe("LoginUnlockPanel", () => {
       expect(unlockLocalLoginMock).toHaveBeenCalledWith({
         email: "person@example.com",
         code: "123456",
+        captchaToken: "captcha-token",
       });
     });
     expect(onUnlocked).toHaveBeenCalledWith(
       "Sign-in unlocked. Try your password again.",
     );
+    // Turnstile tokens are single-use.
+    expect(clearCaptchaTokenMock).toHaveBeenCalled();
+  });
+
+  it("requires a captcha before unlocking", async () => {
+    const user = userEvent.setup();
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
+
+    render(
+      <LoginUnlockPanel
+        email="person@example.com"
+        onUnlocked={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Unlock code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Unlock sign-in" }));
+
+    expect(
+      screen.getByText("Complete the verification to continue."),
+    ).toBeInTheDocument();
+    expect(unlockLocalLoginMock).not.toHaveBeenCalled();
   });
 
   it("resends an unlock code and shows the success message", async () => {

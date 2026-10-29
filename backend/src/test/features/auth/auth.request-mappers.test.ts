@@ -263,6 +263,7 @@ describe("credential mappers", () => {
         code: "123456",
         newPassword: "Rentify456!",
         deviceId: "body-device",
+        captchaToken: "captcha-ok",
       }),
     ).toEqual({
       client,
@@ -320,6 +321,7 @@ describe("recovery mappers", () => {
       toUnlockLocalLoginInput(createRequest(), {
         email: "user@example.com",
         code: "123456",
+        captchaToken: "captcha-ok",
       }),
     ).toEqual({
       email: "user@example.com",
@@ -418,6 +420,7 @@ describe("oauth mappers", () => {
         signupToken: "signup-token",
         dateOfBirth: "2012-06-15",
         deviceId: undefined,
+        captchaToken: "captcha-ok",
       }),
     ).toEqual({
       client,

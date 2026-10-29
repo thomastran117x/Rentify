@@ -265,10 +265,18 @@ describe("Auth audit events persistence integration", () => {
       subject: EMAIL,
     });
     expect(
-      await postPublic("/auth/local/unlock", { email: EMAIL, code: "000001" }),
+      await postPublic("/auth/local/unlock", {
+        email: EMAIL,
+        code: "000001",
+        captchaToken: "captcha-ok-unlock",
+      }),
     ).toBe(400);
     expect(
-      await postPublic("/auth/local/unlock", { email: EMAIL, code: otp!.code }),
+      await postPublic("/auth/local/unlock", {
+        email: EMAIL,
+        code: otp!.code,
+        captchaToken: "captcha-ok-unlock",
+      }),
     ).toBe(200);
 
     const events = await listEvents();

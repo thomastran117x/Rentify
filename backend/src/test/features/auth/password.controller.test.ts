@@ -112,7 +112,7 @@ describe("PasswordController recovery handlers", () => {
     expect(passwordService.forgotPassword).not.toHaveBeenCalled();
   });
 
-  it("resets the password and returns a fresh session without a captcha", async () => {
+  it("verifies the captcha, resets the password and returns a fresh session", async () => {
     const { controller, passwordService, captchaService } = createController();
 
     const response = await invoke(
@@ -123,12 +123,17 @@ describe("PasswordController recovery handlers", () => {
           code: "123456",
           newPassword: "ResetPassword1!",
           deviceId: "reset-device",
+          captchaToken: "reset-captcha",
         },
       }),
     );
 
-    // The emailed code is the proof here, so no captcha is required.
-    expect(captchaService.verify).not.toHaveBeenCalled();
+    expect(captchaService.verify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: "reset-captcha",
+        expectedAction: "password_reset",
+      }),
+    );
     expect(passwordService.resetPassword).toHaveBeenCalledWith({
       client: expect.any(Object),
       username: "owner-one",
@@ -146,6 +151,44 @@ describe("PasswordController recovery handlers", () => {
     await expect(response.json()).resolves.toMatchObject({
       message: "Password reset successfully.",
     });
+  });
+
+  it("does not reset the password when the captcha fails", async () => {
+    const { controller, passwordService, captchaService } = createController();
+    captchaService.verify.mockResolvedValueOnce({ success: false });
+
+    await expect(
+      invoke(
+        controller.resetPassword,
+        createContext({
+          body: {
+            username: "owner-one",
+            code: "123456",
+            newPassword: "ResetPassword1!",
+            captchaToken: "bad",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Captcha verification failed.");
+    expect(passwordService.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it("requires a captcha token to reset the password", async () => {
+    const { controller, passwordService } = createController();
+
+    await expect(
+      invoke(
+        controller.resetPassword,
+        createContext({
+          body: {
+            username: "owner-one",
+            code: "123456",
+            newPassword: "ResetPassword1!",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Request body validation failed.");
+    expect(passwordService.resetPassword).not.toHaveBeenCalled();
   });
 
   it("rejects a weak new password before reaching the service", async () => {

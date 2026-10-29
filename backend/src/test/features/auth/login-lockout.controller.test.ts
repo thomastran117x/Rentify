@@ -41,7 +41,11 @@ describe("LoginLockoutController.unlockLocalLogin", () => {
     const response = await invoke(
       controller.unlockLocalLogin,
       createContext({
-        body: { email: "User@Example.com", code: "123456" },
+        body: {
+          email: "User@Example.com",
+          code: "123456",
+          captchaToken: "captcha-ok",
+        },
       }),
     );
 
@@ -61,15 +65,58 @@ describe("LoginLockoutController.unlockLocalLogin", () => {
     });
   });
 
-  it("does not require a captcha, since the code is the proof", async () => {
+  it("verifies the captcha for the unlock action", async () => {
     const { controller, captchaService } = createController();
 
     await invoke(
       controller.unlockLocalLogin,
-      createContext({ body: { email: "user@example.com", code: "123456" } }),
+      createContext({
+        body: {
+          email: "user@example.com",
+          code: "123456",
+          captchaToken: "captcha-ok",
+        },
+      }),
     );
 
-    expect(captchaService.verify).not.toHaveBeenCalled();
+    expect(captchaService.verify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: "captcha-ok",
+        expectedAction: "unlock",
+      }),
+    );
+  });
+
+  it("does not unlock when the captcha fails", async () => {
+    const { controller, loginLockoutService, captchaService } =
+      createController();
+    captchaService.verify.mockResolvedValueOnce({ success: false });
+
+    await expect(
+      invoke(
+        controller.unlockLocalLogin,
+        createContext({
+          body: {
+            email: "user@example.com",
+            code: "123456",
+            captchaToken: "bad",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Captcha verification failed.");
+    expect(loginLockoutService.unlockLocalLogin).not.toHaveBeenCalled();
+  });
+
+  it("requires a captcha token to unlock", async () => {
+    const { controller, loginLockoutService } = createController();
+
+    await expect(
+      invoke(
+        controller.unlockLocalLogin,
+        createContext({ body: { email: "user@example.com", code: "123456" } }),
+      ),
+    ).rejects.toThrow("Request body validation failed.");
+    expect(loginLockoutService.unlockLocalLogin).not.toHaveBeenCalled();
   });
 
   it("rejects a code that is not six digits", async () => {

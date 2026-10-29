@@ -173,15 +173,21 @@ a token solved for any other action, so a token cannot be solved on one form
 and spent on another. A screen that both submits a code and resends it shares
 one action.
 
-| Flow                              | Action            | Endpoints                                                                     |
-| --------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
-| Sign in                           | `login`           | `POST /auth/local/login`                                                      |
-| Sign up                           | `signup`          | `POST /auth/local/signup`                                                     |
-| Resend the verification email     | `verify_email`    | `POST /auth/local/email/resend`                                               |
-| Forgot username                   | `forgot_username` | `POST /auth/local/username/forgot`                                            |
-| Password reset                    | `password_reset`  | `POST /auth/local/password/forgot`, `POST /auth/local/password/forgot/resend` |
-| Unlock a locked sign-in           | `unlock`          | `POST /auth/local/unlock/resend`                                              |
-| Feedback from a signed-out caller | `feedback`        | `POST /feedback`                                                              |
+| Flow                              | Action            | Endpoints                                                                                                        |
+| --------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Sign in                           | `login`           | `POST /auth/local/login`                                                                                         |
+| Sign up                           | `signup`          | `POST /auth/local/signup`                                                                                        |
+| Resend the verification email     | `verify_email`    | `POST /auth/local/email/resend`                                                                                  |
+| Forgot username                   | `forgot_username` | `POST /auth/local/username/forgot`                                                                               |
+| Password reset                    | `password_reset`  | `POST /auth/local/password/forgot`, `POST /auth/local/password/forgot/resend`, `POST /auth/local/password/reset` |
+| Unlock a locked sign-in           | `unlock`          | `POST /auth/local/unlock/resend`, `POST /auth/local/unlock`                                                      |
+| Finish a new OAuth account        | `oauth_signup`    | `POST /auth/oauth/signup/complete`                                                                               |
+| Feedback from a signed-out caller | `feedback`        | `POST /feedback`                                                                                                 |
+
+Redeeming an emailed code needs a fresh token too: the code is the proof of
+email ownership, and the captcha keeps a script from cycling through guesses or
+replaying a stolen code at volume. Turnstile tokens are single-use, so the
+frontend asks for a new check after every request that spent one.
 
 The token is also refused when Turnstile reports it was solved on a hostname
 other than the frontend's (`hostname-mismatch`), since any site using the same

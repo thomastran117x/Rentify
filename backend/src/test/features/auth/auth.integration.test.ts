@@ -535,6 +535,7 @@ describe("Auth persistence integration", () => {
         body: JSON.stringify({
           signupToken: "expired-or-invalid-token",
           dateOfBirth: "2012-06-15",
+          captchaToken: "captcha-ok-oauth-signup",
         }),
       },
     );
@@ -543,6 +544,47 @@ describe("Auth persistence integration", () => {
     await expect(response.json()).resolves.toMatchObject({
       success: false,
       error: { code: "OAUTH_SIGNUP_CONTINUATION_EXPIRED" },
+    });
+  });
+
+  it.each([
+    [
+      "/auth/local/password/reset",
+      {
+        username: "renter-one",
+        code: "123456",
+        newPassword: "ResetPassword1!",
+      },
+    ],
+    ["/auth/local/unlock", { email: "user1@rentify.local", code: "123456" }],
+    [
+      "/auth/oauth/signup/complete",
+      { signupToken: "signup-token", dateOfBirth: "2012-06-15" },
+    ],
+  ])("requires a captcha on %s", async (path, body: Record<string, string>) => {
+    const send = (captchaToken?: string) =>
+      persistenceApp.app.request(`http://rent.test${buildApiPath(path)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({ ...body, captchaToken }),
+      });
+
+    const missing = await send();
+    expect(missing.status).toBe(400);
+    await expect(missing.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        details: { captchaToken: expect.any(Array) },
+      },
+    });
+
+    const rejected = await send("captcha-rejected");
+    expect(rejected.status).toBe(400);
+    await expect(rejected.json()).resolves.toMatchObject({
+      success: false,
+      message: "Captcha verification failed.",
+      error: { code: "BAD_REQUEST" },
     });
   });
 
@@ -575,6 +617,7 @@ describe("Auth persistence integration", () => {
           code: await readOtpCode(PASSWORD_RESET_OTP_PURPOSE, email),
           newPassword,
           deviceId: "reset-device",
+          captchaToken: "captcha-ok-reset",
         }),
       },
     );
@@ -1171,6 +1214,7 @@ describe("Auth persistence integration", () => {
             signupToken: beginBody.data.signupToken,
             dateOfBirth: "2012-06-15",
             deviceId: "continuation-device",
+            captchaToken: "captcha-ok-oauth-signup",
           }),
         },
       );
@@ -1478,6 +1522,7 @@ describe("Auth persistence integration", () => {
         body: JSON.stringify({
           email,
           code: await readOtpCode("local-login-unlock", email),
+          captchaToken: "captcha-ok-unlock",
         }),
       },
     );

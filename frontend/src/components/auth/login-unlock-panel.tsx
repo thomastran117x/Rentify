@@ -129,6 +129,7 @@ export function LoginUnlockPanel({
     const normalizedCode = code.trim();
     setGeneralError(null);
     setResentMessage(null);
+    setCaptchaError(null);
 
     if (!/^\d{6}$/.test(normalizedCode)) {
       setCodeError("Enter the 6-digit unlock code from your email.");
@@ -136,12 +137,19 @@ export function LoginUnlockPanel({
     }
 
     setCodeError(null);
+
+    if (!captchaToken.trim()) {
+      setCaptchaError("Complete the verification to continue.");
+      return;
+    }
+
     setPending(true);
 
     try {
       await authApi.unlockLocalLogin({
         email,
         code: normalizedCode,
+        captchaToken,
       });
 
       onUnlocked("Sign-in unlocked. Try your password again.");
@@ -150,6 +158,8 @@ export function LoginUnlockPanel({
       setGeneralError(failure.generalError);
       setCodeError(failure.fieldError ?? null);
     } finally {
+      // Turnstile tokens are single-use: the next attempt needs a fresh one.
+      clearCaptchaToken();
       setPending(false);
     }
   }
@@ -240,6 +250,20 @@ export function LoginUnlockPanel({
           ) : null}
         </div>
 
+        <AuthCaptchaPanel
+          action={CAPTCHA_ACTIONS.unlock}
+          token={captchaToken}
+          error={captchaError ?? undefined}
+          onChange={(token) => {
+            setCaptchaError(null);
+            setCaptchaToken(token);
+          }}
+          onReset={() => {
+            setCaptchaError(null);
+            clearCaptchaToken();
+          }}
+        />
+
         <button
           type="submit"
           disabled={pending}
@@ -248,20 +272,6 @@ export function LoginUnlockPanel({
           {pending ? "Unlocking..." : "Unlock sign-in"}
         </button>
       </form>
-
-      <AuthCaptchaPanel
-        action={CAPTCHA_ACTIONS.unlock}
-        token={captchaToken}
-        error={captchaError ?? undefined}
-        onChange={(token) => {
-          setCaptchaError(null);
-          setCaptchaToken(token);
-        }}
-        onReset={() => {
-          setCaptchaError(null);
-          clearCaptchaToken();
-        }}
-      />
 
       <button
         type="button"

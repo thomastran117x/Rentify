@@ -77,6 +77,12 @@ export class PasswordController {
     response: Response,
   ): Promise<void> => {
     const input = await parseRequestBody(request, resetPasswordRequestSchema);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.passwordReset,
+    );
     const result = await this.passwordService.resetPassword(
       toResetPasswordInput(request, input),
     );

@@ -290,6 +290,13 @@ export function ForgotPasswordForm() {
     event.preventDefault();
 
     const nextErrors = validateReset({ code, newPassword, confirmPassword });
+
+    if (!captchaToken.trim() || captchaConsumed) {
+      nextErrors.captchaToken = captchaConsumed
+        ? "Run the verification again before resetting your password."
+        : "Complete the verification to continue.";
+    }
+
     setResetErrors(nextErrors);
     setGeneralError(null);
     setResentMessage(null);
@@ -305,6 +312,7 @@ export function ForgotPasswordForm() {
         username: resetFlow?.username ?? username.trim().toLowerCase(),
         code: code.trim(),
         newPassword,
+        captchaToken,
       });
 
       clearPersistedAuthPendingFlowByType("forgot-password-reset");
@@ -317,6 +325,14 @@ export function ForgotPasswordForm() {
         ...current,
         ...(failure.fieldErrors ?? {}),
       }));
+
+      // Turnstile tokens are single-use, so a reset that reached the server
+      // has spent this one.
+      if (failure.fieldErrors?.captchaToken) {
+        handleCaptchaReset();
+      } else {
+        setCaptchaConsumed(true);
+      }
     } finally {
       setResetPending(false);
     }
@@ -537,6 +553,28 @@ export function ForgotPasswordForm() {
           errorId="forgot-password-confirm-password-error"
         />
 
+        <AuthCaptchaPanel
+          action={CAPTCHA_ACTIONS.passwordReset}
+          token={captchaToken}
+          error={resetErrors.captchaToken}
+          stale={captchaConsumed}
+          staleMessage="This verification was used for your last request. Run it again to continue."
+          onChange={(token) => {
+            setResetErrors((current) => ({
+              ...current,
+              captchaToken: undefined,
+            }));
+            handleCaptchaChange(token);
+          }}
+          onReset={() => {
+            setResetErrors((current) => ({
+              ...current,
+              captchaToken: undefined,
+            }));
+            handleCaptchaReset();
+          }}
+        />
+
         <button
           type="submit"
           disabled={resetPending}
@@ -545,28 +583,6 @@ export function ForgotPasswordForm() {
           {resetPending ? "Resetting password..." : "Reset password"}
         </button>
       </form>
-
-      <AuthCaptchaPanel
-        action={CAPTCHA_ACTIONS.passwordReset}
-        token={captchaToken}
-        error={resetErrors.captchaToken}
-        stale={captchaConsumed}
-        staleMessage="This verification was used for your last request. Run it again before requesting another reset code."
-        onChange={(token) => {
-          setResetErrors((current) => ({
-            ...current,
-            captchaToken: undefined,
-          }));
-          handleCaptchaChange(token);
-        }}
-        onReset={() => {
-          setResetErrors((current) => ({
-            ...current,
-            captchaToken: undefined,
-          }));
-          handleCaptchaReset();
-        }}
-      />
 
       <button
         type="button"

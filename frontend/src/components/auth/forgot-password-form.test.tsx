@@ -214,7 +214,7 @@ describe("ForgotPasswordForm", () => {
     expect(clearCaptchaTokenMock).not.toHaveBeenCalled();
     expect(
       screen.getByText(
-        "This verification was used for your last request. Run it again before requesting another reset code.",
+        "This verification was used for your last request. Run it again to continue.",
       ),
     ).toBeInTheDocument();
   });
@@ -252,11 +252,23 @@ describe("ForgotPasswordForm", () => {
     );
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
+    // The request step spent the captcha, so the reset needs a fresh one.
+    expect(
+      await screen.findByText(
+        "Run the verification again before resetting your password.",
+      ),
+    ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Complete captcha" }));
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
     await waitFor(() => {
       expect(resetPasswordMock).toHaveBeenCalledWith({
         username: "person",
         code: "123456",
         newPassword: "StrongPassw0rd!",
+        captchaToken: "captcha-token",
       });
     });
     expect(setSession).toHaveBeenCalled();
@@ -373,9 +385,44 @@ describe("ForgotPasswordForm", () => {
       screen.getByLabelText("Confirm new password"),
       "StrongPassw0rd!",
     );
+    await user.click(screen.getByRole("button", { name: "Complete captcha" }));
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
     expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
+    // The failed attempt spent the token; the next one needs a fresh check.
+    expect(
+      screen.getByText(
+        "This verification was used for your last request. Run it again to continue.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("requires a captcha before resetting the password", async () => {
+    const user = userEvent.setup();
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(screen.getByLabelText("New password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "StrongPassw0rd!",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      await screen.findByText("Complete the verification to continue."),
+    ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
   });
 
   it("resends after a fresh captcha is completed", async () => {

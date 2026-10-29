@@ -84,14 +84,24 @@ describe("auth API request contracts", () => {
       captchaToken: "c",
     });
     authApi.verifyEmail({ email: "a@example.com", code: "123" });
-    authApi.resetPassword({ username: "u", code: "123", newPassword: "new" });
-    authApi.unlockLocalLogin({ email: "a@example.com", code: "123" });
+    authApi.resetPassword({
+      username: "u",
+      code: "123",
+      newPassword: "new",
+      captchaToken: "c",
+    });
+    authApi.unlockLocalLogin({
+      email: "a@example.com",
+      code: "123",
+      captchaToken: "c",
+    });
     authApi.authenticateWithGoogle({ nonce: "nonce", code: "code" });
     authApi.authenticateWithMicrosoft({ nonce: "nonce", idToken: "id" });
     authApi.authenticateWithApple({ nonce: "nonce", idToken: "id" });
     authApi.completeOAuthSignup({
       signupToken: "signup-token",
       dateOfBirth: "2012-06-15",
+      captchaToken: "c",
     });
     authApi.linkOAuthProvider("google", { nonce: "nonce", code: "code" });
     expect(publicMock).toHaveBeenCalledWith(

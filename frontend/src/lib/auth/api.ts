@@ -84,11 +84,13 @@ interface ResetPasswordInput {
   code: string;
   newPassword: string;
   deviceId?: string;
+  captchaToken: string;
 }
 
 interface UnlockLocalLoginInput {
   email: string;
   code: string;
+  captchaToken: string;
 }
 
 interface ResendUnlockLocalLoginInput {
@@ -111,6 +113,7 @@ interface CompleteOAuthSignupInput {
   signupToken: string;
   dateOfBirth: string;
   deviceId?: string;
+  captchaToken: string;
 }
 
 interface ChangePasswordInput {

@@ -88,9 +88,15 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.oauthController,
       lifetime: "scoped",
-      dependencies: [containerTokens.oauthAccountsService],
+      dependencies: [
+        containerTokens.oauthAccountsService,
+        containerTokens.captchaService,
+      ],
       resolve: ({ resolve }) =>
-        new OAuthController(resolve(containerTokens.oauthAccountsService)),
+        new OAuthController(
+          resolve(containerTokens.oauthAccountsService),
+          resolve(containerTokens.captchaService),
+        ),
     });
   },
 };

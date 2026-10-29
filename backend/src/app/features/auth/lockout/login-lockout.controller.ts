@@ -28,6 +28,12 @@ export class LoginLockoutController {
       request,
       unlockLocalLoginRequestSchema,
     );
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.unlock,
+    );
     const result = await this.loginLockoutService.unlockLocalLogin(
       toUnlockLocalLoginInput(request, input),
     );
