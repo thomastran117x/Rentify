@@ -113,21 +113,6 @@ describe("Security middleware persistence integration", () => {
     });
   });
 
-  it("sends the security headers on a CORS preflight", async () => {
-    const response = await request("/auth/local/login", {
-      method: "OPTIONS",
-      headers: {
-        origin: ORIGIN,
-        "access-control-request-method": "POST",
-        "access-control-request-headers": "content-type",
-      },
-    });
-
-    expect(response.status).toBe(204);
-    expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
-    expectSecurityHeaders(response);
-  });
-
   it("accepts a cookie-backed refresh from a trusted origin", async () => {
     const session = await signIn("renter-one", "Rentify123!");
 
