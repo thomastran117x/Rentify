@@ -11,6 +11,7 @@ import { getDeviceId } from "@/lib/auth/device";
 import type {
   AuthEmailAcceptedResult,
   AuthResponseBody,
+  AuthSessionListResult,
   ForgotPasswordAcceptedResult,
   KnownDevicesResult,
   LinkedOAuthProvidersResult,
@@ -20,6 +21,9 @@ import type {
   PersonalAccessTokenListResult,
   CreatePersonalAccessTokenResult,
   RevokePersonalAccessTokenResult,
+  RevokeAuthSessionResult,
+  RevokeAuthSessionsResult,
+  RevokeAuthSessionsScope,
   SessionVerificationResult,
   SignupVerificationPendingResult,
   UsernameAvailabilityResult,
@@ -465,6 +469,22 @@ export const authApi = {
   },
   listKnownDevices(): Promise<KnownDevicesResult> {
     return getAuthenticatedJson<KnownDevicesResult>("/auth/devices");
+  },
+  listSessions(): Promise<AuthSessionListResult> {
+    return getAuthenticatedJson<AuthSessionListResult>("/auth/sessions");
+  },
+  revokeSession(sessionId: string): Promise<RevokeAuthSessionResult> {
+    return deleteAuthenticatedJson<RevokeAuthSessionResult>(
+      `/auth/sessions/${encodeURIComponent(sessionId)}`,
+    );
+  },
+  revokeSessions(
+    scope: RevokeAuthSessionsScope,
+  ): Promise<RevokeAuthSessionsResult> {
+    return postAuthenticatedJson<
+      RevokeAuthSessionsResult,
+      { scope: RevokeAuthSessionsScope }
+    >("/auth/sessions/revoke-others", { scope });
   },
   removeKnownDevice(deviceId: string): Promise<{ ok: true }> {
     return authenticatedJson<{ ok: true }, { deviceId: string }>(

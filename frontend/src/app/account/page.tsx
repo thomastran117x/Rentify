@@ -23,6 +23,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { AccountEmailPanel } from "@/components/account/account-email-panel";
+import { SessionManagementPanel } from "@/components/account/session-management-panel";
 import { SecurityActivityPanel } from "@/components/account/security-activity-panel";
 import { HomePasswordPanel } from "@/components/home/home-password-panel";
 import { authApi } from "@/lib/auth/api";
@@ -1027,6 +1028,13 @@ export default function AccountPage() {
                 it&apos;s enabled.
               </p>
             </div>
+
+            <SessionManagementPanel
+              onVerificationRequired={() => {
+                setSecurityVerificationExpired(true);
+                setSecurityUnlocked(false);
+              }}
+            />
 
             {/* Registered devices */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">

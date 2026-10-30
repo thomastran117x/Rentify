@@ -142,6 +142,9 @@ describe("auth API request contracts", () => {
     authApi.changePassword({ currentPassword: "old", newPassword: "new" });
     authApi.setPassword({ newPassword: "new" });
     authApi.verifyDevice();
+    authApi.listSessions();
+    authApi.revokeSession("session/with space");
+    authApi.revokeSessions("others");
     authApi.listKnownDevices();
     authApi.removeKnownDevice("device-2");
     authApi.listPersonalAccessTokens();
@@ -161,6 +164,16 @@ describe("auth API request contracts", () => {
       "DELETE",
       "/auth/devices/remove",
       { deviceId: "device-2" },
+    );
+    expect(authenticatedMock).toHaveBeenCalledWith("GET", "/auth/sessions");
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "DELETE",
+      "/auth/sessions/session%2Fwith%20space",
+    );
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/sessions/revoke-others",
+      { scope: "others" },
     );
     expect(tokenCreateMock).toHaveBeenCalledWith({
       name: "CLI",
