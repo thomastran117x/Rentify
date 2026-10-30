@@ -1323,6 +1323,198 @@ describe("Auth persistence integration", () => {
     expect(removeResponse.status).toBe(200);
   });
 
+  it("lists three indexed sessions, revokes the others, and preserves the caller", async () => {
+    const sessions = await Promise.all(
+      ["session-laptop", "session-phone", "session-tablet"].map((deviceId) =>
+        login({
+          username: "renter-one",
+          password: "Rentify123!",
+          deviceId,
+        }),
+      ),
+    );
+    for (const session of sessions) expect(session.status).toBe(200);
+
+    const [current, revokedOne, revokedTwo] = sessions as [
+      LoginSession,
+      LoginSession,
+      LoginSession,
+    ];
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/sessions")}`,
+      { headers: sessionHeaders(current) },
+    );
+    expect(listResponse.status).toBe(200);
+    const list = (await listResponse.json()) as {
+      data: {
+        sessions: Array<{
+          id: string;
+          current: boolean;
+          browser: string | null;
+          os: string | null;
+        }>;
+      };
+    };
+    expect(list.data.sessions).toHaveLength(3);
+    expect(list.data.sessions[0]).toMatchObject({ current: true });
+
+    const revokeResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/sessions/revoke-others")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(current),
+        body: JSON.stringify({ scope: "others" }),
+      },
+    );
+    expect(revokeResponse.status).toBe(200);
+    await expect(revokeResponse.json()).resolves.toMatchObject({
+      data: {
+        scope: "others",
+        revokedSessionCount: 2,
+        revokedPersonalAccessTokenCount: 0,
+      },
+    });
+
+    const verify = (session: LoginSession) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/verify")}`,
+        { method: "POST", headers: sessionHeaders(session) },
+      );
+    expect((await verify(current)).status).toBe(200);
+    expect((await verify(revokedOne)).status).toBe(401);
+    expect((await verify(revokedTwo)).status).toBe(401);
+
+    const refresh = (session: LoginSession) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/refresh")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({ refreshToken: session.refreshToken }),
+        },
+      );
+    expect((await refresh(current)).status).toBe(200);
+    expect((await refresh(revokedOne)).status).toBe(401);
+    expect((await refresh(revokedTwo)).status).toBe(401);
+
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    expect(
+      await getRedisClient().sMembers(`auth:user-sessions:${user.id}`),
+    ).toHaveLength(1);
+    expect(
+      await persistenceApp.prisma.authAuditEvent.count({
+        where: {
+          userId: user.id,
+          eventType: "session.revoked",
+          metadata: { path: "$.scope", equals: "others" },
+        },
+      }),
+    ).toBe(2);
+  });
+
+  it("signs out everywhere, rotates the token version, and revokes PATs", async () => {
+    const session = await login({
+      username: "renter-one",
+      password: "Rentify123!",
+      deviceId: "session-all",
+    });
+    const userBefore = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    const pat = await persistenceApp.prisma.personalAccessToken.create({
+      data: {
+        id: "00000000-0000-4000-8300-000000000001",
+        userId: userBefore.id,
+        name: "Session test PAT",
+        publicId: "111111111111111111111111",
+        tokenPrefix: "rpat_111111111111111111111111_aaaaaa",
+        secretHash: "hash",
+        scopes: ["mcp:read"],
+      },
+    });
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/sessions/revoke-others")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ scope: "all" }),
+      },
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        scope: "all",
+        revokedSessionCount: 1,
+        revokedPersonalAccessTokenCount: 1,
+      },
+    });
+    expect(response.headers.get("set-cookie")).toContain(
+      `${REFRESH_TOKEN_COOKIE_NAME}=`,
+    );
+
+    const userAfter = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { id: userBefore.id },
+    });
+    expect(userAfter.tokenVersion).toBe(userBefore.tokenVersion + 1);
+    expect(
+      await persistenceApp.prisma.personalAccessToken.findUniqueOrThrow({
+        where: { id: pat.id },
+      }),
+    ).toMatchObject({ revokedAt: expect.any(Date) });
+    const verifyResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/verify")}`,
+      { method: "POST", headers: sessionHeaders(session) },
+    );
+    expect(verifyResponse.status).toBe(401);
+  });
+
+  it("deleting the current session behaves like logout and clears cookies", async () => {
+    const session = await login({
+      username: "renter-one",
+      password: "Rentify123!",
+      deviceId: "session-current-delete",
+    });
+    const listResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/sessions")}`,
+      { headers: sessionHeaders(session) },
+    );
+    const list = (await listResponse.json()) as {
+      data: { sessions: Array<{ id: string; current: boolean }> };
+    };
+    const currentId = list.data.sessions.find((item) => item.current)?.id;
+    expect(currentId).toBeTruthy();
+
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/auth/sessions/${currentId}`)}`,
+      { method: "DELETE", headers: sessionHeaders(session) },
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { revoked: true, id: currentId, current: true },
+    });
+    expect(response.headers.get("set-cookie")).toContain(
+      `${REFRESH_TOKEN_COOKIE_NAME}=`,
+    );
+
+    const verifyResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/local/verify")}`,
+      { method: "POST", headers: sessionHeaders(session) },
+    );
+    expect(verifyResponse.status).toBe(401);
+    const refreshResponse = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath("/auth/refresh")}`,
+      {
+        method: "POST",
+        headers: sessionHeaders(session),
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      },
+    );
+    expect(refreshResponse.status).toBe(401);
+  });
+
   it("lists personal access tokens for the signed-in user", async () => {
     const session = await login({
       username: "renter-one",

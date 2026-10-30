@@ -778,7 +778,7 @@ describe("EmailDeliveryService account status templates", () => {
 
   it.each([
     ["success_after_failures", "right after several failed attempts"],
-    ["refresh_reuse", "We signed that session out."],
+    ["refresh_reuse", "We ended the affected sign-ins."],
   ] as const)(
     "sends a suspicious_login email for %s with the details and a lock link",
     async (reason, summary) => {

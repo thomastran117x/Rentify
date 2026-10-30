@@ -20,6 +20,7 @@ import {
   type EnvironmentVariableName,
   type NodeEnvironment,
   type RawEnvironmentValues,
+  type RefreshReuseResponse,
   type RefreshTokenMode,
 } from "@/configuration/environment/types";
 import { z } from "zod";
@@ -173,6 +174,23 @@ export function parseRefreshTokenMode(
   return "stateful";
 }
 
+function parseRefreshReuseResponse(
+  raw: RawEnvironmentValues,
+  nodeEnv: NodeEnvironment,
+  errors: string[],
+): RefreshReuseResponse {
+  const value =
+    raw.AUTH_REFRESH_REUSE_RESPONSE ??
+    (nodeEnv === "production" ? "user" : "session");
+
+  if (value === "session" || value === "user") {
+    return value;
+  }
+
+  errors.push("AUTH_REFRESH_REUSE_RESPONSE must be 'session' or 'user'.");
+  return nodeEnv === "production" ? "user" : "session";
+}
+
 export function buildAuthConfig(
   raw: RawEnvironmentValues,
   errors: string[],
@@ -224,6 +242,7 @@ export function buildAuthConfig(
     issuer: raw.TOKEN_ISSUER,
     audience: raw.TOKEN_AUDIENCE,
     refreshTokenMode,
+    refreshReuseResponse: parseRefreshReuseResponse(raw, nodeEnv, errors),
     refreshTokenCachePrefix:
       raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
     personalAccessTokenSecret,

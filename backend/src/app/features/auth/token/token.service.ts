@@ -10,12 +10,17 @@ import {
 } from "node:crypto";
 import type { KeyObject } from "node:crypto";
 import { environment } from "@/configuration/environment";
-import type { AccessTokenAlgorithm } from "@/configuration/environment/types";
+import type {
+  AccessTokenAlgorithm,
+  RefreshReuseResponse,
+} from "@/configuration/environment/types";
+import type { ClientRequestContext } from "@/configuration/http/bindings";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AppRole } from "@/features/auth/auth.model";
 import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type { CacheService } from "@/features/cache/cache.service";
 import { type Uuid } from "@/configuration/validation/uuid";
+import { loggerFactory } from "@/configuration/logging";
 
 type RefreshTokenMode = "stateless" | "stateful";
 
@@ -73,6 +78,7 @@ interface TokenServiceOptions {
   audience?: string;
   refreshTokenMode?: RefreshTokenMode;
   refreshTokenCachePrefix?: string;
+  refreshReuseResponse?: RefreshReuseResponse;
 }
 
 interface CreateRefreshTokenOptions {
@@ -83,6 +89,63 @@ const REFRESH_TOKEN_VERSION = "v1";
 const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
 const REFRESH_ROTATION_GRACE_PERIOD_SECONDS = 5;
 const SESSION_CACHE_PREFIX = "auth:session";
+const USER_SESSIONS_CACHE_PREFIX = "auth:user-sessions";
+
+const CREATE_INDEXED_SESSION_SCRIPT = `
+  redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[3])
+  redis.call("SADD", KEYS[2], ARGV[2])
+
+  local indexTtl = redis.call("TTL", KEYS[2])
+  local sessionTtl = tonumber(ARGV[3])
+  if indexTtl < sessionTtl then
+    redis.call("EXPIRE", KEYS[2], sessionTtl)
+  end
+
+  return 1
+`;
+
+const UPDATE_INDEXED_SESSION_SCRIPT = `
+  local raw = redis.call("GET", KEYS[1])
+  if raw == false then
+    return 0
+  end
+
+  local current = cjson.decode(raw)
+  if current.userId ~= ARGV[1] or current.status ~= "active" then
+    return 0
+  end
+
+  redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[4])
+  redis.call("SADD", KEYS[2], ARGV[3])
+
+  local indexTtl = redis.call("TTL", KEYS[2])
+  local sessionTtl = tonumber(ARGV[4])
+  if indexTtl < sessionTtl then
+    redis.call("EXPIRE", KEYS[2], sessionTtl)
+  end
+
+  return 1
+`;
+
+const REVOKE_INDEXED_SESSION_SCRIPT = `
+  local raw = redis.call("GET", KEYS[1])
+  if raw == false then
+    return 0
+  end
+
+  local current = cjson.decode(raw)
+  if current.userId ~= ARGV[1] or current.status ~= "active" then
+    return 0
+  end
+
+  redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[4])
+  redis.call("SREM", KEYS[2], ARGV[3])
+  if redis.call("SCARD", KEYS[2]) == 0 then
+    redis.call("DEL", KEYS[2])
+  end
+
+  return 1
+`;
 
 export interface AuthSessionState {
   sessionId: string;
@@ -90,7 +153,14 @@ export interface AuthSessionState {
   deviceId?: string;
   tokenVersion: number;
   status: "active" | "revoked";
+  deviceType?: ClientRequestContext["device"]["type"];
+  platform?: string;
+  userAgent?: string;
+  firstIpAddress?: string;
+  lastIpAddress?: string;
+  rememberMe: boolean;
   createdAt: string;
+  lastUsedAt: string;
   updatedAt: string;
 }
 
@@ -129,6 +199,7 @@ function safeEquals(left: string, right: string): boolean {
 }
 
 export class TokenService {
+  private readonly logger = loggerFactory.forClass(TokenService, "service");
   private readonly cache: CacheService;
   private readonly tokenRepository: TokenRepository;
   private readonly accessTokenAlgorithm?: AccessTokenAlgorithm;
@@ -144,6 +215,7 @@ export class TokenService {
   private readonly audience?: string;
   private readonly refreshTokenMode?: RefreshTokenMode;
   private readonly refreshTokenCachePrefix?: string;
+  private readonly refreshReuseResponse?: RefreshReuseResponse;
 
   constructor(options: TokenServiceOptions) {
     this.cache = options.cache;
@@ -159,6 +231,7 @@ export class TokenService {
     this.audience = options.audience;
     this.refreshTokenMode = options.refreshTokenMode;
     this.refreshTokenCachePrefix = options.refreshTokenCachePrefix;
+    this.refreshReuseResponse = options.refreshReuseResponse;
   }
 
   createAccessToken(payload: AccessTokenPayload): string {
@@ -174,13 +247,16 @@ export class TokenService {
     return this.signJwt(claims);
   }
 
-  async verifyAccessToken(token: string): Promise<JwtClaims> {
+  async verifyAccessToken(
+    token: string,
+    client?: ClientRequestContext,
+  ): Promise<JwtClaims> {
     const claims = this.verifyJwt(token);
     const sessionValidation = await this.getCurrentSessionValidation(
       claims.sub,
       claims.tokenVersion,
     );
-    await this.assertSessionIsActive(claims.sub, claims.sessionId);
+    await this.assertAndTouchSession(claims.sub, claims.sessionId, client);
 
     return {
       ...claims,
@@ -230,20 +306,40 @@ export class TokenService {
   }
 
   async createSession(
-    state: Omit<AuthSessionState, "createdAt" | "updatedAt" | "status">,
+    state: Pick<
+      AuthSessionState,
+      "sessionId" | "userId" | "deviceId" | "tokenVersion"
+    > & {
+      rememberMe?: boolean;
+      client?: ClientRequestContext;
+    },
     ttlInSeconds: number,
   ): Promise<void> {
     const now = new Date().toISOString();
+    const session = {
+      sessionId: state.sessionId,
+      userId: state.userId,
+      deviceId: state.deviceId,
+      tokenVersion: state.tokenVersion,
+      status: "active",
+      deviceType: state.client?.device.type,
+      platform: state.client?.device.platform,
+      userAgent: state.client?.device.userAgent,
+      firstIpAddress: state.client?.ip,
+      lastIpAddress: state.client?.ip,
+      rememberMe: Boolean(state.rememberMe),
+      createdAt: now,
+      lastUsedAt: now,
+      updatedAt: now,
+    } satisfies AuthSessionState;
 
-    await this.cache.setJson(
-      this.getSessionCacheKey(state.sessionId),
-      {
-        ...state,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      } satisfies AuthSessionState,
-      ttlInSeconds,
+    await this.cache.eval<number>(
+      CREATE_INDEXED_SESSION_SCRIPT,
+      [
+        this.getSessionCacheKey(state.sessionId),
+        this.getUserSessionsCacheKey(state.userId),
+      ],
+      [JSON.stringify(session), state.sessionId, ttlInSeconds.toString()],
     );
   }
 
@@ -259,17 +355,29 @@ export class TokenService {
       return false;
     }
 
-    await this.cache.setJson(
-      cacheKey,
-      {
-        ...session,
-        status: "revoked",
-        updatedAt: new Date().toISOString(),
-      } satisfies AuthSessionState,
-      await this.getRemainingTtlInSeconds(cacheKey),
+    return this.revokeKnownSession(session);
+  }
+
+  async revokeSessionForUser(
+    userId: Uuid,
+    sessionId: string,
+  ): Promise<boolean> {
+    const session = await this.cache.getJson<AuthSessionState>(
+      this.getSessionCacheKey(sessionId),
     );
 
-    return true;
+    if (!session || session.userId !== userId || session.status !== "active") {
+      return false;
+    }
+
+    return this.revokeKnownSession(session);
+  }
+
+  async listSessionsForUser(
+    userId: Uuid,
+    tokenVersion: number,
+  ): Promise<AuthSessionState[]> {
+    return this.readIndexedSessions(userId, tokenVersion);
   }
 
   async revokeSessionsForDevice(
@@ -277,7 +385,8 @@ export class TokenService {
     deviceId: string,
   ): Promise<string[]> {
     return this.revokeMatchingSessions(
-      (session) => session.userId === userId && session.deviceId === deviceId,
+      userId,
+      (session) => session.deviceId === deviceId,
     );
   }
 
@@ -287,32 +396,34 @@ export class TokenService {
    * session listing does not show a dead session as active.
    */
   async revokeSessionsForUser(userId: Uuid): Promise<string[]> {
-    return this.revokeMatchingSessions((session) => session.userId === userId);
+    return this.revokeMatchingSessions(userId, () => true);
+  }
+
+  async revokeSessionsForUserExcept(
+    userId: Uuid,
+    currentSessionId: string,
+  ): Promise<string[]> {
+    return this.revokeMatchingSessions(
+      userId,
+      (session) => session.sessionId !== currentSessionId,
+    );
   }
 
   private async revokeMatchingSessions(
+    userId: Uuid,
     matches: (session: AuthSessionState) => boolean,
   ): Promise<string[]> {
-    const sessionKeys = await this.cache.scanKeys(this.getSessionScanPattern());
+    const sessions = await this.readIndexedSessions(userId);
     const revokedSessionIds: string[] = [];
 
-    for (const sessionKey of sessionKeys) {
-      const session = await this.cache.getJson<AuthSessionState>(sessionKey);
-
-      if (!session || session.status === "revoked" || !matches(session)) {
+    for (const session of sessions) {
+      if (!matches(session)) {
         continue;
       }
 
-      await this.cache.setJson(
-        sessionKey,
-        {
-          ...session,
-          status: "revoked",
-          updatedAt: new Date().toISOString(),
-        } satisfies AuthSessionState,
-        await this.getRemainingTtlInSeconds(sessionKey),
-      );
-      revokedSessionIds.push(session.sessionId);
+      if (await this.revokeKnownSession(session)) {
+        revokedSessionIds.push(session.sessionId);
+      }
     }
 
     return revokedSessionIds;
@@ -322,6 +433,7 @@ export class TokenService {
     token: string,
     payload: RefreshTokenPayload,
     options: CreateRefreshTokenOptions = {},
+    client?: ClientRequestContext,
   ): Promise<string> {
     if (this.getRefreshTokenMode() !== "stateful") {
       throw new UnauthorizedError(
@@ -364,7 +476,22 @@ export class TokenService {
             return currentRecord.replacementToken;
           }
 
-          await this.revokeSession(sessionId);
+          if (this.getRefreshReuseResponse() === "user") {
+            await this.tokenRepository.rotateTokenVersion(claims.sub);
+            try {
+              await this.revokeSessionsForUser(claims.sub);
+            } catch (error) {
+              // The token-version rotation is authoritative and has already
+              // ended every JWT. Stale index members are removed when the user
+              // next signs in and lists sessions.
+              this.logger.error(
+                "Failed to mark indexed sessions revoked after refresh reuse.",
+                { userId: claims.sub, error },
+              );
+            }
+          } else {
+            await this.revokeSession(sessionId);
+          }
           throw new RefreshTokenReuseDetectedError(claims.sub, sessionId);
         }
 
@@ -395,7 +522,7 @@ export class TokenService {
             this.getRefreshCacheKey(claims.jti),
           ),
         );
-        await this.extendSession(sessionId, payload, expiresInSeconds);
+        await this.extendSession(sessionId, payload, expiresInSeconds, client);
 
         return nextToken;
       },
@@ -713,10 +840,49 @@ export class TokenService {
     }
   }
 
+  private async assertAndTouchSession(
+    userId: Uuid,
+    sessionId?: string | number | boolean | null,
+    client?: ClientRequestContext,
+  ): Promise<void> {
+    if (typeof sessionId !== "string" || sessionId.length === 0) {
+      return;
+    }
+
+    const cacheKey = this.getSessionCacheKey(sessionId);
+    const session = await this.cache.getJson<AuthSessionState>(cacheKey);
+
+    if (!session || session.userId !== userId || session.status !== "active") {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+
+    const ttlInSeconds = await this.getRemainingTtlInSeconds(cacheKey);
+    const now = new Date().toISOString();
+    const updatedSession = {
+      ...session,
+      deviceType: client?.device.type ?? session.deviceType,
+      platform: client?.device.platform ?? session.platform,
+      userAgent: client?.device.userAgent ?? session.userAgent,
+      lastIpAddress: client?.ip ?? session.lastIpAddress,
+      rememberMe: Boolean(session.rememberMe),
+      lastUsedAt: now,
+      updatedAt: now,
+    } satisfies AuthSessionState;
+    const wasUpdated = await this.updateIndexedSession(
+      updatedSession,
+      ttlInSeconds,
+    );
+
+    if (!wasUpdated) {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+  }
+
   private async extendSession(
     sessionId: string,
     payload: RefreshTokenPayload,
     ttlInSeconds: number,
+    client?: ClientRequestContext,
   ): Promise<void> {
     const cacheKey = this.getSessionCacheKey(sessionId);
     const session = await this.cache.getJson<AuthSessionState>(cacheKey);
@@ -725,8 +891,8 @@ export class TokenService {
       throw new UnauthorizedError("Session is no longer valid.");
     }
 
-    await this.cache.setJson(
-      cacheKey,
+    const now = new Date().toISOString();
+    const wasUpdated = await this.updateIndexedSession(
       {
         ...session,
         deviceId: payload.deviceId,
@@ -734,10 +900,103 @@ export class TokenService {
           typeof payload.tokenVersion === "number"
             ? payload.tokenVersion
             : session.tokenVersion,
-        updatedAt: new Date().toISOString(),
+        deviceType: client?.device.type ?? session.deviceType,
+        platform: client?.device.platform ?? session.platform,
+        userAgent: client?.device.userAgent ?? session.userAgent,
+        lastIpAddress: client?.ip ?? session.lastIpAddress,
+        rememberMe: Boolean(payload.rememberMe),
+        lastUsedAt: now,
+        updatedAt: now,
       } satisfies AuthSessionState,
       ttlInSeconds,
     );
+
+    if (!wasUpdated) {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+  }
+
+  private async readIndexedSessions(
+    userId: Uuid,
+    tokenVersion?: number,
+  ): Promise<AuthSessionState[]> {
+    const indexKey = this.getUserSessionsCacheKey(userId);
+    const sessionIds = await this.cache.setMembers(indexKey);
+    const sessions: AuthSessionState[] = [];
+    const staleSessionIds: string[] = [];
+
+    for (const sessionId of sessionIds) {
+      const session = await this.cache.getJson<AuthSessionState>(
+        this.getSessionCacheKey(sessionId),
+      );
+
+      if (
+        !session ||
+        session.userId !== userId ||
+        session.status !== "active" ||
+        (tokenVersion !== undefined && session.tokenVersion !== tokenVersion)
+      ) {
+        staleSessionIds.push(sessionId);
+        continue;
+      }
+
+      sessions.push({
+        ...session,
+        rememberMe: Boolean(session.rememberMe),
+        lastUsedAt:
+          session.lastUsedAt ?? session.updatedAt ?? session.createdAt,
+      });
+    }
+
+    await this.cache.removeSetMembers(indexKey, staleSessionIds);
+    return sessions;
+  }
+
+  private async updateIndexedSession(
+    session: AuthSessionState,
+    ttlInSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.cache.eval<number>(
+      UPDATE_INDEXED_SESSION_SCRIPT,
+      [
+        this.getSessionCacheKey(session.sessionId),
+        this.getUserSessionsCacheKey(session.userId),
+      ],
+      [
+        session.userId,
+        JSON.stringify(session),
+        session.sessionId,
+        ttlInSeconds.toString(),
+      ],
+    );
+
+    return result === 1;
+  }
+
+  private async revokeKnownSession(
+    session: AuthSessionState,
+  ): Promise<boolean> {
+    const cacheKey = this.getSessionCacheKey(session.sessionId);
+    const ttlInSeconds = await this.getRemainingTtlInSeconds(cacheKey);
+    const revokedSession = {
+      ...session,
+      status: "revoked",
+      rememberMe: Boolean(session.rememberMe),
+      lastUsedAt: session.lastUsedAt ?? session.updatedAt ?? session.createdAt,
+      updatedAt: new Date().toISOString(),
+    } satisfies AuthSessionState;
+    const result = await this.cache.eval<number>(
+      REVOKE_INDEXED_SESSION_SCRIPT,
+      [cacheKey, this.getUserSessionsCacheKey(session.userId)],
+      [
+        session.userId,
+        JSON.stringify(revokedSession),
+        session.sessionId,
+        ttlInSeconds.toString(),
+      ],
+    );
+
+    return result === 1;
   }
 
   private parseAndVerifyRefreshTokenSignature(token: string): {
@@ -792,8 +1051,8 @@ export class TokenService {
     return `${SESSION_CACHE_PREFIX}:${sessionId}`;
   }
 
-  private getSessionScanPattern(): string {
-    return `${SESSION_CACHE_PREFIX}:*`;
+  private getUserSessionsCacheKey(userId: Uuid): string {
+    return `${USER_SESSIONS_CACHE_PREFIX}:${userId}`;
   }
 
   private getRefreshRotationLockKey(jti: string): string {
@@ -891,6 +1150,13 @@ export class TokenService {
   private getRefreshTokenMode(): RefreshTokenMode {
     return (
       this.refreshTokenMode ?? environment.getTokenConfig().refreshTokenMode
+    );
+  }
+
+  private getRefreshReuseResponse(): RefreshReuseResponse {
+    return (
+      this.refreshReuseResponse ??
+      environment.getTokenConfig().refreshReuseResponse
     );
   }
 

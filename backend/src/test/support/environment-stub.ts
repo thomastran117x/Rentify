@@ -14,6 +14,7 @@ const tokenConfig = {
   issuer: undefined,
   audience: undefined,
   refreshTokenMode: "stateful" as const,
+  refreshReuseResponse: "session" as const,
   refreshTokenCachePrefix: "auth:refresh",
   personalAccessTokenSecret: "test-personal-access-token-secret-32",
   authAuditIdentifierSecret: "test-auth-audit-identifier-secret-32",

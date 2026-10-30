@@ -208,6 +208,22 @@ ACCESS_TOKEN_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY----
 This setting affects access JWTs only. Refresh tokens continue to use their
 separate `REFRESH_TOKEN_SECRET` and configured stateful lifecycle.
 
+## Refresh-token reuse response
+
+`auth.refreshReuseResponse` controls the immediate response when a consumed
+refresh token is replayed outside the rotation grace period. Override it with
+`AUTH_REFRESH_REUSE_RESPONSE`.
+
+| Value     | Behaviour                                                                  |
+| --------- | -------------------------------------------------------------------------- |
+| `session` | Revoke only the session named by the replayed refresh token.               |
+| `user`    | Increment `tokenVersion` and revoke every indexed session for the account. |
+
+Production defaults to `user`; development and test default to `session`.
+Personal access tokens are not affected by refresh reuse. Both modes record
+`session.refresh_reuse_detected` and feed the existing suspicious-activity
+rule. Any other value stops startup.
+
 ## PayPal checkout
 
 The PayPal REST app is configured in three places:

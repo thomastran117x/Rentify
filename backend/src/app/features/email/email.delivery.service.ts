@@ -72,7 +72,7 @@ const SUSPICIOUS_LOGIN_SUMMARIES: Record<SuspiciousLoginReason, string> = {
   success_after_failures:
     "Someone signed in to your account from a new device and a new location, right after several failed attempts to sign in.",
   refresh_reuse:
-    "A sign-in session on your account was used from two places, which can mean someone copied it. We signed that session out.",
+    "A sign-in session on your account was used from two places, which can mean someone copied it. We ended the affected sign-ins.",
 };
 
 const TRANSIENT_ERROR_CODES = new Set([

@@ -5,7 +5,7 @@ import {
   normalizeAccountStatus,
   normalizeAppRole,
 } from "@/features/auth/auth.model";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 
 export class TokenRepository extends BaseRepository {
   async findSessionValidationByUserId(userId: Uuid): Promise<{
@@ -60,5 +60,58 @@ export class TokenRepository extends BaseRepository {
     );
 
     return user.tokenVersion;
+  }
+
+  async revokeAllCredentials(userId: Uuid): Promise<{
+    tokenVersion: number;
+    revokedPersonalAccessTokenIds: Uuid[];
+  }> {
+    return this.executeAsync(() =>
+      this.prisma.$transaction(async (transaction) => {
+        const activeTokens = await transaction.personalAccessToken.findMany({
+          where: {
+            userId,
+            revokedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        });
+        const revokedAt = new Date();
+
+        if (activeTokens.length > 0) {
+          await transaction.personalAccessToken.updateMany({
+            where: {
+              id: { in: activeTokens.map((token) => token.id) },
+              revokedAt: null,
+            },
+            data: {
+              revokedAt,
+            },
+          });
+        }
+
+        const user = await transaction.user.update({
+          where: {
+            id: userId,
+          },
+          data: {
+            tokenVersion: {
+              increment: 1,
+            },
+          },
+          select: {
+            tokenVersion: true,
+          },
+        });
+
+        return {
+          tokenVersion: user.tokenVersion,
+          revokedPersonalAccessTokenIds: activeTokens.map((token) =>
+            asUuid(token.id),
+          ),
+        };
+      }),
+    );
   }
 }

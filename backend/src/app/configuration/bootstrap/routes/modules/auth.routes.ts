@@ -292,6 +292,33 @@ export const authDevicesRouteModule: RouteModule = {
   },
 };
 
+export const authSessionsRouteModule: RouteModule = {
+  id: "auth-sessions",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/auth/sessions",
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "sessions",
+      ),
+    );
+    app.delete(
+      "/auth/sessions/:id",
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "revokeSession",
+      ),
+    );
+    app.post(
+      "/auth/sessions/revoke-others",
+      resolveHandler<AuthSessionController>(
+        containerTokens.authSessionController,
+        "revokeSessions",
+      ),
+    );
+  },
+};
+
 export const authAuditRouteModule: RouteModule = {
   id: "auth-audit",
   register(app, { resolveHandler }) {
