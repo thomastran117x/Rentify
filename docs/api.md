@@ -187,7 +187,9 @@ one action.
 Redeeming an emailed code needs a fresh token too: the code is the proof of
 email ownership, and the captcha keeps a script from cycling through guesses or
 replaying a stolen code at volume. Turnstile tokens are single-use, so the
-frontend asks for a new check after every request that spent one.
+frontend clears the token after every request that spent one and the widget
+renews it: a fresh challenge with a site key, or the development bypass token
+without one.
 
 The token is also refused when Turnstile reports it was solved on a hostname
 other than the frontend's (`hostname-mismatch`), since any site using the same

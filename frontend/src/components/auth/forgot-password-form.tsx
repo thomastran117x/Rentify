@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
@@ -207,10 +207,11 @@ export function ForgotPasswordForm() {
   const [requestPending, setRequestPending] = useState(false);
   const [resetPending, setResetPending] = useState(false);
   const [resending, setResending] = useState(false);
+  // Turnstile tokens are single-use, so every request that reaches the
+  // server clears this one. The widget then renews it: a fresh challenge with
+  // a site key, or the development bypass token without one.
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
     useAuthCaptchaToken(CAPTCHA_ACTIONS.passwordReset);
-  const [captchaConsumed, setCaptchaConsumed] = useState(false);
-  const hasHydratedConsumedCaptchaRef = useRef(false);
   const persistedAuthFlow = usePersistedAuthPendingFlow();
   const resetFlow =
     persistedAuthFlow?.flow === "forgot-password-reset"
@@ -225,28 +226,6 @@ export function ForgotPasswordForm() {
       router.replace("/");
     }
   }, [router, status]);
-
-  useEffect(() => {
-    if (hasHydratedConsumedCaptchaRef.current) {
-      return;
-    }
-
-    hasHydratedConsumedCaptchaRef.current = true;
-
-    if (requestComplete && captchaToken.trim()) {
-      setCaptchaConsumed(true);
-    }
-  }, [captchaToken, requestComplete]);
-
-  function handleCaptchaChange(token: string) {
-    setCaptchaConsumed(false);
-    setCaptchaToken(token);
-  }
-
-  function handleCaptchaReset() {
-    setCaptchaConsumed(false);
-    clearCaptchaToken();
-  }
 
   async function handleRequestSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,7 +251,6 @@ export function ForgotPasswordForm() {
         username: username.trim().toLowerCase(),
       });
       setGeneralError(null);
-      setCaptchaConsumed(true);
     } catch (error) {
       const failure = getRequestFailureResult(error);
       setGeneralError(failure.generalError);
@@ -280,8 +258,8 @@ export function ForgotPasswordForm() {
         ...current,
         ...(failure.fieldErrors ?? {}),
       }));
-      handleCaptchaReset();
     } finally {
+      clearCaptchaToken();
       setRequestPending(false);
     }
   }
@@ -291,10 +269,8 @@ export function ForgotPasswordForm() {
 
     const nextErrors = validateReset({ code, newPassword, confirmPassword });
 
-    if (!captchaToken.trim() || captchaConsumed) {
-      nextErrors.captchaToken = captchaConsumed
-        ? "Run the verification again before resetting your password."
-        : "Complete the verification to continue.";
+    if (!captchaToken.trim()) {
+      nextErrors.captchaToken = "Complete the verification to continue.";
     }
 
     setResetErrors(nextErrors);
@@ -325,15 +301,8 @@ export function ForgotPasswordForm() {
         ...current,
         ...(failure.fieldErrors ?? {}),
       }));
-
-      // Turnstile tokens are single-use, so a reset that reached the server
-      // has spent this one.
-      if (failure.fieldErrors?.captchaToken) {
-        handleCaptchaReset();
-      } else {
-        setCaptchaConsumed(true);
-      }
     } finally {
+      clearCaptchaToken();
       setResetPending(false);
     }
   }
@@ -343,11 +312,9 @@ export function ForgotPasswordForm() {
     setResetErrors({});
     setResentMessage(null);
 
-    if (!captchaToken.trim() || captchaConsumed) {
+    if (!captchaToken.trim()) {
       setResetErrors({
-        captchaToken: captchaConsumed
-          ? "Run the verification again before requesting another reset code."
-          : "Complete the verification to continue.",
+        captchaToken: "Complete the verification to continue.",
       });
       return;
     }
@@ -360,7 +327,6 @@ export function ForgotPasswordForm() {
         captchaToken,
       });
 
-      setCaptchaConsumed(true);
       setResentMessage(
         "If that username is eligible, a new reset code is on the way.",
       );
@@ -371,13 +337,8 @@ export function ForgotPasswordForm() {
         ...current,
         ...(failure.fieldErrors ?? {}),
       }));
-
-      if (failure.fieldErrors?.captchaToken) {
-        handleCaptchaReset();
-      } else if (captchaToken.trim()) {
-        setCaptchaConsumed(true);
-      }
     } finally {
+      clearCaptchaToken();
       setResending(false);
     }
   }
@@ -452,8 +413,8 @@ export function ForgotPasswordForm() {
           action={CAPTCHA_ACTIONS.passwordReset}
           token={captchaToken}
           error={requestErrors.captchaToken}
-          onChange={handleCaptchaChange}
-          onReset={handleCaptchaReset}
+          onChange={setCaptchaToken}
+          onReset={clearCaptchaToken}
         />
 
         <button
@@ -557,21 +518,19 @@ export function ForgotPasswordForm() {
           action={CAPTCHA_ACTIONS.passwordReset}
           token={captchaToken}
           error={resetErrors.captchaToken}
-          stale={captchaConsumed}
-          staleMessage="This verification was used for your last request. Run it again to continue."
           onChange={(token) => {
             setResetErrors((current) => ({
               ...current,
               captchaToken: undefined,
             }));
-            handleCaptchaChange(token);
+            setCaptchaToken(token);
           }}
           onReset={() => {
             setResetErrors((current) => ({
               ...current,
               captchaToken: undefined,
             }));
-            handleCaptchaReset();
+            clearCaptchaToken();
           }}
         />
 
