@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const OWNER_USERNAME = "owner-one";
 const MANAGER_USERNAME = "renter-one";
@@ -10,46 +11,6 @@ const MANAGER_ORG_LABEL = `${ORGANIZATION_NAME} - Manager`;
 const OPERATOR_ORG_LABEL = `${ORGANIZATION_NAME} - Operator`;
 
 test.describe.configure({ mode: "serial" });
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
-
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  const token = await readCaptchaToken();
-
-  if (!token) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
-        }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
-}
 
 async function login(
   page: Page,

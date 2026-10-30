@@ -4,6 +4,7 @@ import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
@@ -33,7 +34,12 @@ export class LocalAuthController {
       request,
       localAuthenticateRequestSchema,
     );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.login,
+    );
     const result = await this.localAuthService.localAuthenticate(
       toLocalAuthenticateInput(request, input),
     );
@@ -45,7 +51,12 @@ export class LocalAuthController {
 
   localSignup = async (request: Request, response: Response): Promise<void> => {
     const input = await parseRequestBody(request, localSignupRequestSchema);
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.signup,
+    );
     const result = await this.localAuthService.localSignup(
       toLocalSignupInput(request, input),
     );
@@ -73,7 +84,12 @@ export class LocalAuthController {
       request,
       resendVerificationEmailRequestSchema,
     );
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.verifyEmail,
+    );
     const result = await this.localAuthService.resendVerificationEmail(
       toResendVerificationEmailInput(request, input),
     );

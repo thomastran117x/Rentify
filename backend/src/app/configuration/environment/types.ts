@@ -96,6 +96,7 @@ export type RawEnvironmentValues = {
   BOOKING_REQUEST_EXPIRY_BATCH_SIZE?: string;
   BOOKING_REQUEST_EXPIRY_POLL_INTERVAL_MS?: string;
   CAPTCHA_ALLOWED_HOSTS?: string;
+  CAPTCHA_ALLOWED_HOSTNAMES?: string;
   CLIENT_IP_HEADER?: string;
   CLOUDFLARE_TURNSTILE_SECRET_KEY?: string;
   CORS_ALLOWED_ORIGINS?: string;
@@ -256,6 +257,7 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES?: string;
   AUTH_SECURITY_DETECTION_MODE?: string;
   AUTH_SECURITY_REFRESH_REUSE_ENABLED?: string;
+  AUTH_COOKIE_SECURE?: string;
   AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES?: string;
   AUTH_SECURITY_REPEATED_LOCKOUTS_ENABLED?: string;
   AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD?: string;
@@ -358,6 +360,11 @@ export interface AppEnvironment {
     authAuditIdentifierSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
+    /**
+     * Whether session cookies are `Secure`, which also switches them to their
+     * `__Host-` names. Production always; elsewhere only when opted in.
+     */
+    secureCookies: boolean;
   };
   authAudit: {
     /** Rows older than this many days are deleted by the prune worker. */
@@ -403,7 +410,13 @@ export interface AppEnvironment {
   };
   captcha: {
     secretKey?: string;
+    /** Hosts the siteverify request may be sent to. */
     allowedHosts: string[];
+    /**
+     * Hostnames a solved challenge may come from. Empty means the hosts of
+     * FRONTEND_URL.
+     */
+    allowedHostnames: string[];
   };
   cors: {
     allowedOrigins: string[];

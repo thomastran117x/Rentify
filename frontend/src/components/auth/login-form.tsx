@@ -12,6 +12,7 @@ import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { OAuthSignupDateOfBirthDialog } from "@/components/auth/oauth-signup-date-of-birth-dialog";
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage } from "@/components/errors";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
@@ -219,7 +220,7 @@ export function LoginForm({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.login);
   const [errors, setErrors] = useState<LoginErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -811,6 +812,7 @@ export function LoginForm({
         />
 
         <AuthCaptchaPanel
+          action={CAPTCHA_ACTIONS.login}
           token={captchaToken}
           error={errors.captchaToken}
           onChange={setCaptchaToken}

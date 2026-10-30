@@ -817,6 +817,40 @@ minimum is the longer of `blobStorage.uploadSasTtlSeconds`
 lifetime, plus 15 minutes to finish and complete the upload. A shorter value is
 a startup error. With the maximum one-hour SAS lifetime, that is 75 minutes.
 
+## Captcha
+
+`captcha` configures Cloudflare Turnstile verification. The secret key is
+`CLOUDFLARE_TURNSTILE_SECRET_KEY` and stays out of YAML. See
+[Captcha](./api.md#captcha) for the protected endpoints and their actions.
+
+| Key                | Default                     | Override                    | Meaning                                     |
+| ------------------ | --------------------------- | --------------------------- | ------------------------------------------- |
+| `allowedHosts`     | `challenges.cloudflare.com` | `CAPTCHA_ALLOWED_HOSTS`     | Hosts the siteverify request may be sent to |
+| `allowedHostnames` | the hosts of `FRONTEND_URL` | `CAPTCHA_ALLOWED_HOSTNAMES` | Hostnames a solved challenge may come from  |
+
+A token Turnstile accepts is still refused when its hostname is not on
+`allowedHostnames`. Left empty, the list is the host of every `FRONTEND_URL`
+origin, with `localhost` and `127.0.0.1` standing in for each other. Set it
+when the frontend is served from a host `FRONTEND_URL` does not name. A stack
+using Cloudflare's testing keys gets whatever hostname their siteverify
+responses report, so add that hostname here too.
+
+## Session cookies
+
+Browser sessions keep their refresh token in an httpOnly cookie and a CSRF
+token in a cookie the frontend reads and echoes in `x-csrf-token`. See
+[Session Cookies](./api.md#session-cookies) for the names and the migration.
+
+| Key                   | Default                   | Override             | Meaning                                                 |
+| --------------------- | ------------------------- | -------------------- | ------------------------------------------------------- |
+| `auth.cookies.secure` | `true` in production only | `AUTH_COOKIE_SECURE` | Mark the cookies `Secure` and use their `__Host-` names |
+
+Production always uses `Secure` cookies; `AUTH_COOKIE_SECURE=false` there is a
+startup error. Elsewhere the cookies stay on their `refresh_token` and
+`csrf_token` names over plain http, because a browser refuses a `__Host-`
+cookie that is not `Secure`. Set `AUTH_COOKIE_SECURE=true` locally to exercise
+the `__Host-` names: browsers accept `Secure` cookies from `http://localhost`.
+
 ## Auth audit retention
 
 `authAudit` sets how long `auth_audit_events` rows are kept and how the

@@ -33,12 +33,14 @@ export default function RootLayout({
               //
               // The marker alone is not enough: it does not expire, so after
               // the cookies lapse while the app is closed it would reserve a
-              // rail that auth then removes. csrf_token shares the refresh
-              // token's lifetime, so requiring both retires the marker exactly
-              // when the session it describes is gone — including on the very
-              // first visit after expiry.
-              "try{if(localStorage.getItem('rentify.auth.active')&&" +
-              "('; '+document.cookie).indexOf('; csrf_token=')>-1){" +
+              // rail that auth then removes. The CSRF cookie (__Host-rentify_csrf,
+              // or csrf_token over plain http) shares the refresh token's
+              // lifetime, so requiring both retires the marker exactly when the
+              // session it describes is gone — including on the very first
+              // visit after expiry.
+              "try{var c='; '+document.cookie;" +
+              "if(localStorage.getItem('rentify.auth.active')&&" +
+              "(c.indexOf('; __Host-rentify_csrf=')>-1||c.indexOf('; csrf_token=')>-1)){" +
               "document.documentElement.setAttribute('data-auth-hint','');}}catch(e){}})();",
           }}
         />

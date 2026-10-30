@@ -3,6 +3,7 @@ import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
 import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import {
   parseUsernameAvailabilityQuery,
@@ -53,7 +54,12 @@ export class UsernameController {
     response: Response,
   ): Promise<void> => {
     const input = await parseRequestBody(request, forgotUsernameRequestSchema);
-    await requireCaptcha(request, this.captchaService, input.captchaToken);
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.forgotUsername,
+    );
     const result = await this.usernameService.forgotUsername(
       toForgotUsernameInput(request, input),
     );

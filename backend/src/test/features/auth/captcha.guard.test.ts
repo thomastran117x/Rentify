@@ -27,17 +27,23 @@ describe("requireCaptcha", () => {
     const captchaService = createCaptchaService({ success: true });
 
     await expect(
-      requireCaptcha(createRequest(), captchaService, "captcha-ok"),
+      requireCaptcha(createRequest(), captchaService, "captcha-ok", "login"),
     ).resolves.toBeUndefined();
   });
 
-  it("forwards the token, caller ip and idempotency key", async () => {
+  it("forwards the token, expected action, caller ip and idempotency key", async () => {
     const captchaService = createCaptchaService({ success: true });
 
-    await requireCaptcha(createRequest(), captchaService, "captcha-ok");
+    await requireCaptcha(
+      createRequest(),
+      captchaService,
+      "captcha-ok",
+      "login",
+    );
 
     expect(captchaService.verify).toHaveBeenCalledWith({
       token: "captcha-ok",
+      expectedAction: "login",
       remoteIp: "203.0.113.10",
       idempotencyKey: "idem-1",
     });
@@ -50,7 +56,7 @@ describe("requireCaptcha", () => {
     });
 
     await expect(
-      requireCaptcha(createRequest(), captchaService, "captcha-bad"),
+      requireCaptcha(createRequest(), captchaService, "captcha-bad", "login"),
     ).rejects.toThrow(BadRequestError);
   });
 
@@ -63,7 +69,7 @@ describe("requireCaptcha", () => {
     });
 
     await expect(
-      requireCaptcha(createRequest(), captchaService, "captcha-ok"),
+      requireCaptcha(createRequest(), captchaService, "captcha-ok", "login"),
     ).rejects.toMatchObject({ details: { failOpen: true } });
   });
 });

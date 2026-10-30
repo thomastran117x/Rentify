@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import { created } from "@/configuration/http/responses";
 import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
-import { resolveIdempotencyKey } from "@/configuration/middlewares/idempotency.middleware";
 import {
   parseRequestBody,
   RequestValidationError,
 } from "@/configuration/validation/request";
-import BadRequestError from "@/errors/http/bad-request.error";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
+import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
 import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import type { FeedbacksService } from "@/features/feedbacks/feedbacks.service";
 import { createAppFeedbackRequestSchema } from "@/features/feedbacks/feedbacks.model";
@@ -55,18 +55,12 @@ class FeedbacksController {
       ]);
     }
 
-    const result = await this.captchaService.verify({
-      token: captchaToken,
-      remoteIp: request.client.ip,
-      idempotencyKey: resolveIdempotencyKey(request),
-    });
-
-    if (!result.success || result.failOpen) {
-      throw new BadRequestError("Captcha verification failed.", {
-        errors: result.errors,
-        failOpen: result.failOpen,
-      });
-    }
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      captchaToken,
+      CAPTCHA_ACTIONS.feedback,
+    );
   }
 }
 

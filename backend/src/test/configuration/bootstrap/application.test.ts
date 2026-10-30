@@ -99,6 +99,7 @@ jest.mock("@/configuration/middlewares/error-handler.middleware", () => ({
 }));
 
 const GLOBAL_MIDDLEWARE = [
+  "security-headers",
   "cors",
   "request-id",
   "client-context",
@@ -109,12 +110,7 @@ const GLOBAL_MIDDLEWARE = [
   "request-sanitization",
 ];
 
-const TRAILING_MIDDLEWARE = [
-  "rate-limiter",
-  "output-format",
-  "security-headers",
-  "http-logging",
-];
+const TRAILING_MIDDLEWARE = ["rate-limiter", "output-format", "http-logging"];
 
 async function createApp() {
   const { createApplication } = await import(
@@ -159,6 +155,14 @@ describe("createApplication", () => {
     const response = await app.request("http://rent.test/ping");
 
     expect(response.status).toBe(404);
+  });
+
+  it("runs the security headers ahead of everything, even outside the API prefix", async () => {
+    const app = await createApp();
+
+    await app.request("http://rent.test/ping");
+
+    expect(mockOrder).toEqual(["security-headers"]);
   });
 
   it("runs the global middleware in the expected order", async () => {

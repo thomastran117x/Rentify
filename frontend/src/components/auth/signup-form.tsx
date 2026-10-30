@@ -21,6 +21,7 @@ import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
 import { SignupVerificationPanel } from "@/components/auth/signup-verification-panel";
 import { useAuth } from "@/components/auth/auth-context";
 import { FormErrorMessage } from "@/components/errors";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   clearPersistedAuthPendingFlowByType,
@@ -272,7 +273,7 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.signup);
   const [errors, setErrors] = useState<SignupErrors>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -791,6 +792,7 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
             </AuthField>
 
             <AuthCaptchaPanel
+              action={CAPTCHA_ACTIONS.signup}
               token={captchaToken}
               error={errors.captchaToken}
               onChange={setCaptchaToken}

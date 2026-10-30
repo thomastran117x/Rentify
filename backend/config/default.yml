@@ -108,8 +108,12 @@ sms:
     messagingProfileId: null
 
 captcha:
+  # Where the siteverify request may be sent.
   allowedHosts:
     - challenges.cloudflare.com
+  # Hostnames a solved challenge may come from. Empty uses the hosts of
+  # application.frontendUrl (FRONTEND_URL).
+  allowedHostnames: []
 
 cors:
   allowedOrigins:

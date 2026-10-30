@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { clearCookie, writeCookie } from "@/configuration/http/request";
 import { ok } from "@/configuration/http/responses";
-import { environment } from "@/configuration/environment";
 import {
-  CSRF_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_COOKIE_NAME,
+  getSessionCookieNames,
+  isSecureCookieEnabled,
+  LEGACY_SESSION_COOKIE_NAMES,
+  SECURE_SESSION_COOKIE_NAMES,
+  type SessionCookieNames,
 } from "@/features/auth/auth.cookies";
 import type {
   AuthResponseBody,
@@ -28,10 +30,6 @@ export function isBrowserRequest(request: Request): boolean {
 
 export function shouldSetRefreshCookie(request: Request): boolean {
   return isBrowserRequest(request);
-}
-
-export function isSecureCookieEnabled(): boolean {
-  return environment.isProduction();
 }
 
 export function createCsrfToken(): string {
@@ -73,34 +71,57 @@ export function setBrowserSessionCookies(
   result: AuthSessionResult,
 ): void {
   const secure = isSecureCookieEnabled();
+  const names = getSessionCookieNames(secure);
 
-  writeCookie(response, REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
+  writeCookie(response, names.refresh, result.refreshToken, {
     path: "/",
     httpOnly: true,
     secure,
     sameSite: "Lax",
     maxAge: result.refreshTokenExpiresInSeconds,
   });
-  writeCookie(response, CSRF_TOKEN_COOKIE_NAME, createCsrfToken(), {
+  writeCookie(response, names.csrf, createCsrfToken(), {
     path: "/",
     secure,
     sameSite: "Lax",
     maxAge: result.refreshTokenExpiresInSeconds,
+  });
+
+  if (secure) {
+    // A session issued before the __Host- rename still holds the legacy
+    // cookies; expire them so the browser is left with one pair.
+    clearSessionCookies(response, LEGACY_SESSION_COOKIE_NAMES, secure);
+  }
+}
+
+function clearSessionCookies(
+  response: Response,
+  names: SessionCookieNames,
+  secure: boolean,
+): void {
+  clearCookie(response, names.refresh, {
+    path: "/",
+    httpOnly: true,
+    secure,
+    sameSite: "Lax",
+  });
+  clearCookie(response, names.csrf, {
+    path: "/",
+    secure,
+    sameSite: "Lax",
   });
 }
 
 export function clearBrowserSessionCookies(response: Response): void {
-  clearCookie(response, REFRESH_TOKEN_COOKIE_NAME, {
-    path: "/",
-    httpOnly: true,
-    secure: isSecureCookieEnabled(),
-    sameSite: "Lax",
-  });
-  clearCookie(response, CSRF_TOKEN_COOKIE_NAME, {
-    path: "/",
-    secure: isSecureCookieEnabled(),
-    sameSite: "Lax",
-  });
+  const secure = isSecureCookieEnabled();
+
+  clearSessionCookies(response, LEGACY_SESSION_COOKIE_NAMES, secure);
+
+  // Browsers reject a __Host- cookie that is not Secure, so these only exist,
+  // and can only be cleared, when cookies are Secure.
+  if (secure) {
+    clearSessionCookies(response, SECURE_SESSION_COOKIE_NAMES, secure);
+  }
 }
 
 /**

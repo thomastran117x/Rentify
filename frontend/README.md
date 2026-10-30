@@ -50,7 +50,7 @@ Environment loading:
 ## Frontend Env Values
 
 - `NEXT_PUBLIC_API_BASE_URL`: public API base URL; `http://localhost:8040/api/v1` is the recommended local value
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: enables Cloudflare Turnstile on auth pages
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: enables Cloudflare Turnstile on auth pages. Each flow renders its widget with the action the API expects (`src/lib/auth/captcha-actions.ts`) and keeps its own token; see [Captcha](../docs/api.md#captcha)
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`: enables Google OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID`: enables Microsoft OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT`: Microsoft authority segment such as `consumers`, `organizations`, `common`, or a tenant ID

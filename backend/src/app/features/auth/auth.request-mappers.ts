@@ -1,9 +1,9 @@
 import type { Request } from "express";
 import { ZodError } from "zod";
-import { getQuery, readCookie } from "@/configuration/http/request";
+import { getQuery } from "@/configuration/http/request";
 import { RequestValidationError } from "@/configuration/validation/request";
 import { requireSafeRouteParam } from "@/configuration/validation/input-sanitization";
-import { REFRESH_TOKEN_COOKIE_NAME } from "@/features/auth/auth.cookies";
+import { readRefreshTokenCookie } from "@/features/auth/auth.cookies";
 import type { OAuthProvider } from "@/features/auth/auth.model";
 import type {
   RefreshInput,
@@ -339,8 +339,7 @@ export function toRefreshInput(
 ): RefreshInput {
   return {
     client: request.client,
-    refreshToken:
-      input.refreshToken ?? readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
+    refreshToken: input.refreshToken ?? readRefreshTokenCookie(request),
     audit: toAuthAuditContext(request),
   };
 }

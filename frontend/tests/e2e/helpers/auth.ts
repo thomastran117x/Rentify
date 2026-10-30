@@ -51,44 +51,64 @@ export const SEEDED_USERS = {
 
 export type SeededUsername = keyof typeof SEEDED_USERS;
 
+const CAPTCHA_STORAGE_KEY_PREFIX = "rentify.auth.captcha.";
+// Each flow keeps its own token (frontend/src/lib/auth/captcha-actions.ts),
+// so every one is seeded with the development bypass token.
+const CAPTCHA_ACTIONS = [
+  "login",
+  "signup",
+  "verify_email",
+  "forgot_username",
+  "password_reset",
+  "unlock",
+  "oauth_signup",
+];
+
 export async function ensureCaptchaToken(page: Page): Promise<void> {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
+  const hasCaptchaTokens = async () =>
+    page.evaluate(
+      ({ prefix, actions }) =>
+        actions.every((action) => {
+          const rawCaptchaState = window.sessionStorage.getItem(
+            `${prefix}${action}`,
+          );
 
-      if (!rawCaptchaState) {
-        return "";
-      }
+          if (!rawCaptchaState) {
+            return false;
+          }
 
-      try {
-        const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
-          token?: string;
-        };
+          try {
+            const parsedCaptchaState = JSON.parse(rawCaptchaState) as {
+              token?: string;
+            };
 
-        return parsedCaptchaState.token?.trim() ?? "";
-      } catch {
-        return "";
-      }
-    });
-
-  const token = await readCaptchaToken();
-
-  if (!token) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({
-          token: "local-dev-bypass",
-          createdAt: Date.now(),
+            return Boolean(parsedCaptchaState.token?.trim());
+          } catch {
+            return false;
+          }
         }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
+      { prefix: CAPTCHA_STORAGE_KEY_PREFIX, actions: CAPTCHA_ACTIONS },
+    );
+
+  if (!(await hasCaptchaTokens())) {
+    await page.evaluate(
+      ({ prefix, actions }) => {
+        for (const action of actions) {
+          window.sessionStorage.setItem(
+            `${prefix}${action}`,
+            JSON.stringify({
+              token: "local-dev-bypass",
+              createdAt: Date.now(),
+            }),
+          );
+        }
+        window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
+      },
+      { prefix: CAPTCHA_STORAGE_KEY_PREFIX, actions: CAPTCHA_ACTIONS },
+    );
   }
 
-  await expect.poll(readCaptchaToken).not.toBe("");
+  await expect.poll(hasCaptchaTokens).toBe(true);
 }
 
 export interface LoginOptions {

@@ -18,6 +18,7 @@ import {
   type AccessTokenAlgorithm,
   type AuthSecurityDetectionMode,
   type EnvironmentVariableName,
+  type NodeEnvironment,
   type RawEnvironmentValues,
   type RefreshTokenMode,
 } from "@/configuration/environment/types";
@@ -181,6 +182,7 @@ export function buildAuthConfig(
   personalAccessTokenSecret: string,
   authAuditIdentifierSecret: string,
   mfaTotpEncryptionKey: string,
+  nodeEnv: NodeEnvironment,
 ): AppEnvironment["auth"] {
   return {
     mfaBypassEmails: parseMfaBypassEmails(raw, errors),
@@ -227,7 +229,29 @@ export function buildAuthConfig(
     personalAccessTokenSecret,
     authAuditIdentifierSecret,
     mfaTotpEncryptionKey,
+    secureCookies: parseSecureCookies(raw, nodeEnv, errors),
   };
+}
+
+/**
+ * Production always sends `Secure` cookies. Anywhere else they follow
+ * AUTH_COOKIE_SECURE, which exists so the `__Host-` cookie names can be
+ * exercised locally: browsers accept `Secure` cookies from http://localhost.
+ */
+function parseSecureCookies(
+  raw: RawEnvironmentValues,
+  nodeEnv: NodeEnvironment,
+  errors: string[],
+): boolean {
+  const isProduction = nodeEnv === "production";
+  const secure = parseBoolean(raw.AUTH_COOKIE_SECURE, isProduction);
+
+  if (isProduction && !secure) {
+    errors.push("AUTH_COOKIE_SECURE cannot be false in production.");
+    return true;
+  }
+
+  return secure;
 }
 
 // setTimeout holds a 32-bit signed delay and runs anything longer after 1 ms,
@@ -401,6 +425,9 @@ export function buildCaptchaConfig(
     allowedHosts: allowedHosts.length
       ? allowedHosts
       : [DEFAULT_CAPTCHA_ALLOWED_HOST],
+    allowedHostnames: normalizeDelimitedList(raw.CAPTCHA_ALLOWED_HOSTNAMES).map(
+      (hostname) => hostname.toLowerCase(),
+    ),
   };
 }
 

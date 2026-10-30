@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordForm } from "./forgot-password-form";
 import { writePersistedAuthPendingFlow } from "@/lib/auth/pending-flow";
@@ -51,21 +52,16 @@ vi.mock("@/components/auth/auth-captcha-panel", () => ({
   AuthCaptchaPanel: ({
     token,
     error,
-    stale,
-    staleMessage,
     onChange,
     onReset,
   }: {
     token: string;
     error?: string;
-    stale?: boolean;
-    staleMessage?: string;
     onChange: (token: string) => void;
     onReset: () => void;
   }) => (
     <div>
       <div>Captcha token: {token || "empty"}</div>
-      {stale && staleMessage ? <p>{staleMessage}</p> : null}
       {error ? <p>{error}</p> : null}
       <button type="button" onClick={() => onChange("fresh-captcha-token")}>
         Complete captcha
@@ -211,12 +207,8 @@ describe("ForgotPasswordForm", () => {
       username: "person",
       captchaToken: "captcha-token",
     });
-    expect(clearCaptchaTokenMock).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(
-        "This verification was used for your last request. Run it again before requesting another reset code.",
-      ),
-    ).toBeInTheDocument();
+    // The request spent the token; clearing it lets the widget renew it.
+    expect(clearCaptchaTokenMock).toHaveBeenCalled();
   });
 
   it("resets the password, stores the session, and redirects", async () => {
@@ -257,31 +249,58 @@ describe("ForgotPasswordForm", () => {
         username: "person",
         code: "123456",
         newPassword: "StrongPassw0rd!",
+        captchaToken: "captcha-token",
       });
     });
     expect(setSession).toHaveBeenCalled();
     expect(routerReplaceMock).toHaveBeenCalledWith("/");
   });
 
-  it("requires rerunning captcha before resending a reset code", async () => {
+  it("renews the token spent on each request instead of blocking the next step", async () => {
+    // A stateful store: clearing really empties the token, and the widget
+    // renews it. Here "Complete captcha" stands in for the widget; without a
+    // site key the bypass widget re-emits its token as soon as it is cleared.
+    useAuthCaptchaTokenMock.mockImplementation(() => {
+      const [token, setToken] = useState("captcha-token");
+      return [token, setToken, () => setToken("")];
+    });
     const user = userEvent.setup();
     forgotPasswordMock.mockResolvedValue({ accepted: true });
-    resendForgotPasswordMock.mockResolvedValue({ accepted: true });
+    resetPasswordMock.mockRejectedValue(
+      clientError(400, "BAD_REQUEST", "Verification code is invalid."),
+    );
 
     render(<ForgotPasswordForm />);
 
     await user.type(screen.getByLabelText("Username"), "person");
     await user.click(screen.getByRole("button", { name: "Send reset code" }));
     await screen.findByText("Check your inbox");
+    expect(screen.getByText("Captcha token: empty")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Resend reset code" }));
-
-    expect(resendForgotPasswordMock).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(screen.getByLabelText("New password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "StrongPassw0rd!",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
     expect(
-      await screen.findByText(
-        "Run the verification again before requesting another reset code.",
-      ),
+      screen.getByText("Complete the verification to continue."),
     ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Complete captcha" }));
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    await waitFor(() =>
+      expect(resetPasswordMock).toHaveBeenCalledWith(
+        expect.objectContaining({ captchaToken: "fresh-captcha-token" }),
+      ),
+    );
+    expect(
+      await screen.findByText("Verification code is invalid."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Captcha token: empty")).toBeInTheDocument();
   });
 
   it("validates reset codes and both password fields", async () => {
@@ -373,9 +392,40 @@ describe("ForgotPasswordForm", () => {
       screen.getByLabelText("Confirm new password"),
       "StrongPassw0rd!",
     );
+    await user.click(screen.getByRole("button", { name: "Complete captcha" }));
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
     expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
+    // The failed attempt spent the token; clearing it lets the widget renew it.
+    expect(clearCaptchaTokenMock).toHaveBeenCalled();
+  });
+
+  it("requires a captcha before resetting the password", async () => {
+    const user = userEvent.setup();
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(screen.getByLabelText("New password"), "StrongPassw0rd!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "StrongPassw0rd!",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      await screen.findByText("Complete the verification to continue."),
+    ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
   });
 
   it("resends after a fresh captcha is completed", async () => {

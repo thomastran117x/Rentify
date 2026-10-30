@@ -1,4 +1,5 @@
 import express from "express";
+import { environment } from "@/configuration/environment";
 import { getApiRoutePrefix } from "@/configuration/http/api-path";
 import { csrfMiddleware } from "@/configuration/middlewares/csrf.middleware";
 import { handleApplicationError } from "@/configuration/middlewares/error-handler.middleware";
@@ -19,6 +20,10 @@ function createApp() {
 }
 
 describe("csrfMiddleware", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("allows cookie-backed refresh when the CSRF cookie and header match", async () => {
     const app = createApp();
     const response = await app.request("http://rent.test/auth/refresh", {
@@ -56,6 +61,67 @@ describe("csrfMiddleware", () => {
         requestId: "unknown",
       },
     });
+  });
+
+  it("accepts the __Host- pair when cookies are secure", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const app = createApp();
+    const response = await app.request("http://rent.test/auth/refresh", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3040",
+        cookie:
+          "__Host-rentify_refresh=refresh-token; __Host-rentify_csrf=csrf-token",
+        "x-csrf-token": "csrf-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("accepts a legacy pair when cookies are secure, for sessions issued before the rename", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const app = createApp();
+    const response = await app.request("http://rent.test/auth/refresh", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3040",
+        cookie: "refresh_token=refresh-token; csrf_token=csrf-token",
+        "x-csrf-token": "csrf-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("does not accept a legacy CSRF cookie next to a __Host- refresh cookie", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const app = createApp();
+    const response = await app.request("http://rent.test/auth/refresh", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3040",
+        cookie: "__Host-rentify_refresh=refresh-token; csrf_token=planted",
+        "x-csrf-token": "planted",
+      },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("requires the CSRF header on other auth routes once a __Host- session exists", async () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(true);
+    const app = createApp();
+    const response = await app.request("http://rent.test/auth/local/login", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3040",
+        cookie:
+          "__Host-rentify_refresh=refresh-token; __Host-rentify_csrf=csrf-token",
+      },
+    });
+
+    expect(response.status).toBe(403);
   });
 
   it("rejects browser auth requests from untrusted origins", async () => {

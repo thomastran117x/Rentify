@@ -29,6 +29,7 @@ export const resetPasswordRequestSchema = z.object({
     .regex(/^\d{6}$/, "Reset code must be 6 digits."),
   newPassword: strongPasswordSchema,
   deviceId: optionalTrimmedString,
+  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
 export const changePasswordRequestSchema = z.object({

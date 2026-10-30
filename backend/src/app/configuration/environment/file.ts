@@ -55,6 +55,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.accessTokenAlgorithm": "ACCESS_TOKEN_ALGORITHM",
   "auth.accessTokenTtlSeconds": "ACCESS_TOKEN_TTL_SECONDS",
   "auth.audience": "TOKEN_AUDIENCE",
+  "auth.cookies.secure": "AUTH_COOKIE_SECURE",
   "auth.issuer": "TOKEN_ISSUER",
   "auth.mfaBypassEmails": "MFA_BYPASS_EMAILS",
   "auth.refreshTokenCachePrefix": "REFRESH_TOKEN_CACHE_PREFIX",
@@ -97,6 +98,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "AZURE_STORAGE_QUARANTINE_CONTAINER_NAME",
   "blobStorage.quarantineLegacyFallback": "MEDIA_QUARANTINE_LEGACY_FALLBACK",
   "blobStorage.uploadSasTtlSeconds": "AZURE_STORAGE_UPLOAD_SAS_TTL_SECONDS",
+  "captcha.allowedHostnames": "CAPTCHA_ALLOWED_HOSTNAMES",
   "captcha.allowedHosts": "CAPTCHA_ALLOWED_HOSTS",
   "cors.allowedOrigins": "CORS_ALLOWED_ORIGINS",
   "csrf.allowedOrigins": "CSRF_ALLOWED_ORIGINS",
@@ -283,6 +285,7 @@ const KNOWN_FILE_KEYS = new Set<string>(
 
 const ARRAY_FILE_KEYS = new Set([
   "auth.mfaBypassEmails",
+  "captcha.allowedHostnames",
   "captcha.allowedHosts",
   "cors.allowedOrigins",
   "csrf.allowedOrigins",
@@ -529,6 +532,7 @@ function validateConfigurationValueType(
   )[path];
   const isBoolean =
     variableName.endsWith("_ENABLED") ||
+    variableName === "AUTH_COOKIE_SECURE" ||
     variableName === "DATABASE_AUTO_SEED_REFRESH" ||
     variableName === "LOG_SILENT" ||
     variableName === "MEDIA_QUARANTINE_LEGACY_FALLBACK" ||

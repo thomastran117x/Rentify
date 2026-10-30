@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { useAuth } from "@/components/auth/auth-context";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import { clearPersistedAuthPendingFlowByType } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
@@ -139,7 +140,7 @@ export function SignupVerificationPanel({
   const [codeError, setCodeError] = useState<string | null>(null);
   const [resentMessage, setResentMessage] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken, clearCaptchaToken] =
-    useAuthCaptchaToken();
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.verifyEmail);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   async function handleVerify(event: React.FormEvent<HTMLFormElement>) {
@@ -276,6 +277,7 @@ export function SignupVerificationPanel({
       </form>
 
       <AuthCaptchaPanel
+        action={CAPTCHA_ACTIONS.verifyEmail}
         token={captchaToken}
         error={captchaError ?? undefined}
         onChange={(token) => {

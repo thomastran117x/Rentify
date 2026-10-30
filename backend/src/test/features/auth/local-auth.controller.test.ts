@@ -458,6 +458,7 @@ describe("LocalAuthController", () => {
 
     expect(captchaService.verify).toHaveBeenCalledWith({
       token: "captcha-token",
+      expectedAction: "login",
       remoteIp: "127.0.0.1",
       idempotencyKey: "request-123",
     });

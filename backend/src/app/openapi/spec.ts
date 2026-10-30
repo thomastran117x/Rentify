@@ -2299,7 +2299,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resetPassword",
       summary: "Complete a password reset",
       description:
-        "Completes a local password reset with the code sent to the email on file and returns an authenticated session. Once the code is proven, a suspended account is refused with 403 ACCOUNT_SUSPENDED before anything is written. A completed reset clears a security hold: a locked account is set back to active (recorded as account.reinstated with source user) before the session is issued.",
+        "Completes a local password reset with the code sent to the email on file and returns an authenticated session. Requires a Turnstile token solved for the `password_reset` action. Once the code is proven, a suspended account is refused with 403 ACCOUNT_SUSPENDED before anything is written. A completed reset clears a security hold: a locked account is set back to active (recorded as account.reinstated with source user) before the session is issued.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2312,6 +2312,7 @@ function buildOperations(): OperationDefinition[] {
         code: "123456",
         newPassword: "Rentify123!",
         deviceId: "device-1",
+        captchaToken: "turnstile-token",
       }),
       responses: {
         "200": successResponse(
@@ -2394,7 +2395,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "unlockLocalLogin",
       summary: "Unlock a local login",
       description:
-        "Completes an account unlock flow for a temporarily locked local login.",
+        "Completes an account unlock flow for a temporarily locked local login. Requires a Turnstile token solved for the `unlock` action.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2405,6 +2406,7 @@ function buildOperations(): OperationDefinition[] {
       requestBody: requestBody("UnlockLocalLoginRequest", {
         email: "owner1@rentify.local",
         code: "123456",
+        captchaToken: "turnstile-token",
       }),
       responses: {
         "200": successResponse(
@@ -2678,14 +2680,14 @@ function buildOperations(): OperationDefinition[] {
       operationId: "refreshSession",
       summary: "Refresh an access token",
       description:
-        "Refreshes an access token using either the `refreshToken` request body field for native/API clients or the `refresh_token` cookie for browser clients. Browser clients must also send the `x-csrf-token` header when a CSRF cookie is present.",
+        "Refreshes an access token using either the `refreshToken` request body field for native/API clients or the refresh-token cookie for browser clients. Over HTTPS the cookies are `__Host-rentify_refresh` and `__Host-rentify_csrf`; a session issued before the rename may still present `refresh_token` and `csrf_token`, which are accepted and replaced with the `__Host-` cookies. Local deployments without `Secure` cookies keep `refresh_token` and `csrf_token`. Browser clients must also send the CSRF cookie's value in the `x-csrf-token` header.",
       tags: ["auth"],
       permissions: {
         authMode: "refresh-token",
         minimumRole: null,
         patAllowed: false,
         cookieAuth: {
-          cookie: "refresh_token",
+          cookie: "__Host-rentify_refresh",
           csrfHeader: "x-csrf-token",
         },
         rateLimitPolicy: "auth-refresh",
@@ -2717,7 +2719,7 @@ function buildOperations(): OperationDefinition[] {
         minimumRole: "user",
         patAllowed: false,
         cookieAuth: {
-          cookie: "refresh_token",
+          cookie: "__Host-rentify_refresh",
           csrfHeader: "x-csrf-token",
         },
         rateLimitPolicy: "auth-session",
@@ -2873,7 +2875,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeOauthSignup",
       summary: "Complete a new OAuth account",
       description:
-        "Redeems a short-lived OAuth signup continuation after collecting a valid, non-future date of birth. Users of any age may complete signup.",
+        "Redeems a short-lived OAuth signup continuation after collecting a valid, non-future date of birth. Users of any age may complete signup. Requires a Turnstile token solved for the `oauth_signup` action.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2886,6 +2888,7 @@ function buildOperations(): OperationDefinition[] {
         signupToken: "opaque-signup-token",
         dateOfBirth: "2012-06-15",
         deviceId: "device-1",
+        captchaToken: "turnstile-token",
       }),
       responses: {
         "200": successResponse(
@@ -9961,7 +9964,9 @@ function buildComponents(): Record<string, unknown> {
       refreshTokenCookie: {
         type: "apiKey",
         in: "cookie",
-        name: "refresh_token",
+        name: "__Host-rentify_refresh",
+        description:
+          "httpOnly refresh-token cookie for browser clients. Named `refresh_token` where cookies are not `Secure` (local http), and accepted under that name from sessions issued before the `__Host-` rename.",
       },
       csrfHeader: {
         type: "apiKey",
@@ -11778,10 +11783,14 @@ function buildComponents(): Record<string, unknown> {
       },
       UnlockLocalLoginRequest: {
         type: "object",
-        required: ["email", "code"],
+        required: ["email", "code", "captchaToken"],
         properties: {
           email: { type: "string", format: "email" },
           code: { type: "string", pattern: "^\\d{6}$" },
+          captchaToken: {
+            type: "string",
+            description: "Turnstile token solved for the `unlock` action.",
+          },
         },
       },
       ResendUnlockLocalLoginRequest: {
@@ -11803,12 +11812,17 @@ function buildComponents(): Record<string, unknown> {
       },
       ResetPasswordRequest: {
         type: "object",
-        required: ["username", "code", "newPassword"],
+        required: ["username", "code", "newPassword", "captchaToken"],
         properties: {
           username: { type: "string" },
           code: { type: "string", pattern: "^\\d{6}$" },
           newPassword: { type: "string" },
           deviceId: { type: "string" },
+          captchaToken: {
+            type: "string",
+            description:
+              "Turnstile token solved for the `password_reset` action.",
+          },
         },
       },
       RequestEmailChangeRequest: {
@@ -11893,7 +11907,7 @@ function buildComponents(): Record<string, unknown> {
       },
       CompleteOAuthSignupRequest: {
         type: "object",
-        required: ["signupToken", "dateOfBirth"],
+        required: ["signupToken", "dateOfBirth", "captchaToken"],
         properties: {
           signupToken: { type: "string" },
           dateOfBirth: {
@@ -11903,6 +11917,11 @@ function buildComponents(): Record<string, unknown> {
               "A real, non-future calendar date in YYYY-MM-DD format. There is no minimum signup age.",
           },
           deviceId: { type: "string" },
+          captchaToken: {
+            type: "string",
+            description:
+              "Turnstile token solved for the `oauth_signup` action.",
+          },
         },
       },
       RefreshRequest: {
@@ -14223,7 +14242,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
         "",
         "Authentication notes:",
         "- Most protected routes use a bearer token in the `Authorization` header.",
-        "- Browser refresh/logout flows can use the `refresh_token` cookie and must send `x-csrf-token` when a CSRF cookie is present.",
+        "- Browser refresh/logout flows use the `__Host-rentify_refresh` cookie (`refresh_token` over local http) and must echo the `__Host-rentify_csrf` (`csrf_token`) cookie in `x-csrf-token`.",
         "- Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.",
         "- `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.",
         "- `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.",

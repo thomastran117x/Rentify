@@ -3,6 +3,9 @@ import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { accepted, ok } from "@/configuration/http/responses";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
+import { CAPTCHA_ACTIONS } from "@/features/auth/captcha/captcha.actions";
+import { requireCaptcha } from "@/features/auth/captcha/captcha.guard";
+import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import {
   toCompleteOAuthSignupInput,
   toLinkOAuthProviderInput,
@@ -17,7 +20,10 @@ import {
 import { asUuid } from "@/configuration/validation/uuid";
 
 export class OAuthController {
-  constructor(private readonly oauthAccountsService: OAuthAccountsService) {}
+  constructor(
+    private readonly oauthAccountsService: OAuthAccountsService,
+    private readonly captchaService: CaptchaService,
+  ) {}
 
   googleAuthenticate = async (
     request: Request,
@@ -92,6 +98,12 @@ export class OAuthController {
     const input = await parseRequestBody(
       request,
       completeOAuthSignupRequestSchema,
+    );
+    await requireCaptcha(
+      request,
+      this.captchaService,
+      input.captchaToken,
+      CAPTCHA_ACTIONS.oauthSignup,
     );
     const result = await this.oauthAccountsService.completeSignup(
       toCompleteOAuthSignupInput(request, input),

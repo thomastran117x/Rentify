@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
 import { useAuth } from "@/components/auth/auth-context";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -377,6 +378,7 @@ export function ContactInquiryForm() {
       ) : (
         <div className="mt-5">
           <AuthCaptchaPanel
+            action={CAPTCHA_ACTIONS.feedback}
             token={values.captchaToken}
             error={errors.captchaToken}
             stale={captchaConsumed}

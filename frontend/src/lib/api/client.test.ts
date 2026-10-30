@@ -595,6 +595,50 @@ describe("api client", () => {
     );
   });
 
+  it("reads the CSRF token from the __Host- cookie before the legacy one", async () => {
+    // jsdom refuses to store a __Host- cookie on its http test origin, so the
+    // cookie string is stubbed rather than written.
+    const cookieGetter = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue(
+        "csrf_token=client-csrf-token; __Host-rentify_csrf=host-csrf-token",
+      );
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: { ok: true },
+            error: null,
+            meta: { requestId: "request-host-csrf" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const { publicJson } = await import("./client");
+      await publicJson<{ ok: true }, { username: string }>(
+        "POST",
+        "/auth/local/login",
+        { username: "owner-one" },
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8040/api/v1/auth/local/login",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "x-csrf-token": "host-csrf-token",
+          }),
+        }),
+      );
+    } finally {
+      cookieGetter.mockRestore();
+    }
+  });
+
   it("sends public requests safely during server rendering", async () => {
     vi.resetModules();
     vi.doUnmock("@/lib/auth/device");

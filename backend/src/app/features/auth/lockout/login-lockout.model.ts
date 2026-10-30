@@ -9,6 +9,7 @@ export const unlockLocalLoginRequestSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{6}$/, "Unlock code must be 6 digits."),
+  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
 export type UnlockLocalLoginRequestBody = z.infer<

@@ -1,3 +1,4 @@
+import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import type { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
 import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import {
@@ -45,11 +46,18 @@ function createController() {
     linkedOAuthProviders: jest.fn(async () => providersResult),
     unlinkOAuthProvider: jest.fn(async () => providersResult),
   };
+  const captchaService = {
+    verify: jest.fn<Promise<{ success: boolean }>, [unknown]>(async () => ({
+      success: true,
+    })),
+  };
 
   return {
     oauthAccountsService,
+    captchaService,
     controller: new OAuthController(
       oauthAccountsService as unknown as OAuthAccountsService,
+      captchaService as unknown as CaptchaService,
     ),
   };
 }
@@ -180,7 +188,8 @@ describe("OAuthController sign-in handlers", () => {
   });
 
   it("completes an OAuth signup with a valid continuation and date of birth", async () => {
-    const { controller, oauthAccountsService } = createController();
+    const { controller, oauthAccountsService, captchaService } =
+      createController();
 
     const response = await invoke(
       controller.completeSignup,
@@ -189,7 +198,15 @@ describe("OAuthController sign-in handlers", () => {
           signupToken: "signup-token",
           dateOfBirth: "2012-06-15",
           deviceId: "oauth-device",
+          captchaToken: "signup-captcha",
         },
+      }),
+    );
+
+    expect(captchaService.verify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: "signup-captcha",
+        expectedAction: "oauth_signup",
       }),
     );
 
@@ -210,6 +227,40 @@ describe("OAuthController sign-in handlers", () => {
       message: "Signup completed successfully.",
       data: { isNewUser: true },
     });
+  });
+
+  it("does not complete an OAuth signup when the captcha fails", async () => {
+    const { controller, oauthAccountsService, captchaService } =
+      createController();
+    captchaService.verify.mockResolvedValueOnce({ success: false });
+
+    await expect(
+      invoke(
+        controller.completeSignup,
+        createContext({
+          body: {
+            signupToken: "signup-token",
+            dateOfBirth: "2012-06-15",
+            captchaToken: "bad",
+          },
+        }),
+      ),
+    ).rejects.toThrow("Captcha verification failed.");
+    expect(oauthAccountsService.completeSignup).not.toHaveBeenCalled();
+  });
+
+  it("requires a captcha token to complete an OAuth signup", async () => {
+    const { controller, oauthAccountsService } = createController();
+
+    await expect(
+      invoke(
+        controller.completeSignup,
+        createContext({
+          body: { signupToken: "signup-token", dateOfBirth: "2012-06-15" },
+        }),
+      ),
+    ).rejects.toThrow("Request body validation failed.");
+    expect(oauthAccountsService.completeSignup).not.toHaveBeenCalled();
   });
 });
 

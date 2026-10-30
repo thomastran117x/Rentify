@@ -1,9 +1,8 @@
 import type { Request, Response } from "express";
 import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
-import { readCookie } from "@/configuration/http/request";
 import { ok } from "@/configuration/http/responses";
-import { REFRESH_TOKEN_COOKIE_NAME } from "@/features/auth/auth.cookies";
+import { readRefreshTokenCookie } from "@/features/auth/auth.cookies";
 import {
   clearBrowserSessionCookies,
   writeAuthSessionResponse,
@@ -40,7 +39,7 @@ export class AuthSessionController {
     const result = await this.authSessionService.logout({
       auth: request.auth,
       client: request.client,
-      refreshToken: readCookie(request, REFRESH_TOKEN_COOKIE_NAME),
+      refreshToken: readRefreshTokenCookie(request),
       audit: toAuthAuditContext(request, request.auth.deviceId),
     });
 

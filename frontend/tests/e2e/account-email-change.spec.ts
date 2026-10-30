@@ -4,6 +4,7 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const API_BASE = process.env.E2E_API_BASE_URL ?? "http://localhost:8040/api/v1";
 
@@ -19,16 +20,6 @@ const TAKEN_EMAIL = "owner1@rentify.local";
 
 interface ApiSession {
   accessToken: string;
-}
-
-async function ensureCaptchaToken(page: Page) {
-  await page.evaluate(() => {
-    window.sessionStorage.setItem(
-      "rentify.auth.captcha",
-      JSON.stringify({ token: "local-dev-bypass", createdAt: Date.now() }),
-    );
-    window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-  });
 }
 
 async function login(page: Page) {

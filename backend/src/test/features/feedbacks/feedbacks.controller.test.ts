@@ -134,6 +134,7 @@ describe("FeedbacksController", () => {
 
     expect(verify).toHaveBeenCalledWith({
       token: "turnstile-token",
+      expectedAction: "feedback",
       remoteIp: "127.0.0.1",
       idempotencyKey: "feedback-idempotency-key",
     });

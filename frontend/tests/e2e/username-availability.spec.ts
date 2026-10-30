@@ -1,44 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ensureCaptchaToken } from "./helpers/auth";
 
 const PASSWORD = "Rentify123!";
 
 // `renter-two` is seeded 5 days into the 30-day rename cooldown, so its locked
 // state is reachable without mutating anything.
 const COOLDOWN_USERNAME = "renter-two";
-
-async function ensureCaptchaToken(page: Page) {
-  const readCaptchaToken = async () =>
-    page.evaluate(() => {
-      const rawCaptchaState = window.sessionStorage.getItem(
-        "rentify.auth.captcha",
-      );
-
-      if (!rawCaptchaState) {
-        return "";
-      }
-
-      try {
-        return (
-          (JSON.parse(rawCaptchaState) as { token?: string }).token?.trim() ??
-          ""
-        );
-      } catch {
-        return "";
-      }
-    });
-
-  if (!(await readCaptchaToken())) {
-    await page.evaluate(() => {
-      window.sessionStorage.setItem(
-        "rentify.auth.captcha",
-        JSON.stringify({ token: "local-dev-bypass", createdAt: Date.now() }),
-      );
-      window.dispatchEvent(new Event("rentify-auth-captcha-storage"));
-    });
-  }
-
-  await expect.poll(readCaptchaToken).not.toBe("");
-}
 
 /** Sign in and land on /account. Retried like the other specs' login helper. */
 async function login(page: Page, username: string) {

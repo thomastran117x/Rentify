@@ -69,6 +69,7 @@ export const completeOAuthSignupRequestSchema = z.object({
   signupToken: requiredSafeTrimmedString("Signup token is required."),
   dateOfBirth: dateOfBirthSchema,
   deviceId: optionalTrimmedString,
+  captchaToken: requiredSafeTrimmedString("Captcha token is required."),
 });
 
 export type CompleteOAuthSignupRequestBody = z.infer<

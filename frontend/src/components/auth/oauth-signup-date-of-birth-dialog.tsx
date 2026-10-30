@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AuthCaptchaPanel } from "@/components/auth/auth-captcha-panel";
 import { FieldErrorMessage, FormErrorMessage } from "@/components/errors";
 import { authApi } from "@/lib/auth/api";
+import { CAPTCHA_ACTIONS } from "@/lib/auth/captcha-actions";
+import { useAuthCaptchaToken } from "@/lib/auth/captcha-store";
 import {
   getCurrentUtcDateOnly,
   validateDateOfBirth,
@@ -29,6 +32,9 @@ export function OAuthSignupDateOfBirthDialog({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [captchaToken, setCaptchaToken, clearCaptchaToken] =
+    useAuthCaptchaToken(CAPTCHA_ACTIONS.oauthSignup);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -44,10 +50,14 @@ export function OAuthSignupDateOfBirthDialog({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextError = validateDateOfBirth(dateOfBirth);
+    const nextCaptchaError = captchaToken.trim()
+      ? null
+      : "Complete the verification to continue.";
     setFieldError(nextError);
+    setCaptchaError(nextCaptchaError);
     setGeneralError(null);
 
-    if (nextError) {
+    if (nextError || nextCaptchaError) {
       return;
     }
 
@@ -56,6 +66,7 @@ export function OAuthSignupDateOfBirthDialog({
       const session = await authApi.completeOAuthSignup({
         signupToken: pendingSignup.signupToken,
         dateOfBirth,
+        captchaToken,
       });
       onSuccess(session);
     } catch (error) {
@@ -74,6 +85,8 @@ export function OAuthSignupDateOfBirthDialog({
         );
       }
     } finally {
+      // Turnstile tokens are single-use: a retry needs a fresh one.
+      clearCaptchaToken();
       setPending(false);
     }
   }
@@ -148,6 +161,20 @@ export function OAuthSignupDateOfBirthDialog({
               message={fieldError ?? undefined}
             />
           </div>
+
+          <AuthCaptchaPanel
+            action={CAPTCHA_ACTIONS.oauthSignup}
+            token={captchaToken}
+            error={captchaError ?? undefined}
+            onChange={(token) => {
+              setCaptchaError(null);
+              setCaptchaToken(token);
+            }}
+            onReset={() => {
+              setCaptchaError(null);
+              clearCaptchaToken();
+            }}
+          />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button
