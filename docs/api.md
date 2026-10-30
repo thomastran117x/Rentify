@@ -94,6 +94,21 @@ IDs, request IDs, session and device IDs, raw user agents and metadata are
 never returned. See
 [auth-security.md](./auth-security.md#reading-your-own-activity).
 
+Users manage individual sign-ins through three session-only endpoints. Each
+needs the same recent `mfa-management` step-up and rejects personal access
+tokens:
+
+- `GET /auth/sessions` lists active sessions and marks the caller with
+  `current: true`.
+- `DELETE /auth/sessions/:id` revokes one session owned by the caller. Deleting
+  the current session clears the browser session cookies.
+- `POST /auth/sessions/revoke-others` accepts `{ "scope": "others" | "all" }`.
+  `others` preserves the caller; `all` also rotates the account token version,
+  revokes active PATs, and clears the caller's cookies.
+
+The response includes only coarse client metadata; raw user agents are not
+returned. See [Managing Sessions](./auth-security.md#managing-sessions).
+
 Administrators investigate sign-in activity across every account through two
 admin-only endpoints. Both need an `admin` signed-in session; every other role
 gets `403` and personal access tokens are rejected. Each call first records an

@@ -66,4 +66,36 @@ describe("TokenRepository", () => {
       }),
     );
   });
+
+  it("revokes active PATs and rotates the token version in one transaction", async () => {
+    const tokenId = testUuid(9300, 1);
+    const transaction = {
+      personalAccessToken: {
+        findMany: jest.fn(async () => [{ id: tokenId }]),
+        updateMany: jest.fn(async () => ({ count: 1 })),
+      },
+      user: {
+        update: jest.fn(async () => ({ tokenVersion: 13 })),
+      },
+    };
+    const repository = new TokenRepository({
+      $transaction: jest.fn(async (callback) => callback(transaction)),
+    } as any);
+
+    await expect(repository.revokeAllCredentials(USER_1_ID)).resolves.toEqual({
+      tokenVersion: 13,
+      revokedPersonalAccessTokenIds: [tokenId],
+    });
+    expect(transaction.personalAccessToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [tokenId] }, revokedAt: null },
+      }),
+    );
+    expect(transaction.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: USER_1_ID },
+        data: { tokenVersion: { increment: 1 } },
+      }),
+    );
+  });
 });

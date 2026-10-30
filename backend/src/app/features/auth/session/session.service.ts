@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import ResourceNotFoundError from "@/errors/http/resource-not-found.error";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type {
@@ -13,6 +14,11 @@ import type {
   LocalVerifyResult,
   LogoutResult,
   RefreshInput,
+  RevokeSessionResult,
+  RevokeSessionsResult,
+  RevokeSessionsScope,
+  SessionListResult,
+  SessionSummary,
 } from "@/features/auth/session/session.model";
 import { DeviceService } from "@/features/auth/device/device.service";
 import {
@@ -21,15 +27,47 @@ import {
 } from "@/features/auth/token/token.service";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
-import { asUuid } from "@/configuration/validation/uuid";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import { loggerFactory } from "@/configuration/logging";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { parseUserAgent } from "@/features/auth/audit/auth-audit-activity";
 
 interface DeviceStatus {
   deviceId?: string;
   known: boolean;
   knownByIp: boolean;
+}
+
+function sessionDeviceLabel(session: {
+  deviceType?: string;
+  platform?: string;
+  userAgent?: string;
+}): { label: string; browser: string | null; os: string | null } {
+  const { browser, os } = parseUserAgent(session.userAgent);
+
+  if (browser && os) {
+    return { label: `${browser} on ${os}`, browser, os };
+  }
+
+  if (browser) {
+    return { label: browser, browser, os };
+  }
+
+  if (session.platform) {
+    return { label: session.platform, browser, os };
+  }
+
+  if (session.deviceType && session.deviceType !== "unknown") {
+    return {
+      label: `${session.deviceType[0]?.toUpperCase() ?? ""}${session.deviceType.slice(1)} device`,
+      browser,
+      os,
+    };
+  }
+
+  return { label: "Unknown device", browser, os };
 }
 
 /**
@@ -84,26 +122,16 @@ export class AuthSessionService {
       deviceId,
       input.audit,
     );
-    const sessionId = claims.sessionId ?? randomUUID();
+    if (!claims.sessionId) {
+      await this.tokenService.revokeRefreshToken(input.refreshToken);
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+
+    const sessionId = claims.sessionId;
     const refreshTokenExpiresInSeconds =
       this.tokenService.getRefreshTokenExpiresInSeconds(
         Boolean(claims.rememberMe),
       );
-
-    // Tokens minted before sessions existed carry no sessionId. Back-fill a
-    // session record for them rather than rejecting the refresh.
-    if (!claims.sessionId) {
-      await this.tokenService.createSession(
-        {
-          sessionId,
-          userId: asUuid(user.id),
-          deviceId,
-          tokenVersion: user.tokenVersion,
-        },
-        refreshTokenExpiresInSeconds,
-      );
-      await this.tokenService.revokeRefreshToken(input.refreshToken);
-    }
 
     const accessToken = this.tokenService.createAccessToken({
       sub: user.id,
@@ -116,32 +144,20 @@ export class AuthSessionService {
     let refreshToken: string;
 
     try {
-      refreshToken = claims.sessionId
-        ? await this.tokenService.rotateRefreshToken(
-            input.refreshToken,
-            {
-              sub: user.id,
-              deviceId,
-              rememberMe: Boolean(claims.rememberMe),
-              sessionId,
-              tokenVersion: user.tokenVersion,
-            },
-            {
-              expiresInSeconds: refreshTokenExpiresInSeconds,
-            },
-          )
-        : await this.tokenService.createRefreshToken(
-            {
-              sub: user.id,
-              deviceId,
-              rememberMe: Boolean(claims.rememberMe),
-              sessionId,
-              tokenVersion: user.tokenVersion,
-            },
-            {
-              expiresInSeconds: refreshTokenExpiresInSeconds,
-            },
-          );
+      refreshToken = await this.tokenService.rotateRefreshToken(
+        input.refreshToken,
+        {
+          sub: user.id,
+          deviceId,
+          rememberMe: Boolean(claims.rememberMe),
+          sessionId,
+          tokenVersion: user.tokenVersion,
+        },
+        {
+          expiresInSeconds: refreshTokenExpiresInSeconds,
+        },
+        input.client,
+      );
     } catch (error) {
       if (error instanceof RefreshTokenReuseDetectedError) {
         await this.authAuditService.recordSafely({
@@ -204,6 +220,173 @@ export class AuthSessionService {
     };
   }
 
+  async listSessions(auth: JwtAuthPrincipal): Promise<SessionListResult> {
+    const userId = asUuid(auth.sub);
+    const currentSessionId = auth.sessionId;
+    const tokenVersion =
+      typeof auth.tokenVersion === "number" ? auth.tokenVersion : 0;
+    const sessions = await this.tokenService.listSessionsForUser(
+      userId,
+      tokenVersion,
+    );
+
+    const summaries: SessionSummary[] = sessions.map((session) => {
+      const device = sessionDeviceLabel(session);
+
+      return {
+        id: session.sessionId,
+        deviceLabel: device.label,
+        platform: session.platform ?? null,
+        browser: device.browser,
+        os: device.os,
+        firstIpAddress: session.firstIpAddress ?? null,
+        lastIpAddress: session.lastIpAddress ?? null,
+        createdAt: session.createdAt,
+        lastUsedAt: session.lastUsedAt,
+        rememberMe: session.rememberMe,
+        current: session.sessionId === currentSessionId,
+      };
+    });
+
+    summaries.sort((left, right) => {
+      if (left.current !== right.current) {
+        return left.current ? -1 : 1;
+      }
+
+      return Date.parse(right.lastUsedAt) - Date.parse(left.lastUsedAt);
+    });
+
+    return { sessions: summaries };
+  }
+
+  async revokeManagedSession(input: {
+    auth: JwtAuthPrincipal;
+    sessionId: string;
+    refreshToken?: string;
+    audit?: AuthAuditContext;
+  }): Promise<RevokeSessionResult> {
+    const userId = asUuid(input.auth.sub);
+    const current = input.auth.sessionId === input.sessionId;
+    const revoked = await this.tokenService.revokeSessionForUser(
+      userId,
+      input.sessionId,
+    );
+
+    if (!revoked) {
+      throw new ResourceNotFoundError("Session could not be found.");
+    }
+
+    if (current && input.refreshToken) {
+      try {
+        await this.tokenService.revokeRefreshToken(input.refreshToken);
+      } catch {
+        // The session record is authoritative; a malformed or missing refresh
+        // record must not undo the completed sign-out.
+      }
+    }
+
+    await this.recordRevokedSessions(
+      userId,
+      [input.sessionId],
+      "one",
+      input.audit,
+    );
+
+    return { revoked: true, id: input.sessionId, current };
+  }
+
+  async revokeManagedSessions(input: {
+    auth: JwtAuthPrincipal;
+    scope: RevokeSessionsScope;
+    audit?: AuthAuditContext;
+  }): Promise<RevokeSessionsResult> {
+    const userId = asUuid(input.auth.sub);
+    const currentSessionId = input.auth.sessionId;
+    if (!currentSessionId) {
+      throw new UnauthorizedError("Session is no longer valid.");
+    }
+    let revokedPersonalAccessTokenIds: Uuid[] = [];
+    let revokedSessionIds: string[];
+
+    if (input.scope === "all") {
+      const currentTokenVersion =
+        typeof input.auth.tokenVersion === "number"
+          ? input.auth.tokenVersion
+          : 0;
+      const indexedSessionIds = (
+        await this.tokenService.listSessionsForUser(userId, currentTokenVersion)
+      ).map((session) => session.sessionId);
+      const credentials =
+        await this.tokenRepository.revokeAllCredentials(userId);
+      revokedPersonalAccessTokenIds = credentials.revokedPersonalAccessTokenIds;
+      try {
+        revokedSessionIds =
+          await this.tokenService.revokeSessionsForUser(userId);
+      } catch (error) {
+        // The database transaction already rotated tokenVersion, which is the
+        // authoritative invalidation. Keep the response successful and audit
+        // the sessions ended by that rotation; a later list removes stale
+        // Redis index members.
+        this.logger.error(
+          "Failed to mark indexed sessions revoked after sign out everywhere.",
+          { userId, error },
+        );
+        revokedSessionIds = indexedSessionIds;
+      }
+    } else {
+      revokedSessionIds = await this.tokenService.revokeSessionsForUserExcept(
+        userId,
+        currentSessionId,
+      );
+    }
+
+    await this.recordRevokedSessions(
+      userId,
+      revokedSessionIds,
+      input.scope,
+      input.audit,
+    );
+
+    for (const tokenId of revokedPersonalAccessTokenIds) {
+      await this.authAuditService.recordSafely({
+        eventType: "pat.revoked",
+        outcome: "success",
+        userId,
+        sessionId: currentSessionId,
+        context: input.audit,
+        metadata: {
+          tokenId,
+          scope: "all",
+          source: "session_management",
+        },
+      });
+    }
+
+    return {
+      scope: input.scope,
+      revokedSessionCount: revokedSessionIds.length,
+      revokedPersonalAccessTokenCount: revokedPersonalAccessTokenIds.length,
+    };
+  }
+
+  private async recordRevokedSessions(
+    userId: Uuid,
+    sessionIds: string[],
+    scope: "one" | "others" | "all",
+    audit?: AuthAuditContext,
+  ): Promise<void> {
+    for (const sessionId of sessionIds) {
+      await this.authAuditService.recordSafely({
+        eventType: "session.revoked",
+        outcome: "success",
+        userId,
+        sessionId,
+        context: audit,
+        metadata: { scope },
+      });
+    }
+  }
+
   /**
    * A fresh sign-in: the device is evaluated as a login event, which can mark it
    * newly known and send a new-device alert, and `last_login_at` moves forward.
@@ -234,6 +417,7 @@ export class AuthSessionService {
       deviceStatus,
       input.deviceId,
       Boolean(input.rememberMe),
+      input.client,
     );
 
     await this.recordLastLogin(user);
@@ -276,7 +460,7 @@ export class AuthSessionService {
       audit,
     );
 
-    return this.issueTokensForUser(user, deviceStatus, deviceId);
+    return this.issueTokensForUser(user, deviceStatus, deviceId, false, client);
   }
 
   private async issueTokensForUser(
@@ -284,6 +468,7 @@ export class AuthSessionService {
     deviceStatus: DeviceStatus,
     deviceId?: string,
     rememberMe = false,
+    client?: ClientRequestContext,
   ): Promise<AuthSessionResult> {
     const sessionId = randomUUID();
     const accessToken = this.tokenService.createAccessToken({
@@ -303,6 +488,8 @@ export class AuthSessionService {
         userId: asUuid(user.id),
         deviceId,
         tokenVersion: user.tokenVersion,
+        rememberMe,
+        client,
       },
       refreshTokenExpiresInSeconds,
     );

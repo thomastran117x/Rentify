@@ -18,6 +18,7 @@ const mockClearCookie = jest.fn();
 
 jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
+  requireSessionAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
   getOptionalJwtAuth: jest.fn(),
 }));
 
@@ -43,12 +44,28 @@ function createController() {
       auth: { userId: "user-1", deviceId: "device-1" },
       client: {},
     })),
+    listSessions: jest.fn(async () => ({ sessions: [] })),
+    revokeManagedSession: jest.fn(async () => ({
+      revoked: true,
+      id: "00000000-0000-4000-8000-000000000001",
+      current: false,
+    })),
+    revokeManagedSessions: jest.fn(async (_input: { scope: string }) => ({
+      scope: _input.scope,
+      revokedSessionCount: 1,
+      revokedPersonalAccessTokenCount: 0,
+    })),
+  };
+  const mfaVerificationService = {
+    assertRecentVerification: jest.fn(async () => undefined),
   };
 
   return {
     authSessionService,
+    mfaVerificationService,
     controller: new AuthSessionController(
       authSessionService as unknown as AuthSessionService,
+      mfaVerificationService as never,
     ),
   };
 }
@@ -57,6 +74,72 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRequireJwtAuth.mockResolvedValue(createClaims());
   mockReadCookie.mockReturnValue(undefined);
+});
+
+describe("AuthSessionController session management", () => {
+  const sessionId = "00000000-0000-4000-8000-000000000001";
+
+  it("requires the session-management step-up before listing sessions", async () => {
+    const auth = createClaims({ sessionId });
+    mockRequireJwtAuth.mockResolvedValue(auth);
+    const { controller, authSessionService, mfaVerificationService } =
+      createController();
+
+    await invoke(controller.sessions, createContext());
+
+    expect(
+      mfaVerificationService.assertRecentVerification,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: auth.sub,
+        sessionId,
+        scope: "mfa-management",
+      }),
+    );
+    expect(authSessionService.listSessions).toHaveBeenCalledWith(auth);
+  });
+
+  it("revokes a named session and clears cookies only for the current one", async () => {
+    const auth = createClaims({ sessionId });
+    mockRequireJwtAuth.mockResolvedValue(auth);
+    mockReadCookie.mockReturnValue("refresh-token");
+    const { controller, authSessionService } = createController();
+    authSessionService.revokeManagedSession.mockResolvedValueOnce({
+      revoked: true,
+      id: sessionId,
+      current: true,
+    });
+
+    await invoke(
+      controller.revokeSession,
+      createContext({ params: { id: sessionId } }),
+    );
+
+    expect(authSessionService.revokeManagedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth,
+        sessionId,
+        refreshToken: "refresh-token",
+      }),
+    );
+    expect(mockClearCookie).toHaveBeenCalled();
+  });
+
+  it("passes the bulk scope and clears cookies for all", async () => {
+    const auth = createClaims({ sessionId });
+    mockRequireJwtAuth.mockResolvedValue(auth);
+    const { controller, authSessionService } = createController();
+
+    await invoke(
+      controller.revokeSessions,
+      createContext({ body: { scope: "all" } }),
+    );
+
+    expect(authSessionService.revokeManagedSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ auth, scope: "all" }),
+    );
+    expect(mockClearCookie).toHaveBeenCalled();
+  });
 });
 
 describe("AuthSessionController.localVerify", () => {

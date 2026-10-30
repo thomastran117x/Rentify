@@ -60,6 +60,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "auth.mfaBypassEmails": "MFA_BYPASS_EMAILS",
   "auth.refreshTokenCachePrefix": "REFRESH_TOKEN_CACHE_PREFIX",
   "auth.refreshTokenMode": "REFRESH_TOKEN_MODE",
+  "auth.refreshReuseResponse": "AUTH_REFRESH_REUSE_RESPONSE",
   "auth.refreshTokenTtlSeconds": "REFRESH_TOKEN_TTL_SECONDS",
   "auth.rememberMeRefreshTokenTtlSeconds":
     "REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS",
@@ -323,6 +324,7 @@ const STRING_FILE_KEYS = new Set([
   "auth.issuer",
   "auth.refreshTokenCachePrefix",
   "auth.refreshTokenMode",
+  "auth.refreshReuseResponse",
   "blobStorage.accountUrl",
   "blobStorage.auth",
   "blobStorage.containerName",

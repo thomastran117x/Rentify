@@ -216,6 +216,38 @@ export interface KnownDevicesResult {
   devices: KnownDeviceRecord[];
 }
 
+export interface AuthSessionSummary {
+  id: string;
+  deviceLabel: string;
+  platform: string | null;
+  browser: string | null;
+  os: string | null;
+  firstIpAddress: string | null;
+  lastIpAddress: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  rememberMe: boolean;
+  current: boolean;
+}
+
+export interface AuthSessionListResult {
+  sessions: AuthSessionSummary[];
+}
+
+export interface RevokeAuthSessionResult {
+  revoked: true;
+  id: string;
+  current: boolean;
+}
+
+export type RevokeAuthSessionsScope = "others" | "all";
+
+export interface RevokeAuthSessionsResult {
+  scope: RevokeAuthSessionsScope;
+  revokedSessionCount: number;
+  revokedPersonalAccessTokenCount: number;
+}
+
 export type PersonalAccessTokenScope = "mcp:read" | "mcp:write";
 
 export interface PersonalAccessTokenSummary {
