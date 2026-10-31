@@ -2,6 +2,7 @@ import type { RouteModuleId } from "@/configuration/bootstrap/routes/types";
 
 export type NodeEnvironment = "development" | "test" | "production";
 export type RefreshTokenMode = "stateless" | "stateful";
+export type RefreshReuseResponse = "session" | "user";
 export type AccessTokenAlgorithm = "HS256" | "RS256";
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
@@ -245,6 +246,7 @@ export type RawEnvironmentValues = {
   REDIS_URL?: string;
   REFRESH_TOKEN_CACHE_PREFIX?: string;
   REFRESH_TOKEN_MODE?: string;
+  AUTH_REFRESH_REUSE_RESPONSE?: string;
   REFRESH_TOKEN_SECRET?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
@@ -354,6 +356,7 @@ export interface AppEnvironment {
     issuer?: string;
     audience?: string;
     refreshTokenMode: RefreshTokenMode;
+    refreshReuseResponse: RefreshReuseResponse;
     refreshTokenCachePrefix: string;
     personalAccessTokenSecret: string;
     /** HMAC key for the hashed sign-in identifiers in the auth audit log. */

@@ -44,14 +44,17 @@ function createAuthRepository(options?: {
         status: options?.status ?? "active",
       };
     }),
+    rotateTokenVersion: jest.fn(async () => 3),
   };
 }
 
 function createCache() {
   const store = new Map<string, { value: unknown; ttlSeconds: number }>();
+  const sets = new Map<string, Set<string>>();
 
   return {
     store,
+    sets,
     service: {
       getJson: jest.fn(async <TValue>(key: string) => {
         return (store.get(key)?.value as TValue | undefined) ?? null;
@@ -66,9 +69,57 @@ function createCache() {
       ),
       delete: jest.fn(async (key: string) => store.delete(key)),
       ttl: jest.fn(async (key: string) => store.get(key)?.ttlSeconds ?? -1),
-      scanKeys: jest.fn(async (pattern: string) => {
-        const prefix = pattern.replace(/\*$/, "");
-        return [...store.keys()].filter((key) => key.startsWith(prefix));
+      setMembers: jest.fn(async (key: string) => [...(sets.get(key) ?? [])]),
+      removeSetMembers: jest.fn(async (key: string, members: string[]) => {
+        const set = sets.get(key);
+        if (!set) return 0;
+        let removed = 0;
+        for (const member of members) {
+          if (set.delete(member)) removed += 1;
+        }
+        if (set.size === 0) sets.delete(key);
+        return removed;
+      }),
+      eval: jest.fn(async (script: string, keys: string[], args: string[]) => {
+        const [sessionKey, indexKey] = keys;
+        if (!sessionKey || !indexKey) return 0;
+
+        if (!script.includes("current.userId")) {
+          store.set(sessionKey, {
+            value: JSON.parse(args[0] ?? "{}"),
+            ttlSeconds: Number(args[2]),
+          });
+          const members = sets.get(indexKey) ?? new Set<string>();
+          members.add(args[1] ?? "");
+          sets.set(indexKey, members);
+          return 1;
+        }
+
+        const current = store.get(sessionKey)?.value as
+          | { userId?: string; status?: string }
+          | undefined;
+        if (
+          !current ||
+          current.userId !== args[0] ||
+          current.status !== "active"
+        ) {
+          return 0;
+        }
+
+        const member = args[2] ?? "";
+        store.set(sessionKey, {
+          value: JSON.parse(args[1] ?? "{}"),
+          ttlSeconds: Number(args[3]),
+        });
+        const members = sets.get(indexKey) ?? new Set<string>();
+        if (script.includes("SREM")) {
+          members.delete(member);
+        } else {
+          members.add(member);
+        }
+        if (members.size === 0) sets.delete(indexKey);
+        else sets.set(indexKey, members);
+        return 1;
       }),
       withLock: jest.fn(
         async (
@@ -96,6 +147,7 @@ function createService(options?: {
   accessTokenPrivateKey?: string;
   accessTokenPublicKey?: string;
   refreshTokenSecret?: string;
+  refreshReuseResponse?: "session" | "user";
 }) {
   const authRepository = createAuthRepository({
     tokenVersion: options?.tokenVersion,
@@ -115,6 +167,7 @@ function createService(options?: {
     issuer: options?.issuer,
     audience: options?.audience,
     refreshTokenCachePrefix: options?.cachePrefix,
+    refreshReuseResponse: options?.refreshReuseResponse,
   });
 
   return {
@@ -329,6 +382,81 @@ describe("TokenService", () => {
     ).rejects.toMatchObject({ message: "Session is no longer valid." });
   });
 
+  it("touches session metadata on authenticated requests and backfills the index", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    const { service } = createService();
+    await service.createSession(
+      {
+        sessionId: "session-touch",
+        userId: USER_1_ID,
+        deviceId: "device-1",
+        tokenVersion: 2,
+        rememberMe: true,
+        client: {
+          ip: "203.0.113.1",
+          source: "frontend-browser",
+          device: {
+            id: "device-1",
+            type: "desktop",
+            isMobile: false,
+            platform: "Windows",
+            userAgent: "Chrome/128.0 Windows",
+          },
+        },
+      },
+      600,
+    );
+    const token = service.createAccessToken({
+      sub: USER_1_ID,
+      sessionId: "session-touch",
+      tokenVersion: 2,
+    });
+
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_100_000);
+    await service.verifyAccessToken(token, {
+      ip: "203.0.113.2",
+      source: "frontend-browser",
+      device: {
+        id: "device-1",
+        type: "desktop",
+        isMobile: false,
+        platform: "Windows",
+        userAgent: "Chrome/129.0 Windows",
+      },
+    });
+
+    await expect(service.listSessionsForUser(USER_1_ID, 2)).resolves.toEqual([
+      expect.objectContaining({
+        sessionId: "session-touch",
+        firstIpAddress: "203.0.113.1",
+        lastIpAddress: "203.0.113.2",
+        rememberMe: true,
+        userAgent: "Chrome/129.0 Windows",
+      }),
+    ]);
+  });
+
+  it("lazily removes missing and obsolete sessions from the user index", async () => {
+    const { service, cache } = createService();
+    await service.createSession(
+      { sessionId: "current", userId: USER_1_ID, tokenVersion: 2 },
+      600,
+    );
+    await service.createSession(
+      { sessionId: "obsolete", userId: USER_1_ID, tokenVersion: 1 },
+      600,
+    );
+    cache.sets.get(`auth:user-sessions:${USER_1_ID}`)?.add("expired-session");
+
+    await expect(service.listSessionsForUser(USER_1_ID, 2)).resolves.toEqual([
+      expect.objectContaining({ sessionId: "current" }),
+    ]);
+    expect(cache.service.removeSetMembers).toHaveBeenCalledWith(
+      `auth:user-sessions:${USER_1_ID}`,
+      expect.arrayContaining(["obsolete", "expired-session"]),
+    );
+  });
+
   it("rejects access tokens when the authenticated user no longer exists", async () => {
     const { service } = createService({
       tokenVersion: null,
@@ -511,9 +639,8 @@ describe("TokenService", () => {
       jti: string;
     };
 
-    expect(cache.service.setJson).toHaveBeenCalledTimes(2);
-    expect(cache.service.setJson).toHaveBeenNthCalledWith(
-      2,
+    expect(cache.service.setJson).toHaveBeenCalledTimes(1);
+    expect(cache.service.setJson).toHaveBeenCalledWith(
       `test:refresh:${body.jti}`,
       expect.objectContaining({
         sub: USER_1_ID,
@@ -680,6 +807,63 @@ describe("TokenService", () => {
 
     expect(RefreshTokenReuseDetectedError.prototype).toBeInstanceOf(
       UnauthorizedError,
+    );
+  });
+
+  it("rotates the token version and revokes every user session on reuse in user mode", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    const { service, authRepository } = createService({
+      refreshTokenMode: "stateful",
+      refreshReuseResponse: "user",
+    });
+    for (const sessionId of ["session-reused", "session-other"]) {
+      await service.createSession(
+        {
+          sessionId,
+          userId: USER_1_ID,
+          deviceId: "device-1",
+          tokenVersion: 2,
+        },
+        120,
+      );
+    }
+    const token = await service.createRefreshToken(
+      {
+        sub: USER_1_ID,
+        deviceId: "device-1",
+        sessionId: "session-reused",
+        tokenVersion: 2,
+      },
+      { expiresInSeconds: 120 },
+    );
+    await service.rotateRefreshToken(
+      token,
+      {
+        sub: USER_1_ID,
+        deviceId: "device-1",
+        sessionId: "session-reused",
+        tokenVersion: 2,
+      },
+      { expiresInSeconds: 120 },
+    );
+
+    jest.spyOn(Date, "now").mockReturnValue(1_700_000_010_000);
+
+    await expect(
+      service.rotateRefreshToken(
+        token,
+        {
+          sub: USER_1_ID,
+          deviceId: "device-1",
+          sessionId: "session-reused",
+          tokenVersion: 2,
+        },
+        { expiresInSeconds: 120 },
+      ),
+    ).rejects.toBeInstanceOf(RefreshTokenReuseDetectedError);
+    expect(authRepository.rotateTokenVersion).toHaveBeenCalledWith(USER_1_ID);
+    await expect(service.listSessionsForUser(USER_1_ID, 2)).resolves.toEqual(
+      [],
     );
   });
 

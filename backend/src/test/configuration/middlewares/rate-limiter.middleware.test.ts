@@ -752,7 +752,10 @@ describe("rateLimiterMiddleware", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(verifyAccessToken).toHaveBeenCalledWith("valid-access-token");
+    expect(verifyAccessToken).toHaveBeenCalledWith(
+      "valid-access-token",
+      expect.objectContaining({ ip: "203.0.113.10" }),
+    );
     expect(cacheEval.mock.calls[0]?.[1]?.[0]).toBe(
       `rate-limit:POST:/postings:user:${USER_1_ID}`,
     );

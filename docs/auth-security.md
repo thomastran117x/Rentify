@@ -32,8 +32,8 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 | `oauth.signup.completed`         | `success`            |                                       | Direct or continued OAuth signup creates the user and session. Issuing a continuation token alone writes no event.                                                                            |
 | `oauth.linked`                   | `success`            |                                       | A provider identity was newly linked. Carries the provider, user and acting session.                                                                                                          |
 | `oauth.unlinked`                 | `success`            |                                       | A provider identity was actually removed. Carries the provider, user and acting session.                                                                                                      |
-| `session.refresh_reuse_detected` | `blocked`            |                                       | A consumed refresh token was replayed outside its five-second grace period. Carries method `refresh` and the revoked session.                                                                 |
-| `session.revoked`                | `success`            |                                       | Device removal revoked an active session. One row is written per revoked session; metadata is `{ "source": "device" }`.                                                                       |
+| `session.refresh_reuse_detected` | `blocked`            |                                       | A consumed refresh token was replayed outside its five-second grace period. Carries method `refresh`; the configured response revokes that session or every session for the user.             |
+| `session.revoked`                | `success`            |                                       | Device removal or session management revoked an active session. One row is written per session; management metadata includes `scope` `one`, `others` or `all`.                                |
 | `device.new_detected`            | `success`            |                                       | An unknown device was detected. Metadata records `emailNotification` as `sent` or `suppressed`. A sent alert's id is its lock link's `sourceEventId`.                                         |
 | `password.changed`               | `success`            |                                       | A local password was replaced using the current password. Carries method `password` and the replacement session.                                                                              |
 | `password.reset`                 | `success`            |                                       | Password recovery completed. Also carries the normalized username HMAC.                                                                                                                       |
@@ -140,6 +140,43 @@ While a cached page is being refreshed, **Load more** reads "Updating..." and wa
 
 **This wasn't me** appears on every row except the current session's. It opens a confirmation in the row ("Lock your account?") with **Lock my account** and **Cancel**; nothing is sent until the user confirms. Confirming calls `POST /auth/account/self-lock/session` (see [Locking Your Own Account](#locking-your-own-account)); both buttons are disabled while it runs. On success the page goes to `/auth/self-lock?status=locked`, which clears the browser's session and shows the recovery steps. An expired step-up locks the Security tab again for re-verification, exactly like a failed load. An account with no password to reset (`409`) gets advice to set a password and remove unknown devices instead, and the page scrolls to the Password section and focuses its first field. Any other failure keeps the confirmation open with the error.
 
+## Managing Sessions
+
+Account → Security shows **Where you're signed in** separately from registered
+devices. A device is a remembered client; a session is one particular sign-in
+on that client. All session endpoints require a signed-in JWT session with a
+recent `mfa-management` step-up, and reject personal access tokens.
+
+- `GET /auth/sessions` lists active sessions, with the caller first. It returns
+  coarse browser and operating-system names, platform, first and latest IP,
+  creation and last-use times, and whether Remember me was selected. Raw user
+  agents are not returned.
+- `DELETE /auth/sessions/:id` signs out one session owned by the caller. An
+  unknown or other user's ID is the same `404`. Deleting the current session
+  also revokes its refresh token and clears the refresh and CSRF cookies.
+- `POST /auth/sessions/revoke-others` takes `scope` `others` or `all`.
+  `others` preserves the caller. `all` also increments `tokenVersion`, revokes
+  active personal access tokens, and clears the caller's cookies.
+
+Session records live under `auth:session:<id>`. Each account has a Redis set at
+`auth:user-sessions:<userId>` containing its session IDs. Creation and updates
+write the record and index atomically, and the index expires no sooner than its
+longest session. Listing or bulk revocation reads only that set; it never scans
+all users' session keys. A member whose session expired, was revoked, belongs
+to another user, or carries an obsolete token version is removed lazily. A
+revoked record remains until its original TTL so both the old access token and
+refresh token continue to fail.
+
+Successful JWT-authenticated HTTP requests update `lastUsedAt` and the latest
+IP without extending the session lifetime. Sessions created before the index
+was deployed join it on their next request or refresh. Older tokens with no
+`sessionId` can use their current access token until it expires, but their next
+refresh is rejected and they must sign in again.
+
+Each revoked session writes `session.revoked` with `metadata.scope` `one`,
+`others`, or `all`. A sign-out-everywhere operation also writes `pat.revoked`
+for each PAT it changes. Reading the list is not recorded as a revocation.
+
 ## Investigating Sign-in Activity
 
 Administrators read every account's events through two endpoints, served by `AuthAuditAdminController` and `AuthAuditAdminService` and documented in the OpenAPI spec as `listAdminAuthAuditEvents` and `getAdminUserSecuritySummary`.
@@ -235,7 +272,13 @@ Each rule counts in a Redis sliding window (a sorted set scored by time, under `
 - **(a)** counts only the attempt that set the lock, not later refusals of the locked account. Only an `active` account that can reset a local password (a verified email and a password) is locked: a held account is left alone, a suspension is never downgraded, and an account that signs in only through a provider, or has never verified its email, is never held. Lockouts against its username can still be recorded, but it has no password to reset, so a hold would leave it waiting for an admin. Its firing is still recorded and flagged, with action `skipped`. The hold sends the usual `account_locked` email, and the user recovers by [resetting their password](#recovering-from-a-security-hold). The hold's reason is `Repeated sign-in lockouts`, and its `account.locked` event carries `metadata.rule` and the `sourceEventId` of the detection event.
 - **(b)** counts distinct names, so one person retrying their own password never fires it. It never locks an account. Attempts the rate limiter already refused never reach sign-in, so they are not counted: with the default 10 a minute, an address needs at least two minutes to reach 20.
 - **(c)** fires on `login.succeeded` or `oauth.login.succeeded`, and only when the same request (same `request_id`) also wrote `device.new_detected`. A sign-in writes that only for a device the account has not used, on an IP address it has not used either, so it is the "new device and new IP" success. Refreshing a session can also write `device.new_detected`, but records no sign-in success, so it never fires (c).
-- **(d)** fires on the first reuse. `refreshReuse.windowMinutes` only stops a second email for the same account within the window.
+- **(d)** fires on the first reuse. `refreshReuse.windowMinutes` only stops a
+  second email for the same account within the window. The separate
+  `auth.refreshReuseResponse` setting controls the immediate credential
+  response: `session` revokes only the replayed session, while `user` increments
+  `tokenVersion` and revokes every indexed session for the account. Production
+  defaults to `user`; development and test default to `session`. PATs are not
+  revoked by refresh reuse.
 
 ### What a Firing Does
 
@@ -253,7 +296,8 @@ The user sees the event on their [account page](#on-the-account-page) as "Suspic
 Rules (c) and (d) queue one `suspicious_login` email. It says what was seen, lists the time, IP address and user agent, and advises changing the password and reviewing devices and personal access tokens:
 
 - (c): "Someone signed in to your account from a new device and a new location, right after several failed attempts to sign in."
-- (d): "A sign-in session on your account was used from two places, which can mean someone copied it. We signed that session out."
+- (d): "A sign-in session on your account was used from two places, which can
+  mean someone copied it. We ended the affected sign-ins."
 
 For an account that can reset a password, it carries the same "This wasn't you? Lock your account" link as the new-device alert, and the link's `sourceEventId` is the `security.suspicious_activity` event. See [Locking Your Own Account](#locking-your-own-account).
 

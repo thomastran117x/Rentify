@@ -64,9 +64,15 @@ export const authCoreRegistrationModule: ContainerRegistrationModule = {
     container.register({
       token: containerTokens.authSessionController,
       lifetime: "scoped",
-      dependencies: [containerTokens.authSessionService],
+      dependencies: [
+        containerTokens.authSessionService,
+        containerTokens.mfaVerificationService,
+      ],
       resolve: ({ resolve }) =>
-        new AuthSessionController(resolve(containerTokens.authSessionService)),
+        new AuthSessionController(
+          resolve(containerTokens.authSessionService),
+          resolve(containerTokens.mfaVerificationService),
+        ),
     });
   },
 };

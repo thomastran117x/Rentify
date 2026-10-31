@@ -106,6 +106,20 @@ vi.mock("@/components/account/security-activity-panel", () => ({
     </>
   ),
 }));
+vi.mock("@/components/account/session-management-panel", () => ({
+  SessionManagementPanel: ({
+    onVerificationRequired,
+  }: {
+    onVerificationRequired?: () => void;
+  }) => (
+    <div>
+      Session management panel
+      <button type="button" onClick={() => onVerificationRequired?.()}>
+        Expire session verification
+      </button>
+    </div>
+  ),
+}));
 vi.mock("@/components/account/account-email-panel", () => ({
   AccountEmailPanel: () => <div>Email panel</div>,
 }));

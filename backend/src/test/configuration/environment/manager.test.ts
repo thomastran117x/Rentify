@@ -272,6 +272,43 @@ describe("EnvironmentManager", () => {
     expect(productionManager.getTokenConfig().secureCookies).toBe(true);
   });
 
+  it("defaults refresh reuse to the session outside production and the user in production", () => {
+    process.env = buildRequiredEnv();
+    const developmentManager = new EnvironmentManager();
+    developmentManager.load();
+    expect(developmentManager.getTokenConfig().refreshReuseResponse).toBe(
+      "session",
+    );
+
+    process.env = buildRequiredEnv({
+      NODE_ENV: "production",
+      RABBITMQ_URL: "amqp://localhost:5672",
+      MEDIA_SCANNER: "clamav",
+    });
+    const productionManager = new EnvironmentManager();
+    productionManager.load();
+    expect(productionManager.getTokenConfig().refreshReuseResponse).toBe(
+      "user",
+    );
+
+    process.env = buildRequiredEnv({ AUTH_REFRESH_REUSE_RESPONSE: "user" });
+    const overriddenManager = new EnvironmentManager();
+    overriddenManager.load();
+    expect(overriddenManager.getTokenConfig().refreshReuseResponse).toBe(
+      "user",
+    );
+  });
+
+  it("rejects an invalid refresh reuse response", () => {
+    process.env = buildRequiredEnv({
+      AUTH_REFRESH_REUSE_RESPONSE: "devices",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AUTH_REFRESH_REUSE_RESPONSE must be 'session' or 'user'.",
+    );
+  });
+
   it("refuses to turn secure session cookies off in production", () => {
     process.env = buildRequiredEnv({
       NODE_ENV: "production",

@@ -6,6 +6,7 @@ import type {
 } from "@/features/auth/auth.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import { RefreshTokenReuseDetectedError } from "@/features/auth/token/token.service";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { testUuid } from "../../support/uuid";
 const PAT_1_ID = testUuid(9300, 1);
 const DEVICE_1_ID = testUuid(9200, 895443);
@@ -73,6 +74,10 @@ function createHarness() {
   const authRepository = {
     findUserById: jest.fn(async () => createUser()),
     rotateTokenVersion: jest.fn(async () => 8),
+    revokeAllCredentials: jest.fn(async () => ({
+      tokenVersion: 8,
+      revokedPersonalAccessTokenIds: [PAT_1_ID],
+    })),
     recordLastLogin: jest.fn(async () => undefined),
   };
   const authAuditService = {
@@ -94,6 +99,10 @@ function createHarness() {
     rotateRefreshToken: jest.fn(async () => "rotated-refresh-token"),
     revokeRefreshToken: jest.fn(async () => true),
     revokeSession: jest.fn(async () => true),
+    revokeSessionForUser: jest.fn(async () => true),
+    listSessionsForUser: jest.fn(async () => []),
+    revokeSessionsForUser: jest.fn(async () => ["session-1", "session-2"]),
+    revokeSessionsForUserExcept: jest.fn(async () => ["session-2"]),
   };
   const deviceService = {
     evaluateSuccessfulAuthentication: jest.fn(async () => ({
@@ -120,6 +129,21 @@ function createHarness() {
       deviceService as never,
       authAuditService as never,
     ),
+  };
+}
+
+function createJwtPrincipal(
+  overrides: Partial<JwtAuthPrincipal> = {},
+): JwtAuthPrincipal {
+  return {
+    authMethod: "jwt",
+    sub: USER_1_ID,
+    deviceId: DEVICE_1_ID,
+    sessionId: "session-1",
+    tokenVersion: 7,
+    iat: 1,
+    exp: 9_999_999_999,
+    ...overrides,
   };
 }
 
@@ -348,6 +372,157 @@ describe("AuthSessionService.localVerify", () => {
   });
 });
 
+describe("AuthSessionService session management", () => {
+  it("projects current session metadata first and sorts the rest by activity", async () => {
+    const harness = createHarness();
+    harness.tokenService.listSessionsForUser.mockResolvedValue([
+      {
+        sessionId: "session-2",
+        userId: USER_1_ID,
+        deviceId: "device-2",
+        tokenVersion: 7,
+        status: "active",
+        deviceType: "mobile",
+        platform: "Android",
+        userAgent: "Mozilla/5.0 (Linux; Android 14) Chrome/129.0",
+        firstIpAddress: "198.51.100.2",
+        lastIpAddress: "198.51.100.3",
+        rememberMe: false,
+        createdAt: "2026-10-01T00:00:00.000Z",
+        lastUsedAt: "2026-10-30T12:00:00.000Z",
+        updatedAt: "2026-10-30T12:00:00.000Z",
+      },
+      {
+        sessionId: "session-1",
+        userId: USER_1_ID,
+        deviceId: DEVICE_1_ID,
+        tokenVersion: 7,
+        status: "active",
+        deviceType: "desktop",
+        platform: "Windows",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0",
+        rememberMe: true,
+        createdAt: "2026-10-01T00:00:00.000Z",
+        lastUsedAt: "2026-10-20T12:00:00.000Z",
+        updatedAt: "2026-10-20T12:00:00.000Z",
+      },
+    ] as never);
+
+    await expect(
+      harness.service.listSessions(createJwtPrincipal()),
+    ).resolves.toEqual({
+      sessions: [
+        expect.objectContaining({
+          id: "session-1",
+          current: true,
+          deviceLabel: "Chrome on Windows",
+          browser: "Chrome",
+          os: "Windows",
+          rememberMe: true,
+        }),
+        expect.objectContaining({
+          id: "session-2",
+          current: false,
+          deviceLabel: "Chrome on Android",
+          firstIpAddress: "198.51.100.2",
+          lastIpAddress: "198.51.100.3",
+        }),
+      ],
+    });
+    expect(harness.tokenService.listSessionsForUser).toHaveBeenCalledWith(
+      USER_1_ID,
+      7,
+    );
+  });
+
+  it("revokes one owned session and records its scope", async () => {
+    const harness = createHarness();
+    const audit = { requestId: "request-1" };
+
+    await expect(
+      harness.service.revokeManagedSession({
+        auth: createJwtPrincipal(),
+        sessionId: "session-2",
+        audit,
+      }),
+    ).resolves.toEqual({ revoked: true, id: "session-2", current: false });
+    expect(harness.tokenService.revokeSessionForUser).toHaveBeenCalledWith(
+      USER_1_ID,
+      "session-2",
+    );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "session.revoked",
+        sessionId: "session-2",
+        metadata: { scope: "one" },
+        context: audit,
+      }),
+    );
+  });
+
+  it("rejects a missing or non-owned session without an audit event", async () => {
+    const harness = createHarness();
+    harness.tokenService.revokeSessionForUser.mockResolvedValue(false);
+
+    await expect(
+      harness.service.revokeManagedSession({
+        auth: createJwtPrincipal(),
+        sessionId: "missing",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+  });
+
+  it("revokes other sessions while preserving the current one", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.revokeManagedSessions({
+        auth: createJwtPrincipal(),
+        scope: "others",
+      }),
+    ).resolves.toEqual({
+      scope: "others",
+      revokedSessionCount: 1,
+      revokedPersonalAccessTokenCount: 0,
+    });
+    expect(
+      harness.tokenService.revokeSessionsForUserExcept,
+    ).toHaveBeenCalledWith(USER_1_ID, "session-1");
+    expect(harness.authRepository.revokeAllCredentials).not.toHaveBeenCalled();
+  });
+
+  it("revokes all sessions and PATs and audits every affected credential", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.revokeManagedSessions({
+        auth: createJwtPrincipal(),
+        scope: "all",
+      }),
+    ).resolves.toEqual({
+      scope: "all",
+      revokedSessionCount: 2,
+      revokedPersonalAccessTokenCount: 1,
+    });
+    expect(harness.authRepository.revokeAllCredentials).toHaveBeenCalledWith(
+      USER_1_ID,
+    );
+    expect(harness.tokenService.revokeSessionsForUser).toHaveBeenCalledWith(
+      USER_1_ID,
+    );
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "pat.revoked",
+        metadata: expect.objectContaining({
+          tokenId: PAT_1_ID,
+          scope: "all",
+        }),
+      }),
+    );
+  });
+});
+
 describe("AuthSessionService.refresh", () => {
   it("rejects a request with no refresh token", async () => {
     const harness = createHarness();
@@ -371,13 +546,11 @@ describe("AuthSessionService.refresh", () => {
       "incoming-refresh-token",
       expect.objectContaining({ rememberMe: true, sessionId: "session-1" }),
       { expiresInSeconds: 7_776_000 },
+      expect.objectContaining({ ip: "203.0.113.10" }),
     );
   });
 
-  it("back-fills a session for a legacy sessionless token", async () => {
-    // Tokens minted before sessions existed carry no sessionId. Rejecting them
-    // would sign those users out, so the refresh creates the missing session
-    // and retires the old token instead.
+  it("ends a legacy sessionless token at its next refresh", async () => {
     const harness = createHarness();
     harness.tokenService.verifyRefreshToken.mockResolvedValue({
       sub: USER_1_ID,
@@ -386,17 +559,18 @@ describe("AuthSessionService.refresh", () => {
       sessionId: undefined,
     } as never);
 
-    const session = await harness.service.refresh({
-      client: createClient(),
-      refreshToken: "legacy-refresh-token",
-    });
+    await expect(
+      harness.service.refresh({
+        client: createClient(),
+        refreshToken: "legacy-refresh-token",
+      }),
+    ).rejects.toThrow("Session is no longer valid.");
 
-    expect(harness.tokenService.createSession).toHaveBeenCalled();
+    expect(harness.tokenService.createSession).not.toHaveBeenCalled();
     expect(harness.tokenService.revokeRefreshToken).toHaveBeenCalledWith(
       "legacy-refresh-token",
     );
     expect(harness.tokenService.rotateRefreshToken).not.toHaveBeenCalled();
-    expect(session.refreshToken).toBe("refresh-token");
   });
 
   it("falls back to the request device when the token carries none", async () => {

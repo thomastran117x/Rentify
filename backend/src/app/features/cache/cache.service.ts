@@ -223,6 +223,28 @@ export class CacheService {
     await this.getClient().mSet(values);
   }
 
+  async setMembers(key: string): Promise<string[]> {
+    return this.getClient().sMembers(key);
+  }
+
+  async removeSetMembers(key: string, members: string[]): Promise<number> {
+    if (members.length === 0) {
+      return 0;
+    }
+
+    const script = `
+      local removed = redis.call("SREM", KEYS[1], unpack(ARGV))
+
+      if redis.call("SCARD", KEYS[1]) == 0 then
+        redis.call("DEL", KEYS[1])
+      end
+
+      return removed
+    `;
+
+    return this.eval<number>(script, [key], members);
+  }
+
   async scanKeys(pattern: string, count = 100): Promise<string[]> {
     const client = this.getClient();
     const keys: string[] = [];

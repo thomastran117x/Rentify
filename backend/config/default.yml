@@ -62,6 +62,7 @@ auth:
   issuer: null
   audience: null
   refreshTokenMode: stateful
+  refreshReuseResponse: session
   refreshTokenCachePrefix: auth:refresh
   mfaBypassEmails: []
 

@@ -333,7 +333,7 @@ export async function requireJwtAuth(request: Request): Promise<AuthPrincipal> {
     : createJwtPrincipal(
         await getRequestContainer(request)
           .resolve(containerTokens.tokenService)
-          .verifyAccessToken(token),
+          .verifyAccessToken(token, request.client),
       );
 
   assertPersonalAccessTokenAccess(request, claims);

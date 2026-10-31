@@ -465,6 +465,23 @@ const knownDevicesExample = {
     },
   ],
 };
+const sessionsExample = {
+  sessions: [
+    {
+      id: "7a6e1cc8-c11b-4e07-af3a-a32c2fb1d934",
+      deviceLabel: "Chrome on Windows",
+      platform: "Windows",
+      browser: "Chrome",
+      os: "Windows",
+      firstIpAddress: "203.0.113.24",
+      lastIpAddress: "203.0.113.24",
+      createdAt: "2026-10-18T14:02:11.482Z",
+      lastUsedAt: "2026-10-30T09:15:00.000Z",
+      rememberMe: true,
+      current: true,
+    },
+  ],
+};
 const securityActivityListExample = {
   items: [
     {
@@ -3060,6 +3077,94 @@ function buildOperations(): OperationDefinition[] {
           "Known device removed successfully.",
           "ActionOkResult",
           actionOkExample,
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/sessions",
+      operationId: "listMySessions",
+      summary: "List my active sessions",
+      description:
+        "Returns the caller's active sessions, with the current session first. Requires a signed-in JWT session and a recent `mfa-management` step-up; personal access tokens are rejected. Missing or expired Redis records are removed from the per-user session index while the list is read.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "SessionListResult",
+          sessionsExample,
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "delete",
+      path: "/auth/sessions/:id",
+      operationId: "revokeMySession",
+      summary: "Sign out one of my sessions",
+      description:
+        "Revokes one active session owned by the caller. Requires a recent `mfa-management` step-up. Revoking the current session also revokes its presented refresh token and clears the browser refresh and CSRF cookies.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam(
+          "id",
+          "Session identifier returned by GET /auth/sessions.",
+          "7a6e1cc8-c11b-4e07-af3a-a32c2fb1d934",
+        ),
+      ],
+      responses: {
+        "200": successResponse(
+          200,
+          "Session signed out successfully.",
+          "RevokeSessionResult",
+          {
+            revoked: true,
+            id: "7a6e1cc8-c11b-4e07-af3a-a32c2fb1d934",
+            current: false,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/sessions/revoke-others",
+      operationId: "revokeMySessions",
+      summary: "Sign out my other or all sessions",
+      description:
+        "With `others`, revokes every active session except the caller. With `all`, also revokes the caller, increments the account token version, revokes active personal access tokens, and clears browser session cookies. Requires a recent `mfa-management` step-up and rejects personal access tokens.",
+      tags: ["auth"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      requestBody: requestBody("RevokeSessionsRequest", { scope: "others" }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Sessions signed out successfully.",
+          "RevokeSessionsResult",
+          {
+            scope: "others",
+            revokedSessionCount: 2,
+            revokedPersonalAccessTokenCount: 0,
+          },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
       },
@@ -11707,6 +11812,82 @@ function buildComponents(): Record<string, unknown> {
           },
         },
         required: ["devices"],
+      },
+      SessionSummary: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "deviceLabel",
+          "platform",
+          "browser",
+          "os",
+          "firstIpAddress",
+          "lastIpAddress",
+          "createdAt",
+          "lastUsedAt",
+          "rememberMe",
+          "current",
+        ],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          deviceLabel: { type: "string" },
+          platform: { type: "string", nullable: true },
+          browser: { type: "string", nullable: true },
+          os: { type: "string", nullable: true },
+          firstIpAddress: { type: "string", nullable: true },
+          lastIpAddress: { type: "string", nullable: true },
+          createdAt: { type: "string", format: "date-time" },
+          lastUsedAt: { type: "string", format: "date-time" },
+          rememberMe: { type: "boolean" },
+          current: { type: "boolean" },
+        },
+      },
+      SessionListResult: {
+        type: "object",
+        additionalProperties: false,
+        required: ["sessions"],
+        properties: {
+          sessions: {
+            type: "array",
+            items: schemaRef("SessionSummary"),
+          },
+        },
+      },
+      RevokeSessionResult: {
+        type: "object",
+        additionalProperties: false,
+        required: ["revoked", "id", "current"],
+        properties: {
+          revoked: { type: "boolean", enum: [true] },
+          id: { type: "string", format: "uuid" },
+          current: { type: "boolean" },
+        },
+      },
+      RevokeSessionsRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["scope"],
+        properties: {
+          scope: { type: "string", enum: ["others", "all"] },
+        },
+      },
+      RevokeSessionsResult: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "scope",
+          "revokedSessionCount",
+          "revokedPersonalAccessTokenCount",
+        ],
+        properties: {
+          scope: { type: "string", enum: ["others", "all"] },
+          revokedSessionCount: { type: "integer", minimum: 0 },
+          revokedPersonalAccessTokenCount: {
+            type: "integer",
+            minimum: 0,
+          },
+        },
       },
       LocalAuthenticateRequest: {
         type: "object",
