@@ -190,7 +190,8 @@ the HMAC that hashes personal access tokens (PATs). A keyset has one `current`
 key, which signs, and any number of `previous` keys, which only verify. Every
 token records the id (`kid`) of the key that signed it. Rotating the current
 key therefore logs nobody out: tokens signed with the old key keep verifying
-until that key is removed from the set.
+until that key is removed from the set. To rotate a key, follow the
+[signing key rotation runbook](./auth-security.md#signing-key-rotation).
 
 ### Single-key variables
 

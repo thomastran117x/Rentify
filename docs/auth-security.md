@@ -459,6 +459,50 @@ docker compose exec backend node -e "
 
 Rotating `AUTH_AUDIT_IDENTIFIER_SECRET` breaks correlation between rows written before and after the rotation. The secret is required, must be at least 32 characters, and is independent of the token secrets, so rotating those does not affect it. See [backend-configuration.md](./backend-configuration.md).
 
+## Signing Key Rotation
+
+Access JWTs, refresh tokens and personal access token (PAT) hashes each have a keyset: one `current` key that signs, and any number of `previous` keys that only verify. Every token records the kid of the key that signed it, so a rotation logs nobody out. The format, and how each kind of token finds its key, are in [Token signing keys](./backend-configuration.md#token-signing-keys).
+
+Rotate one purpose at a time. The steps are the same for `ACCESS_TOKEN_KEYS`, `REFRESH_TOKEN_KEYS` and `PERSONAL_ACCESS_TOKEN_KEYS`, and every backend process, workers included, needs the same keyset at each step.
+
+### Runbook
+
+0. **First rotation only: move to a keyset.** Replace the single-secret variable with a keyset that holds the same secret under kid `default`. Tokens issued before keysets carry no kid and are verified with `default`, so this kid must stay until step 4. Unset the old variable, because setting both stops startup.
+
+   ```dotenv
+   REFRESH_TOKEN_SECRET=
+   REFRESH_TOKEN_KEYS=[{"kid":"default","status":"current","secret":"<old secret>"}]
+   ```
+
+1. **Add the new key as `previous`, and deploy.** Generate a new secret of at least 32 characters (for example `openssl rand -base64 48`), give it a new kid such as the month, and add it with `"status":"previous"`. Nothing is signed with it yet. Deploy this everywhere before step 2. This is "add before use": if step 2 is rolled back, the rolled-back instances can still verify the tokens it signed.
+2. **Promote the new key.** Make the new key `current` and the old key `previous`, and deploy. New tokens, and every refreshed session, are now signed with the new key, and tokens signed with the old key keep working.
+3. **Wait out the longest lifetime.** Remember-me refresh tokens last 90 days (`REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS`), other refresh tokens 30 days, and access tokens 15 minutes. A session that refreshes in the meantime moves onto the new key. PATs move to the new key the next time they are used, so before removing a PAT key, check how many live PATs still depend on it:
+
+   ```sql
+   SELECT secret_kid, COUNT(*)
+   FROM personal_access_tokens
+   WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())
+   GROUP BY secret_kid;
+   ```
+
+   A PAT still on the old kid stops working when the key is removed. Its owner has to create a new one.
+
+4. **Remove the old key, and deploy.** Tokens still signed with it are rejected from now on: a refresh token sends its user back to sign in, and an access token answers `401` and is refreshed.
+
+To revoke a key because it leaked, skip the wait in step 3: promote the new key and remove the leaked one in the same deploy. Everyone signed in with the leaked key is signed out.
+
+### Rules
+
+- A `previous` key never signs. Only the `current` key does, and startup requires exactly one.
+- An `ACCESS_TOKEN_KEYS` entry with `publicKey` is an `RS256` key, so moving from `HS256` to `RS256` is an ordinary rotation. A previous `RS256` key needs only its `publicKey`.
+- In production, no two secrets may be equal across purposes, previous keys included. See [Issuer, audience, and production checks](./backend-configuration.md#issuer-audience-and-production-checks).
+
+### Out of Scope
+
+- `MFA_TOTP_ENCRYPTION_KEY` is an encryption key, not a signing key. Rotating it means re-encrypting every stored authenticator secret, which has no tooling yet. Replacing it without that breaks every enrolled authenticator app.
+- `AUTH_AUDIT_IDENTIFIER_SECRET` has no keyset. Replacing it breaks correlation between audit rows written before and after the change, as [Why Identifiers Are Hashed](#why-identifiers-are-hashed) explains.
+- There is no JWKS endpoint. No service other than the backend verifies these tokens.
+
 ## Client IP Behind a Proxy
 
 `ip_address` is whatever the client-context middleware resolved. It is never re-parsed from headers. By default, the address is the socket peer and every proxy header is ignored. Behind a reverse proxy, that is the proxy's own address.
