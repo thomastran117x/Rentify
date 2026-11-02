@@ -11,7 +11,8 @@ import {
 import type { KeyObject } from "node:crypto";
 import { environment } from "@/configuration/environment";
 import type {
-  AccessTokenAlgorithm,
+  AccessTokenSigningKey,
+  HmacSigningKey,
   RefreshReuseResponse,
 } from "@/configuration/environment/types";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
@@ -19,6 +20,7 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { AppRole } from "@/features/auth/auth.model";
 import type { TokenRepository } from "@/features/auth/token/token.repository";
 import type { CacheService } from "@/features/cache/cache.service";
+import { SigningKeyring } from "@/features/auth/token/signing-keyring";
 import { type Uuid } from "@/configuration/validation/uuid";
 import { loggerFactory } from "@/configuration/logging";
 
@@ -67,11 +69,8 @@ interface StatefulRefreshSession extends RefreshTokenClaims {
 interface TokenServiceOptions {
   cache: CacheService;
   tokenRepository: TokenRepository;
-  accessTokenAlgorithm?: AccessTokenAlgorithm;
-  accessTokenSecret?: string;
-  accessTokenPrivateKey?: string;
-  accessTokenPublicKey?: string;
-  refreshTokenSecret?: string;
+  accessTokenKeys?: AccessTokenSigningKey[];
+  refreshTokenKeys?: HmacSigningKey[];
   accessTokenTtlSeconds?: number;
   refreshTokenTtlSeconds?: number;
   issuer?: string;
@@ -85,7 +84,10 @@ interface CreateRefreshTokenOptions {
   expiresInSeconds?: number;
 }
 
-const REFRESH_TOKEN_VERSION = "v1";
+// v2 is `v2.<kid>.<body>.<signature>`, signed over `<kid>.<body>`. v1 is
+// `v1.<body>.<signature>`, from before keysets, and verifies with kid default.
+const REFRESH_TOKEN_VERSION = "v2";
+const LEGACY_REFRESH_TOKEN_VERSION = "v1";
 const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
 const REFRESH_ROTATION_GRACE_PERIOD_SECONDS = 5;
 const SESSION_CACHE_PREFIX = "auth:session";
@@ -202,13 +204,11 @@ export class TokenService {
   private readonly logger = loggerFactory.forClass(TokenService, "service");
   private readonly cache: CacheService;
   private readonly tokenRepository: TokenRepository;
-  private readonly accessTokenAlgorithm?: AccessTokenAlgorithm;
-  private readonly accessTokenSecret?: string;
-  private readonly accessTokenPrivateKey?: string;
-  private readonly accessTokenPublicKey?: string;
-  private accessTokenPrivateKeyObject?: KeyObject;
-  private accessTokenPublicKeyObject?: KeyObject;
-  private readonly refreshTokenSecret?: string;
+  private readonly accessTokenKeys?: AccessTokenSigningKey[];
+  private readonly refreshTokenKeys?: HmacSigningKey[];
+  private accessTokenKeyring?: SigningKeyring<AccessTokenSigningKey>;
+  private refreshTokenKeyring?: SigningKeyring<HmacSigningKey>;
+  private readonly rsaKeyObjects = new Map<string, KeyObject>();
   private readonly accessTokenTtlSeconds?: number;
   private readonly refreshTokenTtlSeconds?: number;
   private readonly issuer?: string;
@@ -220,11 +220,8 @@ export class TokenService {
   constructor(options: TokenServiceOptions) {
     this.cache = options.cache;
     this.tokenRepository = options.tokenRepository;
-    this.accessTokenAlgorithm = options.accessTokenAlgorithm;
-    this.accessTokenSecret = options.accessTokenSecret;
-    this.accessTokenPrivateKey = options.accessTokenPrivateKey;
-    this.accessTokenPublicKey = options.accessTokenPublicKey;
-    this.refreshTokenSecret = options.refreshTokenSecret;
+    this.accessTokenKeys = options.accessTokenKeys;
+    this.refreshTokenKeys = options.refreshTokenKeys;
     this.accessTokenTtlSeconds = options.accessTokenTtlSeconds;
     this.refreshTokenTtlSeconds = options.refreshTokenTtlSeconds;
     this.issuer = options.issuer;
@@ -534,29 +531,12 @@ export class TokenService {
     expiresInSeconds = this.getRefreshTokenTtlSeconds(),
   ): string {
     const claims = this.buildRefreshClaims(payload, expiresInSeconds);
-    const body = toBase64Url(JSON.stringify(claims));
-    const signature = signValue(body, this.getRefreshTokenSecret());
 
-    return `${REFRESH_TOKEN_VERSION}.${body}.${signature}`;
+    return this.signRefreshClaims(claims).token;
   }
 
   verifyStatelessRefreshToken(token: string): RefreshTokenClaims {
-    const [version, body, signature] = token.split(".");
-
-    if (!version || !body || !signature || version !== REFRESH_TOKEN_VERSION) {
-      throw new UnauthorizedError("Invalid refresh token format.");
-    }
-
-    const expectedSignature = signValue(body, this.getRefreshTokenSecret());
-
-    if (!safeEquals(signature, expectedSignature)) {
-      throw new UnauthorizedError("Invalid refresh token signature.");
-    }
-
-    const claims = JSON.parse(fromBase64Url(body)) as RefreshTokenClaims;
-    this.assertRefreshTokenIsValid(claims);
-
-    return claims;
+    return this.parseAndVerifyRefreshTokenSignature(token).claims;
   }
 
   async createStatefulRefreshToken(
@@ -564,9 +544,7 @@ export class TokenService {
     expiresInSeconds = this.getRefreshTokenTtlSeconds(),
   ): Promise<string> {
     const claims = this.buildRefreshClaims(payload, expiresInSeconds);
-    const body = toBase64Url(JSON.stringify(claims));
-    const signature = signValue(body, this.getRefreshTokenSecret());
-    const token = `${REFRESH_TOKEN_VERSION}.${body}.${signature}`;
+    const { token, signature } = this.signRefreshClaims(claims);
     const cacheKey = this.getRefreshCacheKey(claims.jti);
     const session: StatefulRefreshSession = {
       ...claims,
@@ -629,16 +607,17 @@ export class TokenService {
   }
 
   private signJwt(payload: JwtClaims): string {
-    const algorithm = this.getAccessTokenAlgorithm();
+    const key = this.getAccessTokenKeyring().current;
     const header = {
-      alg: algorithm,
+      alg: key.algorithm,
       typ: "JWT",
+      kid: key.kid,
     };
 
     const encodedHeader = toBase64Url(JSON.stringify(header));
     const encodedPayload = toBase64Url(JSON.stringify(payload));
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-    const signature = this.signAccessTokenValue(unsignedToken, algorithm);
+    const signature = this.signAccessTokenValue(unsignedToken, key);
 
     return `${unsignedToken}.${signature}`;
   }
@@ -656,20 +635,32 @@ export class TokenService {
       throw new UnauthorizedError("Invalid access token format.");
     }
 
-    let header: { alg?: string; typ?: string };
+    let header: { alg?: unknown; typ?: unknown; kid?: unknown };
 
     try {
       header = JSON.parse(fromBase64Url(encodedHeader)) as {
-        alg?: string;
-        typ?: string;
+        alg?: unknown;
+        typ?: unknown;
+        kid?: unknown;
       };
     } catch {
       throw new UnauthorizedError("Invalid access token format.");
     }
 
-    const algorithm = this.getAccessTokenAlgorithm();
+    if (header.kid !== undefined && typeof header.kid !== "string") {
+      throw new UnauthorizedError("Invalid access token header.");
+    }
 
-    if (header.alg !== algorithm || header.typ !== "JWT") {
+    const key = this.getAccessTokenKeyring().find(header.kid);
+
+    if (!key) {
+      throw new UnauthorizedError(
+        "Access token signing key is not recognized.",
+      );
+    }
+
+    // The key decides the algorithm, so a token cannot pick a weaker one.
+    if (header.alg !== key.algorithm || header.typ !== "JWT") {
       throw new UnauthorizedError("Invalid access token header.");
     }
 
@@ -677,7 +668,7 @@ export class TokenService {
       !this.verifyAccessTokenSignature(
         `${encodedHeader}.${encodedPayload}`,
         signature,
-        algorithm,
+        key,
       )
     ) {
       throw new UnauthorizedError("Invalid access token signature.");
@@ -710,14 +701,20 @@ export class TokenService {
 
   private signAccessTokenValue(
     value: string,
-    algorithm: AccessTokenAlgorithm,
+    key: AccessTokenSigningKey,
   ): string {
-    if (algorithm === "HS256") {
-      return signValue(value, this.getAccessTokenSecret());
+    if (key.algorithm === "HS256") {
+      return signValue(value, key.secret);
+    }
+
+    if (!key.privateKey) {
+      throw new Error(
+        `Access token key ${key.kid} has no private key to sign with.`,
+      );
     }
 
     return signSignature("RSA-SHA256", Buffer.from(value, "utf8"), {
-      key: this.getAccessTokenPrivateKey(),
+      key: this.getRsaKeyObject(key.kid, "private", key.privateKey),
       padding: constants.RSA_PKCS1_PADDING,
     }).toString("base64url");
   }
@@ -725,13 +722,10 @@ export class TokenService {
   private verifyAccessTokenSignature(
     value: string,
     signature: string,
-    algorithm: AccessTokenAlgorithm,
+    key: AccessTokenSigningKey,
   ): boolean {
-    if (algorithm === "HS256") {
-      return safeEquals(
-        signature,
-        signValue(value, this.getAccessTokenSecret()),
-      );
+    if (key.algorithm === "HS256") {
+      return safeEquals(signature, signValue(value, key.secret));
     }
 
     try {
@@ -739,7 +733,7 @@ export class TokenService {
         "RSA-SHA256",
         Buffer.from(value, "utf8"),
         {
-          key: this.getAccessTokenPublicKey(),
+          key: this.getRsaKeyObject(key.kid, "public", key.publicKey),
           padding: constants.RSA_PKCS1_PADDING,
         },
         Buffer.from(signature, "base64url"),
@@ -999,17 +993,65 @@ export class TokenService {
     return result === 1;
   }
 
+  /** Always signs with the current key, so a rotation re-signs the session. */
+  private signRefreshClaims(claims: RefreshTokenClaims): {
+    token: string;
+    signature: string;
+  } {
+    const key = this.getRefreshTokenKeyring().current;
+    const body = toBase64Url(JSON.stringify(claims));
+    const signature = signValue(`${key.kid}.${body}`, key.secret);
+
+    return {
+      token: `${REFRESH_TOKEN_VERSION}.${key.kid}.${body}.${signature}`,
+      signature,
+    };
+  }
+
+  private readRefreshTokenEnvelope(token: string): {
+    kid?: string;
+    body: string;
+    signature: string;
+    signedValue: string;
+  } {
+    const parts = token.split(".");
+
+    if (
+      parts[0] === REFRESH_TOKEN_VERSION &&
+      parts.length === 4 &&
+      parts.every(Boolean)
+    ) {
+      const [, kid, body, signature] = parts;
+      return { kid, body, signature, signedValue: `${kid}.${body}` };
+    }
+
+    if (
+      parts[0] === LEGACY_REFRESH_TOKEN_VERSION &&
+      parts.length === 3 &&
+      parts.every(Boolean)
+    ) {
+      const [, body, signature] = parts;
+      return { body, signature, signedValue: body };
+    }
+
+    throw new UnauthorizedError("Invalid refresh token format.");
+  }
+
   private parseAndVerifyRefreshTokenSignature(token: string): {
     claims: RefreshTokenClaims;
     signature: string;
   } {
-    const [version, body, signature] = token.split(".");
+    const { kid, body, signature, signedValue } =
+      this.readRefreshTokenEnvelope(token);
+    const key = this.getRefreshTokenKeyring().find(kid);
 
-    if (!version || !body || !signature || version !== REFRESH_TOKEN_VERSION) {
-      throw new UnauthorizedError("Invalid refresh token format.");
+    if (!key) {
+      throw new UnauthorizedError(
+        "Refresh token signing key is not recognized.",
+      );
     }
 
-    const expectedSignature = signValue(body, this.getRefreshTokenSecret());
+    const expectedSignature = signValue(signedValue, key.secret);
 
     if (!safeEquals(signature, expectedSignature)) {
       throw new UnauthorizedError("Invalid refresh token signature.");
@@ -1064,61 +1106,35 @@ export class TokenService {
     return ttl > 0 ? ttl : 1;
   }
 
-  private getAccessTokenSecret(): string {
-    const secret =
-      this.accessTokenSecret ?? environment.getTokenConfig().accessTokenSecret;
-    if (!secret) {
-      throw new Error("Access token secret is not configured for HS256.");
-    }
-
-    return secret;
-  }
-
-  private getAccessTokenAlgorithm(): AccessTokenAlgorithm {
-    return (
-      this.accessTokenAlgorithm ??
-      environment.getTokenConfig().accessTokenAlgorithm
+  private getAccessTokenKeyring(): SigningKeyring<AccessTokenSigningKey> {
+    this.accessTokenKeyring ??= new SigningKeyring(
+      this.accessTokenKeys ?? environment.getTokenConfig().accessTokenKeys,
     );
+    return this.accessTokenKeyring;
   }
 
-  private getAccessTokenPrivateKey(): KeyObject {
-    if (this.accessTokenPrivateKeyObject) {
-      return this.accessTokenPrivateKeyObject;
-    }
-
-    const privateKey =
-      this.accessTokenPrivateKey ??
-      environment.getTokenConfig().accessTokenPrivateKey;
-
-    if (!privateKey) {
-      throw new Error("Access token private key is not configured for RS256.");
-    }
-
-    this.accessTokenPrivateKeyObject = createPrivateKey(privateKey);
-    return this.accessTokenPrivateKeyObject;
-  }
-
-  private getAccessTokenPublicKey(): KeyObject {
-    if (this.accessTokenPublicKeyObject) {
-      return this.accessTokenPublicKeyObject;
-    }
-
-    const publicKey =
-      this.accessTokenPublicKey ??
-      environment.getTokenConfig().accessTokenPublicKey;
-
-    if (!publicKey) {
-      throw new Error("Access token public key is not configured for RS256.");
-    }
-
-    this.accessTokenPublicKeyObject = createPublicKey(publicKey);
-    return this.accessTokenPublicKeyObject;
-  }
-
-  private getRefreshTokenSecret(): string {
-    return (
-      this.refreshTokenSecret ?? environment.getTokenConfig().refreshTokenSecret
+  private getRefreshTokenKeyring(): SigningKeyring<HmacSigningKey> {
+    this.refreshTokenKeyring ??= new SigningKeyring(
+      this.refreshTokenKeys ?? environment.getTokenConfig().refreshTokenKeys,
     );
+    return this.refreshTokenKeyring;
+  }
+
+  private getRsaKeyObject(
+    kid: string,
+    type: "private" | "public",
+    pem: string,
+  ): KeyObject {
+    const cacheKey = `${type}:${kid}`;
+    let keyObject = this.rsaKeyObjects.get(cacheKey);
+
+    if (!keyObject) {
+      keyObject =
+        type === "private" ? createPrivateKey(pem) : createPublicKey(pem);
+      this.rsaKeyObjects.set(cacheKey, keyObject);
+    }
+
+    return keyObject;
   }
 
   private getAccessTokenTtlSeconds(): number {

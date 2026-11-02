@@ -835,9 +835,13 @@ export class BlobService {
     }
 
     const port = String(environment.getServerPort());
-    const tokenConfig = environment.getTokenConfig();
+    const currentAccessTokenKey = environment
+      .getTokenConfig()
+      .accessTokenKeys.find((key) => key.status === "current");
     const signingSecret =
-      tokenConfig.accessTokenSecret ?? tokenConfig.accessTokenPrivateKey;
+      currentAccessTokenKey?.algorithm === "HS256"
+        ? currentAccessTokenKey.secret
+        : currentAccessTokenKey?.privateKey;
 
     if (!signingSecret) {
       throw new ServiceNotImplementedError(

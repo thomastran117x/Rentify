@@ -6,6 +6,21 @@ import { testUuid } from "../../support/uuid";
 const PAT_RECORD_1_ID = testUuid(9000, 629172);
 const USER_1_ID = testUuid(9000, 994257);
 
+function patKeys(currentSecret: string, previousSecret?: string) {
+  return [
+    { kid: "current-key", status: "current" as const, secret: currentSecret },
+    ...(previousSecret
+      ? [
+          {
+            kid: "default",
+            status: "previous" as const,
+            secret: previousSecret,
+          },
+        ]
+      : []),
+  ];
+}
+
 function createRepositoryMock() {
   return {
     create: jest.fn(),
@@ -21,7 +36,7 @@ function createService(repository: ReturnType<typeof createRepositoryMock>) {
   return new PersonalAccessTokenService(
     repository as any,
     { recordSafely: jest.fn(async () => undefined) } as any,
-    { personalAccessTokenSecret: "test-pat-secret" },
+    { personalAccessTokenKeys: patKeys("test-pat-secret") },
   );
 }
 
@@ -79,7 +94,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
-      { personalAccessTokenSecret: "test-pat-secret" },
+      { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
     const createState = installCreateMock(repository);
 
@@ -289,7 +304,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
-      { personalAccessTokenSecret: "test-pat-secret" },
+      { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
 
     repository.findByIdForUser.mockResolvedValue(createTokenRecord());
@@ -322,7 +337,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
-      { personalAccessTokenSecret: "test-pat-secret" },
+      { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
     repository.findByIdForUser.mockResolvedValue(
       createTokenRecord({ revokedAt: "2026-04-26T12:00:00.000Z" }),

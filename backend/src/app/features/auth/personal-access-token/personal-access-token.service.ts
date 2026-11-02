@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import BadRequestError from "@/errors/http/bad-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { environment } from "@/configuration/environment";
+import type { HmacSigningKey } from "@/configuration/environment/types";
 import { normalizeAppRole } from "@/features/auth/auth.model";
 import type { PersonalAccessTokenPrincipal } from "@/features/auth/auth.principal";
 import type {
@@ -17,9 +18,10 @@ import type {
 import { PersonalAccessTokenRepository } from "./personal-access-token.repository";
 import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import { SigningKeyring } from "@/features/auth/token/signing-keyring";
 
 interface PersonalAccessTokenServiceOptions {
-  personalAccessTokenSecret?: string;
+  personalAccessTokenKeys?: HmacSigningKey[];
 }
 
 const PAT_TOKEN_PREFIX = "rpat";
@@ -27,14 +29,15 @@ const MCP_READ_SCOPE: PersonalAccessTokenScope = "mcp:read";
 const PAT_TOKEN_PATTERN = /^rpat_([a-f0-9]{24})_([a-f0-9]{48})$/;
 
 export class PersonalAccessTokenService {
-  private readonly personalAccessTokenSecret?: string;
+  private readonly personalAccessTokenKeys?: HmacSigningKey[];
+  private keyring?: SigningKeyring<HmacSigningKey>;
 
   constructor(
     private readonly personalAccessTokenRepository: PersonalAccessTokenRepository,
     private readonly authAuditService: AuthAuditService,
     options: PersonalAccessTokenServiceOptions = {},
   ) {
-    this.personalAccessTokenSecret = options.personalAccessTokenSecret;
+    this.personalAccessTokenKeys = options.personalAccessTokenKeys;
   }
 
   async listForUser(userId: Uuid): Promise<PersonalAccessTokenListResult> {
@@ -199,7 +202,7 @@ export class PersonalAccessTokenService {
   }
 
   private hashSecret(publicId: string, secret: string): string {
-    return createHmac("sha256", this.getPersonalAccessTokenSecret())
+    return createHmac("sha256", this.getKeyring().current.secret)
       .update(`${publicId}.${secret}`)
       .digest("hex");
   }
@@ -235,10 +238,11 @@ export class PersonalAccessTokenService {
     return nextExpiration;
   }
 
-  private getPersonalAccessTokenSecret(): string {
-    return (
-      this.personalAccessTokenSecret ??
-      environment.getTokenConfig().personalAccessTokenSecret
+  private getKeyring(): SigningKeyring<HmacSigningKey> {
+    this.keyring ??= new SigningKeyring(
+      this.personalAccessTokenKeys ??
+        environment.getTokenConfig().personalAccessTokenKeys,
     );
+    return this.keyring;
   }
 }

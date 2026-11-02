@@ -3,11 +3,21 @@ import { buildBlobStorageConfig } from "@/configuration/environment/domains/infr
 import { normalizeRawEnvironment } from "@/configuration/environment/shared";
 
 const tokenConfig = {
-  accessTokenAlgorithm: "HS256" as const,
-  accessTokenSecret: "test-access-secret-value-with-32chars",
-  accessTokenPrivateKey: undefined,
-  accessTokenPublicKey: undefined,
-  refreshTokenSecret: "test-refresh-secret-value-with-32c",
+  accessTokenKeys: [
+    {
+      kid: "default",
+      status: "current" as const,
+      algorithm: "HS256" as const,
+      secret: "test-access-secret-value-with-32chars",
+    },
+  ],
+  refreshTokenKeys: [
+    {
+      kid: "default",
+      status: "current" as const,
+      secret: "test-refresh-secret-value-with-32c",
+    },
+  ],
   accessTokenTtlSeconds: 15 * 60,
   refreshTokenTtlSeconds: 30 * 24 * 60 * 60,
   rememberMeRefreshTokenTtlSeconds: 90 * 24 * 60 * 60,
@@ -16,7 +26,13 @@ const tokenConfig = {
   refreshTokenMode: "stateful" as const,
   refreshReuseResponse: "session" as const,
   refreshTokenCachePrefix: "auth:refresh",
-  personalAccessTokenSecret: "test-personal-access-token-secret-32",
+  personalAccessTokenKeys: [
+    {
+      kid: "default",
+      status: "current" as const,
+      secret: "test-personal-access-token-secret-32",
+    },
+  ],
   authAuditIdentifierSecret: "test-auth-audit-identifier-secret-32",
   mfaBypassEmails: [],
   mfaTotpEncryptionKey:

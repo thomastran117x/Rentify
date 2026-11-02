@@ -6,6 +6,10 @@ import {
   TokenService,
   type JwtClaims,
 } from "@/features/auth/token/token.service";
+import type {
+  AccessTokenSigningKey,
+  HmacSigningKey,
+} from "@/configuration/environment/types";
 import { testUuid } from "../../support/uuid";
 const MISSING_USER_ID = testUuid(9000, 791594);
 
@@ -142,11 +146,8 @@ function createService(options?: {
   issuer?: string;
   audience?: string;
   cachePrefix?: string;
-  accessTokenAlgorithm?: "HS256" | "RS256";
-  accessTokenSecret?: string;
-  accessTokenPrivateKey?: string;
-  accessTokenPublicKey?: string;
-  refreshTokenSecret?: string;
+  accessTokenKeys?: AccessTokenSigningKey[];
+  refreshTokenKeys?: HmacSigningKey[];
   refreshReuseResponse?: "session" | "user";
 }) {
   const authRepository = createAuthRepository({
@@ -158,11 +159,8 @@ function createService(options?: {
   const service = new TokenService({
     cache: cache.service as any,
     tokenRepository: authRepository as any,
-    accessTokenAlgorithm: options?.accessTokenAlgorithm,
-    accessTokenSecret: options?.accessTokenSecret,
-    accessTokenPrivateKey: options?.accessTokenPrivateKey,
-    accessTokenPublicKey: options?.accessTokenPublicKey,
-    refreshTokenSecret: options?.refreshTokenSecret,
+    accessTokenKeys: options?.accessTokenKeys,
+    refreshTokenKeys: options?.refreshTokenKeys,
     refreshTokenMode: options?.refreshTokenMode,
     issuer: options?.issuer,
     audience: options?.audience,
@@ -183,6 +181,40 @@ function toBase64Url(value: unknown): string {
 
 function signValue(unsignedToken: string, secret: string): string {
   return createHmac("sha256", secret).update(unsignedToken).digest("base64url");
+}
+
+function hmacKey(
+  kid: string,
+  status: "current" | "previous",
+  secret: string,
+): HmacSigningKey {
+  return { kid, status, secret };
+}
+
+function hsAccessKey(
+  kid: string,
+  status: "current" | "previous",
+  secret: string,
+): AccessTokenSigningKey {
+  return { kid, status, algorithm: "HS256", secret };
+}
+
+function rsAccessKey(
+  kid: string,
+  status: "current" | "previous",
+  keys: { publicKey: string; privateKey?: string },
+): AccessTokenSigningKey {
+  return { kid, status, algorithm: "RS256", ...keys };
+}
+
+function decodeSegment(segment: string | undefined): Record<string, unknown> {
+  return JSON.parse(
+    Buffer.from(segment ?? "", "base64url").toString("utf8"),
+  ) as Record<string, unknown>;
+}
+
+function replaceSignature(token: string, signature: string): string {
+  return [...token.split(".").slice(0, -1), signature].join(".");
 }
 
 function createRsaKeyPair(): { privateKey: string; publicKey: string } {
@@ -225,7 +257,7 @@ describe("TokenService", () => {
 
     expect(
       JSON.parse(Buffer.from(encodedHeader ?? "", "base64url").toString()),
-    ).toEqual({ alg: "HS256", typ: "JWT" });
+    ).toEqual({ alg: "HS256", typ: "JWT", kid: "default" });
     expect(claims).toMatchObject({
       sub: USER_1_ID,
       email: "user@example.com",
@@ -243,13 +275,15 @@ describe("TokenService", () => {
   it("creates RS256 access tokens and verifies them with the public key", async () => {
     const { privateKey, publicKey } = createRsaKeyPair();
     const issuer = createService({
-      accessTokenAlgorithm: "RS256",
-      accessTokenPrivateKey: privateKey,
-      accessTokenPublicKey: publicKey,
+      accessTokenKeys: [
+        rsAccessKey("rsa-1", "current", { privateKey, publicKey }),
+      ],
     }).service;
     const verifier = createService({
-      accessTokenAlgorithm: "RS256",
-      accessTokenPublicKey: publicKey,
+      accessTokenKeys: [
+        hsAccessKey("hs-1", "current", "test-access-secret-value-with-32chars"),
+        rsAccessKey("rsa-1", "previous", { publicKey }),
+      ],
     }).service;
     const token = issuer.createAccessToken({
       sub: USER_1_ID,
@@ -260,7 +294,7 @@ describe("TokenService", () => {
 
     expect(
       JSON.parse(Buffer.from(encodedHeader ?? "", "base64url").toString()),
-    ).toEqual({ alg: "RS256", typ: "JWT" });
+    ).toEqual({ alg: "RS256", typ: "JWT", kid: "rsa-1" });
     await expect(verifier.verifyAccessToken(token)).resolves.toMatchObject({
       sub: USER_1_ID,
       email: "user@example.com",
@@ -272,13 +306,14 @@ describe("TokenService", () => {
     const trustedKeys = createRsaKeyPair();
     const untrustedKeys = createRsaKeyPair();
     const issuer = createService({
-      accessTokenAlgorithm: "RS256",
-      accessTokenPrivateKey: untrustedKeys.privateKey,
-      accessTokenPublicKey: untrustedKeys.publicKey,
+      accessTokenKeys: [rsAccessKey("default", "current", untrustedKeys)],
     }).service;
     const verifier = createService({
-      accessTokenAlgorithm: "RS256",
-      accessTokenPublicKey: trustedKeys.publicKey,
+      accessTokenKeys: [
+        rsAccessKey("default", "current", {
+          publicKey: trustedKeys.publicKey,
+        }),
+      ],
     }).service;
     const token = issuer.createAccessToken({
       sub: USER_1_ID,
@@ -484,7 +519,7 @@ describe("TokenService", () => {
   it("rejects access tokens with invalid JWT headers even when the signature matches", async () => {
     const accessTokenSecret = "test-access-secret-value-with-32chars";
     const { service } = createService({
-      accessTokenSecret,
+      accessTokenKeys: [hsAccessKey("default", "current", accessTokenSecret)],
     });
     const header = toBase64Url({
       alg: "none",
@@ -589,8 +624,7 @@ describe("TokenService", () => {
       sub: USER_1_ID,
       tokenVersion: 2,
     });
-    const parts = token.split(".");
-    const tamperedToken = `${parts[0]}.${parts[1]}.not-the-real-signature`;
+    const tamperedToken = replaceSignature(token, "not-the-real-signature");
 
     await expect(service.verifyRefreshToken(tamperedToken)).rejects.toThrow(
       "Invalid refresh token signature.",
@@ -634,7 +668,7 @@ describe("TokenService", () => {
     );
     const parts = token.split(".");
     const body = JSON.parse(
-      Buffer.from(parts[1] ?? "", "base64url").toString("utf8"),
+      Buffer.from(parts[2] ?? "", "base64url").toString("utf8"),
     ) as {
       jti: string;
     };
@@ -673,8 +707,7 @@ describe("TokenService", () => {
       sub: USER_1_ID,
       tokenVersion: 2,
     });
-    const parts = token.split(".");
-    const tamperedToken = `${parts[0]}.${parts[1]}.not-the-real-signature`;
+    const tamperedToken = replaceSignature(token, "not-the-real-signature");
 
     await expect(service.revokeRefreshToken(tamperedToken)).rejects.toThrow(
       "Invalid refresh token signature.",
@@ -871,7 +904,7 @@ describe("TokenService", () => {
     const refreshTokenSecret = "test-refresh-secret-value-with-32chars";
     const { service } = createService({
       refreshTokenMode: "stateful",
-      refreshTokenSecret,
+      refreshTokenKeys: [hmacKey("default", "current", refreshTokenSecret)],
     });
     const body = Buffer.from("not-json", "utf8").toString("base64url");
     const signature = signValue(body, refreshTokenSecret);
@@ -879,5 +912,304 @@ describe("TokenService", () => {
     await expect(
       service.verifyRefreshToken(`v1.${body}.${signature}`),
     ).rejects.toThrow("Invalid refresh token format.");
+  });
+
+  describe("signing key rotation", () => {
+    const OLD_SECRET = "old-signing-secret-value-with-32-chars";
+    const NEW_SECRET = "new-signing-secret-value-with-32-chars";
+
+    function signLegacyAccessToken(secret: string): string {
+      const header = toBase64Url({ alg: "HS256", typ: "JWT" });
+      const payload = toBase64Url(createClaims());
+      return `${header}.${payload}.${signValue(`${header}.${payload}`, secret)}`;
+    }
+
+    it("signs access tokens with the current key and still verifies a previous key", async () => {
+      const before = createService({
+        accessTokenKeys: [hsAccessKey("old", "current", OLD_SECRET)],
+      }).service;
+      const after = createService({
+        accessTokenKeys: [
+          hsAccessKey("new", "current", NEW_SECRET),
+          hsAccessKey("old", "previous", OLD_SECRET),
+        ],
+      }).service;
+      const oldToken = before.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const newToken = after.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      await expect(after.verifyAccessToken(oldToken)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      expect(decodeSegment(newToken.split(".")[0])).toMatchObject({
+        kid: "new",
+      });
+      await expect(before.verifyAccessToken(newToken)).rejects.toThrow(
+        "Access token signing key is not recognized.",
+      );
+    });
+
+    it("rejects access tokens once their key is removed", async () => {
+      const before = createService({
+        accessTokenKeys: [hsAccessKey("old", "current", OLD_SECRET)],
+      }).service;
+      const removed = createService({
+        accessTokenKeys: [hsAccessKey("new", "current", NEW_SECRET)],
+      }).service;
+      const token = before.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      await expect(removed.verifyAccessToken(token)).rejects.toThrow(
+        "Access token signing key is not recognized.",
+      );
+    });
+
+    it("verifies a token without a kid with the default key only", async () => {
+      const legacyToken = signLegacyAccessToken(OLD_SECRET);
+      const withDefault = createService({
+        accessTokenKeys: [
+          hsAccessKey("new", "current", NEW_SECRET),
+          hsAccessKey("default", "previous", OLD_SECRET),
+        ],
+      }).service;
+      const withoutDefault = createService({
+        accessTokenKeys: [
+          hsAccessKey("new", "current", NEW_SECRET),
+          hsAccessKey("old", "previous", OLD_SECRET),
+        ],
+      }).service;
+
+      await expect(
+        withDefault.verifyAccessToken(legacyToken),
+      ).resolves.toMatchObject({ sub: USER_1_ID });
+      await expect(
+        withoutDefault.verifyAccessToken(legacyToken),
+      ).rejects.toThrow("Access token signing key is not recognized.");
+    });
+
+    it("rejects a kid that is not a string, and an algorithm that is not the key's", async () => {
+      const { service } = createService({
+        accessTokenKeys: [hsAccessKey("hs", "current", NEW_SECRET)],
+      });
+      const payload = toBase64Url(createClaims());
+      const signed = (header: unknown) => {
+        const encodedHeader = toBase64Url(header);
+        return `${encodedHeader}.${payload}.${signValue(
+          `${encodedHeader}.${payload}`,
+          NEW_SECRET,
+        )}`;
+      };
+
+      await expect(
+        service.verifyAccessToken(signed({ alg: "HS256", typ: "JWT", kid: 5 })),
+      ).rejects.toThrow("Invalid access token header.");
+      await expect(
+        service.verifyAccessToken(
+          signed({ alg: "RS256", typ: "JWT", kid: "hs" }),
+        ),
+      ).rejects.toThrow("Invalid access token header.");
+    });
+
+    it("verifies HS256 tokens after the current key moves to RS256", async () => {
+      const rsaKeys = createRsaKeyPair();
+      const before = createService({
+        accessTokenKeys: [hsAccessKey("hs", "current", OLD_SECRET)],
+      }).service;
+      const after = createService({
+        accessTokenKeys: [
+          rsAccessKey("rsa", "current", rsaKeys),
+          hsAccessKey("hs", "previous", OLD_SECRET),
+        ],
+      }).service;
+      const hsToken = before.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const rsToken = after.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      await expect(after.verifyAccessToken(hsToken)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      await expect(after.verifyAccessToken(rsToken)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      expect(decodeSegment(rsToken.split(".")[0])).toEqual({
+        alg: "RS256",
+        typ: "JWT",
+        kid: "rsa",
+      });
+    });
+
+    it("refuses to sign with an RS256 key that has no private key", () => {
+      const { publicKey } = createRsaKeyPair();
+      const { service } = createService({
+        accessTokenKeys: [rsAccessKey("rsa", "current", { publicKey })],
+      });
+
+      expect(() =>
+        service.createAccessToken({ sub: USER_1_ID, tokenVersion: 2 }),
+      ).toThrow("Access token key rsa has no private key to sign with.");
+    });
+
+    it("rejects access tokens without the configured issuer", async () => {
+      const unscoped = createService().service;
+      const scoped = createService({
+        issuer: "rent-api",
+        audience: "rent-web",
+      }).service;
+      const token = unscoped.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      await expect(scoped.verifyAccessToken(token)).rejects.toThrow(
+        "Access token issuer is invalid.",
+      );
+    });
+
+    it("rejects access tokens without the configured audience", async () => {
+      const issuerOnly = createService({ issuer: "rent-api" }).service;
+      const scoped = createService({
+        issuer: "rent-api",
+        audience: "rent-web",
+      }).service;
+      const token = issuerOnly.createAccessToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      await expect(scoped.verifyAccessToken(token)).rejects.toThrow(
+        "Access token audience is invalid.",
+      );
+    });
+
+    it("writes the current kid into v2 refresh tokens and verifies a previous key", async () => {
+      const before = createService({
+        refreshTokenMode: "stateless",
+        refreshTokenKeys: [hmacKey("old", "current", OLD_SECRET)],
+      }).service;
+      const after = createService({
+        refreshTokenMode: "stateless",
+        refreshTokenKeys: [
+          hmacKey("new", "current", NEW_SECRET),
+          hmacKey("old", "previous", OLD_SECRET),
+        ],
+      }).service;
+      const oldToken = await before.createRefreshToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const newToken = await after.createRefreshToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+
+      expect(oldToken.startsWith("v2.old.")).toBe(true);
+      expect(newToken.startsWith("v2.new.")).toBe(true);
+      await expect(after.verifyRefreshToken(oldToken)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      await expect(before.verifyRefreshToken(newToken)).rejects.toThrow(
+        "Refresh token signing key is not recognized.",
+      );
+    });
+
+    it("verifies v1 refresh tokens with the default key", async () => {
+      const body = toBase64Url({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+        iat: 1,
+        exp: 9_999_999_999,
+        jti: "legacy-jti",
+      });
+      const legacyToken = `v1.${body}.${signValue(body, OLD_SECRET)}`;
+      const { service } = createService({
+        refreshTokenMode: "stateless",
+        refreshTokenKeys: [
+          hmacKey("new", "current", NEW_SECRET),
+          hmacKey("default", "previous", OLD_SECRET),
+        ],
+      });
+
+      await expect(
+        service.verifyRefreshToken(legacyToken),
+      ).resolves.toMatchObject({ jti: "legacy-jti" });
+    });
+
+    it("rejects a refresh token whose kid was swapped, because the kid is signed", async () => {
+      const { service } = createService({
+        refreshTokenMode: "stateless",
+        refreshTokenKeys: [
+          hmacKey("new", "current", NEW_SECRET),
+          hmacKey("old", "previous", OLD_SECRET),
+        ],
+      });
+      const token = await service.createRefreshToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const [version, , body, signature] = token.split(".");
+
+      await expect(
+        service.verifyRefreshToken(`${version}.old.${body}.${signature}`),
+      ).rejects.toThrow("Invalid refresh token signature.");
+      await expect(
+        service.verifyRefreshToken(`${version}.new.${body}`),
+      ).rejects.toThrow("Invalid refresh token format.");
+    });
+
+    it("re-signs a session with the current key when a previous-key refresh token rotates", async () => {
+      const cache = createCache();
+      const tokenRepository = createAuthRepository();
+      const buildService = (refreshTokenKeys: HmacSigningKey[]) =>
+        new TokenService({
+          cache: cache.service as any,
+          tokenRepository: tokenRepository as any,
+          refreshTokenMode: "stateful",
+          refreshTokenKeys,
+        });
+      const before = buildService([hmacKey("old", "current", OLD_SECRET)]);
+      const after = buildService([
+        hmacKey("new", "current", NEW_SECRET),
+        hmacKey("old", "previous", OLD_SECRET),
+      ]);
+      const payload = {
+        sub: USER_1_ID,
+        deviceId: "device-1",
+        sessionId: "session-key-rotation",
+        tokenVersion: 2,
+      };
+      await before.createSession(
+        {
+          sessionId: payload.sessionId,
+          userId: USER_1_ID,
+          deviceId: payload.deviceId,
+          tokenVersion: 2,
+        },
+        120,
+      );
+      const oldToken = await before.createRefreshToken(payload, {
+        expiresInSeconds: 120,
+      });
+
+      const rotated = await after.rotateRefreshToken(oldToken, payload, {
+        expiresInSeconds: 120,
+      });
+
+      expect(rotated.startsWith("v2.new.")).toBe(true);
+      await expect(after.verifyRefreshToken(rotated)).resolves.toMatchObject({
+        sessionId: "session-key-rotation",
+      });
+    });
   });
 });

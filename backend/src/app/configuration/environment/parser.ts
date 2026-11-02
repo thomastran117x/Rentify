@@ -7,9 +7,12 @@ import {
   buildCsrfConfig,
   buildEmailConfig,
   buildOauthConfig,
-  parseAccessTokenCredentials,
   parseRefreshTokenMode,
 } from "@/configuration/environment/domains/auth";
+import {
+  parseAccessTokenKeys,
+  parseHmacKeys,
+} from "@/configuration/environment/domains/signing-keys";
 import {
   buildApplicationConfig,
   buildHttpConfig,
@@ -80,21 +83,19 @@ export function parseEnvironmentState(
   }
   const errors: string[] = [];
   const nodeEnv = parseNodeEnvironment(raw, errors);
-  const accessTokenCredentials = parseAccessTokenCredentials(raw, errors);
+  const accessTokenKeys = parseAccessTokenKeys(raw, errors);
   const refreshTokenMode = parseRefreshTokenMode(raw, errors);
   const rateLimiterStrategy = parseRateLimiterStrategy(raw, errors);
 
   const databaseUrl = readRequiredString(raw, "DATABASE_URL", errors);
-  const refreshTokenSecret = readRequiredSecret(
-    raw,
-    "REFRESH_TOKEN_SECRET",
-    errors,
-  );
-  const personalAccessTokenSecret = readRequiredSecret(
-    raw,
-    "PERSONAL_ACCESS_TOKEN_SECRET",
-    errors,
-  );
+  const refreshTokenKeys = parseHmacKeys(raw, errors, {
+    keysName: "REFRESH_TOKEN_KEYS",
+    legacyName: "REFRESH_TOKEN_SECRET",
+  });
+  const personalAccessTokenKeys = parseHmacKeys(raw, errors, {
+    keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
+    legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
+  });
   const authAuditIdentifierSecret = readRequiredSecret(
     raw,
     "AUTH_AUDIT_IDENTIFIER_SECRET",
@@ -134,9 +135,9 @@ export function parseEnvironmentState(
       raw,
       errors,
       refreshTokenMode,
-      accessTokenCredentials,
-      refreshTokenSecret,
-      personalAccessTokenSecret,
+      accessTokenKeys,
+      refreshTokenKeys,
+      personalAccessTokenKeys,
       authAuditIdentifierSecret,
       mfaTotpEncryptionKey,
       nodeEnv,

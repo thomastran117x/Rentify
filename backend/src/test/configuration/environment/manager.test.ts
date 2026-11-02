@@ -122,9 +122,14 @@ describe("EnvironmentManager", () => {
     expect(environment.database.url).toBe(
       "mysql://process:process@localhost:3306/rent_process",
     );
-    expect(environment.auth.accessTokenSecret).toBe(
-      "process-access-secret-value-with-32chars",
-    );
+    expect(environment.auth.accessTokenKeys).toEqual([
+      {
+        kid: "default",
+        status: "current",
+        algorithm: "HS256",
+        secret: "process-access-secret-value-with-32chars",
+      },
+    ]);
     expect(process.env.DATABASE_URL).toBe(
       "mysql://process:process@localhost:3306/rent_process",
     );
@@ -563,12 +568,15 @@ describe("EnvironmentManager", () => {
 
     const tokenConfig = manager.load().auth;
 
-    expect(tokenConfig).toMatchObject({
-      accessTokenAlgorithm: "RS256",
-      accessTokenSecret: undefined,
-      accessTokenPrivateKey: privateKey,
-      accessTokenPublicKey: publicKey,
-    });
+    expect(tokenConfig.accessTokenKeys).toEqual([
+      {
+        kid: "default",
+        status: "current",
+        algorithm: "RS256",
+        privateKey,
+        publicKey,
+      },
+    ]);
   });
 
   it("rejects RS256 access-token credentials that do not form a key pair", () => {
