@@ -8,8 +8,10 @@ import {
 import type {
   AccessTokenAlgorithm,
   AccessTokenSigningKey,
+  AppEnvironment,
   EnvironmentVariableName,
   HmacSigningKey,
+  NodeEnvironment,
   RawEnvironmentValues,
 } from "@/configuration/environment/types";
 
@@ -39,6 +41,8 @@ type SigningKeyEntry = z.infer<typeof signingKeyEntrySchema>;
 export interface LabelledSecret {
   label: string;
   secret: string;
+  /** Compared ignoring case, as a hex-encoded key is. */
+  caseInsensitive?: boolean;
 }
 
 export function normalizePem(value?: string): string | undefined {
@@ -116,6 +120,12 @@ function shortSecretError(label: string): string {
   return `${label} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`;
 }
 
+function secretsAreEqual(left: LabelledSecret, right: LabelledSecret): boolean {
+  return left.caseInsensitive || right.caseInsensitive
+    ? left.secret.toLowerCase() === right.secret.toLowerCase()
+    : left.secret === right.secret;
+}
+
 /** Pushes an error for every pair of secrets that are equal. */
 export function rejectEqualSecrets(
   secrets: LabelledSecret[],
@@ -123,13 +133,45 @@ export function rejectEqualSecrets(
 ): void {
   for (let left = 0; left < secrets.length; left += 1) {
     for (let right = left + 1; right < secrets.length; right += 1) {
-      if (secrets[left].secret === secrets[right].secret) {
+      if (secretsAreEqual(secrets[left], secrets[right])) {
         errors.push(
           `${secrets[left].label} and ${secrets[right].label} must differ.`,
         );
       }
     }
   }
+}
+
+/** Like rejectEqualSecrets, but only compares secrets from different groups. */
+function rejectEqualSecretsAcrossGroups(
+  groups: LabelledSecret[][],
+  errors: string[],
+): void {
+  for (let left = 0; left < groups.length; left += 1) {
+    for (let right = left + 1; right < groups.length; right += 1) {
+      for (const leftSecret of groups[left]) {
+        for (const rightSecret of groups[right]) {
+          if (secretsAreEqual(leftSecret, rightSecret)) {
+            errors.push(
+              `${leftSecret.label} and ${rightSecret.label} must differ.`,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+/** Names a key by the variable it came from, never by its value. */
+function keyLabel(
+  raw: RawEnvironmentValues,
+  names: {
+    keysName: EnvironmentVariableName;
+    legacyName: EnvironmentVariableName;
+  },
+  kid: string,
+): string {
+  return raw[names.keysName] ? `${names.keysName}[${kid}]` : names.legacyName;
 }
 
 /**
@@ -432,17 +474,92 @@ export function parseAccessTokenKeys(
     }
   }
 
-  rejectEqualSecrets(hmacAccessTokenSecrets(keys), errors);
+  rejectEqualSecrets(accessTokenHmacSecrets(raw, keys), errors);
 
   return keys;
 }
 
-export function hmacAccessTokenSecrets(
+function accessTokenHmacSecrets(
+  raw: RawEnvironmentValues,
   keys: AccessTokenSigningKey[],
 ): LabelledSecret[] {
   return keys.flatMap((key) =>
     key.algorithm === "HS256"
-      ? [{ label: `ACCESS_TOKEN_KEYS[${key.kid}]`, secret: key.secret }]
+      ? [
+          {
+            label: keyLabel(
+              raw,
+              {
+                keysName: "ACCESS_TOKEN_KEYS",
+                legacyName: "ACCESS_TOKEN_SECRET",
+              },
+              key.kid,
+            ),
+            secret: key.secret,
+          },
+        ]
       : [],
+  );
+}
+
+/**
+ * Production must scope its JWTs to an issuer and audience, and must not use
+ * one secret for two purposes, where a leak of one would compromise both.
+ */
+export function validateProductionTokenSigning(
+  raw: RawEnvironmentValues,
+  auth: AppEnvironment["auth"],
+  nodeEnv: NodeEnvironment,
+  errors: string[],
+): void {
+  if (nodeEnv !== "production") {
+    return;
+  }
+
+  if (!auth.issuer) {
+    errors.push("TOKEN_ISSUER is required in production.");
+  }
+  if (!auth.audience) {
+    errors.push("TOKEN_AUDIENCE is required in production.");
+  }
+
+  const hmacSecrets = (
+    keys: HmacSigningKey[],
+    names: {
+      keysName: EnvironmentVariableName;
+      legacyName: EnvironmentVariableName;
+    },
+  ): LabelledSecret[] =>
+    keys.map((key) => ({
+      label: keyLabel(raw, names, key.kid),
+      secret: key.secret,
+    }));
+
+  rejectEqualSecretsAcrossGroups(
+    [
+      accessTokenHmacSecrets(raw, auth.accessTokenKeys),
+      hmacSecrets(auth.refreshTokenKeys, {
+        keysName: "REFRESH_TOKEN_KEYS",
+        legacyName: "REFRESH_TOKEN_SECRET",
+      }),
+      hmacSecrets(auth.personalAccessTokenKeys, {
+        keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
+        legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
+      }),
+      [
+        {
+          label: "AUTH_AUDIT_IDENTIFIER_SECRET",
+          secret: auth.authAuditIdentifierSecret,
+        },
+      ],
+      [
+        {
+          label: "MFA_TOTP_ENCRYPTION_KEY",
+          secret: auth.mfaTotpEncryptionKey,
+          caseInsensitive: true,
+        },
+      ],
+    ].map((group) => group.filter((entry) => entry.secret)),
+    errors,
   );
 }

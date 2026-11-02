@@ -270,6 +270,33 @@ Keep the old secret under kid `default` when you first move to a keyset, so
 the tokens issued before keysets keep verifying. The dev-only local blob storage
 signs its upload URLs with the current access key.
 
+### Issuer, audience, and production checks
+
+`auth.issuer` and `auth.audience` (overrides `TOKEN_ISSUER` and
+`TOKEN_AUDIENCE`) are written into every access JWT as `iss` and `aud`. When
+either is configured, a JWT whose claim is missing or different is rejected.
+Both default to `null` in `default.yml`, and they are deployment-specific, so
+production sets them as overrides, for example:
+
+```dotenv
+TOKEN_ISSUER=https://api.example.com
+TOKEN_AUDIENCE=rent-web
+```
+
+When `NODE_ENV` is `production`, startup fails when:
+
+- `TOKEN_ISSUER` or `TOKEN_AUDIENCE` is unset;
+- any two of these are equal: an `HS256` access secret, a refresh secret, a
+  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+  (the TOTP key is compared ignoring case). Every key in a keyset counts,
+  previous keys included, so one leaked secret cannot forge two kinds of
+  token. The error names both variables but not the value.
+
+Setting the issuer and audience on an existing deployment logs nobody out.
+Access tokens issued before the change have no `iss` or `aud`, so they are
+rejected, but they last only 15 minutes. Refresh tokens carry neither claim,
+so the client's next refresh returns a scoped access token.
+
 ## Refresh-token reuse response
 
 `auth.refreshReuseResponse` controls the immediate response when a consumed

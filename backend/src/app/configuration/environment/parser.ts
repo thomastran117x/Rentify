@@ -12,6 +12,7 @@ import {
 import {
   parseAccessTokenKeys,
   parseHmacKeys,
+  validateProductionTokenSigning,
 } from "@/configuration/environment/domains/signing-keys";
 import {
   buildApplicationConfig,
@@ -175,6 +176,7 @@ export function parseEnvironmentState(
   };
 
   validateRuntimeConfig(config, errors);
+  validateProductionTokenSigning(raw, config.auth, nodeEnv, errors);
 
   if (errors.length > 0) {
     throw new Error(
