@@ -259,6 +259,12 @@ secret.
   signature covers the kid, so the kid cannot be swapped for another key's.
   A `v1.<body>.<signature>` token predates keysets and is verified with kid
   `default`. Refreshing a session always re-signs it with the current key.
+- **PATs** store the kid of the key that hashed them in
+  `personal_access_tokens.secret_kid`; rows from before keysets have
+  `default`. A PAT hashed with a previous key is hashed again with the current
+  key the next time it is used. A PAT that is not used before its key is
+  removed stops working. PAT expiry cannot be relied on instead, because
+  `expiresAt` accepts any future date.
 
 Keep the old secret under kid `default` when you first move to a keyset, so
 the tokens issued before keysets keep verifying. The dev-only local blob storage

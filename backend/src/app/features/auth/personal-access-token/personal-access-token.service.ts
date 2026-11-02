@@ -55,12 +55,14 @@ export class PersonalAccessTokenService {
     const publicId = randomBytes(12).toString("hex");
     const secret = randomBytes(24).toString("hex");
     const tokenValue = `${PAT_TOKEN_PREFIX}_${publicId}_${secret}`;
+    const key = this.getKeyring().current;
     const tokenRecord = await this.personalAccessTokenRepository.create({
       userId: input.userId,
       name: input.name,
       publicId,
       tokenPrefix: `${PAT_TOKEN_PREFIX}_${publicId}_${secret.slice(0, 6)}`,
-      secretHash: this.hashSecret(publicId, secret),
+      secretHash: this.hashSecret(key, publicId, secret),
+      secretKid: key.kid,
       scopes: input.scopes,
       ...(input.expiresAt || input.expiresInDays !== undefined
         ? {
@@ -138,12 +140,12 @@ export class PersonalAccessTokenService {
       throw new UnauthorizedError("Personal access token has expired.");
     }
 
-    const expectedHash = this.hashSecret(
-      parsedToken.publicId,
-      parsedToken.secret,
-    );
+    // A removed key cannot verify, so its tokens stop working with it.
+    const key = this.getKeyring().find(token.secretKid);
+    const expectedHash =
+      key && this.hashSecret(key, parsedToken.publicId, parsedToken.secret);
 
-    if (!this.safeEquals(token.secretHash, expectedHash)) {
+    if (!expectedHash || !this.safeEquals(token.secretHash, expectedHash)) {
       throw new UnauthorizedError("Personal access token is invalid.");
     }
 
@@ -154,7 +156,22 @@ export class PersonalAccessTokenService {
       throw new UnauthorizedError("Personal access token is no longer valid.");
     }
 
-    await this.personalAccessTokenRepository.touchLastUsedAt(token.id);
+    // Moving the token onto the current key here is what lets a previous key
+    // be removed: only tokens unused for the whole rotation are left on it.
+    const currentKey = this.getKeyring().current;
+    await this.personalAccessTokenRepository.touchLastUsedAt(
+      token.id,
+      key === currentKey
+        ? undefined
+        : {
+            secretHash: this.hashSecret(
+              currentKey,
+              parsedToken.publicId,
+              parsedToken.secret,
+            ),
+            secretKid: currentKey.kid,
+          },
+    );
 
     return {
       sub: token.user.id,
@@ -201,8 +218,12 @@ export class PersonalAccessTokenService {
     };
   }
 
-  private hashSecret(publicId: string, secret: string): string {
-    return createHmac("sha256", this.getKeyring().current.secret)
+  private hashSecret(
+    key: HmacSigningKey,
+    publicId: string,
+    secret: string,
+  ): string {
+    return createHmac("sha256", key.secret)
       .update(`${publicId}.${secret}`)
       .digest("hex");
   }

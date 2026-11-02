@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import type { PersonalAccessTokenRecord } from "@/features/auth/personal-access-token/personal-access-token.model";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -50,6 +51,7 @@ function createTokenRecord(
     publicId: "1234567890abcdef123456",
     tokenPrefix: "rpat_1234567890abcdef123456_abcdef",
     secretHash: "",
+    secretKid: "current-key",
     scopes: ["mcp:read"],
     createdAt: "2026-04-26T00:00:00.000Z",
     updatedAt: "2026-04-26T00:00:00.000Z",
@@ -76,6 +78,7 @@ function installCreateMock(
         publicId: input.publicId as string,
         tokenPrefix: input.tokenPrefix as string,
         secretHash: input.secretHash as string,
+        secretKid: input.secretKid as string,
         scopes: input.scopes as PersonalAccessTokenRecord["scopes"],
         expiresAt: (input.expiresAt as Date | undefined)?.toISOString(),
       });
@@ -154,7 +157,10 @@ describe("PersonalAccessTokenService", () => {
       authMethod: "pat",
       scopes: ["mcp:read"],
     });
-    expect(repository.touchLastUsedAt).toHaveBeenCalledWith(PAT_RECORD_1_ID);
+    expect(repository.touchLastUsedAt).toHaveBeenCalledWith(
+      PAT_RECORD_1_ID,
+      undefined,
+    );
   });
 
   it("rejects PATs with invalid formats before repository lookup", async () => {
@@ -347,5 +353,82 @@ describe("PersonalAccessTokenService", () => {
 
     expect(repository.revoke).not.toHaveBeenCalled();
     expect(authAuditService.recordSafely).not.toHaveBeenCalled();
+  });
+
+  describe("key rotation", () => {
+    const PUBLIC_ID = "1234567890abcdef12345678";
+    const SECRET = "a".repeat(48);
+    const TOKEN = `rpat_${PUBLIC_ID}_${SECRET}`;
+
+    function hashWith(secret: string): string {
+      return createHmac("sha256", secret)
+        .update(`${PUBLIC_ID}.${SECRET}`)
+        .digest("hex");
+    }
+
+    function serviceWithKeys(
+      repository: ReturnType<typeof createRepositoryMock>,
+      keys: ReturnType<typeof patKeys>,
+    ) {
+      return new PersonalAccessTokenService(
+        repository as any,
+        { recordSafely: jest.fn(async () => undefined) } as any,
+        { personalAccessTokenKeys: keys },
+      );
+    }
+
+    it("stores the current kid with a new token", async () => {
+      const repository = createRepositoryMock();
+      const createState = installCreateMock(repository);
+
+      await serviceWithKeys(repository, patKeys("new-pat-secret")).create({
+        userId: USER_1_ID,
+        name: "Rentify MCP",
+        scopes: ["mcp:read"],
+        expiresInDays: 30,
+      });
+
+      expect(createState.getLatestInput()?.secretKid).toBe("current-key");
+    });
+
+    it("verifies a token hashed with a previous key and re-hashes it with the current key", async () => {
+      const repository = createRepositoryMock();
+      repository.findByPublicId.mockResolvedValue(
+        createTokenRecord({
+          publicId: PUBLIC_ID,
+          secretHash: hashWith("old-pat-secret"),
+          secretKid: "default",
+        }),
+      );
+      const service = serviceWithKeys(
+        repository,
+        patKeys("new-pat-secret", "old-pat-secret"),
+      );
+
+      await expect(service.authenticateToken(TOKEN)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      expect(repository.touchLastUsedAt).toHaveBeenCalledWith(PAT_RECORD_1_ID, {
+        secretHash: hashWith("new-pat-secret"),
+        secretKid: "current-key",
+      });
+    });
+
+    it("rejects a token whose key has been removed", async () => {
+      const repository = createRepositoryMock();
+      repository.findByPublicId.mockResolvedValue(
+        createTokenRecord({
+          publicId: PUBLIC_ID,
+          secretHash: hashWith("old-pat-secret"),
+          secretKid: "default",
+        }),
+      );
+      const service = serviceWithKeys(repository, patKeys("new-pat-secret"));
+
+      await expect(service.authenticateToken(TOKEN)).rejects.toThrow(
+        "Personal access token is invalid.",
+      );
+      expect(repository.touchLastUsedAt).not.toHaveBeenCalled();
+    });
   });
 });

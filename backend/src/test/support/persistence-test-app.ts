@@ -257,13 +257,21 @@ export function applyPersistenceTestEnvironment(
   process.env.REDIS_DB = String(redisDb);
   process.env.DATABASE_AUTO_SEED_ENABLED = "false";
   process.env.DATABASE_AUTO_SEED_REFRESH = "false";
-  process.env.ACCESS_TOKEN_SECRET =
-    process.env.ACCESS_TOKEN_SECRET ?? "seed-test-access-secret-value-32ch";
-  process.env.REFRESH_TOKEN_SECRET =
-    process.env.REFRESH_TOKEN_SECRET ?? "seed-test-refresh-secret-value-32c";
-  process.env.PERSONAL_ACCESS_TOKEN_SECRET =
-    process.env.PERSONAL_ACCESS_TOKEN_SECRET ??
-    "seed-test-personal-access-token-32";
+  // A suite that sets a keyset (for example to test key rotation) gets no
+  // single-secret default, since setting both stops startup.
+  if (!process.env.ACCESS_TOKEN_KEYS) {
+    process.env.ACCESS_TOKEN_SECRET =
+      process.env.ACCESS_TOKEN_SECRET ?? "seed-test-access-secret-value-32ch";
+  }
+  if (!process.env.REFRESH_TOKEN_KEYS) {
+    process.env.REFRESH_TOKEN_SECRET =
+      process.env.REFRESH_TOKEN_SECRET ?? "seed-test-refresh-secret-value-32c";
+  }
+  if (!process.env.PERSONAL_ACCESS_TOKEN_KEYS) {
+    process.env.PERSONAL_ACCESS_TOKEN_SECRET =
+      process.env.PERSONAL_ACCESS_TOKEN_SECRET ??
+      "seed-test-personal-access-token-32";
+  }
   process.env.AUTH_AUDIT_IDENTIFIER_SECRET =
     process.env.AUTH_AUDIT_IDENTIFIER_SECRET ??
     "seed-test-auth-audit-identifier-32";
