@@ -277,7 +277,8 @@ secret.
 
 Keep the old secret under kid `default` when you first move to a keyset, so
 the tokens issued before keysets keep verifying. The dev-only local blob storage
-signs its upload URLs with the current access key.
+signs its upload URLs with the current access key, so promoting a new access
+key also invalidates local upload URLs issued before the restart.
 
 ### Issuer, audience, and production checks
 

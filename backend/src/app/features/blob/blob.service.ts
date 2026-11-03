@@ -15,6 +15,7 @@ import {
 import { buildApiPath } from "@/configuration/http/api-path";
 import { environment } from "@/configuration/environment/index";
 import type { BlobStorageAccount } from "@/configuration/environment/types";
+import { SigningKeyring } from "@/features/auth/token/signing-keyring";
 import { createBlobStorageCredential } from "@/features/blob/blob-storage-access";
 import { LOCAL_BLOB_UPLOAD_TTL_SECONDS } from "@/configuration/environment/constants";
 import { loggerFactory } from "@/configuration/logging";
@@ -835,13 +836,13 @@ export class BlobService {
     }
 
     const port = String(environment.getServerPort());
-    const currentAccessTokenKey = environment
-      .getTokenConfig()
-      .accessTokenKeys.find((key) => key.status === "current");
+    const currentAccessTokenKey = new SigningKeyring(
+      environment.getTokenConfig().accessTokenKeys,
+    ).current;
     const signingSecret =
-      currentAccessTokenKey?.algorithm === "HS256"
+      currentAccessTokenKey.algorithm === "HS256"
         ? currentAccessTokenKey.secret
-        : currentAccessTokenKey?.privateKey;
+        : currentAccessTokenKey.privateKey;
 
     if (!signingSecret) {
       throw new ServiceNotImplementedError(
