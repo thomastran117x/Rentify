@@ -382,7 +382,7 @@ describe("Auth audit events persistence integration", () => {
     );
     expect(firstRefresh.status).toBe(200);
 
-    const [, , encodedClaims] = session.refreshToken!.split(".");
+    const [, encodedClaims] = session.refreshToken!.split(".");
     const claims = JSON.parse(
       Buffer.from(encodedClaims!, "base64url").toString("utf8"),
     ) as { jti: string };

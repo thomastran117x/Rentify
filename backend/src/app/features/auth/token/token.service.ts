@@ -10,6 +10,7 @@ import {
 } from "node:crypto";
 import type { KeyObject } from "node:crypto";
 import { environment } from "@/configuration/environment";
+import { DEFAULT_SIGNING_KEY_ID } from "@/configuration/environment/constants";
 import type {
   AccessTokenSigningKey,
   HmacSigningKey,
@@ -85,7 +86,9 @@ interface CreateRefreshTokenOptions {
 }
 
 // v2 is `v2.<kid>.<body>.<signature>`, signed over `<kid>.<body>`. v1 is
-// `v1.<body>.<signature>`, from before keysets, and verifies with kid default.
+// `v1.<body>.<signature>` and always means kid default. Releases before keysets
+// only read v1, so v1 is still issued while the current key is default; a
+// rolling deploy or a rollback then keeps everyone signed in.
 const REFRESH_TOKEN_VERSION = "v2";
 const LEGACY_REFRESH_TOKEN_VERSION = "v1";
 const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
@@ -1000,6 +1003,15 @@ export class TokenService {
   } {
     const key = this.getRefreshTokenKeyring().current;
     const body = toBase64Url(JSON.stringify(claims));
+
+    if (key.kid === DEFAULT_SIGNING_KEY_ID) {
+      const signature = signValue(body, key.secret);
+      return {
+        token: `${LEGACY_REFRESH_TOKEN_VERSION}.${body}.${signature}`,
+        signature,
+      };
+    }
+
     const signature = signValue(`${key.kid}.${body}`, key.secret);
 
     return {

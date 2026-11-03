@@ -668,7 +668,7 @@ describe("TokenService", () => {
     );
     const parts = token.split(".");
     const body = JSON.parse(
-      Buffer.from(parts[2] ?? "", "base64url").toString("utf8"),
+      Buffer.from(parts[1] ?? "", "base64url").toString("utf8"),
     ) as {
       jti: string;
     };
@@ -1122,6 +1122,27 @@ describe("TokenService", () => {
       await expect(before.verifyRefreshToken(newToken)).rejects.toThrow(
         "Refresh token signing key is not recognized.",
       );
+    });
+
+    it("keeps issuing v1 refresh tokens while the current key is default", async () => {
+      // Releases before keysets read only v1, so a rolling deploy or a
+      // rollback must not see v2 until an operator rotates.
+      const { service } = createService({
+        refreshTokenMode: "stateless",
+        refreshTokenKeys: [hmacKey("default", "current", OLD_SECRET)],
+      });
+      const token = await service.createRefreshToken({
+        sub: USER_1_ID,
+        tokenVersion: 2,
+      });
+      const [version, body, signature, ...rest] = token.split(".");
+
+      expect(version).toBe("v1");
+      expect(rest).toEqual([]);
+      expect(signature).toBe(signValue(body!, OLD_SECRET));
+      await expect(service.verifyRefreshToken(token)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
     });
 
     it("verifies v1 refresh tokens with the default key", async () => {

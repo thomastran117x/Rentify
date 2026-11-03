@@ -543,7 +543,7 @@ describe("Suspicious sign-in detection integration", () => {
 
       // Move the rotation outside its grace period, so replaying the old
       // token is reuse rather than a racing tab.
-      const [, , encodedClaims] = refreshToken!.split(".");
+      const [, encodedClaims] = refreshToken!.split(".");
       const { jti } = JSON.parse(
         Buffer.from(encodedClaims!, "base64url").toString("utf8"),
       ) as { jti: string };

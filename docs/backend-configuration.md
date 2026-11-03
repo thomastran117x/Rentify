@@ -258,8 +258,12 @@ secret.
   with kid `default`.
 - **Refresh tokens** have the form `v2.<kid>.<body>.<signature>`. The
   signature covers the kid, so the kid cannot be swapped for another key's.
-  A `v1.<body>.<signature>` token predates keysets and is verified with kid
-  `default`. Refreshing a session always re-signs it with the current key.
+  A `v1.<body>.<signature>` token always means kid `default`. While the
+  current key is `default`, new refresh tokens are still issued as `v1`,
+  because releases before keysets read only `v1`; a rolling deploy or a
+  rollback of this release therefore signs nobody out. `v2` appears only once
+  a key with another kid is promoted. Refreshing a session always re-signs it
+  with the current key.
 - **PATs** store the kid of the key that hashed them in
   `personal_access_tokens.secret_kid`; rows from before keysets have
   `default`. A PAT hashed with a previous key is hashed again with the current

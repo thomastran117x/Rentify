@@ -495,6 +495,7 @@ To revoke a key because it leaked, skip the wait in step 3: promote the new key 
 
 - A `previous` key never signs. Only the `current` key does, and startup requires exactly one.
 - An `ACCESS_TOKEN_KEYS` entry with `publicKey` is an `RS256` key, so moving from `HS256` to `RS256` is an ordinary rotation. A previous `RS256` key needs only its `publicKey`.
+- Do not roll back past the release that introduced keysets once a key other than `default` has been promoted. That release reads only `v1` refresh tokens, ignores an access token's kid, and hashes PATs only with `PERSONAL_ACCESS_TOKEN_SECRET`, so sessions refreshed and PATs used since the promotion stop working. Until the first promotion, every token is still issued in the old format, so a rollback is safe.
 - In production, no two secrets may be equal across purposes, previous keys included. See [Issuer, audience, and production checks](./backend-configuration.md#issuer-audience-and-production-checks).
 
 ### Out of Scope
