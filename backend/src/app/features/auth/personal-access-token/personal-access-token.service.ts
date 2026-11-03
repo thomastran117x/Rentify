@@ -142,10 +142,14 @@ export class PersonalAccessTokenService {
 
     // A removed key cannot verify, so its tokens stop working with it.
     const key = this.getKeyring().find(token.secretKid);
-    const expectedHash =
-      key && this.hashSecret(key, parsedToken.publicId, parsedToken.secret);
 
-    if (!expectedHash || !this.safeEquals(token.secretHash, expectedHash)) {
+    if (
+      !key ||
+      !this.safeEquals(
+        token.secretHash,
+        this.hashSecret(key, parsedToken.publicId, parsedToken.secret),
+      )
+    ) {
       throw new UnauthorizedError("Personal access token is invalid.");
     }
 
@@ -158,10 +162,13 @@ export class PersonalAccessTokenService {
 
     // Moving the token onto the current key here is what lets a previous key
     // be removed: only tokens unused for the whole rotation are left on it.
+    // A token on a `next` key stays put. That key is current on the instances
+    // already promoted, so moving it back would flip it on every use while a
+    // promotion rolls out.
     const currentKey = this.getKeyring().current;
     await this.personalAccessTokenRepository.touchLastUsedAt(
       token.id,
-      key === currentKey
+      key.status !== "previous"
         ? undefined
         : {
             secretHash: this.hashSecret(

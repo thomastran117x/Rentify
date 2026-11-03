@@ -26,8 +26,8 @@ const signingKeyEntrySchema = z
         SIGNING_KEY_ID_PATTERN,
         "kid must be 1-64 letters, digits, '-' or '_'.",
       ),
-    status: z.enum(["current", "previous"], {
-      error: "status must be 'current' or 'previous'.",
+    status: z.enum(["current", "next", "previous"], {
+      error: "status must be 'current', 'next' or 'previous'.",
     }),
     secret: z.string().min(1).optional(),
     privateKey: z.string().min(1).optional(),

@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import type { HmacSigningKey } from "@/configuration/environment/types";
 import type { PersonalAccessTokenRecord } from "@/features/auth/personal-access-token/personal-access-token.model";
 import { PersonalAccessTokenService } from "@/features/auth/personal-access-token/personal-access-token.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
@@ -368,7 +369,7 @@ describe("PersonalAccessTokenService", () => {
 
     function serviceWithKeys(
       repository: ReturnType<typeof createRepositoryMock>,
-      keys: ReturnType<typeof patKeys>,
+      keys: HmacSigningKey[],
     ) {
       return new PersonalAccessTokenService(
         repository as any,
@@ -412,6 +413,29 @@ describe("PersonalAccessTokenService", () => {
         secretHash: hashWith("new-pat-secret"),
         secretKid: "current-key",
       });
+    });
+
+    it("leaves a token on a next key, as instances already promoted hashed it there", async () => {
+      const repository = createRepositoryMock();
+      repository.findByPublicId.mockResolvedValue(
+        createTokenRecord({
+          publicId: PUBLIC_ID,
+          secretHash: hashWith("new-pat-secret"),
+          secretKid: "next-key",
+        }),
+      );
+      const service = serviceWithKeys(repository, [
+        { kid: "default", status: "current", secret: "old-pat-secret" },
+        { kid: "next-key", status: "next", secret: "new-pat-secret" },
+      ]);
+
+      await expect(service.authenticateToken(TOKEN)).resolves.toMatchObject({
+        sub: USER_1_ID,
+      });
+      expect(repository.touchLastUsedAt).toHaveBeenCalledWith(
+        PAT_RECORD_1_ID,
+        undefined,
+      );
     });
 
     it("rejects a token whose key has been removed", async () => {

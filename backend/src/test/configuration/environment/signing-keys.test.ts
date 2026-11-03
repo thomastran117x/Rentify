@@ -55,6 +55,21 @@ describe("parseHmacKeys", () => {
     ]);
   });
 
+  it("accepts a next key staged for promotion", () => {
+    const { keys, errors } = parseRefresh({
+      REFRESH_TOKEN_KEYS: JSON.stringify([
+        { kid: "default", secret: SECRET_A, status: "current" },
+        { kid: "2026-11", secret: SECRET_B, status: "next" },
+      ]),
+    });
+
+    expect(errors).toEqual([]);
+    expect(keys).toEqual([
+      { kid: "default", status: "current", secret: SECRET_A },
+      { kid: "2026-11", status: "next", secret: SECRET_B },
+    ]);
+  });
+
   it("reads a YAML keyset", () => {
     const { keys, errors } = parseRefresh({
       REFRESH_TOKEN_KEYS: [
@@ -111,7 +126,7 @@ describe("parseHmacKeys", () => {
     expect(keys).toEqual([]);
     expect(errors).toEqual([
       "REFRESH_TOKEN_KEYS[0].kid: kid must be 1-64 letters, digits, '-' or '_'.",
-      "REFRESH_TOKEN_KEYS[1].status: status must be 'current' or 'previous'.",
+      "REFRESH_TOKEN_KEYS[1].status: status must be 'current', 'next' or 'previous'.",
       expect.stringMatching(/^REFRESH_TOKEN_KEYS\[2\]: .*extra/),
     ]);
   });

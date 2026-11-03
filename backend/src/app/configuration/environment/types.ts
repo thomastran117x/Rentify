@@ -5,10 +5,11 @@ export type RefreshTokenMode = "stateless" | "stateful";
 export type RefreshReuseResponse = "session" | "user";
 export type AccessTokenAlgorithm = "HS256" | "RS256";
 /**
- * Only the `current` key of a keyset signs. `previous` keys still verify, so a
- * rotation does not invalidate the tokens they signed.
+ * Only the `current` key of a keyset signs; every key verifies. A `next` key is
+ * staged for promotion and a `previous` key is being retired, so stored hashes
+ * move off `previous` keys but never off `next` ones.
  */
-export type SigningKeyStatus = "current" | "previous";
+export type SigningKeyStatus = "current" | "next" | "previous";
 export interface HmacSigningKey {
   kid: string;
   status: SigningKeyStatus;

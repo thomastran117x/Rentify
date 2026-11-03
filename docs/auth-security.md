@@ -461,7 +461,7 @@ Rotating `AUTH_AUDIT_IDENTIFIER_SECRET` breaks correlation between rows written 
 
 ## Signing Key Rotation
 
-Access JWTs, refresh tokens and personal access token (PAT) hashes each have a keyset: one `current` key that signs, and any number of `previous` keys that only verify. Every token records the kid of the key that signed it, so a rotation logs nobody out. The format, and how each kind of token finds its key, are in [Token signing keys](./backend-configuration.md#token-signing-keys).
+Access JWTs, refresh tokens and personal access token (PAT) hashes each have a keyset: one `current` key that signs, and any number of `next` keys (staged for promotion) and `previous` keys (being retired) that only verify. Every token records the kid of the key that signed it, so a rotation logs nobody out. The format, and how each kind of token finds its key, are in [Token signing keys](./backend-configuration.md#token-signing-keys).
 
 Rotate one purpose at a time. The steps are the same for `ACCESS_TOKEN_KEYS`, `REFRESH_TOKEN_KEYS` and `PERSONAL_ACCESS_TOKEN_KEYS`, and every backend process, workers included, needs the same keyset at each step.
 
@@ -474,7 +474,7 @@ Rotate one purpose at a time. The steps are the same for `ACCESS_TOKEN_KEYS`, `R
    REFRESH_TOKEN_KEYS=[{"kid":"default","status":"current","secret":"<old secret>"}]
    ```
 
-1. **Add the new key as `previous`, and deploy.** Generate a new secret of at least 32 characters (for example `openssl rand -base64 48`), give it a new kid such as the month, and add it with `"status":"previous"`. Nothing is signed with it yet. Deploy this everywhere before step 2. This is "add before use": if step 2 is rolled back, the rolled-back instances can still verify the tokens it signed.
+1. **Add the new key as `next`, and deploy.** Generate a new secret of at least 32 characters (for example `openssl rand -base64 48`), give it a new kid such as the month, and add it with `"status":"next"`. Nothing is signed with it yet. Use `next` rather than `previous`: while step 2 rolls out, an instance still on this step must not move PATs off the new key that promoted instances have just moved them onto. Deploy this everywhere before step 2. This is "add before use": if step 2 is rolled back, the rolled-back instances can still verify the tokens it signed.
 2. **Promote the new key.** Make the new key `current` and the old key `previous`, and deploy. New tokens, and every refreshed session, are now signed with the new key, and tokens signed with the old key keep working.
 3. **Wait out the longest lifetime.** Remember-me refresh tokens last 90 days (`REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS`), other refresh tokens 30 days, and access tokens 15 minutes. A session that refreshes in the meantime moves onto the new key. PATs move to the new key the next time they are used, so before removing a PAT key, check how many live PATs still depend on it:
 
@@ -493,8 +493,8 @@ To revoke a key because it leaked, skip the wait in step 3: promote the new key 
 
 ### Rules
 
-- A `previous` key never signs. Only the `current` key does, and startup requires exactly one.
-- An `ACCESS_TOKEN_KEYS` entry with `publicKey` is an `RS256` key, so moving from `HS256` to `RS256` is an ordinary rotation. A previous `RS256` key needs only its `publicKey`.
+- `next` and `previous` keys never sign. Only the `current` key does, and startup requires exactly one. PATs move off `previous` keys only.
+- An `ACCESS_TOKEN_KEYS` entry with `publicKey` is an `RS256` key, so moving from `HS256` to `RS256` is an ordinary rotation. A `next` or `previous` `RS256` key needs only its `publicKey`.
 - Do not roll back past the release that introduced keysets once a key other than `default` has been promoted. That release reads only `v1` refresh tokens, ignores an access token's kid, and hashes PATs only with `PERSONAL_ACCESS_TOKEN_SECRET`, so sessions refreshed and PATs used since the promotion stop working. Until the first promotion, every token is still issued in the old format, so a rollback is safe.
 - In production, no two secrets may be equal across purposes, previous keys included. See [Issuer, audience, and production checks](./backend-configuration.md#issuer-audience-and-production-checks).
 

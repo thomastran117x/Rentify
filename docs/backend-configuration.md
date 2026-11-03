@@ -187,7 +187,9 @@ The API logs a startup warning in two cases:
 
 Three signing purposes each have a keyset: access JWTs, refresh tokens, and
 the HMAC that hashes personal access tokens (PATs). A keyset has one `current`
-key, which signs, and any number of `previous` keys, which only verify. Every
+key, which signs, and any number of `next` and `previous` keys, which only
+verify: a `next` key is staged for promotion, and a `previous` key is being
+retired. Every
 token records the id (`kid`) of the key that signed it. Rotating the current
 key therefore logs nobody out: tokens signed with the old key keep verifying
 until that key is removed from the set. To rotate a key, follow the
@@ -230,13 +232,13 @@ REFRESH_TOKEN_KEYS=[{"kid":"2026-11","status":"current","secret":"..."},{"kid":"
 
 Each entry has these fields:
 
-| Field        | Meaning                                                                                                                            |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `kid`        | 1 to 64 letters, digits, `-` or `_`, and unique within the set. In YAML, quote a kid that looks like a number or a date.           |
-| `status`     | `current` or `previous`. Exactly one key is `current`.                                                                             |
-| `secret`     | An HMAC secret of at least 32 characters. Within a set, no two keys may share a secret.                                            |
-| `publicKey`  | `ACCESS_TOKEN_KEYS` only. Makes the key an `RS256` key.                                                                            |
-| `privateKey` | `ACCESS_TOKEN_KEYS` only. Required on a current `RS256` key, which has to sign. A previous `RS256` key needs only its `publicKey`. |
+| Field        | Meaning                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kid`        | 1 to 64 letters, digits, `-` or `_`, and unique within the set. In YAML, quote a kid that looks like a number or a date.                       |
+| `status`     | `current`, `next` or `previous`. Exactly one key is `current`. `next` and `previous` keys only verify.                                         |
+| `secret`     | An HMAC secret of at least 32 characters. Within a set, no two keys may share a secret.                                                        |
+| `publicKey`  | `ACCESS_TOKEN_KEYS` only. Makes the key an `RS256` key.                                                                                        |
+| `privateKey` | `ACCESS_TOKEN_KEYS` only. Required on a current `RS256` key, which has to sign. A `next` or `previous` `RS256` key needs only its `publicKey`. |
 
 An access key with a `secret` is an `HS256` key, and one with `publicKey` is an
 `RS256` key. Moving between algorithms is therefore an ordinary rotation, and
@@ -266,9 +268,11 @@ secret.
   with the current key.
 - **PATs** store the kid of the key that hashed them in
   `personal_access_tokens.secret_kid`; rows from before keysets have
-  `default`. A PAT hashed with a previous key is hashed again with the current
-  key the next time it is used. A PAT that is not used before its key is
-  removed stops working. PAT expiry cannot be relied on instead, because
+  `default`. A PAT hashed with a `previous` key is hashed again with the
+  current key the next time it is used. A PAT on a `next` key is left there,
+  because instances that have already promoted that key hashed it; moving it
+  back would flip it on every use while the promotion rolls out. A PAT that is
+  not used before its key is removed stops working. PAT expiry cannot be relied on instead, because
   `expiresAt` accepts any future date.
 
 Keep the old secret under kid `default` when you first move to a keyset, so
