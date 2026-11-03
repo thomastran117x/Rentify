@@ -219,7 +219,7 @@ describe("parseAccessTokenKeys", () => {
     const pair = rsaPair();
     const previousPair = rsaPair();
     const { keys, errors } = parseAccess({
-      ACCESS_TOKEN_ALGORITHM: "HS256",
+      ACCESS_TOKEN_ALGORITHM: "RS256",
       ACCESS_TOKEN_KEYS: JSON.stringify([
         {
           kid: "rsa-2",
@@ -254,6 +254,40 @@ describe("parseAccessTokenKeys", () => {
         secret: SECRET_A,
       },
     ]);
+  });
+
+  it("requires the current key to match ACCESS_TOKEN_ALGORITHM", () => {
+    const pair = rsaPair();
+    const rsaKeyset = JSON.stringify([
+      {
+        kid: "rsa-1",
+        status: "current",
+        privateKey: pair.privateKey,
+        publicKey: pair.publicKey,
+      },
+    ]);
+    const hmacKeyset = JSON.stringify([
+      { kid: "hs-1", status: "current", secret: SECRET_A },
+    ]);
+
+    expect(
+      parseAccess({
+        ACCESS_TOKEN_ALGORITHM: "RS256",
+        ACCESS_TOKEN_KEYS: hmacKeyset,
+      }).errors,
+    ).toEqual([
+      "ACCESS_TOKEN_KEYS[hs-1] is the current key but is an HS256 key, and ACCESS_TOKEN_ALGORITHM is RS256. Promote an RS256 key or change ACCESS_TOKEN_ALGORITHM.",
+    ]);
+    // Unset means HS256, as it does for the single-key variables.
+    expect(parseAccess({ ACCESS_TOKEN_KEYS: rsaKeyset }).errors).toEqual([
+      "ACCESS_TOKEN_KEYS[rsa-1] is the current key but is an RS256 key, and ACCESS_TOKEN_ALGORITHM is HS256. Promote an HS256 key or change ACCESS_TOKEN_ALGORITHM.",
+    ]);
+    expect(
+      parseAccess({
+        ACCESS_TOKEN_ALGORITHM: "RS265",
+        ACCESS_TOKEN_KEYS: hmacKeyset,
+      }).errors,
+    ).toEqual(["ACCESS_TOKEN_ALGORITHM must be 'HS256' or 'RS256'."]);
   });
 
   it("refuses the keyset together with any single-key variable", () => {

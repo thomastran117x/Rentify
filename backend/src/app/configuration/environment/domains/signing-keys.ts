@@ -304,17 +304,25 @@ export function parseHmacKeys(
   return keys;
 }
 
-function parseLegacyAccessTokenKey(
+/** The algorithm new access tokens are signed with. */
+function readAccessTokenAlgorithm(
   raw: RawEnvironmentValues,
   errors: string[],
-): AccessTokenSigningKey[] {
+): AccessTokenAlgorithm {
   const configuredAlgorithm = raw.ACCESS_TOKEN_ALGORITHM ?? "HS256";
-  const algorithm: AccessTokenAlgorithm =
-    configuredAlgorithm === "RS256" ? "RS256" : "HS256";
 
   if (configuredAlgorithm !== "HS256" && configuredAlgorithm !== "RS256") {
     errors.push("ACCESS_TOKEN_ALGORITHM must be 'HS256' or 'RS256'.");
   }
+
+  return configuredAlgorithm === "RS256" ? "RS256" : "HS256";
+}
+
+function parseLegacyAccessTokenKey(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AccessTokenSigningKey[] {
+  const algorithm = readAccessTokenAlgorithm(raw, errors);
 
   if (algorithm === "HS256") {
     const secret = raw.ACCESS_TOKEN_SECRET;
@@ -461,6 +469,7 @@ export function parseAccessTokenKeys(
     return [];
   }
 
+  const algorithm = readAccessTokenAlgorithm(raw, errors);
   const keys: AccessTokenSigningKey[] = [];
 
   for (const entry of readKeysetEntries(
@@ -472,6 +481,15 @@ export function parseAccessTokenKeys(
     if (key) {
       keys.push(key);
     }
+  }
+
+  // A key's material decides its algorithm, so without this check a secret
+  // in the current slot would quietly turn an RS256 deployment into HS256.
+  const current = keys.find((key) => key.status === "current");
+  if (current && current.algorithm !== algorithm) {
+    errors.push(
+      `ACCESS_TOKEN_KEYS[${current.kid}] is the current key but is an ${current.algorithm} key, and ACCESS_TOKEN_ALGORITHM is ${algorithm}. Promote an ${algorithm} key or change ACCESS_TOKEN_ALGORITHM.`,
+    );
   }
 
   rejectEqualSecrets(accessTokenHmacSecrets(raw, keys), errors);
@@ -517,10 +535,10 @@ export function validateProductionTokenSigning(
   }
 
   if (!auth.issuer) {
-    errors.push("TOKEN_ISSUER is required in production.");
+    errors.push("TOKEN_ISSUER (auth.issuer) is required in production.");
   }
   if (!auth.audience) {
-    errors.push("TOKEN_AUDIENCE is required in production.");
+    errors.push("TOKEN_AUDIENCE (auth.audience) is required in production.");
   }
 
   const hmacSecrets = (

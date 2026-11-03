@@ -241,10 +241,15 @@ Each entry has these fields:
 | `privateKey` | `ACCESS_TOKEN_KEYS` only. Required on a current `RS256` key, which has to sign. A `next` or `previous` `RS256` key needs only its `publicKey`. |
 
 An access key with a `secret` is an `HS256` key, and one with `publicKey` is an
-`RS256` key. Moving between algorithms is therefore an ordinary rotation, and
-`ACCESS_TOKEN_ALGORITHM` applies only to the single-key variables. A token's
-header must name the algorithm of the key it names, so a token cannot choose a
-weaker algorithm than its key.
+`RS256` key, so a set can hold keys of both algorithms. With a keyset,
+`auth.accessTokenAlgorithm` (`ACCESS_TOKEN_ALGORITHM`) names the algorithm new
+tokens are signed with, and startup fails unless the current key uses it. A
+keyset whose current key is `RS256` therefore needs the setting at `RS256`,
+and a secret in the current slot cannot quietly downgrade an `RS256`
+deployment to `HS256`. Moving between algorithms is an ordinary rotation that
+changes the setting when the new key is promoted. A token's header must name
+the algorithm of the key it names, so a token cannot choose a weaker algorithm
+than its key.
 
 Setting a keyset together with its single-key variable stops startup.
 Startup also fails when the keyset is not a non-empty list, an entry is
@@ -295,7 +300,8 @@ TOKEN_AUDIENCE=rent-web
 
 When `NODE_ENV` is `production`, startup fails when:
 
-- `TOKEN_ISSUER` or `TOKEN_AUDIENCE` is unset;
+- `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
+  unset;
 - any two of these are equal: an `HS256` access secret, a refresh secret, a
   PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
   (the TOTP key is compared ignoring case). Every key in a keyset counts,

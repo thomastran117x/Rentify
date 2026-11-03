@@ -356,8 +356,12 @@ describe("EnvironmentManager", () => {
         TOKEN_AUDIENCE: undefined,
       });
 
-      expect(message).toContain("TOKEN_ISSUER is required in production.");
-      expect(message).toContain("TOKEN_AUDIENCE is required in production.");
+      expect(message).toContain(
+        "TOKEN_ISSUER (auth.issuer) is required in production.",
+      );
+      expect(message).toContain(
+        "TOKEN_AUDIENCE (auth.audience) is required in production.",
+      );
     });
 
     it.each([
