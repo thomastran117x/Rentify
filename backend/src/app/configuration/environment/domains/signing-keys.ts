@@ -1,10 +1,11 @@
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import yaml from "js-yaml";
 import { z } from "zod";
+import { DEFAULT_SIGNING_KEY_ID } from "@/configuration/environment/constants";
 import {
-  DEFAULT_SIGNING_KEY_ID,
-  MINIMUM_TOKEN_SECRET_LENGTH,
-} from "@/configuration/environment/constants";
+  hasMinimumSecretLength,
+  readRequiredSecret,
+} from "@/configuration/environment/shared";
 import type {
   AccessTokenAlgorithm,
   AccessTokenSigningKey,
@@ -37,12 +38,36 @@ const signingKeyEntrySchema = z
 
 type SigningKeyEntry = z.infer<typeof signingKeyEntrySchema>;
 
+/** A keyset variable and the single-secret variable it replaces. */
+export interface KeysetNames {
+  keysName: EnvironmentVariableName;
+  legacyName: EnvironmentVariableName;
+}
+
+const ACCESS_TOKEN_KEYSET: KeysetNames = {
+  keysName: "ACCESS_TOKEN_KEYS",
+  legacyName: "ACCESS_TOKEN_SECRET",
+};
+export const REFRESH_TOKEN_KEYSET: KeysetNames = {
+  keysName: "REFRESH_TOKEN_KEYS",
+  legacyName: "REFRESH_TOKEN_SECRET",
+};
+export const PERSONAL_ACCESS_TOKEN_KEYSET: KeysetNames = {
+  keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
+  legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
+};
+
 /** A secret named for error messages, which never carry the value itself. */
 export interface LabelledSecret {
   label: string;
   secret: string;
   /** Compared ignoring case, as a hex-encoded key is. */
   caseInsensitive?: boolean;
+  /**
+   * Secrets of one group are not compared with each other, because the
+   * group's own parser already has.
+   */
+  group?: number;
 }
 
 export function normalizePem(value?: string): string | undefined {
@@ -112,66 +137,46 @@ function validateRsaKeys(
   }
 }
 
-function isShortSecret(secret: string): boolean {
-  return secret.length < MINIMUM_TOKEN_SECRET_LENGTH;
-}
-
-function shortSecretError(label: string): string {
-  return `${label} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`;
-}
-
 function secretsAreEqual(left: LabelledSecret, right: LabelledSecret): boolean {
   return left.caseInsensitive || right.caseInsensitive
     ? left.secret.toLowerCase() === right.secret.toLowerCase()
     : left.secret === right.secret;
 }
 
-/** Pushes an error for every pair of secrets that are equal. */
+/** Pushes an error for every pair of equal secrets not in the same group. */
 export function rejectEqualSecrets(
   secrets: LabelledSecret[],
   errors: string[],
 ): void {
-  for (let left = 0; left < secrets.length; left += 1) {
-    for (let right = left + 1; right < secrets.length; right += 1) {
-      if (secretsAreEqual(secrets[left], secrets[right])) {
-        errors.push(
-          `${secrets[left].label} and ${secrets[right].label} must differ.`,
-        );
-      }
-    }
-  }
-}
+  secrets.forEach((left, index) => {
+    for (const right of secrets.slice(index + 1)) {
+      const sameGroup = left.group !== undefined && left.group === right.group;
 
-/** Like rejectEqualSecrets, but only compares secrets from different groups. */
-function rejectEqualSecretsAcrossGroups(
-  groups: LabelledSecret[][],
-  errors: string[],
-): void {
-  for (let left = 0; left < groups.length; left += 1) {
-    for (let right = left + 1; right < groups.length; right += 1) {
-      for (const leftSecret of groups[left]) {
-        for (const rightSecret of groups[right]) {
-          if (secretsAreEqual(leftSecret, rightSecret)) {
-            errors.push(
-              `${leftSecret.label} and ${rightSecret.label} must differ.`,
-            );
-          }
-        }
+      if (!sameGroup && secretsAreEqual(left, right)) {
+        errors.push(`${left.label} and ${right.label} must differ.`);
       }
     }
-  }
+  });
 }
 
 /** Names a key by the variable it came from, never by its value. */
 function keyLabel(
   raw: RawEnvironmentValues,
-  names: {
-    keysName: EnvironmentVariableName;
-    legacyName: EnvironmentVariableName;
-  },
+  names: KeysetNames,
   kid: string,
 ): string {
   return raw[names.keysName] ? `${names.keysName}[${kid}]` : names.legacyName;
+}
+
+function labelledSecrets(
+  raw: RawEnvironmentValues,
+  keys: HmacSigningKey[],
+  names: KeysetNames,
+): LabelledSecret[] {
+  return keys.map((key) => ({
+    label: keyLabel(raw, names, key.kid),
+    secret: key.secret,
+  }));
 }
 
 /**
@@ -248,58 +253,40 @@ function readKeysetEntries(
 export function parseHmacKeys(
   raw: RawEnvironmentValues,
   errors: string[],
-  names: {
-    keysName: EnvironmentVariableName;
-    legacyName: EnvironmentVariableName;
-  },
+  names: KeysetNames,
 ): HmacSigningKey[] {
   const { keysName, legacyName } = names;
   const keysValue = raw[keysName];
-  const legacySecret = raw[legacyName];
 
-  if (keysValue && legacySecret) {
+  if (keysValue && raw[legacyName]) {
     errors.push(`Set either ${keysName} or ${legacyName}, not both.`);
     return [];
   }
 
   if (!keysValue) {
-    if (!legacySecret) {
-      errors.push(`${legacyName} is required (or set ${keysName}).`);
-      return [];
-    }
-    if (isShortSecret(legacySecret)) {
-      errors.push(shortSecretError(legacyName));
-      return [];
-    }
+    const errorCount = errors.length;
+    const secret = readRequiredSecret(raw, legacyName, errors, keysName);
 
-    return [
-      { kid: DEFAULT_SIGNING_KEY_ID, status: "current", secret: legacySecret },
-    ];
+    return errors.length > errorCount
+      ? []
+      : [{ kid: DEFAULT_SIGNING_KEY_ID, status: "current", secret }];
   }
 
   const keys: HmacSigningKey[] = [];
 
   for (const entry of readKeysetEntries(keysValue, keysName, errors)) {
-    const label = `${keysName}[${entry.kid}]`;
+    const label = keyLabel(raw, names, entry.kid);
 
     if (entry.privateKey || entry.publicKey) {
       errors.push(`${label} must use a secret; ${keysName} is HMAC only.`);
     } else if (!entry.secret) {
       errors.push(`${label} requires a secret.`);
-    } else if (isShortSecret(entry.secret)) {
-      errors.push(shortSecretError(label));
-    } else {
+    } else if (hasMinimumSecretLength(label, entry.secret, errors)) {
       keys.push({ kid: entry.kid, status: entry.status, secret: entry.secret });
     }
   }
 
-  rejectEqualSecrets(
-    keys.map((key) => ({
-      label: `${keysName}[${key.kid}]`,
-      secret: key.secret,
-    })),
-    errors,
-  );
+  rejectEqualSecrets(labelledSecrets(raw, keys, names), errors);
 
   return keys;
 }
@@ -331,8 +318,7 @@ function parseLegacyAccessTokenKey(
       errors.push("ACCESS_TOKEN_SECRET is required when using HS256.");
       return [];
     }
-    if (isShortSecret(secret)) {
-      errors.push(shortSecretError("ACCESS_TOKEN_SECRET"));
+    if (!hasMinimumSecretLength("ACCESS_TOKEN_SECRET", secret, errors)) {
       return [];
     }
 
@@ -390,9 +376,9 @@ function parseLegacyAccessTokenKey(
  */
 function toAccessTokenKey(
   entry: SigningKeyEntry,
+  label: string,
   errors: string[],
 ): AccessTokenSigningKey | undefined {
-  const label = `ACCESS_TOKEN_KEYS[${entry.kid}]`;
   const privateKey = normalizePem(entry.privateKey);
   const publicKey = normalizePem(entry.publicKey);
 
@@ -403,8 +389,7 @@ function toAccessTokenKey(
       );
       return undefined;
     }
-    if (isShortSecret(entry.secret)) {
-      errors.push(shortSecretError(label));
+    if (!hasMinimumSecretLength(label, entry.secret, errors)) {
       return undefined;
     }
 
@@ -477,7 +462,11 @@ export function parseAccessTokenKeys(
     "ACCESS_TOKEN_KEYS",
     errors,
   )) {
-    const key = toAccessTokenKey(entry, errors);
+    const key = toAccessTokenKey(
+      entry,
+      keyLabel(raw, ACCESS_TOKEN_KEYSET, entry.kid),
+      errors,
+    );
     if (key) {
       keys.push(key);
     }
@@ -488,7 +477,7 @@ export function parseAccessTokenKeys(
   const current = keys.find((key) => key.status === "current");
   if (current && current.algorithm !== algorithm) {
     errors.push(
-      `ACCESS_TOKEN_KEYS[${current.kid}] is the current key but is an ${current.algorithm} key, and ACCESS_TOKEN_ALGORITHM is ${algorithm}. Promote an ${algorithm} key or change ACCESS_TOKEN_ALGORITHM.`,
+      `${keyLabel(raw, ACCESS_TOKEN_KEYSET, current.kid)} is the current key but is an ${current.algorithm} key, and ACCESS_TOKEN_ALGORITHM is ${algorithm}. Promote an ${algorithm} key or change ACCESS_TOKEN_ALGORITHM.`,
     );
   }
 
@@ -501,22 +490,10 @@ function accessTokenHmacSecrets(
   raw: RawEnvironmentValues,
   keys: AccessTokenSigningKey[],
 ): LabelledSecret[] {
-  return keys.flatMap((key) =>
-    key.algorithm === "HS256"
-      ? [
-          {
-            label: keyLabel(
-              raw,
-              {
-                keysName: "ACCESS_TOKEN_KEYS",
-                legacyName: "ACCESS_TOKEN_SECRET",
-              },
-              key.kid,
-            ),
-            secret: key.secret,
-          },
-        ]
-      : [],
+  return labelledSecrets(
+    raw,
+    keys.flatMap((key) => (key.algorithm === "HS256" ? [key] : [])),
+    ACCESS_TOKEN_KEYSET,
   );
 }
 
@@ -541,29 +518,16 @@ export function validateProductionTokenSigning(
     errors.push("TOKEN_AUDIENCE (auth.audience) is required in production.");
   }
 
-  const hmacSecrets = (
-    keys: HmacSigningKey[],
-    names: {
-      keysName: EnvironmentVariableName;
-      legacyName: EnvironmentVariableName;
-    },
-  ): LabelledSecret[] =>
-    keys.map((key) => ({
-      label: keyLabel(raw, names, key.kid),
-      secret: key.secret,
-    }));
-
-  rejectEqualSecretsAcrossGroups(
+  // Each keyset already rejected equal secrets within itself.
+  rejectEqualSecrets(
     [
       accessTokenHmacSecrets(raw, auth.accessTokenKeys),
-      hmacSecrets(auth.refreshTokenKeys, {
-        keysName: "REFRESH_TOKEN_KEYS",
-        legacyName: "REFRESH_TOKEN_SECRET",
-      }),
-      hmacSecrets(auth.personalAccessTokenKeys, {
-        keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
-        legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
-      }),
+      labelledSecrets(raw, auth.refreshTokenKeys, REFRESH_TOKEN_KEYSET),
+      labelledSecrets(
+        raw,
+        auth.personalAccessTokenKeys,
+        PERSONAL_ACCESS_TOKEN_KEYSET,
+      ),
       [
         {
           label: "AUTH_AUDIT_IDENTIFIER_SECRET",
@@ -577,7 +541,12 @@ export function validateProductionTokenSigning(
           caseInsensitive: true,
         },
       ],
-    ].map((group) => group.filter((entry) => entry.secret)),
+    ].flatMap((secrets, group) =>
+      // A missing secret is reported elsewhere and is not a duplicate.
+      secrets
+        .filter((entry) => entry.secret)
+        .map((entry) => ({ ...entry, group })),
+    ),
     errors,
   );
 }

@@ -10,6 +10,8 @@ import {
   parseRefreshTokenMode,
 } from "@/configuration/environment/domains/auth";
 import {
+  PERSONAL_ACCESS_TOKEN_KEYSET,
+  REFRESH_TOKEN_KEYSET,
   parseAccessTokenKeys,
   parseHmacKeys,
   validateProductionTokenSigning,
@@ -89,14 +91,12 @@ export function parseEnvironmentState(
   const rateLimiterStrategy = parseRateLimiterStrategy(raw, errors);
 
   const databaseUrl = readRequiredString(raw, "DATABASE_URL", errors);
-  const refreshTokenKeys = parseHmacKeys(raw, errors, {
-    keysName: "REFRESH_TOKEN_KEYS",
-    legacyName: "REFRESH_TOKEN_SECRET",
-  });
-  const personalAccessTokenKeys = parseHmacKeys(raw, errors, {
-    keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
-    legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
-  });
+  const refreshTokenKeys = parseHmacKeys(raw, errors, REFRESH_TOKEN_KEYSET);
+  const personalAccessTokenKeys = parseHmacKeys(
+    raw,
+    errors,
+    PERSONAL_ACCESS_TOKEN_KEYSET,
+  );
   const authAuditIdentifierSecret = readRequiredSecret(
     raw,
     "AUTH_AUDIT_IDENTIFIER_SECRET",

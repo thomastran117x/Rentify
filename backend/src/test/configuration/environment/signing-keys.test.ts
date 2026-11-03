@@ -391,4 +391,19 @@ describe("rejectEqualSecrets", () => {
 
     expect(errors).toEqual(["A and C must differ."]);
   });
+
+  it("skips pairs from the same group", () => {
+    const errors: string[] = [];
+
+    rejectEqualSecrets(
+      [
+        { label: "A", secret: SECRET_A, group: 0 },
+        { label: "B", secret: SECRET_A, group: 0 },
+        { label: "C", secret: SECRET_A, group: 1 },
+      ],
+      errors,
+    );
+
+    expect(errors).toEqual(["A and C must differ.", "B and C must differ."]);
+  });
 });
