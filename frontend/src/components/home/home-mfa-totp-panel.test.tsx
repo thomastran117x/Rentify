@@ -253,7 +253,9 @@ describe("HomeMfaTotpPanel", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Disable" }));
     expect(
-      await screen.findByText("Authenticator app disabled."),
+      await screen.findByText(
+        "Authenticator app disabled. Other sessions were signed out.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Not enabled")).toBeInTheDocument();
   });

@@ -287,7 +287,7 @@ export function HomeMfaTotpPanel() {
       }
 
       setEnabled(false);
-      setMessage("Authenticator app disabled.");
+      setMessage("Authenticator app disabled. Other sessions were signed out.");
     } catch (error) {
       setMessage(
         getApiErrorMessage(error, {

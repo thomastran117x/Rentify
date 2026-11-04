@@ -6,9 +6,15 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { UserMfaTotp } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { TotpService } from "@/features/auth/mfa/totp/totp.service";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { testUuid } from "../../../support/uuid";
 
 const USER_ID_ID = testUuid(9000, 824313);
+const DISABLE_AUTH = {
+  sub: USER_ID_ID,
+  sessionId: "session-1",
+  authMethod: "jwt",
+} as JwtAuthPrincipal;
 
 const TEST_ENCRYPTION_KEY = randomBytes(32);
 const TEST_PLAIN_SECRET = "TESTSECRET";
@@ -86,14 +92,28 @@ function createMocks() {
   };
 
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+  const authSessionService = {
+    revokeManagedSessions: jest.fn<Promise<unknown>, [unknown]>(async () => ({
+      scope: "others",
+      revokedSessionCount: 0,
+      revokedPersonalAccessTokenCount: 0,
+    })),
+  };
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
     encryptionKey: TEST_ENCRYPTION_KEY,
     authAuditService: authAuditService as never,
+    authSessionService: authSessionService as never,
   });
 
-  return { service, totpService, mfaTotpRepository, authAuditService };
+  return {
+    service,
+    totpService,
+    mfaTotpRepository,
+    authAuditService,
+    authSessionService,
+  };
 }
 
 describe("MfaTotpService", () => {
@@ -405,10 +425,7 @@ describe("MfaTotpService", () => {
         makeRecord({ status: "active" }),
       );
 
-      await service.disable(USER_ID_ID, {
-        sessionId: "session-1",
-        context: {},
-      });
+      await service.disable(DISABLE_AUTH, {});
 
       expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith(USER_ID_ID);
       expect(authAuditService.recordSafely).toHaveBeenCalledWith({
@@ -420,13 +437,71 @@ describe("MfaTotpService", () => {
       });
     });
 
+    it("signs out the other sessions before removing the authenticator", async () => {
+      const { service, mfaTotpRepository, authSessionService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+
+      await service.disable(DISABLE_AUTH, { requestId: "request-1" });
+
+      expect(authSessionService.revokeManagedSessions).toHaveBeenCalledWith({
+        auth: DISABLE_AUTH,
+        scope: "others",
+        audit: { requestId: "request-1" },
+      });
+      expect(
+        authSessionService.revokeManagedSessions.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mfaTotpRepository.deleteByUserId.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it("keeps the authenticator on when the sessions cannot be ended", async () => {
+      const {
+        service,
+        mfaTotpRepository,
+        authSessionService,
+        authAuditService,
+      } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+      authSessionService.revokeManagedSessions.mockRejectedValue(
+        new Error("redis unavailable"),
+      );
+
+      await expect(service.disable(DISABLE_AUTH, {})).rejects.toThrow(
+        "redis unavailable",
+      );
+
+      expect(mfaTotpRepository.deleteByUserId).not.toHaveBeenCalled();
+      expect(authAuditService.recordSafely).not.toHaveBeenCalled();
+    });
+
+    it("leaves other sessions alone when only an unfinished enrollment is removed", async () => {
+      const {
+        service,
+        mfaTotpRepository,
+        authSessionService,
+        authAuditService,
+      } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "pending" }),
+      );
+
+      await service.disable(DISABLE_AUTH, {});
+
+      expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith(USER_ID_ID);
+      expect(authSessionService.revokeManagedSessions).not.toHaveBeenCalled();
+      expect(authAuditService.recordSafely).not.toHaveBeenCalled();
+    });
+
     it("is idempotent — does not throw when no record exists", async () => {
       const { service, mfaTotpRepository, authAuditService } = createMocks();
       mfaTotpRepository.deleteByUserId.mockResolvedValue(undefined);
 
-      await expect(
-        service.disable(USER_ID_ID, { sessionId: "session-1", context: {} }),
-      ).resolves.toBeUndefined();
+      await expect(service.disable(DISABLE_AUTH, {})).resolves.toBeUndefined();
       expect(authAuditService.recordSafely).not.toHaveBeenCalled();
     });
   });

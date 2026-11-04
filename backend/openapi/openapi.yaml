@@ -3817,7 +3817,7 @@ paths:
     post:
       operationId: disableMfaTotp
       summary: Disable authenticator (TOTP)
-      description: Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.
+      description: Disables the authenticator app for the signed-in user and signs out every other session. Requires a recent MFA step-up verification for the management scope.
       tags:
         - mfa
       security:
@@ -3849,7 +3849,7 @@ paths:
                         $ref: '#/components/schemas/RequestMeta'
               example:
                 success: true
-                message: Authenticator app disabled.
+                message: Authenticator app disabled. Other sessions were signed out.
                 data:
                   disabled: true
                 error: null

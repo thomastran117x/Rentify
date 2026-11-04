@@ -222,15 +222,15 @@ describe("MfaTotpController", () => {
     );
     const payload = await response.json();
 
-    expect(mfaTotpService.disable).toHaveBeenCalledWith(USER_3_ID, {
-      sessionId: "session-3",
-      context: {
+    expect(mfaTotpService.disable).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: USER_3_ID, sessionId: "session-3" }),
+      {
         ipAddress: "127.0.0.1",
         deviceId: "device-1",
         userAgent: "test-agent",
         requestId: "request-1",
       },
-    });
+    );
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       "TOTP disabled",
       expect.objectContaining({
@@ -239,7 +239,9 @@ describe("MfaTotpController", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(payload.message).toBe("Authenticator app disabled.");
+    expect(payload.message).toBe(
+      "Authenticator app disabled. Other sessions were signed out.",
+    );
   });
 
   it("cancels pending enrollment after recent verification", async () => {

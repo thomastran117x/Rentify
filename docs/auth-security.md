@@ -193,6 +193,8 @@ An account can only step up with its strongest factors:
 
 The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Passkeys (#465) and recovery codes (#464) will join the stronger factors when they land.
 
+Disabling the authenticator app signs out every other session on the account, and each one writes `session.revoked` alongside the `mfa.totp_disabled` event. The session that disabled it stays signed in. Personal access tokens are unaffected.
+
 **A lost authenticator can't be removed with email.** Sign-in already needs the code, and until recovery codes ship, a signed-in session can't step up without it either, so that account needs support.
 
 ## Investigating Sign-in Activity

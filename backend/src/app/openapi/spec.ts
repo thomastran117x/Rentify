@@ -3637,7 +3637,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "disableMfaTotp",
       summary: "Disable authenticator (TOTP)",
       description:
-        "Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.",
+        "Disables the authenticator app for the signed-in user and signs out every other session. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3649,7 +3649,7 @@ function buildOperations(): OperationDefinition[] {
       responses: {
         "200": successResponse(
           200,
-          "Authenticator app disabled.",
+          "Authenticator app disabled. Other sessions were signed out.",
           "MfaTotpDisableResult",
           { disabled: true },
         ),
