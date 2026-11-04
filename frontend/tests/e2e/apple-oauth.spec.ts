@@ -74,20 +74,38 @@ test("account security lists Apple as a linkable provider", async ({
   });
 });
 
-test("Apple OAuth API rejects bad input with the standard error shape", async ({
+test("Apple OAuth API only accepts an ID token with a server-issued state", async ({
   request,
 }) => {
-  const malformed = await request.post(`${apiBaseUrl}/auth/oauth/apple`, {
+  // A raw ID token with a nonce the client picked: refused before any
+  // provider check, because there is no server-issued state.
+  const clientNonce = await request.post(`${apiBaseUrl}/auth/oauth/apple`, {
     data: { idToken: "not-a-jwt", nonce: "nonce-value" },
   });
-  expect([400, 401]).toContain(malformed.status());
-  const malformedBody = await malformed.json();
-  expect(malformedBody.data).toBeNull();
-  expect(malformedBody.error?.code).toEqual(expect.any(String));
+  expect(clientNonce.status()).toBe(400);
+  const clientNonceBody = await clientNonce.json();
+  expect(clientNonceBody.data).toBeNull();
+  expect(clientNonceBody.error?.code).toBe("VALIDATION_ERROR");
 
-  const missingNonce = await request.post(`${apiBaseUrl}/auth/oauth/apple`, {
-    data: { idToken: "not-a-jwt" },
+  const madeUpState = await request.post(`${apiBaseUrl}/auth/oauth/apple`, {
+    data: {
+      state: "made-up-state",
+      idToken: "not-a-jwt",
+      deviceId: "e2e-apple",
+    },
   });
-  expect(missingNonce.status()).toBe(400);
-  expect((await missingNonce.json()).error?.code).toBe("VALIDATION_ERROR");
+  expect(madeUpState.status()).toBe(401);
+  expect((await madeUpState.json()).error?.code).toBe("OAUTH_STATE_INVALID");
+
+  const start = await request.post(`${apiBaseUrl}/auth/oauth/apple/start`, {
+    data: { intent: "login", deviceId: "e2e-apple" },
+  });
+  expect(start.status()).toBe(200);
+  const { data: flow } = await start.json();
+  expect(flow).toMatchObject({
+    state: expect.any(String),
+    nonce: expect.any(String),
+    tokenDelivery: "id_token",
+  });
+  expect(flow.codeChallenge).toBeUndefined();
 });

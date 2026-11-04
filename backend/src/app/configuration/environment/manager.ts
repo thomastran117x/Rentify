@@ -215,6 +215,10 @@ export class EnvironmentManager {
     return this.get().oauth.apple;
   }
 
+  getOAuthClientIdTokenProviders(): AppEnvironment["oauth"]["clientIdTokenProviders"] {
+    return [...this.get().oauth.clientIdTokenProviders];
+  }
+
   getRedisConfig(): AppEnvironment["redis"] {
     return this.get().redis;
   }

@@ -70,6 +70,24 @@ export interface OAuthSignupRequiredResult {
   expiresInSeconds: number;
 }
 
+/** What an OAuth sign-in is for; the backend binds its state to it. */
+export type OAuthFlowIntent = "login" | "signup" | "link";
+
+/**
+ * The server-issued half of one OAuth sign-in. `state` and `nonce` go into
+ * the provider's authorize request; `tokenDelivery` says whether the callback
+ * sends the authorization code or the provider's ID token. `codeChallenge` is
+ * present only when the backend redeems the code, and its verifier never
+ * reaches the browser.
+ */
+export interface OAuthFlowStart {
+  state: string;
+  nonce: string;
+  codeChallenge?: string;
+  tokenDelivery: "code" | "id_token";
+  expiresInSeconds: number;
+}
+
 /**
  * The second factors a sign-in can be finished with, and the only list of
  * them. Recovery codes and passkeys join it without changing the challenge's

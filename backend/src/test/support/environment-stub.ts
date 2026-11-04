@@ -1,4 +1,5 @@
 import { SUPPORTED_IMAGE_CONTENT_TYPES } from "@/configuration/environment/constants";
+import { buildOauthConfig } from "@/configuration/environment/domains/auth";
 import { buildBlobStorageConfig } from "@/configuration/environment/domains/infrastructure";
 import { normalizeRawEnvironment } from "@/configuration/environment/shared";
 
@@ -60,6 +61,7 @@ const elasticsearchConfig = {
 };
 
 const oauthConfig = {
+  clientIdTokenProviders: ["microsoft", "apple"],
   google: {
     audiences: [],
     clientSecret: undefined,
@@ -191,8 +193,17 @@ function readMicrosoftOAuthConfig() {
     audiences: readOriginList(clientIds, ""),
     clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET,
     tenant: process.env.MICROSOFT_OAUTH_TENANT ?? "consumers",
+    verifiedEmailPolicy: process.env.MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY,
     frontendBaseUrl: readApplicationConfig().frontendUrl,
   };
+}
+
+// The real parser, so a test can flip the switch with the same env var a
+// deployment uses. Validation errors are dropped: EnvironmentManager tests
+// cover them.
+function readOAuthClientIdTokenProviders() {
+  return buildOauthConfig(normalizeRawEnvironment(process.env), [])
+    .clientIdTokenProviders;
 }
 
 function readAppleOAuthConfig() {
@@ -512,6 +523,9 @@ export const environment = {
   },
   getAppleOAuthConfig() {
     return readAppleOAuthConfig();
+  },
+  getOAuthClientIdTokenProviders() {
+    return readOAuthClientIdTokenProviders();
   },
   getCaptchaConfig() {
     return captchaConfig;

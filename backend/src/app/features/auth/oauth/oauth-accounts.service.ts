@@ -36,6 +36,9 @@ import type { UsernameService } from "@/features/auth/username/username.service"
 import type { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import OAuthStateInvalidError from "@/errors/http/oauth-state-invalid.error";
+import type { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
+import type { OAuthFlowIntent } from "@/features/auth/oauth/oauth-flow.store";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type {
   AuthAuditOutcome,
@@ -43,6 +46,8 @@ import type {
 } from "@/features/auth/audit/auth-audit.model";
 
 const OAUTH_USERNAME_ALLOCATION_ATTEMPTS = 5;
+const AUTHENTICATE_INTENTS: readonly OAuthFlowIntent[] = ["login", "signup"];
+const LINK_INTENTS: readonly OAuthFlowIntent[] = ["link"];
 
 /**
  * Sign-in and account linking through the three social providers.
@@ -64,37 +69,35 @@ export class OAuthAccountsService {
     private readonly oauthSignupStore: OAuthSignupStore,
     private readonly authAuditService: AuthAuditService,
     private readonly loginMfaService: LoginMfaService,
+    private readonly oauthFlowService: OAuthFlowService,
   ) {}
 
   async googleAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    return this.authenticateProvider("google", input, () =>
-      this.googleOAuthService.verify(input),
-    );
+    return this.authenticateProvider("google", input);
   }
 
   async microsoftAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    return this.authenticateProvider("microsoft", input, () =>
-      this.microsoftOAuthService.verify(input),
-    );
+    return this.authenticateProvider("microsoft", input);
   }
 
   async appleAuthenticate(
     input: OAuthAuthenticateInput,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
-    return this.authenticateProvider("apple", input, () =>
-      this.appleOAuthService.verify(input),
-    );
+    return this.authenticateProvider("apple", input);
   }
 
   async linkOAuthProvider(
     input: LinkOAuthProviderInput,
   ): Promise<LinkedOAuthProvidersResult> {
     const user = await requireExistingUser(this.usersRepository, input.userId);
-    const profile = await this.verifyOAuthInput(input.provider, input);
+    const profile = await this.verifyOAuthInput(input.provider, input, {
+      allowedIntents: LINK_INTENTS,
+      userId: input.userId,
+    });
 
     this.requireVerifiedOAuthProfile(profile);
 
@@ -283,15 +286,19 @@ export class OAuthAccountsService {
   private async authenticateProvider(
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
-    verify: () => Promise<VerifiedOAuthProfile>,
   ): Promise<AuthSessionResult | OAuthSignupRequiredResult> {
     let profile: VerifiedOAuthProfile;
 
     try {
-      profile = await verify();
+      profile = await this.verifyOAuthInput(provider, input, {
+        allowedIntents: AUTHENTICATE_INTENTS,
+      });
       this.requireVerifiedOAuthProfile(profile);
     } catch (error) {
-      if (error instanceof UnauthorizedError) {
+      if (
+        error instanceof UnauthorizedError ||
+        error instanceof OAuthStateInvalidError
+      ) {
         await this.recordOAuthFailure({
           reasonCode: "token_invalid",
           method: provider,
@@ -487,19 +494,40 @@ export class OAuthAccountsService {
     throw lastConflict ?? new Error("Unable to assign an OAuth username.");
   }
 
+  /**
+   * Spends the callback's server-issued state, then has the provider verify
+   * the sign-in against the nonce and PKCE verifier that state was issued
+   * with. Nothing reaches a provider before the state checks out.
+   */
   private async verifyOAuthInput(
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
+    expected: { allowedIntents: readonly OAuthFlowIntent[]; userId?: string },
   ): Promise<VerifiedOAuthProfile> {
+    const flow = await this.oauthFlowService.redeem({
+      provider,
+      allowedIntents: expected.allowedIntents,
+      state: input.state,
+      deviceId: input.deviceId,
+      userId: expected.userId,
+      code: input.code,
+      idToken: input.idToken,
+    });
+    const providerInput = {
+      ...flow,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    };
+
     if (provider === "google") {
-      return this.googleOAuthService.verify(input);
+      return this.googleOAuthService.verify(providerInput);
     }
 
     if (provider === "microsoft") {
-      return this.microsoftOAuthService.verify(input);
+      return this.microsoftOAuthService.verify(providerInput);
     }
 
-    return this.appleOAuthService.verify(input);
+    return this.appleOAuthService.verify(providerInput);
   }
 
   private requireVerifiedOAuthProfile(profile: VerifiedOAuthProfile): void {

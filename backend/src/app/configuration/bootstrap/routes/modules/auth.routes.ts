@@ -249,6 +249,13 @@ export const authOauthRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/auth/oauth/:provider/start",
+      resolveHandler<OAuthController>(
+        containerTokens.oauthController,
+        "startFlow",
+      ),
+    );
+    app.post(
       "/auth/oauth/:provider/link",
       resolveHandler<OAuthController>(
         containerTokens.oauthController,

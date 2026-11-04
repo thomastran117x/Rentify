@@ -46,7 +46,8 @@ interface VerifyJwtOptions {
   jwksUrl: string;
   allowedHosts?: string[];
   allowedAlgorithms?: string[];
-  nonce?: string;
+  /** The server-issued nonce the token must carry; never optional. */
+  nonce: string;
 }
 
 interface OAuthTokenVerifierOptions {
@@ -198,7 +199,9 @@ export class OAuthTokenVerifier {
       throw new UnauthorizedError("OAuth token issuer is invalid.");
     }
 
-    if (options.nonce && payload.nonce !== options.nonce) {
+    // A token without the nonce this sign-in was started with is one minted
+    // for some other sign-in, so it is refused even when it carries none.
+    if (!options.nonce || payload.nonce !== options.nonce) {
       throw new UnauthorizedError("OAuth token nonce is invalid.");
     }
 

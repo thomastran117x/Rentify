@@ -216,6 +216,35 @@ describe("api client", () => {
     );
   });
 
+  it("does not refresh and re-send a single-use request after a 401", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: false,
+          message: "Malformed auth code.",
+          data: null,
+          error: { code: "UNAUTHORIZED" },
+          meta: { requestId: "request-once" },
+        }),
+        { status: 401, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { authenticatedJsonOnce } = await import("./client");
+
+    await expect(
+      authenticatedJsonOnce("POST", "/auth/oauth/google/link", {
+        state: "spent-on-first-send",
+      }),
+    ).rejects.toMatchObject({ status: 401, message: "Malformed auth code." });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ state: "spent-on-first-send" }),
+    });
+  });
+
   it("falls back to a public request when optional auth gets a 401", async () => {
     const fetchMock = vi
       .fn()

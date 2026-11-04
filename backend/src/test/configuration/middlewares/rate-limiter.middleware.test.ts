@@ -306,6 +306,23 @@ describe("resolveRateLimitPolicy", () => {
     });
   });
 
+  it("keeps starting an OAuth sign-in out of the sign-in bucket", () => {
+    const startPolicy = resolveRateLimitPolicy(
+      policyRequest("http://rent.test/auth/oauth/apple/start", {
+        method: "POST",
+      }),
+    );
+    const callbackPolicy = resolveRateLimitPolicy(
+      policyRequest("http://rent.test/auth/oauth/apple", { method: "POST" }),
+    );
+
+    expect(startPolicy).toMatchObject({
+      id: "auth-session",
+      bucketKey: "POST:auth-session",
+    });
+    expect(callbackPolicy).toMatchObject({ id: "auth-sensitive" });
+  });
+
   it("assigns the auth-session policy to oauth link and delete routes", () => {
     const linkPolicy = resolveRateLimitPolicy(
       policyRequest("http://rent.test/auth/oauth/google/link", {

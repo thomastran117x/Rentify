@@ -1,5 +1,6 @@
 import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import type { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
+import type { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
 import { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import {
   createClaims,
@@ -51,19 +52,32 @@ function createController() {
       success: true,
     })),
   };
+  const oauthFlowService = {
+    start: jest.fn(async () => ({
+      state: "server-state",
+      nonce: "server-nonce",
+      codeChallenge: "server-challenge",
+      tokenDelivery: "code" as const,
+      expiresInSeconds: 600,
+    })),
+  };
 
   return {
     oauthAccountsService,
     captchaService,
+    oauthFlowService,
     controller: new OAuthController(
       oauthAccountsService as unknown as OAuthAccountsService,
+      oauthFlowService as unknown as OAuthFlowService,
       captchaService as unknown as CaptchaService,
     ),
   };
 }
 
 const oauthBody = {
+  state: "oauth-state",
   code: "oauth-code",
+  // A client still on the old contract: both are dropped, never trusted.
   codeVerifier: "oauth-verifier",
   nonce: "oauth-nonce",
   rememberMe: true,
@@ -88,10 +102,9 @@ describe("OAuthController sign-in handlers", () => {
     );
 
     expect(oauthAccountsService.googleAuthenticate).toHaveBeenCalledWith({
+      state: "oauth-state",
       code: "oauth-code",
-      codeVerifier: "oauth-verifier",
       idToken: undefined,
-      nonce: "oauth-nonce",
       rememberMe: true,
       client: expect.any(Object),
       firstName: "OAuth",
@@ -125,31 +138,38 @@ describe("OAuthController sign-in handlers", () => {
     expect(response.status).toBe(200);
   });
 
-  it("accepts an id token in place of the PKCE pair", async () => {
+  it("accepts an id token in place of a code", async () => {
     const { controller, oauthAccountsService } = createController();
 
     const response = await invoke(
       controller.appleAuthenticate,
-      createContext({ body: { idToken: "id-token", nonce: "apple-nonce" } }),
+      createContext({ body: { idToken: "id-token", state: "apple-state" } }),
     );
 
     expect(oauthAccountsService.appleAuthenticate).toHaveBeenCalledWith(
-      expect.objectContaining({ idToken: "id-token", nonce: "apple-nonce" }),
+      expect.objectContaining({ idToken: "id-token", state: "apple-state" }),
     );
     await expect(response.json()).resolves.toMatchObject({
       data: { isNewUser: true },
     });
   });
 
-  it("rejects a body with neither an id token nor a code pair", async () => {
+  it.each([
+    ["neither an id token nor a code", { state: "oauth-state" }],
+    [
+      "both an id token and a code",
+      { state: "oauth-state", code: "oauth-code", idToken: "id-token" },
+    ],
+    [
+      "no state, even with a client nonce",
+      { idToken: "id-token", nonce: "client-nonce" },
+    ],
+  ])("rejects a body with %s", async (_label, body) => {
     const { controller, oauthAccountsService } = createController();
 
     await expect(
-      invoke(
-        controller.googleAuthenticate,
-        createContext({ body: { nonce: "oauth-nonce" } }),
-      ),
-    ).rejects.toThrow();
+      invoke(controller.googleAuthenticate, createContext({ body })),
+    ).rejects.toMatchObject({ name: "RequestValidationError" });
     expect(oauthAccountsService.googleAuthenticate).not.toHaveBeenCalled();
   });
 
@@ -261,6 +281,99 @@ describe("OAuthController sign-in handlers", () => {
       ),
     ).rejects.toThrow("Request body validation failed.");
     expect(oauthAccountsService.completeSignup).not.toHaveBeenCalled();
+  });
+});
+
+describe("OAuthController.startFlow", () => {
+  it("starts a sign-in without authenticating the caller", async () => {
+    const { controller, oauthFlowService } = createController();
+
+    const response = await invoke(
+      controller.startFlow,
+      createContext({
+        params: { provider: "google" },
+        body: { intent: "login", deviceId: "start-device" },
+      }),
+    );
+
+    expect(mockRequireJwtAuth).not.toHaveBeenCalled();
+    expect(oauthFlowService.start).toHaveBeenCalledWith({
+      provider: "google",
+      intent: "login",
+      deviceId: "start-device",
+      userId: undefined,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      message: "OAuth sign-in started.",
+      data: {
+        state: "server-state",
+        nonce: "server-nonce",
+        codeChallenge: "server-challenge",
+        tokenDelivery: "code",
+        expiresInSeconds: 600,
+      },
+    });
+  });
+
+  it("authenticates a link start and binds it to the caller", async () => {
+    const auth = createClaims({ sub: USER_15_ID });
+    mockRequireJwtAuth.mockImplementation(
+      async (request: AuthTestContext["request"]) => {
+        request.auth = auth;
+        return auth;
+      },
+    );
+    const { controller, oauthFlowService } = createController();
+
+    await invoke(
+      controller.startFlow,
+      createContext({
+        auth,
+        params: { provider: "microsoft" },
+        body: { intent: "link" },
+      }),
+    );
+
+    expect(mockRequireJwtAuth).toHaveBeenCalled();
+    expect(oauthFlowService.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "microsoft",
+        intent: "link",
+        userId: USER_15_ID,
+      }),
+    );
+  });
+
+  it("does not start a link for an unauthenticated caller", async () => {
+    mockRequireJwtAuth.mockRejectedValue(new Error("unauthenticated"));
+    const { controller, oauthFlowService } = createController();
+
+    await expect(
+      invoke(
+        controller.startFlow,
+        createContext({
+          params: { provider: "google" },
+          body: { intent: "link" },
+        }),
+      ),
+    ).rejects.toThrow("unauthenticated");
+    expect(oauthFlowService.start).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown intent", async () => {
+    const { controller, oauthFlowService } = createController();
+
+    await expect(
+      invoke(
+        controller.startFlow,
+        createContext({
+          params: { provider: "google" },
+          body: { intent: "takeover" },
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "RequestValidationError" });
+    expect(oauthFlowService.start).not.toHaveBeenCalled();
   });
 });
 

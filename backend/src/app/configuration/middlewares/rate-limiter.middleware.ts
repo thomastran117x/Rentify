@@ -246,6 +246,11 @@ function isAuthSessionRoute(request: Request, pathname: string): boolean {
   return (
     (request.method === "POST" &&
       /^\/auth\/(logout|device\/verify)$/.test(pathname)) ||
+    // Starting a sign-in only mints a state, but it is anonymous and writes to
+    // Redis, so it is bounded; it stays out of auth-sensitive so a sign-in
+    // does not spend two of that bucket's ten attempts.
+    (request.method === "POST" &&
+      /^\/auth\/oauth\/(google|microsoft|apple)\/start$/.test(pathname)) ||
     /^\/auth\/oauth\/[^/]+\/link$/.test(pathname) ||
     (request.method === "DELETE" && /^\/auth\/oauth\/[^/]+$/.test(pathname))
   );

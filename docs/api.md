@@ -305,6 +305,38 @@ enroll an authenticator app from **Account → Security**, sign out, and sign in
 again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
 same and removes the authenticator afterwards.
 
+### OAuth Sign-In
+
+Every Google, Microsoft and Apple sign-in, and every provider link, starts on
+the server:
+
+1. `POST /auth/oauth/{provider}/start` with `{ intent, deviceId }` returns
+   `{ state, nonce, codeChallenge?, tokenDelivery, expiresInSeconds }`.
+   `intent` is `login`, `signup` or `link`; `link` needs the bearer token.
+2. The client puts `state`, `nonce` and, when present, `codeChallenge` in the
+   provider's authorize request. The PKCE verifier behind `codeChallenge`
+   stays on the server.
+3. The callback, `POST /auth/oauth/{provider}` or
+   `POST /auth/oauth/{provider}/link`, sends the same `state` with the `code`,
+   or with the provider's `idToken` when `tokenDelivery` is `id_token`. The
+   client sends no nonce or code verifier.
+
+The state lasts ten minutes and is spent on the first callback that names it,
+even when that callback fails. It is bound to the provider, the intent, the
+device and, for a link, the account that started it. A callback whose state is
+missing, unknown, expired, already used or bound to something else returns
+`401 OAUTH_STATE_INVALID`, and the client starts again. The provider's ID token
+must carry the server's nonce. So an ID token obtained elsewhere cannot be
+replayed, and a link started by one account cannot be finished by another.
+Each `/start` is independent, so several tabs can sign in at once.
+
+`tokenDelivery` is `code` for Google always. Microsoft and Apple get `id_token`
+while they are listed in `OAUTH_CLIENT_ID_TOKEN_PROVIDERS` (both are by
+default); see [OAuth sign-in](./backend-configuration.md#oauth-sign-in). On
+the web, Microsoft redeems its code in the browser, and Apple's JS SDK returns
+the ID token, `state` included, directly to the page in popup mode, so Apple's
+`form_post` response never reaches the app.
+
 ## Realtime Surfaces
 
 Socket.IO connections are not HTTP operations, so the spec cannot describe them

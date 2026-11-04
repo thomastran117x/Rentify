@@ -23,6 +23,7 @@ import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { UsersRepository } from "@/features/auth/users/users.repository";
 import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
 import { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
+import { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
 import { TokenRepository } from "@/features/auth/token/token.repository";
 import { PasswordRepository } from "@/features/auth/password/password.repository";
 import { MfaVerificationRepository } from "@/features/auth/mfa/verification/mfa-verification.repository";
@@ -390,6 +391,7 @@ export const containerTokens = {
     "OAuthAccountsService",
   ),
   oauthSignupStore: createServiceToken<OAuthSignupStore>("OAuthSignupStore"),
+  oauthFlowService: createServiceToken<OAuthFlowService>("OAuthFlowService"),
   oauthController: createServiceToken<OAuthController>("OAuthController"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),

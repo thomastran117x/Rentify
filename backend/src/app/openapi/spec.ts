@@ -81,6 +81,15 @@ const oauthSignupRequiredExample = {
   signupToken: "opaque-signup-token",
   expiresInSeconds: 600,
 };
+const oauthStateInvalidExample = {
+  summary:
+    "The state is unknown, expired, already used, or was started for another provider, purpose, device, or account.",
+  message:
+    "This sign-in attempt has expired or was already used. Start again to continue.",
+  code: "OAUTH_STATE_INVALID",
+};
+const OAUTH_CALLBACK_DESCRIPTION =
+  "Call POST /auth/oauth/{provider}/start first and put its state and nonce (and codeChallenge, when returned) in the provider's authorize request. The callback then sends that state with the code, or with the ID token when tokenDelivery is id_token. The state is single-use and expires after 10 minutes; a callback whose state is missing, reused, expired, or started for another provider, purpose, device, or account is rejected with 401 OAUTH_STATE_INVALID, and the ID token must carry the server-issued nonce.";
 const loginMfaRequiredExample = {
   mfaRequired: true,
   mfaChallengeToken: "opaque-mfa-challenge-token",
@@ -1643,15 +1652,22 @@ function accountStatusSignInErrors(): Record<string, unknown> {
  * login MFA challenge in `details` for POST /auth/login/mfa; clients that
  * predate it can still send the credentials again with `totpCode`.
  */
-function signInUnauthorizedResponse(credentialsExample: {
-  summary: string;
-  message: string;
-  code: string;
-}): Record<string, unknown> {
+function signInUnauthorizedResponse(
+  credentialsExample: {
+    summary: string;
+    message: string;
+    code: string;
+  },
+  extraExamples: Record<
+    string,
+    { summary: string; message: string; code: string }
+  > = {},
+): Record<string, unknown> {
   const examples = errorResponseExamples(
     "The credentials were rejected, or the account needs an authenticator code.",
     {
       credentials: credentialsExample,
+      ...extraExamples,
       mfaRequired: {
         summary:
           "The first factor passed; finish with POST /auth/login/mfa, or resend with totpCode.",
@@ -2759,7 +2775,9 @@ function buildOperations(): OperationDefinition[] {
       operationId: "googleAuthenticate",
       summary: "Authenticate with Google OAuth",
       description:
-        "Authenticates with Google using either an authorization code plus PKCE verifier or an ID token. Returning users authenticate immediately, unless the account has an authenticator app: then the API returns 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.",
+        "Authenticates with Google by redeeming an authorization code with the server-held PKCE verifier. Google never accepts an ID token from the client. " +
+        OAUTH_CALLBACK_DESCRIPTION +
+        " Returning users authenticate immediately, unless the account has an authenticator app: then the API returns 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa. A new account requires dateOfBirth; when it is omitted, the API returns a short-lived signup continuation.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2769,9 +2787,8 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("OAuthAuthenticateRequest", {
+        state: "server-issued-state",
         code: "auth-code",
-        codeVerifier: "pkce-verifier",
-        nonce: "nonce-value",
         rememberMe: true,
         deviceId: "device-1",
         firstName: "Taylor",
@@ -2792,11 +2809,14 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
-        "401": signInUnauthorizedResponse({
-          summary: "The provider token could not be verified.",
-          message: "Google ID token is missing required claims.",
-          code: "UNAUTHORIZED",
-        }),
+        "401": signInUnauthorizedResponse(
+          {
+            summary: "The provider token could not be verified.",
+            message: "Google ID token is missing required claims.",
+            code: "UNAUTHORIZED",
+          },
+          { oauthStateInvalid: oauthStateInvalidExample },
+        ),
         ...accountStatusSignInErrors(),
       },
     },
@@ -2806,7 +2826,9 @@ function buildOperations(): OperationDefinition[] {
       operationId: "microsoftAuthenticate",
       summary: "Authenticate with Microsoft OAuth",
       description:
-        "Authenticates with Microsoft using either an authorization code plus PKCE verifier or an ID token, depending on the client flow. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
+        "Authenticates with Microsoft. With the default OAUTH_CLIENT_ID_TOKEN_PROVIDERS, the browser redeems its code with Microsoft and sends the ID token; when Microsoft is not on that list, it sends the code and the backend redeems it with the server-held PKCE verifier. A token without a verified email (email_verified, or the personal-account tenant, or xms_edov under that policy) is rejected. " +
+        OAUTH_CALLBACK_DESCRIPTION +
+        " An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2816,8 +2838,8 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("OAuthAuthenticateRequest", {
+        state: "server-issued-state",
         idToken: "microsoft-id-token",
-        nonce: "nonce-value",
         rememberMe: false,
         deviceId: "device-2",
       }),
@@ -2835,11 +2857,14 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
-        "401": signInUnauthorizedResponse({
-          summary: "The provider token could not be verified.",
-          message: "Microsoft ID token is missing required claims.",
-          code: "UNAUTHORIZED",
-        }),
+        "401": signInUnauthorizedResponse(
+          {
+            summary: "The provider token could not be verified.",
+            message: "Microsoft ID token is missing required claims.",
+            code: "UNAUTHORIZED",
+          },
+          { oauthStateInvalid: oauthStateInvalidExample },
+        ),
         ...accountStatusSignInErrors(),
       },
     },
@@ -2849,7 +2874,9 @@ function buildOperations(): OperationDefinition[] {
       operationId: "appleAuthenticate",
       summary: "Authenticate with Apple OAuth",
       description:
-        "Authenticates with Sign in with Apple. Send the ID token returned by Apple's JS SDK, or an authorization code that the backend exchanges using an ES256 client secret. Apple only shares the user's name on first consent, so clients forward it as firstName/lastName. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
+        "Authenticates with Sign in with Apple. With the default OAUTH_CLIENT_ID_TOKEN_PROVIDERS, send the ID token Apple's JS SDK returns; when Apple is not on that list, send the authorization code and the backend exchanges it using an ES256 client secret. " +
+        OAUTH_CALLBACK_DESCRIPTION +
+        " Apple only shares the user's name on first consent, so clients forward it as firstName/lastName. An account with an authenticator app gets 401 UNAUTHORIZED with details.mfaRequired and a login MFA challenge to finish through POST /auth/login/mfa.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2859,8 +2886,8 @@ function buildOperations(): OperationDefinition[] {
         rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("OAuthAuthenticateRequest", {
+        state: "server-issued-state",
         idToken: "apple-id-token",
-        nonce: "nonce-value",
         firstName: "Avery",
         lastName: "Apple",
       }),
@@ -2878,12 +2905,53 @@ function buildOperations(): OperationDefinition[] {
           oauthSignupRequiredExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
-        "401": signInUnauthorizedResponse({
-          summary: "The provider token could not be verified.",
-          message: "Apple ID token is missing required claims.",
-          code: "UNAUTHORIZED",
-        }),
+        "401": signInUnauthorizedResponse(
+          {
+            summary: "The provider token could not be verified.",
+            message: "Apple ID token is missing required claims.",
+            code: "UNAUTHORIZED",
+          },
+          { oauthStateInvalid: oauthStateInvalidExample },
+        ),
         ...accountStatusSignInErrors(),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/oauth/:provider/start",
+      operationId: "startOauthFlow",
+      summary: "Start an OAuth sign-in or link",
+      description:
+        "Issues the single-use state and nonce for one OAuth sign-in, bound to the provider, the intent, the device (deviceId, or the x-device-id header) and, for intent link, the signed-in account. They expire after 10 minutes. tokenDelivery says how the callback must finish: code when the backend redeems the authorization code, id_token when the browser posts the provider's ID token (only for providers listed in OAUTH_CLIENT_ID_TOKEN_PROVIDERS). codeChallenge is the S256 PKCE challenge for the authorize request; it is returned only for a Google or Microsoft code flow, and its verifier never leaves the server. Each call is independent, so several tabs can sign in at once. intent login and signup are finished by POST /auth/oauth/{provider}; intent link requires a bearer token and is finished by POST /auth/oauth/{provider}/link.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "OAuth routes are exempt from browser CSRF enforcement.",
+        rateLimitPolicy: "auth-session",
+      },
+      parameters: [
+        routePathParam("provider", "OAuth provider name.", "google"),
+      ],
+      requestBody: requestBody("OAuthStartRequest", {
+        intent: "login",
+        deviceId: "device-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "OAuth sign-in started.",
+          "OAuthStartResult",
+          {
+            state: "server-issued-state",
+            nonce: "server-issued-nonce",
+            codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            tokenDelivery: "code",
+            expiresInSeconds: 600,
+          },
+        ),
+        ...commonErrors([400, 401, 403, 429, 500]),
       },
     },
     {
@@ -2952,7 +3020,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "linkOauthProvider",
       summary: "Link an OAuth provider to the current account",
       description:
-        "Links the selected OAuth provider to the currently signed-in local account.",
+        "Links the selected OAuth provider to the currently signed-in local account. The state must come from POST /auth/oauth/{provider}/start with intent link, started by this same account on this device; a sign-in state, or one started by another account, is rejected with 401 OAUTH_STATE_INVALID.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -2964,9 +3032,8 @@ function buildOperations(): OperationDefinition[] {
         routePathParam("provider", "OAuth provider name.", "google"),
       ],
       requestBody: requestBody("OAuthAuthenticateRequest", {
+        state: "server-issued-state",
         code: "auth-code",
-        codeVerifier: "pkce-verifier",
-        nonce: "nonce-value",
       }),
       responses: {
         "200": successResponse(
@@ -2976,6 +3043,17 @@ function buildOperations(): OperationDefinition[] {
           linkedProvidersExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": errorResponseExamples(
+          "The bearer token is missing or invalid, or the link state was rejected.",
+          {
+            unauthenticated: {
+              summary: "The bearer token is missing or invalid.",
+              message: "Authorization header is required.",
+              code: "UNAUTHORIZED",
+            },
+            oauthStateInvalid: oauthStateInvalidExample,
+          },
+        ),
       },
     },
     {
@@ -12065,14 +12143,63 @@ function buildComponents(): Record<string, unknown> {
           newPassword: { type: "string" },
         },
       },
+      OAuthStartRequest: {
+        type: "object",
+        required: ["intent"],
+        properties: {
+          intent: {
+            type: "string",
+            enum: ["login", "signup", "link"],
+            description:
+              "What the sign-in is for. link needs a bearer token and binds the state to that account.",
+          },
+          deviceId: {
+            type: "string",
+            description:
+              "The device the callback must come from. Defaults to the x-device-id header; one of the two is required.",
+          },
+        },
+      },
+      OAuthStartResult: {
+        type: "object",
+        required: ["state", "nonce", "tokenDelivery", "expiresInSeconds"],
+        properties: {
+          state: {
+            type: "string",
+            description:
+              "Opaque, single-use value for the authorize request's state parameter; send it back with the callback.",
+          },
+          nonce: {
+            type: "string",
+            description:
+              "Value for the authorize request's nonce parameter; the provider's ID token must carry it.",
+          },
+          codeChallenge: {
+            type: "string",
+            description:
+              "S256 PKCE code_challenge for the authorize request. Present only for a Google or Microsoft code flow.",
+          },
+          tokenDelivery: {
+            type: "string",
+            enum: ["code", "id_token"],
+            description:
+              "Whether the callback must send the authorization code or the provider's ID token.",
+          },
+          expiresInSeconds: { type: "integer", enum: [600] },
+        },
+      },
       OAuthAuthenticateRequest: {
         type: "object",
-        required: ["nonce"],
+        required: ["state"],
+        description:
+          "Send exactly one of code and idToken, as the start response's tokenDelivery asked. The nonce and PKCE verifier are the server's; the client no longer sends either.",
         properties: {
+          state: {
+            type: "string",
+            description: "The state POST /auth/oauth/{provider}/start issued.",
+          },
           code: { type: "string" },
-          codeVerifier: { type: "string" },
           idToken: { type: "string" },
-          nonce: { type: "string" },
           rememberMe: { type: "boolean" },
           deviceId: { type: "string" },
           firstName: { type: "string" },

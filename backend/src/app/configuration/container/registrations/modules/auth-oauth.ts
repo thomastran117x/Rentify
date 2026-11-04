@@ -8,6 +8,8 @@ import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
 import { OAuthTokenVerifier } from "@/features/auth/oauth/oauth-token-verifier";
 import { OAuthIdentityRepository } from "@/features/auth/oauth/oauth-identity.repository";
 import { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
+import { OAuthFlowStore } from "@/features/auth/oauth/oauth-flow.store";
+import { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
 
 export const authOauthRegistrationModule: ContainerRegistrationModule = {
   id: "auth-oauth",
@@ -18,6 +20,15 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
       dependencies: [containerTokens.cacheService],
       resolve: ({ resolve }) =>
         new OAuthSignupStore(resolve(containerTokens.cacheService)),
+    });
+    container.register({
+      token: containerTokens.oauthFlowService,
+      lifetime: "scoped",
+      dependencies: [containerTokens.cacheService],
+      resolve: ({ resolve }) =>
+        new OAuthFlowService(
+          new OAuthFlowStore(resolve(containerTokens.cacheService)),
+        ),
     });
     container.register({
       token: containerTokens.authOAuthIdentityRepository,
@@ -68,6 +79,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
         containerTokens.oauthSignupStore,
         containerTokens.authAuditService,
         containerTokens.loginMfaService,
+        containerTokens.oauthFlowService,
       ],
       resolve: ({ resolve }) =>
         new OAuthAccountsService(
@@ -83,6 +95,7 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.oauthSignupStore),
           resolve(containerTokens.authAuditService),
           resolve(containerTokens.loginMfaService),
+          resolve(containerTokens.oauthFlowService),
         ),
     });
     container.register({
@@ -90,11 +103,13 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
       lifetime: "scoped",
       dependencies: [
         containerTokens.oauthAccountsService,
+        containerTokens.oauthFlowService,
         containerTokens.captchaService,
       ],
       resolve: ({ resolve }) =>
         new OAuthController(
           resolve(containerTokens.oauthAccountsService),
+          resolve(containerTokens.oauthFlowService),
           resolve(containerTokens.captchaService),
         ),
     });

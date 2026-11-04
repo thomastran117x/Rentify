@@ -6,6 +6,7 @@ import LoginMfaRequiredError from "@/errors/http/login-mfa-required.error";
 import type { LoginMfaOutcome } from "@/features/auth/mfa/login/login-mfa.service";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
+import OAuthStateInvalidError from "@/errors/http/oauth-state-invalid.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
   AuthUserRecord,
@@ -84,9 +85,8 @@ const googleProfile = {
 
 const oauthInput = {
   client: createClient(),
-  nonce: "nonce-1",
+  state: "state-1",
   code: "code-1",
-  codeVerifier: "verifier-1",
   deviceId: "device-1",
   dateOfBirth: "2012-06-15",
 };
@@ -163,6 +163,13 @@ function createHarness() {
     hashIdentifier: jest.fn((value: string) => `hash:${value}`),
     recordSafely: jest.fn(async () => undefined),
   };
+  const oauthFlowService = {
+    redeem: jest.fn(async () => ({
+      nonce: "server-nonce-1",
+      code: "code-1",
+      codeVerifier: "server-verifier-1",
+    })),
+  };
   const loginMfaService = {
     evaluateFirstStep: jest.fn(
       async (): Promise<LoginMfaOutcome> => ({ status: "not_required" }),
@@ -182,6 +189,7 @@ function createHarness() {
     tokenService,
     authAuditService,
     loginMfaService,
+    oauthFlowService,
     service: new OAuthAccountsService(
       authRepository as never,
       authRepository as never,
@@ -201,6 +209,7 @@ function createHarness() {
       oauthSignupStore as never,
       authAuditService as never,
       loginMfaService as never,
+      oauthFlowService as never,
     ),
   };
 }
@@ -618,6 +627,52 @@ describe("OAuthAccountsService sign-in", () => {
     },
   );
 
+  it("spends the callback state before verifying, and verifies with the server's nonce and verifier", async () => {
+    const harness = createHarness();
+
+    await harness.service.googleAuthenticate({
+      ...oauthInput,
+      firstName: "Given",
+    });
+
+    expect(harness.oauthFlowService.redeem).toHaveBeenCalledWith({
+      provider: "google",
+      allowedIntents: ["login", "signup"],
+      state: "state-1",
+      deviceId: "device-1",
+      userId: undefined,
+      code: "code-1",
+      idToken: undefined,
+    });
+    expect(harness.googleOAuthService.verify).toHaveBeenCalledWith({
+      nonce: "server-nonce-1",
+      code: "code-1",
+      codeVerifier: "server-verifier-1",
+      firstName: "Given",
+      lastName: undefined,
+    });
+  });
+
+  it("audits a rejected state as an invalid token and never reaches the provider", async () => {
+    const harness = createHarness();
+    harness.oauthFlowService.redeem.mockRejectedValue(
+      new OAuthStateInvalidError(),
+    );
+
+    await expect(
+      harness.service.microsoftAuthenticate(oauthInput),
+    ).rejects.toBeInstanceOf(OAuthStateInvalidError);
+
+    expect(harness.microsoftOAuthService.verify).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        reasonCode: "token_invalid",
+        method: "microsoft",
+      }),
+    );
+  });
+
   it("authenticates through Microsoft", async () => {
     const harness = createHarness();
     harness.authRepository.createOAuthUser.mockResolvedValue(
@@ -730,6 +785,40 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
 
     expect(harness.appleOAuthService.verify).toHaveBeenCalled();
     expect(harness.googleOAuthService.verify).not.toHaveBeenCalled();
+  });
+
+  it("redeems only a link state started by the same account", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(
+      createUser({ passwordHash: BCRYPT_HASH }),
+    );
+
+    await harness.service.linkOAuthProvider(linkInput);
+
+    expect(harness.oauthFlowService.redeem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "google",
+        allowedIntents: ["link"],
+        userId: USER_1_ID,
+        state: "state-1",
+      }),
+    );
+  });
+
+  it("does not link when the state is rejected", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(
+      createUser({ passwordHash: BCRYPT_HASH }),
+    );
+    harness.oauthFlowService.redeem.mockRejectedValue(
+      new OAuthStateInvalidError(),
+    );
+
+    await expect(
+      harness.service.linkOAuthProvider(linkInput),
+    ).rejects.toBeInstanceOf(OAuthStateInvalidError);
+    expect(harness.googleOAuthService.verify).not.toHaveBeenCalled();
+    expect(harness.authRepository.linkOAuthIdentity).not.toHaveBeenCalled();
   });
 });
 

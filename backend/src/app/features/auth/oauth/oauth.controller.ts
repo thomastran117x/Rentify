@@ -10,20 +10,42 @@ import {
   toCompleteOAuthSignupInput,
   toLinkOAuthProviderInput,
   toOAuthAuthenticateInput,
+  toStartOAuthFlowInput,
   toUnlinkOAuthProviderInput,
 } from "@/features/auth/auth.request-mappers";
+import type { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
 import { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
 import {
   completeOAuthSignupRequestSchema,
   oauthAuthenticateRequestSchema,
+  oauthStartRequestSchema,
 } from "@/features/auth/oauth/oauth-accounts.model";
 import { asUuid } from "@/configuration/validation/uuid";
 
 export class OAuthController {
   constructor(
     private readonly oauthAccountsService: OAuthAccountsService,
+    private readonly oauthFlowService: OAuthFlowService,
     private readonly captchaService: CaptchaService,
   ) {}
+
+  /**
+   * Issues the state, nonce and (for a backend code exchange) PKCE challenge
+   * the client puts in the provider's authorize request. A link attempt is
+   * bound to the signed-in account, so it needs a signed-in caller.
+   */
+  startFlow = async (request: Request, response: Response): Promise<void> => {
+    const input = await parseRequestBody(request, oauthStartRequestSchema);
+
+    if (input.intent === "link") {
+      await requireJwtAuth(request);
+    }
+
+    const result = await this.oauthFlowService.start(
+      toStartOAuthFlowInput(request, input),
+    );
+    ok(response, result, { message: "OAuth sign-in started." });
+  };
 
   googleAuthenticate = async (
     request: Request,

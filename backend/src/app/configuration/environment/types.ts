@@ -37,6 +37,20 @@ export const AUTH_SECURITY_DETECTION_MODES = [
 ] as const;
 export type AuthSecurityDetectionMode =
   (typeof AUTH_SECURITY_DETECTION_MODES)[number];
+/**
+ * Which claims prove a Microsoft account owns its email. `email_verified`
+ * needs that claim; `email_verified_or_xms_edov` also accepts the optional
+ * `xms_edov` (email domain owner verified) claim business tenants can emit.
+ */
+export const MICROSOFT_VERIFIED_EMAIL_POLICIES = [
+  "email_verified",
+  "email_verified_or_xms_edov",
+] as const;
+export type MicrosoftVerifiedEmailPolicy =
+  (typeof MICROSOFT_VERIFIED_EMAIL_POLICIES)[number];
+/** Sign-in providers; mirrors `OAuthProvider` without importing a feature. */
+export const OAUTH_PROVIDER_NAMES = ["google", "microsoft", "apple"] as const;
+export type OAuthProviderName = (typeof OAUTH_PROVIDER_NAMES)[number];
 /** One detection rule's switch, threshold and sliding window. */
 export interface AuthSecurityDetectionRuleConfig {
   enabled: boolean;
@@ -180,6 +194,8 @@ export type RawEnvironmentValues = {
   MFA_BYPASS_EMAILS?: string;
   MFA_TOTP_ENCRYPTION_KEY?: string;
   MICROSOFT_OAUTH_TENANT?: string;
+  MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY?: string;
+  OAUTH_CLIENT_ID_TOKEN_PROVIDERS?: string;
   NODE_ENV?: string;
   PAYPAL_CHECKOUT_METHODS?: string;
   PAYPAL_CLIENT_ID?: string;
@@ -450,6 +466,12 @@ export interface AppEnvironment {
     allowedOrigins: string[];
   };
   oauth: {
+    /**
+     * Providers whose callback may post an ID token the browser obtained,
+     * instead of a code the backend redeems. Either way the token must carry
+     * a server-issued nonce.
+     */
+    clientIdTokenProviders: OAuthProviderName[];
     google: {
       audiences: string[];
       clientSecret?: string;
@@ -459,6 +481,7 @@ export interface AppEnvironment {
       audiences: string[];
       clientSecret?: string;
       tenant: string;
+      verifiedEmailPolicy?: MicrosoftVerifiedEmailPolicy;
       frontendBaseUrl: string;
     };
     apple: {
