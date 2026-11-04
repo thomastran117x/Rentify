@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -63,11 +63,19 @@ export function SessionManagementPanel({
   );
   const [pending, setPending] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  // Held in a ref so a parent passing a new callback on each render does not
+  // reload the list. With a lapsed step-up, that reload would lock the Security
+  // tab underneath a dialog that is busy renewing it.
+  const onVerificationRequiredRef = useRef(onVerificationRequired);
+
+  useEffect(() => {
+    onVerificationRequiredRef.current = onVerificationRequired;
+  }, [onVerificationRequired]);
 
   const handleError = useCallback(
     (error: unknown, action: string, fallback: string): boolean => {
       if (isVerificationRequired(error)) {
-        onVerificationRequired?.();
+        onVerificationRequiredRef.current?.();
         return true;
       }
 
@@ -81,7 +89,7 @@ export function SessionManagementPanel({
       );
       return false;
     },
-    [onVerificationRequired],
+    [],
   );
 
   const loadSessions = useCallback(async () => {
