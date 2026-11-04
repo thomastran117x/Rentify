@@ -1,5 +1,6 @@
 import {
   authenticatedJson,
+  authenticatedJsonOnce,
   buildPathWithQuery,
   cancelStoredSessionRefresh,
   hasRefreshCookieHint,
@@ -16,6 +17,8 @@ import type {
   KnownDevicesResult,
   LinkedOAuthProvidersResult,
   LoginMfaFactor,
+  OAuthFlowIntent,
+  OAuthFlowStart,
   OAuthProvider,
   OAuthAuthenticateResult,
   PersonalAccessTokenListResult,
@@ -102,10 +105,10 @@ interface ResendUnlockLocalLoginInput {
   captchaToken: string;
 }
 
+/** The callback: the server-issued state, and the code or the ID token. */
 interface OAuthAuthenticateInput {
-  nonce: string;
+  state: string;
   code?: string;
-  codeVerifier?: string;
   idToken?: string;
   rememberMe?: boolean;
   firstName?: string;
@@ -262,14 +265,30 @@ export const authApi = {
       },
     );
   },
+  /**
+   * Asks the backend to start one sign-in. A link attempt is bound to the
+   * signed-in account, so it goes out with the bearer token.
+   */
+  startOAuthFlow(
+    provider: OAuthProvider,
+    intent: OAuthFlowIntent,
+  ): Promise<OAuthFlowStart> {
+    const path = `/auth/oauth/${provider}/start`;
+    const body = { intent, deviceId: getDeviceId() };
+
+    return intent === "link"
+      ? postAuthenticatedJson<OAuthFlowStart, typeof body>(path, body)
+      : publicJson<OAuthFlowStart, typeof body>("POST", path, body);
+  },
+  /** Sent once: its state is spent by the first attempt, success or not. */
   linkOAuthProvider(
     provider: OAuthProvider,
     input: OAuthAuthenticateInput,
   ): Promise<LinkedOAuthProvidersResult> {
-    return postAuthenticatedJson<
+    return authenticatedJsonOnce<
       LinkedOAuthProvidersResult,
       OAuthAuthenticateInput
-    >(`/auth/oauth/${provider}/link`, {
+    >("POST", `/auth/oauth/${provider}/link`, {
       ...input,
       deviceId: input.deviceId ?? getDeviceId(),
     });

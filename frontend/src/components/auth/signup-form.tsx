@@ -534,6 +534,7 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className={currentStep === 0 ? "space-y-5" : "hidden"}>
           <AuthOAuthButtons
+            intent="signup"
             onSuccess={handleOAuthSuccess}
             onError={setGeneralError}
             onSignupRequired={setOAuthSignupPending}

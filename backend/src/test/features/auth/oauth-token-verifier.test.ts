@@ -153,6 +153,30 @@ describe("OAuthTokenVerifier", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
+  it("rejects a token that carries no nonce, and an empty expected nonce", async () => {
+    const verifier = new OAuthTokenVerifier();
+    const options = {
+      issuer: "https://issuer.example.com",
+      audience: "rent-web",
+      jwksUrl: "https://issuer.example.com/jwks",
+      nonce: "nonce-1",
+    };
+
+    await expect(
+      verifier.verifyIdToken(
+        createToken({ payload: { nonce: undefined } }),
+        options,
+      ),
+    ).rejects.toMatchObject({ message: "OAuth token nonce is invalid." });
+    await expect(
+      verifier.verifyIdToken(createToken({ payload: { nonce: "" } }), {
+        ...options,
+        nonce: "",
+      }),
+    ).rejects.toMatchObject({ message: "OAuth token nonce is invalid." });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("verifies a valid token with a matching RSA JWK and caches the fetched key set", async () => {
     const fetchMock = (global as typeof globalThis & { fetch: jest.Mock })
       .fetch;

@@ -330,20 +330,35 @@ describe("Auth audit events persistence integration", () => {
   });
 
   it("persists OAuth signup and returning-login events from the mocked verifier", async () => {
-    const authenticate = () =>
-      persistenceApp.app.request(
+    const headers = { "content-type": "application/json", origin: ORIGIN };
+    const authenticate = async () => {
+      const start = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google/start")}`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            intent: "login",
+            deviceId: "audit-oauth-device",
+          }),
+        },
+      );
+      const { data } = (await start.json()) as { data: { state: string } };
+
+      return persistenceApp.app.request(
         `http://rent.test${buildApiPath("/auth/oauth/google")}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json", origin: ORIGIN },
+          headers,
           body: JSON.stringify({
-            idToken: "google-id-token",
-            nonce: "audit-oauth-nonce",
+            state: data.state,
+            code: "google-code",
             deviceId: "audit-oauth-device",
             dateOfBirth: "2012-06-15",
           }),
         },
       );
+    };
 
     expect((await authenticate()).status).toBe(200);
     expect((await authenticate()).status).toBe(200);

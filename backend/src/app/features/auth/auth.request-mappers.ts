@@ -15,8 +15,10 @@ import type {
   LinkOAuthProviderInput,
   OAuthAuthenticateInput,
   OAuthAuthenticateRequestBody,
+  OAuthStartRequestBody,
   UnlinkOAuthProviderInput,
 } from "@/features/auth/oauth/oauth-accounts.model";
+import type { StartOAuthFlowInput } from "@/features/auth/oauth/oauth-flow.service";
 import type {
   RemoveKnownDeviceInput,
   RemoveKnownDeviceRequestBody,
@@ -222,10 +224,9 @@ export function toOAuthAuthenticateInput(
   const deviceId = resolveDeviceId(request, input.deviceId);
 
   return {
+    state: input.state,
     code: input.code,
-    codeVerifier: input.codeVerifier,
     idToken: input.idToken,
-    nonce: input.nonce,
     rememberMe: input.rememberMe,
     client: request.client,
     firstName: input.firstName,
@@ -234,6 +235,19 @@ export function toOAuthAuthenticateInput(
     totpCode: input.totpCode,
     dateOfBirth: input.dateOfBirth,
     audit: toAuthAuditContext(request, deviceId),
+  };
+}
+
+export function toStartOAuthFlowInput(
+  request: Request,
+  input: OAuthStartRequestBody,
+): StartOAuthFlowInput {
+  return {
+    provider: requireOAuthProviderParam(request),
+    intent: input.intent,
+    deviceId: resolveDeviceId(request, input.deviceId),
+    // The controller has already required a signed-in caller for a link.
+    userId: input.intent === "link" ? request.auth.sub : undefined,
   };
 }
 

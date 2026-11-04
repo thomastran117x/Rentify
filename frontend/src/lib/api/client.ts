@@ -480,6 +480,29 @@ export function authenticatedJson<TResponse, TBody = undefined>(
   });
 }
 
+/**
+ * An authenticated request that is never re-sent after a 401, for a body that
+ * spends a single-use value such as an OAuth state. The usual refresh-and-retry
+ * would send the spent value again, which can only fail, and its failure would
+ * replace the first answer, such as the provider's reason for refusing the
+ * sign-in. The session manager refreshes the access token ahead of expiry, so
+ * the stale-token 401 a retry exists for is rare here.
+ */
+export function authenticatedJsonOnce<TResponse, TBody = undefined>(
+  method: JsonRequestMethod,
+  path: string,
+  body?: TBody,
+): Promise<TResponse> {
+  return performJsonRequest<TResponse, TBody>({
+    allowRefreshRetry: false,
+    body,
+    includeAuthorization: true,
+    method,
+    mode: "authenticated",
+    path,
+  });
+}
+
 export function optionalAuthJson<TResponse, TBody = undefined>(
   method: JsonRequestMethod,
   path: string,

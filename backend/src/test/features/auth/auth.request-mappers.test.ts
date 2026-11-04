@@ -17,6 +17,7 @@ import {
   toLocalAuthenticateInput,
   toLocalSignupInput,
   toOAuthAuthenticateInput,
+  toStartOAuthFlowInput,
   toRefreshInput,
   toRemoveKnownDeviceInput,
   toResendForgotPasswordInput,
@@ -385,10 +386,9 @@ describe("email verification mappers", () => {
 
 describe("oauth mappers", () => {
   const oauthBody = {
+    state: "state-1",
     code: "code-1",
-    codeVerifier: "verifier-1",
     idToken: undefined,
-    nonce: "nonce-1",
     rememberMe: false,
     deviceId: undefined,
     firstName: "Test",
@@ -399,10 +399,9 @@ describe("oauth mappers", () => {
 
   it("maps an oauth authenticate body", () => {
     expect(toOAuthAuthenticateInput(createRequest(), oauthBody)).toEqual({
+      state: "state-1",
       code: "code-1",
-      codeVerifier: "verifier-1",
       idToken: undefined,
-      nonce: "nonce-1",
       rememberMe: false,
       client,
       firstName: "Test",
@@ -440,7 +439,35 @@ describe("oauth mappers", () => {
     ).toMatchObject({
       provider: "microsoft",
       userId: "user-1",
-      nonce: "nonce-1",
+      state: "state-1",
+    });
+  });
+
+  it("maps a start request with the route provider and fingerprinted device", () => {
+    expect(
+      toStartOAuthFlowInput(createRequest({ params: { provider: "google" } }), {
+        intent: "login",
+        deviceId: undefined,
+      }),
+    ).toEqual({
+      provider: "google",
+      intent: "login",
+      deviceId: "fingerprint-device",
+      userId: undefined,
+    });
+  });
+
+  it("binds a link start to the signed-in principal", () => {
+    expect(
+      toStartOAuthFlowInput(createRequest({ params: { provider: "apple" } }), {
+        intent: "link",
+        deviceId: "body-device",
+      }),
+    ).toEqual({
+      provider: "apple",
+      intent: "link",
+      deviceId: "body-device",
+      userId: "user-1",
     });
   });
 

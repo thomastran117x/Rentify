@@ -54,7 +54,7 @@ Environment loading:
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`: enables Google OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_CLIENT_ID`: enables Microsoft OAuth UI
 - `NEXT_PUBLIC_MICROSOFT_OAUTH_TENANT`: Microsoft authority segment such as `consumers`, `organizations`, `common`, or a tenant ID
-- `NEXT_PUBLIC_APPLE_OAUTH_CLIENT_ID`: Apple Services ID; enables Sign in with Apple UI. Apple's JS SDK opens the popup, and the backend verifies the returned ID token. Register `https://<your-domain>/auth/apple` as the Services ID return URL. Apple rejects `localhost`, so a full Apple round-trip needs a real HTTPS domain.
+- `NEXT_PUBLIC_APPLE_OAUTH_CLIENT_ID`: Apple Services ID; enables Sign in with Apple UI. Apple's JS SDK opens the popup with the state and nonce the backend issued, and the backend verifies the returned ID token (or redeems the code, when it is configured to). Register `https://<your-domain>/auth/apple` as the Services ID return URL. Apple rejects `localhost`, so a full Apple round-trip needs a real HTTPS domain.
 - `INTERNAL_API_BASE_URL`: server-side API base URL, typically `http://backend:8040/api/v1` in Docker
 
 The frontend normalizes loopback API URLs and will add `/api/v1` when the configured pathname is `/` or `/api`, but using the full API base path is still the clearest option.
@@ -86,7 +86,8 @@ Browser tests live in `tests/e2e`. For normal validation, start Docker and set `
 ## Auth and API Notes
 
 - Google and Microsoft sign-in use authorization code + PKCE
-- Apple sign-in uses Apple's JS SDK popup (loaded on demand from `appleid.cdn-apple.com`); the backend verifies the returned ID token, and the user's name is forwarded only on first consent because Apple never includes it in the token
+- every OAuth sign-in and link starts with `POST /auth/oauth/{provider}/start`, which issues the state, nonce and (for a backend code exchange) PKCE challenge; the callback sends that state back with the code or ID token. Google and Microsoft open their popup on `about:blank` first, so the click still counts as the user gesture while `/start` is in flight. See [OAuth sign-in](../docs/api.md#oauth-sign-in)
+- Apple sign-in uses Apple's JS SDK popup (loaded on demand from `appleid.cdn-apple.com`). Its flow and the SDK are fetched when the pointer or focus reaches the button, because the SDK opens its own window. The user's name is forwarded only on first consent, because Apple never includes it in the token
 - OAuth popup completion routes live at `/auth/google`, `/auth/microsoft`, and `/auth/apple`
 - access JWTs remain memory-only and refresh silently before expiration while the page is active; a one-time request retry remains as a timing-race fallback
 - refresh tokens remain in HttpOnly cookies, while the API client includes device headers and CSRF support for auth-related requests

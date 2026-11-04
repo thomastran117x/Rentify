@@ -11,6 +11,7 @@ import {
 
 const {
   authenticatedMock,
+  authenticatedOnceMock,
   optionalMock,
   publicMock,
   refreshMock,
@@ -22,6 +23,7 @@ const {
   tokenRevokeMock,
 } = vi.hoisted(() => ({
   authenticatedMock: vi.fn(),
+  authenticatedOnceMock: vi.fn(),
   optionalMock: vi.fn(),
   publicMock: vi.fn(),
   refreshMock: vi.fn(),
@@ -35,6 +37,7 @@ const {
 
 vi.mock("@/lib/api/client", () => ({
   authenticatedJson: authenticatedMock,
+  authenticatedJsonOnce: authenticatedOnceMock,
   optionalAuthJson: optionalMock,
   publicJson: publicMock,
   refreshStoredSession: refreshMock,
@@ -95,15 +98,15 @@ describe("auth API request contracts", () => {
       code: "123",
       captchaToken: "c",
     });
-    authApi.authenticateWithGoogle({ nonce: "nonce", code: "code" });
-    authApi.authenticateWithMicrosoft({ nonce: "nonce", idToken: "id" });
-    authApi.authenticateWithApple({ nonce: "nonce", idToken: "id" });
+    authApi.authenticateWithGoogle({ state: "state", code: "code" });
+    authApi.authenticateWithMicrosoft({ state: "state", idToken: "id" });
+    authApi.authenticateWithApple({ state: "state", idToken: "id" });
     authApi.completeOAuthSignup({
       signupToken: "signup-token",
       dateOfBirth: "2012-06-15",
       captchaToken: "c",
     });
-    authApi.linkOAuthProvider("google", { nonce: "nonce", code: "code" });
+    authApi.linkOAuthProvider("google", { state: "state", code: "code" });
     expect(publicMock).toHaveBeenCalledWith(
       "POST",
       "/auth/local/login",
@@ -114,12 +117,44 @@ describe("auth API request contracts", () => {
       "/auth/oauth/microsoft",
       expect.objectContaining({ deviceId: "device-1" }),
     );
-    expect(authenticatedMock).toHaveBeenCalledWith(
+    // A link spends its state, so it is never re-sent after a refresh.
+    expect(authenticatedOnceMock).toHaveBeenCalledWith(
       "POST",
       "/auth/oauth/google/link",
-      expect.objectContaining({ deviceId: "device-1" }),
+      expect.objectContaining({ state: "state", deviceId: "device-1" }),
+    );
+    expect(authenticatedMock).not.toHaveBeenCalledWith(
+      "POST",
+      "/auth/oauth/google/link",
+      expect.anything(),
     );
     expect(cancelRefreshMock).toHaveBeenCalledTimes(7);
+  });
+
+  it("starts sign-in flows publicly and link flows with the session", () => {
+    authApi.startOAuthFlow("google", "login");
+    authApi.startOAuthFlow("apple", "signup");
+    authApi.startOAuthFlow("microsoft", "link");
+
+    expect(publicMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/oauth/google/start",
+      { intent: "login", deviceId: "device-1" },
+    );
+    expect(publicMock).toHaveBeenCalledWith("POST", "/auth/oauth/apple/start", {
+      intent: "signup",
+      deviceId: "device-1",
+    });
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/oauth/microsoft/start",
+      { intent: "link", deviceId: "device-1" },
+    );
+    expect(publicMock).not.toHaveBeenCalledWith(
+      "POST",
+      "/auth/oauth/microsoft/start",
+      expect.anything(),
+    );
   });
 
   it("covers recovery, device, provider, session, and PAT endpoints", () => {

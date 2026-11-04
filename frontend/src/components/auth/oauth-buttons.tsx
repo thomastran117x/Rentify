@@ -1,17 +1,23 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { publicEnv } from "@/lib/env";
 import { authApi } from "@/lib/auth/api";
 import type {
   OAuthAuthenticateResult,
+  OAuthFlowIntent,
+  OAuthFlowStart,
   OAuthSignupRequiredResult,
   AuthResponseBody,
   LinkedOAuthProvidersResult,
   LoginMfaChallenge,
 } from "@/lib/auth/types";
 import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
-import { isOAuthSignupRequired, readLoginMfaChallenge } from "@/lib/auth/types";
+import {
+  ApiClientError,
+  isOAuthSignupRequired,
+  readLoginMfaChallenge,
+} from "@/lib/auth/types";
 import { theme } from "@/styles/theme";
 
 export type OAuthProvider = "google" | "microsoft" | "apple";
@@ -19,6 +25,11 @@ type RedirectOAuthProvider = Exclude<OAuthProvider, "apple">;
 
 interface AuthOAuthButtonsProps {
   mode?: "authenticate" | "link";
+  /**
+   * What an `authenticate` sign-in is for; the backend binds the sign-in's
+   * state to it. Link mode always starts a `link` sign-in.
+   */
+  intent?: Exclude<OAuthFlowIntent, "link">;
   onSuccess?: (session: AuthResponseBody) => void;
   onLinked?: (result: LinkedOAuthProvidersResult) => void;
   onError: (message: string) => void;
@@ -41,17 +52,12 @@ interface MicrosoftTokenResponse {
   error_description?: string;
 }
 
+/** The callback's proof: the code, or the ID token, as the flow asked. */
 interface ProviderInput {
   code?: string;
-  codeVerifier?: string;
   idToken?: string;
   firstName?: string;
   lastName?: string;
-}
-
-interface ProviderSignInResult {
-  input: ProviderInput;
-  nonce: string;
 }
 
 interface AppleSignInResponse {
@@ -101,6 +107,12 @@ const POPUP_CLOSED_MESSAGE =
   "The sign-in popup was closed before authentication finished.";
 const STATE_MISMATCH_MESSAGE =
   "The sign-in response could not be verified. Please try again.";
+const STATE_EXPIRED_MESSAGE =
+  "This sign-in expired or was already used. Please try again.";
+const POPUP_BLOCKED_MESSAGE =
+  "Your browser blocked the sign-in popup. Please allow popups and try again.";
+/** A started flow lives ten minutes; leave a margin for the provider step. */
+const PREFETCHED_FLOW_MAX_AGE_MS = 9 * 60 * 1000;
 
 let appleSdkPromise: Promise<AppleIdAuth> | null = null;
 
@@ -165,8 +177,7 @@ function getProviderAuthorizeUrl(provider: RedirectOAuthProvider): string {
 
 function buildProviderParams(
   provider: RedirectOAuthProvider,
-  state: string,
-  nonce: string,
+  flow: OAuthFlowStart,
   redirectUri: string,
   codeChallenge: string,
 ): URLSearchParams {
@@ -175,8 +186,8 @@ function buildProviderParams(
     response_type: "code",
     scope: OAUTH_SCOPE,
     prompt: "select_account",
-    nonce,
-    state,
+    nonce: flow.nonce,
+    state: flow.state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   });
@@ -191,23 +202,42 @@ function buildProviderParams(
   return params;
 }
 
+/**
+ * The authorize URL for a started flow. When the backend redeems the code it
+ * issued the PKCE challenge and keeps the verifier. Only a Microsoft flow that
+ * finishes in the browser makes its own verifier, for the browser's own
+ * token request.
+ */
 async function buildOAuthUrl(
   provider: RedirectOAuthProvider,
-  state: string,
-  nonce: string,
-  codeVerifier: string,
-): Promise<string> {
+  flow: OAuthFlowStart,
+): Promise<{ url: string; browserCodeVerifier?: string }> {
   const redirectUri = `${window.location.origin}/auth/${provider}`;
-  const codeChallenge = await createPkceChallenge(codeVerifier);
+  let codeChallenge = flow.codeChallenge;
+  let browserCodeVerifier: string | undefined;
+
+  if (flow.tokenDelivery === "id_token") {
+    browserCodeVerifier = createRandomString() + createRandomString();
+    codeChallenge = await createPkceChallenge(browserCodeVerifier);
+  }
+
+  if (!codeChallenge) {
+    throw new Error(
+      `${getProviderDisplayName(provider)} sign-in could not be started.`,
+    );
+  }
+
   const params = buildProviderParams(
     provider,
-    state,
-    nonce,
+    flow,
     redirectUri,
     codeChallenge,
   );
 
-  return `${getProviderAuthorizeUrl(provider)}?${params.toString()}`;
+  return {
+    url: `${getProviderAuthorizeUrl(provider)}?${params.toString()}`,
+    browserCodeVerifier,
+  };
 }
 
 function getProviderDisplayName(provider: OAuthProvider): string {
@@ -273,72 +303,44 @@ async function exchangeMicrosoftCodeForIdToken(
 
 async function authenticateWithProvider(
   provider: OAuthProvider,
+  state: string,
   input: ProviderInput,
-  nonce: string,
 ): Promise<OAuthAuthenticateResult> {
   if (provider === "google") {
-    return authApi.authenticateWithGoogle({
-      code: input.code ?? "",
-      codeVerifier: input.codeVerifier ?? "",
-      nonce,
-    });
+    return authApi.authenticateWithGoogle({ state, ...input });
   }
 
   if (provider === "apple") {
-    return authApi.authenticateWithApple({ ...input, nonce });
+    return authApi.authenticateWithApple({ state, ...input });
   }
 
-  return authApi.authenticateWithMicrosoft({
-    idToken: input.idToken,
-    code: input.code,
-    codeVerifier: input.codeVerifier,
-    nonce,
-  });
+  return authApi.authenticateWithMicrosoft({ state, ...input });
 }
 
-async function linkWithProvider(
-  provider: OAuthProvider,
-  input: ProviderInput,
-  nonce: string,
-): Promise<LinkedOAuthProvidersResult> {
-  if (provider === "google") {
-    return authApi.linkOAuthProvider("google", {
-      code: input.code ?? "",
-      codeVerifier: input.codeVerifier ?? "",
-      nonce,
-    });
-  }
-
-  if (provider === "apple") {
-    return authApi.linkOAuthProvider("apple", { ...input, nonce });
-  }
-
-  return authApi.linkOAuthProvider("microsoft", {
-    idToken: input.idToken,
-    code: input.code,
-    codeVerifier: input.codeVerifier,
-    nonce,
-  });
-}
-
-async function openProviderPopup(
-  provider: RedirectOAuthProvider,
-): Promise<{ code: string; codeVerifier: string; nonce: string }> {
-  const state = createRandomString();
-  const nonce = createRandomString();
-  const codeVerifier = createRandomString() + createRandomString();
+/**
+ * Opened before anything is awaited, so the click still counts as the user
+ * gesture that lets a popup open. It is pointed at the provider once the
+ * backend has started the sign-in.
+ */
+function openBlankPopup(provider: RedirectOAuthProvider): Window {
   const popup = window.open(
-    await buildOAuthUrl(provider, state, nonce, codeVerifier),
+    "about:blank",
     `${provider}-oauth`,
     getPopupFeatures(),
   );
 
   if (!popup) {
-    throw new Error(
-      "Your browser blocked the sign-in popup. Please allow popups and try again.",
-    );
+    throw new Error(POPUP_BLOCKED_MESSAGE);
   }
 
+  return popup;
+}
+
+function waitForPopupCode(
+  popup: Window,
+  provider: RedirectOAuthProvider,
+  state: string,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     let finished = false;
 
@@ -373,6 +375,8 @@ async function openProviderPopup(
 
       const payload = parsePopupPayload(data.payload);
 
+      // The backend checks the state again; this only drops a response that
+      // was never meant for this tab.
       if (payload.state !== state) {
         cleanup();
         popup.close();
@@ -389,11 +393,7 @@ async function openProviderPopup(
 
       cleanup();
       popup.close();
-      resolve({
-        code: payload.code,
-        codeVerifier,
-        nonce,
-      });
+      resolve(payload.code);
     };
 
     window.addEventListener("message", handleMessage);
@@ -402,25 +402,25 @@ async function openProviderPopup(
 
 async function signInWithRedirectProvider(
   provider: RedirectOAuthProvider,
-): Promise<ProviderSignInResult> {
-  const result = await openProviderPopup(provider);
+  popup: Window,
+  flow: OAuthFlowStart,
+): Promise<ProviderInput> {
+  const { url, browserCodeVerifier } = await buildOAuthUrl(provider, flow);
 
-  if (provider === "microsoft") {
+  if (popup.closed) {
+    throw new Error(POPUP_CLOSED_MESSAGE);
+  }
+
+  popup.location.href = url;
+  const code = await waitForPopupCode(popup, provider, flow.state);
+
+  if (provider === "microsoft" && browserCodeVerifier) {
     return {
-      nonce: result.nonce,
-      input: {
-        idToken: await exchangeMicrosoftCodeForIdToken(
-          result.code,
-          result.codeVerifier,
-        ),
-      },
+      idToken: await exchangeMicrosoftCodeForIdToken(code, browserCodeVerifier),
     };
   }
 
-  return {
-    nonce: result.nonce,
-    input: { code: result.code, codeVerifier: result.codeVerifier },
-  };
+  return { code };
 }
 
 function loadAppleSdk(): Promise<AppleIdAuth> {
@@ -470,18 +470,18 @@ function readAppleSdkError(error: unknown): string {
 }
 
 // Apple's web flow posts its response cross-site, so its SDK popup is used
-// instead of the redirect popup the other providers share.
-async function signInWithApple(): Promise<ProviderSignInResult> {
-  const state = createRandomString();
-  const nonce = createRandomString();
+// instead of the redirect popup the other providers share. In popup mode the
+// SDK hands the response, state included, straight back to this page, so
+// Apple's form_post never reaches the app.
+async function signInWithApple(flow: OAuthFlowStart): Promise<ProviderInput> {
   const appleAuth = await loadAppleSdk();
 
   appleAuth.init({
     clientId: publicEnv.appleOAuthClientId,
     scope: "name email",
     redirectURI: `${window.location.origin}/auth/apple`,
-    state,
-    nonce,
+    state: flow.state,
+    nonce: flow.nonce,
     usePopup: true,
   });
 
@@ -495,22 +495,79 @@ async function signInWithApple(): Promise<ProviderSignInResult> {
 
   const { authorization, user } = response;
 
-  if (authorization?.state !== state) {
+  if (authorization?.state !== flow.state) {
     throw new Error(STATE_MISMATCH_MESSAGE);
   }
 
-  if (!authorization.id_token) {
+  const proof =
+    flow.tokenDelivery === "code"
+      ? authorization.code && { code: authorization.code }
+      : authorization.id_token && { idToken: authorization.id_token };
+
+  if (!proof) {
     throw new Error("Apple sign-in could not be completed.");
   }
 
   return {
-    nonce,
-    input: {
-      idToken: authorization.id_token,
-      firstName: user?.name?.firstName?.trim() || undefined,
-      lastName: user?.name?.lastName?.trim() || undefined,
-    },
+    ...proof,
+    firstName: user?.name?.firstName?.trim() || undefined,
+    lastName: user?.name?.lastName?.trim() || undefined,
   };
+}
+
+interface PrefetchedFlow {
+  flow: Promise<OAuthFlowStart>;
+  startedAt: number;
+}
+
+/**
+ * Apple's SDK opens its own window from signIn(), so a slow /start before it
+ * would cost the click its user gesture. The flow (and the SDK) are fetched
+ * as soon as the user heads for the button instead.
+ */
+function prefetchAppleFlow(
+  slot: { current: PrefetchedFlow | null },
+  intent: OAuthFlowIntent,
+): void {
+  const cached = slot.current;
+
+  if (cached && Date.now() - cached.startedAt < PREFETCHED_FLOW_MAX_AGE_MS) {
+    return;
+  }
+
+  const flow = authApi.startOAuthFlow("apple", intent);
+  // A failed prefetch is retried on click; it must not surface on its own.
+  flow.catch(() => {
+    if (slot.current?.flow === flow) {
+      slot.current = null;
+    }
+  });
+  slot.current = { flow, startedAt: Date.now() };
+  void loadAppleSdk().catch(() => undefined);
+}
+
+/** Each flow can finish one sign-in, so the next click starts another. */
+function takePrefetchedAppleFlow(
+  slot: { current: PrefetchedFlow | null },
+  intent: OAuthFlowIntent,
+): Promise<OAuthFlowStart> {
+  prefetchAppleFlow(slot, intent);
+  const cached = slot.current;
+  slot.current = null;
+  return cached?.flow ?? authApi.startOAuthFlow("apple", intent);
+}
+
+function readOAuthErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError && error.code === "OAUTH_STATE_INVALID") {
+    return STATE_EXPIRED_MESSAGE;
+  }
+
+  return (
+    getAccountStatusBlock(error)?.message ??
+    (error instanceof Error
+      ? error.message
+      : "OAuth sign-in could not be completed.")
+  );
 }
 
 function GoogleIcon() {
@@ -563,6 +620,8 @@ interface OAuthProviderButtonProps {
   pending: boolean;
   disabled: boolean;
   onClick: () => void;
+  /** Called when the pointer or focus reaches the button, before a click. */
+  onPrepare?: () => void;
 }
 
 function OAuthProviderButton({
@@ -570,11 +629,14 @@ function OAuthProviderButton({
   pending,
   disabled,
   onClick,
+  onPrepare,
 }: OAuthProviderButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onPointerEnter={onPrepare}
+      onFocus={onPrepare}
       disabled={disabled}
       className={theme.auth.oauthButton}
     >
@@ -588,6 +650,7 @@ function OAuthProviderButton({
 
 export function AuthOAuthButtons({
   mode = "authenticate",
+  intent = "login",
   onSuccess,
   onLinked,
   onError,
@@ -599,6 +662,10 @@ export function AuthOAuthButtons({
     null,
   );
   const isLinkMode = mode === "link";
+  const flowIntent: OAuthFlowIntent = isLinkMode ? "link" : intent;
+  const appleFlowRef = useRef<PrefetchedFlow | null>(null);
+  const prepareApple = () => prefetchAppleFlow(appleFlowRef, flowIntent);
+  const takeAppleFlow = () => takePrefetchedAppleFlow(appleFlowRef, flowIntent);
 
   const providerConfigs = (
     [
@@ -635,26 +702,43 @@ export function AuthOAuthButtons({
   async function handleProviderClick(provider: OAuthProvider) {
     setPendingProvider(provider);
     onError("");
+    let popup: Window | null = null;
 
     try {
-      const { input, nonce } =
-        provider === "apple"
-          ? await signInWithApple()
-          : await signInWithRedirectProvider(provider);
+      let state: string;
+      let input: ProviderInput;
+
+      if (provider === "apple") {
+        const flow = await takeAppleFlow();
+        state = flow.state;
+        input = await signInWithApple(flow);
+      } else {
+        popup = openBlankPopup(provider);
+        const flow = await authApi.startOAuthFlow(provider, flowIntent);
+        state = flow.state;
+        input = await signInWithRedirectProvider(provider, popup, flow);
+      }
 
       if (isLinkMode) {
-        const linkedProviders = await linkWithProvider(provider, input, nonce);
+        const linkedProviders = await authApi.linkOAuthProvider(provider, {
+          state,
+          ...input,
+        });
         onLinked?.(linkedProviders);
         return;
       }
 
-      const result = await authenticateWithProvider(provider, input, nonce);
+      const result = await authenticateWithProvider(provider, state, input);
       if (isOAuthSignupRequired(result)) {
         onSignupRequired?.(result);
         return;
       }
       onSuccess?.(result);
     } catch (error) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+
       const challenge = readLoginMfaChallenge(error);
 
       if (challenge && onMfaRequired) {
@@ -662,12 +746,7 @@ export function AuthOAuthButtons({
         return;
       }
 
-      onError(
-        getAccountStatusBlock(error)?.message ??
-          (error instanceof Error
-            ? error.message
-            : "OAuth sign-in could not be completed."),
-      );
+      onError(readOAuthErrorMessage(error));
     } finally {
       setPendingProvider(null);
     }
@@ -700,6 +779,7 @@ export function AuthOAuthButtons({
             pending={pendingProvider === config.provider}
             disabled={pendingProvider !== null}
             onClick={() => void handleProviderClick(config.provider)}
+            onPrepare={config.provider === "apple" ? prepareApple : undefined}
           />
         ))}
       </div>

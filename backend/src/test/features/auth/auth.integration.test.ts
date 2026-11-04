@@ -1,6 +1,7 @@
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { getRedisClient } from "@/configuration/resources/redis";
+import { environment } from "@/configuration/environment";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import {
   CSRF_TOKEN_COOKIE_NAME,
@@ -250,6 +251,44 @@ describe("Auth persistence integration", () => {
     await expect(confirmResponse.json()).resolves.toMatchObject({
       data: { verified: true, scope: "mfa-management" },
     });
+  }
+
+  type OAuthFlowStart = {
+    state: string;
+    nonce: string;
+    codeChallenge?: string;
+    tokenDelivery: "code" | "id_token";
+    expiresInSeconds: number;
+  };
+
+  async function startOAuthFlow(
+    provider: "google" | "microsoft" | "apple",
+    deviceId: string,
+    options: { intent?: string; headers?: Record<string, string> } = {},
+  ): Promise<OAuthFlowStart> {
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(`/auth/oauth/${provider}/start`)}`,
+      {
+        method: "POST",
+        headers: options.headers ?? {
+          "content-type": "application/json",
+          origin: ORIGIN,
+        },
+        body: JSON.stringify({ intent: options.intent ?? "login", deviceId }),
+      },
+    );
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { data: OAuthFlowStart }).data;
+  }
+
+  /** The callback half the flow asked for; the harness stubs the provider. */
+  function oauthCredential(
+    provider: string,
+    flow: OAuthFlowStart,
+  ): { code: string } | { idToken: string } {
+    return flow.tokenDelivery === "code"
+      ? { code: `${provider}-code` }
+      : { idToken: `${provider}-id-token` };
   }
 
   async function readOtpCode(
@@ -1065,20 +1104,22 @@ describe("Auth persistence integration", () => {
   }, 120_000);
 
   it("finishes a Google sign-in with an authenticator code", async () => {
-    const signIn = (deviceId: string) =>
-      persistenceApp.app.request(
+    const signIn = async (deviceId: string) => {
+      const flow = await startOAuthFlow("google", deviceId);
+      return persistenceApp.app.request(
         `http://rent.test${buildApiPath("/auth/oauth/google")}`,
         {
           method: "POST",
           headers: { "content-type": "application/json", origin: ORIGIN },
           body: JSON.stringify({
-            idToken: "google-id-token",
-            nonce: `nonce-${deviceId}`,
+            state: flow.state,
+            code: "google-code",
             deviceId,
             dateOfBirth: "2012-06-15",
           }),
         },
       );
+    };
 
     const created = await readSession(await signIn("google-setup-device"));
     expect(created.status).toBe(200);
@@ -1132,14 +1173,15 @@ describe("Auth persistence integration", () => {
       ["google", "google-user@rentify.local"],
       ["apple", "apple-user@rentify.local"],
     ] as const) {
+      const flow = await startOAuthFlow(provider, `${provider}-device`);
       const response = await persistenceApp.app.request(
         `http://rent.test${buildApiPath(`/auth/oauth/${provider}`)}`,
         {
           method: "POST",
           headers: { "content-type": "application/json", origin: ORIGIN },
           body: JSON.stringify({
-            idToken: `${provider}-id-token`,
-            nonce: "nonce-value",
+            state: flow.state,
+            ...oauthCredential(provider, flow),
             deviceId: `${provider}-device`,
             dateOfBirth: "2012-06-15",
           }),
@@ -1156,14 +1198,18 @@ describe("Auth persistence integration", () => {
         dateOfBirthProvidedAt: expect.any(Date),
       });
 
+      const returningFlow = await startOAuthFlow(
+        provider,
+        `${provider}-returning-device`,
+      );
       const returningResponse = await persistenceApp.app.request(
         `http://rent.test${buildApiPath(`/auth/oauth/${provider}`)}`,
         {
           method: "POST",
           headers: { "content-type": "application/json", origin: ORIGIN },
           body: JSON.stringify({
-            idToken: `${provider}-id-token`,
-            nonce: "returning-nonce-value",
+            state: returningFlow.state,
+            ...oauthCredential(provider, returningFlow),
             deviceId: `${provider}-returning-device`,
           }),
         },
@@ -1173,14 +1219,17 @@ describe("Auth persistence integration", () => {
   });
 
   it("issues and atomically redeems an OAuth signup continuation", async () => {
+    const flow = await startOAuthFlow("google", "continuation-device", {
+      intent: "signup",
+    });
     const beginResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/oauth/google")}`,
       {
         method: "POST",
         headers: { "content-type": "application/json", origin: ORIGIN },
         body: JSON.stringify({
-          idToken: "google-id-token",
-          nonce: "continuation-nonce",
+          state: flow.state,
+          code: "google-code",
           deviceId: "continuation-device",
         }),
       },
@@ -1261,19 +1310,28 @@ describe("Auth persistence integration", () => {
     );
     expect(providersResponse.status).toBe(200);
 
+    const linkFlow = await startOAuthFlow("google", "link-device", {
+      intent: "link",
+      headers: sessionHeaders(session),
+    });
     const linkResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/oauth/google/link")}`,
       {
         method: "POST",
         headers: sessionHeaders(session),
         body: JSON.stringify({
-          idToken: "google-id-token",
-          nonce: "link-nonce",
+          state: linkFlow.state,
+          code: "google-code",
           deviceId: "link-device",
         }),
       },
     );
     expect(linkResponse.status).toBe(200);
+    expect(
+      persistenceApp.stubs.googleOAuthService.verify,
+    ).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nonce: linkFlow.nonce }),
+    );
 
     const unlinkResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/oauth/google")}`,
@@ -1732,14 +1790,16 @@ describe("Auth persistence integration", () => {
   }, 120_000);
 
   it("authenticates through the Microsoft OAuth provider", async () => {
+    const flow = await startOAuthFlow("microsoft", "microsoft-device");
+    expect(flow.tokenDelivery).toBe("id_token");
     const response = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/oauth/microsoft")}`,
       {
         method: "POST",
         headers: { "content-type": "application/json", origin: ORIGIN },
         body: JSON.stringify({
+          state: flow.state,
           idToken: "microsoft-id-token",
-          nonce: "nonce-value",
           rememberMe: false,
           deviceId: "microsoft-device",
           dateOfBirth: "1990-01-01",
@@ -1750,7 +1810,12 @@ describe("Auth persistence integration", () => {
     expect(response.status).toBe(200);
     expect(
       persistenceApp.stubs.microsoftOAuthService.verify,
-    ).toHaveBeenCalled();
+    ).toHaveBeenCalledWith({
+      nonce: flow.nonce,
+      idToken: "microsoft-id-token",
+      firstName: undefined,
+      lastName: undefined,
+    });
 
     const persistedUser = await persistenceApp.prisma.user.findUnique({
       where: { email: "microsoft-user@rentify.local" },
@@ -1769,6 +1834,304 @@ describe("Auth persistence integration", () => {
       /^[a-z]+-[a-z]+-[0-9]{4}$/,
     );
     expect(persistedUser?.profile?.username).not.toBe("microsoft-user");
+  });
+
+  describe("OAuth state", () => {
+    beforeEach(() => {
+      // The provider stubs are shared by the whole suite.
+      persistenceApp.stubs.googleOAuthService.verify.mockClear();
+      persistenceApp.stubs.microsoftOAuthService.verify.mockClear();
+      persistenceApp.stubs.appleOAuthService.verify.mockClear();
+    });
+
+    const callback = (
+      provider: "google" | "microsoft" | "apple",
+      body: Record<string, unknown>,
+    ) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath(`/auth/oauth/${provider}`)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({ dateOfBirth: "2012-06-15", ...body }),
+        },
+      );
+    const linkGoogle = (
+      body: Record<string, unknown>,
+      headers: Record<string, string>,
+    ) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google/link")}`,
+        { method: "POST", headers, body: JSON.stringify(body) },
+      );
+
+    async function expectStateInvalid(response: Response): Promise<void> {
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        data: null,
+        error: { code: "OAUTH_STATE_INVALID" },
+      });
+    }
+
+    it("issues a server-held PKCE challenge for Google and ID-token flows for Microsoft and Apple", async () => {
+      const google = await startOAuthFlow("google", "start-device");
+      const microsoft = await startOAuthFlow("microsoft", "start-device");
+      const apple = await startOAuthFlow("apple", "start-device");
+
+      expect(google).toMatchObject({
+        tokenDelivery: "code",
+        codeChallenge: expect.any(String),
+        expiresInSeconds: 600,
+      });
+      expect(microsoft.tokenDelivery).toBe("id_token");
+      expect(microsoft.codeChallenge).toBeUndefined();
+      expect(apple.tokenDelivery).toBe("id_token");
+      expect(new Set([google.state, microsoft.state, apple.state]).size).toBe(
+        3,
+      );
+      expect(await getRedisClient().keys("auth:oauth-flow:*")).toHaveLength(3);
+      const keys = await getRedisClient().keys("auth:oauth-flow:*");
+      expect(keys.join()).not.toContain(google.state);
+      const ttl = await getRedisClient().ttl(keys[0] as string);
+      expect(ttl).toBeGreaterThan(590);
+      expect(ttl).toBeLessThanOrEqual(600);
+    });
+
+    it("requires a device id and a known intent to start", async () => {
+      const noDevice = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google/start")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({ intent: "login" }),
+        },
+      );
+      const badIntent = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google/start")}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: ORIGIN,
+            "x-device-id": "start-device",
+          },
+          body: JSON.stringify({ intent: "takeover" }),
+        },
+      );
+      const badProvider = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/github/start")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({ intent: "login", deviceId: "start-device" }),
+        },
+      );
+
+      expect(noDevice.status).toBe(400);
+      expect(badIntent.status).toBe(400);
+      await expect(badIntent.json()).resolves.toMatchObject({
+        error: { code: "VALIDATION_ERROR" },
+      });
+      expect(badProvider.status).toBe(400);
+      expect(await getRedisClient().keys("auth:oauth-flow:*")).toHaveLength(0);
+    });
+
+    it("refuses to start a link without a signed-in caller", async () => {
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/oauth/google/start")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({ intent: "link", deviceId: "link-device" }),
+        },
+      );
+
+      expect(response.status).toBe(401);
+      expect(await getRedisClient().keys("auth:oauth-flow:*")).toHaveLength(0);
+    });
+
+    it("rejects a callback without a state, even with a client nonce", async () => {
+      const response = await callback("apple", {
+        idToken: "apple-id-token",
+        nonce: "client-chosen-nonce",
+        deviceId: "apple-device",
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "VALIDATION_ERROR" },
+      });
+      expect(
+        persistenceApp.stubs.appleOAuthService.verify,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("rejects a state the server never issued", async () => {
+      await expectStateInvalid(
+        await callback("apple", {
+          state: "made-up-state",
+          idToken: "apple-id-token",
+          deviceId: "apple-device",
+        }),
+      );
+      expect(
+        persistenceApp.stubs.appleOAuthService.verify,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("rejects a reused state, including two callbacks racing with it", async () => {
+      const flow = await startOAuthFlow("google", "race-device");
+      const body = {
+        state: flow.state,
+        code: "google-code",
+        deviceId: "race-device",
+      };
+
+      const responses = await Promise.all([
+        callback("google", body),
+        callback("google", body),
+      ]);
+
+      expect(responses.map((response) => response.status).sort()).toEqual([
+        200, 401,
+      ]);
+      await expectStateInvalid(await callback("google", body));
+      expect(
+        persistenceApp.stubs.googleOAuthService.verify,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects an expired state", async () => {
+      const flow = await startOAuthFlow("google", "expiry-device");
+      const [key] = await getRedisClient().keys("auth:oauth-flow:*");
+      // Standing in for the ten-minute expiry, which Redis enforces itself.
+      await getRedisClient().del(key as string);
+
+      await expectStateInvalid(
+        await callback("google", {
+          state: flow.state,
+          code: "google-code",
+          deviceId: "expiry-device",
+        }),
+      );
+    });
+
+    it("rejects a state presented from another device", async () => {
+      const flow = await startOAuthFlow("google", "first-device");
+
+      await expectStateInvalid(
+        await callback("google", {
+          state: flow.state,
+          code: "google-code",
+          deviceId: "second-device",
+        }),
+      );
+    });
+
+    it("rejects a state presented to another provider", async () => {
+      const flow = await startOAuthFlow("google", "provider-device");
+
+      await expectStateInvalid(
+        await callback("apple", {
+          state: flow.state,
+          idToken: "apple-id-token",
+          deviceId: "provider-device",
+        }),
+      );
+    });
+
+    it("rejects an ID token on a Google flow, and on Microsoft once the switch is off", async () => {
+      const googleFlow = await startOAuthFlow("google", "token-device");
+      const googleResponse = await callback("google", {
+        state: googleFlow.state,
+        idToken: "google-id-token",
+        deviceId: "token-device",
+      });
+      expect(googleResponse.status).toBe(400);
+      await expect(googleResponse.json()).resolves.toMatchObject({
+        message: "This sign-in must finish with an authorization code.",
+      });
+
+      // OAUTH_CLIENT_ID_TOKEN_PROVIDERS=none, without reloading the environment.
+      const switchOff = jest
+        .spyOn(environment, "getOAuthClientIdTokenProviders")
+        .mockReturnValue([]);
+      const microsoftFlow = await startOAuthFlow("microsoft", "token-device");
+      expect(microsoftFlow).toMatchObject({
+        tokenDelivery: "code",
+        codeChallenge: expect.any(String),
+      });
+      const microsoftResponse = await callback("microsoft", {
+        state: microsoftFlow.state,
+        idToken: "microsoft-id-token",
+        deviceId: "token-device",
+      });
+      expect(microsoftResponse.status).toBe(400);
+      switchOff.mockRestore();
+      expect(
+        persistenceApp.stubs.googleOAuthService.verify,
+      ).not.toHaveBeenCalled();
+      expect(
+        persistenceApp.stubs.microsoftOAuthService.verify,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("keeps sign-in and link states apart, and a link state to its account", async () => {
+      const ownerSession = await login({
+        username: "renter-one",
+        password: "Rentify123!",
+      });
+      const otherSession = await login({
+        username: "renter-two",
+        password: "Rentify123!",
+      });
+      expect(ownerSession.status).toBe(200);
+      expect(otherSession.status).toBe(200);
+
+      const loginFlow = await startOAuthFlow("google", "link-device");
+      await expectStateInvalid(
+        await linkGoogle(
+          {
+            state: loginFlow.state,
+            code: "google-code",
+            deviceId: "link-device",
+          },
+          sessionHeaders(ownerSession),
+        ),
+      );
+
+      const linkFlow = await startOAuthFlow("google", "link-device", {
+        intent: "link",
+        headers: sessionHeaders(ownerSession),
+      });
+      await expectStateInvalid(
+        await linkGoogle(
+          {
+            state: linkFlow.state,
+            code: "google-code",
+            deviceId: "link-device",
+          },
+          sessionHeaders(otherSession),
+        ),
+      );
+
+      const signInWithLinkState = await startOAuthFlow(
+        "google",
+        "link-device",
+        { intent: "link", headers: sessionHeaders(ownerSession) },
+      );
+      await expectStateInvalid(
+        await callback("google", {
+          state: signInWithLinkState.state,
+          code: "google-code",
+          deviceId: "link-device",
+        }),
+      );
+      expect(
+        persistenceApp.stubs.googleOAuthService.verify,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   it("persists password changes and personal access token lifecycle changes", async () => {

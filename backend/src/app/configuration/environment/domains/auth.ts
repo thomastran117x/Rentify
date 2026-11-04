@@ -20,6 +20,8 @@ import {
   MICROSOFT_VERIFIED_EMAIL_POLICIES,
   type MicrosoftVerifiedEmailPolicy,
   type NodeEnvironment,
+  OAUTH_PROVIDER_NAMES,
+  type OAuthProviderName,
   type RawEnvironmentValues,
   type RefreshReuseResponse,
   type RefreshTokenMode,
@@ -81,6 +83,60 @@ function parseMicrosoftVerifiedEmailPolicy(
   }
 
   return value as MicrosoftVerifiedEmailPolicy;
+}
+
+/**
+ * The providers whose sign-in still ends with the browser holding the ID
+ * token: Microsoft redeems its code in the browser (an Entra SPA redirect),
+ * and Apple's JS SDK hands the token back to the page. `none` turns the
+ * switch off, so every provider goes through the backend code exchange.
+ */
+const DEFAULT_CLIENT_ID_TOKEN_PROVIDERS: OAuthProviderName[] = [
+  "microsoft",
+  "apple",
+];
+
+function parseClientIdTokenProviders(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): OAuthProviderName[] {
+  const value = raw.OAUTH_CLIENT_ID_TOKEN_PROVIDERS;
+
+  if (value === undefined) {
+    return [...DEFAULT_CLIENT_ID_TOKEN_PROVIDERS];
+  }
+
+  if (value.trim().toLowerCase() === "none") {
+    return [];
+  }
+
+  const providers: OAuthProviderName[] = [];
+
+  for (const entry of normalizeDelimitedList(value)) {
+    const provider = entry.toLowerCase();
+
+    if (provider === "google") {
+      // Google's sign-in always ends with a code; nothing legitimate posts a
+      // Google ID token, so allowing one would only widen what can be replayed.
+      errors.push(
+        "OAUTH_CLIENT_ID_TOKEN_PROVIDERS cannot include google: Google sign-in always uses the backend code exchange.",
+      );
+      continue;
+    }
+
+    if (!(OAUTH_PROVIDER_NAMES as readonly string[]).includes(provider)) {
+      errors.push(
+        `OAUTH_CLIENT_ID_TOKEN_PROVIDERS contains an unknown provider: ${entry}. Use microsoft, apple, or none.`,
+      );
+      continue;
+    }
+
+    if (!providers.includes(provider as OAuthProviderName)) {
+      providers.push(provider as OAuthProviderName);
+    }
+  }
+
+  return providers;
 }
 
 export function parseRefreshTokenMode(
@@ -446,6 +502,7 @@ export function buildOauthConfig(
     );
   }
 
+  const clientIdTokenProviders = parseClientIdTokenProviders(raw, errors);
   const microsoftTenant = raw.MICROSOFT_OAUTH_TENANT ?? "consumers";
   const microsoftVerifiedEmailPolicy = parseMicrosoftVerifiedEmailPolicy(
     raw,
@@ -454,6 +511,7 @@ export function buildOauthConfig(
   );
 
   return {
+    clientIdTokenProviders,
     google: {
       audiences: googleAudiences,
       clientSecret: raw.GOOGLE_OAUTH_CLIENT_SECRET,

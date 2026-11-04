@@ -961,10 +961,28 @@ responses report, so add that hostname here too.
 `oauth` configures Google, Microsoft and Apple sign-in. Client secrets and the
 Apple private key stay out of YAML.
 
-| Key                             | Default     | Override                                | Meaning                                              |
-| ------------------------------- | ----------- | --------------------------------------- | ---------------------------------------------------- |
-| `microsoft.tenant`              | `consumers` | `MICROSOFT_OAUTH_TENANT`                | Entra tenant the authorize, token and key URLs name  |
-| `microsoft.verifiedEmailPolicy` | none        | `MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY` | Which claim proves a business account owns its email |
+| Key                             | Default           | Override                                | Meaning                                                   |
+| ------------------------------- | ----------------- | --------------------------------------- | --------------------------------------------------------- |
+| `clientIdTokenProviders`        | `microsoft,apple` | `OAUTH_CLIENT_ID_TOKEN_PROVIDERS`       | Providers whose callback may post an ID token, not a code |
+| `microsoft.tenant`              | `consumers`       | `MICROSOFT_OAUTH_TENANT`                | Entra tenant the authorize, token and key URLs name       |
+| `microsoft.verifiedEmailPolicy` | none              | `MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY` | Which claim proves a business account owns its email      |
+
+Every sign-in starts with a server-issued state and nonce; see
+[OAuth sign-in](./api.md#oauth-sign-in). `clientIdTokenProviders` only decides
+how the callback proves the sign-in. A listed provider sends the ID token the
+browser obtained, which must still carry the server's nonce. Any other provider
+sends the authorization code, and the backend redeems it. The defaults match
+today's web client: Microsoft redeems its code in the browser (an Entra
+single-page-application redirect), and Apple's JS SDK returns the ID token.
+
+`none` removes both, so every sign-in goes through the backend code exchange.
+Before that, register the Microsoft redirect URI under the Entra **Web**
+platform and set `MICROSOFT_OAUTH_CLIENT_SECRET`, and configure the Apple
+signing key (`APPLE_OAUTH_TEAM_ID`, `APPLE_OAUTH_KEY_ID`,
+`APPLE_OAUTH_PRIVATE_KEY`). Otherwise those providers cannot redeem their
+codes. The web client follows whichever delivery `/start` reports, so it needs
+no rebuild. Google cannot be listed, because its sign-in always ends with a
+code; listing it, or an unknown provider, is a startup error.
 
 A Microsoft account's email is used for sign-up only when the ID token proves
 the account owns it:
