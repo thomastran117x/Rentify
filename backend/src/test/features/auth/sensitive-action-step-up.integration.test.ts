@@ -16,6 +16,7 @@ import { generateTotpCode } from "../../support/totp-client";
 // Off the harness's MFA bypass list, unlike renter-one, so every guard here is
 // the real one rather than the bypass.
 const ACCOUNT_EMAIL = "owner1@rentify.local";
+const UNUSED_ID = "00000000-0000-4000-8000-0000000d0002";
 
 describe("Sensitive action step-up integration", () => {
   let persistenceApp: PersistenceTestApp;
@@ -25,18 +26,6 @@ describe("Sensitive action step-up integration", () => {
       `http://rent.test${buildApiPath(path)}`,
       init,
     );
-  }
-
-  function post(
-    path: string,
-    session: AuthenticatedRequestContext,
-    body: unknown = {},
-  ) {
-    return request(path, {
-      method: "POST",
-      headers: session.headers(),
-      body: JSON.stringify(body),
-    });
   }
 
   function createSession(email = ACCOUNT_EMAIL) {
@@ -52,10 +41,14 @@ describe("Sensitive action step-up integration", () => {
   }
 
   function createPat(session: AuthenticatedRequestContext) {
-    return post("/auth/personal-access-tokens", session, {
-      name: "Step-up suite",
-      scopes: ["mcp:read", "mcp:write"],
-      expiresInDays: 30,
+    return request("/auth/personal-access-tokens", {
+      method: "POST",
+      headers: session.headers(),
+      body: JSON.stringify({
+        name: "Step-up suite",
+        scopes: ["mcp:read", "mcp:write"],
+        expiresInDays: 30,
+      }),
     });
   }
 
@@ -81,14 +74,22 @@ describe("Sensitive action step-up integration", () => {
   async function enrollAuthenticator(session: AuthenticatedRequestContext) {
     await completeEmailStepUp(persistenceApp.app, session.headers());
 
-    const begin = await post("/auth/mfa/totp/begin", session, {
-      accountName: session.email,
+    const begin = await request("/auth/mfa/totp/begin", {
+      method: "POST",
+      headers: session.headers(),
+      body: JSON.stringify({
+        accountName: session.email,
+      }),
     });
     expect(begin.status).toBe(200);
     const { secret } = (await bodyOf(begin)).data as { secret: string };
 
-    const confirm = await post("/auth/mfa/totp/confirm", session, {
-      code: generateTotpCode(secret),
+    const confirm = await request("/auth/mfa/totp/confirm", {
+      method: "POST",
+      headers: session.headers(),
+      body: JSON.stringify({
+        code: generateTotpCode(secret),
+      }),
     });
     expect(confirm.status).toBe(200);
 
@@ -158,9 +159,13 @@ describe("Sensitive action step-up integration", () => {
 
   describe("OAuth providers", () => {
     async function startLink(session: AuthenticatedRequestContext) {
-      const started = await post("/auth/oauth/google/start", session, {
-        intent: "link",
-        deviceId: "link-device",
+      const started = await request("/auth/oauth/google/start", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          intent: "link",
+          deviceId: "link-device",
+        }),
       });
       expect(started.status).toBe(200);
       return (await bodyOf(started)).data as { state: string };
@@ -179,16 +184,20 @@ describe("Sensitive action step-up integration", () => {
       const flow = await startLink(session);
 
       await expectStepUpRequired(
-        await post("/auth/oauth/google/link", session, linkBody(flow)),
+        await request("/auth/oauth/google/link", {
+          method: "POST",
+          headers: session.headers(),
+          body: JSON.stringify(linkBody(flow)),
+        }),
       );
 
       await stepUp(session);
 
-      const linked = await post(
-        "/auth/oauth/google/link",
-        session,
-        linkBody(flow),
-      );
+      const linked = await request("/auth/oauth/google/link", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify(linkBody(flow)),
+      });
       expect(linked.status).toBe(200);
     });
 
@@ -197,7 +206,13 @@ describe("Sensitive action step-up integration", () => {
       const flow = await startLink(session);
       await stepUp(session);
       expect(
-        (await post("/auth/oauth/google/link", session, linkBody(flow))).status,
+        (
+          await request("/auth/oauth/google/link", {
+            method: "POST",
+            headers: session.headers(),
+            body: JSON.stringify(linkBody(flow)),
+          })
+        ).status,
       ).toBe(200);
 
       const fresh = await createSession();
@@ -218,7 +233,11 @@ describe("Sensitive action step-up integration", () => {
 
   describe("marking a device known", () => {
     function verifyDevice(session: AuthenticatedRequestContext) {
-      return post("/auth/device/verify", session);
+      return request("/auth/device/verify", {
+        method: "POST",
+        headers: session.headers(),
+        body: "{}",
+      });
     }
 
     function knownDevices(session: AuthenticatedRequestContext) {
@@ -264,40 +283,34 @@ describe("Sensitive action step-up integration", () => {
     });
   });
 
-  it("refuses personal access tokens on every guarded route", async () => {
+  // Each route exists to be refused, so the ids in these paths need not exist.
+  it.each([
+    ["POST", "/auth/personal-access-tokens"],
+    ["DELETE", `/auth/personal-access-tokens/${UNUSED_ID}`],
+    ["POST", "/auth/oauth/google/link"],
+    ["DELETE", "/auth/oauth/google"],
+    ["POST", "/auth/device/verify"],
+    ["PATCH", `/organizations/${UNUSED_ID}/members/${UNUSED_ID}`],
+    ["DELETE", `/organizations/${UNUSED_ID}/members/${UNUSED_ID}`],
+  ])("refuses personal access tokens on %s %s", async (method, path) => {
     const session = await createSession();
     await stepUp(session);
     const created = await createPat(session);
-    const { id, token } = (await bodyOf(created)).data as {
-      id: string;
-      token: string;
-    };
-    const headers = {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    };
+    const { token } = (await bodyOf(created)).data as { token: string };
 
-    for (const [method, path] of [
-      ["POST", "/auth/personal-access-tokens"],
-      ["DELETE", `/auth/personal-access-tokens/${id}`],
-      ["POST", "/auth/oauth/google/link"],
-      ["DELETE", "/auth/oauth/google"],
-      ["POST", "/auth/device/verify"],
-      ["PATCH", `/organizations/${id}/members/${id}`],
-      ["DELETE", `/organizations/${id}/members/${id}`],
-    ] as const) {
-      const response = await request(path, {
+    const response = await persistenceApp.app.request(
+      `http://rent.test${buildApiPath(path)}`,
+      {
         method,
-        headers,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
         body: method === "DELETE" ? undefined : "{}",
-      });
+      },
+    );
 
-      expect({ method, path, status: response.status }).toEqual({
-        method,
-        path,
-        status: 403,
-      });
-    }
+    expect(response.status).toBe(403);
   });
 
   describe("with an authenticator active", () => {
@@ -305,9 +318,13 @@ describe("Sensitive action step-up integration", () => {
       const session = await createSession();
       await enrollAuthenticator(session);
 
-      const challenge = await post("/auth/mfa/verify/challenge", session, {
-        scope: "mfa-management",
-        factor: "email",
+      const challenge = await request("/auth/mfa/verify/challenge", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "email",
+        }),
       });
 
       expect(challenge.status).toBe(400);
@@ -338,7 +355,11 @@ describe("Sensitive action step-up integration", () => {
           clock.code,
         );
 
-        const disabled = await post("/auth/mfa/totp/disable", caller);
+        const disabled = await request("/auth/mfa/totp/disable", {
+          method: "POST",
+          headers: caller.headers(),
+          body: "{}",
+        });
         expect(disabled.status).toBe(200);
       } finally {
         clock.restore();
