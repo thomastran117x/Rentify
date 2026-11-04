@@ -17,6 +17,8 @@ import {
   type AuthSecurityDetectionMode,
   type EnvironmentVariableName,
   type HmacSigningKey,
+  MICROSOFT_VERIFIED_EMAIL_POLICIES,
+  type MicrosoftVerifiedEmailPolicy,
   type NodeEnvironment,
   type RawEnvironmentValues,
   type RefreshReuseResponse,
@@ -43,6 +45,42 @@ function parseMfaBypassEmails(
 
     return true;
   });
+}
+
+/**
+ * Multi-tenant Microsoft sign-in lets any tenant admin put any address in a
+ * user's `email` claim, so a deployment that accepts `common` or
+ * `organizations` has to say which claim proves the address is real.
+ */
+const MULTI_TENANT_MICROSOFT_TENANTS = new Set(["common", "organizations"]);
+
+function parseMicrosoftVerifiedEmailPolicy(
+  raw: RawEnvironmentValues,
+  tenant: string,
+  errors: string[],
+): MicrosoftVerifiedEmailPolicy | undefined {
+  const value = raw.MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY;
+
+  if (value === undefined) {
+    if (MULTI_TENANT_MICROSOFT_TENANTS.has(tenant)) {
+      errors.push(
+        `MICROSOFT_OAUTH_TENANT=${tenant} requires MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY (${MICROSOFT_VERIFIED_EMAIL_POLICIES.join(" or ")}).`,
+      );
+    }
+
+    return undefined;
+  }
+
+  if (
+    !(MICROSOFT_VERIFIED_EMAIL_POLICIES as readonly string[]).includes(value)
+  ) {
+    errors.push(
+      `MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY must be one of: ${MICROSOFT_VERIFIED_EMAIL_POLICIES.join(", ")}.`,
+    );
+    return undefined;
+  }
+
+  return value as MicrosoftVerifiedEmailPolicy;
 }
 
 export function parseRefreshTokenMode(
@@ -408,6 +446,13 @@ export function buildOauthConfig(
     );
   }
 
+  const microsoftTenant = raw.MICROSOFT_OAUTH_TENANT ?? "consumers";
+  const microsoftVerifiedEmailPolicy = parseMicrosoftVerifiedEmailPolicy(
+    raw,
+    microsoftTenant,
+    errors,
+  );
+
   return {
     google: {
       audiences: googleAudiences,
@@ -417,7 +462,8 @@ export function buildOauthConfig(
     microsoft: {
       audiences: microsoftAudiences,
       clientSecret: raw.MICROSOFT_OAUTH_CLIENT_SECRET,
-      tenant: raw.MICROSOFT_OAUTH_TENANT ?? "consumers",
+      tenant: microsoftTenant,
+      verifiedEmailPolicy: microsoftVerifiedEmailPolicy,
       frontendBaseUrl,
     },
     apple: {

@@ -1,4 +1,5 @@
 import { environment } from "@/configuration/environment";
+import type { MicrosoftVerifiedEmailPolicy } from "@/configuration/environment/types";
 import BadRequestError from "@/errors/http/bad-request.error";
 import BadGatewayError from "@/errors/http/bad-gateway.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
@@ -13,6 +14,16 @@ import type {
 const MICROSOFT_JWKS_ALLOWED_HOSTS = ["login.microsoftonline.com"];
 const MICROSOFT_TOKEN_ALLOWED_HOSTS = ["login.microsoftonline.com"];
 const MICROSOFT_TOKEN_TIMEOUT_MS = 5_000;
+
+/**
+ * The tenant Microsoft issues every personal (consumer) account's tokens from.
+ * Microsoft verifies those addresses itself, so a token from this tenant may
+ * leave out `email_verified`. Tokens from any other tenant may not: there a
+ * tenant admin, not Microsoft, decides what the `email` claim says.
+ */
+export const MICROSOFT_CONSUMER_TENANT_ID =
+  "9188040d-6c67-4c5b-b112-36a304b66dad";
+const MICROSOFT_CONSUMER_ISSUER = `https://login.microsoftonline.com/${MICROSOFT_CONSUMER_TENANT_ID}/v2.0`;
 
 interface MicrosoftTokenResponse {
   id_token?: string;
@@ -58,6 +69,16 @@ function buildAllowedIssuers(tenant: string): string[] {
       "https://login.microsoftonline.com/common/v2.0",
       "https://login.microsoftonline.com/consumers/v2.0",
       "https://login.microsoftonline.com/organizations/v2.0",
+      MICROSOFT_CONSUMER_ISSUER,
+    ];
+  }
+
+  if (tenant === "consumers") {
+    // Personal-account tokens name the consumer tenant by its id, not by the
+    // `consumers` alias the authorize URL used.
+    return [
+      "https://login.microsoftonline.com/consumers/v2.0",
+      MICROSOFT_CONSUMER_ISSUER,
     ];
   }
 
@@ -86,8 +107,32 @@ function splitName(name?: string): { firstName?: string; lastName?: string } {
   };
 }
 
-function normalizeEmailVerified(value: boolean | string | undefined): boolean {
+function isTrueClaim(value: unknown): boolean {
   return value === true || value === "true";
+}
+
+/**
+ * Whether the token proves the account owns its email address. A missing
+ * `email_verified` claim proves nothing, except on a consumer-tenant token.
+ */
+function isMicrosoftEmailVerified(
+  payload: Record<string, unknown>,
+  policy: MicrosoftVerifiedEmailPolicy | undefined,
+): boolean {
+  if (isTrueClaim(payload.email_verified)) {
+    return true;
+  }
+
+  if (
+    payload.email_verified === undefined &&
+    payload.tid === MICROSOFT_CONSUMER_TENANT_ID
+  ) {
+    return true;
+  }
+
+  return (
+    policy === "email_verified_or_xms_edov" && isTrueClaim(payload.xms_edov)
+  );
 }
 
 class MicrosoftOAuthService {
@@ -113,10 +158,10 @@ class MicrosoftOAuthService {
       );
     }
 
-    const emailVerified =
-      payload.email_verified === undefined
-        ? true
-        : normalizeEmailVerified(payload.email_verified);
+    const emailVerified = isMicrosoftEmailVerified(
+      payload,
+      environment.getMicrosoftOAuthConfig().verifiedEmailPolicy,
+    );
 
     if (!emailVerified) {
       throw new UnauthorizedError("Microsoft account email is not verified.");

@@ -191,6 +191,7 @@ function readMicrosoftOAuthConfig() {
     audiences: readOriginList(clientIds, ""),
     clientSecret: process.env.MICROSOFT_OAUTH_CLIENT_SECRET,
     tenant: process.env.MICROSOFT_OAUTH_TENANT ?? "consumers",
+    verifiedEmailPolicy: process.env.MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY,
     frontendBaseUrl: readApplicationConfig().frontendUrl,
   };
 }

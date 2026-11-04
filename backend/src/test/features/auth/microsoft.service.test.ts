@@ -17,6 +17,9 @@ jest.mock("@/configuration/environment", () => {
         tenant:
           mockGetOptionalEnvironmentVariable("MICROSOFT_OAUTH_TENANT") ??
           "consumers",
+        verifiedEmailPolicy: mockGetOptionalEnvironmentVariable(
+          "MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY",
+        ),
         frontendBaseUrl:
           mockGetOptionalEnvironmentVariable("FRONTEND_URL") ??
           "http://localhost:3040",
@@ -30,7 +33,10 @@ jest.mock("@/configuration/environment", () => {
 import BadRequestError from "@/errors/http/bad-request.error";
 import ServiceNotAvaliableError from "@/errors/http/service-not-avaliable.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
-import { MicrosoftOAuthService } from "@/features/auth/oauth/microsoft.service";
+import {
+  MICROSOFT_CONSUMER_TENANT_ID,
+  MicrosoftOAuthService,
+} from "@/features/auth/oauth/microsoft.service";
 
 function setEnvironment(values: Record<string, string | undefined>) {
   mockGetOptionalEnvironmentVariable.mockImplementation(
@@ -95,6 +101,7 @@ describe("MicrosoftOAuthService", () => {
           "https://login.microsoftonline.com/common/v2.0",
           "https://login.microsoftonline.com/consumers/v2.0",
           "https://login.microsoftonline.com/organizations/v2.0",
+          "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
         ],
         audience: ["microsoft-client-id"],
         jwksUrl: "https://login.microsoftonline.com/common/discovery/v2.0/keys",
@@ -121,6 +128,7 @@ describe("MicrosoftOAuthService", () => {
       verifyIdToken: jest.fn(async () => ({
         sub: "microsoft-user-2",
         email: "direct@example.com",
+        tid: MICROSOFT_CONSUMER_TENANT_ID,
         name: "Direct Person",
       })),
     };
@@ -200,6 +208,115 @@ describe("MicrosoftOAuthService", () => {
     ).rejects.toMatchObject<Partial<UnauthorizedError>>({
       message: "Microsoft ID token is missing required claims.",
     });
+  });
+
+  it("accepts the consumer tenant's issuer id when the tenant is consumers", async () => {
+    setEnvironment({
+      MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
+      MICROSOFT_OAUTH_TENANT: "consumers",
+    });
+    const tokenVerifier = {
+      verifyIdToken: jest.fn(async () => ({
+        sub: "microsoft-user-4",
+        email: "person@outlook.com",
+        tid: MICROSOFT_CONSUMER_TENANT_ID,
+      })),
+    };
+    const service = new MicrosoftOAuthService(tokenVerifier as any);
+
+    await service.verify({ idToken: "consumer-token", nonce: "nonce-7" });
+
+    expect(tokenVerifier.verifyIdToken).toHaveBeenCalledWith(
+      "consumer-token",
+      expect.objectContaining({
+        issuer: [
+          "https://login.microsoftonline.com/consumers/v2.0",
+          "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+        ],
+        jwksUrl:
+          "https://login.microsoftonline.com/consumers/discovery/v2.0/keys",
+      }),
+    );
+  });
+
+  it.each([
+    {
+      case: "a business-tenant token with no email_verified claim",
+      claims: { tid: "11111111-2222-3333-4444-555555555555" },
+      policy: undefined,
+    },
+    {
+      case: "a token with no tid and no email_verified claim",
+      claims: {},
+      policy: undefined,
+    },
+    {
+      case: "an explicit email_verified false, even from the consumer tenant",
+      claims: { tid: MICROSOFT_CONSUMER_TENANT_ID, email_verified: "false" },
+      policy: undefined,
+    },
+    {
+      case: "xms_edov while the policy only trusts email_verified",
+      claims: { tid: "11111111-2222-3333-4444-555555555555", xms_edov: true },
+      policy: "email_verified",
+    },
+    {
+      case: "xms_edov false under the xms_edov policy",
+      claims: { tid: "11111111-2222-3333-4444-555555555555", xms_edov: false },
+      policy: "email_verified_or_xms_edov",
+    },
+  ])("rejects $case", async ({ claims, policy }) => {
+    setEnvironment({
+      MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
+      MICROSOFT_OAUTH_TENANT: "organizations",
+      MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY: policy,
+    });
+    const service = new MicrosoftOAuthService({
+      verifyIdToken: jest.fn(async () => ({
+        sub: "microsoft-user-5",
+        email: "ceo@victim.example",
+        ...claims,
+      })),
+    } as any);
+
+    await expect(
+      service.verify({ idToken: "tenant-token", nonce: "nonce-8" }),
+    ).rejects.toMatchObject<Partial<UnauthorizedError>>({
+      message: "Microsoft account email is not verified.",
+    });
+  });
+
+  it.each([
+    {
+      case: "email_verified true from a business tenant",
+      claims: {
+        tid: "11111111-2222-3333-4444-555555555555",
+        email_verified: "true",
+      },
+      policy: "email_verified",
+    },
+    {
+      case: "xms_edov under the xms_edov policy",
+      claims: { tid: "11111111-2222-3333-4444-555555555555", xms_edov: "true" },
+      policy: "email_verified_or_xms_edov",
+    },
+  ])("accepts $case", async ({ claims, policy }) => {
+    setEnvironment({
+      MICROSOFT_OAUTH_CLIENT_ID: "microsoft-client-id",
+      MICROSOFT_OAUTH_TENANT: "organizations",
+      MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY: policy,
+    });
+    const service = new MicrosoftOAuthService({
+      verifyIdToken: jest.fn(async () => ({
+        sub: "microsoft-user-6",
+        email: "staff@business.example",
+        ...claims,
+      })),
+    } as any);
+
+    await expect(
+      service.verify({ idToken: "tenant-token", nonce: "nonce-9" }),
+    ).resolves.toMatchObject({ emailVerified: true });
   });
 
   it("maps Microsoft token endpoint infrastructure failures to service unavailable", async () => {

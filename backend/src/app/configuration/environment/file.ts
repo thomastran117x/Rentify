@@ -187,6 +187,8 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "oauth.google.clientIds": "GOOGLE_OAUTH_CLIENT_IDS",
   "oauth.microsoft.clientIds": "MICROSOFT_OAUTH_CLIENT_IDS",
   "oauth.microsoft.tenant": "MICROSOFT_OAUTH_TENANT",
+  "oauth.microsoft.verifiedEmailPolicy":
+    "MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY",
   "postingsCache.followerPollIntervalMs":
     "POSTINGS_PUBLIC_CACHE_FOLLOWER_POLL_INTERVAL_MS",
   "postingsCache.followerWaitTimeoutMs":
@@ -350,6 +352,7 @@ const STRING_FILE_KEYS = new Set([
   "oauth.apple.keyId",
   "oauth.apple.teamId",
   "oauth.microsoft.tenant",
+  "oauth.microsoft.verifiedEmailPolicy",
   "rateLimiter.strategy",
   "authSecurity.detection.mode",
   "redis.host",

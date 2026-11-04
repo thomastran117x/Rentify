@@ -956,6 +956,32 @@ when the frontend is served from a host `FRONTEND_URL` does not name. A stack
 using Cloudflare's testing keys gets whatever hostname their siteverify
 responses report, so add that hostname here too.
 
+## OAuth sign-in
+
+`oauth` configures Google, Microsoft and Apple sign-in. Client secrets and the
+Apple private key stay out of YAML.
+
+| Key                             | Default     | Override                                | Meaning                                              |
+| ------------------------------- | ----------- | --------------------------------------- | ---------------------------------------------------- |
+| `microsoft.tenant`              | `consumers` | `MICROSOFT_OAUTH_TENANT`                | Entra tenant the authorize, token and key URLs name  |
+| `microsoft.verifiedEmailPolicy` | none        | `MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY` | Which claim proves a business account owns its email |
+
+A Microsoft account's email is used for sign-up only when the ID token proves
+the account owns it:
+
+- `email_verified` is `true`; or
+- the claim is absent and `tid` is the personal-account tenant
+  (`9188040d-6c67-4c5b-b112-36a304b66dad`), whose addresses Microsoft verifies
+  itself; or
+- `verifiedEmailPolicy` is `email_verified_or_xms_edov` and the optional
+  `xms_edov` (email domain owner verified) claim is `true`.
+
+Any other token is refused with `Microsoft account email is not verified.`
+In a business tenant, the tenant admin sets the `email` claim, so without one
+of those claims anyone could sign in as any address. That is why a `common` or
+`organizations` tenant without `verifiedEmailPolicy` is a startup error. To use
+`xms_edov`, add it as an optional ID-token claim on the Entra app registration.
+
 ## Session cookies
 
 Browser sessions keep their refresh token in an httpOnly cookie and a CSRF

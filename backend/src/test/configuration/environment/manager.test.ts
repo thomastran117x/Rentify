@@ -585,6 +585,48 @@ describe("EnvironmentManager", () => {
     );
   });
 
+  it.each(["common", "organizations"])(
+    "rejects the multi-tenant Microsoft tenant %s without a verified-email policy",
+    (tenant) => {
+      process.env = buildRequiredEnv({ MICROSOFT_OAUTH_TENANT: tenant });
+
+      expect(() => new EnvironmentManager().load()).toThrow(
+        `MICROSOFT_OAUTH_TENANT=${tenant} requires MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY (email_verified or email_verified_or_xms_edov).`,
+      );
+    },
+  );
+
+  it("rejects an unknown Microsoft verified-email policy", () => {
+    process.env = buildRequiredEnv({
+      MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY: "trust_everyone",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY must be one of: email_verified, email_verified_or_xms_edov.",
+    );
+  });
+
+  it("loads a multi-tenant Microsoft tenant once a verified-email policy is set", () => {
+    process.env = buildRequiredEnv({
+      MICROSOFT_OAUTH_TENANT: "organizations",
+      MICROSOFT_OAUTH_VERIFIED_EMAIL_POLICY: "email_verified_or_xms_edov",
+    });
+
+    expect(new EnvironmentManager().load().oauth.microsoft).toMatchObject({
+      tenant: "organizations",
+      verifiedEmailPolicy: "email_verified_or_xms_edov",
+    });
+  });
+
+  it("does not require a verified-email policy for the consumer tenant", () => {
+    process.env = buildRequiredEnv({});
+
+    expect(new EnvironmentManager().load().oauth.microsoft).toMatchObject({
+      tenant: "consumers",
+      verifiedEmailPolicy: undefined,
+    });
+  });
+
   it("resolves a relative custom YAML path from the configuration directory", () => {
     writeFileSync(
       join(tempDirectory, "default.yml"),
