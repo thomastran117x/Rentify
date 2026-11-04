@@ -3436,7 +3436,7 @@ function buildOperations(): OperationDefinition[] {
             scope: "mfa-management",
             verified: false,
             verifiedUntil: null,
-            availableFactors: ["email", "totp"],
+            availableFactors: ["totp"],
             recommendedFactor: "totp",
           },
         ),

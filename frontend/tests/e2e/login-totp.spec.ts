@@ -8,6 +8,7 @@ import { ensureCaptchaToken } from "./helpers/auth";
 import { generateTotpCode } from "./helpers/totp";
 
 const API_BASE = process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8040/api/v1";
+const TOTP_STEP_MS = 30_000;
 
 /**
  * Seeded off auth.mfaBypassEmails, so its sign-in goes through the real login
@@ -75,7 +76,7 @@ async function apiLogin(request: APIRequestContext): Promise<ApiSession> {
   return { accessToken: body.data.accessToken };
 }
 
-/** The email-factor step-up that authenticator changes require. */
+/** The email-factor step-up, for an account with no authenticator yet. */
 async function stepUp(request: APIRequestContext, session: ApiSession) {
   const challenge = await sendWaitingOutRateLimit(() =>
     request.post(`${API_BASE}/auth/mfa/verify/challenge`, {
@@ -96,6 +97,33 @@ async function stepUp(request: APIRequestContext, session: ApiSession) {
     request.post(`${API_BASE}/auth/mfa/verify/confirm`, {
       headers: authHeaders(session),
       data: { scope: "mfa-management", factor: "email", code },
+    }),
+  );
+  expect(confirm.ok(), `step-up confirm: ${confirm.status()}`).toBe(true);
+}
+
+/**
+ * The step-up an account needs once its authenticator is active, when email no
+ * longer counts. Sign-in used the next time step, and replay protection refuses
+ * anything but a newer one, so this waits for the step to turn over first.
+ */
+async function authenticatorStepUp(
+  request: APIRequestContext,
+  session: ApiSession,
+  secret: string,
+) {
+  await new Promise((resolve) =>
+    setTimeout(resolve, TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) + 500),
+  );
+
+  const confirm = await sendWaitingOutRateLimit(() =>
+    request.post(`${API_BASE}/auth/mfa/verify/confirm`, {
+      headers: authHeaders(session),
+      data: {
+        scope: "mfa-management",
+        factor: "totp",
+        code: generateTotpCode(secret, Date.now() + TOTP_STEP_MS),
+      },
     }),
   );
   expect(confirm.ok(), `step-up confirm: ${confirm.status()}`).toBe(true);
@@ -131,6 +159,7 @@ async function enrollAuthenticator(
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 let apiSession: ApiSession | null = null;
+let enrolledSecret: string | null = null;
 
 test.afterAll(async ({ playwright }) => {
   if (!apiSession) {
@@ -142,7 +171,11 @@ test.afterAll(async ({ playwright }) => {
   // reusable however the test ended.
   const request = await playwright.request.newContext();
   try {
-    await stepUp(request, apiSession);
+    if (enrolledSecret) {
+      await authenticatorStepUp(request, apiSession, enrolledSecret);
+    } else {
+      await stepUp(request, apiSession);
+    }
     const session = apiSession;
     const disabled = await sendWaitingOutRateLimit(() =>
       request.post(`${API_BASE}/auth/mfa/totp/disable`, {
@@ -162,6 +195,7 @@ test("signs in with a password and an authenticator code", async ({
 }) => {
   apiSession = await apiLogin(request);
   const secret = await enrollAuthenticator(request, apiSession);
+  enrolledSecret = secret;
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {

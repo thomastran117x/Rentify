@@ -3472,7 +3472,6 @@ paths:
                   verified: false
                   verifiedUntil: null
                   availableFactors:
-                    - email
                     - totp
                   recommendedFactor: totp
                 error: null

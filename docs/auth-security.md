@@ -177,6 +177,24 @@ Each revoked session writes `session.revoked` with `metadata.scope` `one`,
 `others`, or `all`. A sign-out-everywhere operation also writes `pat.revoked`
 for each PAT it changes. Reading the list is not recorded as a revocation.
 
+## Step-Up Verification
+
+A step-up is a fresh second-factor check on a session that is already signed in. It proves the person at the keyboard still controls a factor, not just the session. A proof lasts 15 minutes, belongs to one session and one scope, and stops counting when the account's email, token version or authenticator changes.
+
+### Which Factors Count
+
+An account can only step up with its strongest factors:
+
+| Account                          | Accepted factor | Refused                             |
+| -------------------------------- | --------------- | ----------------------------------- |
+| Active authenticator app         | TOTP            | Email: `400 MFA_FACTOR_UNAVAILABLE` |
+| Verified email, no authenticator | Email           |                                     |
+| Neither                          | None            | Everything; the dialog says so      |
+
+The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Passkeys (#465) and recovery codes (#464) will join the stronger factors when they land.
+
+**A lost authenticator can't be removed with email.** Sign-in already needs the code, and until recovery codes ship, a signed-in session can't step up without it either, so that account needs support.
+
 ## Investigating Sign-in Activity
 
 Administrators read every account's events through two endpoints, served by `AuthAuditAdminController` and `AuthAuditAdminService` and documented in the OpenAPI spec as `listAdminAuthAuditEvents` and `getAdminUserSecuritySummary`.

@@ -5302,7 +5302,6 @@
                     "verified": false,
                     "verifiedUntil": null,
                     "availableFactors": [
-                      "email",
                       "totp"
                     ],
                     "recommendedFactor": "totp"

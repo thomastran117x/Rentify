@@ -16,6 +16,10 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import {
+  completeEmailStepUp,
+  completeTotpStepUp,
+} from "../../support/mfa-step-up";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 import {
   generateTotpCode,
@@ -211,46 +215,12 @@ describe("Auth persistence integration", () => {
   }
 
   /**
-   * Completes the email-factor step-up that authenticator management requires.
+   * The email-factor step-up, for an account with no active authenticator.
    * Verification is bound to the session, so a newly issued session needs its
    * own step-up before it may change MFA settings.
    */
   async function completeMfaStepUp(session: LoginSession): Promise<void> {
-    const challengeResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/auth/mfa/verify/challenge")}`,
-      {
-        method: "POST",
-        headers: sessionHeaders(session),
-        body: JSON.stringify({ scope: "mfa-management", factor: "email" }),
-      },
-    );
-    expect(challengeResponse.status).toBe(200);
-
-    const previewResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/auth/mfa/verify/dev/otp?scope=mfa-management")}`,
-      { headers: sessionHeaders(session) },
-    );
-    expect(previewResponse.status).toBe(200);
-    const preview = (await previewResponse.json()) as {
-      data: { code: string };
-    };
-
-    const confirmResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/auth/mfa/verify/confirm")}`,
-      {
-        method: "POST",
-        headers: sessionHeaders(session),
-        body: JSON.stringify({
-          scope: "mfa-management",
-          factor: "email",
-          code: preview.data.code,
-        }),
-      },
-    );
-    expect(confirmResponse.status).toBe(200);
-    await expect(confirmResponse.json()).resolves.toMatchObject({
-      data: { verified: true, scope: "mfa-management" },
-    });
+    await completeEmailStepUp(persistenceApp.app, sessionHeaders(session));
   }
 
   type OAuthFlowStart = {
@@ -1032,11 +1002,16 @@ describe("Auth persistence integration", () => {
       await expect(legacyDeviceLogin.json()).resolves.toMatchObject({
         data: { scope: "device-login", verified: true },
       });
+
+      // With an authenticator active, email no longer satisfies step-up.
+      await completeTotpStepUp(
+        persistenceApp.app,
+        sessionHeaders(mfaSession),
+        clock.nextCode(),
+      );
     } finally {
       clock.restore();
     }
-
-    await completeMfaStepUp(mfaSession);
 
     const disableResponse = await persistenceApp.app.request(
       `http://rent.test${buildApiPath("/auth/mfa/totp/disable")}`,
