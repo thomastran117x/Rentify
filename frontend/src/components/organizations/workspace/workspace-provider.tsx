@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/components/auth/auth-context";
+import { useMfaStepUp } from "@/components/auth/use-mfa-step-up";
 import { useErrorToast } from "@/components/errors";
 import { mediaApi } from "@/lib/media/api";
 import { authApi } from "@/lib/auth/api";
@@ -195,6 +196,7 @@ export function OrganizationWorkspaceProvider({
   const router = useRouter();
   const { status, session, setSession } = useAuth();
   const { showError } = useErrorToast();
+  const { runWithStepUp, stepUpDialog } = useMfaStepUp();
   const [workspace, setWorkspace] =
     useState<OrganizationWorkspaceResult | null>(null);
   const [detail, setDetail] = useState<OrganizationDetailResult | null>(null);
@@ -969,11 +971,18 @@ export function OrganizationWorkspaceProvider({
     setMessage(null);
 
     try {
-      await organizationsApi.updateMemberRole(
-        detail.organization.id,
-        memberId,
-        role,
+      const outcome = await runWithStepUp(() =>
+        organizationsApi.updateMemberRole(
+          detail.organization.id,
+          memberId,
+          role,
+        ),
       );
+
+      if (!outcome.completed) {
+        return;
+      }
+
       await refresh(detail.organization.id);
       setMessage("Member role updated.");
     } catch (nextError) {
@@ -1001,7 +1010,14 @@ export function OrganizationWorkspaceProvider({
     setMessage(null);
 
     try {
-      await organizationsApi.removeMember(detail.organization.id, memberId);
+      const outcome = await runWithStepUp(() =>
+        organizationsApi.removeMember(detail.organization.id, memberId),
+      );
+
+      if (!outcome.completed) {
+        return;
+      }
+
       await refresh(detail.organization.id);
       setMessage("Member removed.");
     } catch (nextError) {
@@ -1577,6 +1593,7 @@ export function OrganizationWorkspaceProvider({
   return (
     <OrganizationWorkspaceContext.Provider value={value}>
       {children}
+      {stepUpDialog}
     </OrganizationWorkspaceContext.Provider>
   );
 }

@@ -1,3 +1,4 @@
+import type { RunWithStepUp } from "@/components/auth/use-mfa-step-up";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -440,6 +441,63 @@ describe("AuthOAuthButtons", () => {
     );
     expect(onLinked).toHaveBeenCalledWith({ hasPassword: true, providers: [] });
     expect(screen.getByText("Connect another provider")).toBeInTheDocument();
+  });
+
+  it("re-sends the same link request through the step-up", async () => {
+    const user = userEvent.setup();
+    const onLinked = vi.fn();
+    const linked = { hasPassword: true, providers: [] };
+    linkOAuthProviderMock.mockResolvedValue(linked);
+    const runWithStepUp: RunWithStepUp = async (action) => {
+      await action();
+      return { completed: true, result: await action() };
+    };
+    render(
+      <AuthOAuthButtons
+        mode="link"
+        onError={vi.fn()}
+        onLinked={onLinked}
+        runWithStepUp={runWithStepUp}
+      />,
+    );
+
+    await openAndRespond(
+      user,
+      "Link Google",
+      (state) => `#code=google-code&state=${state}`,
+    );
+
+    await waitFor(() => expect(onLinked).toHaveBeenCalledWith(linked));
+    expect(linkOAuthProviderMock).toHaveBeenCalledTimes(2);
+    expect(linkOAuthProviderMock.mock.calls[1]).toEqual(
+      linkOAuthProviderMock.mock.calls[0],
+    );
+  });
+
+  it("does not report a link when the step-up is dismissed", async () => {
+    const user = userEvent.setup();
+    const onLinked = vi.fn();
+    const onError = vi.fn();
+    render(
+      <AuthOAuthButtons
+        mode="link"
+        onError={onError}
+        onLinked={onLinked}
+        runWithStepUp={async () => ({ completed: false })}
+      />,
+    );
+
+    await openAndRespond(
+      user,
+      "Link Google",
+      (state) => `#code=google-code&state=${state}`,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Link Google" })).toBeEnabled(),
+    );
+    expect(onLinked).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenLastCalledWith("");
   });
 
   it("exchanges a Microsoft code and authenticates with its ID token", async () => {

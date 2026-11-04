@@ -541,6 +541,146 @@ describe("AccountPage", () => {
     );
   });
 
+  describe("when the session needs a step-up", () => {
+    const stepUpRequired = () =>
+      new ApiClientError("Recent MFA verification is required.", {
+        status: 401,
+        code: "MFA_VERIFICATION_REQUIRED",
+        details: {
+          scope: "mfa-management",
+          availableFactors: ["email"],
+          recommendedFactor: "email",
+          verifiedUntil: null,
+        },
+        request: {
+          method: "POST",
+          path: "/auth/personal-access-tokens",
+          requestUrl: "https://api.test/api/v1/auth/personal-access-tokens",
+        },
+      });
+
+    async function submitNewToken(user: ReturnType<typeof userEvent.setup>) {
+      render(<AccountPage />);
+      await user.click(screen.getByRole("button", { name: "Developer" }));
+      await user.type(
+        await screen.findByRole("textbox", { name: /Token name/ }),
+        "CLI",
+      );
+      await user.click(screen.getByRole("button", { name: /Create token/ }));
+    }
+
+    it("creates the token after the dialog succeeds", async () => {
+      const user = userEvent.setup();
+      createTokenMock.mockRejectedValueOnce(stepUpRequired());
+
+      await submitNewToken(user);
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Approve account verification",
+        }),
+      );
+
+      await waitFor(() => expect(createTokenMock).toHaveBeenCalledTimes(2));
+      expect(
+        await screen.findByText(/Personal access token created/),
+      ).toBeInTheDocument();
+    });
+
+    it("leaves the token uncreated and shows no error when dismissed", async () => {
+      const user = userEvent.setup();
+      createTokenMock.mockRejectedValueOnce(stepUpRequired());
+
+      await submitNewToken(user);
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Cancel account verification",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", {
+            name: "Cancel account verification",
+          }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(createTokenMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(/Personal access token created/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/couldn't create that personal access token/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("revokes the token after the dialog succeeds", async () => {
+      const user = userEvent.setup();
+      listTokensMock.mockResolvedValue({
+        tokens: [
+          {
+            id: "token-1",
+            name: "CLI",
+            tokenPrefix: "rnt_",
+            scopes: ["mcp:read"],
+            createdAt: "2026-01-01",
+            lastUsedAt: null,
+            expiresAt: null,
+            revokedAt: null,
+          },
+        ],
+      });
+      revokeTokenMock.mockRejectedValueOnce(stepUpRequired());
+
+      render(<AccountPage />);
+      await user.click(screen.getByRole("button", { name: "Developer" }));
+      await screen.findByText("CLI");
+      await user.click(screen.getByRole("button", { name: "Revoke" }));
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Approve account verification",
+        }),
+      );
+
+      await waitFor(() => expect(revokeTokenMock).toHaveBeenCalledTimes(2));
+      expect(
+        await screen.findByText("Personal access token revoked."),
+      ).toBeInTheDocument();
+    });
+
+    it("unlinks the provider after the dialog succeeds", async () => {
+      const user = userEvent.setup();
+      linkedProvidersMock.mockResolvedValue({
+        hasPassword: true,
+        providers: [
+          {
+            id: "provider-1",
+            provider: "google",
+            linkedAt: "2026-01-01",
+            providerEmail: "person@example.com",
+          },
+        ],
+      });
+      unlinkProviderMock
+        .mockRejectedValueOnce(stepUpRequired())
+        .mockResolvedValueOnce({ hasPassword: true, providers: [] });
+
+      render(<AccountPage />);
+      await user.click(screen.getByRole("button", { name: "Security" }));
+      await screen.findByText("Google");
+      await user.click(screen.getByRole("button", { name: "Unlink" }));
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Approve account verification",
+        }),
+      );
+
+      await waitFor(() => expect(unlinkProviderMock).toHaveBeenCalledTimes(2));
+      expect(
+        await screen.findByText("Google was unlinked."),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("formats account dates and device labels", () => {
     expect(formatLinkedAt("2026-01-02T12:00:00.000Z")).toMatch(/2026/);
     expect(formatDateTime()).toBe("Never");
