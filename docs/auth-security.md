@@ -192,6 +192,7 @@ These all need a recent proof, and return `401 MFA_VERIFICATION_REQUIRED` withou
 - creating and revoking personal access tokens (listing them does not need one)
 - linking and unlinking a Google, Microsoft or Apple sign-in
 - `POST /auth/device/verify`
+- changing an organization member's role and removing a member, whatever the role, since a proof lasts 15 minutes and a run of changes prompts only once
 
 Personal access tokens can't complete a step-up, and none of these routes accept one.
 

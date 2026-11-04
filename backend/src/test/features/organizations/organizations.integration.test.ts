@@ -11,6 +11,7 @@ import {
   teardownPersistenceTestApp,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { completeEmailStepUp } from "../../support/mfa-step-up";
 import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
 
 const ORGANIZATION_ID = createFixtureId(1040, 1);
@@ -247,16 +248,41 @@ describe("Organizations persistence integration", () => {
       role: "manager",
     });
 
-    const updateMemberRoleResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/members/${memberToUpdate.id}`)}`,
-      {
+    const memberPath = buildApiPath(
+      `/organizations/${ORGANIZATION_ID}/members/${memberToUpdate.id}`,
+    );
+    const updateMemberRole = () =>
+      persistenceApp.app.request(`http://rent.test${memberPath}`, {
         method: "PATCH",
         headers: owner.headers(),
         body: JSON.stringify({
           role: "manager",
         }),
-      },
-    );
+      });
+    const removeMember = () =>
+      persistenceApp.app.request(`http://rent.test${memberPath}`, {
+        method: "DELETE",
+        headers: owner.headers(),
+      });
+
+    for (const attempt of [updateMemberRole, removeMember]) {
+      const refused = await attempt();
+      expect(refused.status).toBe(401);
+      await expect(refused.json()).resolves.toMatchObject({
+        error: { code: "MFA_VERIFICATION_REQUIRED" },
+      });
+    }
+    expect(
+      await persistenceApp.prisma.organizationMembership.findUniqueOrThrow({
+        where: {
+          id: memberToUpdate.id,
+        },
+      }),
+    ).toMatchObject({ role: memberToUpdate.role });
+
+    await completeEmailStepUp(persistenceApp.app, owner.headers());
+
+    const updateMemberRoleResponse = await updateMemberRole();
 
     expect(updateMemberRoleResponse.status).toBe(200);
     expect(
@@ -269,13 +295,7 @@ describe("Organizations persistence integration", () => {
       role: "manager",
     });
 
-    const removeMemberResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath(`/organizations/${ORGANIZATION_ID}/members/${memberToUpdate.id}`)}`,
-      {
-        method: "DELETE",
-        headers: owner.headers(),
-      },
-    );
+    const removeMemberResponse = await removeMember();
 
     expect(removeMemberResponse.status).toBe(200);
     expect(

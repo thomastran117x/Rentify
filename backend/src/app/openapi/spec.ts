@@ -4194,7 +4194,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOrganizationMember",
       summary: "Update an organization member role",
       description:
-        "Changes the role of an existing organization member within the v1 role restrictions.",
+        "Changes the role of an existing organization member within the v1 role restrictions. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["organizations"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4226,6 +4226,7 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -4234,7 +4235,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "removeOrganizationMember",
       summary: "Remove an organization member",
       description:
-        "Removes an organization membership when the caller has permission to manage that member role.",
+        "Removes an organization membership when the caller has permission to manage that member role. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["organizations"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4261,6 +4262,7 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {

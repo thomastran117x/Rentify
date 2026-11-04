@@ -5133,7 +5133,7 @@ paths:
     patch:
       operationId: updateOrganizationMember
       summary: Update an organization member role
-      description: Changes the role of an existing organization member within the v1 role restrictions.
+      description: Changes the role of an existing organization member within the v1 role restrictions. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
       tags:
         - organizations
       security:
@@ -5200,7 +5200,38 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -5212,7 +5243,7 @@ paths:
     delete:
       operationId: removeOrganizationMember
       summary: Remove an organization member
-      description: Removes an organization membership when the caller has permission to manage that member role.
+      description: Removes an organization membership when the caller has permission to manage that member role. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
       tags:
         - organizations
       security:
@@ -5262,7 +5293,38 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':

@@ -283,11 +283,13 @@ describe("Sensitive action step-up integration", () => {
       ["POST", "/auth/oauth/google/link"],
       ["DELETE", "/auth/oauth/google"],
       ["POST", "/auth/device/verify"],
+      ["PATCH", `/organizations/${id}/members/${id}`],
+      ["DELETE", `/organizations/${id}/members/${id}`],
     ] as const) {
       const response = await request(path, {
         method,
         headers,
-        body: method === "POST" ? "{}" : undefined,
+        body: method === "DELETE" ? undefined : "{}",
       });
 
       expect({ method, path, status: response.status }).toEqual({
