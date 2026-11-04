@@ -90,6 +90,8 @@ export interface PersonalAccessTokenRecord {
   publicId: string;
   tokenPrefix: string;
   secretHash: string;
+  /** The kid of the PAT key that produced secretHash. */
+  secretKid: string;
   scopes: PersonalAccessTokenScope[];
   lastUsedAt?: string;
   expiresAt?: string;

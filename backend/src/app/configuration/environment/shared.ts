@@ -240,32 +240,53 @@ export function parseNumber(
   return parsedValue;
 }
 
+/** `alternative` names a variable that can be set instead of this one. */
 export function readRequiredString(
   raw: RawEnvironmentValues,
   name: EnvironmentVariableName,
   errors: string[],
+  alternative?: EnvironmentVariableName,
 ): string {
   const value = raw[name];
 
   if (!value) {
-    errors.push(`${name} is required.`);
+    errors.push(
+      alternative
+        ? `${name} is required (or set ${alternative}).`
+        : `${name} is required.`,
+    );
     return "";
   }
 
   return value;
 }
 
+/** Pushes an error and returns false when a secret is too short to sign with. */
+export function hasMinimumSecretLength(
+  label: string,
+  secret: string,
+  errors: string[],
+): boolean {
+  if (secret.length >= MINIMUM_TOKEN_SECRET_LENGTH) {
+    return true;
+  }
+
+  errors.push(
+    `${label} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`,
+  );
+  return false;
+}
+
 export function readRequiredSecret(
   raw: RawEnvironmentValues,
   name: EnvironmentVariableName,
   errors: string[],
+  alternative?: EnvironmentVariableName,
 ): string {
-  const value = readRequiredString(raw, name, errors);
+  const value = readRequiredString(raw, name, errors, alternative);
 
-  if (value && value.length < MINIMUM_TOKEN_SECRET_LENGTH) {
-    errors.push(
-      `${name} must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`,
-    );
+  if (value) {
+    hasMinimumSecretLength(name, value, errors);
   }
 
   return value;

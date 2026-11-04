@@ -2,6 +2,7 @@ import type { EnvironmentVariableName } from "@/configuration/environment/types"
 
 export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "ACCESS_TOKEN_ALGORITHM",
+  "ACCESS_TOKEN_KEYS",
   "ACCESS_TOKEN_PRIVATE_KEY",
   "ACCESS_TOKEN_PUBLIC_KEY",
   "ACCESS_TOKEN_SECRET",
@@ -175,7 +176,9 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "REFRESH_TOKEN_CACHE_PREFIX",
   "REFRESH_TOKEN_MODE",
   "AUTH_REFRESH_REUSE_RESPONSE",
+  "REFRESH_TOKEN_KEYS",
   "REFRESH_TOKEN_SECRET",
+  "PERSONAL_ACCESS_TOKEN_KEYS",
   "PERSONAL_ACCESS_TOKEN_SECRET",
   "AUTH_AUDIT_IDENTIFIER_SECRET",
   "AUTH_AUDIT_PRUNE_BATCH_SIZE",
@@ -275,3 +278,6 @@ export const DEFAULT_IDENTITY_BLOOM_REBUILD_INTERVAL_MS = 21_600_000;
 export const DEFAULT_IDENTITY_BLOOM_REBUILD_BATCH_SIZE = 5_000;
 export const DEFAULT_IDENTITY_BLOOM_REBUILD_LOCK_TTL_MS = 60_000;
 export const MINIMUM_TOKEN_SECRET_LENGTH = 32;
+// The key id a single-secret variable maps to, and the key a token without a
+// kid (one signed before keysets existed) is verified with.
+export const DEFAULT_SIGNING_KEY_ID = "default";

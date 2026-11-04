@@ -4,6 +4,27 @@ export type NodeEnvironment = "development" | "test" | "production";
 export type RefreshTokenMode = "stateless" | "stateful";
 export type RefreshReuseResponse = "session" | "user";
 export type AccessTokenAlgorithm = "HS256" | "RS256";
+/**
+ * Only the `current` key of a keyset signs; every key verifies. A `next` key is
+ * staged for promotion and a `previous` key is being retired, so stored hashes
+ * move off `previous` keys but never off `next` ones.
+ */
+export type SigningKeyStatus = "current" | "next" | "previous";
+export interface HmacSigningKey {
+  kid: string;
+  status: SigningKeyStatus;
+  secret: string;
+}
+export type AccessTokenSigningKey =
+  | (HmacSigningKey & { algorithm: "HS256" })
+  | {
+      kid: string;
+      status: SigningKeyStatus;
+      algorithm: "RS256";
+      publicKey: string;
+      /** Present on the current key; a previous key only verifies. */
+      privateKey?: string;
+    };
 export type RateLimiterStrategy = "sliding-window" | "token-bucket";
 export type LoggingMode = "console" | "rabbitmq";
 export type SmsProvider = "noop" | "telnyx";
@@ -80,6 +101,7 @@ export type ConfigurationFeatureSource = "config" | "env";
 
 export type RawEnvironmentValues = {
   ACCESS_TOKEN_ALGORITHM?: string;
+  ACCESS_TOKEN_KEYS?: string;
   ACCESS_TOKEN_PRIVATE_KEY?: string;
   ACCESS_TOKEN_PUBLIC_KEY?: string;
   ACCESS_TOKEN_SECRET?: string;
@@ -247,7 +269,9 @@ export type RawEnvironmentValues = {
   REFRESH_TOKEN_CACHE_PREFIX?: string;
   REFRESH_TOKEN_MODE?: string;
   AUTH_REFRESH_REUSE_RESPONSE?: string;
+  REFRESH_TOKEN_KEYS?: string;
   REFRESH_TOKEN_SECRET?: string;
+  PERSONAL_ACCESS_TOKEN_KEYS?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
@@ -345,11 +369,9 @@ export interface AppEnvironment {
     slowQueryThresholdMs: number;
   };
   auth: {
-    accessTokenAlgorithm: AccessTokenAlgorithm;
-    accessTokenSecret?: string;
-    accessTokenPrivateKey?: string;
-    accessTokenPublicKey?: string;
-    refreshTokenSecret: string;
+    /** Exactly one key is current. See docs/backend-configuration.md. */
+    accessTokenKeys: AccessTokenSigningKey[];
+    refreshTokenKeys: HmacSigningKey[];
     accessTokenTtlSeconds: number;
     refreshTokenTtlSeconds: number;
     rememberMeRefreshTokenTtlSeconds: number;
@@ -358,7 +380,7 @@ export interface AppEnvironment {
     refreshTokenMode: RefreshTokenMode;
     refreshReuseResponse: RefreshReuseResponse;
     refreshTokenCachePrefix: string;
-    personalAccessTokenSecret: string;
+    personalAccessTokenKeys: HmacSigningKey[];
     /** HMAC key for the hashed sign-in identifiers in the auth audit log. */
     authAuditIdentifierSecret: string;
     mfaBypassEmails: string[];

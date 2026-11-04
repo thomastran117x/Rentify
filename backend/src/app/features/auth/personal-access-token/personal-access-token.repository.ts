@@ -14,6 +14,7 @@ type PersonalAccessTokenPersistence = {
   publicId: string;
   tokenPrefix: string;
   secretHash: string;
+  secretKid: string;
   scopes: Prisma.JsonValue;
   lastUsedAt: Date | null;
   expiresAt: Date | null;
@@ -35,6 +36,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     publicId: string;
     tokenPrefix: string;
     secretHash: string;
+    secretKid: string;
     scopes: PersonalAccessTokenScope[];
     expiresAt?: Date;
   }): Promise<PersonalAccessTokenRecord> {
@@ -47,6 +49,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
           publicId: input.publicId,
           tokenPrefix: input.tokenPrefix,
           secretHash: input.secretHash,
+          secretKid: input.secretKid,
           scopes: input.scopes,
           expiresAt: input.expiresAt ?? null,
         },
@@ -154,7 +157,14 @@ export class PersonalAccessTokenRepository extends BaseRepository {
     );
   }
 
-  async touchLastUsedAt(tokenId: string): Promise<void> {
+  /**
+   * Records a use. `rehash` moves a token hashed with a previous key onto the
+   * current key in the same write.
+   */
+  async touchLastUsedAt(
+    tokenId: string,
+    rehash?: { secretHash: string; secretKid: string },
+  ): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.personalAccessToken.update({
         where: {
@@ -162,6 +172,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
         },
         data: {
           lastUsedAt: new Date(),
+          ...rehash,
         },
       }),
     );
@@ -177,6 +188,7 @@ export class PersonalAccessTokenRepository extends BaseRepository {
       publicId: token.publicId,
       tokenPrefix: token.tokenPrefix,
       secretHash: token.secretHash,
+      secretKid: token.secretKid,
       scopes: this.parseScopes(token.scopes),
       lastUsedAt: token.lastUsedAt?.toISOString(),
       expiresAt: token.expiresAt?.toISOString(),

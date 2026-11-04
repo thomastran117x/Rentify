@@ -63,11 +63,12 @@ connection strings:
   a [Microsoft Entra ID](#microsoft-entra-id-authentication) service principal,
   and `AZURE_STORAGE_CONNECTION_STRING` in the
   [deprecated connection-string mode](#deprecated-connection-string-mode)
-- access-token signing credentials: `ACCESS_TOKEN_SECRET` for the default
-  `HS256` algorithm, or `ACCESS_TOKEN_PRIVATE_KEY` and
-  `ACCESS_TOKEN_PUBLIC_KEY` for `RS256`
-- `REFRESH_TOKEN_SECRET`, `PERSONAL_ACCESS_TOKEN_SECRET`,
-  `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+- [token signing keys](#token-signing-keys): `ACCESS_TOKEN_KEYS` or
+  `ACCESS_TOKEN_SECRET` (`HS256`) or `ACCESS_TOKEN_PRIVATE_KEY` and
+  `ACCESS_TOKEN_PUBLIC_KEY` (`RS256`); `REFRESH_TOKEN_KEYS` or
+  `REFRESH_TOKEN_SECRET`; `PERSONAL_ACCESS_TOKEN_KEYS` or
+  `PERSONAL_ACCESS_TOKEN_SECRET`
+- `AUTH_AUDIT_IDENTIFIER_SECRET` and `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
   secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
@@ -182,21 +183,34 @@ The API logs a startup warning in two cases:
 - `clientIpHeader` is set without a hop count or range, so it is believed from
   any peer
 
-## Access-token signing
+## Token signing keys
 
-Access JWTs use `HS256` by default, preserving the existing shared-secret
-configuration. Set the non-secret `auth.accessTokenAlgorithm` YAML setting or
-the `ACCESS_TOKEN_ALGORITHM` override to `RS256` to use asymmetric signing.
+Three signing purposes each have a keyset: access JWTs, refresh tokens, and
+the HMAC that hashes personal access tokens (PATs). A keyset has one `current`
+key, which signs, and any number of `next` and `previous` keys, which only
+verify: a `next` key is staged for promotion, and a `previous` key is being
+retired. Every
+token records the id (`kid`) of the key that signed it. Rotating the current
+key therefore logs nobody out: tokens signed with the old key keep verifying
+until that key is removed from the set. To rotate a key, follow the
+[signing key rotation runbook](./auth-security.md#signing-key-rotation).
 
-For `HS256`, `ACCESS_TOKEN_SECRET` is required and must contain at least 32
-characters. For `RS256`, `ACCESS_TOKEN_PRIVATE_KEY` and
-`ACCESS_TOKEN_PUBLIC_KEY` are required instead. Both must be PEM-encoded RSA
-keys of at least 2048 bits from the same pair. PEM values may contain literal
-newlines or `\n` escape sequences, which is useful in environment variables.
-Startup fails when the selected algorithm is unsupported, its credentials are
-absent or malformed, the keys are too small, or the RSA keys do not match.
+### Single-key variables
 
-For example, an RS256 deployment can use:
+The single-key variables still work, and most deployments only need them.
+Each one becomes the set's only key, as the current key under kid `default`.
+
+- `ACCESS_TOKEN_SECRET`, for the default `HS256` algorithm. It must be at
+  least 32 characters.
+- `ACCESS_TOKEN_PRIVATE_KEY` and `ACCESS_TOKEN_PUBLIC_KEY`, for `RS256`. Set
+  the non-secret `auth.accessTokenAlgorithm` YAML setting, or the
+  `ACCESS_TOKEN_ALGORITHM` override, to `RS256` to use them. Both must be
+  PEM-encoded RSA keys of at least 2048 bits from the same pair.
+- `REFRESH_TOKEN_SECRET` and `PERSONAL_ACCESS_TOKEN_SECRET`, each at least 32
+  characters.
+
+PEM values may contain literal newlines or `\n` escape sequences, which is
+useful in environment variables. For example, an RS256 deployment can use:
 
 ```dotenv
 ACCESS_TOKEN_ALGORITHM=RS256
@@ -205,8 +219,99 @@ ACCESS_TOKEN_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-
 ACCESS_TOKEN_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----
 ```
 
-This setting affects access JWTs only. Refresh tokens continue to use their
-separate `REFRESH_TOKEN_SECRET` and configured stateful lifecycle.
+### Keysets
+
+To hold more than one key, replace the single-key variable with its keyset
+variable: `ACCESS_TOKEN_KEYS`, `REFRESH_TOKEN_KEYS`, or
+`PERSONAL_ACCESS_TOKEN_KEYS`. The value is a JSON or YAML list. Like every
+secret, it is set in the environment only, never in a YAML file.
+
+```dotenv
+REFRESH_TOKEN_KEYS=[{"kid":"2026-11","status":"current","secret":"..."},{"kid":"default","status":"previous","secret":"..."}]
+```
+
+Each entry has these fields:
+
+| Field        | Meaning                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kid`        | 1 to 64 letters, digits, `-` or `_`, and unique within the set. In YAML, quote a kid that looks like a number or a date.                       |
+| `status`     | `current`, `next` or `previous`. Exactly one key is `current`. `next` and `previous` keys only verify.                                         |
+| `secret`     | An HMAC secret of at least 32 characters. Within a set, no two keys may share a secret.                                                        |
+| `publicKey`  | `ACCESS_TOKEN_KEYS` only. Makes the key an `RS256` key.                                                                                        |
+| `privateKey` | `ACCESS_TOKEN_KEYS` only. Required on a current `RS256` key, which has to sign. A `next` or `previous` `RS256` key needs only its `publicKey`. |
+
+An access key with a `secret` is an `HS256` key, and one with `publicKey` is an
+`RS256` key, so a set can hold keys of both algorithms. With a keyset,
+`auth.accessTokenAlgorithm` (`ACCESS_TOKEN_ALGORITHM`) names the algorithm new
+tokens are signed with, and startup fails unless the current key uses it. A
+keyset whose current key is `RS256` therefore needs the setting at `RS256`,
+and a secret in the current slot cannot quietly downgrade an `RS256`
+deployment to `HS256`. Moving between algorithms is an ordinary rotation that
+changes the setting when the new key is promoted. A token's header must name
+the algorithm of the key it names, so a token cannot choose a weaker algorithm
+than its key.
+
+Setting a keyset together with its single-key variable stops startup.
+Startup also fails when the keyset is not a non-empty list, an entry is
+malformed, a kid repeats, the set does not have exactly one current key, a
+secret is too short or repeated, or an RSA key is invalid, too small, or does
+not match its pair. The error names the variable and kid but never prints a
+secret.
+
+### How tokens find their key
+
+- **Access JWTs** carry the kid in their header. A JWT with a kid that is not
+  in the set is rejected. A JWT without a kid predates keysets and is verified
+  with kid `default`.
+- **Refresh tokens** have the form `v2.<kid>.<body>.<signature>`. The
+  signature covers the kid, so the kid cannot be swapped for another key's.
+  A `v1.<body>.<signature>` token always means kid `default`. While the
+  current key is `default`, new refresh tokens are still issued as `v1`,
+  because releases before keysets read only `v1`; a rolling deploy or a
+  rollback of this release therefore signs nobody out. `v2` appears only once
+  a key with another kid is promoted. Refreshing a session always re-signs it
+  with the current key.
+- **PATs** store the kid of the key that hashed them in
+  `personal_access_tokens.secret_kid`; rows from before keysets have
+  `default`. A PAT hashed with a `previous` key is hashed again with the
+  current key the next time it is used. A PAT on a `next` key is left there,
+  because instances that have already promoted that key hashed it; moving it
+  back would flip it on every use while the promotion rolls out. A PAT that is
+  not used before its key is removed stops working. PAT expiry cannot be relied on instead, because
+  `expiresAt` accepts any future date.
+
+Keep the old secret under kid `default` when you first move to a keyset, so
+the tokens issued before keysets keep verifying. The dev-only local blob storage
+signs its upload URLs with the current access key, so promoting a new access
+key also invalidates local upload URLs issued before the restart.
+
+### Issuer, audience, and production checks
+
+`auth.issuer` and `auth.audience` (overrides `TOKEN_ISSUER` and
+`TOKEN_AUDIENCE`) are written into every access JWT as `iss` and `aud`. When
+either is configured, a JWT whose claim is missing or different is rejected.
+Both default to `null` in `default.yml`, and they are deployment-specific, so
+production sets them as overrides, for example:
+
+```dotenv
+TOKEN_ISSUER=https://api.example.com
+TOKEN_AUDIENCE=rent-web
+```
+
+When `NODE_ENV` is `production`, startup fails when:
+
+- `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
+  unset;
+- any two of these are equal: an `HS256` access secret, a refresh secret, a
+  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+  (the TOTP key is compared ignoring case). Every key in a keyset counts,
+  previous keys included, so one leaked secret cannot forge two kinds of
+  token. The error names both variables but not the value.
+
+Setting the issuer and audience on an existing deployment logs nobody out.
+Access tokens issued before the change have no `iss` or `aud`, so they are
+rejected, but they last only 15 minutes. Refresh tokens carry neither claim,
+so the client's next refresh returns a scoped access token.
 
 ## Refresh-token reuse response
 

@@ -429,6 +429,8 @@ model PersonalAccessToken {
   publicId    String   @unique @map("public_id") @db.VarChar(32)
   tokenPrefix String   @map("token_prefix") @db.VarChar(64)
   secretHash  String   @map("secret_hash") @db.VarChar(255)
+  // The signing key that produced secretHash; see docs/backend-configuration.md#token-signing-keys.
+  secretKid   String   @default("default") @map("secret_kid") @db.VarChar(64)
   scopes      Json
   lastUsedAt  DateTime? @map("last_used_at") @db.DateTime(6)
   expiresAt   DateTime? @map("expires_at") @db.DateTime(6)

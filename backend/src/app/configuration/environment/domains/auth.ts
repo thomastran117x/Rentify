@@ -1,10 +1,8 @@
-import { createPrivateKey, createPublicKey } from "node:crypto";
 import {
   DEFAULT_CAPTCHA_ALLOWED_HOST,
   DEFAULT_EMAIL_APP_BASE_URL,
   DEFAULT_FRONTEND_URL,
   DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
-  MINIMUM_TOKEN_SECRET_LENGTH,
 } from "@/configuration/environment/constants";
 import {
   normalizeBaseUrl,
@@ -14,10 +12,11 @@ import {
 } from "@/configuration/environment/shared";
 import {
   AUTH_SECURITY_DETECTION_MODES,
+  type AccessTokenSigningKey,
   type AppEnvironment,
-  type AccessTokenAlgorithm,
   type AuthSecurityDetectionMode,
   type EnvironmentVariableName,
+  type HmacSigningKey,
   type NodeEnvironment,
   type RawEnvironmentValues,
   type RefreshReuseResponse,
@@ -26,115 +25,6 @@ import {
 import { z } from "zod";
 
 const environmentEmailSchema = z.email();
-
-interface AccessTokenCredentials {
-  algorithm: AccessTokenAlgorithm;
-  secret?: string;
-  privateKey?: string;
-  publicKey?: string;
-}
-
-function normalizePem(value?: string): string | undefined {
-  return value?.replace(/\\n/g, "\n");
-}
-
-function validateRsaKeyPair(
-  privateKeyPem: string,
-  publicKeyPem: string,
-  errors: string[],
-): void {
-  let privateKey: ReturnType<typeof createPrivateKey> | undefined;
-  let publicKey: ReturnType<typeof createPublicKey> | undefined;
-
-  try {
-    privateKey = createPrivateKey(privateKeyPem);
-    if (privateKey.asymmetricKeyType !== "rsa") {
-      errors.push("ACCESS_TOKEN_PRIVATE_KEY must contain an RSA private key.");
-      privateKey = undefined;
-    } else if ((privateKey.asymmetricKeyDetails?.modulusLength ?? 0) < 2_048) {
-      errors.push("ACCESS_TOKEN_PRIVATE_KEY must be at least 2048 bits.");
-      privateKey = undefined;
-    }
-  } catch {
-    errors.push(
-      "ACCESS_TOKEN_PRIVATE_KEY must contain a valid RSA private key.",
-    );
-  }
-
-  try {
-    publicKey = createPublicKey(publicKeyPem);
-    if (publicKey.asymmetricKeyType !== "rsa") {
-      errors.push("ACCESS_TOKEN_PUBLIC_KEY must contain an RSA public key.");
-      publicKey = undefined;
-    } else if ((publicKey.asymmetricKeyDetails?.modulusLength ?? 0) < 2_048) {
-      errors.push("ACCESS_TOKEN_PUBLIC_KEY must be at least 2048 bits.");
-      publicKey = undefined;
-    }
-  } catch {
-    errors.push("ACCESS_TOKEN_PUBLIC_KEY must contain a valid RSA public key.");
-  }
-
-  if (!privateKey || !publicKey) {
-    return;
-  }
-
-  const derivedPublicKey = createPublicKey(privateKey).export({
-    format: "der",
-    type: "spki",
-  });
-  const configuredPublicKey = publicKey.export({
-    format: "der",
-    type: "spki",
-  });
-
-  if (!derivedPublicKey.equals(configuredPublicKey)) {
-    errors.push(
-      "ACCESS_TOKEN_PRIVATE_KEY and ACCESS_TOKEN_PUBLIC_KEY must form a matching RSA key pair.",
-    );
-  }
-}
-
-export function parseAccessTokenCredentials(
-  raw: RawEnvironmentValues,
-  errors: string[],
-): AccessTokenCredentials {
-  const configuredAlgorithm = raw.ACCESS_TOKEN_ALGORITHM ?? "HS256";
-  const algorithm: AccessTokenAlgorithm =
-    configuredAlgorithm === "RS256" ? "RS256" : "HS256";
-
-  if (configuredAlgorithm !== "HS256" && configuredAlgorithm !== "RS256") {
-    errors.push("ACCESS_TOKEN_ALGORITHM must be 'HS256' or 'RS256'.");
-  }
-
-  if (algorithm === "HS256") {
-    const secret = raw.ACCESS_TOKEN_SECRET;
-
-    if (!secret) {
-      errors.push("ACCESS_TOKEN_SECRET is required when using HS256.");
-    } else if (secret.length < MINIMUM_TOKEN_SECRET_LENGTH) {
-      errors.push(
-        `ACCESS_TOKEN_SECRET must be at least ${MINIMUM_TOKEN_SECRET_LENGTH} characters long.`,
-      );
-    }
-
-    return { algorithm, secret };
-  }
-
-  const privateKey = normalizePem(raw.ACCESS_TOKEN_PRIVATE_KEY);
-  const publicKey = normalizePem(raw.ACCESS_TOKEN_PUBLIC_KEY);
-
-  if (!privateKey) {
-    errors.push("ACCESS_TOKEN_PRIVATE_KEY is required when using RS256.");
-  }
-  if (!publicKey) {
-    errors.push("ACCESS_TOKEN_PUBLIC_KEY is required when using RS256.");
-  }
-  if (privateKey && publicKey) {
-    validateRsaKeyPair(privateKey, publicKey, errors);
-  }
-
-  return { algorithm, privateKey, publicKey };
-}
 
 function parseMfaBypassEmails(
   raw: RawEnvironmentValues,
@@ -195,20 +85,17 @@ export function buildAuthConfig(
   raw: RawEnvironmentValues,
   errors: string[],
   refreshTokenMode: RefreshTokenMode,
-  accessTokenCredentials: AccessTokenCredentials,
-  refreshTokenSecret: string,
-  personalAccessTokenSecret: string,
+  accessTokenKeys: AccessTokenSigningKey[],
+  refreshTokenKeys: HmacSigningKey[],
+  personalAccessTokenKeys: HmacSigningKey[],
   authAuditIdentifierSecret: string,
   mfaTotpEncryptionKey: string,
   nodeEnv: NodeEnvironment,
 ): AppEnvironment["auth"] {
   return {
     mfaBypassEmails: parseMfaBypassEmails(raw, errors),
-    accessTokenAlgorithm: accessTokenCredentials.algorithm,
-    accessTokenSecret: accessTokenCredentials.secret,
-    accessTokenPrivateKey: accessTokenCredentials.privateKey,
-    accessTokenPublicKey: accessTokenCredentials.publicKey,
-    refreshTokenSecret,
+    accessTokenKeys,
+    refreshTokenKeys,
     accessTokenTtlSeconds: parseNumber(
       raw,
       "ACCESS_TOKEN_TTL_SECONDS",
@@ -245,7 +132,7 @@ export function buildAuthConfig(
     refreshReuseResponse: parseRefreshReuseResponse(raw, nodeEnv, errors),
     refreshTokenCachePrefix:
       raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
-    personalAccessTokenSecret,
+    personalAccessTokenKeys,
     authAuditIdentifierSecret,
     mfaTotpEncryptionKey,
     secureCookies: parseSecureCookies(raw, nodeEnv, errors),

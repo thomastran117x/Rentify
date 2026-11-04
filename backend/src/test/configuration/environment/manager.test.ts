@@ -10,6 +10,10 @@ function buildRequiredEnv(
   overrides: Partial<NodeJS.ProcessEnv> = {},
 ): NodeJS.ProcessEnv {
   return {
+    // Production refuses to start without them.
+    ...(overrides.NODE_ENV === "production"
+      ? { TOKEN_ISSUER: "https://api.rent.test", TOKEN_AUDIENCE: "rent-web" }
+      : {}),
     NODE_ENV: "development",
     DATABASE_URL: "mysql://process:process@localhost:3306/rent_process",
     ACCESS_TOKEN_SECRET: "process-access-secret-value-with-32chars",
@@ -122,9 +126,14 @@ describe("EnvironmentManager", () => {
     expect(environment.database.url).toBe(
       "mysql://process:process@localhost:3306/rent_process",
     );
-    expect(environment.auth.accessTokenSecret).toBe(
-      "process-access-secret-value-with-32chars",
-    );
+    expect(environment.auth.accessTokenKeys).toEqual([
+      {
+        kid: "default",
+        status: "current",
+        algorithm: "HS256",
+        secret: "process-access-secret-value-with-32chars",
+      },
+    ]);
     expect(process.env.DATABASE_URL).toBe(
       "mysql://process:process@localhost:3306/rent_process",
     );
@@ -322,6 +331,112 @@ describe("EnvironmentManager", () => {
     expect(() => manager.load()).toThrow(
       "AUTH_COOKIE_SECURE cannot be false in production.",
     );
+  });
+
+  describe("production token signing checks", () => {
+    function loadErrors(overrides: Partial<NodeJS.ProcessEnv>): string {
+      process.env = buildRequiredEnv({
+        NODE_ENV: "production",
+        RABBITMQ_URL: "amqp://rabbitmq:5672",
+        ...overrides,
+      });
+
+      try {
+        new EnvironmentManager().load();
+      } catch (error) {
+        return (error as Error).message;
+      }
+
+      return "";
+    }
+
+    it("requires an issuer and an audience", () => {
+      const message = loadErrors({
+        TOKEN_ISSUER: undefined,
+        TOKEN_AUDIENCE: undefined,
+      });
+
+      expect(message).toContain(
+        "TOKEN_ISSUER (auth.issuer) is required in production.",
+      );
+      expect(message).toContain(
+        "TOKEN_AUDIENCE (auth.audience) is required in production.",
+      );
+    });
+
+    it.each([
+      [
+        "ACCESS_TOKEN_SECRET",
+        "REFRESH_TOKEN_SECRET",
+        { REFRESH_TOKEN_SECRET: "process-access-secret-value-with-32chars" },
+      ],
+      [
+        "REFRESH_TOKEN_SECRET",
+        "PERSONAL_ACCESS_TOKEN_SECRET",
+        {
+          PERSONAL_ACCESS_TOKEN_SECRET:
+            "process-refresh-secret-value-with-32ch",
+        },
+      ],
+      [
+        "PERSONAL_ACCESS_TOKEN_SECRET",
+        "AUTH_AUDIT_IDENTIFIER_SECRET",
+        {
+          AUTH_AUDIT_IDENTIFIER_SECRET: "process-personal-token-secret-32chars",
+        },
+      ],
+      [
+        "AUTH_AUDIT_IDENTIFIER_SECRET",
+        "MFA_TOTP_ENCRYPTION_KEY",
+        {
+          AUTH_AUDIT_IDENTIFIER_SECRET: "AB".repeat(32),
+          MFA_TOTP_ENCRYPTION_KEY: "ab".repeat(32),
+        },
+      ],
+      [
+        "ACCESS_TOKEN_KEYS[old]",
+        "REFRESH_TOKEN_SECRET",
+        {
+          ACCESS_TOKEN_SECRET: undefined,
+          ACCESS_TOKEN_KEYS: JSON.stringify([
+            {
+              kid: "new",
+              status: "current",
+              secret: "process-new-access-secret-value-32ch",
+            },
+            {
+              kid: "old",
+              status: "previous",
+              secret: "process-refresh-secret-value-with-32ch",
+            },
+          ]),
+        },
+      ],
+    ])("refuses %s equal to %s", (left, right, overrides) => {
+      expect(loadErrors(overrides)).toContain(
+        `${left} and ${right} must differ.`,
+      );
+    });
+
+    it("names the pair without printing the secret", () => {
+      const message = loadErrors({
+        REFRESH_TOKEN_SECRET: "process-access-secret-value-with-32chars",
+      });
+
+      expect(message).not.toContain("process-access-secret-value-with-32chars");
+    });
+
+    it("starts with distinct secrets, an issuer, and an audience", () => {
+      expect(loadErrors({})).toBe("");
+    });
+
+    it("allows equal secrets and no issuer outside production", () => {
+      process.env = buildRequiredEnv({
+        REFRESH_TOKEN_SECRET: "process-access-secret-value-with-32chars",
+      });
+
+      expect(() => new EnvironmentManager().load()).not.toThrow();
+    });
   });
 
   it("reports production and test node environments correctly", () => {
@@ -563,12 +678,15 @@ describe("EnvironmentManager", () => {
 
     const tokenConfig = manager.load().auth;
 
-    expect(tokenConfig).toMatchObject({
-      accessTokenAlgorithm: "RS256",
-      accessTokenSecret: undefined,
-      accessTokenPrivateKey: privateKey,
-      accessTokenPublicKey: publicKey,
-    });
+    expect(tokenConfig.accessTokenKeys).toEqual([
+      {
+        kid: "default",
+        status: "current",
+        algorithm: "RS256",
+        privateKey,
+        publicKey,
+      },
+    ]);
   });
 
   it("rejects RS256 access-token credentials that do not form a key pair", () => {
