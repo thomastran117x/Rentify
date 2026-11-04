@@ -4076,7 +4076,7 @@
       "post": {
         "operationId": "linkOauthProvider",
         "summary": "Link an OAuth provider to the current account",
-        "description": "Links the selected OAuth provider to the currently signed-in local account. The state must come from POST /auth/oauth/{provider}/start with intent link, started by this same account on this device; a sign-in state, or one started by another account, is rejected with 401 OAUTH_STATE_INVALID.",
+        "description": "Links the selected OAuth provider to the currently signed-in local account. The state must come from POST /auth/oauth/{provider}/start with intent link, started by this same account on this device; a sign-in state, or one started by another account, is rejected with 401 OAUTH_STATE_INVALID. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise). The step-up is checked before the state is spent, so the same request can be sent again after verifying.",
         "tags": [
           "auth"
         ],
@@ -4167,7 +4167,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "description": "The bearer token is missing or invalid, or the link state was rejected.",
+            "description": "Not signed in, the session needs a recent MFA step-up, or the link state was rejected.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4182,6 +4182,28 @@
                       "data": null,
                       "error": {
                         "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "mfaVerificationRequired": {
+                    "summary": "Verify with a second factor, then retry.",
+                    "value": {
+                      "success": false,
+                      "message": "Recent MFA verification is required.",
+                      "data": null,
+                      "error": {
+                        "code": "MFA_VERIFICATION_REQUIRED",
+                        "details": {
+                          "scope": "mfa-management",
+                          "availableFactors": [
+                            "email"
+                          ],
+                          "recommendedFactor": "email",
+                          "verifiedUntil": null
+                        }
                       },
                       "meta": {
                         "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
@@ -4225,7 +4247,7 @@
       "delete": {
         "operationId": "unlinkOauthProvider",
         "summary": "Unlink an OAuth provider from the current account",
-        "description": "Unlinks the selected OAuth provider from the currently signed-in account.",
+        "description": "Unlinks the selected OAuth provider from the currently signed-in account. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
         "tags": [
           "auth"
         ],
@@ -4299,7 +4321,52 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Not signed in, or the session needs a recent MFA step-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "unauthenticated": {
+                    "summary": "The bearer token is missing or invalid.",
+                    "value": {
+                      "success": false,
+                      "message": "Authorization header is required.",
+                      "data": null,
+                      "error": {
+                        "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "mfaVerificationRequired": {
+                    "summary": "Verify with a second factor, then retry.",
+                    "value": {
+                      "success": false,
+                      "message": "Recent MFA verification is required.",
+                      "data": null,
+                      "error": {
+                        "code": "MFA_VERIFICATION_REQUIRED",
+                        "details": {
+                          "scope": "mfa-management",
+                          "availableFactors": [
+                            "email"
+                          ],
+                          "recommendedFactor": "email",
+                          "verifiedUntil": null
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -4320,7 +4387,7 @@
       "post": {
         "operationId": "verifyDevice",
         "summary": "Verify the current device",
-        "description": "Marks the current device as verified for the signed-in session.",
+        "description": "Marks the current device as verified for the signed-in session, which stops new-device alerts for it. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
         "tags": [
           "auth"
         ],
@@ -4373,7 +4440,52 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Not signed in, or the session needs a recent MFA step-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "unauthenticated": {
+                    "summary": "The bearer token is missing or invalid.",
+                    "value": {
+                      "success": false,
+                      "message": "Authorization header is required.",
+                      "data": null,
+                      "error": {
+                        "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "mfaVerificationRequired": {
+                    "summary": "Verify with a second factor, then retry.",
+                    "value": {
+                      "success": false,
+                      "message": "Recent MFA verification is required.",
+                      "data": null,
+                      "error": {
+                        "code": "MFA_VERIFICATION_REQUIRED",
+                        "details": {
+                          "scope": "mfa-management",
+                          "availableFactors": [
+                            "email"
+                          ],
+                          "recommendedFactor": "email",
+                          "verifiedUntil": null
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -6090,7 +6202,7 @@
       "post": {
         "operationId": "createPersonalAccessToken",
         "summary": "Create a personal access token",
-        "description": "Creates a new PAT for MCP or API usage and returns the token secret exactly once.",
+        "description": "Creates a new PAT for MCP or API usage and returns the token secret exactly once. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
         "tags": [
           "personal-access-tokens"
         ],
@@ -6174,7 +6286,52 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Not signed in, or the session needs a recent MFA step-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "unauthenticated": {
+                    "summary": "The bearer token is missing or invalid.",
+                    "value": {
+                      "success": false,
+                      "message": "Authorization header is required.",
+                      "data": null,
+                      "error": {
+                        "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "mfaVerificationRequired": {
+                    "summary": "Verify with a second factor, then retry.",
+                    "value": {
+                      "success": false,
+                      "message": "Recent MFA verification is required.",
+                      "data": null,
+                      "error": {
+                        "code": "MFA_VERIFICATION_REQUIRED",
+                        "details": {
+                          "scope": "mfa-management",
+                          "availableFactors": [
+                            "email"
+                          ],
+                          "recommendedFactor": "email",
+                          "verifiedUntil": null
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -6195,7 +6352,7 @@
       "delete": {
         "operationId": "revokePersonalAccessToken",
         "summary": "Revoke a personal access token",
-        "description": "Revokes one of the current signed-in user's personal access tokens.",
+        "description": "Revokes one of the current signed-in user's personal access tokens. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
         "tags": [
           "personal-access-tokens"
         ],
@@ -6260,7 +6417,52 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Not signed in, or the session needs a recent MFA step-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "unauthenticated": {
+                    "summary": "The bearer token is missing or invalid.",
+                    "value": {
+                      "success": false,
+                      "message": "Authorization header is required.",
+                      "data": null,
+                      "error": {
+                        "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "mfaVerificationRequired": {
+                    "summary": "Verify with a second factor, then retry.",
+                    "value": {
+                      "success": false,
+                      "message": "Recent MFA verification is required.",
+                      "data": null,
+                      "error": {
+                        "code": "MFA_VERIFICATION_REQUIRED",
+                        "details": {
+                          "scope": "mfa-management",
+                          "availableFactors": [
+                            "email"
+                          ],
+                          "recommendedFactor": "email",
+                          "verifiedUntil": null
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"

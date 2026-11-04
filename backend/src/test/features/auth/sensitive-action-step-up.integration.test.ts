@@ -43,6 +43,33 @@ describe("Sensitive action step-up integration", () => {
     return createAuthenticatedRequestContext({ email });
   }
 
+  async function expectStepUpRequired(response: Response) {
+    expect(response.status).toBe(401);
+    expect((await bodyOf(response)).error).toMatchObject({
+      code: "MFA_VERIFICATION_REQUIRED",
+      details: { scope: "mfa-management", availableFactors: ["email"] },
+    });
+  }
+
+  function createPat(session: AuthenticatedRequestContext) {
+    return post("/auth/personal-access-tokens", session, {
+      name: "Step-up suite",
+      scopes: ["mcp:read", "mcp:write"],
+      expiresInDays: 30,
+    });
+  }
+
+  function revokePat(session: AuthenticatedRequestContext, tokenId: string) {
+    return request(`/auth/personal-access-tokens/${tokenId}`, {
+      method: "DELETE",
+      headers: session.headers(),
+    });
+  }
+
+  function stepUp(session: AuthenticatedRequestContext) {
+    return completeEmailStepUp(persistenceApp.app, session.headers());
+  }
+
   async function bodyOf(response: Response) {
     return (await response.json()) as {
       data: Record<string, unknown> | null;
@@ -96,7 +123,206 @@ describe("Sensitive action step-up integration", () => {
     await teardownPersistenceTestApp();
   }, 120_000);
 
+  describe("personal access tokens", () => {
+    it("creates and revokes a token only with a recent proof", async () => {
+      const session = await createSession();
+
+      await expectStepUpRequired(await createPat(session));
+      await expect(
+        persistenceApp.prisma.personalAccessToken.count({
+          where: { userId: session.userId },
+        }),
+      ).resolves.toBe(0);
+
+      await stepUp(session);
+      const created = await createPat(session);
+      expect(created.status).toBe(201);
+      const { id } = (await bodyOf(created)).data as { id: string };
+
+      const fresh = await createSession();
+      await expectStepUpRequired(await revokePat(fresh, id));
+
+      expect((await revokePat(session, id)).status).toBe(200);
+    });
+
+    it("still lists tokens without one", async () => {
+      const session = await createSession();
+
+      const listed = await request("/auth/personal-access-tokens", {
+        headers: session.headers(),
+      });
+
+      expect(listed.status).toBe(200);
+    });
+  });
+
+  describe("OAuth providers", () => {
+    async function startLink(session: AuthenticatedRequestContext) {
+      const started = await post("/auth/oauth/google/start", session, {
+        intent: "link",
+        deviceId: "link-device",
+      });
+      expect(started.status).toBe(200);
+      return (await bodyOf(started)).data as { state: string };
+    }
+
+    function linkBody(flow: { state: string }) {
+      return {
+        state: flow.state,
+        code: "google-code",
+        deviceId: "link-device",
+      };
+    }
+
+    it("keeps the state usable, so the same link can be sent after verifying", async () => {
+      const session = await createSession();
+      const flow = await startLink(session);
+
+      await expectStepUpRequired(
+        await post("/auth/oauth/google/link", session, linkBody(flow)),
+      );
+
+      await stepUp(session);
+
+      const linked = await post(
+        "/auth/oauth/google/link",
+        session,
+        linkBody(flow),
+      );
+      expect(linked.status).toBe(200);
+    });
+
+    it("unlinks a provider only with a recent proof", async () => {
+      const session = await createSession();
+      const flow = await startLink(session);
+      await stepUp(session);
+      expect(
+        (await post("/auth/oauth/google/link", session, linkBody(flow))).status,
+      ).toBe(200);
+
+      const fresh = await createSession();
+      await expectStepUpRequired(
+        await request("/auth/oauth/google", {
+          method: "DELETE",
+          headers: fresh.headers(),
+        }),
+      );
+
+      const unlinked = await request("/auth/oauth/google", {
+        method: "DELETE",
+        headers: session.headers(),
+      });
+      expect(unlinked.status).toBe(200);
+    });
+  });
+
+  describe("marking a device known", () => {
+    function verifyDevice(session: AuthenticatedRequestContext) {
+      return post("/auth/device/verify", session);
+    }
+
+    function knownDevices(session: AuthenticatedRequestContext) {
+      return persistenceApp.prisma.device.count({
+        where: { userId: session.userId, deviceId: session.deviceId },
+      });
+    }
+
+    // Seeded accounts already know their default device.
+    function createSessionOnNewDevice() {
+      return createAuthenticatedRequestContext({
+        email: ACCOUNT_EMAIL,
+        deviceId: "brand-new-device",
+      });
+    }
+
+    it("refuses without a proof and registers nothing", async () => {
+      const session = await createSessionOnNewDevice();
+
+      await expectStepUpRequired(await verifyDevice(session));
+
+      await expect(knownDevices(session)).resolves.toBe(0);
+    });
+
+    it("accepts the device-login proof sign-in's new-device check leaves", async () => {
+      const session = await createSessionOnNewDevice();
+      await completeEmailStepUp(
+        persistenceApp.app,
+        session.headers(),
+        "device-login",
+      );
+
+      expect((await verifyDevice(session)).status).toBe(200);
+      await expect(knownDevices(session)).resolves.toBe(1);
+    });
+
+    it("accepts an mfa-management proof", async () => {
+      const session = await createSessionOnNewDevice();
+      await stepUp(session);
+
+      expect((await verifyDevice(session)).status).toBe(200);
+      await expect(knownDevices(session)).resolves.toBe(1);
+    });
+  });
+
+  it("refuses personal access tokens on every guarded route", async () => {
+    const session = await createSession();
+    await stepUp(session);
+    const created = await createPat(session);
+    const { id, token } = (await bodyOf(created)).data as {
+      id: string;
+      token: string;
+    };
+    const headers = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+
+    for (const [method, path] of [
+      ["POST", "/auth/personal-access-tokens"],
+      ["DELETE", `/auth/personal-access-tokens/${id}`],
+      ["POST", "/auth/oauth/google/link"],
+      ["DELETE", "/auth/oauth/google"],
+      ["POST", "/auth/device/verify"],
+    ] as const) {
+      const response = await request(path, {
+        method,
+        headers,
+        body: method === "POST" ? "{}" : undefined,
+      });
+
+      expect({ method, path, status: response.status }).toEqual({
+        method,
+        path,
+        status: 403,
+      });
+    }
+  });
+
   describe("with an authenticator active", () => {
+    it("refuses an email challenge", async () => {
+      const session = await createSession();
+      await enrollAuthenticator(session);
+
+      const challenge = await post("/auth/mfa/verify/challenge", session, {
+        scope: "mfa-management",
+        factor: "email",
+      });
+
+      expect(challenge.status).toBe(400);
+      expect((await bodyOf(challenge)).error?.code).toBe(
+        "MFA_FACTOR_UNAVAILABLE",
+      );
+
+      const options = await request(
+        "/auth/mfa/verify/options?scope=mfa-management",
+        { headers: session.headers() },
+      );
+      expect((await bodyOf(options)).data).toMatchObject({
+        availableFactors: ["totp"],
+        recommendedFactor: "totp",
+      });
+    }, 60_000);
+
     it("ends the other sessions when it is disabled, and records why", async () => {
       const caller = await createSession();
       const other = await createSession();

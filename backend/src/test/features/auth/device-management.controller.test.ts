@@ -1,3 +1,4 @@
+import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import type { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
@@ -12,17 +13,14 @@ import { testUuid } from "../../support/uuid";
 const USER_12_ID = testUuid(9000, 822527);
 const USER_7_ID = testUuid(9000, 994263);
 
-const mockRequireJwtAuth = jest.fn();
 const mockRequireRecentMfaVerification = jest.fn();
-
-jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
-  requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
-  getOptionalJwtAuth: jest.fn(),
-}));
+const mockRequireRecentMfaVerificationForAnyScope = jest.fn();
 
 jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
   requireRecentMfaVerification: (...args: unknown[]) =>
     mockRequireRecentMfaVerification(...args),
+  requireRecentMfaVerificationForAnyScope: (...args: unknown[]) =>
+    mockRequireRecentMfaVerificationForAnyScope(...args),
 }));
 
 function createController() {
@@ -51,22 +49,16 @@ function createController() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockRequireJwtAuth.mockResolvedValue(createClaims());
   mockRequireRecentMfaVerification.mockResolvedValue(undefined);
+  mockRequireRecentMfaVerificationForAnyScope.mockResolvedValue(undefined);
 });
 
 describe("DeviceManagementController.deviceVerify", () => {
-  it("authenticates, then registers the calling device", async () => {
+  it("registers the calling device once the session has a proof", async () => {
     const auth = createClaims({
       sub: USER_7_ID,
       deviceId: "trusted-device-44",
     });
-    mockRequireJwtAuth.mockImplementation(
-      async (request: AuthTestContext["request"]) => {
-        request.auth = auth;
-        return auth;
-      },
-    );
     const { controller, deviceManagementService } = createController();
 
     const response = await invoke(
@@ -74,7 +66,6 @@ describe("DeviceManagementController.deviceVerify", () => {
       createContext({ auth }),
     );
 
-    expect(mockRequireJwtAuth).toHaveBeenCalled();
     expect(deviceManagementService.deviceVerify).toHaveBeenCalledWith({
       auth,
       client: expect.any(Object),
@@ -85,7 +76,7 @@ describe("DeviceManagementController.deviceVerify", () => {
     });
   });
 
-  it("does not require an MFA step-up", async () => {
+  it("accepts a recent device-login or mfa-management proof", async () => {
     const { controller } = createController();
 
     await invoke(
@@ -93,7 +84,24 @@ describe("DeviceManagementController.deviceVerify", () => {
       createContext({ auth: createClaims() }),
     );
 
-    expect(mockRequireRecentMfaVerification).not.toHaveBeenCalled();
+    expect(mockRequireRecentMfaVerificationForAnyScope).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      ["device-login", "mfa-management"],
+    );
+  });
+
+  it("registers nothing without a proof", async () => {
+    const { controller, deviceManagementService } = createController();
+    mockRequireRecentMfaVerificationForAnyScope.mockRejectedValue(
+      new MfaVerificationRequiredError(),
+    );
+
+    await expect(
+      invoke(controller.deviceVerify, createContext({ auth: createClaims() })),
+    ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
+
+    expect(deviceManagementService.deviceVerify).not.toHaveBeenCalled();
   });
 });
 

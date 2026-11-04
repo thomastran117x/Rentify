@@ -2063,6 +2063,8 @@ describe("Auth persistence integration", () => {
       });
       expect(ownerSession.status).toBe(200);
       expect(otherSession.status).toBe(200);
+      // Past the step-up, so the state check below is what refuses the link.
+      await completeMfaStepUp(otherSession);
 
       const loginFlow = await startOAuthFlow("google", "link-device");
       await expectStateInvalid(

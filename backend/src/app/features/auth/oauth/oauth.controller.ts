@@ -21,12 +21,16 @@ import {
   oauthStartRequestSchema,
 } from "@/features/auth/oauth/oauth-accounts.model";
 import { asUuid } from "@/configuration/validation/uuid";
+import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
+import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
+import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class OAuthController {
   constructor(
     private readonly oauthAccountsService: OAuthAccountsService,
     private readonly oauthFlowService: OAuthFlowService,
     private readonly captchaService: CaptchaService,
+    private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
   /**
@@ -135,11 +139,21 @@ export class OAuthController {
     });
   };
 
+  /**
+   * The step-up runs before the state is touched, so a client told to verify
+   * can send this same request again rather than restart the provider sign-in.
+   * Starting a link needs no step-up: it links nothing, and the provider popup
+   * has to open from the user's click.
+   */
   linkOAuthProvider = async (
     request: Request,
     response: Response,
   ): Promise<void> => {
-    await requireJwtAuth(request);
+    await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const input = await parseRequestBody(
       request,
       oauthAuthenticateRequestSchema,
@@ -167,7 +181,11 @@ export class OAuthController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    await requireJwtAuth(request);
+    await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const result = await this.oauthAccountsService.unlinkOAuthProvider(
       toUnlinkOAuthProviderInput(request),
     );

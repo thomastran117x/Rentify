@@ -105,12 +105,14 @@ export const authOauthRegistrationModule: ContainerRegistrationModule = {
         containerTokens.oauthAccountsService,
         containerTokens.oauthFlowService,
         containerTokens.captchaService,
+        containerTokens.mfaVerificationService,
       ],
       resolve: ({ resolve }) =>
         new OAuthController(
           resolve(containerTokens.oauthAccountsService),
           resolve(containerTokens.oauthFlowService),
           resolve(containerTokens.captchaService),
+          resolve(containerTokens.mfaVerificationService),
         ),
     });
   },

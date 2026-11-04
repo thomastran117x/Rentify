@@ -11,6 +11,7 @@ import {
   type AuthenticatedRequestContext,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { completeEmailStepUp } from "../../support/mfa-step-up";
 
 const ORIGIN = "http://localhost:3040";
 const ADMIN_EMAIL = "admin1@rentify.local";
@@ -170,6 +171,10 @@ describe("Admin auth audit (GET /admin/auth/audit, /admin/users/:id/security) in
     });
 
     it("rejects an admin's personal access token", async () => {
+      await completeEmailStepUp(persistenceApp.app, {
+        ...admin.headers(),
+        origin: ORIGIN,
+      });
       const created = await request("/auth/personal-access-tokens", {
         method: "POST",
         headers: { ...admin.headers(), origin: ORIGIN },

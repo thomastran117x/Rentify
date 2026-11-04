@@ -291,7 +291,8 @@ ignore it and send the credentials again with `totpCode`.
   correct code.
 - **New devices.** The code that completes the sign-in also counts as the
   `device-login` step-up for the new session, so the new-device check does
-  not ask for a second code.
+  not ask for a second code. See
+  [Marking a Device Known](./auth-security.md#marking-a-device-known).
 
 `totpCode` on `/auth/local/login` and `/auth/oauth/*` is **deprecated**. It is
 still accepted for API clients that send the code together with the first
@@ -319,7 +320,10 @@ the server:
 3. The callback, `POST /auth/oauth/{provider}` or
    `POST /auth/oauth/{provider}/link`, sends the same `state` with the `code`,
    or with the provider's `idToken` when `tokenDelivery` is `id_token`. The
-   client sends no nonce or code verifier.
+   client sends no nonce or code verifier. The `link` callback also needs a
+   recent `mfa-management` step-up. It checks for one before it spends the
+   state, so a client that gets `401 MFA_VERIFICATION_REQUIRED` verifies and
+   sends the same request again.
 
 The state lasts ten minutes and is spent on the first callback that names it,
 even when that callback fails. It is bound to the provider, the intent, the
