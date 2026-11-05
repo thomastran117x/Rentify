@@ -159,6 +159,17 @@ A password reset lifts the hold.
   browser's session cookies. An account with no local password to reset gets
   `409` with `details.reason` `password_reset_unavailable`.
 
+`POST /auth/email/change/revert` is public and takes `{ "token": "..." }`, a
+single-use token from the link in an `email_changed` email that lasts 7 days. It
+restores the old address and ends every session, and returns `200` with
+`{ "reverted": true, "nextStep": "reset_password" | "sign_in" }`. An account
+that can reset a password goes on a security hold (`reset_password`); one with
+no password, or a suspended one, does not (`sign_in`). An unknown, expired or
+used token, or one whose account has changed its email again, returns
+`410 GONE`. `409` means the address was taken regardless, or a change is being
+confirmed; the link can be retried. It uses the `auth-sensitive` rate limit. See
+[Security Emails](./auth-security.md#security-emails).
+
 Suspicious-activity detection can block an IP address from the `auth-sensitive`
 policy (`429` with `details.reason` `ip_blocked`). Administrators see and lift
 those blocks:
