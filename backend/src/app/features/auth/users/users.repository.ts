@@ -52,6 +52,12 @@ export interface UpdateAccountStatusInput {
   reason: string;
   changedAt: Date;
   changedBy: Uuid | null;
+  /**
+   * Puts an address back in the same write, so a revert and the hold it needs
+   * land together. The write then applies only while the account still holds
+   * `from`, and setting a taken address raises the same conflict as a change.
+   */
+  restoreEmail?: { from: string; to: string };
   /** True for a lock or suspension, which must end every session. */
   rotateTokenVersion: boolean;
 }
@@ -311,9 +317,14 @@ export class UsersRepository extends BaseRepository {
     id: Uuid,
     input: UpdateAccountStatusInput,
   ): Promise<boolean> {
-    const result = await this.executeAsync(() =>
+    const { restoreEmail } = input;
+    const result = await this.rejectingTakenAddress(() =>
       this.prisma.user.updateMany({
-        where: { id, status: input.expectedStatus },
+        where: {
+          id,
+          status: input.expectedStatus,
+          ...(restoreEmail ? { email: restoreEmail.from } : {}),
+        },
         data: {
           status: input.status,
           statusReason: input.reason,
@@ -322,6 +333,31 @@ export class UsersRepository extends BaseRepository {
           ...(input.rotateTokenVersion
             ? { tokenVersion: { increment: 1 } }
             : {}),
+          ...(restoreEmail
+            ? { email: restoreEmail.to, emailVerified: true }
+            : {}),
+        },
+      }),
+    );
+
+    return result.count > 0;
+  }
+
+  /**
+   * Puts an address back and ends every session in one write, only while the
+   * account still holds `from`. Returns false when it no longer does.
+   */
+  async restoreEmail(
+    id: Uuid,
+    input: { from: string; to: string },
+  ): Promise<boolean> {
+    const result = await this.rejectingTakenAddress(() =>
+      this.prisma.user.updateMany({
+        where: { id, email: input.from },
+        data: {
+          email: input.to,
+          emailVerified: true,
+          tokenVersion: { increment: 1 },
         },
       }),
     );
@@ -476,21 +512,28 @@ export class UsersRepository extends BaseRepository {
    * advisory; this is the boundary that cannot be beaten.
    */
   async updateUserEmail(userId: Uuid, email: string): Promise<AuthUserRecord> {
-    try {
-      const user = await this.executeAsync(() =>
-        this.prisma.user.update({
-          where: {
-            id: userId,
-          },
-          data: {
-            email: email.trim().toLowerCase(),
-            emailVerified: true,
-          },
-          include: this.buildAuthUserInclude(),
-        }),
-      );
+    const user = await this.rejectingTakenAddress(() =>
+      this.prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          email: email.trim().toLowerCase(),
+          emailVerified: true,
+        },
+        include: this.buildAuthUserInclude(),
+      }),
+    );
 
-      return this.mapUser(user);
+    return this.mapUser(user);
+  }
+
+  /** Turns losing the unique index on `users.email` into a clear conflict. */
+  private async rejectingTakenAddress<TResult>(
+    write: () => Promise<TResult>,
+  ): Promise<TResult> {
+    try {
+      return await this.executeAsync(write);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

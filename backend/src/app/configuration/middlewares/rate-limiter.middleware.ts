@@ -192,10 +192,11 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
 
   // Email change — /confirm accepts a 6-digit code over a 10-minute window, and
   // the request and resend endpoints each send mail to an address the caller
-  // supplies. The default 60/min is too loose for all three.
+  // supplies. The default 60/min is too loose for all three. The revert is
+  // public, and ends sessions, so it shares the bucket for the self-lock's reason.
   if (
     request.method === "POST" &&
-    /^\/auth\/email\/change(?:\/(resend|confirm))?$/.test(pathname)
+    /^\/auth\/email\/change(?:\/(resend|confirm|revert))?$/.test(pathname)
   ) {
     return true;
   }

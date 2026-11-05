@@ -19,6 +19,7 @@ import type { EmailService } from "@/features/email/email.service";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import { EMAIL_CHANGE_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { redactEmail } from "@/features/auth/redact-email";
+import type { EmailChangeRevertService } from "@/features/auth/email-change/email-change-revert.service";
 import type { EmailChangeStore } from "@/features/auth/email-change/email-change.store";
 import type {
   ConfirmEmailChangeInput,
@@ -62,6 +63,7 @@ export class EmailChangeService {
     private readonly emailBloomService: IdentityBloomService,
     private readonly authAuditService: AuthAuditService,
     private readonly securityNotificationService: SecurityNotificationService,
+    private readonly emailChangeRevertService: EmailChangeRevertService,
   ) {
     this.logger = loggerFactory.forClass(EmailChangeService, "service");
   }
@@ -326,6 +328,13 @@ export class EmailChangeService {
           email: confirmed.currentEmail,
           emailVerified: user.emailVerified,
         },
+        issueRevertToken: () =>
+          this.emailChangeRevertService.issue({
+            userId: input.userId,
+            oldEmail: confirmed.currentEmail,
+            newEmail: confirmed.newEmail,
+            sourceEventId: eventId,
+          }),
       });
 
       const updatedUser: AuthUserRecord = {

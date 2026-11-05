@@ -31,6 +31,8 @@ Only MySQL is connected. Configuration is `authAudit` in [default.yml](../../../
 
 The worker runs once at startup and then once per `pruneIntervalMinutes`. Each run, done by [AuthAuditRetentionService](../../features/auth/audit/auth-audit-retention.service.ts), computes the cutoff as now minus `retentionDays`. It then lists the oldest `pruneBatchSize` ids created before the cutoff through the `(created_at)` index and deletes them by id, repeating until a batch comes back short. Every run logs `Auth audit prune completed.` with `deleted`, `batches`, `cutoff` and `retentionDays`.
 
+Each run also deletes `email_change_reverts` rows past their `expires_at`, which hold plain addresses, and logs `Expired email change reverts pruned.` with `deleted`. This uses the `(expires_at)` index and is not batched, since few rows exist at a time.
+
 Running several replicas is safe. They only race to delete the same ids, and the loser deletes nothing. A database error ends the run, and the shared polling loop logs `Worker loop failed.` and waits one interval. Rows already deleted stay deleted, and the next run continues from the oldest remaining row.
 
 ### Operations and Validation

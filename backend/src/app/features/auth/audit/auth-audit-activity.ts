@@ -112,6 +112,7 @@ const STATIC_LABELS: Record<string, string> = {
   "password.reset": "Password reset",
   "password.set": "Password added",
   "email.changed": "Email address changed",
+  "email.change_reverted": "Email address change undone",
   "mfa.totp_enabled": "Authenticator app turned on",
   "mfa.totp_disabled": "Authenticator app turned off",
   "mfa.step_up_failed": "Failed identity check",

@@ -92,6 +92,9 @@ const oauthInput = {
 };
 
 function createHarness() {
+  const emailChangeRevertRepository = {
+    isAddressHeld: jest.fn(async () => false),
+  };
   const securityNotificationService = {
     notify: jest.fn(async (_input: { eventId: string }) => "sent"),
   };
@@ -194,6 +197,7 @@ function createHarness() {
     loginMfaService,
     oauthFlowService,
     securityNotificationService,
+    emailChangeRevertRepository,
     service: new OAuthAccountsService(
       authRepository as never,
       authRepository as never,
@@ -215,6 +219,7 @@ function createHarness() {
       loginMfaService as never,
       oauthFlowService as never,
       securityNotificationService as never,
+      emailChangeRevertRepository as never,
     ),
   };
 }
@@ -274,6 +279,31 @@ describe("OAuthAccountsService sign-in", () => {
         userId: USER_1_ID,
         identifierHash: "hash:oauth@example.com",
         sessionId: expect.any(String),
+      }),
+    );
+  });
+
+  it("refuses to finish a signup on an address held since it paused", async () => {
+    const harness = createHarness();
+    await harness.service.googleAuthenticate({
+      ...oauthInput,
+      dateOfBirth: undefined,
+    });
+    harness.emailChangeRevertRepository.isAddressHeld.mockResolvedValue(true);
+
+    await expect(
+      harness.service.completeSignup({
+        client: createClient(),
+        signupToken: "signup-token",
+        dateOfBirth: "2012-06-15",
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(harness.authRepository.createOAuthUser).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reasonCode: "email_conflict",
+        userId: null,
       }),
     );
   });
@@ -415,6 +445,23 @@ describe("OAuthAccountsService sign-in", () => {
         userId: USER_1_ID,
         method: "google",
         identifierHash: "hash:oauth@example.com",
+      }),
+    );
+  });
+
+  it("refuses an address held for an email change revert link", async () => {
+    const harness = createHarness();
+    harness.emailChangeRevertRepository.isAddressHeld.mockResolvedValue(true);
+
+    await expect(
+      harness.service.googleAuthenticate(oauthInput),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(harness.authRepository.createOAuthUser).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "oauth.login.failed",
+        reasonCode: "email_conflict",
+        userId: null,
       }),
     );
   });

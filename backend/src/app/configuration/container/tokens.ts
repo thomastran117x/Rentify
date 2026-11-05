@@ -139,6 +139,8 @@ import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
 import { EmailAvailabilityService } from "@/features/auth/email-availability/email-availability.service";
 import { EmailChangeController } from "@/features/auth/email-change/email-change.controller";
+import { EmailChangeRevertRepository } from "@/features/auth/email-change/email-change-revert.repository";
+import { EmailChangeRevertService } from "@/features/auth/email-change/email-change-revert.service";
 import { EmailChangeService } from "@/features/auth/email-change/email-change.service";
 import { EmailChangeStore } from "@/features/auth/email-change/email-change.store";
 import { UsernameController } from "@/features/auth/username/username.controller";
@@ -570,6 +572,12 @@ export const containerTokens = {
   emailBloomService:
     createServiceToken<IdentityBloomService>("EmailBloomService"),
   emailChangeStore: createServiceToken<EmailChangeStore>("EmailChangeStore"),
+  emailChangeRevertRepository: createServiceToken<EmailChangeRevertRepository>(
+    "EmailChangeRevertRepository",
+  ),
+  emailChangeRevertService: createServiceToken<EmailChangeRevertService>(
+    "EmailChangeRevertService",
+  ),
   emailChangeService:
     createServiceToken<EmailChangeService>("EmailChangeService"),
   emailChangeController: createServiceToken<EmailChangeController>(

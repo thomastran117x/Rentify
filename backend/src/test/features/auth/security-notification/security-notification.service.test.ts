@@ -192,6 +192,66 @@ describe("SecurityNotificationService", () => {
     );
   });
 
+  describe("a revert link", () => {
+    const EMAIL_CHANGE = {
+      kind: "email_changed",
+      details: { newEmail: "n***@example.com" },
+      userId: USER_ID,
+      eventId: EVENT_ID,
+      recipient: { email: "old@example.com", emailVerified: true },
+    } as const;
+
+    it("goes in the email", async () => {
+      const harness = createHarness();
+
+      await harness.service.notify({
+        ...EMAIL_CHANGE,
+        issueRevertToken: async () => "revert-token",
+      });
+
+      expect(harness.emailService.sendSecurityChangeEmail).toHaveBeenCalledWith(
+        "email_changed",
+        expect.objectContaining({ revertToken: "revert-token" }),
+      );
+    });
+
+    it("is left out when it could not be issued", async () => {
+      const harness = createHarness();
+
+      await expect(
+        harness.service.notify({
+          ...EMAIL_CHANGE,
+          issueRevertToken: async () => undefined,
+        }),
+      ).resolves.toBe("sent");
+
+      expect(harness.emailService.sendSecurityChangeEmail).toHaveBeenCalledWith(
+        "email_changed",
+        expect.not.objectContaining({ revertToken: expect.anything() }),
+      );
+    });
+
+    it("is not issued for an email that will not go out, so holds nothing", async () => {
+      const harness = createHarness();
+      const issueRevertToken = jest.fn(async () => "revert-token");
+
+      harness.cache.eval.mockResolvedValue(SECURITY_EMAIL_LIMIT + 1);
+      await expect(
+        harness.service.notify({ ...EMAIL_CHANGE, issueRevertToken }),
+      ).resolves.toBe("suppressed");
+
+      await expect(
+        harness.service.notify({
+          ...EMAIL_CHANGE,
+          recipient: { email: "old@example.com", emailVerified: false },
+          issueRevertToken,
+        }),
+      ).resolves.toBe("skipped");
+
+      expect(issueRevertToken).not.toHaveBeenCalled();
+    });
+  });
+
   it("counts per kind and inbox, in one atomic step", async () => {
     const harness = createHarness();
 

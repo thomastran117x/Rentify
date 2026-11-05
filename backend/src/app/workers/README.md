@@ -12,7 +12,7 @@ docker compose up --build
 | ---------------------------------------------- | ----------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
 | [analytics](./analytics/README.md)             | `postings-analytics.worker.ts`                  | `analytics-worker`                           | MySQL analytics outbox                       |
 | [auth](./auth/README.md)                       | `identity-bloom.worker.ts`                      | `identity-bloom-worker`                      | Scheduled username/email filter rebuilds     |
-| [auth](./auth/README.md)                       | `auth-audit-prune.worker.ts`                    | `auth-audit-prune-worker`                    | Auth audit events past retention             |
+| [auth](./auth/README.md)                       | `auth-audit-prune.worker.ts`                    | `auth-audit-prune-worker`                    | Auth audit events, expired email reverts     |
 | [bookings](./bookings/README.md)               | `booking-expiry.worker.ts`                      | `booking-expiry-worker`                      | Expired booking candidates                   |
 | [email](./email/README.md)                     | `email-delivery.worker.ts`                      | `email-worker`                               | RabbitMQ email jobs                          |
 | [logging](./logging/README.md)                 | `log-consumer.worker.ts`                        | `log-consumer-worker`                        | RabbitMQ application logs                    |

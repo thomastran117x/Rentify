@@ -262,6 +262,7 @@ function createService(overrides?: {
     lastName?: string;
   }>;
   mfaIsEnabled?: (userId: string) => Promise<boolean>;
+  isAddressHeld?: (email: string) => Promise<boolean>;
   verifyTotpCode?: (userId: string, code: string) => Promise<void>;
   cacheGetJson?: (key: string) => Promise<unknown | null>;
   cacheDelete?: (key: string) => Promise<boolean>;
@@ -603,6 +604,7 @@ function createService(overrides?: {
     loginLockoutService,
     authAuditService as any,
     loginMfaService,
+    { isAddressHeld: overrides?.isAddressHeld ?? (async () => false) } as any,
   );
 
   return service;
@@ -642,6 +644,32 @@ describe("LocalAuthService", () => {
     } finally {
       hashSpy.mockRestore();
     }
+  });
+
+  it("answers a held address like a taken one, and mails nothing to it", async () => {
+    const isAddressHeld = jest.fn(async () => true);
+    const sendVerificationEmail = jest.fn(async () => undefined);
+    const service = createService({
+      isAddressHeld,
+      sendVerificationEmail,
+    });
+
+    await expect(
+      service.localSignup({
+        client: createClient(),
+        username: "held-user",
+        email: "held@example.com",
+        password: "CorrectHorseBatteryStaple1!",
+        dateOfBirth: "2012-06-15",
+        deviceId: DEVICE_1_ID,
+      }),
+    ).resolves.toEqual({
+      verificationRequired: true,
+      email: "held@example.com",
+      alreadyPending: false,
+    });
+    expect(isAddressHeld).toHaveBeenCalledWith("held@example.com");
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
   });
 
   it("returns a generic pending verification response when a verified account already exists for the email", async () => {

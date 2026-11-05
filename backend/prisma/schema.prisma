@@ -71,6 +71,7 @@ model User {
   mfaTotp                UserMfaTotp?
   media                  Media[]
   authAuditEvents        AuthAuditEvent[] @relation("AuthAuditEventUser")
+  emailChangeReverts     EmailChangeRevert[]
   actedAuthAuditEvents   AuthAuditEvent[] @relation("AuthAuditEventActor")
 
   @@map("users")
@@ -109,6 +110,29 @@ model AuthAuditEvent {
   @@index([flagged, createdAt])
   @@index([createdAt])
   @@map("auth_audit_events")
+}
+
+// The link emailed to the address an account just left. It undoes the change
+// for seven days, and while it is open the address stays reserved for it:
+// consumed_at is set when the link is used, or when a newer change replaces it.
+// Only the token's hash is stored. Expired rows are deleted by the auth audit
+// prune worker.
+model EmailChangeRevert {
+  id            String    @id @db.VarChar(36)
+  userId        String    @map("user_id") @db.VarChar(36)
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(64)
+  oldEmail      String    @map("old_email") @db.VarChar(255)
+  newEmail      String    @map("new_email") @db.VarChar(255)
+  sourceEventId String    @map("source_event_id") @db.VarChar(36)
+  expiresAt     DateTime  @map("expires_at") @db.DateTime(6)
+  consumedAt    DateTime? @map("consumed_at") @db.DateTime(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([oldEmail, expiresAt])
+  @@index([userId, consumedAt])
+  @@index([expiresAt])
+  @@map("email_change_reverts")
 }
 
 // An uploaded image, tracked from before its upload credential exists. The

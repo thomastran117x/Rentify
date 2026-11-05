@@ -22,6 +22,45 @@ export const confirmEmailChangeRequestSchema = z.object({
     .regex(/^\d{6}$/, "Enter the 6-digit code we emailed you."),
 });
 
+/** A week: long enough to notice, and matching how long the address is held. */
+export const EMAIL_CHANGE_REVERT_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+export const EMAIL_CHANGE_REVERT_TOKEN_MAX_LENGTH = 256;
+
+export const EMAIL_CHANGE_REVERT_REASON = "Email change reverted by user";
+
+export const EMAIL_CHANGE_REVERT_LINK_EXPIRED_MESSAGE =
+  "This link has expired or was already used.";
+
+export const emailChangeRevertRequestSchema = z
+  .object({
+    token: z
+      .string({ error: "Token is required." })
+      .trim()
+      .min(1, "Token is required.")
+      .max(EMAIL_CHANGE_REVERT_TOKEN_MAX_LENGTH, "Token is invalid."),
+  })
+  .strict();
+
+/** What a revert link stands for. */
+export interface EmailChangeRevertRecord {
+  id: string;
+  userId: string;
+  oldEmail: string;
+  newEmail: string;
+  /** The `email.changed` audit event whose email carried the link. */
+  sourceEventId: string;
+}
+
+export interface EmailChangeRevertResult {
+  reverted: true;
+  /**
+   * How the owner gets back in. A hold needs a password reset; an account a
+   * hold would strand signs in as it normally does.
+   */
+  nextStep: "reset_password" | "sign_in";
+}
+
 export type RequestEmailChangeRequestBody = z.infer<
   typeof requestEmailChangeRequestSchema
 >;

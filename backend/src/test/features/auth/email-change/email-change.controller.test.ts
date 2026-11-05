@@ -23,6 +23,12 @@ jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
 }));
 
 function createController() {
+  const emailChangeRevertService = {
+    revert: jest.fn(async () => ({
+      reverted: true,
+      nextStep: "reset_password",
+    })),
+  };
   const emailChangeService = {
     requestChange: jest.fn(async () => ({
       newEmail: "o***@rentify.local",
@@ -45,9 +51,11 @@ function createController() {
 
   return {
     emailChangeService,
+    emailChangeRevertService,
     controller: new EmailChangeController(
       emailChangeService as unknown as EmailChangeService,
       {} as MfaVerificationService,
+      emailChangeRevertService as never,
     ),
   };
 }
@@ -56,6 +64,42 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRequireRecentMfaVerification.mockResolvedValue(createClaims());
   mockRequireSessionAuth.mockResolvedValue(createClaims());
+});
+
+describe("EmailChangeController.revertEmailChange", () => {
+  it("is public: the emailed token is the only credential", async () => {
+    const { controller, emailChangeRevertService } = createController();
+
+    const response = await invoke(
+      controller.revertEmailChange,
+      createContext({ body: { token: "  revert-token  " } }),
+    );
+
+    expect(mockRequireSessionAuth).not.toHaveBeenCalled();
+    expect(mockRequireRecentMfaVerification).not.toHaveBeenCalled();
+    expect(emailChangeRevertService.revert).toHaveBeenCalledWith(
+      "revert-token",
+      expect.any(Object),
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { reverted: true, nextStep: "reset_password" },
+    });
+  });
+
+  it.each([
+    ["a missing token", {}],
+    ["a blank token", { token: "   " }],
+    ["an oversized token", { token: "x".repeat(257) }],
+    ["an unexpected field", { token: "revert-token", extra: true }],
+  ])("rejects %s", async (_label, body) => {
+    const { controller, emailChangeRevertService } = createController();
+
+    await expect(
+      invoke(controller.revertEmailChange, createContext({ body })),
+    ).rejects.toThrow();
+    expect(emailChangeRevertService.revert).not.toHaveBeenCalled();
+  });
 });
 
 describe("EmailChangeController.requestEmailChange", () => {

@@ -8,9 +8,11 @@ import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
 import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
+import type { EmailChangeRevertService } from "@/features/auth/email-change/email-change-revert.service";
 import type { EmailChangeService } from "@/features/auth/email-change/email-change.service";
 import {
   confirmEmailChangeRequestSchema,
+  emailChangeRevertRequestSchema,
   requestEmailChangeRequestSchema,
 } from "@/features/auth/email-change/email-change.model";
 import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
@@ -19,6 +21,7 @@ export class EmailChangeController {
   constructor(
     private readonly emailChangeService: EmailChangeService,
     private readonly mfaVerificationService: MfaVerificationService,
+    private readonly emailChangeRevertService: EmailChangeRevertService,
   ) {}
 
   /**
@@ -85,6 +88,25 @@ export class EmailChangeController {
     });
     writeAuthSessionResponse(request, response, result, {
       message: "Email address changed successfully.",
+    });
+  };
+
+  /** Public: the emailed link is the only credential. */
+  revertEmailChange = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const { token } = await parseRequestBody(
+      request,
+      emailChangeRevertRequestSchema,
+    );
+    const result = await this.emailChangeRevertService.revert(
+      token,
+      toAuthAuditContext(request),
+    );
+
+    ok(response, result, {
+      message: "Your old email address is back, and everyone was signed out.",
     });
   };
 

@@ -44,6 +44,16 @@ export async function bootstrapAuthAuditPruneWorker(): Promise<void> {
         retentionDays,
       });
 
+      // Expired revert links keep plain addresses and do nothing else, so they
+      // go on the same schedule as the rest of this worker's clean-up.
+      const expiredReverts = await scope
+        .resolve(containerTokens.emailChangeRevertService)
+        .pruneExpired();
+
+      workerLogger.info("Expired email change reverts pruned.", {
+        deleted: expiredReverts,
+      });
+
       // A run already drains every expired row, so it always sleeps until the
       // next interval rather than starting another run at once.
       return 0;

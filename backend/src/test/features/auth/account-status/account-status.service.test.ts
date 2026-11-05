@@ -335,6 +335,55 @@ describe("AccountStatusService best-effort side effects", () => {
   });
 });
 
+describe("AccountStatusService restoring an address with a hold", () => {
+  const restoreInput: AccountStatusChangeInput = {
+    reason: "Email change reverted by user",
+    source: "user",
+    actorUserId: null,
+    restoreEmail: { from: "user@example.com", to: "old@example.com" },
+  };
+
+  it("writes both together and confirms at the restored address", async () => {
+    const harness = createHarness("active");
+
+    await harness.service.lock(USER_ID, restoreInput);
+
+    expect(harness.usersRepository.updateAccountStatus).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({
+        status: "locked",
+        rotateTokenVersion: true,
+        restoreEmail: { from: "user@example.com", to: "old@example.com" },
+      }),
+    );
+    expect(
+      harness.emailService.sendAccountSelfLockedEmail,
+    ).toHaveBeenCalledWith(expect.objectContaining({ to: "old@example.com" }));
+  });
+
+  it("keeps the restored address out of the audit metadata", async () => {
+    const harness = createHarness("active");
+
+    await harness.service.lock(USER_ID, restoreInput);
+
+    expect(
+      JSON.stringify(harness.authAuditService.recordSafely.mock.calls),
+    ).not.toContain("old@example.com");
+  });
+
+  it("refuses when the account no longer holds the address", async () => {
+    const harness = createHarness("active");
+    harness.usersRepository.updateAccountStatus.mockResolvedValueOnce(false);
+
+    await expect(
+      harness.service.lock(USER_ID, restoreInput),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(
+      harness.emailService.sendAccountSelfLockedEmail,
+    ).not.toHaveBeenCalled();
+  });
+});
+
 describe("AccountStatusService concurrent changes", () => {
   it("refuses an admin change when the status moved after it was read", async () => {
     const harness = createHarness("active");

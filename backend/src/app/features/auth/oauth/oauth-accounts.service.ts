@@ -29,6 +29,7 @@ import type {
   UnlinkOAuthProviderInput,
 } from "@/features/auth/oauth/oauth-accounts.model";
 import { AuthSessionService } from "@/features/auth/session/session.service";
+import type { EmailChangeRevertRepository } from "@/features/auth/email-change/email-change-revert.repository";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { Uuid } from "@/configuration/validation/uuid";
 import { asUuid, newUuid } from "@/configuration/validation/uuid";
@@ -72,6 +73,7 @@ export class OAuthAccountsService {
     private readonly loginMfaService: LoginMfaService,
     private readonly oauthFlowService: OAuthFlowService,
     private readonly securityNotificationService: SecurityNotificationService,
+    private readonly emailChangeRevertRepository: EmailChangeRevertRepository,
   ) {}
 
   async googleAuthenticate(
@@ -261,11 +263,16 @@ export class OAuthAccountsService {
       const existingEmailUser = await this.usersRepository.findUserByEmail(
         pendingSignup.profile.email,
       );
-      if (existingEmailUser) {
+      if (
+        existingEmailUser ||
+        (await this.emailChangeRevertRepository.isAddressHeld(
+          pendingSignup.profile.email,
+        ))
+      ) {
         await this.recordOAuthFailure({
           reasonCode: "email_conflict",
           method: pendingSignup.profile.provider,
-          userId: asUuid(existingEmailUser.id),
+          userId: existingEmailUser ? asUuid(existingEmailUser.id) : undefined,
           identifierHash: this.authAuditService.hashIdentifier(
             pendingSignup.profile.email,
           ),
@@ -400,11 +407,14 @@ export class OAuthAccountsService {
     const existingEmailUser = await this.usersRepository.findUserByEmail(
       profile.email,
     );
-    if (existingEmailUser) {
+    if (
+      existingEmailUser ||
+      (await this.emailChangeRevertRepository.isAddressHeld(profile.email))
+    ) {
       await this.recordOAuthFailure({
         reasonCode: "email_conflict",
         method: profile.provider,
-        userId: asUuid(existingEmailUser.id),
+        userId: existingEmailUser ? asUuid(existingEmailUser.id) : undefined,
         identifierHash: this.authAuditService.hashIdentifier(profile.email),
         context: input.audit,
       });

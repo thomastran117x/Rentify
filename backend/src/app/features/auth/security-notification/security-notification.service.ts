@@ -56,6 +56,11 @@ export type SecurityNotificationInput = SecurityChange & {
    * announced to the address the account just left.
    */
   recipient?: Pick<AuthUserRecord, "email" | "emailVerified">;
+  /**
+   * Issues the email's revert link. Called only for an email that will go out,
+   * since a link nobody receives would still hold the old address.
+   */
+  issueRevertToken?: () => Promise<string | undefined>;
 };
 
 interface SecurityNotificationServiceOptions {
@@ -144,6 +149,7 @@ export class SecurityNotificationService {
       input.eventId,
       this.logger,
     );
+    const revertToken = await input.issueRevertToken?.();
     const device = describeDevice(input.context?.userAgent);
     const base: SecurityChangeEmailBase = {
       to: recipient.email,
@@ -159,6 +165,7 @@ export class SecurityNotificationService {
     await this.emailService.sendSecurityChangeEmail(input.kind, {
       ...base,
       ...input.details,
+      ...(revertToken ? { revertToken } : {}),
     } as SecurityChangeEmailInputByKind[typeof input.kind]);
 
     return "sent";

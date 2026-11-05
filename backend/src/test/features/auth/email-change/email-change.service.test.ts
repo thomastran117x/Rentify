@@ -90,6 +90,10 @@ function createHarness() {
     notify: jest.fn(async (_input: { eventId: string }) => "sent"),
   };
 
+  const emailChangeRevertService = {
+    issue: jest.fn(async () => "revert-token"),
+  };
+
   const service = new EmailChangeService(
     usersRepository as unknown as UsersRepository,
     tokenRepository as unknown as TokenRepository,
@@ -101,12 +105,14 @@ function createHarness() {
     emailBloomService as unknown as IdentityBloomService,
     authAuditService as never,
     securityNotificationService as never,
+    emailChangeRevertService as never,
   );
 
   return {
     service,
     authAuditService,
     securityNotificationService,
+    emailChangeRevertService,
     usersRepository,
     tokenRepository,
     store,
@@ -390,6 +396,7 @@ describe("EmailChangeService.confirmChange", () => {
       eventId: expect.any(String),
       context: { requestId: "request-1" },
       recipient: { email: CURRENT_EMAIL, emailVerified: true },
+      issueRevertToken: expect.any(Function),
     });
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
       id: harness.securityNotificationService.notify.mock.calls[0]![0].eventId,
@@ -409,6 +416,26 @@ describe("EmailChangeService.confirmChange", () => {
     );
     expect(serializedAudit).not.toContain(CURRENT_EMAIL);
     expect(serializedAudit).not.toContain(NEW_EMAIL);
+  });
+
+  it("issues the revert link against the change and its audit event", async () => {
+    const harness = createHarness();
+    harness.store.read.mockResolvedValue(createRecord());
+
+    await harness.service.confirmChange(confirmInput);
+
+    const [notification] = harness.securityNotificationService.notify.mock
+      .calls[0] as unknown as [
+      { eventId: string; issueRevertToken: () => Promise<string> },
+    ];
+
+    await expect(notification.issueRevertToken()).resolves.toBe("revert-token");
+    expect(harness.emailChangeRevertService.issue).toHaveBeenCalledWith({
+      userId: USER_ID,
+      oldEmail: CURRENT_EMAIL,
+      newEmail: NEW_EMAIL,
+      sourceEventId: notification.eventId,
+    });
   });
 
   it("tells the old address even when the new session cannot be issued", async () => {
