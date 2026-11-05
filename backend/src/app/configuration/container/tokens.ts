@@ -125,6 +125,7 @@ import { AuthAuditController } from "@/features/auth/audit/auth-audit.controller
 import { AuthAuditAdminController } from "@/features/auth/audit/auth-audit-admin.controller";
 import { AccountStatusAdminController } from "@/features/auth/account-status/account-status-admin.controller";
 import { AccountStatusService } from "@/features/auth/account-status/account-status.service";
+import { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 import { SelfLockController } from "@/features/auth/self-lock/self-lock.controller";
 import { SelfLockService } from "@/features/auth/self-lock/self-lock.service";
 import { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
@@ -456,6 +457,9 @@ export const containerTokens = {
     createServiceToken<AccountStatusAdminController>(
       "AccountStatusAdminController",
     ),
+  securityNotificationService: createServiceToken<SecurityNotificationService>(
+    "SecurityNotificationService",
+  ),
   selfLockTokenStore:
     createServiceToken<SelfLockTokenStore>("SelfLockTokenStore"),
   selfLockService: createServiceToken<SelfLockService>("SelfLockService"),

@@ -5,11 +5,12 @@ import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
-import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
+import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -21,6 +22,7 @@ interface MfaTotpServiceOptions {
   encryptionKey: Buffer;
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
+  securityNotificationService: SecurityNotificationService;
 }
 
 interface MfaTotpAuditInput {
@@ -34,6 +36,7 @@ export class MfaTotpService {
   private readonly encryptionKey: Buffer;
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
+  private readonly securityNotificationService: SecurityNotificationService;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
@@ -41,6 +44,7 @@ export class MfaTotpService {
     this.encryptionKey = options.encryptionKey;
     this.authAuditService = options.authAuditService;
     this.authSessionService = options.authSessionService;
+    this.securityNotificationService = options.securityNotificationService;
   }
 
   async beginEnrollment(
@@ -129,13 +133,25 @@ export class MfaTotpService {
       new Date(),
       matchedCounter,
     );
+
+    const eventId = newUuid();
+    const emailNotification = await this.securityNotificationService.notify({
+      kind: "mfa_enabled",
+      details: {},
+      userId,
+      eventId,
+      context: audit?.context,
+    });
+
     if (audit) {
       await this.authAuditService.recordSafely({
+        id: eventId,
         eventType: "mfa.totp_enabled",
         outcome: "success",
         userId,
         sessionId: audit.sessionId,
         context: audit.context,
+        metadata: { emailNotification },
       });
     }
   }
@@ -196,12 +212,23 @@ export class MfaTotpService {
     await this.mfaTotpRepository.deleteByUserId(userId);
 
     if (wasActive) {
+      const eventId = newUuid();
+      const emailNotification = await this.securityNotificationService.notify({
+        kind: "mfa_disabled",
+        details: {},
+        userId,
+        eventId,
+        context,
+      });
+
       await this.authAuditService.recordSafely({
+        id: eventId,
         eventType: "mfa.totp_disabled",
         outcome: "success",
         userId,
         sessionId: auth.sessionId,
         context,
+        metadata: { emailNotification },
       });
     }
   }

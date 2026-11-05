@@ -302,6 +302,9 @@ describe("targeted container registration modules", () => {
         if (token === containerTokens.authAuditService) {
           return authAuditService;
         }
+        if (token === containerTokens.securityNotificationService) {
+          return { notify: jest.fn() };
+        }
         throw new Error(`Unexpected token: ${String(token)}`);
       },
     });

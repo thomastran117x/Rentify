@@ -31,7 +31,7 @@ import type {
 import { AuthSessionService } from "@/features/auth/session/session.service";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { Uuid } from "@/configuration/validation/uuid";
-import { asUuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid } from "@/configuration/validation/uuid";
 import type { UsernameService } from "@/features/auth/username/username.service";
 import type { OAuthSignupStore } from "@/features/auth/oauth/oauth-signup.store";
 import OAuthSignupContinuationExpiredError from "@/errors/http/oauth-signup-continuation-expired.error";
@@ -40,6 +40,7 @@ import OAuthStateInvalidError from "@/errors/http/oauth-state-invalid.error";
 import type { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
 import type { OAuthFlowIntent } from "@/features/auth/oauth/oauth-flow.store";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 import type {
   AuthAuditOutcome,
   AuthAuditReasonCode,
@@ -70,6 +71,7 @@ export class OAuthAccountsService {
     private readonly authAuditService: AuthAuditService,
     private readonly loginMfaService: LoginMfaService,
     private readonly oauthFlowService: OAuthFlowService,
+    private readonly securityNotificationService: SecurityNotificationService,
   ) {}
 
   async googleAuthenticate(
@@ -123,13 +125,23 @@ export class OAuthAccountsService {
     }
 
     await this.oauthIdentityRepository.linkOAuthIdentity(user.id, profile);
+    const eventId = newUuid();
+    const emailNotification = await this.securityNotificationService.notify({
+      kind: "login_method_linked",
+      details: { provider: input.provider },
+      userId: asUuid(user.id),
+      eventId,
+      context: input.audit,
+    });
     await this.authAuditService.recordSafely({
+      id: eventId,
       eventType: "oauth.linked",
       outcome: "success",
       userId: asUuid(user.id),
       method: input.provider,
       sessionId: input.sessionId,
       context: input.audit,
+      metadata: { emailNotification },
     });
     return this.listLinkedOAuthProvidersForUser({
       ...user,
@@ -174,13 +186,23 @@ export class OAuthAccountsService {
       input.provider,
     );
     if (unlinked) {
+      const eventId = newUuid();
+      const emailNotification = await this.securityNotificationService.notify({
+        kind: "login_method_unlinked",
+        details: { provider: input.provider },
+        userId: asUuid(user.id),
+        eventId,
+        context: input.audit,
+      });
       await this.authAuditService.recordSafely({
+        id: eventId,
         eventType: "oauth.unlinked",
         outcome: "success",
         userId: asUuid(user.id),
         method: input.provider,
         sessionId: input.sessionId,
         context: input.audit,
+        metadata: { emailNotification },
       });
     }
     return this.listLinkedOAuthProvidersForUser({

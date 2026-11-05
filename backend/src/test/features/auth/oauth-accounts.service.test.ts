@@ -92,6 +92,9 @@ const oauthInput = {
 };
 
 function createHarness() {
+  const securityNotificationService = {
+    notify: jest.fn(async (_input: { eventId: string }) => "sent"),
+  };
   const authRepository = {
     findUserByEmail: jest.fn(async () => null as AuthUserRecord | null),
     recordLastLogin: jest.fn(async () => undefined),
@@ -190,6 +193,7 @@ function createHarness() {
     authAuditService,
     loginMfaService,
     oauthFlowService,
+    securityNotificationService,
     service: new OAuthAccountsService(
       authRepository as never,
       authRepository as never,
@@ -210,6 +214,7 @@ function createHarness() {
       authAuditService as never,
       loginMfaService as never,
       oauthFlowService as never,
+      securityNotificationService as never,
     ),
   };
 }
@@ -732,7 +737,17 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
       USER_1_ID,
       expect.objectContaining({ provider: "google" }),
     );
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "login_method_linked",
+        details: { provider: "google" },
+        userId: USER_1_ID,
+      }),
+    );
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: harness.securityNotificationService.notify.mock.calls[0]![0].eventId,
+      metadata: { emailNotification: "sent" },
       eventType: "oauth.linked",
       outcome: "success",
       userId: USER_1_ID,
@@ -770,6 +785,7 @@ describe("OAuthAccountsService.linkOAuthProvider", () => {
     ).resolves.toMatchObject({ hasPassword: true });
     expect(harness.authRepository.linkOAuthIdentity).not.toHaveBeenCalled();
     expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+    expect(harness.securityNotificationService.notify).not.toHaveBeenCalled();
   });
 
   it("routes to the provider named in the route parameter", async () => {
@@ -893,7 +909,17 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
       USER_1_ID,
       "google",
     );
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "login_method_unlinked",
+        details: { provider: "google" },
+        userId: USER_1_ID,
+      }),
+    );
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: harness.securityNotificationService.notify.mock.calls[0]![0].eventId,
+      metadata: { emailNotification: "sent" },
       eventType: "oauth.unlinked",
       outcome: "success",
       userId: USER_1_ID,
@@ -917,5 +943,6 @@ describe("OAuthAccountsService.unlinkOAuthProvider", () => {
     ).resolves.toEqual({ hasPassword: true, providers: [] });
     expect(harness.authRepository.unlinkOAuthIdentity).not.toHaveBeenCalled();
     expect(harness.authAuditService.recordSafely).not.toHaveBeenCalled();
+    expect(harness.securityNotificationService.notify).not.toHaveBeenCalled();
   });
 });

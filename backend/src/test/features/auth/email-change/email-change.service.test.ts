@@ -86,6 +86,9 @@ function createHarness() {
   };
   const emailBloomService = { add: jest.fn(async () => undefined) };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+  const securityNotificationService = {
+    notify: jest.fn(async (_input: { eventId: string }) => "sent"),
+  };
 
   const service = new EmailChangeService(
     usersRepository as unknown as UsersRepository,
@@ -97,11 +100,13 @@ function createHarness() {
     authSessionService as unknown as AuthSessionService,
     emailBloomService as unknown as IdentityBloomService,
     authAuditService as never,
+    securityNotificationService as never,
   );
 
   return {
     service,
     authAuditService,
+    securityNotificationService,
     usersRepository,
     tokenRepository,
     store,
@@ -377,7 +382,17 @@ describe("EmailChangeService.confirmChange", () => {
       "device-1",
       { requestId: "request-1" },
     );
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith({
+      kind: "email_changed",
+      details: { newEmail: "o***@rentify.local" },
+      userId: USER_ID,
+      eventId: expect.any(String),
+      context: { requestId: "request-1" },
+      recipient: { email: CURRENT_EMAIL, emailVerified: true },
+    });
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: harness.securityNotificationService.notify.mock.calls[0]![0].eventId,
       eventType: "email.changed",
       outcome: "success",
       userId: USER_ID,
@@ -386,6 +401,7 @@ describe("EmailChangeService.confirmChange", () => {
       metadata: {
         oldEmailMasked: "o***@rentify.local",
         newEmailMasked: "o***@rentify.local",
+        emailNotification: "sent",
       },
     });
     const serializedAudit = JSON.stringify(
@@ -393,6 +409,20 @@ describe("EmailChangeService.confirmChange", () => {
     );
     expect(serializedAudit).not.toContain(CURRENT_EMAIL);
     expect(serializedAudit).not.toContain(NEW_EMAIL);
+  });
+
+  it("tells the old address even when the new session cannot be issued", async () => {
+    const harness = createHarness();
+    harness.store.read.mockResolvedValue(createRecord());
+    harness.authSessionService.reissueSessionForUser.mockRejectedValue(
+      new Error("Session store down"),
+    );
+
+    await expect(harness.service.confirmChange(confirmInput)).rejects.toThrow(
+      "Session store down",
+    );
+
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
   });
 
   /**

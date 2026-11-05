@@ -26,6 +26,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
         containerTokens.publicOtpService,
         containerTokens.authAuditService,
         containerTokens.accountStatusService,
+        containerTokens.securityNotificationService,
       ],
       resolve: ({ resolve }) =>
         new PasswordService(
@@ -38,6 +39,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.publicOtpService),
           resolve(containerTokens.authAuditService),
           resolve(containerTokens.accountStatusService),
+          resolve(containerTokens.securityNotificationService),
         ),
     });
     container.register({

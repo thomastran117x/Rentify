@@ -8,6 +8,7 @@ import { authLockoutRegistrationModule } from "@/configuration/container/registr
 import { authAuditRegistrationModule } from "@/configuration/container/registrations/modules/auth-audit";
 import { authAccountStatusRegistrationModule } from "@/configuration/container/registrations/modules/auth-account-status";
 import { authSelfLockRegistrationModule } from "@/configuration/container/registrations/modules/auth-self-lock";
+import { authSecurityNotificationsRegistrationModule } from "@/configuration/container/registrations/modules/auth-security-notifications";
 import { authDetectionRegistrationModule } from "@/configuration/container/registrations/modules/auth-detection";
 import { authPasswordRegistrationModule } from "@/configuration/container/registrations/modules/auth-password";
 import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
@@ -83,6 +84,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   authPersonalAccessTokensRegistrationModule,
   authAccountStatusRegistrationModule,
   authSelfLockRegistrationModule,
+  authSecurityNotificationsRegistrationModule,
   authDetectionRegistrationModule,
   organizationsProfileRegistrationModule,
   organizationsMembersRegistrationModule,

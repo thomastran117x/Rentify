@@ -35,6 +35,7 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
         containerTokens.mfaTotpRepository,
         containerTokens.authAuditService,
         containerTokens.authSessionService,
+        containerTokens.securityNotificationService,
       ],
       resolve: ({ resolve }) =>
         new MfaTotpService({
@@ -43,6 +44,9 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
           encryptionKey,
           authAuditService: resolve(containerTokens.authAuditService),
           authSessionService: resolve(containerTokens.authSessionService),
+          securityNotificationService: resolve(
+            containerTokens.securityNotificationService,
+          ),
         }),
     });
     container.register({

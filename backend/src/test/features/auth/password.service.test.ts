@@ -72,6 +72,9 @@ const googleIdentity: OAuthIdentityRecord = {
 };
 
 function createHarness() {
+  const securityNotificationService = {
+    notify: jest.fn(async (_input: { eventId: string }) => "sent"),
+  };
   const store = new Map<string, unknown>();
   const cacheService = {
     getJson: jest.fn(async (key: string) => store.get(key) ?? null),
@@ -133,6 +136,7 @@ function createHarness() {
     tokenService,
     authAuditService,
     accountStatusService,
+    securityNotificationService,
     service: new PasswordService(
       authRepository as never,
       authRepository as never,
@@ -158,6 +162,7 @@ function createHarness() {
       publicOtpService,
       authAuditService as never,
       accountStatusService as never,
+      securityNotificationService as never,
     ),
   };
 }
@@ -274,7 +279,16 @@ describe("PasswordService.resetPassword", () => {
       USER_1_ID,
     );
     expect(session.accessToken).toBe("access-token");
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith({
+      kind: "password_changed",
+      details: { change: "reset" },
+      userId: USER_1_ID,
+      eventId: expect.any(String),
+      context: undefined,
+    });
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: harness.securityNotificationService.notify.mock.calls[0]![0].eventId,
       eventType: "password.reset",
       outcome: "success",
       userId: USER_1_ID,
@@ -282,6 +296,7 @@ describe("PasswordService.resetPassword", () => {
       identifierHash: "hash:test-user",
       sessionId: expect.any(String),
       context: undefined,
+      metadata: { emailNotification: "sent" },
     });
   }, 20_000);
 
@@ -474,6 +489,55 @@ describe("PasswordService.changePassword", () => {
         sessionId: expect.any(String),
       }),
     );
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "password_changed",
+        details: { change: "changed" },
+      }),
+    );
+  }, 20_000);
+
+  it("records an email that could not be queued, and still changes the password", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    harness.securityNotificationService.notify.mockResolvedValue("failed");
+
+    const session = await harness.service.changePassword({
+      userId: USER_1_ID,
+      client: createClient(),
+      currentPassword: CURRENT_PASSWORD,
+      newPassword: NEW_PASSWORD,
+      deviceId: "device-1",
+    });
+
+    expect(session.accessToken).toBe("access-token");
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "password.changed",
+        metadata: { emailNotification: "failed" },
+      }),
+    );
+  }, 20_000);
+
+  it("tells the owner before issuing a session that could fail", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    harness.tokenService.createSession.mockRejectedValue(
+      new Error("Session store down"),
+    );
+
+    await expect(
+      harness.service.changePassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        currentPassword: CURRENT_PASSWORD,
+        newPassword: NEW_PASSWORD,
+        deviceId: "device-1",
+      }),
+    ).rejects.toThrow("Session store down");
+
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledTimes(1);
   }, 20_000);
 
   it("rejects an incorrect current password", async () => {
@@ -552,6 +616,12 @@ describe("PasswordService.setPassword", () => {
         method: "password",
         userId: USER_1_ID,
         sessionId: expect.any(String),
+      }),
+    );
+    expect(harness.securityNotificationService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "password_changed",
+        details: { change: "set" },
       }),
     );
   }, 20_000);

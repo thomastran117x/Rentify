@@ -29,11 +29,21 @@ import type {
   ResetPasswordInput,
   SetPasswordInput,
 } from "@/features/auth/password/password.model";
-import { asUuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
+import type { PasswordChangeKind } from "@/features/email/email.service";
 import AccountSuspendedError from "@/errors/http/account-suspended.error";
 import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
 import type { AccountStatusService } from "@/features/auth/account-status/account-status.service";
+
+type PasswordEventType = "password.changed" | "password.reset" | "password.set";
+
+const PASSWORD_CHANGE_KINDS: Record<PasswordEventType, PasswordChangeKind> = {
+  "password.changed": "changed",
+  "password.reset": "reset",
+  "password.set": "set",
+};
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -55,6 +65,7 @@ export class PasswordService {
     private readonly publicOtpService: PublicOtpService,
     private readonly authAuditService: AuthAuditService,
     private readonly accountStatusService: AccountStatusService,
+    private readonly securityNotificationService: SecurityNotificationService,
   ) {}
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{
@@ -236,18 +247,28 @@ export class PasswordService {
 
   /**
    * Rotating the token version invalidates every other session, which is the
-   * point of changing a password after a suspected compromise.
+   * point of changing a password after a suspected compromise. The owner is
+   * told as soon as that is done, so a failure further down cannot leave a
+   * committed change unannounced.
    */
   private async finishPasswordWrite(
     user: AuthUserRecord,
     passwordHash: string,
     input: Pick<ResetPasswordInput, "client" | "deviceId" | "audit">,
-    eventType: "password.changed" | "password.reset" | "password.set",
+    eventType: PasswordEventType,
     identifierHash?: string,
   ): Promise<AuthSessionResult> {
     const nextTokenVersion = await this.tokenRepository.rotateTokenVersion(
       asUuid(user.id),
     );
+    const eventId = newUuid();
+    const emailNotification = await this.securityNotificationService.notify({
+      kind: "password_changed",
+      details: { change: PASSWORD_CHANGE_KINDS[eventType] },
+      userId: asUuid(user.id),
+      eventId,
+      context: input.audit,
+    });
     await this.loginLockoutService.clearAttemptRecord(user.profile.username);
 
     const updatedUser: AuthUserRecord = {
@@ -263,6 +284,7 @@ export class PasswordService {
       input.audit,
     );
     await this.authAuditService.recordSafely({
+      id: eventId,
       eventType,
       outcome: "success",
       userId: asUuid(user.id),
@@ -270,6 +292,7 @@ export class PasswordService {
       identifierHash,
       sessionId: session.sessionId,
       context: input.audit,
+      metadata: { emailNotification },
     });
     return session;
   }
