@@ -118,4 +118,20 @@ describe("EmailService", () => {
 
     expect(enqueueEmailJob).toHaveBeenCalledWith("suspicious_login", input);
   });
+
+  it("queues a security-change email under its own kind", async () => {
+    const enqueueEmailJob = jest.fn().mockResolvedValue(undefined);
+    const service = new EmailService({
+      enqueueEmailJob,
+    } as any);
+    const input = {
+      to: "user@example.com",
+      occurredAt: "2026-11-04T10:15:00.000Z",
+      provider: "google" as const,
+    };
+
+    await service.sendSecurityChangeEmail("login_method_linked", input);
+
+    expect(enqueueEmailJob).toHaveBeenCalledWith("login_method_linked", input);
+  });
 });

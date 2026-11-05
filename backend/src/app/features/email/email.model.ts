@@ -1,4 +1,6 @@
 import type {
+  SecurityChangeEmailInputByKind,
+  SecurityChangeEmailKind,
   SendAccountStatusEmailInput,
   SendBookingMessageNotificationEmailInput,
   SendEmailChangeCodeEmailInput,
@@ -32,9 +34,10 @@ export type EmailJobKind =
   | "account_self_locked"
   | "account_suspended"
   | "account_reinstated"
-  | "suspicious_login";
+  | "suspicious_login"
+  | SecurityChangeEmailKind;
 
-export type EmailJobInputByKind = {
+export type EmailJobInputByKind = SecurityChangeEmailInputByKind & {
   verification: SendVerificationEmailInput;
   email_change_code: SendEmailChangeCodeEmailInput;
   email_change_notice: SendEmailChangeNoticeEmailInput;
@@ -54,7 +57,23 @@ export type EmailJobInputByKind = {
   suspicious_login: SendSuspiciousLoginEmailInput;
 };
 
+/**
+ * One security-change email and its input, keeping the two correlated so a
+ * renderer can narrow the input by switching on the kind.
+ */
+export type SecurityChangeEmailJob = {
+  [TKind in SecurityChangeEmailKind]: {
+    kind: TKind;
+    input: SecurityChangeEmailInputByKind[TKind];
+  };
+}[SecurityChangeEmailKind];
+
 export type EmailJobPayload =
+  | (SecurityChangeEmailJob & {
+      jobId: string;
+      attempt: number;
+      occurredAt: string;
+    })
   | {
       jobId: string;
       kind: "verification";

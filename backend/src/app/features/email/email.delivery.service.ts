@@ -5,7 +5,14 @@ import { isSuppressedRecipient } from "@/features/email/email-suppression";
 import type { PostingExpiryEmailComposer } from "@/features/postings/posting-expiry-email.composer";
 import type { SavedSearchEmailComposer } from "@/features/postings/saved-searches/saved-search-email.composer";
 import { buildSavedSearchQueryString } from "@/features/postings/saved-searches/saved-searches.model";
-import type { EmailJobPayload } from "@/features/email/email.model";
+import type {
+  EmailJobPayload,
+  SecurityChangeEmailJob,
+} from "@/features/email/email.model";
+import {
+  buildSecurityChangeContextDetails,
+  composeSecurityChangeEmail,
+} from "@/features/email/security-change-email";
 import type {
   SendAccountStatusEmailInput,
   SendBookingMessageNotificationEmailInput,
@@ -222,6 +229,15 @@ export class EmailDeliveryService {
         return;
       case "suspicious_login":
         await this.sendSuspiciousLoginEmail(payload.input);
+        return;
+      case "password_changed":
+      case "mfa_enabled":
+      case "mfa_disabled":
+      case "personal_access_token_created":
+      case "login_method_linked":
+      case "login_method_unlinked":
+      case "email_changed":
+        await this.sendSecurityChangeEmail(payload);
         return;
     }
   }
@@ -459,6 +475,75 @@ export class EmailDeliveryService {
           `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
           this.buildAlertBox(
             `If this wasn&rsquo;t you, <strong>change your password and review your devices and personal access tokens immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${selfLockLink}`,
+            "warning",
+          ),
+        ].join(""),
+      ),
+    });
+  }
+
+  /**
+   * The renderer shared by every email about a completed security change. Only
+   * the wording differs between them, and that lives in
+   * `composeSecurityChangeEmail`; what to do about the change is the same.
+   */
+  async sendSecurityChangeEmail(job: SecurityChangeEmailJob): Promise<void> {
+    const { input } = job;
+    const greetingName = this.resolveGreetingName(input.firstName);
+    const content = composeSecurityChangeEmail(job);
+    const details = [
+      ...content.details,
+      ...buildSecurityChangeContextDetails(input),
+    ];
+    const securityUrl = escapeHtml(`${this.appBaseUrl}/account`);
+    const selfLockUrl = this.buildSelfLockUrl(input.selfLockToken);
+    const revertUrl = this.buildEmailChangeRevertUrl(
+      job.kind === "email_changed" ? job.input.revertToken : undefined,
+    );
+
+    await this.sendWithRetry({
+      to: input.to,
+      subject: content.subject,
+      text: [
+        `Hi ${greetingName},`,
+        "",
+        content.summary,
+        "",
+        ...details.map((detail) => `- ${detail}`),
+        "",
+        "If this was you, no action is needed.",
+        "If this wasn't you, change your password and review your devices and personal access tokens immediately.",
+        ...(revertUrl
+          ? [
+              "",
+              `This wasn't you? Put your old email back within 7 days, which also signs everyone out: ${revertUrl}`,
+            ]
+          : []),
+        ...(selfLockUrl
+          ? [
+              "",
+              `This wasn't you? Lock your account now, which signs everyone out until you reset your password: ${selfLockUrl}`,
+            ]
+          : []),
+      ].join("\n"),
+      html: this.buildEmailHtml(
+        [
+          `<h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#020617;letter-spacing:-0.03em;">${escapeHtml(content.heading)}</h1>`,
+          `<p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Hi ${escapeHtml(greetingName)},</p>`,
+          `<p style="margin:0 0 4px;font-size:14px;color:#334155;line-height:1.7;">${escapeHtml(content.summary)}</p>`,
+          this.buildDetailsHtml(details),
+          `<p style="margin:0 0 0;font-size:14px;color:#334155;line-height:1.7;">If this was you, no action is needed.</p>`,
+          revertUrl
+            ? [
+                this.buildCTAButton(
+                  escapeHtml(revertUrl),
+                  "This wasn&rsquo;t me &mdash; put my old email back",
+                ),
+                `<p style="margin:0 0 0;font-size:13px;color:#64748b;text-align:center;">This link works once, for 7 days. It also signs everyone out.</p>`,
+              ].join("")
+            : "",
+          this.buildAlertBox(
+            `If this wasn&rsquo;t you, <strong>change your password and review your devices and personal access tokens immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${this.buildSelfLockLinkHtml(selfLockUrl)}`,
             "warning",
           ),
         ].join(""),
@@ -1049,6 +1134,12 @@ export class EmailDeliveryService {
   private buildSelfLockUrl(token: string | undefined): string | null {
     return token
       ? `${this.appBaseUrl}/auth/self-lock?token=${encodeURIComponent(token)}`
+      : null;
+  }
+
+  private buildEmailChangeRevertUrl(token: string | undefined): string | null {
+    return token
+      ? `${this.appBaseUrl}/auth/email-change/revert?token=${encodeURIComponent(token)}`
       : null;
   }
 
