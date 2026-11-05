@@ -144,7 +144,8 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
   },
   "self-lock": {
     eyebrow: "Protect your account",
-    title: "Didn't sign in? Lock your account until you're back in control.",
+    title:
+      "Don't recognise this? Lock your account until you're back in control.",
     description:
       "Locking signs everyone out of your Rentify account, including whoever used it, and keeps them out until you reset your password.",
     features: [

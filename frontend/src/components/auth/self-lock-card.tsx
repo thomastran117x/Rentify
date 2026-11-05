@@ -123,7 +123,7 @@ export function SelfLockCard({
           <h2 className={theme.auth.cardTitle}>This link has expired</h2>
           <p className={theme.auth.cardDescription}>
             This link has expired or was already used, so nothing was changed.
-            If you still don&apos;t recognise a sign-in, reset your password
+            If you still don&apos;t recognise the activity, reset your password
             now: that signs everyone else out.
           </p>
         </div>
@@ -142,7 +142,7 @@ export function SelfLockCard({
         <p className={theme.auth.cardEyebrow}>This wasn&apos;t me</p>
         <h2 className={theme.auth.cardTitle}>Lock your account?</h2>
         <p className={theme.auth.cardDescription}>
-          If you didn&apos;t sign in, lock your account. Everyone using it,
+          If this wasn&apos;t you, lock your account. Everyone using it,
           including you, is signed out straight away, and nobody can sign in
           until you reset your password.
         </p>
@@ -153,7 +153,7 @@ export function SelfLockCard({
       >
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p>
-          Only lock your account if you don&apos;t recognise the sign-in. If it
+          Only lock your account if you don&apos;t recognise the activity. If it
           was you, close this page; nothing has changed.
         </p>
       </div>
