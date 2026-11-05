@@ -86,6 +86,20 @@ beforeEach(() => {
 });
 
 describe("SessionManagementPanel", () => {
+  it("does not reload the list when the parent re-renders with a new callback", async () => {
+    listSessionsMock.mockResolvedValue({ sessions: [] });
+    const { rerender } = render(
+      <SessionManagementPanel onVerificationRequired={() => {}} />,
+    );
+    await waitFor(() => expect(listSessionsMock).toHaveBeenCalledTimes(1));
+
+    const latest = vi.fn();
+    rerender(<SessionManagementPanel onVerificationRequired={latest} />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(listSessionsMock).toHaveBeenCalledTimes(1);
+  });
+
   it("shows loading, session details, and the current-session treatment", async () => {
     let resolveList!: (value: { sessions: AuthSessionSummary[] }) => void;
     listSessionsMock.mockReturnValueOnce(

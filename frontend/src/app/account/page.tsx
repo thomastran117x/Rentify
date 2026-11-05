@@ -21,6 +21,7 @@ import {
 } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import { useMfaStepUp } from "@/components/auth/use-mfa-step-up";
 import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { AccountEmailPanel } from "@/components/account/account-email-panel";
 import { SessionManagementPanel } from "@/components/account/session-management-panel";
@@ -123,6 +124,7 @@ export function deviceLabel(device: KnownDeviceRecord): string {
 export default function AccountPage() {
   const router = useRouter();
   const { status, session } = useAuth();
+  const { runWithStepUp, stepUpDialog } = useMfaStepUp();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<
@@ -326,9 +328,14 @@ export default function AccountPage() {
     setMessage(null);
 
     try {
-      const result = await authApi.unlinkOAuthProvider(provider);
-      setProviders(result);
-      setMessage(`${providerLabels[provider]} was unlinked.`);
+      const outcome = await runWithStepUp(() =>
+        authApi.unlinkOAuthProvider(provider),
+      );
+
+      if (outcome.completed) {
+        setProviders(outcome.result);
+        setMessage(`${providerLabels[provider]} was unlinked.`);
+      }
     } catch (error) {
       setMessage(
         getApiErrorMessage(error, {
@@ -510,14 +517,22 @@ export default function AccountPage() {
     setCreatedToken(null);
 
     try {
-      const result = await authApi.createPersonalAccessToken({
-        name: normalizedName,
-        expiresInDays: Number(tokenExpiryDays),
-        scopes:
-          tokenAccessLevel === "write"
-            ? ["mcp:read", "mcp:write"]
-            : ["mcp:read"],
-      });
+      const outcome = await runWithStepUp(() =>
+        authApi.createPersonalAccessToken({
+          name: normalizedName,
+          expiresInDays: Number(tokenExpiryDays),
+          scopes:
+            tokenAccessLevel === "write"
+              ? ["mcp:read", "mcp:write"]
+              : ["mcp:read"],
+        }),
+      );
+
+      if (!outcome.completed) {
+        return;
+      }
+
+      const { result } = outcome;
       setPersonalAccessTokens((current) => [result, ...current]);
       setCreatedToken(result.token);
       setTokenMessage(
@@ -542,7 +557,14 @@ export default function AccountPage() {
     setCreatedToken(null);
 
     try {
-      await authApi.revokePersonalAccessToken(tokenId);
+      const outcome = await runWithStepUp(() =>
+        authApi.revokePersonalAccessToken(tokenId),
+      );
+
+      if (!outcome.completed) {
+        return;
+      }
+
       setPersonalAccessTokens((current) =>
         current.map((token) =>
           token.id === tokenId
@@ -968,6 +990,7 @@ export default function AccountPage() {
               <div className="mt-4">
                 <AuthOAuthButtons
                   mode="link"
+                  runWithStepUp={runWithStepUp}
                   disabledProviders={
                     Array.from(linkedProviderNames) as OAuthProvider[]
                   }
@@ -1365,6 +1388,8 @@ export default function AccountPage() {
           </div>
         )}
       </div>
+
+      {stepUpDialog}
 
       {verificationDialogOptions ? (
         <MfaVerificationDialog

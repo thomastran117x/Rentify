@@ -5,9 +5,11 @@ import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { asUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import type { AuthSessionService } from "@/features/auth/session/session.service";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -18,6 +20,7 @@ interface MfaTotpServiceOptions {
   mfaTotpRepository: MfaTotpRepository;
   encryptionKey: Buffer;
   authAuditService: AuthAuditService;
+  authSessionService: AuthSessionService;
 }
 
 interface MfaTotpAuditInput {
@@ -30,12 +33,14 @@ export class MfaTotpService {
   private readonly mfaTotpRepository: MfaTotpRepository;
   private readonly encryptionKey: Buffer;
   private readonly authAuditService: AuthAuditService;
+  private readonly authSessionService: AuthSessionService;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
     this.mfaTotpRepository = options.mfaTotpRepository;
     this.encryptionKey = options.encryptionKey;
     this.authAuditService = options.authAuditService;
+    this.authSessionService = options.authSessionService;
   }
 
   async beginEnrollment(
@@ -165,16 +170,38 @@ export class MfaTotpService {
     );
   }
 
-  async disable(userId: Uuid, audit?: MfaTotpAuditInput): Promise<void> {
+  /**
+   * Removing the second factor ends every other session, since any of them
+   * could be the reason it is being removed. The sessions go first: if that
+   * fails the authenticator stays on and the caller can retry, whereas the
+   * other order would leave it off with the sessions alive and a retry that
+   * finds nothing to do.
+   */
+  async disable(
+    auth: JwtAuthPrincipal,
+    context: AuthAuditContext,
+  ): Promise<void> {
+    const userId = asUuid(auth.sub);
     const existing = await this.mfaTotpRepository.findByUserId(userId);
+    const wasActive = existing?.status === "active";
+
+    if (wasActive) {
+      await this.authSessionService.revokeManagedSessions({
+        auth,
+        scope: "others",
+        audit: context,
+      });
+    }
+
     await this.mfaTotpRepository.deleteByUserId(userId);
-    if (existing?.status === "active" && audit) {
+
+    if (wasActive) {
       await this.authAuditService.recordSafely({
         eventType: "mfa.totp_disabled",
         outcome: "success",
         userId,
-        sessionId: audit.sessionId,
-        context: audit.context,
+        sessionId: auth.sessionId,
+        context,
       });
     }
   }

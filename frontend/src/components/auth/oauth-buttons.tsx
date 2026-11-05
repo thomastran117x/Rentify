@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import type { RunWithStepUp } from "@/components/auth/use-mfa-step-up";
 import { publicEnv } from "@/lib/env";
 import { authApi } from "@/lib/auth/api";
 import type {
@@ -37,6 +38,11 @@ interface AuthOAuthButtonsProps {
   onSignupRequired?: (result: OAuthSignupRequiredResult) => void;
   /** The account has an authenticator app; the caller asks for the code. */
   onMfaRequired?: (challenge: LoginMfaChallenge) => void;
+  /**
+   * Link mode: carries the link request through a step-up. The backend checks
+   * for one before it spends the state, so the same request can be sent again.
+   */
+  runWithStepUp?: RunWithStepUp;
 }
 
 interface PopupAuthResult {
@@ -657,6 +663,7 @@ export function AuthOAuthButtons({
   disabledProviders = [],
   onSignupRequired,
   onMfaRequired,
+  runWithStepUp,
 }: AuthOAuthButtonsProps) {
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
     null,
@@ -720,11 +727,15 @@ export function AuthOAuthButtons({
       }
 
       if (isLinkMode) {
-        const linkedProviders = await authApi.linkOAuthProvider(provider, {
-          state,
-          ...input,
-        });
-        onLinked?.(linkedProviders);
+        const link = () =>
+          authApi.linkOAuthProvider(provider, { state, ...input });
+        const outcome = runWithStepUp
+          ? await runWithStepUp(link)
+          : { completed: true as const, result: await link() };
+
+        if (outcome.completed) {
+          onLinked?.(outcome.result);
+        }
         return;
       }
 

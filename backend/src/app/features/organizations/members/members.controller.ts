@@ -12,9 +12,15 @@ import {
 } from "@/features/organizations/members/members.model";
 import { OrganizationMembersService } from "@/features/organizations/members/members.service";
 import { asUuid } from "@/configuration/validation/uuid";
+import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
+import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
+import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class OrganizationMembersController {
-  constructor(private readonly membersService: OrganizationMembersService) {}
+  constructor(
+    private readonly membersService: OrganizationMembersService,
+    private readonly mfaVerificationService: MfaVerificationService,
+  ) {}
 
   listMine = async (request: Request, response: Response): Promise<void> => {
     const auth = await requireAuth(request);
@@ -38,7 +44,11 @@ export class OrganizationMembersController {
   };
 
   updateRole = async (request: Request, response: Response): Promise<void> => {
-    const auth = await requireAuth(request);
+    const auth = await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const body = await parseRequestBody(
       request,
       updateOrganizationMemberRequestSchema,
@@ -55,7 +65,11 @@ export class OrganizationMembersController {
   };
 
   remove = async (request: Request, response: Response): Promise<void> => {
-    const auth = await requireAuth(request);
+    const auth = await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const result = await this.membersService.removeMember({
       organizationId: asUuid(requireOrganizationId(request)),
       actorUserId: asUuid(auth.sub),

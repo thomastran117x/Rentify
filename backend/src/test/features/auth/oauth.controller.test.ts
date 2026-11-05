@@ -1,3 +1,5 @@
+import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
+import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import type { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import type { OAuthAccountsService } from "@/features/auth/oauth/oauth-accounts.service";
 import type { OAuthFlowService } from "@/features/auth/oauth/oauth-flow.service";
@@ -14,10 +16,16 @@ import { testUuid } from "../../support/uuid";
 const USER_15_ID = testUuid(9000, 822530);
 
 const mockRequireJwtAuth = jest.fn();
+const mockRequireRecentMfaVerification = jest.fn();
 
 jest.mock("@/configuration/middlewares/jwt-middleware", () => ({
   requireJwtAuth: (...args: unknown[]) => mockRequireJwtAuth(...args),
   getOptionalJwtAuth: jest.fn(),
+}));
+
+jest.mock("@/features/auth/mfa/verification/mfa-verification.guard", () => ({
+  requireRecentMfaVerification: (...args: unknown[]) =>
+    mockRequireRecentMfaVerification(...args),
 }));
 
 const providersResult = {
@@ -70,6 +78,7 @@ function createController() {
       oauthAccountsService as unknown as OAuthAccountsService,
       oauthFlowService as unknown as OAuthFlowService,
       captchaService as unknown as CaptchaService,
+      {} as MfaVerificationService,
     ),
   };
 }
@@ -90,6 +99,10 @@ const oauthBody = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockRequireJwtAuth.mockResolvedValue(createClaims());
+  // A signed-in caller with a proof, unless a test says otherwise.
+  mockRequireRecentMfaVerification.mockImplementation(
+    (request: AuthTestContext["request"]) => mockRequireJwtAuth(request),
+  );
 });
 
 describe("OAuthController sign-in handlers", () => {
@@ -378,7 +391,7 @@ describe("OAuthController.startFlow", () => {
 });
 
 describe("OAuthController link and unlink", () => {
-  it("authenticates, then links the route provider to the caller", async () => {
+  it("needs a step-up, then links the route provider to the caller", async () => {
     const auth = createClaims({ sub: USER_15_ID });
     mockRequireJwtAuth.mockImplementation(
       async (request: AuthTestContext["request"]) => {
@@ -393,7 +406,11 @@ describe("OAuthController link and unlink", () => {
       createContext({ auth, params: { provider: "google" }, body: oauthBody }),
     );
 
-    expect(mockRequireJwtAuth).toHaveBeenCalled();
+    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "mfa-management",
+    );
     expect(oauthAccountsService.linkOAuthProvider).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "google", userId: USER_15_ID }),
     );
@@ -454,6 +471,54 @@ describe("OAuthController link and unlink", () => {
     await expect(response.json()).resolves.toMatchObject({
       message: "OAuth provider unlinked successfully.",
     });
+  });
+
+  it("leaves the link state unspent and links nothing without a proof", async () => {
+    mockRequireRecentMfaVerification.mockRejectedValue(
+      new MfaVerificationRequiredError(),
+    );
+    const { controller, oauthAccountsService } = createController();
+
+    await expect(
+      invoke(
+        controller.linkOAuthProvider,
+        createContext({ params: { provider: "google" }, body: oauthBody }),
+      ),
+    ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
+
+    expect(oauthAccountsService.linkOAuthProvider).not.toHaveBeenCalled();
+  });
+
+  it("unlinks nothing without a proof", async () => {
+    mockRequireRecentMfaVerification.mockRejectedValue(
+      new MfaVerificationRequiredError(),
+    );
+    const { controller, oauthAccountsService } = createController();
+
+    await expect(
+      invoke(
+        controller.unlinkOAuthProvider,
+        createContext({ params: { provider: "google" } }),
+      ),
+    ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
+
+    expect(oauthAccountsService.unlinkOAuthProvider).not.toHaveBeenCalled();
+  });
+
+  it("starts a link without a step-up", async () => {
+    const { controller, oauthFlowService } = createController();
+
+    await invoke(
+      controller.startFlow,
+      createContext({
+        auth: createClaims({ sub: USER_15_ID }),
+        params: { provider: "google" },
+        body: { intent: "link", deviceId: "oauth-device" },
+      }),
+    );
+
+    expect(oauthFlowService.start).toHaveBeenCalled();
+    expect(mockRequireRecentMfaVerification).not.toHaveBeenCalled();
   });
 
   it("rejects an unsupported provider in the route", async () => {

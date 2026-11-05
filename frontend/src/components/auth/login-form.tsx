@@ -337,7 +337,9 @@ export function LoginForm({
 
         if (options.verified || options.availableFactors.length === 0) {
           clearPersistedAuthPendingFlowByType("device-login-mfa");
-          await authApi.verifyDevice().catch(() => {});
+          if (options.verified) {
+            await authApi.verifyDevice().catch(() => {});
+          }
           setDevicePending(false);
           return;
         }
@@ -471,7 +473,9 @@ export function LoginForm({
 
         if (options.verified || options.availableFactors.length === 0) {
           clearPersistedAuthPendingFlowByType("device-login-mfa");
-          await authApi.verifyDevice().catch(() => {});
+          if (options.verified) {
+            await authApi.verifyDevice().catch(() => {});
+          }
         } else {
           const verified = await openDeviceMfaDialog(
             options,
@@ -499,23 +503,46 @@ export function LoginForm({
       clearPersistedAuthPendingFlowByType("device-login-mfa");
       setSession(session);
       if (!session.device.known) {
-        authApi.verifyDevice().catch(() => {});
+        void registerDeviceIfVerified();
       }
     }
   }
 
-  function handleOAuthSuccess(session: AuthResponseBody) {
+  /**
+   * A new browser on a network the account already uses is not worth a prompt,
+   * so it only becomes known if the session already holds a proof, as one
+   * finished with an authenticator code does.
+   */
+  async function registerDeviceIfVerified() {
+    try {
+      const options = await mfaVerificationApi.getOptions("device-login");
+
+      if (options.verified) {
+        await authApi.verifyDevice();
+      }
+    } catch {
+      // The device simply stays unknown until a later sign-in.
+    }
+  }
+
+  /**
+   * A provider sign-in proves the same thing a password does, so it gets the
+   * same new-device check. An account created by this sign-in has nothing to
+   * protect yet and skips it.
+   */
+  async function handleOAuthSuccess(session: AuthResponseBody) {
     setGeneralError(null);
     setUnlockEmail(null);
-    clearPersistedAuthPendingFlowByType("login-unlock");
-    setSession(session);
     setOAuthSignupPending(null);
-    if (!session.device.known) {
-      authApi.verifyDevice().catch(() => {});
-    }
+
     if (session.isNewUser) {
+      clearPersistedAuthPendingFlowByType("login-unlock");
+      setSession(session);
       setWelcomeSession(session);
+      return;
     }
+
+    await completeLogin(session);
   }
 
   function startLoginMfa(
@@ -537,7 +564,7 @@ export function LoginForm({
     clearPersistedAuthPendingFlowByType("login-mfa");
 
     if (flow.method === "oauth") {
-      handleOAuthSuccess(session);
+      await handleOAuthSuccess(session);
       return;
     }
 

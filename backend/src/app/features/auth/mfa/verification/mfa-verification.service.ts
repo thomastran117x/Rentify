@@ -424,22 +424,18 @@ export class MfaVerificationService {
       throw new BadRequestError("User account could not be found.");
     }
 
-    const availableFactors: MfaVerificationFactor[] = [];
     const activeTotpAvailable = securityContext.mfaTotp?.status === "active";
 
-    if (securityContext.emailVerified) {
-      availableFactors.push("email");
-    }
-
-    if (activeTotpAvailable) {
-      availableFactors.push("totp");
-    }
-
-    const recommendedFactor: MfaVerificationFactor | null = activeTotpAvailable
-      ? "totp"
+    // Step-up is only as strong as its weakest accepted factor, so an account
+    // with a stronger factor cannot fall back to its inbox. Email is for
+    // accounts with nothing stronger. Passkeys (#465) and recovery codes (#464)
+    // join the stronger list when they land.
+    const availableFactors: MfaVerificationFactor[] = activeTotpAvailable
+      ? ["totp"]
       : securityContext.emailVerified
-        ? "email"
-        : null;
+        ? ["email"]
+        : [];
+    const recommendedFactor = availableFactors[0] ?? null;
 
     return {
       securityContext,
@@ -584,7 +580,8 @@ export class MfaVerificationService {
       input.proof.scope === input.scope &&
       Number.isFinite(expiresAtMs) &&
       Date.now() < expiresAtMs &&
-      input.proof.securityVersion === input.factorState.securityVersion;
+      input.proof.securityVersion === input.factorState.securityVersion &&
+      input.factorState.availableFactors.includes(input.proof.factor);
 
     if (isValid) {
       return input.proof;

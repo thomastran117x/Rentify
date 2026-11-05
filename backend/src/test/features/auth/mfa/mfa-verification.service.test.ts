@@ -2,6 +2,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import MfaChallengeRateLimitedError from "@/errors/http/mfa-challenge-rate-limited.error";
 import MfaConfirmRateLimitedError from "@/errors/http/mfa-confirm-rate-limited.error";
+import MfaFactorUnavailableError from "@/errors/http/mfa-factor-unavailable.error";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import { environment } from "@/configuration/environment";
@@ -258,7 +259,7 @@ describe("MfaVerificationService", () => {
     expect(options).toMatchObject({
       scope: MFA_MANAGEMENT_SCOPE,
       verified: true,
-      availableFactors: ["email", "totp"],
+      availableFactors: ["totp"],
       recommendedFactor: "totp",
     });
     expect(options.verifiedUntil).not.toBeNull();
@@ -285,8 +286,104 @@ describe("MfaVerificationService", () => {
         scope: MFA_MANAGEMENT_SCOPE,
       }),
     ).resolves.toMatchObject({
-      availableFactors: ["email", "totp"],
+      availableFactors: ["totp"],
       recommendedFactor: "totp",
+    });
+  });
+
+  describe("with a stronger factor active", () => {
+    const client = {
+      source: "frontend-browser" as const,
+      device: { type: "desktop" as const, isMobile: false },
+    };
+    const totpContext = () =>
+      createSecurityContext({
+        mfaTotp: {
+          status: "active",
+          updatedAt: "2026-06-27T15:20:00.000Z",
+          confirmedAt: "2026-06-27T15:10:00.000Z",
+        },
+      });
+
+    it.each([MFA_MANAGEMENT_SCOPE, MFA_DEVICE_LOGIN_SCOPE])(
+      "refuses an email challenge in the %s scope",
+      async (scope) => {
+        const { service, otpService } = createService({
+          securityContext: totpContext(),
+        });
+
+        await expect(
+          service.issueChallenge({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope,
+            factor: "email",
+            client,
+          }),
+        ).rejects.toBeInstanceOf(MfaFactorUnavailableError);
+        expect(otpService.issue).not.toHaveBeenCalled();
+      },
+    );
+
+    it("refuses to confirm an email code", async () => {
+      const { service, otpService } = createService({
+        securityContext: totpContext(),
+      });
+
+      await expect(
+        service.confirmChallenge({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "email",
+          code: "123456",
+          client,
+        }),
+      ).rejects.toBeInstanceOf(MfaFactorUnavailableError);
+      expect(otpService.verify).not.toHaveBeenCalled();
+    });
+
+    it("does not honour an email proof issued before the rule applied", async () => {
+      const { service, cache } = createService({
+        securityContext: totpContext(),
+      });
+
+      // Same security version as the account's, so only the factor check can
+      // refuse it.
+      await service.recordLoginProof({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        factor: "email",
+      });
+
+      await expect(
+        service.assertRecentVerification({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_DEVICE_LOGIN_SCOPE,
+        }),
+      ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
+      expect(cache.service.delete).toHaveBeenCalledWith(
+        "auth:mfa-proof:session-1:device-login",
+      );
+    });
+
+    it("offers the authenticator when the email is unverified", async () => {
+      const context = totpContext();
+      const { service } = createService({
+        securityContext: { ...context, emailVerified: false },
+      });
+
+      await expect(
+        service.getOptions({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+        }),
+      ).resolves.toMatchObject({
+        availableFactors: ["totp"],
+        recommendedFactor: "totp",
+      });
     });
   });
 

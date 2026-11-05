@@ -30,10 +30,14 @@ export const authPersonalAccessTokensRegistrationModule: ContainerRegistrationMo
       container.register({
         token: containerTokens.personalAccessTokenController,
         lifetime: "scoped",
-        dependencies: [containerTokens.personalAccessTokenService],
+        dependencies: [
+          containerTokens.personalAccessTokenService,
+          containerTokens.mfaVerificationService,
+        ],
         resolve: ({ resolve }) =>
           new PersonalAccessTokenController(
             resolve(containerTokens.personalAccessTokenService),
+            resolve(containerTokens.mfaVerificationService),
           ),
       });
     },

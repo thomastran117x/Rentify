@@ -648,12 +648,127 @@ describe("LoginForm", () => {
     loginMock.mockResolvedValue(
       loginSession({ known: false, knownByIp: true }),
     );
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: true,
+      verifiedUntil: "2026-11-04T12:00:00.000Z",
+      availableFactors: ["totp"],
+      recommendedFactor: "totp",
+    });
     render(<LoginForm nextPath="/dashboard" />);
     await user.type(screen.getByLabelText("Username"), "person");
     await user.type(screen.getByLabelText("Password"), "secret-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+    expect(getOptionsMock).toHaveBeenCalledWith("device-login");
+  });
+
+  it("leaves an IP-known device unregistered and unprompted without a proof", async () => {
+    const user = userEvent.setup();
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession: vi.fn(),
+      clearSession: vi.fn(),
+    });
+    useAuthCaptchaTokenMock.mockReturnValue([
+      "captcha-token",
+      vi.fn(),
+      clearCaptchaTokenMock,
+    ]);
+    loginMock.mockResolvedValue(
+      loginSession({ known: false, knownByIp: true }),
+    );
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(getOptionsMock).toHaveBeenCalled());
+    await waitFor(() => expect(loginMock).toHaveBeenCalled());
+    expect(verifyDeviceMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Cancel device MFA" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not try to register a device when no factor could prove it", async () => {
+    const user = userEvent.setup();
+    loginMock.mockResolvedValue(
+      loginSession({ known: false, knownByIp: false }),
+    );
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: [],
+      recommendedFactor: null,
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+    await user.type(screen.getByLabelText("Username"), "person");
+    await user.type(screen.getByLabelText("Password"), "secret-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(getOptionsMock).toHaveBeenCalled());
+    await waitFor(() => expect(loginMock).toHaveBeenCalled());
+    expect(verifyDeviceMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Cancel device MFA" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gives a returning OAuth sign-in from a new device the same check", async () => {
+    const user = userEvent.setup();
+    oauthSuccessSessionMock.mockReturnValue(
+      loginSession({ known: false, knownByIp: false }),
+    );
+    getOptionsMock.mockResolvedValue({
+      scope: "device-login",
+      verified: false,
+      verifiedUntil: null,
+      availableFactors: ["email"],
+      recommendedFactor: "email",
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Verify device MFA" }),
+    );
+
+    await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+    expect(getOptionsMock).toHaveBeenCalledWith("device-login");
+  });
+
+  it("does not check the device of an account the OAuth sign-in just created", async () => {
+    const user = userEvent.setup();
+    const setSession = vi.fn();
+    useAuthMock.mockReturnValue({
+      status: "anonymous",
+      setSession,
+      clearSession: vi.fn(),
+    });
+    oauthSuccessSessionMock.mockReturnValue({
+      ...loginSession({ known: false, knownByIp: false }),
+      isNewUser: true,
+    });
+    render(<LoginForm nextPath="/dashboard" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Trigger OAuth success" }),
+    );
+
+    await waitFor(() => expect(setSession).toHaveBeenCalled());
     expect(getOptionsMock).not.toHaveBeenCalled();
+    expect(verifyDeviceMock).not.toHaveBeenCalled();
   });
 
   it("continues login when MFA option discovery fails", async () => {
@@ -1312,6 +1427,13 @@ describe("LoginForm", () => {
       completeLoginMfaMock.mockResolvedValue(
         loginSession({ known: false, knownByIp: false }),
       );
+      getOptionsMock.mockResolvedValue({
+        scope: "device-login",
+        verified: true,
+        verifiedUntil: "2026-11-04T12:00:00.000Z",
+        availableFactors: ["totp"],
+        recommendedFactor: "totp",
+      });
 
       render(<LoginForm nextPath="/dashboard" />);
 
@@ -1334,9 +1456,10 @@ describe("LoginForm", () => {
       await waitFor(() => {
         expect(setSession).toHaveBeenCalled();
       });
-      // OAuth sign-ins register the device without the device-login check.
-      expect(getOptionsMock).not.toHaveBeenCalled();
-      expect(verifyDeviceMock).toHaveBeenCalled();
+      // The code that finished the sign-in is the device-login proof, so the
+      // device registers with no second prompt.
+      await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+      expect(getOptionsMock).toHaveBeenCalledWith("device-login");
     });
   });
 });

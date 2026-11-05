@@ -177,6 +177,59 @@ Each revoked session writes `session.revoked` with `metadata.scope` `one`,
 `others`, or `all`. A sign-out-everywhere operation also writes `pat.revoked`
 for each PAT it changes. Reading the list is not recorded as a revocation.
 
+## Step-Up Verification
+
+A step-up is a fresh second-factor check on a session that is already signed in. It proves the person at the keyboard still controls a factor, not just the session. A proof lasts 15 minutes, belongs to one session and one scope, and stops counting when the account's email, token version or authenticator changes.
+
+### What Needs One
+
+These all need a recent proof, and return `401 MFA_VERIFICATION_REQUIRED` without one:
+
+- changing or setting a password, and changing the email address
+- listing and removing devices, and listing and ending sessions
+- managing the authenticator app
+- signing a session out with **This wasn't me**, and reading `/auth/audit/me`
+- creating and revoking personal access tokens (listing them does not need one)
+- linking and unlinking a Google, Microsoft or Apple sign-in
+- `POST /auth/device/verify`
+- changing an organization member's role and removing a member, whatever the role, since a proof lasts 15 minutes and a run of changes prompts only once
+
+Personal access tokens can't complete a step-up, and none of these routes accept one.
+
+Clients run the action, and on that error open [mfa-verification-dialog.tsx](../frontend/src/components/auth/mfa-verification-dialog.tsx) and retry. The panels share this through [use-mfa-step-up.tsx](../frontend/src/components/auth/use-mfa-step-up.tsx). A dismissed dialog changes nothing.
+
+Starting a provider link (`POST /auth/oauth/{provider}/start`) needs no proof: it links nothing, and the provider popup has to open straight from the click. The link callback checks for a proof before it spends the state, so a client told to verify sends the same request again.
+
+### Marking a Device Known
+
+`POST /auth/device/verify` stops new-device alerts for a device and keeps it out of detection rule (c), so a stolen password or session must not be enough to call it. It accepts a recent proof from either scope: `device-login` from the sign-in check below, or `mfa-management` from anywhere else.
+
+| Sign-in                                               | Check                                                                                     |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Unknown device on an unknown IP, password or provider | A code from the account's factor, then the device registers. Cancelling ends the sign-in. |
+| Finished with an authenticator code                   | The code counts as the `device-login` proof, so there is no second prompt.                |
+| Unknown device on a known IP                          | No prompt. It stays unregistered unless the session already has a proof.                  |
+| A provider sign-in that just created the account      | No prompt, and it stays unregistered. The check runs on the next sign-in.                 |
+| No factor available                                   | No prompt, and it stays unregistered.                                                     |
+
+A device left unregistered still works. The next sign-in from it on a new IP gets the usual new-device alert and check.
+
+### Which Factors Count
+
+An account can only step up with its strongest factors:
+
+| Account                          | Accepted factor | Refused                             |
+| -------------------------------- | --------------- | ----------------------------------- |
+| Active authenticator app         | TOTP            | Email: `400 MFA_FACTOR_UNAVAILABLE` |
+| Verified email, no authenticator | Email           |                                     |
+| Neither                          | None            | Everything; the dialog says so      |
+
+The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Passkeys (#465) and recovery codes (#464) will join the stronger factors when they land.
+
+Disabling the authenticator app signs out every other session on the account, and each one writes `session.revoked` alongside the `mfa.totp_disabled` event. The session that disabled it stays signed in. Personal access tokens are unaffected.
+
+**A lost authenticator can't be removed with email.** Sign-in already needs the code, and until recovery codes ship, a signed-in session can't step up without it either, so that account needs support.
+
 ## Investigating Sign-in Activity
 
 Administrators read every account's events through two endpoints, served by `AuthAuditAdminController` and `AuthAuditAdminService` and documented in the OpenAPI spec as `listAdminAuthAuditEvents` and `getAdminUserSecuritySummary`.

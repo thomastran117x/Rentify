@@ -1562,6 +1562,24 @@ function errorResponse(
   };
 }
 
+const unauthenticatedExample = {
+  summary: "The bearer token is missing or invalid.",
+  message: "Authorization header is required.",
+  code: "UNAUTHORIZED",
+};
+
+const mfaVerificationRequiredExample = {
+  summary: "Verify with a second factor, then retry.",
+  message: "Recent MFA verification is required.",
+  code: "MFA_VERIFICATION_REQUIRED",
+  details: {
+    scope: "mfa-management",
+    availableFactors: ["email"],
+    recommendedFactor: "email",
+    verifiedUntil: null,
+  },
+};
+
 /**
  * One error status with several named examples, for a status a single
  * operation can return for more than one reason.
@@ -1708,6 +1726,17 @@ function signInUnauthorizedResponse(
       },
     },
   };
+}
+
+/** The 401 of an operation behind a step-up. */
+function stepUpRequiredResponse(): Record<string, unknown> {
+  return errorResponseExamples(
+    "Not signed in, or the session needs a recent MFA step-up.",
+    {
+      unauthenticated: unauthenticatedExample,
+      mfaVerificationRequired: mfaVerificationRequiredExample,
+    },
+  );
 }
 
 function commonErrors(
@@ -3020,7 +3049,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "linkOauthProvider",
       summary: "Link an OAuth provider to the current account",
       description:
-        "Links the selected OAuth provider to the currently signed-in local account. The state must come from POST /auth/oauth/{provider}/start with intent link, started by this same account on this device; a sign-in state, or one started by another account, is rejected with 401 OAUTH_STATE_INVALID.",
+        "Links the selected OAuth provider to the currently signed-in local account. The state must come from POST /auth/oauth/{provider}/start with intent link, started by this same account on this device; a sign-in state, or one started by another account, is rejected with 401 OAUTH_STATE_INVALID. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise). The step-up is checked before the state is spent, so the same request can be sent again after verifying.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3044,13 +3073,10 @@ function buildOperations(): OperationDefinition[] {
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
         "401": errorResponseExamples(
-          "The bearer token is missing or invalid, or the link state was rejected.",
+          "Not signed in, the session needs a recent MFA step-up, or the link state was rejected.",
           {
-            unauthenticated: {
-              summary: "The bearer token is missing or invalid.",
-              message: "Authorization header is required.",
-              code: "UNAUTHORIZED",
-            },
+            unauthenticated: unauthenticatedExample,
+            mfaVerificationRequired: mfaVerificationRequiredExample,
             oauthStateInvalid: oauthStateInvalidExample,
           },
         ),
@@ -3062,7 +3088,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "unlinkOauthProvider",
       summary: "Unlink an OAuth provider from the current account",
       description:
-        "Unlinks the selected OAuth provider from the currently signed-in account.",
+        "Unlinks the selected OAuth provider from the currently signed-in account. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3081,6 +3107,7 @@ function buildOperations(): OperationDefinition[] {
           linkedProvidersExample,
         ),
         ...commonErrors([401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -3089,7 +3116,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "verifyDevice",
       summary: "Verify the current device",
       description:
-        "Marks the current device as verified for the signed-in session.",
+        "Marks the current device as verified for the signed-in session, which stops new-device alerts for it. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3106,6 +3133,7 @@ function buildOperations(): OperationDefinition[] {
           actionOkExample,
         ),
         ...commonErrors([401, 403, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -3377,17 +3405,7 @@ function buildOperations(): OperationDefinition[] {
               message: "Authorization header is required.",
               code: "UNAUTHORIZED",
             },
-            mfaVerificationRequired: {
-              summary: "Verify with a second factor, then retry.",
-              message: "Recent MFA verification is required.",
-              code: "MFA_VERIFICATION_REQUIRED",
-              details: {
-                scope: "mfa-management",
-                availableFactors: ["email"],
-                recommendedFactor: "email",
-                verifiedUntil: null,
-              },
-            },
+            mfaVerificationRequired: mfaVerificationRequiredExample,
           },
         ),
         "409": errorResponseExamples(
@@ -3436,7 +3454,7 @@ function buildOperations(): OperationDefinition[] {
             scope: "mfa-management",
             verified: false,
             verifiedUntil: null,
-            availableFactors: ["email", "totp"],
+            availableFactors: ["totp"],
             recommendedFactor: "totp",
           },
         ),
@@ -3637,7 +3655,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "disableMfaTotp",
       summary: "Disable authenticator (TOTP)",
       description:
-        "Disables the authenticator app for the signed-in user. Requires a recent MFA step-up verification for the management scope.",
+        "Disables the authenticator app for the signed-in user and signs out every other session. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3649,7 +3667,7 @@ function buildOperations(): OperationDefinition[] {
       responses: {
         "200": successResponse(
           200,
-          "Authenticator app disabled.",
+          "Authenticator app disabled. Other sessions were signed out.",
           "MfaTotpDisableResult",
           { disabled: true },
         ),
@@ -3712,7 +3730,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "createPersonalAccessToken",
       summary: "Create a personal access token",
       description:
-        "Creates a new PAT for MCP or API usage and returns the token secret exactly once.",
+        "Creates a new PAT for MCP or API usage and returns the token secret exactly once. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["personal-access-tokens"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3733,6 +3751,7 @@ function buildOperations(): OperationDefinition[] {
           personalAccessTokenCreateExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -3741,7 +3760,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "revokePersonalAccessToken",
       summary: "Revoke a personal access token",
       description:
-        "Revokes one of the current signed-in user's personal access tokens.",
+        "Revokes one of the current signed-in user's personal access tokens. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["personal-access-tokens"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3763,6 +3782,7 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -4174,7 +4194,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "updateOrganizationMember",
       summary: "Update an organization member role",
       description:
-        "Changes the role of an existing organization member within the v1 role restrictions.",
+        "Changes the role of an existing organization member within the v1 role restrictions. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["organizations"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4206,6 +4226,7 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -4214,7 +4235,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "removeOrganizationMember",
       summary: "Remove an organization member",
       description:
-        "Removes an organization membership when the caller has permission to manage that member role.",
+        "Removes an organization membership when the caller has permission to manage that member role. Requires a recent MFA step-up for the `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).",
       tags: ["organizations"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4241,6 +4262,7 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 401, 403, 404, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {

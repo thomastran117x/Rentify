@@ -1,12 +1,17 @@
 import type { Request, Response } from "express";
-import { requireJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { parseRequestBody } from "@/configuration/validation/request";
 import { ok } from "@/configuration/http/responses";
 import { toRemoveKnownDeviceInput } from "@/features/auth/auth.request-mappers";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { removeKnownDeviceRequestSchema } from "@/features/auth/device/device-management.model";
-import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
-import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
+import {
+  MFA_DEVICE_LOGIN_SCOPE,
+  MFA_MANAGEMENT_SCOPE,
+} from "@/features/auth/mfa/verification/mfa-verification.model";
+import {
+  requireRecentMfaVerification,
+  requireRecentMfaVerificationForAnyScope,
+} from "@/features/auth/mfa/verification/mfa-verification.guard";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class DeviceManagementController {
@@ -15,11 +20,20 @@ export class DeviceManagementController {
     private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
+  /**
+   * Trusting a device silences its new-device alerts, so a stolen session or
+   * password must not be enough. Sign-in reaches this with the `device-login`
+   * proof from its new-device check; anything later needs `mfa-management`.
+   */
   deviceVerify = async (
     request: Request,
     response: Response,
   ): Promise<void> => {
-    await requireJwtAuth(request);
+    await requireRecentMfaVerificationForAnyScope(
+      request,
+      this.mfaVerificationService,
+      [MFA_DEVICE_LOGIN_SCOPE, MFA_MANAGEMENT_SCOPE],
+    );
     const result = await this.deviceManagementService.deviceVerify({
       auth: request.auth,
       client: request.client,

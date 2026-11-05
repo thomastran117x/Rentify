@@ -34,10 +34,14 @@ export const organizationsMembersRegistrationModule: ContainerRegistrationModule
       container.register({
         token: containerTokens.organizationMembersController,
         lifetime: "scoped",
-        dependencies: [containerTokens.organizationMembersService],
+        dependencies: [
+          containerTokens.organizationMembersService,
+          containerTokens.mfaVerificationService,
+        ],
         resolve: ({ resolve }) =>
           new OrganizationMembersController(
             resolve(containerTokens.organizationMembersService),
+            resolve(containerTokens.mfaVerificationService),
           ),
       });
     },

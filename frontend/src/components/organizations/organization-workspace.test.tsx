@@ -122,6 +122,19 @@ vi.mock("@/components/errors", () => ({
   }),
 }));
 
+vi.mock("@/lib/auth/mfa-verification-api", () => ({
+  mfaVerificationApi: {
+    getOptions: vi.fn(),
+    issueChallenge: vi.fn(),
+    confirmChallenge: vi.fn().mockResolvedValue({
+      verified: true,
+      scope: "mfa-management",
+      factor: "totp",
+      verifiedUntil: "2026-11-04T12:00:00.000Z",
+    }),
+  },
+}));
+
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
     refresh: refreshMock,
@@ -559,6 +572,80 @@ describe("Organization workspace", () => {
     await waitFor(() =>
       expect(removeMemberMock).toHaveBeenCalledWith("org-1", "membership-2"),
     );
+  });
+
+  describe("when the session needs a step-up", () => {
+    const stepUpRequired = () =>
+      new ApiClientError("Recent MFA verification is required.", {
+        status: 401,
+        code: "MFA_VERIFICATION_REQUIRED",
+        details: {
+          scope: "mfa-management",
+          availableFactors: ["totp"],
+          recommendedFactor: "totp",
+          verifiedUntil: null,
+        },
+        request: {
+          method: "DELETE",
+          path: "/organizations/org-1/members/membership-2",
+          requestUrl:
+            "https://api.test/api/v1/organizations/org-1/members/membership-2",
+        },
+      });
+
+    async function verify(user: ReturnType<typeof userEvent.setup>) {
+      await user.type(await screen.findByPlaceholderText("000000"), "123456");
+      await user.click(screen.getByRole("button", { name: "Verify" }));
+    }
+
+    it("changes the member's role after the dialog succeeds", async () => {
+      const user = userEvent.setup();
+      updateMemberRoleMock.mockRejectedValueOnce(stepUpRequired());
+      renderInWorkspace(<TeamPanel />);
+
+      await user.selectOptions(
+        await screen.findByLabelText("Role for ops-two"),
+        "manager",
+      );
+      await verify(user);
+
+      await waitFor(() =>
+        expect(updateMemberRoleMock).toHaveBeenCalledTimes(2),
+      );
+      expect(updateMemberRoleMock).toHaveBeenLastCalledWith(
+        "org-1",
+        "membership-2",
+        "manager",
+      );
+    });
+
+    it("removes the member after the dialog succeeds", async () => {
+      const user = userEvent.setup();
+      removeMemberMock.mockRejectedValueOnce(stepUpRequired());
+      renderInWorkspace(<TeamPanel />);
+
+      await screen.findByLabelText("Role for ops-two");
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      await verify(user);
+
+      await waitFor(() => expect(removeMemberMock).toHaveBeenCalledTimes(2));
+    });
+
+    it("changes nothing and shows no error when dismissed", async () => {
+      const user = userEvent.setup();
+      removeMemberMock.mockRejectedValueOnce(stepUpRequired());
+      renderInWorkspace(<TeamPanel />);
+
+      await screen.findByLabelText("Role for ops-two");
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(removeMemberMock).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Couldn't remove member")).toBeNull();
+    });
   });
 
   it("publishes a posting from the Postings panel", async () => {

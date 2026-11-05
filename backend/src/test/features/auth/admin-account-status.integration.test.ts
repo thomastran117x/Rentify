@@ -11,6 +11,7 @@ import {
   type AuthenticatedRequestContext,
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
+import { completeEmailStepUp } from "../../support/mfa-step-up";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
 
 const ORIGIN = "http://localhost:3040";
@@ -342,6 +343,10 @@ describe("Admin account status (POST /admin/users/:id/lock|suspend|reinstate) in
     });
 
     it("rejects an admin's personal access token", async () => {
+      await completeEmailStepUp(
+        persistenceApp.app,
+        admin.headers({ origin: ORIGIN }),
+      );
       const created = await request("/auth/personal-access-tokens", {
         method: "POST",
         headers: admin.headers({ origin: ORIGIN }),

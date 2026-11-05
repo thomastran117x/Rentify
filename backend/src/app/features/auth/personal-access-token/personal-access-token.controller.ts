@@ -12,10 +12,14 @@ import { PersonalAccessTokenService } from "./personal-access-token.service";
 import { asUuid } from "@/configuration/validation/uuid";
 import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
+import { MFA_MANAGEMENT_SCOPE } from "@/features/auth/mfa/verification/mfa-verification.model";
+import { requireRecentMfaVerification } from "@/features/auth/mfa/verification/mfa-verification.guard";
+import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 
 export class PersonalAccessTokenController {
   constructor(
     private readonly personalAccessTokenService: PersonalAccessTokenService,
+    private readonly mfaVerificationService: MfaVerificationService,
   ) {}
 
   list = async (request: Request, response: Response): Promise<void> => {
@@ -25,7 +29,11 @@ export class PersonalAccessTokenController {
   };
 
   create = async (request: Request, response: Response): Promise<void> => {
-    const auth = await requireSessionAuth(request);
+    const auth = await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const input = await parseRequestBody(
       request,
       createPersonalAccessTokenRequestSchema,
@@ -39,7 +47,11 @@ export class PersonalAccessTokenController {
   };
 
   revoke = async (request: Request, response: Response): Promise<void> => {
-    const auth = await requireSessionAuth(request);
+    const auth = await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
     const result = await this.personalAccessTokenService.revoke({
       userId: asUuid(auth.sub),
       tokenId: requireUuidRouteParam(request, "id"),

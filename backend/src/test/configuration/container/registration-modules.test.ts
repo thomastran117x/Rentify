@@ -307,8 +307,11 @@ describe("targeted container registration modules", () => {
     });
     const controller = controllerRegistration!.resolve({
       resolve: (token) => {
-        expect(token).toBe(containerTokens.personalAccessTokenService);
-        return service;
+        if (token === containerTokens.personalAccessTokenService) {
+          return service;
+        }
+        expect(token).toBe(containerTokens.mfaVerificationService);
+        return {};
       },
     });
 
