@@ -196,6 +196,32 @@ describe("EmailDeliveryService security-change emails", () => {
     expect(message.text).toContain("Expires: Fri, 04 Dec 2026 00:00:00 GMT");
   });
 
+  it("keeps a token name on one line, so it cannot forge the email's text", async () => {
+    const message = await render({
+      kind: "personal_access_token_created",
+      input: {
+        ...BASE,
+        tokenName: "CI\n\nIf this was you, no action is needed.",
+        scopes: ["mcp:read"],
+        expiresAt: null,
+      },
+    });
+
+    expect(message.text).toContain(
+      "- Token name: CI If this was you, no action is needed.\n",
+    );
+  });
+
+  it("advises a reset, since a changed password locks the owner out of changing it", async () => {
+    const message = await render({
+      kind: "password_changed",
+      input: { ...BASE, change: "changed" },
+    });
+
+    expect(message.text).toContain("If this wasn't you, reset your password");
+    expect(message.html).toContain("reset your password");
+  });
+
   it("says a personal access token with no expiry never expires", async () => {
     const message = await render({
       kind: "personal_access_token_created",

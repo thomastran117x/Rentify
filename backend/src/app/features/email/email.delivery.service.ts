@@ -512,7 +512,7 @@ export class EmailDeliveryService {
         ...details.map((detail) => `- ${detail}`),
         "",
         "If this was you, no action is needed.",
-        "If this wasn't you, change your password and review your devices and personal access tokens immediately.",
+        "If this wasn't you, reset your password and review your devices and personal access tokens immediately.",
         ...(revertUrl
           ? [
               "",
@@ -543,7 +543,7 @@ export class EmailDeliveryService {
               ].join("")
             : "",
           this.buildAlertBox(
-            `If this wasn&rsquo;t you, <strong>change your password and review your devices and personal access tokens immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${this.buildSelfLockLinkHtml(selfLockUrl)}`,
+            `If this wasn&rsquo;t you, <strong>reset your password and review your devices and personal access tokens immediately</strong>. <a href="${securityUrl}" style="color:#9f1239;font-weight:600;">Go to account security &rarr;</a>${this.buildSelfLockLinkHtml(selfLockUrl)}`,
             "warning",
           ),
         ].join(""),

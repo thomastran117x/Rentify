@@ -74,7 +74,9 @@ export function composeSecurityChangeEmail(
         summary:
           "A personal access token was just created on your Rentify account. It can act on the account without signing in.",
         details: [
-          `Token name: ${job.input.tokenName}`,
+          // Whoever created the token chose this name, and validation allows a
+          // line break, which could otherwise forge lines of this email.
+          `Token name: ${job.input.tokenName.replace(/\s+/g, " ")}`,
           `Scopes: ${job.input.scopes.join(", ")}`,
           `Expires: ${job.input.expiresAt ? formatTime(job.input.expiresAt) : "never"}`,
         ],
