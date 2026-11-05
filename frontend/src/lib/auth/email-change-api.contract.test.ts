@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emailChangeApi } from "./email-change-api";
 
-const { authenticatedMock } = vi.hoisted(() => ({
+const { authenticatedMock, publicJsonMock } = vi.hoisted(() => ({
   authenticatedMock: vi.fn(),
+  publicJsonMock: vi.fn(),
+}));
+
+vi.mock("@/lib/api/client", () => ({
+  publicJson: publicJsonMock,
 }));
 
 vi.mock("@/lib/auth/api", () => ({
@@ -33,6 +38,17 @@ describe("Email change API client", () => {
       "/auth/email/change/resend",
       {},
     );
+  });
+
+  it("posts the emailed token to the public revert endpoint, without a session", () => {
+    emailChangeApi.revertWithToken("revert-token");
+
+    expect(publicJsonMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/email/change/revert",
+      { token: "revert-token" },
+    );
+    expect(authenticatedMock).not.toHaveBeenCalled();
   });
 
   it("posts only the code to confirm", () => {
