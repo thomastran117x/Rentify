@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
-import type { Uuid } from "@/configuration/validation/uuid";
+import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import EmailChangeAddressUnavailableError from "@/errors/http/email-change-address-unavailable.error";
 import EmailChangeNotPendingError from "@/errors/http/email-change-not-pending.error";
@@ -19,6 +19,7 @@ import type { EmailService } from "@/features/email/email.service";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import { EMAIL_CHANGE_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { redactEmail } from "@/features/auth/redact-email";
+import type { EmailChangeRevertService } from "@/features/auth/email-change/email-change-revert.service";
 import type { EmailChangeStore } from "@/features/auth/email-change/email-change.store";
 import type {
   ConfirmEmailChangeInput,
@@ -28,6 +29,7 @@ import type {
   ResendEmailChangeCodeInput,
 } from "@/features/auth/email-change/email-change.model";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 
 /**
  * Moving an account to a new email address.
@@ -60,6 +62,8 @@ export class EmailChangeService {
     private readonly authSessionService: AuthSessionService,
     private readonly emailBloomService: IdentityBloomService,
     private readonly authAuditService: AuthAuditService,
+    private readonly securityNotificationService: SecurityNotificationService,
+    private readonly emailChangeRevertService: EmailChangeRevertService,
   ) {
     this.logger = loggerFactory.forClass(EmailChangeService, "service");
   }
@@ -310,6 +314,29 @@ export class EmailChangeService {
         previousEmail: confirmed.currentEmail,
       });
 
+      // Told before the new session is issued, so a failure there cannot leave
+      // the address moved with its old owner never hearing about it. The
+      // address being left is checked rather than the one just proven.
+      const eventId = newUuid();
+      const emailNotification = await this.securityNotificationService.notify({
+        kind: "email_changed",
+        details: { newEmail: redactEmail(confirmed.newEmail) },
+        userId: input.userId,
+        eventId,
+        context: input.audit,
+        recipient: {
+          email: confirmed.currentEmail,
+          emailVerified: user.emailVerified,
+        },
+        issueRevertToken: () =>
+          this.emailChangeRevertService.issue({
+            userId: input.userId,
+            oldEmail: confirmed.currentEmail,
+            newEmail: confirmed.newEmail,
+            sourceEventId: eventId,
+          }),
+      });
+
       const updatedUser: AuthUserRecord = {
         ...user,
         email: confirmed.newEmail,
@@ -324,6 +351,7 @@ export class EmailChangeService {
         input.audit,
       );
       await this.authAuditService.recordSafely({
+        id: eventId,
         eventType: "email.changed",
         outcome: "success",
         userId: input.userId,
@@ -332,6 +360,7 @@ export class EmailChangeService {
         metadata: {
           oldEmailMasked: redactEmail(confirmed.currentEmail),
           newEmailMasked: redactEmail(confirmed.newEmail),
+          emailNotification,
         },
       });
       return session;

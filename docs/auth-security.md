@@ -38,12 +38,13 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 | `password.changed`               | `success`            |                                       | A local password was replaced using the current password. Carries method `password` and the replacement session.                                                                              |
 | `password.reset`                 | `success`            |                                       | Password recovery completed. Also carries the normalized username HMAC.                                                                                                                       |
 | `password.set`                   | `success`            |                                       | A social-only account added its first local password.                                                                                                                                         |
-| `email.changed`                  | `success`            |                                       | Email change completed. Metadata contains only `oldEmailMasked` and `newEmailMasked`.                                                                                                         |
+| `email.changed`                  | `success`            |                                       | Email change completed. Metadata contains only `oldEmailMasked`, `newEmailMasked` and `emailNotification`. Its id is the revert link's `sourceEventId`.                                       |
+| `email.change_reverted`          | `success`            |                                       | An [emailed revert link](#undoing-an-email-change) restored the old address. Metadata contains only `oldEmailMasked`, `newEmailMasked` and `sourceEventId`.                                   |
 | `mfa.totp_enabled`               | `success`            |                                       | A pending TOTP factor was activated.                                                                                                                                                          |
 | `mfa.totp_disabled`              | `success`            |                                       | An active TOTP factor was removed; pending/missing factors do not emit it.                                                                                                                    |
 | `mfa.step_up_failed`             | `failure`            | `mfa_invalid` or blank                | A confirm code was invalid, or challenge delivery failed. Metadata contains only stage, scope, factor and result.                                                                             |
 | `mfa.step_up_locked`             | `blocked`            | `rate_limited`                        | Challenge/confirm windows, OTP cooldown, repeated-code lock, and attempts during that lock.                                                                                                   |
-| `pat.created`                    | `success`            |                                       | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ... }`, never the token.                                                                                 |
+| `pat.created`                    | `success`            |                                       | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ..., "emailNotification": ... }`, never the token.                                                       |
 | `pat.revoked`                    | `success`            |                                       | A personal access token changed from active to revoked. Repeated revoke calls write no event.                                                                                                 |
 | `rate_limit.exceeded`            | `blocked`            | `rate_limited`                        | A Redis-backed `auth-sensitive` or `auth-refresh` policy returned 429. See dedupe rules below.                                                                                                |
 | `admin.audit_viewed`             | `success`            |                                       | An administrator read the audit log. `user_id` is null, `actor_user_id` is the reader and `metadata` holds the filters used.                                                                  |
@@ -107,11 +108,11 @@ Field details:
 - `current` is true when the event's session is the caller's current session.
 - `deviceKnown` is true when the event's device ID matches one of the user's currently registered devices, false when it does not, and null when the event recorded no device or an administrator acted. It reflects today's device list, so removing a device turns its past events false. Whether a device was new when an event happened is recorded separately as `device.new_detected`, which appears in the list as "New device detected".
 
-| Category           | Event types                                                                                                                                                                    |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sign_in`          | `login.*`, `oauth.login.succeeded`, `oauth.login.failed`, `oauth.signup.completed`, `mfa.step_up_failed`, `mfa.step_up_locked`, `rate_limit.exceeded`                          |
-| `security_changes` | `password.changed`, `password.reset`, `password.set`, `email.changed`, `mfa.totp_enabled`, `mfa.totp_disabled`, `oauth.linked`, `oauth.unlinked`, `pat.created`, `pat.revoked` |
-| `sessions`         | `logout`, `session.revoked`, `session.refresh_reuse_detected`, `device.new_detected`                                                                                           |
+| Category           | Event types                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sign_in`          | `login.*`, `oauth.login.succeeded`, `oauth.login.failed`, `oauth.signup.completed`, `mfa.step_up_failed`, `mfa.step_up_locked`, `rate_limit.exceeded`                                                   |
+| `security_changes` | `password.changed`, `password.reset`, `password.set`, `email.changed`, `email.change_reverted`, `mfa.totp_enabled`, `mfa.totp_disabled`, `oauth.linked`, `oauth.unlinked`, `pat.created`, `pat.revoked` |
+| `sessions`         | `logout`, `session.revoked`, `session.refresh_reuse_detected`, `device.new_detected`                                                                                                                    |
 
 The cursor is an opaque wrapper around the last event's ID, and paging uses Prisma's cursor. Prisma compares against that row's stored `created_at` in SQL, so the microsecond precision survives and events written in the same millisecond, such as several sessions revoked at once, are neither skipped nor repeated. A JavaScript `Date` would keep only milliseconds. Prisma locates the cursor row by ID alone, and `skip: 1` then drops whichever row comes first. So the cursor row is first checked against the caller's user ID and the request's filters. A cursor naming another user's event, one of the caller's events the current filters exclude, or one since pruned is a `400 VALIDATION_ERROR` instead of silently dropping a row. Keep the same filters while following `nextCursor`.
 
@@ -383,6 +384,69 @@ Counting, dedupe and IP blocks all live in Redis. When it is unreachable, detect
 4. **Success after failures (c) or refresh reuse (d).** These only emailed the user. If the user confirms it was them, nothing needs doing. If not, lock the account and ask them to reset their password.
 5. **Flags stay.** A flag records that detection fired. It is not cleared when the cause is resolved, and it is deleted with its row by [retention](#retention).
 
+## Security Emails
+
+An account's owner is told about every security-relevant change, because someone who takes over an account would otherwise make these changes unnoticed. They are not a preference: security emails cannot be turned off.
+
+Change emails go out through `SecurityNotificationService` ([security-notification.service.ts](../backend/src/app/features/auth/security-notification/security-notification.service.ts)):
+
+| Kind                            | Sent when                                                       | Also says                                                                 |
+| ------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `password_changed`              | A password is changed, reset or added                           | Which of the three happened                                               |
+| `mfa_enabled`                   | An authenticator app is confirmed                               |                                                                           |
+| `mfa_disabled`                  | An active authenticator app is removed                          |                                                                           |
+| `personal_access_token_created` | A personal access token is created                              | Its name, scopes and expiry                                               |
+| `login_method_linked`           | A provider is newly linked                                      | The provider                                                              |
+| `login_method_unlinked`         | A provider is actually removed                                  | The provider                                                              |
+| `email_changed`                 | An email change completes, sent to the address the account left | The redacted new address, and the [revert link](#undoing-an-email-change) |
+
+Each one states the time, a coarse device such as "Chrome on Windows" from `parseUserAgent`, and the IP address, and advises changing the password and reviewing devices and personal access tokens. An account that can reset a password also gets the "This wasn't you? Lock your account" link from [Locking Your Own Account](#locking-your-own-account), and the link's `sourceEventId` is the change's audit event. A social-only account gets no lock link, because it could not recover from the lock.
+
+Other security emails come from where the event happens: `new_device`, `suspicious_login`, `account_locked`, `account_self_locked`, `account_suspended` and `account_reinstated`, `email_change_notice` to the old address when a change is requested, and the `login_unlock`, `password_reset`, `email_change_code`, `mfa_step_up` and `verification` codes.
+
+### What Happens to Each Email
+
+An email is queued after the change has succeeded, and failing to queue one never fails the change. The change's audit event records what happened in `metadata.emailNotification`:
+
+| Value        | Meaning                                                                               |
+| ------------ | ------------------------------------------------------------------------------------- |
+| `sent`       | The email was queued.                                                                 |
+| `suppressed` | The rate limit below stopped it.                                                      |
+| `skipped`    | The address was never verified, so nothing was sent.                                  |
+| `failed`     | The email could not be queued, or the account could not be read. The error is logged. |
+
+Password and email changes queue their email before the new session is issued, so a failure there cannot leave a committed change unannounced.
+
+Each inbox gets at most 3 emails of a kind per hour, so repeated toggling cannot flood it. An allowance rather than a one-email cooldown means an attacker's change straight after the owner's own still arrives. The first email of a kind always goes out, and if Redis is down the limit is skipped rather than the email. The key is `auth:security-email:<kind>:<sha256 of the address>`, so an account moving between addresses is not limited across them.
+
+### Undoing an Email Change
+
+The `email_changed` email to the old address carries a link to `/auth/email-change/revert?token=...`, valid for 7 days. Opening it changes nothing, and it works once: the page ([page.tsx](../frontend/src/app/auth/email-change/revert/page.tsx), [email-change-revert-card.tsx](../frontend/src/components/auth/email-change-revert-card.tsx)) posts the token to the public `POST /auth/email/change/revert` only when the user clicks **Put my old email back**. The endpoint uses the `auth-sensitive` rate limit.
+
+The link lives in the `email_change_reverts` table rather than in Redis with the shorter-lived auth tokens, because for a week it can be the owner's only way back in and must survive a cache flush. Only the token's SHA-256 hash is stored. The link is issued only for an email that goes out, and if it cannot be stored the email goes out without it.
+
+Using the link restores the old address and bumps the token version, ending every session. What else happens depends on the account:
+
+| Account        | Result                                                                                                                                                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Has a password | The address and a [security hold](#account-status) are written together, so personal access tokens stop too. `nextStep` is `reset_password`, and the code goes to the restored address. The user gets `account_self_locked` there, unless the account was already locked. |
+| Social-only    | No hold, since only an admin could lift it. `nextStep` is `sign_in`. Personal access tokens keep working, so the owner should review them.                                                                                                                                |
+| Suspended      | The suspension stays, and is never downgraded to a hold. `nextStep` is `sign_in`.                                                                                                                                                                                         |
+
+It records `email.change_reverted`, and a hold also records `account.locked` with `metadata.channel` `email_revert`.
+
+| Situation                                                     | Result                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| An unknown, expired or already used token                     | `410 GONE`, "This link has expired or was already used."; nothing changes. |
+| The account's email has changed again since the link was sent | The same `410`. The link stays spent.                                      |
+| The address was taken regardless                              | `409`. The link can be retried.                                            |
+| An email change is being confirmed at that moment             | `409`. The link can be retried.                                            |
+| An unexpected failure, such as a database outage              | The error is returned, and the link can be retried.                        |
+
+An account has one open link at most: a newer email change retires the older link, so an address the account left is never restored over a newer decision. Because that newer link restores only the address before it, an attacker who changes the email twice defeats the first link. The lock link in that first email still works for 24 hours.
+
+While its link is open, the old address stays reserved. `EmailAvailabilityService.isEmailAvailable` reports it as `taken`, signup answers as it does for a taken address and sends no code, and provider sign-in refuses it with the usual conflict. The account itself may still move back. The unique index on `users.email` is the final word, which is the `409` above.
+
 ## Account Status
 
 `users.status` is the durable state of an account, separate from the 30-minute password lockout above. Every account starts `active`.
@@ -426,7 +490,7 @@ On the sign-in page, a security hold reads "This account is on a security hold t
 
 A user who sees activity they don't recognise can put their own account on a security hold. `SelfLockService` does it through `AccountStatusService.lock` with `source: "user"`, no actor and the reason `Reported by user`, so it ends every session and personal access token exactly like an admin's hold. There are two ways in:
 
-- **An emailed link.** Every [new-device alert](#what-is-recorded), and every [`suspicious_login` alert](#the-suspicious_login-email), to an account that can reset its password carries "This wasn't you? Lock your account", linking to `/auth/self-lock?token=...`. `DeviceService` picks the `device.new_detected` event's id before sending, so the token can name it; if Redis cannot store the token, the alert goes out without the link. The page posts the token to `POST /auth/account/self-lock` with `{ "token": "..." }`, which is public: the real user may already have been signed out. The token is 32 random bytes, valid for 24 hours, and stored in Redis only as `auth:self-lock:<sha256 of the token>`, mapping to `{ userId, sourceEventId }`. Redeeming it first claims it: a Lua script reads the key and renames it to `auth:self-lock:claimed:<hash>` in one step, keeping its expiry, so a link used twice, or by two racing requests, is acted on at most once. Once the lock is written, or there was nothing to change, the claimed key is deleted. If anything else fails, such as a database outage, the key is renamed back so the same link still works on retry. The event records `metadata.channel` `email_link` and the `sourceEventId` of the event whose email carried the link.
+- **An emailed link.** Every [new-device alert](#what-is-recorded), every [`suspicious_login` alert](#the-suspicious_login-email), and every [email about a change](#security-emails), to an account that can reset its password carries "This wasn't you? Lock your account", linking to `/auth/self-lock?token=...`. `DeviceService` picks the `device.new_detected` event's id before sending, so the token can name it; if Redis cannot store the token, the alert goes out without the link. The page posts the token to `POST /auth/account/self-lock` with `{ "token": "..." }`, which is public: the real user may already have been signed out. The token is 32 random bytes, valid for 24 hours, and stored in Redis only as `auth:self-lock:<sha256 of the token>`, mapping to `{ userId, sourceEventId }`. Redeeming it first claims it: a Lua script reads the key and renames it to `auth:self-lock:claimed:<hash>` in one step, keeping its expiry, so a link used twice, or by two racing requests, is acted on at most once. Once the lock is written, or there was nothing to change, the claimed key is deleted. If anything else fails, such as a database outage, the key is renamed back so the same link still works on retry. The event records `metadata.channel` `email_link` and the `sourceEventId` of the event whose email carried the link.
 - **A signed-in session.** **This wasn't me** on the account page's [security activity](#on-the-account-page) calls `POST /auth/account/self-lock/session`, which needs the same recent `mfa-management` step-up as the Security tab, records `metadata.channel` `session`, and clears the browser's refresh and CSRF cookies.
 
 Both use the `auth-sensitive` rate limit.
@@ -483,6 +547,8 @@ Rows are kept for `authAudit.retentionDays` (`AUTH_AUDIT_RETENTION_DAYS`), 180 d
 Why: each row can carry an IP address and a user agent, which are personal data. They are kept only as long as investigating credential stuffing, account takeover and support questions about past sign-ins needs them. The identifier hash and user ID only matter alongside the rest of the row, so they go with it. Nothing is archived; a deleted row is gone.
 
 The `auth-audit-prune-worker` deletes rows whose `created_at` is older than the retention period. It runs once at startup and then every `authAudit.pruneIntervalMinutes` (60 by default). Each run deletes the oldest expired rows in batches of `authAudit.pruneBatchSize` (1000 by default) until none are left, using the `(created_at)` index, and logs `Auth audit prune completed.` with the number deleted. Each batch is deleted by ID, so replicas pruning at the same time only race for the same rows and none is deleted twice. A database error ends that run. The rows already deleted stay deleted, and the next run continues. A retention of zero or less is a startup error. See [backend-configuration.md](./backend-configuration.md#auth-audit-retention) and the [auth workers guide](../backend/src/app/workers/auth/README.md#auth-audit-prune-worker).
+
+The same worker deletes `email_change_reverts` rows past their `expires_at`. They hold plain addresses, and past that point do nothing.
 
 ## What Is Never Stored
 

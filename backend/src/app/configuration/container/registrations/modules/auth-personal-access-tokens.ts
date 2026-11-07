@@ -20,11 +20,13 @@ export const authPersonalAccessTokensRegistrationModule: ContainerRegistrationMo
         dependencies: [
           containerTokens.personalAccessTokenRepository,
           containerTokens.authAuditService,
+          containerTokens.securityNotificationService,
         ],
         resolve: ({ resolve }) =>
           new PersonalAccessTokenService(
             resolve(containerTokens.personalAccessTokenRepository),
             resolve(containerTokens.authAuditService),
+            resolve(containerTokens.securityNotificationService),
           ),
       });
       container.register({

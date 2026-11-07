@@ -99,16 +99,21 @@ function createMocks() {
       revokedPersonalAccessTokenCount: 0,
     })),
   };
+  const securityNotificationService = {
+    notify: jest.fn(async (_input: { eventId: string }) => "sent"),
+  };
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
     encryptionKey: TEST_ENCRYPTION_KEY,
     authAuditService: authAuditService as never,
     authSessionService: authSessionService as never,
+    securityNotificationService: securityNotificationService as never,
   });
 
   return {
     service,
+    securityNotificationService,
     totpService,
     mfaTotpRepository,
     authAuditService,
@@ -236,7 +241,12 @@ describe("MfaTotpService", () => {
 
   describe("confirmEnrollment", () => {
     it("activates the pending record with the matched counter when code is correct", async () => {
-      const { service, mfaTotpRepository, authAuditService } = createMocks();
+      const {
+        service,
+        mfaTotpRepository,
+        authAuditService,
+        securityNotificationService,
+      } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
 
       await service.confirmEnrollment(USER_ID_ID, "123456", {
@@ -251,12 +261,22 @@ describe("MfaTotpService", () => {
         expect.any(Date),
         56374060,
       );
+      expect(securityNotificationService.notify).toHaveBeenCalledTimes(1);
+      expect(securityNotificationService.notify).toHaveBeenCalledWith({
+        kind: "mfa_enabled",
+        details: {},
+        userId: USER_ID_ID,
+        eventId: expect.any(String),
+        context: { requestId: "request-1" },
+      });
       expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+        id: securityNotificationService.notify.mock.calls[0]![0].eventId,
         eventType: "mfa.totp_enabled",
         outcome: "success",
         userId: USER_ID_ID,
         sessionId: "session-1",
         context: { requestId: "request-1" },
+        metadata: { emailNotification: "sent" },
       });
     });
 
@@ -420,7 +440,12 @@ describe("MfaTotpService", () => {
 
   describe("disable", () => {
     it("deletes the TOTP record for the user", async () => {
-      const { service, mfaTotpRepository, authAuditService } = createMocks();
+      const {
+        service,
+        mfaTotpRepository,
+        authAuditService,
+        securityNotificationService,
+      } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(
         makeRecord({ status: "active" }),
       );
@@ -428,13 +453,33 @@ describe("MfaTotpService", () => {
       await service.disable(DISABLE_AUTH, {});
 
       expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith(USER_ID_ID);
+      expect(securityNotificationService.notify).toHaveBeenCalledTimes(1);
+      expect(securityNotificationService.notify).toHaveBeenCalledWith({
+        kind: "mfa_disabled",
+        details: {},
+        userId: USER_ID_ID,
+        eventId: expect.any(String),
+        context: {},
+      });
       expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+        id: securityNotificationService.notify.mock.calls[0]![0].eventId,
         eventType: "mfa.totp_disabled",
         outcome: "success",
         userId: USER_ID_ID,
         sessionId: "session-1",
         context: {},
+        metadata: { emailNotification: "sent" },
       });
+    });
+
+    it("sends nothing when only a pending enrollment is removed", async () => {
+      const { service, mfaTotpRepository, securityNotificationService } =
+        createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+
+      await service.disable(DISABLE_AUTH, {});
+
+      expect(securityNotificationService.notify).not.toHaveBeenCalled();
     });
 
     it("signs out the other sessions before removing the authenticator", async () => {

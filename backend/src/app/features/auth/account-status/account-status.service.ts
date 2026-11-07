@@ -169,6 +169,7 @@ export class AccountStatusService {
       changedAt,
       changedBy,
       rotateTokenVersion: endsSessions,
+      restoreEmail: input.restoreEmail,
     });
 
     if (!applied) {
@@ -194,7 +195,11 @@ export class AccountStatusService {
     });
 
     if (previousStatus !== status) {
-      await this.sendStatusEmail(user, status, input.source);
+      await this.sendStatusEmail(
+        input.restoreEmail ? { ...user, email: input.restoreEmail.to } : user,
+        status,
+        input.source,
+      );
     }
 
     return {

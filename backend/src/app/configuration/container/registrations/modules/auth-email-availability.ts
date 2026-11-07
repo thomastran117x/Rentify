@@ -15,6 +15,7 @@ export const authEmailAvailabilityRegistrationModule: ContainerRegistrationModul
           containerTokens.emailBloomService,
           containerTokens.pendingSignupStore,
           containerTokens.emailChangeStore,
+          containerTokens.emailChangeRevertRepository,
         ],
         resolve: ({ resolve }) =>
           new EmailAvailabilityService(
@@ -22,6 +23,7 @@ export const authEmailAvailabilityRegistrationModule: ContainerRegistrationModul
             resolve(containerTokens.emailBloomService),
             resolve(containerTokens.pendingSignupStore),
             resolve(containerTokens.emailChangeStore),
+            resolve(containerTokens.emailChangeRevertRepository),
           ),
       });
       container.register({

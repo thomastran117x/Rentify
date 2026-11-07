@@ -504,7 +504,10 @@ describe("Auth audit events persistence integration", () => {
       "pat.created",
       "pat.revoked",
     ]);
-    expect(relevant[1]!.metadata).toEqual({ tokenId: patBody.data.id });
+    expect(relevant[1]!.metadata).toEqual({
+      tokenId: patBody.data.id,
+      emailNotification: "sent",
+    });
     expect(relevant[2]!.metadata).toEqual({ tokenId: patBody.data.id });
     expect(
       relevant.find(

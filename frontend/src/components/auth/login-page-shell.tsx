@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { theme } from "@/styles/theme";
 
-type AuthPageVariant = "login" | "signup" | "forgot-password" | "self-lock";
+type AuthPageVariant =
+  | "login"
+  | "signup"
+  | "forgot-password"
+  | "self-lock"
+  | "email-change-revert";
 
 interface AuthPageShellProps {
   children: ReactNode;
@@ -139,7 +144,8 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
   },
   "self-lock": {
     eyebrow: "Protect your account",
-    title: "Didn't sign in? Lock your account until you're back in control.",
+    title:
+      "Don't recognise this? Lock your account until you're back in control.",
     description:
       "Locking signs everyone out of your Rentify account, including whoever used it, and keeps them out until you reset your password.",
     features: [
@@ -160,6 +166,31 @@ const authShellContent: Record<AuthPageVariant, AuthShellConfig> = {
         title: "You hold the key",
         description:
           "Resetting your password with the code we email you lifts the lock.",
+      },
+    ],
+  },
+  "email-change-revert": {
+    eyebrow: "Protect your account",
+    title: "Didn't change your email? Put your old address back.",
+    description:
+      "Your account moves back to the address this link was sent to, and everyone using it, including whoever changed it, is signed out.",
+    features: [
+      {
+        icon: Mail,
+        title: "Your address comes back",
+        description:
+          "It has been kept for your account, so nobody else can take it while this link works.",
+      },
+      {
+        icon: LogOut,
+        title: "Everyone signed out",
+        description: "Every session ends the moment your address is restored.",
+      },
+      {
+        icon: Lock,
+        title: "Nothing happens by accident",
+        description:
+          "Opening the link changes nothing. Your email moves back only when you confirm.",
       },
     ],
   },

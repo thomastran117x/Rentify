@@ -25,6 +25,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "password.reset",
   "password.set",
   "email.changed",
+  "email.change_reverted",
   "mfa.totp_enabled",
   "mfa.totp_disabled",
   "mfa.step_up_failed",

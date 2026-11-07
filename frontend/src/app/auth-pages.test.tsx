@@ -5,6 +5,7 @@ import SignupPage from "./signup/page";
 import GoogleOAuthCallbackPage from "./auth/google/page";
 import MicrosoftOAuthCallbackPage from "./auth/microsoft/page";
 import AppleOAuthCallbackPage from "./auth/apple/page";
+import EmailChangeRevertPage from "./auth/email-change/revert/page";
 import SelfLockPage from "./auth/self-lock/page";
 
 vi.mock("@/components/auth/auth-page-shell", () => ({
@@ -55,6 +56,11 @@ vi.mock("@/components/auth/self-lock-card", () => ({
     <div>
       SelfLock {String(token)} {String(alreadyLocked)}
     </div>
+  ),
+}));
+vi.mock("@/components/auth/email-change-revert-card", () => ({
+  EmailChangeRevertCard: ({ token }: { token: string | null }) => (
+    <div>EmailChangeRevert {String(token)}</div>
   ),
 }));
 vi.mock("@/components/auth/oauth-popup-finish", () => ({
@@ -127,5 +133,21 @@ describe("authentication routes", () => {
       }),
     );
     expect(screen.getByText("SelfLock null true")).toBeInTheDocument();
+  });
+
+  it("passes the revert token to the card in its own shell", async () => {
+    const { container } = render(
+      await EmailChangeRevertPage({
+        searchParams: Promise.resolve({ token: " token-1 " }),
+      }),
+    );
+    expect(screen.getByText("EmailChangeRevert token-1")).toBeInTheDocument();
+    expect(container.querySelector("main")).toHaveAttribute(
+      "data-variant",
+      "email-change-revert",
+    );
+
+    render(await EmailChangeRevertPage({}));
+    expect(screen.getByText("EmailChangeRevert null")).toBeInTheDocument();
   });
 });

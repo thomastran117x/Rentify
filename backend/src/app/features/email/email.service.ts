@@ -1,5 +1,7 @@
+import type { EmailJobInputByKind } from "@/features/email/email.model";
 import type { EmailQueueService } from "@/features/email/email.queue.service";
 import type { Uuid } from "@/configuration/validation/uuid";
+import type { OAuthProvider } from "@/features/auth/auth.model";
 
 export interface SendVerificationEmailInput {
   to: string;
@@ -133,6 +135,62 @@ export interface SendSavedSearchMatchesEmailInput {
   occurredAt: string;
 }
 
+/**
+ * What every email about a completed security change says: when it happened,
+ * from where, and how to stop it. `device` is a coarse label such as "Chrome on
+ * Windows", never the raw user agent.
+ */
+export interface SecurityChangeEmailBase {
+  to: string;
+  firstName?: string;
+  occurredAt: string;
+  ipAddress?: string;
+  device?: string;
+  /** Adds a "This wasn't you? Lock your account" link when present. */
+  selfLockToken?: string;
+}
+
+/** How the password came to change, which decides the email's wording. */
+export type PasswordChangeKind = "changed" | "reset" | "set";
+
+export interface SendPasswordChangedEmailInput extends SecurityChangeEmailBase {
+  change: PasswordChangeKind;
+}
+
+export interface SendPersonalAccessTokenCreatedEmailInput
+  extends SecurityChangeEmailBase {
+  tokenName: string;
+  scopes: string[];
+  /** Null for a token that never expires. */
+  expiresAt: string | null;
+}
+
+export interface SendLoginMethodEmailInput extends SecurityChangeEmailBase {
+  provider: OAuthProvider;
+}
+
+/**
+ * Goes to the address the account just left. `newEmail` is already redacted by
+ * the caller, for the reason given on {@link SendEmailChangeNoticeEmailInput}.
+ */
+export interface SendEmailChangedEmailInput extends SecurityChangeEmailBase {
+  newEmail: string;
+  /** Adds the link that puts the old address back, when present. */
+  revertToken?: string;
+}
+
+export interface SecurityChangeEmailInputByKind {
+  password_changed: SendPasswordChangedEmailInput;
+  mfa_enabled: SecurityChangeEmailBase;
+  mfa_disabled: SecurityChangeEmailBase;
+  personal_access_token_created: SendPersonalAccessTokenCreatedEmailInput;
+  login_method_linked: SendLoginMethodEmailInput;
+  login_method_unlinked: SendLoginMethodEmailInput;
+  email_changed: SendEmailChangedEmailInput;
+}
+
+export type SecurityChangeEmailKind = keyof SecurityChangeEmailInputByKind;
+
 export class EmailService {
   constructor(private readonly emailQueueService: EmailQueueService) {}
 
@@ -192,6 +250,17 @@ export class EmailService {
     input: SendSuspiciousLoginEmailInput,
   ): Promise<void> {
     await this.emailQueueService.enqueueEmailJob("suspicious_login", input);
+  }
+
+  /** Tells the owner about a change that has already happened. */
+  async sendSecurityChangeEmail<TKind extends SecurityChangeEmailKind>(
+    kind: TKind,
+    input: SecurityChangeEmailInputByKind[TKind],
+  ): Promise<void> {
+    await this.emailQueueService.enqueueEmailJob(
+      kind,
+      input as EmailJobInputByKind[TKind],
+    );
   }
 
   async sendLoginUnlockEmail(input: SendLoginUnlockEmailInput): Promise<void> {

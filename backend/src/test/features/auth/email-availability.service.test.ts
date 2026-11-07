@@ -9,6 +9,7 @@ function createService(
     findUserIdByEmail?: () => Promise<string | null>;
     pendingSignup?: PendingLocalSignupRecord | null;
     pendingEmailChangeOwnerId?: string | null;
+    addressHeld?: boolean;
     bloomVerdict?: "definitely-absent" | "possibly-present" | "unknown";
   } = {},
 ) {
@@ -25,6 +26,9 @@ function createService(
       async () => overrides.pendingEmailChangeOwnerId ?? null,
     ),
   };
+  const emailChangeRevertRepository = {
+    isAddressHeld: jest.fn(async () => overrides.addressHeld ?? false),
+  };
   // Defaults to "unknown" so every case exercises the authoritative path unless
   // it opts into the fast one.
   const emailBloomService = {
@@ -37,6 +41,7 @@ function createService(
     emailBloomService as never,
     pendingSignupStore as never,
     emailChangeStore as never,
+    emailChangeRevertRepository as never,
   );
 
   return {
@@ -45,6 +50,7 @@ function createService(
     pendingSignupStore,
     emailBloomService,
     emailChangeStore,
+    emailChangeRevertRepository,
   };
 }
 
@@ -74,6 +80,24 @@ describe("EmailAvailabilityService", () => {
         available: false,
         reason: "taken",
       });
+    });
+
+    it("reports an address held for a revert link as taken", async () => {
+      const { service, emailChangeRevertRepository } = createService({
+        addressHeld: true,
+      });
+
+      await expect(
+        service.isEmailAvailable("Casey@Example.com", asUuid(OWNER_ID)),
+      ).resolves.toEqual({
+        email: "casey@example.com",
+        available: false,
+        reason: "taken",
+      });
+      expect(emailChangeRevertRepository.isAddressHeld).toHaveBeenCalledWith(
+        "casey@example.com",
+        asUuid(OWNER_ID),
+      );
     });
 
     it("does not report the caller's own pending change as taken", async () => {

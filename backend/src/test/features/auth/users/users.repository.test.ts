@@ -607,6 +607,37 @@ describe("UsersRepository", () => {
     });
   });
 
+  describe("restoreEmail", () => {
+    const addresses = { from: "new@rentify.local", to: "old@rentify.local" };
+
+    it("restores the address and bumps the token version in one write", async () => {
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await expect(repository.restoreEmail(USER_1_ID, addresses)).resolves.toBe(
+        true,
+      );
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: USER_1_ID, email: "new@rentify.local" },
+        data: {
+          email: "old@rentify.local",
+          emailVerified: true,
+          tokenVersion: { increment: 1 },
+        },
+      });
+    });
+
+    it("reports nothing written when the account has moved on", async () => {
+      const updateMany = jest.fn(async () => ({ count: 0 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await expect(repository.restoreEmail(USER_1_ID, addresses)).resolves.toBe(
+        false,
+      );
+    });
+  });
+
   describe("updateAccountStatus", () => {
     const changedAt = new Date("2026-10-21T09:00:00.000Z");
 
@@ -634,6 +665,57 @@ describe("UsersRepository", () => {
         },
       });
       expect(applied).toBe(true);
+    });
+
+    it("restores an address in the same write, only while the account holds the other", async () => {
+      const updateMany = jest.fn(async () => ({ count: 1 }));
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await repository.updateAccountStatus(USER_1_ID, {
+        expectedStatus: "active",
+        status: "locked",
+        reason: "Email change reverted by user",
+        changedAt,
+        changedBy: null,
+        rotateTokenVersion: true,
+        restoreEmail: { from: "new@rentify.local", to: "old@rentify.local" },
+      });
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: {
+          id: USER_1_ID,
+          status: "active",
+          email: "new@rentify.local",
+        },
+        data: expect.objectContaining({
+          status: "locked",
+          tokenVersion: { increment: 1 },
+          email: "old@rentify.local",
+          emailVerified: true,
+        }),
+      });
+    });
+
+    it("turns a taken address into a conflict", async () => {
+      const updateMany = jest.fn(async () => {
+        throw new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed",
+          { code: "P2002", clientVersion: "7.0.0" },
+        );
+      });
+      const repository = new UsersRepository({ user: { updateMany } } as any);
+
+      await expect(
+        repository.updateAccountStatus(USER_1_ID, {
+          expectedStatus: "active",
+          status: "locked",
+          reason: "Email change reverted by user",
+          changedAt,
+          changedBy: null,
+          rotateTokenVersion: true,
+          restoreEmail: { from: "new@rentify.local", to: "old@rentify.local" },
+        }),
+      ).rejects.toBeInstanceOf(ConflictError);
     });
 
     it("reports nothing written when the status has already moved on", async () => {

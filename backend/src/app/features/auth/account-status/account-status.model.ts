@@ -17,6 +17,12 @@ export interface AccountStatusChangeInput {
   context?: AuthAuditContext;
   /** Extra non-secret detail for the audit event, such as how a user locked. */
   metadata?: Record<string, string>;
+  /**
+   * Puts an address back in the same write as the status, so a takeover being
+   * undone can never end up half done. The change applies only while the
+   * account still holds `from`, and its email goes to `to`.
+   */
+  restoreEmail?: { from: string; to: string };
 }
 
 export interface AccountStatusChangeResult {

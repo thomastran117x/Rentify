@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { ResetPasswordAction } from "@/components/auth/reset-password-action";
 import { FormErrorMessage } from "@/components/errors";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { isApiClientError } from "@/lib/api/types";
@@ -11,72 +12,12 @@ import { authApi } from "@/lib/auth/api";
 import { selfLockApi } from "@/lib/auth/self-lock-api";
 import { theme } from "@/styles/theme";
 
-const RECOVERY_PATH = "/login?recovery=account";
-
 type SelfLockView = "confirm" | "locked" | "expired";
 
 interface SelfLockCardProps {
   token: string | null;
   /** Set after the signed-in variant locked the account and came here. */
   alreadyLocked?: boolean;
-}
-
-/**
- * The way back in is the password reset on the sign-in page, which sends a
- * signed-in visitor home instead. When this browser is still signed in, to
- * an account other than the one just locked, the user signs out first.
- */
-function ResetPasswordAction({
-  className = "",
-  sessionEnded = false,
-}: {
-  className?: string;
-  /** This browser's session belonged to the locked account and is being dropped. */
-  sessionEnded?: boolean;
-}) {
-  const { status, session, clearSession } = useAuth();
-  const [signingOut, setSigningOut] = useState(false);
-
-  async function handleSignOut() {
-    setSigningOut(true);
-
-    try {
-      await authApi.logout();
-    } catch {
-      // The local sign-out below is what unblocks the reset page.
-    } finally {
-      clearSession();
-      setSigningOut(false);
-    }
-  }
-
-  if (sessionEnded || status !== "authenticated") {
-    return (
-      <Link
-        href={RECOVERY_PATH}
-        className={`${className} ${theme.auth.primaryButton}`}
-      >
-        Reset your password
-      </Link>
-    );
-  }
-
-  return (
-    <div className={className}>
-      <p className={`${theme.auth.infoPanel} text-sm leading-6`}>
-        This browser is signed in as {session?.user.email ?? "another account"}.
-        Sign out to reset the password of the account you locked.
-      </p>
-      <button
-        type="button"
-        onClick={() => void handleSignOut()}
-        disabled={signingOut}
-        className={`mt-3 ${theme.auth.primaryButton}`}
-      >
-        {signingOut ? "Signing out..." : "Sign out"}
-      </button>
-    </div>
-  );
 }
 
 function initialView(token: string | null, alreadyLocked: boolean) {
@@ -182,7 +123,7 @@ export function SelfLockCard({
           <h2 className={theme.auth.cardTitle}>This link has expired</h2>
           <p className={theme.auth.cardDescription}>
             This link has expired or was already used, so nothing was changed.
-            If you still don&apos;t recognise a sign-in, reset your password
+            If you still don&apos;t recognise the activity, reset your password
             now: that signs everyone else out.
           </p>
         </div>
@@ -201,7 +142,7 @@ export function SelfLockCard({
         <p className={theme.auth.cardEyebrow}>This wasn&apos;t me</p>
         <h2 className={theme.auth.cardTitle}>Lock your account?</h2>
         <p className={theme.auth.cardDescription}>
-          If you didn&apos;t sign in, lock your account. Everyone using it,
+          If this wasn&apos;t you, lock your account. Everyone using it,
           including you, is signed out straight away, and nobody can sign in
           until you reset your password.
         </p>
@@ -212,7 +153,7 @@ export function SelfLockCard({
       >
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p>
-          Only lock your account if you don&apos;t recognise the sign-in. If it
+          Only lock your account if you don&apos;t recognise the activity. If it
           was you, close this page; nothing has changed.
         </p>
       </div>

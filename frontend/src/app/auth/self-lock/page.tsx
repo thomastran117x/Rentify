@@ -5,7 +5,7 @@ import { SelfLockCard } from "@/components/auth/self-lock-card";
 export const metadata: Metadata = {
   title: "Lock your account | Rentify",
   description:
-    "Didn't sign in? Lock your Rentify account to sign everyone out until you reset your password.",
+    "Don't recognise this activity? Lock your Rentify account to sign everyone out until you reset your password.",
   robots: { index: false, follow: false },
 };
 

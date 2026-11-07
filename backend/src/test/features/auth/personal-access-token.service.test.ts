@@ -23,6 +23,10 @@ function patKeys(currentSecret: string, previousSecret?: string) {
   ];
 }
 
+const securityNotificationService = {
+  notify: jest.fn(async () => "sent"),
+};
+
 function createRepositoryMock() {
   return {
     create: jest.fn(),
@@ -38,6 +42,7 @@ function createService(repository: ReturnType<typeof createRepositoryMock>) {
   return new PersonalAccessTokenService(
     repository as any,
     { recordSafely: jest.fn(async () => undefined) } as any,
+    securityNotificationService as any,
     { personalAccessTokenKeys: patKeys("test-pat-secret") },
   );
 }
@@ -98,6 +103,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
+      securityNotificationService as any,
       { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
     const createState = installCreateMock(repository);
@@ -116,17 +122,32 @@ describe("PersonalAccessTokenService", () => {
     expect(createState.getLatestInput()?.secretHash).not.toEqual(result.token);
     expect(result.tokenPrefix).toMatch(/^rpat_[a-f0-9]{24}_[a-f0-9]{6}$/);
     expect(result.scopes).toEqual(["mcp:read"]);
+    expect(securityNotificationService.notify).toHaveBeenLastCalledWith({
+      kind: "personal_access_token_created",
+      details: {
+        tokenName: createState.getLatestInput()?.name,
+        scopes: ["mcp:read"],
+        expiresAt: expect.anything(),
+      },
+      userId: USER_1_ID,
+      eventId: expect.any(String),
+      context: { requestId: "request-1" },
+    });
     expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+      id: (securityNotificationService.notify.mock.lastCall as any)[0].eventId,
       eventType: "pat.created",
       outcome: "success",
       userId: USER_1_ID,
       method: "pat",
       sessionId: "session-1",
       context: { requestId: "request-1" },
-      metadata: { tokenId: PAT_RECORD_1_ID },
+      metadata: { tokenId: PAT_RECORD_1_ID, emailNotification: "sent" },
     });
     expect(
       JSON.stringify(authAuditService.recordSafely.mock.calls),
+    ).not.toContain(result.token);
+    expect(
+      JSON.stringify(securityNotificationService.notify.mock.lastCall),
     ).not.toContain(result.token);
   });
 
@@ -311,6 +332,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
+      securityNotificationService as any,
       { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
 
@@ -344,6 +366,7 @@ describe("PersonalAccessTokenService", () => {
     const service = new PersonalAccessTokenService(
       repository as any,
       authAuditService as any,
+      securityNotificationService as any,
       { personalAccessTokenKeys: patKeys("test-pat-secret") },
     );
     repository.findByIdForUser.mockResolvedValue(
@@ -374,6 +397,7 @@ describe("PersonalAccessTokenService", () => {
       return new PersonalAccessTokenService(
         repository as any,
         { recordSafely: jest.fn(async () => undefined) } as any,
+        securityNotificationService as any,
         { personalAccessTokenKeys: keys },
       );
     }

@@ -56,6 +56,7 @@ import {
   toBlockedAccountReasonCode,
 } from "@/features/auth/account-status/account-status.guard";
 import { EMAIL_VERIFICATION_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
+import type { EmailChangeRevertRepository } from "@/features/auth/email-change/email-change-revert.repository";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import { TokenService } from "@/features/auth/token/token.service";
@@ -83,6 +84,7 @@ export class LocalAuthService {
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
     private readonly loginMfaService: LoginMfaService,
+    private readonly emailChangeRevertRepository: EmailChangeRevertRepository,
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -206,7 +208,12 @@ export class LocalAuthService {
       input.email,
     );
 
-    if (existingUser?.emailVerified) {
+    // A held address answers like a taken one, so signup cannot tell them apart
+    // and nothing is mailed to an address an account may yet be moved back to.
+    if (
+      existingUser?.emailVerified ||
+      (await this.emailChangeRevertRepository.isAddressHeld(input.email))
+    ) {
       return {
         verificationRequired: true,
         email: input.email,

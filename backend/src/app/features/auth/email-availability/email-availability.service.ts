@@ -2,6 +2,7 @@ import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { IdentityBloomService } from "@/features/auth/identity-bloom/identity-bloom.service";
 import type { EmailAvailabilityResult } from "@/features/auth/email-availability/email-availability.model";
 import type { PendingSignupStore } from "@/features/auth/pending-signup/pending-signup.store";
+import type { EmailChangeRevertRepository } from "@/features/auth/email-change/email-change-revert.repository";
 import type { EmailChangeStore } from "@/features/auth/email-change/email-change.store";
 import type { Uuid } from "@/configuration/validation/uuid";
 
@@ -19,6 +20,7 @@ export class EmailAvailabilityService {
     private readonly emailBloomService: IdentityBloomService,
     private readonly pendingSignupStore: PendingSignupStore,
     private readonly emailChangeStore: EmailChangeStore,
+    private readonly emailChangeRevertRepository: EmailChangeRevertRepository,
   ) {}
 
   /**
@@ -54,6 +56,22 @@ export class EmailAvailabilityService {
       await this.emailChangeStore.readAddressHolder(normalizedEmail);
 
     if (changeOwnerId && changeOwnerId !== allowedUserId) {
+      return {
+        email: normalizedEmail,
+        available: false,
+        reason: "taken",
+      };
+    }
+
+    // An address an account just left stays reserved while its revert link is
+    // open, so that link can always put it back. Also `taken`, for the same
+    // reason as above.
+    if (
+      await this.emailChangeRevertRepository.isAddressHeld(
+        normalizedEmail,
+        allowedUserId,
+      )
+    ) {
       return {
         email: normalizedEmail,
         available: false,

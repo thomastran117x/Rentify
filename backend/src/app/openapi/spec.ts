@@ -575,6 +575,11 @@ const adminAuthAuditEventListExample = {
 
 const selfLockResultExample = { locked: true };
 
+const emailChangeRevertResultExample = {
+  reverted: true,
+  nextStep: "reset_password",
+};
+
 const adminAccountStatusChangeResultExample = {
   userId: "00000000-0000-0000-1040-000000000101",
   status: "locked",
@@ -2615,6 +2620,44 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
+      method: "post",
+      path: "/auth/email/change/revert",
+      operationId: "revertEmailChange",
+      summary: "Undo an email change from an emailed link",
+      description:
+        "The \"This wasn't me\" link in the `email_changed` email sent to the address an account left. Consumes the single-use token, which lasts 7 days and is not tied to a session, restores that address and ends every session. An account that can reset a password also goes on a security hold, and a suspended account or one with no password does not, which `nextStep` reports. The link stops working if the account's email has changed again since. Opening the emailed page changes nothing: only this request acts.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("EmailChangeRevertRequest", {
+        token: "kq3H0tM2y0vJ8nE6c1t1oQ5mQ0b4Yx2b8yYp0kZt7aU",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Your old email address is back, and everyone was signed out.",
+          "EmailChangeRevertResult",
+          emailChangeRevertResultExample,
+        ),
+        ...commonErrors([400, 403, 409, 429, 500]),
+        "410": errorResponseExamples(
+          "The link is unknown, expired, already used, or the email has changed again.",
+          {
+            linkExpired: {
+              summary: "The token cannot be used.",
+              message: "This link has expired or was already used.",
+              code: "GONE",
+            },
+          },
+        ),
+      },
+    },
+    {
       method: "get",
       path: "/auth/email/change",
       operationId: "getPendingEmailChange",
@@ -3342,7 +3385,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "selfLockAccount",
       summary: "Lock my account from an emailed link",
       description:
-        "The \"This wasn't me? Lock your account\" link in a new-device email. Consumes the single-use token, which lasts 24 hours and is not tied to a session, and puts the account on a security hold: the token version is bumped, every session and refresh token ends, personal access tokens stop working, `account.locked` is recorded with `metadata.source` `user`, `metadata.channel` `email_link` and the `sourceEventId` of the email's event, and an `account_self_locked` confirmation email explains recovery by password reset. A valid token always returns the same 200, so the response never reveals the account's state: an account that is already locked or suspended is left unchanged, and a suspension is never downgraded to a hold. An unknown, expired or already used token returns one generic 410 and changes nothing. The browser page asks for an explicit confirmation before posting, so link scanners issuing GET requests never lock anything.",
+        "The \"This wasn't you? Lock your account\" link in a security email: a new device, suspicious activity, or a change to the account. Consumes the single-use token, which lasts 24 hours and is not tied to a session, and puts the account on a security hold: the token version is bumped, every session and refresh token ends, personal access tokens stop working, `account.locked` is recorded with `metadata.source` `user`, `metadata.channel` `email_link` and the `sourceEventId` of the email's event, and an `account_self_locked` confirmation email explains recovery by password reset. A valid token always returns the same 200, so the response never reveals the account's state: an account that is already locked or suspended is left unchanged, and a suspension is never downgraded to a hold. An unknown, expired or already used token returns one generic 410 and changes nothing. The browser page asks for an explicit confirmation before posting, so link scanners issuing GET requests never lock anything.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -12739,6 +12782,38 @@ function buildComponents(): Record<string, unknown> {
             type: "boolean",
             description:
               "False when a reinstated account was already active, so nothing was written.",
+          },
+        },
+      },
+      EmailChangeRevertRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["token"],
+        properties: {
+          token: {
+            type: "string",
+            minLength: 1,
+            maxLength: 256,
+            description:
+              "The token from the emailed link's `token` query parameter, trimmed.",
+          },
+        },
+      },
+      EmailChangeRevertResult: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reverted", "nextStep"],
+        properties: {
+          reverted: {
+            type: "boolean",
+            enum: [true],
+            description: "Always true for an accepted request.",
+          },
+          nextStep: {
+            type: "string",
+            enum: ["reset_password", "sign_in"],
+            description:
+              "How the owner gets back in: `reset_password` when the account went on a security hold, `sign_in` when it has no password to reset or is suspended.",
           },
         },
       },

@@ -112,6 +112,13 @@ export const authLocalRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/auth/email/change/revert",
+      resolveHandler<EmailChangeController>(
+        containerTokens.emailChangeController,
+        "revertEmailChange",
+      ),
+    );
+    app.post(
       "/auth/email/change/confirm",
       resolveHandler<EmailChangeController>(
         containerTokens.emailChangeController,

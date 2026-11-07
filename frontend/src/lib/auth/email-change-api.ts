@@ -1,3 +1,4 @@
+import { publicJson } from "@/lib/api/client";
 import {
   deleteAuthenticatedJson,
   getAuthenticatedJson,
@@ -28,6 +29,13 @@ export interface EmailChangeOtpPreviewResult {
   expiresInSeconds: number;
 }
 
+export type EmailChangeRevertNextStep = "reset_password" | "sign_in";
+
+export interface EmailChangeRevertResult {
+  reverted: true;
+  nextStep: EmailChangeRevertNextStep;
+}
+
 export const emailChangeApi = {
   /** Requires a recent `mfa-management` step-up; 401s with `MFA_VERIFICATION_REQUIRED` without one. */
   request(email: string): Promise<EmailChangeRequestResult> {
@@ -49,6 +57,18 @@ export const emailChangeApi = {
     return postAuthenticatedJson<AuthResponseBody, { code: string }>(
       "/auth/email/change/confirm",
       { code },
+    );
+  },
+
+  /**
+   * Public: the token from the `email_changed` email is the only credential. A
+   * spent, expired or superseded token rejects with a 410.
+   */
+  revertWithToken(token: string): Promise<EmailChangeRevertResult> {
+    return publicJson<EmailChangeRevertResult, { token: string }>(
+      "POST",
+      "/auth/email/change/revert",
+      { token },
     );
   },
 

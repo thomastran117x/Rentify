@@ -16,8 +16,9 @@ import type {
   RevokePersonalAccessTokenResult,
 } from "./personal-access-token.model";
 import { PersonalAccessTokenRepository } from "./personal-access-token.repository";
-import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
+import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 import { SigningKeyring } from "@/features/auth/token/signing-keyring";
 
 interface PersonalAccessTokenServiceOptions {
@@ -35,6 +36,7 @@ export class PersonalAccessTokenService {
   constructor(
     private readonly personalAccessTokenRepository: PersonalAccessTokenRepository,
     private readonly authAuditService: AuthAuditService,
+    private readonly securityNotificationService: SecurityNotificationService,
     options: PersonalAccessTokenServiceOptions = {},
   ) {
     this.personalAccessTokenKeys = options.personalAccessTokenKeys;
@@ -73,14 +75,27 @@ export class PersonalAccessTokenService {
           }
         : {}),
     });
+    const eventId = newUuid();
+    const emailNotification = await this.securityNotificationService.notify({
+      kind: "personal_access_token_created",
+      details: {
+        tokenName: tokenRecord.name,
+        scopes: tokenRecord.scopes,
+        expiresAt: tokenRecord.expiresAt ?? null,
+      },
+      userId: input.userId,
+      eventId,
+      context: input.audit,
+    });
     await this.authAuditService.recordSafely({
+      id: eventId,
       eventType: "pat.created",
       outcome: "success",
       userId: input.userId,
       method: "pat",
       sessionId: input.sessionId,
       context: input.audit,
-      metadata: { tokenId: tokenRecord.id },
+      metadata: { tokenId: tokenRecord.id, emailNotification },
     });
 
     return {
