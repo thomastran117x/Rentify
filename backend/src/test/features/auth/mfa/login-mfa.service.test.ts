@@ -136,6 +136,10 @@ function createHarness(
     }),
   };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+  const mfaRecoveryCodeService = {
+    countUnused: jest.fn(async () => 0),
+    redeem: jest.fn(async () => 9),
+  };
 
   return {
     challenges,
@@ -148,6 +152,7 @@ function createHarness(
     authSessionService,
     loginLockoutService,
     authAuditService,
+    mfaRecoveryCodeService,
     service: new LoginMfaService(
       usersRepository as never,
       loginMfaChallengeStore as never,
@@ -156,6 +161,7 @@ function createHarness(
       authSessionService as never,
       loginLockoutService as never,
       authAuditService as never,
+      mfaRecoveryCodeService as never,
     ),
   };
 }
@@ -310,6 +316,90 @@ describe("LoginMfaService.completeLoginMfa", () => {
         reasonCode: "account_suspended",
       }),
     );
+  });
+
+  describe("with a recovery code", () => {
+    const recoveryInput = () =>
+      createInput({ factor: "recovery_code", code: "ABCDE-FGH23" });
+
+    it("signs in and says how many codes are left", async () => {
+      const harness = createHarness();
+
+      const result = await harness.service.completeLoginMfa(recoveryInput());
+
+      expect(harness.mfaRecoveryCodeService.redeem).toHaveBeenCalledWith({
+        userId: USER_1_ID,
+        code: "ABCDE-FGH23",
+        stage: "login",
+        method: "password",
+        context: AUDIT_CONTEXT,
+      });
+      expect(harness.mfaTotpService.verifyCode).not.toHaveBeenCalled();
+      expect(result).toEqual({ ...harness.session, recoveryCodesRemaining: 9 });
+      expect(
+        harness.loginLockoutService.clearAttemptRecord,
+      ).toHaveBeenCalledWith("test-user");
+      expect(
+        harness.mfaVerificationService.recordLoginProof,
+      ).toHaveBeenCalledWith({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        factor: "recovery_code",
+      });
+    });
+
+    it("keeps a count of zero, which is what prompts for new codes", async () => {
+      const harness = createHarness();
+      harness.mfaRecoveryCodeService.redeem.mockResolvedValue(0);
+
+      await expect(
+        harness.service.completeLoginMfa(recoveryInput()),
+      ).resolves.toMatchObject({ recoveryCodesRemaining: 0 });
+    });
+
+    it("counts a wrong code against the lockout, with its own wording", async () => {
+      const harness = createHarness();
+      harness.mfaRecoveryCodeService.redeem.mockRejectedValue(
+        new UnauthorizedError("MFA verification failed."),
+      );
+
+      await expect(
+        harness.service.completeLoginMfa(recoveryInput()),
+      ).rejects.toMatchObject({
+        constructor: InvalidMfaCodeError,
+        message: "That recovery code is incorrect or was already used.",
+      });
+
+      expect(
+        harness.loginLockoutService.recordFailedLogin,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: "test-user",
+          reasonCode: "mfa_invalid",
+        }),
+      );
+      expect(harness.challenges.has(TOKEN)).toBe(true);
+    });
+
+    it("never spends a code on a locked username", async () => {
+      const harness = createHarness();
+      harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+      await expect(
+        harness.service.completeLoginMfa(recoveryInput()),
+      ).rejects.toBeInstanceOf(LockedError);
+
+      expect(harness.mfaRecoveryCodeService.redeem).not.toHaveBeenCalled();
+    });
+
+    it("adds no count to a sign-in finished with the authenticator", async () => {
+      const harness = createHarness();
+
+      const result = await harness.service.completeLoginMfa(createInput());
+
+      expect(result).toBe(harness.session);
+      expect(harness.mfaRecoveryCodeService.redeem).not.toHaveBeenCalled();
+    });
   });
 
   it("refuses a locked username even with a correct code", async () => {
@@ -509,15 +599,18 @@ describe("LoginMfaService.evaluateFirstStep", () => {
         expiresInSeconds: 300,
       },
     });
-    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith({
-      userId: USER_1_ID,
-      method: "google",
-      username: "test-user",
-      identifierHash: "hash:test-user",
-      deviceId: "device-1",
-      rememberMe: true,
-      tokenVersion: 1,
-    });
+    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(
+      {
+        userId: USER_1_ID,
+        method: "google",
+        username: "test-user",
+        identifierHash: "hash:test-user",
+        deviceId: "device-1",
+        rememberMe: true,
+        tokenVersion: 1,
+      },
+      ["totp"],
+    );
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledTimes(1);
     expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
       ...audit,
@@ -530,6 +623,32 @@ describe("LoginMfaService.evaluateFirstStep", () => {
     expect(
       harness.loginLockoutService.clearAttemptRecord,
     ).not.toHaveBeenCalled();
+  });
+
+  it("offers recovery codes only while the account has some", async () => {
+    const harness = createHarness();
+    harness.mfaRecoveryCodeService.countUnused.mockResolvedValue(1);
+
+    await expect(evaluate(harness)).rejects.toBeInstanceOf(
+      LoginMfaRequiredError,
+    );
+
+    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(
+      expect.anything(),
+      ["totp", "recovery_code"],
+    );
+  });
+
+  it("never treats the deprecated totpCode field as a recovery code", async () => {
+    const harness = createHarness();
+
+    await evaluate(harness, { totpCode: "ABCDE-FGH23" });
+
+    expect(harness.mfaTotpService.verifyCode).toHaveBeenCalledWith(
+      USER_1_ID,
+      "ABCDE-FGH23",
+    );
+    expect(harness.mfaRecoveryCodeService.redeem).not.toHaveBeenCalled();
   });
 
   it("refuses a locked username before issuing a challenge or checking a code", async () => {

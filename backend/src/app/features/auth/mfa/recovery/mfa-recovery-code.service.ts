@@ -2,7 +2,10 @@ import { createHmac, randomBytes } from "node:crypto";
 import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { newUuid, type Uuid } from "@/configuration/validation/uuid";
-import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import type {
+  AuthAuditContext,
+  AuthAuditMethod,
+} from "@/features/auth/audit/auth-audit.model";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
 import {
@@ -32,6 +35,8 @@ export interface RedeemRecoveryCodeInput {
   stage: RecoveryCodeStage;
   /** Absent at sign-in, where the session does not exist yet. */
   sessionId?: string;
+  /** How the first step signed in, when this is the second step of a sign-in. */
+  method?: AuthAuditMethod;
   context?: AuthAuditContext;
 }
 
@@ -88,6 +93,53 @@ export class MfaRecoveryCodeService {
 
   countUnused(userId: Uuid): Promise<number> {
     return this.mfaRecoveryCodeRepository.countUnused(userId);
+  }
+
+  /**
+   * Spends a code, or throws without saying why: a wrong code and a used one
+   * must look alike. The use is recorded as soon as it is claimed, because the
+   * code is gone from then on even if the caller's next step fails.
+   *
+   * Returns how many unused codes are left.
+   */
+  async redeem(input: RedeemRecoveryCodeInput): Promise<number> {
+    const code = normalizeRecoveryCode(input.code);
+    const claimed =
+      code !== null &&
+      (await this.mfaRecoveryCodeRepository.claim(
+        input.userId,
+        this.hash(input.userId, code),
+        new Date(),
+      ));
+
+    if (!claimed) {
+      throw new UnauthorizedError("MFA verification failed.");
+    }
+
+    const remaining = await this.mfaRecoveryCodeRepository.countUnused(
+      input.userId,
+    );
+    const eventId = newUuid();
+    const emailNotification = await this.securityNotificationService.notify({
+      kind: "mfa_recovery_code_used",
+      details: { remaining },
+      userId: input.userId,
+      eventId,
+      context: input.context,
+    });
+
+    await this.authAuditService.recordSafely({
+      id: eventId,
+      eventType: "mfa.recovery_code_used",
+      outcome: "success",
+      userId: input.userId,
+      sessionId: input.sessionId,
+      method: input.method,
+      context: input.context,
+      metadata: { remaining, stage: input.stage, emailNotification },
+    });
+
+    return remaining;
   }
 
   /** Replaces every code, used or not. */

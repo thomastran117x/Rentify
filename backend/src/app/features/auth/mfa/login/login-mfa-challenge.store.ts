@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { CacheService } from "@/features/cache/cache.service";
 import {
-  LOGIN_MFA_FACTORS,
   type LoginMfaChallengeRecord,
+  type LoginMfaFactor,
   type LoginMfaRequiredDetails,
   type NewLoginMfaChallenge,
 } from "@/features/auth/mfa/login/login-mfa.model";
@@ -28,6 +28,7 @@ export class LoginMfaChallengeStore {
 
   async issue(
     challenge: NewLoginMfaChallenge,
+    availableFactors: LoginMfaFactor[],
   ): Promise<LoginMfaRequiredDetails> {
     const token = randomBytes(32).toString("base64url");
     const record: LoginMfaChallengeRecord = {
@@ -44,7 +45,7 @@ export class LoginMfaChallengeStore {
     return {
       mfaRequired: true,
       mfaChallengeToken: token,
-      availableFactors: [...LOGIN_MFA_FACTORS],
+      availableFactors,
       expiresInSeconds: LOGIN_MFA_CHALLENGE_TTL_IN_SECONDS,
     };
   }

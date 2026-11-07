@@ -103,6 +103,19 @@ describe("toAuthResponseBody", () => {
     ).toBe(true);
   });
 
+  it("says how many recovery codes are left, including none", () => {
+    expect(
+      toAuthResponseBody(
+        createMockRequest(),
+        createSessionResult({ recoveryCodesRemaining: 0 }),
+      ).recoveryCodesRemaining,
+    ).toBe(0);
+    expect(
+      toAuthResponseBody(createMockRequest(), createSessionResult())
+        .recoveryCodesRemaining,
+    ).toBeUndefined();
+  });
+
   it("omits the flag for a returning sign-in", () => {
     expect(
       toAuthResponseBody(createMockRequest(), createSessionResult()).isNewUser,

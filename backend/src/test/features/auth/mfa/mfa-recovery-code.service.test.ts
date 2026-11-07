@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import ConflictError from "@/errors/http/conflict.error";
+import UnauthorizedError from "@/errors/http/unauthorized.error";
 import {
   formatRecoveryCode,
   normalizeRecoveryCode,
@@ -114,6 +115,103 @@ describe("MfaRecoveryCodeService", () => {
         remaining: 0,
         createdAt: null,
       });
+    });
+  });
+
+  describe("redeem", () => {
+    it("spends a code, then audits and emails, pointing at one event", async () => {
+      const {
+        service,
+        repository,
+        authAuditService,
+        securityNotificationService,
+      } = createHarness();
+      const { codes, rows } = service.generateSet(USER_ID);
+
+      await expect(
+        service.redeem({
+          userId: USER_ID,
+          code: codes[0]!,
+          stage: "step_up",
+          sessionId: "session-1",
+          context: CONTEXT,
+        }),
+      ).resolves.toBe(7);
+
+      expect(repository.claim).toHaveBeenCalledWith(
+        USER_ID,
+        rows[0]!.codeHash,
+        expect.any(Date),
+      );
+      expect(securityNotificationService.notify).toHaveBeenCalledWith({
+        kind: "mfa_recovery_code_used",
+        details: { remaining: 7 },
+        userId: USER_ID,
+        eventId: expect.any(String),
+        context: CONTEXT,
+      });
+      expect(authAuditService.recordSafely).toHaveBeenCalledWith({
+        id: securityNotificationService.notify.mock.calls[0]![0].eventId,
+        eventType: "mfa.recovery_code_used",
+        outcome: "success",
+        userId: USER_ID,
+        sessionId: "session-1",
+        method: undefined,
+        context: CONTEXT,
+        metadata: {
+          remaining: 7,
+          stage: "step_up",
+          emailNotification: "sent",
+        },
+      });
+    });
+
+    it("accepts a code however it was typed", async () => {
+      const { service, repository } = createHarness();
+      const { codes, rows } = service.generateSet(USER_ID);
+
+      await service.redeem({
+        userId: USER_ID,
+        code: codes[0]!.toLowerCase().replace("-", " "),
+        stage: "login",
+      });
+
+      expect(repository.claim).toHaveBeenCalledWith(
+        USER_ID,
+        rows[0]!.codeHash,
+        expect.any(Date),
+      );
+    });
+
+    it("refuses a used or unknown code, recording nothing", async () => {
+      const {
+        service,
+        repository,
+        authAuditService,
+        securityNotificationService,
+      } = createHarness();
+      repository.claim.mockResolvedValue(false);
+
+      await expect(
+        service.redeem({
+          userId: USER_ID,
+          code: "ABCDE-FGH23",
+          stage: "login",
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+
+      expect(securityNotificationService.notify).not.toHaveBeenCalled();
+      expect(authAuditService.recordSafely).not.toHaveBeenCalled();
+    });
+
+    it("does not touch the table for something that cannot be a code", async () => {
+      const { service, repository } = createHarness();
+
+      await expect(
+        service.redeem({ userId: USER_ID, code: "123456", stage: "login" }),
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+
+      expect(repository.claim).not.toHaveBeenCalled();
     });
   });
 

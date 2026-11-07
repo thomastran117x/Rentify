@@ -5,6 +5,7 @@ import MfaConfirmRateLimitedError from "@/errors/http/mfa-confirm-rate-limited.e
 import MfaFactorUnavailableError from "@/errors/http/mfa-factor-unavailable.error";
 import MfaVerificationRequiredError from "@/errors/http/mfa-verification-required.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
+import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { environment } from "@/configuration/environment";
 import { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import {
@@ -27,6 +28,7 @@ function createSecurityContext(
       updatedAt: string;
       confirmedAt?: string;
     } | null;
+    unusedRecoveryCodes: number;
   }> = {},
 ) {
   return {
@@ -37,6 +39,7 @@ function createSecurityContext(
     tokenVersion: 1,
     updatedAt: "2026-06-27T15:00:00.000Z",
     mfaTotp: null,
+    unusedRecoveryCodes: 0,
     ...overrides,
   };
 }
@@ -114,6 +117,9 @@ function createService(
   const mfaTotpService = {
     verifyCode: jest.fn(async () => undefined),
   };
+  const mfaRecoveryCodeService = {
+    redeem: jest.fn(async () => 3),
+  };
   const authAuditService = {
     recordSafely: jest.fn(async (_input: Record<string, unknown>) => undefined),
   };
@@ -124,6 +130,7 @@ function createService(
     otpService: otpService as any,
     emailService: emailService as any,
     mfaTotpService: mfaTotpService as any,
+    mfaRecoveryCodeService: mfaRecoveryCodeService as any,
     authAuditService: authAuditService as any,
   });
 
@@ -134,6 +141,7 @@ function createService(
     otpService,
     emailService,
     mfaTotpService,
+    mfaRecoveryCodeService,
     authAuditService,
   };
 }
@@ -296,14 +304,222 @@ describe("MfaVerificationService", () => {
       source: "frontend-browser" as const,
       device: { type: "desktop" as const, isMobile: false },
     };
-    const totpContext = () =>
+    const totpContext = (unusedRecoveryCodes = 0) =>
       createSecurityContext({
         mfaTotp: {
           status: "active",
           updatedAt: "2026-06-27T15:20:00.000Z",
           confirmedAt: "2026-06-27T15:10:00.000Z",
         },
+        unusedRecoveryCodes,
       });
+
+    describe("recovery codes", () => {
+      const confirmRecoveryCode = (
+        service: MfaVerificationService,
+        scope: typeof MFA_MANAGEMENT_SCOPE | typeof MFA_DEVICE_LOGIN_SCOPE,
+      ) =>
+        service.confirmChallenge({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope,
+          factor: "recovery_code",
+          code: "ABCDE-FGH23",
+          client,
+          audit: { requestId: "request-1" },
+        });
+
+      it("offers them after the authenticator while some are left", async () => {
+        const { service } = createService({
+          securityContext: totpContext(2),
+        });
+
+        await expect(
+          service.getOptions({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+          }),
+        ).resolves.toMatchObject({
+          availableFactors: ["totp", "recovery_code"],
+          recommendedFactor: "totp",
+        });
+      });
+
+      it("falls back to nothing weaker once they run out", async () => {
+        const { service } = createService({
+          securityContext: totpContext(0),
+        });
+
+        await expect(
+          service.getOptions({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+          }),
+        ).resolves.toMatchObject({ availableFactors: ["totp"] });
+        await expect(
+          confirmRecoveryCode(service, MFA_MANAGEMENT_SCOPE),
+        ).rejects.toBeInstanceOf(MfaFactorUnavailableError);
+      });
+
+      it("never offers them to an account without an authenticator", async () => {
+        const { service } = createService({
+          securityContext: createSecurityContext({ unusedRecoveryCodes: 4 }),
+        });
+
+        await expect(
+          service.getOptions({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+          }),
+        ).resolves.toMatchObject({ availableFactors: ["email"] });
+      });
+
+      it("prompts without sending anything", async () => {
+        const { service, otpService } = createService({
+          securityContext: totpContext(2),
+        });
+
+        await expect(
+          service.issueChallenge({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+            factor: "recovery_code",
+            client,
+          }),
+        ).resolves.toEqual({
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "recovery_code",
+          challengeId: null,
+          prompt: true,
+        });
+        expect(otpService.issue).not.toHaveBeenCalled();
+      });
+
+      it("spends the code and records a proof", async () => {
+        const { service, mfaRecoveryCodeService, mfaTotpService } =
+          createService({ securityContext: totpContext(2) });
+
+        await expect(
+          confirmRecoveryCode(service, MFA_MANAGEMENT_SCOPE),
+        ).resolves.toMatchObject({
+          verified: true,
+          factor: "recovery_code",
+        });
+
+        expect(mfaRecoveryCodeService.redeem).toHaveBeenCalledWith({
+          userId: USER_1_ID,
+          code: "ABCDE-FGH23",
+          stage: "step_up",
+          sessionId: "session-1",
+          context: { requestId: "request-1" },
+        });
+        expect(mfaTotpService.verifyCode).not.toHaveBeenCalled();
+      });
+
+      it("treats a wrong code like any other, towards the session's lock", async () => {
+        const { service, mfaRecoveryCodeService, authAuditService } =
+          createService({ securityContext: totpContext(2) });
+        mfaRecoveryCodeService.redeem.mockRejectedValue(
+          new UnauthorizedError("MFA verification failed."),
+        );
+
+        await expect(
+          confirmRecoveryCode(service, MFA_MANAGEMENT_SCOPE),
+        ).rejects.toBeInstanceOf(InvalidMfaCodeError);
+
+        expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+          expect.objectContaining({
+            eventType: "mfa.step_up_failed",
+            metadata: expect.objectContaining({ factor: "recovery_code" }),
+          }),
+        );
+      });
+
+      it.each([MFA_MANAGEMENT_SCOPE, MFA_DEVICE_LOGIN_SCOPE])(
+        "keeps a %s proof made with the very last code",
+        async (scope) => {
+          const { service, authRepository } = createService({
+            securityContext: totpContext(1),
+          });
+
+          await confirmRecoveryCode(service, scope);
+          // The code that earned the proof was the last one.
+          authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
+            totpContext(0),
+          );
+
+          await expect(
+            service.assertRecentVerification({
+              userId: USER_1_ID,
+              sessionId: "session-1",
+              scope,
+            }),
+          ).resolves.toMatchObject({ factor: "recovery_code" });
+        },
+      );
+
+      it("keeps a device-login proof recorded by a sign-in with the last code", async () => {
+        const { service } = createService({
+          securityContext: totpContext(0),
+        });
+
+        await service.recordLoginProof({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          factor: "recovery_code",
+        });
+
+        await expect(
+          service.getOptions({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_DEVICE_LOGIN_SCOPE,
+          }),
+        ).resolves.toMatchObject({ verified: true });
+      });
+
+      it("does not let a spent code void another proof", async () => {
+        const { service, authRepository } = createService({
+          securityContext: totpContext(5),
+        });
+
+        await confirmRecoveryCode(service, MFA_MANAGEMENT_SCOPE);
+        authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
+          totpContext(4),
+        );
+
+        await expect(
+          service.assertRecentVerification({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+          }),
+        ).resolves.toMatchObject({ factor: "recovery_code" });
+      });
+
+      it("does not keep the proof once the authenticator is gone", async () => {
+        const { service, authRepository } = createService({
+          securityContext: totpContext(2),
+        });
+
+        await confirmRecoveryCode(service, MFA_MANAGEMENT_SCOPE);
+        authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
+          createSecurityContext(),
+        );
+
+        await expect(
+          service.assertRecentVerification({
+            userId: USER_1_ID,
+            sessionId: "session-1",
+            scope: MFA_MANAGEMENT_SCOPE,
+          }),
+        ).rejects.toBeInstanceOf(MfaVerificationRequiredError);
+      });
+    });
 
     it.each([MFA_MANAGEMENT_SCOPE, MFA_DEVICE_LOGIN_SCOPE])(
       "refuses an email challenge in the %s scope",

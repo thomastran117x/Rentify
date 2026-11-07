@@ -586,6 +586,7 @@ function createService(overrides?: {
     authSessionService,
     loginLockoutService,
     authAuditService as any,
+    { countUnused: async () => 0 } as any,
   );
 
   const service = new LocalAuthService(

@@ -10,8 +10,17 @@ export const mfaVerificationScopeSchema = z.enum([
   MFA_MANAGEMENT_SCOPE,
   MFA_DEVICE_LOGIN_SCOPE,
 ]);
-export const mfaVerificationFactorSchema = z.enum(["email", "totp", "sms"]);
-export const mfaVerificationChallengeFactorSchema = z.enum(["email", "totp"]);
+export const mfaVerificationFactorSchema = z.enum([
+  "email",
+  "totp",
+  "sms",
+  "recovery_code",
+]);
+export const mfaVerificationChallengeFactorSchema = z.enum([
+  "email",
+  "totp",
+  "recovery_code",
+]);
 
 export const mfaVerificationChallengeRequestSchema = z.object({
   scope: mfaVerificationScopeSchema,
@@ -55,16 +64,17 @@ export interface MfaVerificationEmailChallengeResult {
   cooldownUntil: string;
 }
 
-export interface MfaVerificationTotpChallengeResult {
+/** A factor the user already holds, so there is nothing to send. */
+export interface MfaVerificationPromptChallengeResult {
   scope: MfaVerificationScope;
-  factor: "totp";
+  factor: "totp" | "recovery_code";
   challengeId: null;
   prompt: true;
 }
 
 export type MfaVerificationChallengeResult =
   | MfaVerificationEmailChallengeResult
-  | MfaVerificationTotpChallengeResult;
+  | MfaVerificationPromptChallengeResult;
 
 export interface MfaVerificationConfirmResult {
   verified: true;

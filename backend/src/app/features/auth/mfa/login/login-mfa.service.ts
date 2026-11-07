@@ -28,11 +28,17 @@ import type {
   LoginMfaFactor,
   LoginMfaMethod,
 } from "@/features/auth/mfa/login/login-mfa.model";
+import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
 import { redactEmail } from "@/features/auth/redact-email";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
+
+const INVALID_CODE_MESSAGES: Record<LoginMfaFactor, string> = {
+  totp: "The authenticator code is incorrect.",
+  recovery_code: "That recovery code is incorrect or was already used.",
+};
 
 /**
  * What the second factor decided about a sign-in whose first factor passed.
@@ -78,6 +84,7 @@ export class LoginMfaService {
     private readonly authSessionService: AuthSessionService,
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
+    private readonly mfaRecoveryCodeService: MfaRecoveryCodeService,
   ) {
     this.logger = loggerFactory.forClass(LoginMfaService, "service");
   }
@@ -113,6 +120,7 @@ export class LoginMfaService {
         input.user,
         input.audit,
         this.failureEventType(input.method),
+        "totp",
         input.totpCode,
       );
       return { status: "verified", factor: "totp" };
@@ -130,15 +138,20 @@ export class LoginMfaService {
     });
 
     throw new LoginMfaRequiredError(
-      await this.loginMfaChallengeStore.issue({
-        userId,
-        method: input.method,
-        username: input.user.profile.username,
-        identifierHash: input.audit.identifierHash,
-        deviceId: input.deviceId,
-        rememberMe: input.rememberMe,
-        tokenVersion: input.user.tokenVersion,
-      }),
+      await this.loginMfaChallengeStore.issue(
+        {
+          userId,
+          method: input.method,
+          username: input.user.profile.username,
+          identifierHash: input.audit.identifierHash,
+          deviceId: input.deviceId,
+          rememberMe: input.rememberMe,
+          tokenVersion: input.user.tokenVersion,
+        },
+        (await this.mfaRecoveryCodeService.countUnused(userId)) > 0
+          ? ["totp", "recovery_code"]
+          : ["totp"],
+      ),
     );
   }
 
@@ -181,12 +194,15 @@ export class LoginMfaService {
         audit,
       );
 
+      let recoveryCodesRemaining: number | undefined;
+
       try {
         await this.refuseIfLocked(user, audit);
-        await this.verifyCode(
+        recoveryCodesRemaining = await this.verifyCode(
           user,
           audit,
           this.failureEventType(challenge.method),
+          input.factor,
           input.code,
         );
       } catch (error) {
@@ -196,7 +212,7 @@ export class LoginMfaService {
           await this.loginMfaChallengeStore.delete(input.mfaChallengeToken);
         }
         if (error instanceof UnauthorizedError) {
-          throw new InvalidMfaCodeError("The authenticator code is incorrect.");
+          throw new InvalidMfaCodeError(INVALID_CODE_MESSAGES[input.factor]);
         }
         throw error;
       }
@@ -225,7 +241,9 @@ export class LoginMfaService {
         sessionId: session.sessionId,
       });
 
-      return session;
+      return recoveryCodesRemaining === undefined
+        ? session
+        : { ...session, recoveryCodesRemaining };
     } finally {
       await completionLock.release();
     }
@@ -305,16 +323,33 @@ export class LoginMfaService {
 
   /**
    * A wrong code counts towards the username lockout and rethrows the
-   * rejection; a right one clears the count the way a sign-in does.
+   * rejection, whichever factor it was for; a right one clears the count the
+   * way a sign-in does.
+   *
+   * Returns how many recovery codes are left when one was spent.
    */
   private async verifyCode(
     user: AuthUserRecord,
     audit: LoginAttemptAuditBase,
     failureEventType: "login.failed" | "oauth.login.failed",
+    factor: LoginMfaFactor,
     code: string,
-  ): Promise<void> {
+  ): Promise<number | undefined> {
+    const userId = asUuid(user.id);
+    let recoveryCodesRemaining: number | undefined;
+
     try {
-      await this.mfaTotpService.verifyCode(asUuid(user.id), code);
+      if (factor === "recovery_code") {
+        recoveryCodesRemaining = await this.mfaRecoveryCodeService.redeem({
+          userId,
+          code,
+          stage: "login",
+          method: audit.method,
+          context: audit.context,
+        });
+      } else {
+        await this.mfaTotpService.verifyCode(userId, code);
+      }
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         await this.loginLockoutService.recordFailedLogin({
@@ -329,6 +364,8 @@ export class LoginMfaService {
     }
 
     await this.loginLockoutService.clearAttemptRecord(user.profile.username);
+
+    return recoveryCodesRemaining;
   }
 
   private async recordFailure(

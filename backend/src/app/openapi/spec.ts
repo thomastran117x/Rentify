@@ -94,7 +94,7 @@ const OAUTH_CALLBACK_DESCRIPTION =
 const loginMfaRequiredExample = {
   mfaRequired: true,
   mfaChallengeToken: "opaque-mfa-challenge-token",
-  availableFactors: ["totp"],
+  availableFactors: ["totp", "recovery_code"],
   expiresInSeconds: 300,
 };
 const RECOVERY_CODE_SCHEMA_PATTERN = `^[${RECOVERY_CODE_ALPHABET}]{5}-[${RECOVERY_CODE_ALPHABET}]{5}$`;
@@ -2025,7 +2025,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeLoginMfa",
       summary: "Finish a sign-in with a second factor",
       description:
-        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.",
+        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: recovery_code appears only while the account has unused codes. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -11568,6 +11568,12 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Present and true only when a first-time OAuth sign-in just created this account, so the client can surface the generated-username onboarding flow. Absent for returning sign-ins and all local flows.",
           },
+          recoveryCodesRemaining: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Present only when this sign-in spent a recovery code: how many unused ones are left. At 0, prompt the user to replace them while the sign-in's proof lasts.",
+          },
         },
       },
       SignupVerificationPendingResult: {
@@ -11611,7 +11617,7 @@ function buildComponents(): Record<string, unknown> {
           },
           availableFactors: {
             type: "array",
-            items: { type: "string", enum: ["totp"] },
+            items: { type: "string", enum: ["totp", "recovery_code"] },
             description:
               "The factors the sign-in can be finished with. New factors may be added.",
           },
@@ -11623,7 +11629,7 @@ function buildComponents(): Record<string, unknown> {
         required: ["mfaChallengeToken", "factor", "code"],
         properties: {
           mfaChallengeToken: { type: "string" },
-          factor: { type: "string", enum: ["totp"] },
+          factor: { type: "string", enum: ["totp", "recovery_code"] },
           code: { type: "string", description: "The authenticator code." },
           deviceId: {
             type: "string",
@@ -12650,11 +12656,11 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaVerificationFactor: {
         type: "string",
-        enum: ["email", "totp", "sms"],
+        enum: ["email", "totp", "sms", "recovery_code"],
       },
       MfaVerificationChallengeFactor: {
         type: "string",
-        enum: ["email", "totp"],
+        enum: ["email", "totp", "recovery_code"],
       },
       MfaVerificationOptionsResult: {
         type: "object",
@@ -12679,7 +12685,7 @@ function buildComponents(): Record<string, unknown> {
           },
           recommendedFactor: {
             type: "string",
-            enum: ["email", "totp", "sms"],
+            enum: ["email", "totp", "sms", "recovery_code"],
             nullable: true,
           },
         },
@@ -12709,7 +12715,7 @@ function buildComponents(): Record<string, unknown> {
             required: ["scope", "factor", "challengeId", "prompt"],
             properties: {
               scope: schemaRef("MfaVerificationScope"),
-              factor: { type: "string", const: "totp" },
+              factor: { type: "string", enum: ["totp", "recovery_code"] },
               challengeId: { type: "null" },
               prompt: { type: "boolean", const: true },
             },
