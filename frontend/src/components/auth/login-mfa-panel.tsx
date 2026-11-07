@@ -5,6 +5,10 @@ import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { LoginMfaPendingFlow } from "@/lib/auth/pending-flow";
 import {
+  formatRecoveryCodeInput,
+  isCompleteRecoveryCode,
+} from "@/lib/auth/recovery-code";
+import {
   ApiClientError,
   type AuthResponseBody,
   type LoginMfaFactor,
@@ -22,28 +26,67 @@ interface LoginMfaPanelProps {
 
 const FACTOR_COPY: Record<
   LoginMfaFactor,
-  { title: string; label: string; hint: string; switchLabel: string }
+  {
+    title: string;
+    intro: string;
+    label: string;
+    hint: string;
+    switchLabel: string;
+    placeholder: string;
+    incomplete: string;
+    incorrect: string;
+  }
 > = {
   totp: {
     title: "Enter your authenticator code",
+    intro:
+      "Your password checked out. This account also needs a code from your authenticator app.",
     label: "Authenticator code",
     hint: "Open your authenticator app and enter the 6-digit code for Rentify.",
     switchLabel: "Use your authenticator app",
+    placeholder: "123456",
+    incomplete: "Enter the 6-digit code from your authenticator app.",
+    incorrect:
+      "That code is incorrect. Check your authenticator app and try again.",
+  },
+  recovery_code: {
+    title: "Enter a recovery code",
+    intro:
+      "Your password checked out. Use one of the recovery codes you saved when you set up your authenticator app.",
+    label: "Recovery code",
+    hint: "Each code works once. We'll email you when one is used.",
+    switchLabel: "Use a recovery code",
+    placeholder: "XXXXX-XXXXX",
+    incomplete: "Enter your 10-character recovery code.",
+    incorrect:
+      "That recovery code is incorrect or was already used. Check it and try again.",
   },
 };
+
+function formatCode(value: string, factor: LoginMfaFactor): string {
+  return factor === "recovery_code"
+    ? formatRecoveryCodeInput(value)
+    : value.replace(/\D/g, "").slice(0, 6);
+}
+
+function isCompleteCode(value: string, factor: LoginMfaFactor): boolean {
+  return factor === "recovery_code"
+    ? isCompleteRecoveryCode(value)
+    : value.length === 6;
+}
 
 /**
  * Errors the user can fix by entering another code, shown on the field. A
  * 400 about anything else, such as the stored challenge token, cannot be fixed
  * from here, so it goes back to the sign-in form.
  */
-function getCodeError(error: unknown): string | null {
+function getCodeError(error: unknown, factor: LoginMfaFactor): string | null {
   if (!(error instanceof ApiClientError) || error.status !== 400) {
     return null;
   }
 
   if (error.code === "INVALID_MFA_CODE") {
-    return "That code is incorrect. Check your authenticator app and try again.";
+    return FACTOR_COPY[factor].incorrect;
   }
 
   const details = error.details as Record<string, unknown> | undefined;
@@ -52,7 +95,7 @@ function getCodeError(error: unknown): string | null {
   if (error.code === "VALIDATION_ERROR" && Array.isArray(codeMessages)) {
     return typeof codeMessages[0] === "string"
       ? codeMessages[0]
-      : "Enter the 6-digit code from your authenticator app.";
+      : FACTOR_COPY[factor].incomplete;
   }
 
   return null;
@@ -60,7 +103,8 @@ function getCodeError(error: unknown): string | null {
 
 /**
  * The second step of a sign-in for an account with an authenticator app. It
- * only ever holds the challenge token from the first step.
+ * only ever holds the challenge token from the first step, and the switch to a
+ * recovery code stays on this step.
  */
 export function LoginMfaPanel({
   flow,
@@ -74,8 +118,8 @@ export function LoginMfaPanel({
   const [codeError, setCodeError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const copy = FACTOR_COPY[flow.factor];
-  // Typed explicitly: with one factor today, the inferred predicate is `never`.
-  const otherFactors: LoginMfaFactor[] = flow.availableFactors.filter(
+  const isRecoveryCode = flow.factor === "recovery_code";
+  const otherFactors = flow.availableFactors.filter(
     (factor) => factor !== flow.factor,
   );
 
@@ -83,8 +127,8 @@ export function LoginMfaPanel({
     event.preventDefault();
     setGeneralError(null);
 
-    if (code.length !== 6) {
-      setCodeError("Enter the 6-digit code from your authenticator app.");
+    if (!isCompleteCode(code, flow.factor)) {
+      setCodeError(copy.incomplete);
       return;
     }
 
@@ -99,7 +143,7 @@ export function LoginMfaPanel({
       });
       await onSuccess(session);
     } catch (error) {
-      const nextCodeError = getCodeError(error);
+      const nextCodeError = getCodeError(error, flow.factor);
 
       if (nextCodeError) {
         setCode("");
@@ -127,10 +171,7 @@ export function LoginMfaPanel({
     <div className="space-y-5">
       <div className={theme.auth.infoPanel}>
         <p className="text-sm font-semibold">{copy.title}</p>
-        <p className="mt-2 text-sm leading-6">
-          Your password checked out. This account also needs a code from your
-          authenticator app.
-        </p>
+        <p className="mt-2 text-sm leading-6">{copy.intro}</p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
@@ -146,14 +187,17 @@ export function LoginMfaPanel({
           </label>
 
           <input
+            key={flow.factor}
             id="loginMfaCode"
             name="loginMfaCode"
             type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
+            inputMode={isRecoveryCode ? "text" : "numeric"}
+            autoComplete={isRecoveryCode ? "off" : "one-time-code"}
+            autoCapitalize={isRecoveryCode ? "characters" : undefined}
+            spellCheck={false}
             autoFocus
-            maxLength={6}
-            placeholder="123456"
+            maxLength={isRecoveryCode ? undefined : 6}
+            placeholder={copy.placeholder}
             aria-invalid={Boolean(codeError)}
             aria-describedby={
               codeError ? "login-mfa-code-error" : "login-mfa-code-hint"
@@ -161,9 +205,13 @@ export function LoginMfaPanel({
             value={code}
             onChange={(event) => {
               setCodeError(null);
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+              setCode(formatCode(event.target.value, flow.factor));
             }}
-            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center text-[22px] tracking-[0.35em] text-slate-900 dark:text-white outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
+            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center text-slate-900 dark:text-white outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
+              isRecoveryCode
+                ? "font-mono text-lg tracking-wider"
+                : "text-[22px] tracking-[0.35em]"
+            } ${
               codeError
                 ? theme.auth.fieldError
                 : code.length > 0

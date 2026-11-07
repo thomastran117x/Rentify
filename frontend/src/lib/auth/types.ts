@@ -56,6 +56,8 @@ export interface AuthResponseBody {
    * returning sign-ins and all local flows.
    */
   isNewUser?: boolean;
+  /** How many recovery codes are left, after a sign-in that spent one. */
+  recoveryCodesRemaining?: number;
 }
 
 export interface SignupVerificationPendingResult {
@@ -90,10 +92,10 @@ export interface OAuthFlowStart {
 
 /**
  * The second factors a sign-in can be finished with, and the only list of
- * them. Recovery codes and passkeys join it without changing the challenge's
- * shape; a factor this client does not list is dropped from a challenge.
+ * them. Passkeys join it without changing the challenge's shape; a factor this
+ * client does not list is dropped from a challenge.
  */
-export const LOGIN_MFA_FACTORS = ["totp"] as const;
+export const LOGIN_MFA_FACTORS = ["totp", "recovery_code"] as const;
 
 export type LoginMfaFactor = (typeof LOGIN_MFA_FACTORS)[number];
 

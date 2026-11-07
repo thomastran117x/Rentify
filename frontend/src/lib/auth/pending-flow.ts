@@ -154,7 +154,9 @@ export function parsePendingFlow(
     case "device-login-mfa":
       if (
         isNonEmptyString(value.nextPath) &&
-        (value.selectedFactor === "email" || value.selectedFactor === "totp") &&
+        (value.selectedFactor === "email" ||
+          value.selectedFactor === "totp" ||
+          value.selectedFactor === "recovery_code") &&
         typeof value.challengeSent === "boolean"
       ) {
         return {

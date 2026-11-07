@@ -121,6 +121,89 @@ describe("MfaVerificationDialog", () => {
     });
   });
 
+  describe("with a recovery code", () => {
+    const recoveryOptions = {
+      ...baseOptions,
+      availableFactors: ["totp", "recovery_code"] as MfaVerificationFactor[],
+      recommendedFactor: "totp" as const,
+    };
+
+    function renderDialog(onVerified = vi.fn()) {
+      render(
+        <MfaVerificationDialog
+          open
+          initialOptions={recoveryOptions}
+          scope="mfa-management"
+          onCancel={vi.fn()}
+          onVerified={onVerified}
+        />,
+      );
+    }
+
+    it("starts on the authenticator and can switch to a code", async () => {
+      const user = userEvent.setup();
+      const onVerified = vi.fn();
+      confirmChallengeMock.mockResolvedValue({
+        verified: true,
+        scope: "mfa-management",
+        factor: "recovery_code",
+        verifiedUntil: "2026-11-07T12:15:00.000Z",
+      });
+      renderDialog(onVerified);
+
+      expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Recovery code" }));
+      const input = screen.getByLabelText("Recovery code");
+      await user.type(input, "abcdefgh23");
+
+      expect(input).toHaveValue("ABCDE-FGH23");
+      await user.click(screen.getByRole("button", { name: /^verify$/i }));
+
+      await waitFor(() => {
+        expect(confirmChallengeMock).toHaveBeenCalledWith(
+          "mfa-management",
+          "recovery_code",
+          "ABCDE-FGH23",
+        );
+        expect(onVerified).toHaveBeenCalled();
+      });
+      expect(issueChallengeMock).not.toHaveBeenCalled();
+    });
+
+    it("needs the whole code before it can be verified", async () => {
+      const user = userEvent.setup();
+      renderDialog();
+
+      await user.click(screen.getByRole("button", { name: "Recovery code" }));
+      await user.type(screen.getByLabelText("Recovery code"), "ABC");
+
+      expect(screen.getByRole("button", { name: /^verify$/i })).toBeDisabled();
+    });
+
+    it("formats a pasted code", async () => {
+      const user = userEvent.setup();
+      renderDialog();
+
+      await user.click(screen.getByRole("button", { name: "Recovery code" }));
+      await user.click(screen.getByLabelText("Recovery code"));
+      await user.paste("abcde fgh23");
+
+      expect(screen.getByLabelText("Recovery code")).toHaveValue("ABCDE-FGH23");
+    });
+
+    it("drops a half-typed code when switching back", async () => {
+      const user = userEvent.setup();
+      renderDialog();
+
+      await user.click(screen.getByRole("button", { name: "Recovery code" }));
+      await user.type(screen.getByLabelText("Recovery code"), "ABC");
+      await user.click(screen.getByRole("button", { name: "Authenticator" }));
+
+      expect(screen.getByPlaceholderText("000000")).toHaveValue("");
+    });
+  });
+
   it("refreshes factor options when the chosen factor becomes unavailable", async () => {
     const user = userEvent.setup();
     confirmChallengeMock.mockRejectedValue(

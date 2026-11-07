@@ -7,6 +7,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { UserIcon } from "@/components/auth/auth-field-icons";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { LoginMfaPanel } from "@/components/auth/login-mfa-panel";
+import { RecoveryCodesPrompt } from "@/components/auth/recovery-codes-prompt";
 import { LoginUnlockPanel } from "@/components/auth/login-unlock-panel";
 import { AuthOAuthButtons } from "@/components/auth/oauth-buttons";
 import { OAuthSignupDateOfBirthDialog } from "@/components/auth/oauth-signup-date-of-birth-dialog";
@@ -237,6 +238,7 @@ export function LoginForm({
   const [oauthSignupPending, setOAuthSignupPending] =
     useState<OAuthSignupRequiredResult | null>(null);
   const [devicePending, setDevicePending] = useState(false);
+  const [recoveryCodesPromptOpen, setRecoveryCodesPromptOpen] = useState(false);
   const [deviceMfaDialogState, setDeviceMfaDialogState] =
     useState<DeviceMfaDialogState | null>(null);
   const deviceMfaResolverRef = useRef<((verified: boolean) => void) | null>(
@@ -300,7 +302,8 @@ export function LoginForm({
       !devicePending &&
       !authFlowRestorePending &&
       !deviceLoginPendingFlow &&
-      !welcomeSession
+      !welcomeSession &&
+      !recoveryCodesPromptOpen
     ) {
       router.replace(nextPath);
     }
@@ -309,6 +312,7 @@ export function LoginForm({
     deviceLoginPendingFlow,
     devicePending,
     nextPath,
+    recoveryCodesPromptOpen,
     router,
     status,
     welcomeSession,
@@ -489,6 +493,7 @@ export function LoginForm({
           } else {
             clearPersistedAuthPendingFlowByType("device-login-mfa");
             await authApi.logout().catch(() => {});
+            setRecoveryCodesPromptOpen(false);
             setDevicePending(false);
             setGeneralError("Sign-in was cancelled. Please try again.");
             return;
@@ -562,6 +567,8 @@ export function LoginForm({
     session: AuthResponseBody,
   ) {
     clearPersistedAuthPendingFlowByType("login-mfa");
+    // Before the session is set, because the redirect goes as soon as it is.
+    setRecoveryCodesPromptOpen(session.recoveryCodesRemaining === 0);
 
     if (flow.method === "oauth") {
       await handleOAuthSuccess(session);
@@ -657,6 +664,12 @@ export function LoginForm({
   }
 
   if (status === "authenticated" && !devicePending && !deviceLoginPendingFlow) {
+    if (recoveryCodesPromptOpen) {
+      return (
+        <RecoveryCodesPrompt onDone={() => setRecoveryCodesPromptOpen(false)} />
+      );
+    }
+
     if (welcomeSession) {
       return (
         <OAuthWelcomeModal

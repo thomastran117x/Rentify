@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Mail, MessageSquare, ShieldCheck, Smartphone, X } from "lucide-react";
+import {
+  KeyRound,
+  Mail,
+  MessageSquare,
+  ShieldCheck,
+  Smartphone,
+  X,
+} from "lucide-react";
 import { ApiClientError, isApiClientError } from "@/lib/api/types";
 import {
   type MfaVerificationChallengeFactor,
@@ -12,6 +19,10 @@ import {
   mfaVerificationApi,
 } from "@/lib/auth/mfa-verification-api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
+import {
+  formatRecoveryCodeInput,
+  isCompleteRecoveryCode,
+} from "@/lib/auth/recovery-code";
 
 interface MfaVerificationDialogProps {
   open: boolean;
@@ -33,6 +44,7 @@ const FACTOR_LABELS: Record<MfaVerificationChallengeFactor, string> = {
   email: "Email",
   sms: "SMS",
   totp: "Authenticator",
+  recovery_code: "Recovery code",
 };
 
 function FactorIcon({
@@ -46,11 +58,27 @@ function FactorIcon({
     return <Mail className={className} aria-hidden="true" />;
   if (factor === "sms")
     return <MessageSquare className={className} aria-hidden="true" />;
+  if (factor === "recovery_code")
+    return <KeyRound className={className} aria-hidden="true" />;
   return <Smartphone className={className} aria-hidden="true" />;
 }
 
-export function normalizeCode(value: string): string {
-  return value.replace(/\D/g, "").slice(0, 6);
+export function normalizeCode(
+  value: string,
+  factor?: MfaVerificationChallengeFactor | null,
+): string {
+  return factor === "recovery_code"
+    ? formatRecoveryCodeInput(value)
+    : value.replace(/\D/g, "").slice(0, 6);
+}
+
+function isCompleteCode(
+  value: string,
+  factor: MfaVerificationChallengeFactor | null,
+): boolean {
+  return factor === "recovery_code"
+    ? isCompleteRecoveryCode(value)
+    : value.length === 6;
 }
 
 function getFocusableElements(root: HTMLElement) {
@@ -64,7 +92,12 @@ function getFocusableElements(root: HTMLElement) {
 export function isChallengeFactor(
   factor: MfaVerificationFactor | null | undefined,
 ): factor is MfaVerificationChallengeFactor {
-  return factor === "email" || factor === "totp" || factor === "sms";
+  return (
+    factor === "email" ||
+    factor === "totp" ||
+    factor === "sms" ||
+    factor === "recovery_code"
+  );
 }
 
 export function selectInitialFactor(
@@ -219,9 +252,11 @@ export function MfaVerificationDialog({
     ? Math.max(0, Math.ceil((new Date(cooldownUntil).getTime() - nowMs) / 1000))
     : 0;
 
-  // For email/SMS: two-step. For TOTP: show code immediately.
+  // For email/SMS: two-step. For TOTP and recovery codes: show code immediately.
   const needsChallenge = selectedFactor === "email" || selectedFactor === "sms";
   const showCodeInput = !needsChallenge || challengeSent;
+  const isRecoveryCode = selectedFactor === "recovery_code";
+  const codeComplete = isCompleteCode(code, selectedFactor);
 
   useEffect(() => {
     if (showCodeInput && codeInputRef.current) {
@@ -310,8 +345,12 @@ export function MfaVerificationDialog({
       return;
     }
 
-    if (code.length !== 6) {
-      setErrorMessage("Enter the 6-digit verification code to continue.");
+    if (!codeComplete) {
+      setErrorMessage(
+        isRecoveryCode
+          ? "Enter your 10-character recovery code to continue."
+          : "Enter the 6-digit verification code to continue.",
+      );
       return;
     }
 
@@ -347,12 +386,12 @@ export function MfaVerificationDialog({
   }
 
   function handleCodeChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setCode(normalizeCode(event.target.value));
+    setCode(normalizeCode(event.target.value, selectedFactor));
   }
 
   function handleCodePaste(event: React.ClipboardEvent<HTMLInputElement>) {
     event.preventDefault();
-    setCode(normalizeCode(event.clipboardData.getData("text")));
+    setCode(normalizeCode(event.clipboardData.getData("text"), selectedFactor));
   }
 
   if (!open) {
@@ -467,7 +506,9 @@ export function MfaVerificationDialog({
               <div className="space-y-4">
                 {!needsChallenge && (
                   <p className="text-sm text-slate-600 dark:text-slate-300">
-                    Enter the current 6-digit code from your authenticator app.
+                    {isRecoveryCode
+                      ? "Enter one of your recovery codes. Each code works once."
+                      : "Enter the current 6-digit code from your authenticator app."}
                   </p>
                 )}
                 {needsChallenge && (
@@ -479,14 +520,22 @@ export function MfaVerificationDialog({
                 <input
                   ref={codeInputRef}
                   type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
+                  aria-label={
+                    isRecoveryCode ? "Recovery code" : "Verification code"
+                  }
+                  inputMode={isRecoveryCode ? "text" : "numeric"}
+                  autoComplete={isRecoveryCode ? "off" : "one-time-code"}
+                  spellCheck={false}
                   value={code}
                   onChange={handleCodeChange}
                   onPaste={handleCodePaste}
-                  placeholder="000000"
-                  className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center font-mono text-xl tracking-[0.35em] text-slate-900 dark:text-white outline-none transition ${
-                    code.length === 6
+                  placeholder={isRecoveryCode ? "XXXXX-XXXXX" : "000000"}
+                  className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center font-mono text-slate-900 dark:text-white outline-none transition ${
+                    isRecoveryCode
+                      ? "text-lg tracking-wider"
+                      : "text-xl tracking-[0.35em]"
+                  } ${
+                    codeComplete
                       ? "border-amber-300 dark:border-amber-800 ring-4 ring-amber-100"
                       : "border-slate-200 dark:border-slate-800 hover:border-amber-200 focus:border-amber-300 focus:ring-4 focus:ring-amber-100"
                   }`}
@@ -494,7 +543,7 @@ export function MfaVerificationDialog({
                 <button
                   type="button"
                   onClick={() => void handleConfirm()}
-                  disabled={loadingConfirm || code.length !== 6}
+                  disabled={loadingConfirm || !codeComplete}
                   className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   {loadingConfirm ? "Verifying..." : "Verify"}
