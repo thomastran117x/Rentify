@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mfaRecoveryCodesApi } from "./mfa-recovery-codes-api";
 import { mfaTotpApi } from "./mfa-totp-api";
 import { mfaVerificationApi } from "./mfa-verification-api";
 
@@ -25,6 +26,21 @@ vi.mock("@/lib/api/client", () => ({
 
 describe("MFA API clients", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("uses authenticated endpoints for recovery codes", () => {
+    mfaRecoveryCodesApi.getStatus();
+    mfaRecoveryCodesApi.regenerate();
+
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "GET",
+      "/auth/mfa/recovery-codes/status",
+    );
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/mfa/recovery-codes/regenerate",
+      {},
+    );
+  });
 
   it("uses authenticated endpoints for the TOTP enrollment lifecycle", () => {
     mfaTotpApi.getStatus();
