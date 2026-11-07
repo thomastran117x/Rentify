@@ -12,6 +12,7 @@ export const ROUTE_MODULE_IDS = [
   "auth-personal-access-tokens",
   "auth-mfa-verification",
   "auth-mfa-totp",
+  "auth-mfa-recovery",
   "organizations-profile",
   "organizations-members",
   "organizations-invitations",

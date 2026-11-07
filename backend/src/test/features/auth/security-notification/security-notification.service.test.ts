@@ -1,5 +1,6 @@
 import { asUuid } from "@/configuration/validation/uuid";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import { RECOVERY_CODE_COUNT } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 import {
   SECURITY_EMAIL_COUNT_SCRIPT,
   SECURITY_EMAIL_LIMIT,
@@ -272,6 +273,31 @@ describe("SecurityNotificationService", () => {
     );
     expect(disabledKey).toMatch(/^auth:security-email:mfa_disabled:/);
     expect(enabledKey).not.toContain("owner@example.com");
+  });
+
+  it("lets every code of a set through, while other kinds keep the default", async () => {
+    const harness = createHarness();
+    harness.cache.eval.mockResolvedValue(RECOVERY_CODE_COUNT);
+
+    await expect(
+      harness.service.notify({
+        ...MFA_CHANGE,
+        kind: "mfa_recovery_code_used",
+        details: { remaining: 0 },
+      }),
+    ).resolves.toBe("sent");
+    await expect(harness.service.notify(MFA_CHANGE)).resolves.toBe(
+      "suppressed",
+    );
+
+    harness.cache.eval.mockResolvedValue(RECOVERY_CODE_COUNT + 1);
+    await expect(
+      harness.service.notify({
+        ...MFA_CHANGE,
+        kind: "mfa_recovery_code_used",
+        details: { remaining: 0 },
+      }),
+    ).resolves.toBe("suppressed");
   });
 
   it("uses the same counter however an address is cased", async () => {

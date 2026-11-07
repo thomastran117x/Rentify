@@ -11,6 +11,7 @@ import type { EmailAvailabilityController } from "@/features/auth/email-availabi
 import type { UsernameController } from "@/features/auth/username/username.controller";
 import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import type { PasswordController } from "@/features/auth/password/password.controller";
+import type { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -399,6 +400,26 @@ export const authMfaVerificationRouteModule: RouteModule = {
         ),
       );
     }
+  },
+};
+
+export const authMfaRecoveryRouteModule: RouteModule = {
+  id: "auth-mfa-recovery",
+  register(app, { resolveHandler }) {
+    app.get(
+      "/auth/mfa/recovery-codes/status",
+      resolveHandler<MfaRecoveryCodeController>(
+        containerTokens.mfaRecoveryCodeController,
+        "getStatus",
+      ),
+    );
+    app.post(
+      "/auth/mfa/recovery-codes/regenerate",
+      resolveHandler<MfaRecoveryCodeController>(
+        containerTokens.mfaRecoveryCodeController,
+        "regenerate",
+      ),
+    );
   },
 };
 

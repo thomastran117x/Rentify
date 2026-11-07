@@ -102,7 +102,7 @@ function createController() {
       secret: "totp-secret",
       uri: "otpauth://totp/test",
     })),
-    confirmEnrollment: jest.fn(async () => undefined),
+    confirmEnrollment: jest.fn(async () => ["ABCDE-FGH23"]),
     disable: jest.fn(async () => undefined),
     cancelEnrollment: jest.fn(async () => undefined),
   };

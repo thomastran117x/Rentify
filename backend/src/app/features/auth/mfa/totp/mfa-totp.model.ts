@@ -29,6 +29,8 @@ export interface MfaTotpBeginResult {
 
 export interface MfaTotpConfirmResult {
   confirmed: true;
+  /** Shown once. They cannot be read back. */
+  recoveryCodes: string[];
 }
 
 export interface MfaTotpDisableResult {

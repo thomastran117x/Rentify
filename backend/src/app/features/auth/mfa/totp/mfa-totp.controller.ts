@@ -68,19 +68,24 @@ export class MfaTotpController {
       request,
       confirmEnrollmentRequestSchema,
     );
-    await this.mfaTotpService.confirmEnrollment(auth.sub, input.code, {
-      sessionId: auth.sessionId,
-      context: toAuthAuditContext(request, auth.deviceId),
-    });
+    const recoveryCodes = await this.mfaTotpService.confirmEnrollment(
+      auth.sub,
+      input.code,
+      {
+        sessionId: auth.sessionId,
+        context: toAuthAuditContext(request, auth.deviceId),
+      },
+    );
     this.logMfaChangeEvent(
       request,
       auth.sub,
       auth.sessionId,
       "TOTP enrollment confirmed",
     );
+    response.setHeader("cache-control", "no-store");
     ok(
       response,
-      { confirmed: true as const },
+      { confirmed: true as const, recoveryCodes },
       {
         message: "Authenticator app enabled.",
       },

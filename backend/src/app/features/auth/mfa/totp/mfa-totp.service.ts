@@ -5,6 +5,7 @@ import ConflictError from "@/errors/http/conflict.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
+import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
@@ -19,6 +20,7 @@ const PENDING_TTL_MINUTES = 15;
 interface MfaTotpServiceOptions {
   totpService: TotpService;
   mfaTotpRepository: MfaTotpRepository;
+  mfaRecoveryCodeService: MfaRecoveryCodeService;
   encryptionKey: Buffer;
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
@@ -33,6 +35,7 @@ interface MfaTotpAuditInput {
 export class MfaTotpService {
   private readonly totpService: TotpService;
   private readonly mfaTotpRepository: MfaTotpRepository;
+  private readonly mfaRecoveryCodeService: MfaRecoveryCodeService;
   private readonly encryptionKey: Buffer;
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
@@ -41,6 +44,7 @@ export class MfaTotpService {
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
     this.mfaTotpRepository = options.mfaTotpRepository;
+    this.mfaRecoveryCodeService = options.mfaRecoveryCodeService;
     this.encryptionKey = options.encryptionKey;
     this.authAuditService = options.authAuditService;
     this.authSessionService = options.authSessionService;
@@ -103,11 +107,12 @@ export class MfaTotpService {
     return { secret, uri };
   }
 
+  /** Returns the recovery codes, which are shown this once and never again. */
   async confirmEnrollment(
     userId: Uuid,
     code: string,
     audit?: MfaTotpAuditInput,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const record = await this.mfaTotpRepository.findByUserId(userId);
 
     if (!record || record.status !== "pending") {
@@ -128,11 +133,17 @@ export class MfaTotpService {
 
     // Persist the confirmed counter as lastUsedCounter so the enrollment code
     // cannot be replayed against verifyCode before the first login MFA check.
-    await this.mfaTotpRepository.activate(
+    const recoveryCodes = this.mfaRecoveryCodeService.generateSet(userId);
+    const activated = await this.mfaTotpRepository.activate(
       record.id,
       new Date(),
       matchedCounter,
+      recoveryCodes.rows,
     );
+
+    if (!activated) {
+      throw new ConflictError("MFA is already enabled.");
+    }
 
     const eventId = newUuid();
     const emailNotification = await this.securityNotificationService.notify({
@@ -154,6 +165,8 @@ export class MfaTotpService {
         metadata: { emailNotification },
       });
     }
+
+    return recoveryCodes.codes;
   }
 
   async verifyCode(userId: Uuid, code: string): Promise<void> {

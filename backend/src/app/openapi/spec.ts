@@ -2,6 +2,7 @@ import yaml from "js-yaml";
 
 import { UUID_PATTERN_SOURCE } from "@/configuration/validation/uuid";
 import { AUTH_AUDIT_EVENT_TYPES } from "@/features/auth/audit/auth-audit.model";
+import { RECOVERY_CODE_ALPHABET } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 
 type HttpMethod = "get" | "post" | "put" | "delete" | "patch";
 
@@ -96,6 +97,7 @@ const loginMfaRequiredExample = {
   availableFactors: ["totp"],
   expiresInSeconds: 300,
 };
+const RECOVERY_CODE_SCHEMA_PATTERN = `^[${RECOVERY_CODE_ALPHABET}]{5}-[${RECOVERY_CODE_ALPHABET}]{5}$`;
 const totpCodeDeprecatedProperty = {
   type: "string",
   deprecated: true,
@@ -3671,7 +3673,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "confirmMfaTotpEnrollment",
       summary: "Confirm authenticator (TOTP) enrollment",
       description:
-        "Confirms authenticator enrollment with a code from the authenticator app. Requires a recent MFA step-up verification for the management scope.",
+        "Confirms authenticator enrollment with a code from the authenticator app, and returns the account's 10 recovery codes. They are shown this once and cannot be read back. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3687,9 +3689,86 @@ function buildOperations(): OperationDefinition[] {
           200,
           "Authenticator app enabled.",
           "MfaTotpConfirmResult",
-          { confirmed: true },
+          {
+            confirmed: true,
+            recoveryCodes: [
+              "ABCDE-FGH23",
+              "JKLMN-PQR45",
+              "STUVW-XYZ67",
+              "BCDFG-HJK89",
+              "LMNPQ-RST23",
+              "UVWXY-ZAB45",
+              "CDEFG-HJK67",
+              "MNPQR-STU89",
+              "VWXYZ-ABC23",
+              "DEFGH-JKL45",
+            ],
+          },
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/recovery-codes/status",
+      operationId: "getMfaRecoveryCodeStatus",
+      summary: "Get recovery code status",
+      description:
+        "Returns how many of the signed-in user's recovery codes are unused, and when the set was generated. `createdAt` is null for an account that has never had a set.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "MfaRecoveryCodeStatusResult",
+          { remaining: 10, createdAt: "2026-11-07T12:00:00.000Z" },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/recovery-codes/regenerate",
+      operationId: "regenerateMfaRecoveryCodes",
+      summary: "Replace every recovery code",
+      description:
+        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without an active authenticator app.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "New recovery codes generated. The old ones no longer work.",
+          "MfaRecoveryCodeRegenerateResult",
+          {
+            codes: [
+              "ABCDE-FGH23",
+              "JKLMN-PQR45",
+              "STUVW-XYZ67",
+              "BCDFG-HJK89",
+              "LMNPQ-RST23",
+              "UVWXY-ZAB45",
+              "CDEFG-HJK67",
+              "MNPQR-STU89",
+              "VWXYZ-ABC23",
+              "DEFGH-JKL45",
+            ],
+            remaining: 10,
+            createdAt: "2026-11-07T12:00:00.000Z",
+          },
+        ),
+        ...commonErrors([401, 403, 409, 429, 500]),
       },
     },
     {
@@ -12696,9 +12775,37 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaTotpConfirmResult: {
         type: "object",
-        required: ["confirmed"],
+        required: ["confirmed", "recoveryCodes"],
         properties: {
           confirmed: { type: "boolean", const: true },
+          recoveryCodes: {
+            type: "array",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
+        },
+      },
+      MfaRecoveryCodeStatusResult: {
+        type: "object",
+        required: ["remaining", "createdAt"],
+        properties: {
+          remaining: { type: "integer", minimum: 0, maximum: 10 },
+          createdAt: { type: "string", format: "date-time", nullable: true },
+        },
+      },
+      MfaRecoveryCodeRegenerateResult: {
+        type: "object",
+        required: ["codes", "remaining", "createdAt"],
+        properties: {
+          codes: {
+            type: "array",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
+          remaining: { type: "integer", minimum: 0, maximum: 10 },
+          createdAt: { type: "string", format: "date-time" },
         },
       },
       MfaTotpDisableRequest: {

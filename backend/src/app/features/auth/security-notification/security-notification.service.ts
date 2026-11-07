@@ -4,6 +4,7 @@ import type { Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import { parseUserAgent } from "@/features/auth/audit/auth-audit-activity";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import { RECOVERY_CODE_COUNT } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 import { issueSelfLockLinkToken } from "@/features/auth/self-lock/self-lock-link";
 import type { SelfLockTokenStore } from "@/features/auth/self-lock/self-lock-token.store";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
@@ -21,6 +22,16 @@ export type SecurityEmailOutcome = "sent" | "suppressed" | "skipped" | "failed";
 /** Allowance per kind and inbox: enough that one person's changes all arrive. */
 export const SECURITY_EMAIL_LIMIT = 3;
 export const SECURITY_EMAIL_LIMIT_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * Every use of a recovery code is announced, and one set is the most anyone
+ * can spend without first passing a step-up, so a whole set is allowed through.
+ */
+const SECURITY_EMAIL_LIMIT_BY_KIND: Partial<
+  Record<SecurityChangeEmailKind, number>
+> = {
+  mfa_recovery_code_used: RECOVERY_CODE_COUNT,
+};
 
 /**
  * Counts one email and starts the window on the first. One step, so a crash
@@ -192,7 +203,9 @@ export class SecurityNotificationService {
         [String(SECURITY_EMAIL_LIMIT_WINDOW_SECONDS)],
       );
 
-      return count <= SECURITY_EMAIL_LIMIT;
+      return (
+        count <= (SECURITY_EMAIL_LIMIT_BY_KIND[kind] ?? SECURITY_EMAIL_LIMIT)
+      );
     } catch (error) {
       this.logger.warn("Security email rate limit unavailable.", {
         userId,

@@ -33,6 +33,7 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
       dependencies: [
         containerTokens.totpService,
         containerTokens.mfaTotpRepository,
+        containerTokens.mfaRecoveryCodeService,
         containerTokens.authAuditService,
         containerTokens.authSessionService,
         containerTokens.securityNotificationService,
@@ -41,6 +42,9 @@ export const authMfaTotpRegistrationModule: ContainerRegistrationModule = {
         new MfaTotpService({
           totpService: resolve(containerTokens.totpService),
           mfaTotpRepository: resolve(containerTokens.mfaTotpRepository),
+          mfaRecoveryCodeService: resolve(
+            containerTokens.mfaRecoveryCodeService,
+          ),
           encryptionKey,
           authAuditService: resolve(containerTokens.authAuditService),
           authSessionService: resolve(containerTokens.authSessionService),

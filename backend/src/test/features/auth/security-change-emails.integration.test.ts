@@ -274,6 +274,26 @@ describe("Security change emails integration", () => {
     });
   });
 
+  it("queues mfa_recovery_codes_regenerated when the codes are replaced", async () => {
+    await enrollAuthenticator();
+
+    const regenerate = await request("/auth/mfa/recovery-codes/regenerate", {
+      method: "POST",
+      headers: renter.headers(),
+      body: "{}",
+    });
+    expect(regenerate.status).toBe(200);
+
+    const email = await expectOneEmail(
+      "mfa_recovery_codes_regenerated",
+      "mfa.recovery_codes_regenerated",
+    );
+    expect(email.input).toMatchObject({
+      to: RENTER_EMAIL,
+      selfLockToken: expect.any(String),
+    });
+  });
+
   it("queues personal_access_token_created with the token's name, scopes and expiry", async () => {
     const response = await createPat("Deploy bot");
     expect(response.status).toBe(201);
