@@ -25,7 +25,6 @@ const {
   useAuthCaptchaTokenMock,
   signupMock,
   checkUsernameAvailabilityMock,
-  checkEmailAvailabilityMock,
   getUsernameSuggestionsMock,
   clearCaptchaTokenMock,
   oauthSuccessSessionMock,
@@ -34,7 +33,6 @@ const {
   useAuthCaptchaTokenMock: vi.fn(),
   signupMock: vi.fn(),
   checkUsernameAvailabilityMock: vi.fn(),
-  checkEmailAvailabilityMock: vi.fn(),
   getUsernameSuggestionsMock: vi.fn(),
   clearCaptchaTokenMock: vi.fn(),
   oauthSuccessSessionMock: vi.fn(),
@@ -59,7 +57,6 @@ vi.mock("@/lib/auth/api", () => ({
   authApi: {
     signup: signupMock,
     checkUsernameAvailability: checkUsernameAvailabilityMock,
-    checkEmailAvailability: checkEmailAvailabilityMock,
     getUsernameSuggestions: getUsernameSuggestionsMock,
   },
 }));
@@ -190,12 +187,6 @@ describe("SignupForm", () => {
     // availability are unaffected by the debounced background check.
     checkUsernameAvailabilityMock.mockResolvedValue({
       username: "jane-doe",
-      available: true,
-      reason: null,
-    });
-    // Same for emails, for the same reason.
-    checkEmailAvailabilityMock.mockResolvedValue({
-      email: "jane@example.com",
       available: true,
       reason: null,
     });
@@ -777,116 +768,32 @@ describe("SignupForm", () => {
     ).toHaveLength(2);
   });
 
-  it("says nothing about an email that is free", async () => {
-    // A green "that address is available" would announce which addresses are
-    // registered to anyone who cared to try.
+  it("asks nothing about the email before submitting", async () => {
+    // Signup answers a new address and a registered one the same way, so a
+    // live "taken" check would reveal what signup is built to hide. Whatever
+    // the address, the form goes straight through to the inbox step.
+    signupMock.mockResolvedValue({ verificationRequired: true });
     const user = userEvent.setup();
     render(<SignupForm />);
 
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await completeAccountStep(user, { email: "owner1@rentify.local" });
+
+    expect(
+      screen.queryByText("This email is already in use."),
+    ).not.toBeInTheDocument();
+
+    await fillProfileStep(user, {
+      firstName: "Jane",
+      lastName: "Doe",
+      username: "jane-doe",
+    });
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() =>
-      expect(checkEmailAvailabilityMock).toHaveBeenCalledWith(
-        "jane@example.com",
-        expect.anything(),
+      expect(signupMock).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "owner1@rentify.local" }),
       ),
     );
-    expect(screen.queryByText(/is available/i)).not.toBeInTheDocument();
-  });
-
-  it("blocks submission of an email the availability check reported taken", async () => {
-    checkEmailAvailabilityMock.mockResolvedValue({
-      email: "taken@example.com",
-      available: false,
-      reason: "taken",
-    });
-    const user = userEvent.setup();
-    render(<SignupForm />);
-
-    await user.type(screen.getByLabelText("Email"), "taken@example.com");
-    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
-    await user.type(
-      screen.getByLabelText("Confirm password"),
-      "StrongPassw0rd!",
-    );
-
-    expect(
-      await screen.findByText("This email is already in use."),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-
-    // The second step never opens, so there is nothing to submit.
-    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
-    expect(signupMock).not.toHaveBeenCalled();
-  });
-
-  it("lets a pending signup through with an explanation", async () => {
-    // The backend accepts this address and re-sends the code, so blocking here
-    // would strand whoever abandoned that signup and came back.
-    checkEmailAvailabilityMock.mockResolvedValue({
-      email: "pending@example.com",
-      available: true,
-      reason: "pending-verification",
-    });
-    signupMock.mockResolvedValue({ verificationRequired: true });
-    const user = userEvent.setup();
-    render(<SignupForm />);
-
-    await user.type(screen.getByLabelText("Email"), "pending@example.com");
-
-    // The explanation sits with the email field, on the first step.
-    expect(
-      await screen.findByText(/already started signing up/i),
-    ).toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("Password"), "StrongPassw0rd!");
-    await user.type(
-      screen.getByLabelText("Confirm password"),
-      "StrongPassw0rd!",
-    );
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByLabelText("First name");
-
-    await fillProfileStep(user, {
-      firstName: "Jane",
-      lastName: "Doe",
-      username: "jane-doe",
-    });
-
-    await user.click(screen.getByRole("button", { name: "Create account" }));
-
-    await waitFor(() => expect(signupMock).toHaveBeenCalled());
-  });
-
-  it("still submits when the email check itself fails", async () => {
-    // The backend enforces uniqueness on submit, so a failed check must never
-    // be the reason someone cannot sign up.
-    checkEmailAvailabilityMock.mockRejectedValue(new Error("network down"));
-    signupMock.mockResolvedValue({ verificationRequired: true });
-    const user = userEvent.setup();
-    render(<SignupForm />);
-
-    await completeAccountStep(user, { email: "jane@example.com" });
-    await fillProfileStep(user, {
-      firstName: "Jane",
-      lastName: "Doe",
-      username: "jane-doe",
-    });
-
-    await user.click(screen.getByRole("button", { name: "Create account" }));
-
-    await waitFor(() => expect(signupMock).toHaveBeenCalled());
-  });
-
-  it("does not check availability for a value that is not an email", async () => {
-    const user = userEvent.setup();
-    render(<SignupForm />);
-
-    await user.type(screen.getByLabelText("Email"), "jane@");
-
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(checkEmailAvailabilityMock).not.toHaveBeenCalled();
   });
 
   it("does not check availability for a username that fails the format rule", async () => {

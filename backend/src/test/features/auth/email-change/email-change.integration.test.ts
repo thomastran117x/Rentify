@@ -449,16 +449,6 @@ describe("Email change persistence integration", () => {
     const response = await requestEmailChange(renterSession, NEW_EMAIL);
 
     expect(response.status).toBe(409);
-
-    // The availability endpoint agrees, so the signup form says the same thing
-    // the change endpoint just did.
-    const availabilityResponse = await persistenceApp.app.request(
-      `http://rent.test${buildApiPath("/auth/email/available?email=owner-one-moved@rentify.local")}`,
-      { method: "GET" },
-    );
-    await expect(availabilityResponse.json()).resolves.toMatchObject({
-      data: { available: false, reason: "taken" },
-    });
   }, 180_000);
 
   it("refuses to confirm when nothing is pending", async () => {

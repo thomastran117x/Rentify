@@ -31,7 +31,6 @@ import type {
   SignupVerificationPendingResult,
   UsernameAvailabilityResult,
   UsernameSuggestionsResult,
-  EmailAvailabilityResult,
 } from "@/lib/auth/types";
 import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
 
@@ -406,26 +405,6 @@ export const authApi = {
     return publicJson<UsernameSuggestionsResult>(
       "GET",
       buildPathWithQuery("/auth/username/suggestions", { limit }),
-      undefined,
-      undefined,
-      options.signal,
-    );
-  },
-  /**
-   * Sent with optional auth, like the username check: a signed-in caller is
-   * exempted from their own address so it does not report as taken.
-   */
-  checkEmailAvailability(
-    email: string,
-    options: { signal?: AbortSignal } = {},
-  ): Promise<EmailAvailabilityResult> {
-    if (options.signal?.aborted) {
-      throw new DOMException("The operation was aborted.", "AbortError");
-    }
-
-    return optionalAuthJson<EmailAvailabilityResult>(
-      "GET",
-      buildPathWithQuery("/auth/email/available", { email }),
       undefined,
       undefined,
       options.signal,

@@ -97,9 +97,8 @@ describe("httpLoggingMiddleware", () => {
   });
 
   it("redacts email addresses out of the logged URL", async () => {
-    // `/auth/email/available` puts an address in the query string on every
-    // debounced keystroke. It is not a credential, but persisting it verbatim
-    // would leave a plain-text record of who is signing up.
+    // An address in a query string is not a credential, but persisting it
+    // verbatim would leave a plain-text record of who used the route.
     const app = createApp();
     const writeSpy = spyStdout();
 

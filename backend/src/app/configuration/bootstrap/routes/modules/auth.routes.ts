@@ -7,7 +7,6 @@ import type { AuthAuditController } from "@/features/auth/audit/auth-audit.contr
 import type { OAuthController } from "@/features/auth/oauth/oauth.controller";
 import type { AuthSessionController } from "@/features/auth/session/session.controller";
 import type { EmailChangeController } from "@/features/auth/email-change/email-change.controller";
-import type { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
 import type { UsernameController } from "@/features/auth/username/username.controller";
 import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import type { PasswordController } from "@/features/auth/password/password.controller";
@@ -86,18 +85,13 @@ export const authLocalRouteModule: RouteModule = {
         "suggestUsernames",
       ),
     );
-    // Same shape as the username endpoint above, and public for the same
-    // reason: the signup form needs an answer before the user submits.
-    app.get(
-      "/auth/email/available",
-      resolveHandler<EmailAvailabilityController>(
-        containerTokens.emailAvailabilityController,
-        "checkEmailAvailability",
-      ),
-    );
-    // Not under /auth/local for the same reason as the availability endpoint
-    // above: an account that only ever signed in through a provider changes its
-    // email here too. Nothing in this flow touches a password.
+    // There is deliberately no public email counterpart to the username check
+    // above: usernames are public handles, but a "taken" answer for an email
+    // would reveal who has an account, which signup is built not to do.
+    //
+    // Not under /auth/local for the same reason as the username endpoint: an
+    // account that only ever signed in through a provider changes its email
+    // here too. Nothing in this flow touches a password.
     app.post(
       "/auth/email/change",
       resolveHandler<EmailChangeController>(

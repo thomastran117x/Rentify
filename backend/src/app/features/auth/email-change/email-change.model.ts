@@ -4,8 +4,8 @@ import type { Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 
 /**
- * Normalisation matches `emailAvailabilityQuerySchema` and the `.trim()
- * .toLowerCase()` every write path in `UsersRepository` applies, so the address
+ * Normalisation matches the `.trim().toLowerCase()` that
+ * `EmailAvailabilityService` and every write path in `UsersRepository` apply, so the address
  * checked for availability is byte-for-byte the address later written.
  */
 export const requestEmailChangeRequestSchema = z.object({

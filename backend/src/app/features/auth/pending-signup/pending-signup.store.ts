@@ -59,10 +59,9 @@ export class PendingSignupStore {
     // a bloom miss skips the reservation lookup too. Leaving it out would let
     // the endpoint report a reserved name as free.
     await this.usernameBloomService.add(signup.username);
-    // The email side of the same argument. A pending address does not *block* a
-    // second signup, but it does change the answer the availability endpoint
-    // owes the caller — "you already started this" rather than "nobody has
-    // this" — and a filter miss would skip the lookup that distinguishes them.
+    // The email side of the same argument, so the email filter stays a
+    // superset of every held address. Nothing answers from it since the public
+    // availability check was removed; see `EmailAvailabilityService`.
     await this.emailBloomService.add(signup.email);
   }
 

@@ -82,6 +82,16 @@ username can temporarily lock out its owner. The emailed unlock code is the
 current mitigation. Per-IP credential-stuffing detection is tracked in
 [#379](https://github.com/thomastran117x/Rentify/issues/379).
 
+No public endpoint reports whether an email address is registered. Signup
+gives a new address and an already-registered one the same "check your inbox"
+response, so a live availability check would undo that. Only a signed-in
+caller changing their own address is told it is taken
+(`409 EMAIL_CHANGE_ADDRESS_UNAVAILABLE` from `POST /auth/email/change`), after
+step-up and under the `auth-sensitive` rate limit. Usernames are public
+profile handles, so `GET /auth/username/available` and
+`GET /auth/username/suggestions` stay public, each with its own rate limit
+(`username-availability` 60/min, `username-suggestions` 20/min).
+
 Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
 step-up (`mfa-management` scope), returns only the caller's events newest

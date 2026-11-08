@@ -16,7 +16,6 @@ const {
   pendingMock,
   cancelMock,
   getOptionsMock,
-  availabilityMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   setSessionMock: vi.fn(),
@@ -26,7 +25,6 @@ const {
   pendingMock: vi.fn(),
   cancelMock: vi.fn(),
   getOptionsMock: vi.fn(),
-  availabilityMock: vi.fn(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({ useAuth: useAuthMock }));
@@ -59,9 +57,6 @@ vi.mock("@/lib/auth/email-change-api", () => ({
 }));
 vi.mock("@/lib/auth/mfa-verification-api", () => ({
   mfaVerificationApi: { getOptions: getOptionsMock },
-}));
-vi.mock("@/lib/auth/use-email-availability", () => ({
-  useEmailAvailability: availabilityMock,
 }));
 
 const CURRENT_EMAIL = "owner1@rentify.local";
@@ -114,7 +109,6 @@ beforeEach(() => {
     session: sessionFor(CURRENT_EMAIL),
     setSession: setSessionMock,
   });
-  availabilityMock.mockReturnValue({ status: "idle", message: null });
   pendingMock.mockResolvedValue({ pending: false });
   requestMock.mockResolvedValue(acceptedResult());
   resendMock.mockResolvedValue(acceptedResult());
@@ -164,17 +158,32 @@ describe("AccountEmailPanel request step", () => {
     await waitFor(() => expect(requestMock).not.toHaveBeenCalled());
   });
 
-  it("disables submit while the address reads as taken", async () => {
-    availabilityMock.mockReturnValue({
-      status: "taken",
-      message: "This email is already in use.",
-    });
+  it("shows a taken address on the field, not in the banner", async () => {
+    // There is no live availability check, so the request is the first place
+    // a taken address is reported.
+    requestMock.mockRejectedValueOnce(
+      new ApiClientError("That email address is not available.", {
+        status: 409,
+        code: "EMAIL_CHANGE_ADDRESS_UNAVAILABLE",
+        request: requestContext("/auth/email/change"),
+      }),
+    );
     render(<AccountEmailPanel />);
     await openEditor();
+    await submitNewEmail("taken@example.com");
 
+    const field = await screen.findByLabelText("New email address");
+    await waitFor(() => expect(field).toHaveAttribute("aria-invalid", "true"));
+    expect(field).toHaveAttribute(
+      "aria-describedby",
+      "account-new-email-error",
+    );
+    expect(
+      screen.getByText("That email address is not available."),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Send verification code" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 });
 
