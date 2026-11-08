@@ -11,13 +11,19 @@ export const authOtpRegistrationModule: ContainerRegistrationModule = {
       token: containerTokens.otpService,
       lifetime: "singleton",
       dependencies: [containerTokens.cacheService],
-      resolve: ({ resolve }) =>
-        new OtpService({
+      resolve: ({ resolve }) => {
+        const otp = environment.getAuthSecurityConfig().otp;
+
+        return new OtpService({
           cache: resolve(containerTokens.cacheService),
           hashSecret: environment.getTokenConfig().otpHashSecret,
           // The dev preview routes are registered under the same condition.
           previewEnabled: !environment.isProduction(),
-        }),
+          ttlInSeconds: otp.ttlSeconds,
+          resendCooldownInSeconds: otp.resendCooldownSeconds,
+          maxAttempts: otp.maxAttempts,
+        });
+      },
     });
     container.register({
       token: containerTokens.publicOtpService,

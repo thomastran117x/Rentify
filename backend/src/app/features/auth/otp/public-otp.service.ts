@@ -1,3 +1,5 @@
+import { environment } from "@/configuration/environment";
+import type { AuthSecurityOtpConfig } from "@/configuration/environment/types";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -13,11 +15,6 @@ import {
   LOCAL_PASSWORD_RESET_OTP_PURPOSE,
 } from "@/features/auth/otp/otp-purposes";
 import { redactEmail } from "@/features/auth/redact-email";
-
-const PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS = 60 * 60;
-const PUBLIC_OTP_EMAIL_LIMIT = 5;
-const PUBLIC_OTP_IP_LIMIT = 20;
-const PUBLIC_OTP_DEVICE_LIMIT = 10;
 
 type PublicOtpRateLimitScope = "email" | "ip" | "device";
 
@@ -56,6 +53,8 @@ export class PublicOtpService {
     private readonly cacheService: CacheService,
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
+    private readonly getLimits: () => AuthSecurityOtpConfig["publicLimits"] = () =>
+      environment.getAuthSecurityConfig().otp.publicLimits,
   ) {
     this.logger = loggerFactory.forClass(PublicOtpService, "service");
   }
@@ -67,6 +66,7 @@ export class PublicOtpService {
     deviceId?: string;
     flow: string;
   }): Promise<PublicOtpRateLimitResult> {
+    const limits = this.getLimits();
     const checks: Array<{
       scope: PublicOtpRateLimitScope;
       value?: string;
@@ -75,17 +75,17 @@ export class PublicOtpService {
       {
         scope: "email",
         value: input.subject.toLowerCase(),
-        limit: PUBLIC_OTP_EMAIL_LIMIT,
+        limit: limits.perEmail,
       },
       {
         scope: "ip",
         value: input.client.ip,
-        limit: PUBLIC_OTP_IP_LIMIT,
+        limit: limits.perIp,
       },
       {
         scope: "device",
         value: input.deviceId ?? input.client.device.id,
-        limit: PUBLIC_OTP_DEVICE_LIMIT,
+        limit: limits.perDevice,
       },
     ];
     const records: Array<{
@@ -131,7 +131,7 @@ export class PublicOtpService {
           {
             count: record.count + 1,
           } satisfies PublicOtpRateLimitRecord,
-          PUBLIC_OTP_RATE_LIMIT_WINDOW_IN_SECONDS,
+          limits.windowSeconds,
         ),
       ),
     );

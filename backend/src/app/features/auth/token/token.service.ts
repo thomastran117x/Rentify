@@ -92,7 +92,6 @@ interface CreateRefreshTokenOptions {
 const REFRESH_TOKEN_VERSION = "v2";
 const LEGACY_REFRESH_TOKEN_VERSION = "v1";
 const REFRESH_SESSION_LOCK_TTL_IN_MS = 5_000;
-const REFRESH_ROTATION_GRACE_PERIOD_SECONDS = 5;
 const SESSION_CACHE_PREFIX = "auth:session";
 const USER_SESSIONS_CACHE_PREFIX = "auth:user-sessions";
 
@@ -1094,7 +1093,10 @@ export class TokenService {
     }
 
     const now = Math.floor(Date.now() / 1000);
-    return now - session.rotatedAt <= REFRESH_ROTATION_GRACE_PERIOD_SECONDS;
+    return (
+      now - session.rotatedAt <=
+      environment.getAuthSecurityConfig().refresh.rotationGracePeriodSeconds
+    );
   }
 
   private getRefreshCacheKey(jti: string): string {

@@ -1,3 +1,4 @@
+import type { AuthSecurityStepUpConfig } from "@/configuration/environment/types";
 import BadRequestError from "@/errors/http/bad-request.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import MfaChallengeRateLimitedError from "@/errors/http/mfa-challenge-rate-limited.error";
@@ -91,6 +92,7 @@ function createCache() {
 function createService(
   overrides: Partial<{
     securityContext: ReturnType<typeof createSecurityContext>;
+    limits: AuthSecurityStepUpConfig;
   }> = {},
 ) {
   const cache = createCache();
@@ -132,6 +134,7 @@ function createService(
     mfaTotpService: mfaTotpService as any,
     mfaRecoveryCodeService: mfaRecoveryCodeService as any,
     authAuditService: authAuditService as any,
+    getLimits: overrides.limits ? () => overrides.limits! : undefined,
   });
 
   return {
@@ -1033,6 +1036,43 @@ describe("MfaVerificationService", () => {
         metadata: expect.objectContaining({ result: "failed_code_lock" }),
       }),
     );
+  });
+
+  it("follows the configured step-up limits", async () => {
+    const { service, otpService, cache } = createService({
+      limits: {
+        challengeLimit: 5,
+        challengeWindowSeconds: 60,
+        confirmLimit: 10,
+        confirmWindowSeconds: 60,
+        failedConfirmThreshold: 2,
+        failedConfirmTtlSeconds: 120,
+        failedConfirmLockSeconds: 45,
+      },
+    });
+    otpService.verify.mockRejectedValue(new BadRequestError("invalid"));
+    const input = {
+      userId: USER_1_ID,
+      sessionId: "session-1",
+      scope: MFA_MANAGEMENT_SCOPE,
+      factor: "email" as const,
+      code: "000000",
+      client: {
+        source: "frontend-browser" as const,
+        device: { type: "desktop" as const, isMobile: false },
+      },
+    };
+
+    await expect(service.confirmChallenge(input)).rejects.toBeInstanceOf(
+      InvalidMfaCodeError,
+    );
+    await expect(service.confirmChallenge(input)).rejects.toMatchObject({
+      code: "MFA_CONFIRM_RATE_LIMITED",
+      details: { retryAfterSeconds: 45 },
+    });
+    expect(
+      [...cache.jsonStore.values()].map((entry) => entry.ttlSeconds),
+    ).toContain(120);
   });
 
   it("returns a prompt contract for TOTP challenges when an active factor exists", async () => {

@@ -92,6 +92,36 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD",
   "authSecurity.detection.successAfterFailures.windowMinutes":
     "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES",
+  "authSecurity.lockout.failedAttemptTtlMinutes":
+    "AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES",
+  "authSecurity.lockout.lockMinutes": "AUTH_SECURITY_LOCKOUT_LOCK_MINUTES",
+  "authSecurity.lockout.maxFailedAttempts":
+    "AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS",
+  "authSecurity.otp.maxAttempts": "AUTH_SECURITY_OTP_MAX_ATTEMPTS",
+  "authSecurity.otp.publicLimits.perDevice":
+    "AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE",
+  "authSecurity.otp.publicLimits.perEmail":
+    "AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL",
+  "authSecurity.otp.publicLimits.perIp": "AUTH_SECURITY_OTP_PUBLIC_PER_IP",
+  "authSecurity.otp.publicLimits.windowSeconds":
+    "AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS",
+  "authSecurity.otp.resendCooldownSeconds":
+    "AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS",
+  "authSecurity.otp.ttlSeconds": "AUTH_SECURITY_OTP_TTL_SECONDS",
+  "authSecurity.refresh.rotationGracePeriodSeconds":
+    "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
+  "authSecurity.stepUp.challengeLimit": "AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT",
+  "authSecurity.stepUp.challengeWindowSeconds":
+    "AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS",
+  "authSecurity.stepUp.confirmLimit": "AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT",
+  "authSecurity.stepUp.confirmWindowSeconds":
+    "AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS",
+  "authSecurity.stepUp.failedConfirmLockSeconds":
+    "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS",
+  "authSecurity.stepUp.failedConfirmThreshold":
+    "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD",
+  "authSecurity.stepUp.failedConfirmTtlSeconds":
+    "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS",
   "blobStorage.auth": "AZURE_STORAGE_AUTH",
   "blobStorage.accountUrl": "AZURE_STORAGE_ACCOUNT_URL",
   "blobStorage.containerName": "AZURE_STORAGE_CONTAINER_NAME",

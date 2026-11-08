@@ -1,3 +1,4 @@
+import type { AuthSecurityLockoutConfig } from "@/configuration/environment/types";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
@@ -48,7 +49,7 @@ function createUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
 
 const LOCK_KEY = "auth:local-login-attempts:test-user";
 
-function createHarness() {
+function createHarness(lockoutConfig?: AuthSecurityLockoutConfig) {
   const store = new Map<string, unknown>();
   const ttls = new Map<string, number | undefined>();
   const cacheService = {
@@ -101,6 +102,7 @@ function createHarness() {
       otpService as never,
       publicOtpService,
       authAuditService as never,
+      lockoutConfig ? () => lockoutConfig : undefined,
     ),
   };
 }
@@ -136,6 +138,40 @@ describe("LoginLockoutService attempt tracking", () => {
     expect(record.failedAttempts).toBe(5);
     expect(record.lockedAt).toEqual(expect.any(String));
     expect(harness.ttls.get(LOCK_KEY)).toBe(30 * 60);
+  });
+
+  it("follows the configured threshold and lifetimes", async () => {
+    const harness = createHarness({
+      maxFailedAttempts: 3,
+      failedAttemptTtlMinutes: 2,
+      lockMinutes: 7,
+    });
+
+    await harness.service.recordFailedAttempt("test-user");
+    expect(harness.ttls.get(LOCK_KEY)).toBe(2 * 60);
+    await harness.service.recordFailedAttempt("test-user");
+    const locked = await harness.service.recordFailedAttempt("test-user");
+
+    expect(locked).toEqual({
+      failedAttempts: 3,
+      lockedAt: expect.any(String),
+    });
+    expect(harness.ttls.get(LOCK_KEY)).toBe(7 * 60);
+    expect(harness.service.lockedUntil(locked)).toBe(
+      new Date(Date.parse(locked.lockedAt!) + 7 * 60 * 1000).toISOString(),
+    );
+  });
+
+  it("has no lift time for failures that have not locked", () => {
+    const harness = createHarness();
+
+    expect(harness.service.lockedUntil({ failedAttempts: 2 })).toBeNull();
+    expect(
+      harness.service.lockedUntil({
+        failedAttempts: 5,
+        lockedAt: "2026-10-18T11:50:00.000Z",
+      }),
+    ).toBe("2026-10-18T12:20:00.000Z");
   });
 
   it("reports the lock state", async () => {

@@ -99,6 +99,12 @@ function createService(rows: AuthAuditAdminRow[] | null = []) {
   };
   const loginLockoutService = {
     getAttemptRecord: jest.fn(async (): Promise<unknown> => null),
+    // The default 30-minute lock; the arithmetic is LoginLockoutService's own.
+    lockedUntil: jest.fn((record: { lockedAt?: string }) =>
+      record.lockedAt
+        ? new Date(Date.parse(record.lockedAt) + 30 * 60 * 1000).toISOString()
+        : null,
+    ),
   };
 
   return {

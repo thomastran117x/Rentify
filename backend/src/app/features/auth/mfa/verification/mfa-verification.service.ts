@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { environment } from "@/configuration/environment";
+import type { AuthSecurityStepUpConfig } from "@/configuration/environment/types";
 import BadRequestError from "@/errors/http/bad-request.error";
 import InvalidMfaCodeError from "@/errors/http/invalid-mfa-code.error";
 import MfaChallengeRateLimitedError from "@/errors/http/mfa-challenge-rate-limited.error";
@@ -46,6 +47,8 @@ interface MfaVerificationServiceOptions {
   mfaTotpService: MfaTotpService;
   mfaRecoveryCodeService: MfaRecoveryCodeService;
   authAuditService: AuthAuditService;
+  /** Defaults to `authSecurity.stepUp`, read on each request. */
+  getLimits?: () => AuthSecurityStepUpConfig;
 }
 
 interface VerificationRequestContext {
@@ -73,19 +76,14 @@ interface VerifiedFactorState {
 }
 
 const MFA_PROOF_TTL_MS = MFA_PROOF_TTL_MINUTES * 60 * 1000;
-const CHALLENGE_WINDOW_SECONDS = 60;
-const CHALLENGE_LIMIT = 5;
-const CONFIRM_WINDOW_SECONDS = 60;
-const CONFIRM_LIMIT = 10;
-const FAILED_CONFIRM_THRESHOLD = 5;
-const FAILED_CONFIRM_LOCK_SECONDS = 5 * 60;
-const FAILED_CONFIRM_TTL_SECONDS = 10 * 60;
-
 export class MfaVerificationService {
   private readonly logger: Logger;
+  private readonly getLimits: () => AuthSecurityStepUpConfig;
 
   constructor(private readonly options: MfaVerificationServiceOptions) {
     this.logger = loggerFactory.forClass(MfaVerificationService, "service");
+    this.getLimits =
+      options.getLimits ?? (() => environment.getAuthSecurityConfig().stepUp);
   }
 
   async getOptions(
@@ -136,10 +134,11 @@ export class MfaVerificationService {
     );
     const factor = this.requireUsableFactor(factorState, input.factor);
 
+    const limits = this.getLimits();
     await this.consumeWindowRateLimit({
       kind: "challenge",
-      limit: CHALLENGE_LIMIT,
-      windowSeconds: CHALLENGE_WINDOW_SECONDS,
+      limit: limits.challengeLimit,
+      windowSeconds: limits.challengeWindowSeconds,
       ...input,
       factor,
     });
@@ -235,10 +234,11 @@ export class MfaVerificationService {
     const factor = this.requireUsableFactor(factorState, input.factor);
 
     await this.assertConfirmLockNotActive(input, factor);
+    const limits = this.getLimits();
     await this.consumeWindowRateLimit({
       kind: "confirm",
-      limit: CONFIRM_LIMIT,
-      windowSeconds: CONFIRM_WINDOW_SECONDS,
+      limit: limits.confirmLimit,
+      windowSeconds: limits.confirmWindowSeconds,
       ...input,
       factor,
     });
@@ -725,14 +725,15 @@ export class MfaVerificationService {
       key,
     )) ?? { count: 0 };
     const nextCount = existing.count + 1;
+    const limits = this.getLimits();
 
     await this.options.cache.setJson(
       key,
       { count: nextCount },
-      FAILED_CONFIRM_TTL_SECONDS,
+      limits.failedConfirmTtlSeconds,
     );
 
-    if (nextCount >= FAILED_CONFIRM_THRESHOLD) {
+    if (nextCount >= limits.failedConfirmThreshold) {
       await this.options.cache.set(
         this.getConfirmLockKey(
           input.userId,
@@ -741,7 +742,7 @@ export class MfaVerificationService {
           factor,
         ),
         "1",
-        FAILED_CONFIRM_LOCK_SECONDS,
+        limits.failedConfirmLockSeconds,
       );
       await this.recordStepUpLocked(
         input,
@@ -750,7 +751,7 @@ export class MfaVerificationService {
         "failed_code_lock",
       );
       throw new MfaConfirmRateLimitedError(undefined, {
-        retryAfterSeconds: FAILED_CONFIRM_LOCK_SECONDS,
+        retryAfterSeconds: limits.failedConfirmLockSeconds,
       });
     }
   }

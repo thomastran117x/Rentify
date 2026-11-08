@@ -1,3 +1,4 @@
+import type { AuthSecurityOtpConfig } from "@/configuration/environment/types";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
@@ -49,11 +50,11 @@ const cooldownError = Object.assign(new Error("Cooldown"), {
   name: "TooManyRequestError",
 });
 
-function createHarness() {
+function createHarness(limits?: AuthSecurityOtpConfig["publicLimits"]) {
   const store = new Map<string, unknown>();
   const cacheService = {
     getJson: jest.fn(async (key: string) => store.get(key) ?? null),
-    setJson: jest.fn(async (key: string, value: unknown) => {
+    setJson: jest.fn(async (key: string, value: unknown, _ttl?: number) => {
       store.set(key, value);
     }),
     delete: jest.fn(async (key: string) => {
@@ -79,6 +80,7 @@ function createHarness() {
       cacheService as never,
       otpService as never,
       emailService as never,
+      limits ? () => limits : undefined,
     ),
   };
 }
@@ -159,6 +161,34 @@ describe("PublicOtpService.consumeRateLimit", () => {
         flow: "resend-verification-email",
       }),
     ).resolves.toMatchObject({ allowed: false, scope: "device" });
+  });
+
+  it("follows the configured caps and window", async () => {
+    const harness = createHarness({
+      windowSeconds: 900,
+      perEmail: 2,
+      perIp: 50,
+      perDevice: 50,
+    });
+    const request = {
+      purpose: "local-password-reset",
+      subject: "user@example.com",
+      client: createClient(),
+      flow: "forgot-password",
+    };
+
+    await expect(
+      harness.service.consumeRateLimit(request),
+    ).resolves.toMatchObject({ allowed: true });
+    expect(harness.cacheService.setJson).toHaveBeenCalledWith(
+      "auth:otp-rate:local-password-reset:email:user@example.com",
+      { count: 1 },
+      900,
+    );
+    await harness.service.consumeRateLimit(request);
+    await expect(
+      harness.service.consumeRateLimit(request),
+    ).resolves.toMatchObject({ allowed: false, scope: "email" });
   });
 
   it("skips a scope with no value to count", async () => {

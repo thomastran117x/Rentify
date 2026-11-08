@@ -95,6 +95,35 @@ authSecurity:
     refreshReuse:
       enabled: true
       windowMinutes: 60
+  # Emailed one-time codes. maxAttempts is shared by every resend of a code
+  # until the count expires, one ttlSeconds after the last code was issued.
+  # publicLimits caps the routes that send codes without a session, per email,
+  # IP and device. See docs/backend-configuration.md#auth-security-thresholds.
+  otp:
+    ttlSeconds: 600
+    resendCooldownSeconds: 60
+    maxAttempts: 5
+    publicLimits:
+      windowSeconds: 3600
+      perEmail: 5
+      perIp: 20
+      perDevice: 10
+  # The per-username lock on password and login-time MFA failures.
+  lockout:
+    maxFailedAttempts: 5
+    failedAttemptTtlMinutes: 15
+    lockMinutes: 30
+  # Per-session limits on /auth/mfa/verify/*.
+  stepUp:
+    challengeLimit: 5
+    challengeWindowSeconds: 60
+    confirmLimit: 10
+    confirmWindowSeconds: 60
+    failedConfirmThreshold: 5
+    failedConfirmTtlSeconds: 600
+    failedConfirmLockSeconds: 300
+  refresh:
+    rotationGracePeriodSeconds: 5
 
 email:
   gmailUser: change-me@example.com

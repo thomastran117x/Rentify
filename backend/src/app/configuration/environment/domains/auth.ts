@@ -308,9 +308,11 @@ const MAX_DETECTION_WINDOW_MINUTES = 7 * 24 * 60;
 const MAX_DETECTION_THRESHOLD = 10_000;
 
 /**
- * Suspicious sign-in detection. Every rule defaults on with the thresholds in
- * docs/auth-security.md, and the mode defaults to alert, which never locks an
- * account or blocks an IP.
+ * Suspicious sign-in detection, plus the thresholds of the emailed codes, the
+ * password lockout, step-up and refresh rotation. Every rule defaults on with
+ * the thresholds in docs/auth-security.md, and the mode defaults to alert,
+ * which never locks an account or blocks an IP. Every other default is the
+ * value that was hard-coded before it became configurable.
  */
 export function buildAuthSecurityConfig(
   raw: RawEnvironmentValues,
@@ -379,6 +381,153 @@ export function buildAuthSecurityConfig(
           60,
         ),
       },
+    },
+    otp: buildOtpConfig(raw, errors),
+    lockout: {
+      maxFailedAttempts: integer(
+        raw,
+        "AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS",
+        5,
+        errors,
+        1,
+        MAX_ATTEMPT_BUDGET,
+      ),
+      failedAttemptTtlMinutes: minutes(
+        "AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES",
+        15,
+      ),
+      lockMinutes: minutes("AUTH_SECURITY_LOCKOUT_LOCK_MINUTES", 30),
+    },
+    stepUp: {
+      challengeLimit: threshold("AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT", 5),
+      challengeWindowSeconds: seconds(
+        raw,
+        "AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS",
+        60,
+        errors,
+      ),
+      confirmLimit: threshold("AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT", 10),
+      confirmWindowSeconds: seconds(
+        raw,
+        "AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS",
+        60,
+        errors,
+      ),
+      failedConfirmThreshold: integer(
+        raw,
+        "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD",
+        5,
+        errors,
+        1,
+        MAX_ATTEMPT_BUDGET,
+      ),
+      failedConfirmTtlSeconds: seconds(
+        raw,
+        "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS",
+        10 * 60,
+        errors,
+      ),
+      failedConfirmLockSeconds: seconds(
+        raw,
+        "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS",
+        5 * 60,
+        errors,
+      ),
+    },
+    refresh: {
+      rotationGracePeriodSeconds: integer(
+        raw,
+        "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
+        5,
+        errors,
+        0,
+        MAX_REFRESH_GRACE_SECONDS,
+      ),
+    },
+  };
+}
+
+// Guess budgets above this would make the lock or the code pointless.
+const MAX_ATTEMPT_BUDGET = 100;
+const MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+// A replayed refresh token is honoured within the grace period, so it stays
+// short enough that a stolen token gains nothing from it.
+const MAX_REFRESH_GRACE_SECONDS = 60;
+// A code longer-lived than an hour is a weak password, not a one-time code.
+const MIN_OTP_TTL_SECONDS = 60;
+const MAX_OTP_TTL_SECONDS = 60 * 60;
+
+function integer(
+  raw: RawEnvironmentValues,
+  name: EnvironmentVariableName,
+  fallback: number,
+  errors: string[],
+  min: number,
+  max: number,
+): number {
+  return parseNumber(raw, name, fallback, errors, { integer: true, min, max });
+}
+
+function seconds(
+  raw: RawEnvironmentValues,
+  name: EnvironmentVariableName,
+  fallback: number,
+  errors: string[],
+): number {
+  return integer(raw, name, fallback, errors, 1, MAX_WINDOW_SECONDS);
+}
+
+function buildOtpConfig(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): AppEnvironment["authSecurity"]["otp"] {
+  const ttlSeconds = integer(
+    raw,
+    "AUTH_SECURITY_OTP_TTL_SECONDS",
+    10 * 60,
+    errors,
+    MIN_OTP_TTL_SECONDS,
+    MAX_OTP_TTL_SECONDS,
+  );
+  const resendCooldownSeconds = integer(
+    raw,
+    "AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS",
+    60,
+    errors,
+    0,
+    MAX_OTP_TTL_SECONDS,
+  );
+
+  if (resendCooldownSeconds > ttlSeconds) {
+    errors.push(
+      "AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS must not exceed AUTH_SECURITY_OTP_TTL_SECONDS, or a code expires before it can be resent.",
+    );
+  }
+
+  const publicLimit = (name: EnvironmentVariableName, fallback: number) =>
+    integer(raw, name, fallback, errors, 1, MAX_DETECTION_THRESHOLD);
+
+  return {
+    ttlSeconds,
+    resendCooldownSeconds,
+    maxAttempts: integer(
+      raw,
+      "AUTH_SECURITY_OTP_MAX_ATTEMPTS",
+      5,
+      errors,
+      1,
+      MAX_ATTEMPT_BUDGET,
+    ),
+    publicLimits: {
+      windowSeconds: seconds(
+        raw,
+        "AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS",
+        60 * 60,
+        errors,
+      ),
+      perEmail: publicLimit("AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL", 5),
+      perIp: publicLimit("AUTH_SECURITY_OTP_PUBLIC_PER_IP", 20),
+      perDevice: publicLimit("AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE", 10),
     },
   };
 }

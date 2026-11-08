@@ -105,6 +105,32 @@ const authSecurityConfig = {
     successAfterFailures: { enabled: true, threshold: 5, windowMinutes: 60 },
     refreshReuse: { enabled: true, windowMinutes: 60 },
   },
+  otp: {
+    ttlSeconds: 600,
+    resendCooldownSeconds: 60,
+    maxAttempts: 5,
+    publicLimits: {
+      windowSeconds: 3600,
+      perEmail: 5,
+      perIp: 20,
+      perDevice: 10,
+    },
+  },
+  lockout: {
+    maxFailedAttempts: 5,
+    failedAttemptTtlMinutes: 15,
+    lockMinutes: 30,
+  },
+  stepUp: {
+    challengeLimit: 5,
+    challengeWindowSeconds: 60,
+    confirmLimit: 10,
+    confirmWindowSeconds: 60,
+    failedConfirmThreshold: 5,
+    failedConfirmTtlSeconds: 600,
+    failedConfirmLockSeconds: 300,
+  },
+  refresh: { rotationGracePeriodSeconds: 5 },
 };
 
 const paypalConfig = {
