@@ -380,6 +380,29 @@ describe("getEmailChangeErrorMessage", () => {
     expect(message).toBe("A code was sent recently. Try again in 42 seconds.");
   });
 
+  it("explains that a spent attempt budget blocks new codes for a while", () => {
+    const exhausted = (retryAfterSeconds?: number) =>
+      getEmailChangeErrorMessage(
+        new ApiRateLimitError("Too many incorrect codes. Try again later.", {
+          status: 429,
+          code: "TOO_MANY_REQUESTS",
+          details: { retryAfterSeconds, reason: "otp-attempts-exhausted" },
+          request: requestContext("/auth/email/change/resend"),
+        }),
+        "re-send the code",
+      );
+
+    expect(exhausted(539)).toBe(
+      "Too many incorrect codes. You can request a new code in 9 minutes.",
+    );
+    expect(exhausted(45)).toBe(
+      "Too many incorrect codes. You can request a new code in 1 minute.",
+    );
+    expect(exhausted()).toBe(
+      "Too many incorrect codes. Please try again later.",
+    );
+  });
+
   it("passes conflict copy through verbatim", () => {
     const message = getEmailChangeErrorMessage(
       new ApiClientError("That email address is not available.", {
@@ -407,7 +430,7 @@ describe("getEmailChangeErrorMessage", () => {
     expect(message).toBe("That code is not right. 1 attempt left.");
   });
 
-  it("tells the user to start over once attempts run out", () => {
+  it("tells the user a new code has to wait once attempts run out", () => {
     const message = getEmailChangeErrorMessage(
       new ApiClientError("Verification code is invalid.", {
         status: 400,
@@ -418,6 +441,8 @@ describe("getEmailChangeErrorMessage", () => {
       "confirm your new email",
     );
 
-    expect(message).toContain("run out of attempts");
+    expect(message).toBe(
+      "That code is not right, and you have run out of attempts. You can request a new code once this one expires.",
+    );
   });
 });
