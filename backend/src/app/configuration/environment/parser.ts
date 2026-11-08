@@ -102,6 +102,7 @@ export function parseEnvironmentState(
     "AUTH_AUDIT_IDENTIFIER_SECRET",
     errors,
   );
+  const otpHashSecret = readRequiredSecret(raw, "OTP_HASH_SECRET", errors);
   const mfaTotpEncryptionKeyRaw = raw.MFA_TOTP_ENCRYPTION_KEY;
   if (!mfaTotpEncryptionKeyRaw) {
     errors.push("MFA_TOTP_ENCRYPTION_KEY is required.");
@@ -140,6 +141,7 @@ export function parseEnvironmentState(
       refreshTokenKeys,
       personalAccessTokenKeys,
       authAuditIdentifierSecret,
+      otpHashSecret,
       mfaTotpEncryptionKey,
       nodeEnv,
     ),

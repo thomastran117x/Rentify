@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { environment } from "@/configuration/environment";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 
@@ -13,6 +14,9 @@ export const authOtpRegistrationModule: ContainerRegistrationModule = {
       resolve: ({ resolve }) =>
         new OtpService({
           cache: resolve(containerTokens.cacheService),
+          hashSecret: environment.getTokenConfig().otpHashSecret,
+          // The dev preview routes are registered under the same condition.
+          previewEnabled: !environment.isProduction(),
         }),
     });
     container.register({

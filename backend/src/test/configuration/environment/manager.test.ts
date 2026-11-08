@@ -20,6 +20,7 @@ function buildRequiredEnv(
     REFRESH_TOKEN_SECRET: "process-refresh-secret-value-with-32ch",
     PERSONAL_ACCESS_TOKEN_SECRET: "process-personal-token-secret-32chars",
     AUTH_AUDIT_IDENTIFIER_SECRET: "process-auth-audit-identifier-32chars",
+    OTP_HASH_SECRET: "process-otp-hash-secret-value-32chars",
     MFA_TOTP_ENCRYPTION_KEY:
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
@@ -387,6 +388,19 @@ describe("EnvironmentManager", () => {
       ],
       [
         "AUTH_AUDIT_IDENTIFIER_SECRET",
+        "OTP_HASH_SECRET",
+        { OTP_HASH_SECRET: "process-auth-audit-identifier-32chars" },
+      ],
+      [
+        "OTP_HASH_SECRET",
+        "MFA_TOTP_ENCRYPTION_KEY",
+        {
+          OTP_HASH_SECRET: "CD".repeat(32),
+          MFA_TOTP_ENCRYPTION_KEY: "cd".repeat(32),
+        },
+      ],
+      [
+        "AUTH_AUDIT_IDENTIFIER_SECRET",
         "MFA_TOTP_ENCRYPTION_KEY",
         {
           AUTH_AUDIT_IDENTIFIER_SECRET: "AB".repeat(32),
@@ -701,6 +715,23 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv();
     expect(new EnvironmentManager().load().auth.authAuditIdentifierSecret).toBe(
       "process-auth-audit-identifier-32chars",
+    );
+  });
+
+  it("requires a long enough one-time code hash secret", () => {
+    process.env = buildRequiredEnv({ OTP_HASH_SECRET: undefined });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "OTP_HASH_SECRET is required.",
+    );
+
+    process.env = buildRequiredEnv({ OTP_HASH_SECRET: "short" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "OTP_HASH_SECRET must be at least 32 characters long.",
+    );
+
+    process.env = buildRequiredEnv();
+    expect(new EnvironmentManager().load().auth.otpHashSecret).toBe(
+      "process-otp-hash-secret-value-32chars",
     );
   });
 

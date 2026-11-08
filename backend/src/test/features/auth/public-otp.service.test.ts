@@ -1,5 +1,7 @@
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import TooManyRequestError from "@/errors/http/too-many-request.error";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import { OTP_ATTEMPTS_EXHAUSTED_REASON } from "@/features/auth/otp/otp.service";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { testUuid } from "../../support/uuid";
 
@@ -337,4 +339,34 @@ describe("PublicOtpService cooldown swallowing", () => {
       harness.service.sendLoginUnlockCode(createUser()),
     ).rejects.toThrow("redis down");
   });
+
+  it.each([
+    ["a cooldown", cooldownError, "otp-cooldown"],
+    [
+      "an exhausted attempt budget",
+      new TooManyRequestError("Too many incorrect codes.", {
+        retryAfterSeconds: 120,
+        reason: OTP_ATTEMPTS_EXHAUSTED_REASON,
+      }),
+      OTP_ATTEMPTS_EXHAUSTED_REASON,
+    ],
+  ])(
+    "answers %s with the usual acceptance and logs why",
+    async (_label, error, reason) => {
+      const harness = createHarness();
+      const logSuspicious = jest.spyOn(harness.service, "logSuspicious");
+      harness.otpService.issue.mockRejectedValueOnce(error);
+
+      await expect(
+        harness.service.sendPasswordResetCode(createUser()),
+      ).resolves.toBeUndefined();
+
+      expect(logSuspicious).toHaveBeenCalledWith(
+        expect.objectContaining({ flow: "password-reset", reason }),
+      );
+      expect(
+        harness.emailService.sendPasswordResetEmail,
+      ).not.toHaveBeenCalled();
+    },
+  );
 });

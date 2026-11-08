@@ -386,6 +386,84 @@ describe("Auth persistence integration", () => {
     });
   });
 
+  it("does not restore verification attempts when the code is resent", async () => {
+    const email = "resend-budget@rentify.local";
+    const cooldownKey = `auth:otp:${EMAIL_VERIFICATION_OTP_PURPOSE}:${email}:cooldown`;
+    const post = (path: string, body: Record<string, unknown>) =>
+      persistenceApp.app.request(`http://rent.test${buildApiPath(path)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify(body),
+      });
+    const verify = async (code: string) => {
+      const response = await post("/auth/local/email/verify", {
+        email,
+        code,
+        deviceId: "resend-budget-device",
+      });
+      const body = (await response.json()) as {
+        error?: { details?: { attemptsRemaining?: number } };
+      };
+      return {
+        status: response.status,
+        attemptsRemaining: body.error?.details?.attemptsRemaining,
+      };
+    };
+    const resend = () =>
+      post("/auth/local/email/resend", {
+        email,
+        captchaToken: "captcha-ok-verify",
+      });
+    const wrongCodeFor = (code: string) =>
+      code === "000000" ? "111111" : "000000";
+
+    const signup = await post("/auth/local/signup", {
+      email,
+      username: "resend-budget",
+      password: "StrongPassword1!",
+      dateOfBirth: "1990-06-15",
+      firstName: "Resend",
+      lastName: "Budget",
+      captchaToken: "captcha-ok-signup",
+    });
+    expect(signup.status).toBe(202);
+
+    const firstCode = await readOtpCode(EMAIL_VERIFICATION_OTP_PURPOSE, email);
+    const stored = await getRedisClient().get(
+      `auth:otp:${EMAIL_VERIFICATION_OTP_PURPOSE}:${email}`,
+    );
+    expect(JSON.parse(stored!)).toEqual({ codeHash: expect.any(String) });
+    expect(stored).not.toContain(firstCode);
+
+    for (const expected of [4, 3, 2, 1]) {
+      await expect(verify(wrongCodeFor(firstCode))).resolves.toEqual({
+        status: 400,
+        attemptsRemaining: expected,
+      });
+    }
+
+    await getRedisClient().del(cooldownKey);
+    expect((await resend()).status).toBe(202);
+    const secondCode = await readOtpCode(EMAIL_VERIFICATION_OTP_PURPOSE, email);
+
+    // The new code carries the old count: one guess left, not five.
+    await expect(verify(wrongCodeFor(secondCode))).resolves.toEqual({
+      status: 400,
+      attemptsRemaining: 0,
+    });
+    expect((await verify(secondCode)).status).toBe(400);
+
+    // Asking again is answered as usual, but no code is issued.
+    await getRedisClient().del(cooldownKey);
+    expect((await resend()).status).toBe(202);
+    await expect(
+      readOtpCode(EMAIL_VERIFICATION_OTP_PURPOSE, email),
+    ).rejects.toThrow("No email-verification OTP was issued");
+    expect(
+      await persistenceApp.prisma.user.findUnique({ where: { email } }),
+    ).toBeNull();
+  });
+
   it("rejects an inappropriate username during signup", async () => {
     const email = "blocked-username@rentify.local";
     const response = await persistenceApp.app.request(

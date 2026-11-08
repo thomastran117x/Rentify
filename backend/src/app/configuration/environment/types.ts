@@ -290,6 +290,7 @@ export type RawEnvironmentValues = {
   PERSONAL_ACCESS_TOKEN_KEYS?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
+  OTP_HASH_SECRET?: string;
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
   AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
   AUTH_AUDIT_RETENTION_DAYS?: string;
@@ -399,6 +400,8 @@ export interface AppEnvironment {
     personalAccessTokenKeys: HmacSigningKey[];
     /** HMAC key for the hashed sign-in identifiers in the auth audit log. */
     authAuditIdentifierSecret: string;
+    /** HMAC key for the emailed one-time codes held in Redis. */
+    otpHashSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
     /**

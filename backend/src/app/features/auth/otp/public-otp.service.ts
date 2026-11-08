@@ -3,7 +3,10 @@ import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type { CacheService } from "@/features/cache/cache.service";
 import { EmailService } from "@/features/email/email.service";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
-import { OtpService } from "@/features/auth/otp/otp.service";
+import {
+  OTP_ATTEMPTS_EXHAUSTED_REASON,
+  OtpService,
+} from "@/features/auth/otp/otp.service";
 import {
   EMAIL_VERIFICATION_OTP_PURPOSE,
   LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
@@ -184,7 +187,7 @@ export class PublicOtpService {
           flow: "resend-verification-email",
           purpose: EMAIL_VERIFICATION_OTP_PURPOSE,
           subject: recipient.email,
-          reason: "otp-cooldown",
+          reason: this.issueRefusalReason(error),
         });
         return;
       }
@@ -213,7 +216,7 @@ export class PublicOtpService {
           flow: "password-reset",
           purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
           subject: user.email,
-          reason: "otp-cooldown",
+          reason: this.issueRefusalReason(error),
         });
         return;
       }
@@ -253,7 +256,7 @@ export class PublicOtpService {
           flow: "local-login-unlock",
           purpose: LOCAL_LOGIN_UNLOCK_OTP_PURPOSE,
           subject: user.email,
-          reason: "otp-cooldown",
+          reason: this.issueRefusalReason(error),
         });
         return;
       }
@@ -270,7 +273,18 @@ export class PublicOtpService {
     return `auth:otp-rate:${purpose}:${scope}:${value.toLowerCase()}`;
   }
 
+  /**
+   * Covers both the resend cooldown and an exhausted attempt budget: either
+   * way the caller gets the same "accepted" as everyone else.
+   */
   private isCooldown(error: unknown): boolean {
     return error instanceof Error && error.name === "TooManyRequestError";
+  }
+
+  private issueRefusalReason(error: unknown): string {
+    const details = (error as { details?: { reason?: unknown } }).details;
+    return details?.reason === OTP_ATTEMPTS_EXHAUSTED_REASON
+      ? OTP_ATTEMPTS_EXHAUSTED_REASON
+      : "otp-cooldown";
   }
 }

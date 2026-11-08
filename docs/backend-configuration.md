@@ -68,7 +68,9 @@ connection strings:
   `ACCESS_TOKEN_PUBLIC_KEY` (`RS256`); `REFRESH_TOKEN_KEYS` or
   `REFRESH_TOKEN_SECRET`; `PERSONAL_ACCESS_TOKEN_KEYS` or
   `PERSONAL_ACCESS_TOKEN_SECRET`
-- `AUTH_AUDIT_IDENTIFIER_SECRET` and `MFA_TOTP_ENCRYPTION_KEY`
+- `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET` (the HMAC key for emailed
+  [one-time codes](./auth-security.md#one-time-codes), at least 32
+  characters), and `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
   secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
@@ -303,7 +305,8 @@ When `NODE_ENV` is `production`, startup fails when:
 - `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
   unset;
 - any two of these are equal: an `HS256` access secret, a refresh secret, a
-  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET`, and
+  `MFA_TOTP_ENCRYPTION_KEY`
   (the TOTP key is compared ignoring case). Every key in a keyset counts,
   previous keys included, so one leaked secret cannot forge two kinds of
   token. The error names both variables but not the value.

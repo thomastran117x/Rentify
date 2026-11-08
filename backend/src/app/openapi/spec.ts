@@ -2365,7 +2365,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "verifyEmail",
       summary: "Verify a newly created email address",
       description:
-        "Validates the email verification code and returns an authenticated session.",
+        "Validates the email verification code and returns an authenticated session. A wrong code returns 400 with `details.attemptsRemaining`. The attempts are counted per address across resends, so a new code never restores them; after the last one the code is discarded and no new one is issued until the count expires.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2394,7 +2394,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resendVerificationEmail",
       summary: "Resend email verification",
       description:
-        "Resends the pending signup verification email when the flow is still active.",
+        "Resends the pending signup verification email when the flow is still active. The new code replaces the old one but keeps its attempt count. While the resend cooldown runs, or once every attempt has been spent, no code is sent, and the answer is still 202 so the response does not reveal whether the address is pending.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2452,7 +2452,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resendUnlockLocalLogin",
       summary: "Resend a local login unlock code",
       description:
-        "Resends the unlock code for a local account that is currently in a locked state.",
+        "Resends the unlock code for a local account that is currently in a locked state. The new code replaces the old one but keeps its attempt count, so resending never restores attempts. Like the other public resends it answers 202 even when no code is sent.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2533,7 +2533,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "resendEmailChangeCode",
       summary: "Re-send the email change verification code",
       description:
-        "Issues a new six-digit code for the email change already in progress and sends it to the pending address. Does not require a fresh multi-factor verification: the change was authorised when it was requested, and the pending record cannot exist without that authorisation.",
+        "Issues a new six-digit code for the email change already in progress and sends it to the pending address. Does not require a fresh multi-factor verification: the change was authorised when it was requested, and the pending record cannot exist without that authorisation. The new code keeps the previous code's attempt count. Once every attempt is spent this returns 429 `TOO_MANY_REQUESTS` with `details.retryAfterSeconds` and `details.reason` `otp-attempts-exhausted` until the count expires, one code lifetime after the last code was issued.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {

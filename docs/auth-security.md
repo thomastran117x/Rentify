@@ -262,6 +262,18 @@ Someone who has lost their authenticator and signs in with their last code has n
 
 A user who skips the prompt, or reloads the page, can still regenerate from the Security tab while they have their authenticator. Without it, once the proof expires, the account needs support.
 
+## One-Time Codes
+
+The six-digit codes sent by email cover signup verification, password reset, login unlock, email change, and the `email` step-up factor. They all go through `OtpService`, keyed by a purpose and a subject (an email address, or the session and scope for step-up).
+
+- **Storage.** Redis holds `{ codeHash }` at `auth:otp:<purpose>:<subject>`: an HMAC-SHA256 of `purpose|subject|code`, keyed by `OTP_HASH_SECRET`. Binding the purpose and subject means a stored hash is good for nothing else. A submitted code is compared with `timingSafeEqual`. A code lives 10 minutes.
+- **Attempts.** Each subject gets 5 attempts, counted at `auth:otp:<purpose>:<subject>:attempts`. An attempt is spent before the code is compared, so concurrent guesses cannot overrun the count. A wrong code returns `400` with `details.attemptsRemaining`. The last wrong one discards the code.
+- **Resending keeps the count.** A resend replaces the code but not the count. Once all 5 are spent, no new code is issued until the count expires, which is one code lifetime after the last code was issued. A refused resend does not extend it. The public resends still answer `202`, so they reveal nothing. Email change answers `429 TOO_MANY_REQUESTS`, and step-up answers `429 MFA_CHALLENGE_RATE_LIMITED`. Both carry `details.retryAfterSeconds` and `details.reason: "otp-attempts-exhausted"`. The 60-second resend cooldown and the hourly per-email, per-IP and per-device caps on the public routes still apply on top.
+- **Single use.** Of two requests holding the right code, only the one whose delete removes it succeeds.
+- **Previews outside production.** Local and test environments suppress mail to `@rentify.local`. So outside production, each code is also kept in plain text at `auth:otp-preview:<purpose>:<subject>`, for `GET /auth/email/change/dev/otp` and `GET /auth/mfa/verify/dev/otp`. Production never writes that key, and neither route is registered there.
+- **Rotating `OTP_HASH_SECRET`** voids every outstanding code, and nothing else. The secret is required, must be at least 32 characters, and in production must differ from every other auth secret.
+- **Codes from before hashing.** Codes issued before hashing was introduced held the code in plain text. They are refused and deleted when used. They live 10 minutes at most, so a user who held one simply asks for a new one.
+
 ## Investigating Sign-in Activity
 
 Administrators read every account's events through two endpoints, served by `AuthAuditAdminController` and `AuthAuditAdminService` and documented in the OpenAPI spec as `listAdminAuthAuditEvents` and `getAdminUserSecuritySummary`.
@@ -653,6 +665,7 @@ To revoke a key because it leaked, skip the wait in step 3: promote the new key 
 ### Out of Scope
 
 - `MFA_TOTP_ENCRYPTION_KEY` is an encryption key, not a signing key. Rotating it means re-encrypting every stored authenticator secret, which has no tooling yet. Replacing it without that breaks every enrolled authenticator app, and every [recovery code](#recovery-codes), whose hashing key is derived from it.
+- `OTP_HASH_SECRET` has no keyset either. Replacing it only voids the emailed codes outstanding at the time, as [One-Time Codes](#one-time-codes) explains.
 - `AUTH_AUDIT_IDENTIFIER_SECRET` has no keyset. Replacing it breaks correlation between audit rows written before and after the change, as [Why Identifiers Are Hashed](#why-identifiers-are-hashed) explains.
 - There is no JWKS endpoint. No service other than the backend verifies these tokens.
 

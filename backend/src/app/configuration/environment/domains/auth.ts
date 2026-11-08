@@ -183,6 +183,7 @@ export function buildAuthConfig(
   refreshTokenKeys: HmacSigningKey[],
   personalAccessTokenKeys: HmacSigningKey[],
   authAuditIdentifierSecret: string,
+  otpHashSecret: string,
   mfaTotpEncryptionKey: string,
   nodeEnv: NodeEnvironment,
 ): AppEnvironment["auth"] {
@@ -228,6 +229,7 @@ export function buildAuthConfig(
       raw.REFRESH_TOKEN_CACHE_PREFIX ?? DEFAULT_REFRESH_TOKEN_CACHE_PREFIX,
     personalAccessTokenKeys,
     authAuditIdentifierSecret,
+    otpHashSecret,
     mfaTotpEncryptionKey,
     secureCookies: parseSecureCookies(raw, nodeEnv, errors),
   };
