@@ -2698,6 +2698,7 @@ function buildOperations(): OperationDefinition[] {
         authMode: "session-bearer",
         minimumRole: "user",
         patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("ChangePasswordRequest", {
         currentPassword: "Rentify123!",

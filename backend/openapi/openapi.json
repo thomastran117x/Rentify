@@ -2515,7 +2515,8 @@
         "x-rentify-permissions": {
           "authMode": "session-bearer",
           "minimumRole": "user",
-          "patAllowed": false
+          "patAllowed": false,
+          "rateLimitPolicy": "auth-sensitive"
         },
         "requestBody": {
           "required": true,

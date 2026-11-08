@@ -1654,6 +1654,7 @@ paths:
         authMode: session-bearer
         minimumRole: user
         patAllowed: false
+        rateLimitPolicy: auth-sensitive
       requestBody:
         required: true
         content:

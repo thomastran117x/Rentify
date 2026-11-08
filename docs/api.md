@@ -92,6 +92,11 @@ profile handles, so `GET /auth/username/available` and
 `GET /auth/username/suggestions` stay public, each with its own rate limit
 (`username-availability` 60/min, `username-suggestions` 20/min).
 
+`POST /auth/local/password/change` and `POST /auth/oauth/signup/complete` use
+the `auth-sensitive` rate limit (10 a minute, shared with sign-in and the other
+credential routes) and return `429 TOO_MANY_REQUESTS` above it. A signed-in
+caller is keyed by user, an anonymous one by client IP.
+
 Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
 step-up (`mfa-management` scope), returns only the caller's events newest
