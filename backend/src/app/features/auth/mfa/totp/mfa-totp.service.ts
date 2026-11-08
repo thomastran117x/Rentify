@@ -185,7 +185,8 @@ export class MfaTotpService {
 
     // Replay protection: reject any code whose counter is not strictly newer
     // than the last accepted one. lastUsedCounter is null for the first
-    // verification after enrollment.
+    // verification after enrollment. This read only saves a write for an
+    // obvious replay; the conditional claim below is what decides a race.
     const lastUsedCounter =
       record.lastUsedCounter !== null ? Number(record.lastUsedCounter) : -1;
 
@@ -193,10 +194,11 @@ export class MfaTotpService {
       throw new UnauthorizedError("MFA verification failed.");
     }
 
-    await this.mfaTotpRepository.updateLastUsedCounter(
-      record.id,
-      matchedCounter,
-    );
+    if (
+      !(await this.mfaTotpRepository.claimCounter(record.id, matchedCounter))
+    ) {
+      throw new UnauthorizedError("MFA verification failed.");
+    }
   }
 
   /**

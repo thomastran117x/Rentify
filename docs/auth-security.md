@@ -231,6 +231,8 @@ An account can only step up with its strongest factors:
 
 The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Running out of recovery codes never brings email back: such an account steps up with its authenticator or not at all. Passkeys (#465) will join the stronger factors when they land.
 
+An authenticator code is good for one use, at sign-in and at step-up alike. Accepting one records its 30-second step in `user_mfa_totp.last_used_counter` with a conditional update that matches only an older step. So of two requests racing with the same code, exactly one succeeds, and the other gets the answer a wrong code gets.
+
 A stored proof is checked against the factors it could have been made with, not only the ones still usable. A proof made with an account's last recovery code stays good for its 15 minutes, even though no code is left to offer.
 
 Disabling the authenticator app signs out every other session on the account, and each one writes `session.revoked` alongside the `mfa.totp_disabled` event. The session that disabled it stays signed in. Personal access tokens are unaffected.
