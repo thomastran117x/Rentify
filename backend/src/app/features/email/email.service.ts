@@ -179,10 +179,18 @@ export interface SendEmailChangedEmailInput extends SecurityChangeEmailBase {
   revertToken?: string;
 }
 
+export interface SendMfaRecoveryCodeUsedEmailInput
+  extends SecurityChangeEmailBase {
+  /** How many unused codes the account has left. */
+  remaining: number;
+}
+
 export interface SecurityChangeEmailInputByKind {
   password_changed: SendPasswordChangedEmailInput;
   mfa_enabled: SecurityChangeEmailBase;
   mfa_disabled: SecurityChangeEmailBase;
+  mfa_recovery_code_used: SendMfaRecoveryCodeUsedEmailInput;
+  mfa_recovery_codes_regenerated: SecurityChangeEmailBase;
   personal_access_token_created: SendPersonalAccessTokenCreatedEmailInput;
   login_method_linked: SendLoginMethodEmailInput;
   login_method_unlinked: SendLoginMethodEmailInput;

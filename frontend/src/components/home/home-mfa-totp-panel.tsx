@@ -5,6 +5,8 @@ import Image from "next/image";
 import { ScanLine } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
+import { RecoveryCodesDisplay } from "@/components/auth/recovery-codes-display";
+import { HomeMfaRecoveryCodesSection } from "@/components/home/home-mfa-recovery-codes-section";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -14,8 +16,12 @@ import {
   mfaVerificationApi,
 } from "@/lib/auth/mfa-verification-api";
 import { mfaTotpApi, type MfaTotpBeginResult } from "@/lib/auth/mfa-totp-api";
+import {
+  mfaRecoveryCodesApi,
+  type MfaRecoveryCodeStatusResult,
+} from "@/lib/auth/mfa-recovery-codes-api";
 
-type View = "loading" | "idle" | "setup";
+type View = "loading" | "idle" | "setup" | "recovery-codes";
 
 interface VerificationDialogState {
   options: MfaVerificationOptionsResult;
@@ -32,6 +38,9 @@ export function HomeMfaTotpPanel() {
   const { status, session } = useAuth();
   const [view, setView] = useState<View>("loading");
   const [enabled, setEnabled] = useState(false);
+  const [recoveryStatus, setRecoveryStatus] =
+    useState<MfaRecoveryCodeStatusResult | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [enrollment, setEnrollment] = useState<MfaTotpBeginResult | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [enrollCode, setEnrollCode] = useState("");
@@ -53,9 +62,15 @@ export function HomeMfaTotpPanel() {
 
     mfaTotpApi
       .getStatus()
-      .then((result) => {
+      .then(async (result) => {
+        // The authenticator's own controls still work without this.
+        const recovery = result.enabled
+          ? await mfaRecoveryCodesApi.getStatus().catch(() => null)
+          : null;
+
         if (!active) return;
         setEnabled(result.enabled);
+        setRecoveryStatus(recovery);
         setView("idle");
       })
       .catch((error) => {
@@ -235,7 +250,8 @@ export function HomeMfaTotpPanel() {
       setEnrollment(null);
       setQrDataUrl(null);
       setEnrollCode("");
-      setView("idle");
+      setRecoveryCodes(result.recoveryCodes);
+      setView("recovery-codes");
       setMessage(
         "Authenticator app enabled. Your account is now protected with MFA.",
       );
@@ -287,6 +303,7 @@ export function HomeMfaTotpPanel() {
       }
 
       setEnabled(false);
+      setRecoveryStatus(null);
       setMessage("Authenticator app disabled. Other sessions were signed out.");
     } catch (error) {
       setMessage(
@@ -299,6 +316,52 @@ export function HomeMfaTotpPanel() {
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function handleRegenerateRecoveryCodes() {
+    setPending(true);
+    setMessage(null);
+
+    try {
+      const result = await runProtectedAction(
+        () => mfaRecoveryCodesApi.regenerate(),
+        "totp",
+      );
+
+      if (!result) {
+        return;
+      }
+
+      setRecoveryCodes(result.codes);
+      setRecoveryStatus({
+        remaining: result.remaining,
+        createdAt: result.createdAt,
+      });
+      setView("recovery-codes");
+    } catch (error) {
+      setMessage(
+        getApiErrorMessage(error, {
+          action: "generate new recovery codes",
+          fallback:
+            "We couldn't generate new recovery codes right now. Please try again.",
+          preserveClientMessage: true,
+        }),
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleRecoveryCodesSaved() {
+    setRecoveryCodes([]);
+    setMessage(null);
+    setView("idle");
+
+    if (!recoveryStatus) {
+      setRecoveryStatus(
+        await mfaRecoveryCodesApi.getStatus().catch(() => null),
+      );
     }
   }
 
@@ -371,6 +434,20 @@ export function HomeMfaTotpPanel() {
                 </button>
               )}
             </div>
+            {enabled && recoveryStatus ? (
+              <HomeMfaRecoveryCodesSection
+                status={recoveryStatus}
+                pending={pending}
+                onRegenerate={() => void handleRegenerateRecoveryCodes()}
+              />
+            ) : null}
+          </div>
+        ) : view === "recovery-codes" ? (
+          <div className="mt-6">
+            <RecoveryCodesDisplay
+              codes={recoveryCodes}
+              onDone={() => void handleRecoveryCodesSaved()}
+            />
           </div>
         ) : (
           <div className="mt-6 space-y-6">

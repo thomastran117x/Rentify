@@ -259,6 +259,20 @@ const BASE_SEED_USERS: SeedUserFixture[] = [
     trustworthinessScore: 75,
   },
   {
+    // Also off auth.mfaBypassEmails, for the recovery code Playwright spec,
+    // which enrolls an authenticator, signs in with a code, and removes it
+    // again. Separate from totp-one because the two specs run in parallel.
+    id: createFixtureId(1000, 37),
+    email: "totp2@rentify.local",
+    password: "Rentify123!",
+    username: "totp-two",
+    firstName: "Theo",
+    lastName: "Marsh",
+    role: "user",
+    emailVerified: true,
+    trustworthinessScore: 75,
+  },
+  {
     id: createFixtureId(1000, 14),
     email: "user8@rentify.local",
     password: "Rentify123!",

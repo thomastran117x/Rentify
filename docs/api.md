@@ -275,7 +275,7 @@ details now also carry a login MFA challenge:
     "details": {
       "mfaRequired": true,
       "mfaChallengeToken": "opaque-token",
-      "availableFactors": ["totp"],
+      "availableFactors": ["totp", "recovery_code"],
       "expiresInSeconds": 300
     }
   }
@@ -283,8 +283,11 @@ details now also carry a login MFA challenge:
 ```
 
 The client finishes with `POST /auth/login/mfa`, sending
-`{ "mfaChallengeToken", "factor": "totp", "code", "deviceId" }`. That returns
-the usual session response. The client never sends the password or the
+`{ "mfaChallengeToken", "factor", "code", "deviceId" }`, where `factor` is one
+the challenge listed. `recovery_code` is listed while the account has unused
+[recovery codes](./auth-security.md#recovery-codes). That returns the usual
+session response; a sign-in that spent a recovery code also carries
+`recoveryCodesRemaining`, and at `0` the client should prompt for new codes. The client never sends the password or the
 provider token again. A client written before the challenge existed can still
 ignore it and send the credentials again with `totpCode`.
 
@@ -315,7 +318,10 @@ Locally, almost every seeded account is on `auth.mfaBypassEmails` in
 (`totp1@rentify.local`, `Rentify123!`) is seeded off that list for trying it:
 enroll an authenticator app from **Account → Security**, sign out, and sign in
 again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
-same and removes the authenticator afterwards.
+same and removes the authenticator afterwards. `totp-two`
+(`totp2@rentify.local`, `Rentify123!`) is the same kind of account, used by
+[login-recovery-code.spec.ts](../frontend/tests/e2e/login-recovery-code.spec.ts)
+to sign in with a recovery code.
 
 ### OAuth Sign-In
 

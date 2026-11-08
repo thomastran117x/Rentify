@@ -1,8 +1,8 @@
 import { buildPathWithQuery, authenticatedJson } from "@/lib/api/client";
 
 export type MfaVerificationScope = "mfa-management" | "device-login";
-export type MfaVerificationFactor = "email" | "totp" | "sms";
-export type MfaVerificationChallengeFactor = "email" | "totp" | "sms";
+export type MfaVerificationFactor = "email" | "totp" | "sms" | "recovery_code";
+export type MfaVerificationChallengeFactor = MfaVerificationFactor;
 
 export interface MfaVerificationOptionsResult {
   scope: MfaVerificationScope;
@@ -26,9 +26,10 @@ export interface MfaVerificationSmsChallengeResult {
   cooldownUntil: string;
 }
 
-export interface MfaVerificationTotpChallengeResult {
+/** A factor the user already holds, so nothing is sent. */
+export interface MfaVerificationPromptChallengeResult {
   scope: MfaVerificationScope;
-  factor: "totp";
+  factor: "totp" | "recovery_code";
   challengeId: null;
   prompt: true;
 }
@@ -36,7 +37,7 @@ export interface MfaVerificationTotpChallengeResult {
 export type MfaVerificationChallengeResult =
   | MfaVerificationEmailChallengeResult
   | MfaVerificationSmsChallengeResult
-  | MfaVerificationTotpChallengeResult;
+  | MfaVerificationPromptChallengeResult;
 
 export interface MfaVerificationConfirmResult {
   verified: true;

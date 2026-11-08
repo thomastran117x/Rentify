@@ -131,6 +131,15 @@ describe("pending auth flow storage", () => {
       },
       "device-login-mfa",
     ],
+    [
+      {
+        flow: "device-login-mfa",
+        nextPath: "/account",
+        selectedFactor: "recovery_code",
+        challengeSent: false,
+      },
+      "device-login-mfa",
+    ],
   ])("parses each supported flow %#", (value, flow) => {
     expect(parsePendingFlow(value)).toMatchObject({ flow });
   });
@@ -231,6 +240,36 @@ describe("pending auth flow storage", () => {
       writePersistedAuthPendingFlow(flow);
 
       expect(readPersistedAuthPendingFlow()).toEqual(flow);
+    });
+
+    it("keeps a switch to a recovery code across a refresh", () => {
+      const recoveryFlow = {
+        ...flow,
+        availableFactors: ["totp" as const, "recovery_code" as const],
+        factor: "recovery_code" as const,
+      };
+
+      writePersistedAuthPendingFlow(recoveryFlow);
+
+      expect(readPersistedAuthPendingFlow()).toEqual(recoveryFlow);
+    });
+
+    it("starts on the authenticator when both factors are offered", () => {
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["totp", "recovery_code"],
+            expiresInSeconds: 300,
+          },
+          "password",
+          now,
+        ),
+      ).toMatchObject({
+        availableFactors: ["totp", "recovery_code"],
+        factor: "totp",
+      });
     });
 
     it.each([

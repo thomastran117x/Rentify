@@ -23,12 +23,12 @@ describe("LoginMfaChallengeStore", () => {
     const cacheService = { setJson: jest.fn(async () => undefined) };
     const store = new LoginMfaChallengeStore(cacheService as never);
 
-    const result = await store.issue(challenge);
+    const result = await store.issue(challenge, ["totp", "recovery_code"]);
 
     expect(result).toEqual({
       mfaRequired: true,
       mfaChallengeToken: expect.any(String),
-      availableFactors: ["totp"],
+      availableFactors: ["totp", "recovery_code"],
       expiresInSeconds: 300,
     });
     expect(result.mfaChallengeToken.length).toBeGreaterThanOrEqual(40);
@@ -48,8 +48,8 @@ describe("LoginMfaChallengeStore", () => {
       setJson: jest.fn(async () => undefined),
     } as never);
 
-    const first = await store.issue(challenge);
-    const second = await store.issue(challenge);
+    const first = await store.issue(challenge, ["totp"]);
+    const second = await store.issue(challenge, ["totp"]);
 
     expect(first.mfaChallengeToken).not.toBe(second.mfaChallengeToken);
   });

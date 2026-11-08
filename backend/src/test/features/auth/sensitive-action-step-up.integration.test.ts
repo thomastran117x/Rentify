@@ -337,7 +337,7 @@ describe("Sensitive action step-up integration", () => {
         { headers: session.headers() },
       );
       expect((await bodyOf(options)).data).toMatchObject({
-        availableFactors: ["totp"],
+        availableFactors: ["totp", "recovery_code"],
         recommendedFactor: "totp",
       });
     }, 60_000);

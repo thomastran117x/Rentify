@@ -14,6 +14,7 @@ export type MfaVerificationSecurityContext = {
     updatedAt: string;
     confirmedAt?: string;
   } | null;
+  unusedRecoveryCodes: number;
 };
 
 export class MfaVerificationRepository extends BaseRepository {
@@ -39,6 +40,9 @@ export class MfaVerificationRepository extends BaseRepository {
               confirmedAt: true,
             },
           },
+          _count: {
+            select: { mfaRecoveryCodes: { where: { usedAt: null } } },
+          },
         },
       }),
     );
@@ -61,6 +65,7 @@ export class MfaVerificationRepository extends BaseRepository {
             confirmedAt: user.mfaTotp.confirmedAt?.toISOString(),
           }
         : null,
+      unusedRecoveryCodes: user._count.mfaRecoveryCodes,
     };
   }
 }

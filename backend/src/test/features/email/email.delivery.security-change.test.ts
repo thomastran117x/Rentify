@@ -43,6 +43,16 @@ const JOBS: Array<[string, SecurityChangeEmailJob, string]> = [
     "The authenticator app was removed from your Rentify account",
   ],
   [
+    "a used recovery code",
+    { kind: "mfa_recovery_code_used", input: { ...BASE, remaining: 4 } },
+    "A recovery code was used on your Rentify account",
+  ],
+  [
+    "regenerated recovery codes",
+    { kind: "mfa_recovery_codes_regenerated", input: BASE },
+    "New recovery codes were generated for your Rentify account",
+  ],
+  [
     "a new personal access token",
     {
       kind: "personal_access_token_created",

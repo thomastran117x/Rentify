@@ -9,10 +9,11 @@ import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import type { Uuid } from "@/configuration/validation/uuid";
 
 /**
- * The second factors a sign-in can be finished with. Recovery codes and
- * passkeys join this list without changing the shape of the challenge.
+ * The second factors a sign-in can be finished with. A challenge lists the
+ * ones this account can use. Passkeys join this list without changing the
+ * shape of the challenge.
  */
-export const LOGIN_MFA_FACTORS = ["totp"] as const;
+export const LOGIN_MFA_FACTORS = ["totp", "recovery_code"] as const;
 
 export const loginMfaFactorSchema = z.enum(LOGIN_MFA_FACTORS);
 

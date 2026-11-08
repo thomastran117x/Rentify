@@ -132,7 +132,7 @@ describe("Auth persistence integration", () => {
       details: {
         mfaRequired: true,
         mfaChallengeToken: expect.any(String),
-        availableFactors: ["totp"],
+        availableFactors: ["totp", "recovery_code"],
         expiresInSeconds: 300,
       },
     });

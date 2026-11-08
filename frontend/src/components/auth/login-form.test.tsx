@@ -123,6 +123,14 @@ vi.mock("@/components/auth/oauth-welcome-modal", () => ({
   }) => (open ? <div>Welcome modal for {username}</div> : null),
 }));
 
+vi.mock("@/components/auth/recovery-codes-prompt", () => ({
+  RecoveryCodesPrompt: ({ onDone }: { onDone: () => void }) => (
+    <button type="button" onClick={onDone}>
+      Finish recovery prompt
+    </button>
+  ),
+}));
+
 vi.mock("@/components/auth/login-unlock-panel", () => ({
   LoginUnlockPanel: ({ email }: { email: string }) => (
     <div>Unlock panel for {email}</div>
@@ -1181,6 +1189,88 @@ describe("LoginForm", () => {
       expect(readPersistedAuthPendingFlow()).toBeNull();
       await waitFor(() => {
         expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard");
+      });
+    });
+
+    describe("with a recovery code", () => {
+      const deviceProof = {
+        scope: "device-login",
+        verified: true,
+        verifiedUntil: "2026-11-07T12:15:00.000Z",
+        availableFactors: ["totp"],
+        recommendedFactor: "totp",
+      };
+
+      function signInStepWithRecoveryCode() {
+        writePersistedAuthPendingFlow({
+          flow: "login-mfa",
+          mfaChallengeToken: "challenge-token",
+          availableFactors: ["totp", "recovery_code"],
+          factor: "recovery_code",
+          method: "password",
+          expiresAt: new Date(Date.now() + 300_000).toISOString(),
+        });
+      }
+
+      async function submitCode(user: ReturnType<typeof userEvent.setup>) {
+        await user.type(
+          await screen.findByLabelText("Recovery code"),
+          "ABCDEFGH23",
+        );
+        await user.click(
+          screen.getByRole("button", { name: "Verify and sign in" }),
+        );
+      }
+
+      it("holds the redirect for the prompt after the last code", async () => {
+        const user = userEvent.setup();
+        authenticateOnSetSession();
+        signInStepWithRecoveryCode();
+        completeLoginMfaMock.mockResolvedValue({
+          ...loginSession({ known: false, knownByIp: false }),
+          recoveryCodesRemaining: 0,
+        });
+        getOptionsMock.mockResolvedValue(deviceProof);
+
+        render(<LoginForm nextPath="/dashboard" />);
+        await submitCode(user);
+
+        // The sign-in's own proof covers the new device, so no dialog asks for
+        // the authenticator the user probably lost.
+        await waitFor(() => expect(verifyDeviceMock).toHaveBeenCalled());
+        expect(screen.queryByText("MFA dialog")).not.toBeInTheDocument();
+
+        const finish = await screen.findByRole("button", {
+          name: "Finish recovery prompt",
+        });
+        expect(routerReplaceMock).not.toHaveBeenCalled();
+
+        await user.click(finish);
+
+        await waitFor(() =>
+          expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard"),
+        );
+      });
+
+      it("goes straight in while codes remain", async () => {
+        const user = userEvent.setup();
+        authenticateOnSetSession();
+        signInStepWithRecoveryCode();
+        completeLoginMfaMock.mockResolvedValue({
+          ...loginSession({ known: false, knownByIp: false }),
+          recoveryCodesRemaining: 4,
+        });
+        getOptionsMock.mockResolvedValue(deviceProof);
+
+        render(<LoginForm nextPath="/dashboard" />);
+        await submitCode(user);
+
+        await waitFor(() =>
+          expect(routerReplaceMock).toHaveBeenCalledWith("/dashboard"),
+        );
+        expect(
+          screen.queryByRole("button", { name: "Finish recovery prompt" }),
+        ).not.toBeInTheDocument();
       });
     });
 

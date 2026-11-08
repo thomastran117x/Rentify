@@ -211,6 +211,11 @@ export interface AuthSessionResult {
    * every returning sign-in and every local flow.
    */
   isNewUser?: boolean;
+  /**
+   * Set only when this sign-in spent a recovery code: how many are left, so a
+   * client can push someone who just used their last one to replace them.
+   */
+  recoveryCodesRemaining?: number;
 }
 
 export interface AuthResponseUser {
@@ -238,4 +243,6 @@ export interface AuthResponseBody {
    * the account. Clients use it to launch the generated-username onboarding.
    */
   isNewUser?: boolean;
+  /** Present only after a sign-in that spent a recovery code. */
+  recoveryCodesRemaining?: number;
 }

@@ -8,6 +8,9 @@ import { DeviceService } from "@/features/auth/device/device.service";
 import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
+import { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
+import { MfaRecoveryCodeRepository } from "@/features/auth/mfa/recovery/mfa-recovery-code.repository";
+import { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
@@ -376,6 +379,15 @@ export const containerTokens = {
   mfaTotpRepository: createServiceToken<MfaTotpRepository>("MfaTotpRepository"),
   mfaTotpService: createServiceToken<MfaTotpService>("MfaTotpService"),
   mfaTotpController: createServiceToken<MfaTotpController>("MfaTotpController"),
+  mfaRecoveryCodeRepository: createServiceToken<MfaRecoveryCodeRepository>(
+    "MfaRecoveryCodeRepository",
+  ),
+  mfaRecoveryCodeService: createServiceToken<MfaRecoveryCodeService>(
+    "MfaRecoveryCodeService",
+  ),
+  mfaRecoveryCodeController: createServiceToken<MfaRecoveryCodeController>(
+    "MfaRecoveryCodeController",
+  ),
   mfaVerificationService: createServiceToken<MfaVerificationService>(
     "MfaVerificationService",
   ),

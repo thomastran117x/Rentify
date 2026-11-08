@@ -63,6 +63,10 @@ export function toAuthResponseBody(
     responseBody.isNewUser = true;
   }
 
+  if (result.recoveryCodesRemaining !== undefined) {
+    responseBody.recoveryCodesRemaining = result.recoveryCodesRemaining;
+  }
+
   return responseBody;
 }
 

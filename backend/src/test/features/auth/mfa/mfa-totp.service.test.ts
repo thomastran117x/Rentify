@@ -34,6 +34,11 @@ const ENCRYPTED_TEST_SECRET = encryptForTest(TEST_PLAIN_SECRET);
 
 const EXISTING_UPDATED_AT = new Date("2024-01-01T00:00:00Z");
 
+const RECOVERY_CODE_SET = {
+  codes: ["ABCDE-FGH23"],
+  rows: [{ id: "code-1", userId: USER_ID_ID, codeHash: "a".repeat(64) }],
+};
+
 function makeRecord(overrides: Partial<UserMfaTotp> = {}): UserMfaTotp {
   return {
     id: "record-id",
@@ -76,10 +81,10 @@ function createMocks() {
         [string, { secretEncrypted: string; expiresAt: Date }, Date]
       >()
       .mockResolvedValue(1),
-    // Now takes (id, confirmedAt, lastUsedCounter)
+    // Now takes (id, confirmedAt, lastUsedCounter, recoveryCodeRows)
     activate: jest
-      .fn<Promise<UserMfaTotp>, [string, Date, number]>()
-      .mockResolvedValue(makeRecord({ status: "active" })),
+      .fn<Promise<boolean>, [string, Date, number, unknown[]]>()
+      .mockResolvedValue(true),
     updateLastUsedCounter: jest
       .fn<Promise<void>, [string, number]>()
       .mockResolvedValue(undefined),
@@ -91,6 +96,9 @@ function createMocks() {
       .mockResolvedValue(undefined),
   };
 
+  const mfaRecoveryCodeService = {
+    generateSet: jest.fn(() => RECOVERY_CODE_SET),
+  };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
   const authSessionService = {
     revokeManagedSessions: jest.fn<Promise<unknown>, [unknown]>(async () => ({
@@ -105,6 +113,7 @@ function createMocks() {
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
+    mfaRecoveryCodeService: mfaRecoveryCodeService as never,
     encryptionKey: TEST_ENCRYPTION_KEY,
     authAuditService: authAuditService as never,
     authSessionService: authSessionService as never,
@@ -249,18 +258,25 @@ describe("MfaTotpService", () => {
       } = createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
 
-      await service.confirmEnrollment(USER_ID_ID, "123456", {
-        sessionId: "session-1",
-        context: { requestId: "request-1" },
-      });
+      const recoveryCodes = await service.confirmEnrollment(
+        USER_ID_ID,
+        "123456",
+        {
+          sessionId: "session-1",
+          context: { requestId: "request-1" },
+        },
+      );
 
       // activate must receive the matched counter so the enrollment code cannot
-      // be replayed against verifyCode before the first login MFA check.
+      // be replayed against verifyCode before the first login MFA check, and
+      // the rows, so the factor never goes live without its codes.
       expect(mfaTotpRepository.activate).toHaveBeenCalledWith(
         "record-id",
         expect.any(Date),
         56374060,
+        RECOVERY_CODE_SET.rows,
       );
+      expect(recoveryCodes).toEqual(RECOVERY_CODE_SET.codes);
       expect(securityNotificationService.notify).toHaveBeenCalledTimes(1);
       expect(securityNotificationService.notify).toHaveBeenCalledWith({
         kind: "mfa_enabled",
@@ -278,6 +294,19 @@ describe("MfaTotpService", () => {
         context: { requestId: "request-1" },
         metadata: { emailNotification: "sent" },
       });
+    });
+
+    it("refuses a confirmation that lost the race, showing no codes", async () => {
+      const { service, mfaTotpRepository, securityNotificationService } =
+        createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      mfaTotpRepository.activate.mockResolvedValue(false);
+
+      await expect(
+        service.confirmEnrollment(USER_ID_ID, "123456"),
+      ).rejects.toBeInstanceOf(ConflictError);
+
+      expect(securityNotificationService.notify).not.toHaveBeenCalled();
     });
 
     it("throws BadRequestError when no pending record exists", async () => {

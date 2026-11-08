@@ -13,6 +13,12 @@ export interface MfaTotpBeginResult {
   uri: string;
 }
 
+export interface MfaTotpConfirmResult {
+  confirmed: true;
+  /** Shown once. They cannot be read back. */
+  recoveryCodes: string[];
+}
+
 export const mfaTotpApi = {
   getStatus(): Promise<MfaTotpStatusResult> {
     return getAuthenticatedJson<MfaTotpStatusResult>("/auth/mfa/totp/status");
@@ -25,8 +31,8 @@ export const mfaTotpApi = {
     );
   },
 
-  confirmEnrollment(code: string): Promise<{ confirmed: true }> {
-    return postAuthenticatedJson<{ confirmed: true }, { code: string }>(
+  confirmEnrollment(code: string): Promise<MfaTotpConfirmResult> {
+    return postAuthenticatedJson<MfaTotpConfirmResult, { code: string }>(
       "/auth/mfa/totp/confirm",
       { code },
     );

@@ -82,6 +82,100 @@ describe("LoginMfaPanel", () => {
     );
   });
 
+  describe("with a recovery code", () => {
+    const recoveryFlow: Partial<LoginMfaPendingFlow> = {
+      availableFactors: ["totp", "recovery_code"],
+      factor: "recovery_code",
+    };
+
+    it("offers it from the authenticator step, and back again", async () => {
+      const user = userEvent.setup();
+      const props = renderPanel({
+        availableFactors: ["totp", "recovery_code"],
+      });
+
+      await user.click(
+        screen.getByRole("button", { name: "Use a recovery code" }),
+      );
+
+      expect(props.onFactorChange).toHaveBeenCalledWith("recovery_code");
+    });
+
+    it("does not offer it to an account with none left", () => {
+      renderPanel();
+
+      expect(
+        screen.queryByRole("button", { name: "Use a recovery code" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("takes letters and formats the code as it is typed", async () => {
+      const user = userEvent.setup();
+      completeLoginMfaMock.mockResolvedValue({ accessToken: "access" });
+      const props = renderPanel(recoveryFlow);
+      const input = screen.getByLabelText("Recovery code");
+
+      await user.type(input, "abcdefgh23");
+
+      expect(input).toHaveValue("ABCDE-FGH23");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      await waitFor(() =>
+        expect(completeLoginMfaMock).toHaveBeenCalledWith({
+          mfaChallengeToken: "challenge-token",
+          factor: "recovery_code",
+          code: "ABCDE-FGH23",
+        }),
+      );
+      await waitFor(() => expect(props.onSuccess).toHaveBeenCalled());
+    });
+
+    it("accepts a pasted code", async () => {
+      const user = userEvent.setup();
+      renderPanel(recoveryFlow);
+
+      await user.click(screen.getByLabelText("Recovery code"));
+      await user.paste("abcde fgh23");
+
+      expect(screen.getByLabelText("Recovery code")).toHaveValue("ABCDE-FGH23");
+    });
+
+    it("asks for the whole code without calling the api", async () => {
+      const user = userEvent.setup();
+      renderPanel(recoveryFlow);
+
+      await user.type(screen.getByLabelText("Recovery code"), "ABC");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        screen.getByText("Enter your 10-character recovery code."),
+      ).toBeInTheDocument();
+      expect(completeLoginMfaMock).not.toHaveBeenCalled();
+    });
+
+    it("says a rejected code may already have been used", async () => {
+      const user = userEvent.setup();
+      completeLoginMfaMock.mockRejectedValue(
+        clientError(400, "INVALID_MFA_CODE"),
+      );
+      renderPanel(recoveryFlow);
+
+      await user.type(screen.getByLabelText("Recovery code"), "ABCDEFGH23");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        await screen.findByText(/incorrect or was already used/i),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Recovery code")).toHaveValue("");
+    });
+  });
+
   it("shows a validation message about the code on the field", async () => {
     const user = userEvent.setup();
     completeLoginMfaMock.mockRejectedValue(

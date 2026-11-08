@@ -17,6 +17,7 @@ import type {
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
+import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import {
@@ -43,6 +44,7 @@ interface MfaVerificationServiceOptions {
   otpService: OtpService;
   emailService: EmailService;
   mfaTotpService: MfaTotpService;
+  mfaRecoveryCodeService: MfaRecoveryCodeService;
   authAuditService: AuthAuditService;
 }
 
@@ -58,6 +60,13 @@ interface VerificationRequestContext {
 interface VerifiedFactorState {
   securityContext: MfaVerificationSecurityContext;
   availableFactors: MfaVerificationFactor[];
+  /**
+   * What a stored proof may have been made with. Wider than `availableFactors`,
+   * which only lists what can be used next: a proof made with the last recovery
+   * code stays good, or that code would cancel the proof it just earned and
+   * leave the user facing the authenticator they lost.
+   */
+  acceptedProofFactors: MfaVerificationFactor[];
   recommendedFactor: MfaVerificationFactor | null;
   securityVersion: string;
   activeTotpAvailable: boolean;
@@ -246,6 +255,14 @@ export class MfaVerificationService {
           ),
           code: input.code,
         });
+      } else if (factor === "recovery_code") {
+        await this.options.mfaRecoveryCodeService.redeem({
+          userId: input.userId,
+          code: input.code,
+          stage: "step_up",
+          sessionId: input.sessionId,
+          context: input.audit,
+        });
       } else {
         await this.options.mfaTotpService.verifyCode(input.userId, input.code);
       }
@@ -427,11 +444,13 @@ export class MfaVerificationService {
     const activeTotpAvailable = securityContext.mfaTotp?.status === "active";
 
     // Step-up is only as strong as its weakest accepted factor, so an account
-    // with a stronger factor cannot fall back to its inbox. Email is for
-    // accounts with nothing stronger. Passkeys (#465) and recovery codes (#464)
-    // join the stronger list when they land.
+    // with a stronger factor cannot fall back to its inbox, even once its
+    // recovery codes run out. Email is for accounts with nothing stronger.
+    // Passkeys (#465) join the stronger list when they land.
     const availableFactors: MfaVerificationFactor[] = activeTotpAvailable
-      ? ["totp"]
+      ? securityContext.unusedRecoveryCodes > 0
+        ? ["totp", "recovery_code"]
+        : ["totp"]
       : securityContext.emailVerified
         ? ["email"]
         : [];
@@ -440,6 +459,9 @@ export class MfaVerificationService {
     return {
       securityContext,
       availableFactors,
+      acceptedProofFactors: activeTotpAvailable
+        ? ["totp", "recovery_code"]
+        : availableFactors,
       recommendedFactor,
       securityVersion: this.deriveSecurityVersion(securityContext),
       activeTotpAvailable,
@@ -581,7 +603,7 @@ export class MfaVerificationService {
       Number.isFinite(expiresAtMs) &&
       Date.now() < expiresAtMs &&
       input.proof.securityVersion === input.factorState.securityVersion &&
-      input.factorState.availableFactors.includes(input.proof.factor);
+      input.factorState.acceptedProofFactors.includes(input.proof.factor);
 
     if (isValid) {
       return input.proof;

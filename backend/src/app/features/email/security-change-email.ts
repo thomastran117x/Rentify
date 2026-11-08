@@ -67,6 +67,24 @@ export function composeSecurityChangeEmail(
           "The authenticator app was just removed from your Rentify account, and every other sign-in was ended. Signing in no longer needs a code from it.",
         details: [],
       };
+    case "mfa_recovery_code_used":
+      return {
+        subject: "A recovery code was used on your Rentify account",
+        heading: "A recovery code was used",
+        summary:
+          job.input.remaining === 0
+            ? "A recovery code was just used on your Rentify account. That was your last one, so generate new codes from your security settings."
+            : `A recovery code was just used on your Rentify account. Each code works once, and ${job.input.remaining} ${job.input.remaining === 1 ? "is" : "are"} left.`,
+        details: [],
+      };
+    case "mfa_recovery_codes_regenerated":
+      return {
+        subject: "New recovery codes were generated for your Rentify account",
+        heading: "New recovery codes were generated",
+        summary:
+          "New recovery codes were just generated for your Rentify account, and all of the old ones stopped working.",
+        details: [],
+      };
     case "personal_access_token_created":
       return {
         subject: "A personal access token was created on your Rentify account",

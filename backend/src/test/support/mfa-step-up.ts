@@ -13,7 +13,11 @@ function apiUrl(path: string): string {
 async function confirmStepUp(
   app: StepUpApp,
   headers: Record<string, string>,
-  body: { scope: StepUpScope; factor: "email" | "totp"; code: string },
+  body: {
+    scope: StepUpScope;
+    factor: "email" | "totp" | "recovery_code";
+    code: string;
+  },
 ): Promise<void> {
   const response = await app.request(apiUrl("/auth/mfa/verify/confirm"), {
     method: "POST",
@@ -54,6 +58,16 @@ export async function completeEmailStepUp(
     factor: "email",
     code: data.code,
   });
+}
+
+/** The way back in for an account whose authenticator is gone. */
+export async function completeRecoveryCodeStepUp(
+  app: StepUpApp,
+  headers: Record<string, string>,
+  code: string,
+  scope: StepUpScope = "mfa-management",
+): Promise<void> {
+  await confirmStepUp(app, headers, { scope, factor: "recovery_code", code });
 }
 
 /** The step-up an account with an active authenticator has to use instead. */

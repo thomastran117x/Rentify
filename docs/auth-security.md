@@ -42,6 +42,8 @@ Code lives in [backend/src/app/features/auth/audit](../backend/src/app/features/
 | `email.change_reverted`          | `success`            |                                       | An [emailed revert link](#undoing-an-email-change) restored the old address. Metadata contains only `oldEmailMasked`, `newEmailMasked` and `sourceEventId`.                                   |
 | `mfa.totp_enabled`               | `success`            |                                       | A pending TOTP factor was activated.                                                                                                                                                          |
 | `mfa.totp_disabled`              | `success`            |                                       | An active TOTP factor was removed; pending/missing factors do not emit it.                                                                                                                    |
+| `mfa.recovery_code_used`         | `success`            |                                       | A [recovery code](#recovery-codes) was spent. Metadata contains only `remaining`, `stage` (`login` or `step_up`) and `emailNotification`. A sign-in's event carries its method, no session.   |
+| `mfa.recovery_codes_regenerated` | `success`            |                                       | Every recovery code was replaced with a new set. Metadata contains only `remaining` and `emailNotification`.                                                                                  |
 | `mfa.step_up_failed`             | `failure`            | `mfa_invalid` or blank                | A confirm code was invalid, or challenge delivery failed. Metadata contains only stage, scope, factor and result.                                                                             |
 | `mfa.step_up_locked`             | `blocked`            | `rate_limited`                        | Challenge/confirm windows, OTP cooldown, repeated-code lock, and attempts during that lock.                                                                                                   |
 | `pat.created`                    | `success`            |                                       | A personal access token was created. Carries method `pat` and metadata `{ "tokenId": ..., "emailNotification": ... }`, never the token.                                                       |
@@ -108,11 +110,11 @@ Field details:
 - `current` is true when the event's session is the caller's current session.
 - `deviceKnown` is true when the event's device ID matches one of the user's currently registered devices, false when it does not, and null when the event recorded no device or an administrator acted. It reflects today's device list, so removing a device turns its past events false. Whether a device was new when an event happened is recorded separately as `device.new_detected`, which appears in the list as "New device detected".
 
-| Category           | Event types                                                                                                                                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sign_in`          | `login.*`, `oauth.login.succeeded`, `oauth.login.failed`, `oauth.signup.completed`, `mfa.step_up_failed`, `mfa.step_up_locked`, `rate_limit.exceeded`                                                   |
-| `security_changes` | `password.changed`, `password.reset`, `password.set`, `email.changed`, `email.change_reverted`, `mfa.totp_enabled`, `mfa.totp_disabled`, `oauth.linked`, `oauth.unlinked`, `pat.created`, `pat.revoked` |
-| `sessions`         | `logout`, `session.revoked`, `session.refresh_reuse_detected`, `device.new_detected`                                                                                                                    |
+| Category           | Event types                                                                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sign_in`          | `login.*`, `oauth.login.succeeded`, `oauth.login.failed`, `oauth.signup.completed`, `mfa.step_up_failed`, `mfa.step_up_locked`, `rate_limit.exceeded`                                                                                                               |
+| `security_changes` | `password.changed`, `password.reset`, `password.set`, `email.changed`, `email.change_reverted`, `mfa.totp_enabled`, `mfa.totp_disabled`, `mfa.recovery_code_used`, `mfa.recovery_codes_regenerated`, `oauth.linked`, `oauth.unlinked`, `pat.created`, `pat.revoked` |
+| `sessions`         | `logout`, `session.revoked`, `session.refresh_reuse_detected`, `device.new_detected`                                                                                                                                                                                |
 
 The cursor is an opaque wrapper around the last event's ID, and paging uses Prisma's cursor. Prisma compares against that row's stored `created_at` in SQL, so the microsecond precision survives and events written in the same millisecond, such as several sessions revoked at once, are neither skipped nor repeated. A JavaScript `Date` would keep only milliseconds. Prisma locates the cursor row by ID alone, and `skip: 1` then drops whichever row comes first. So the cursor row is first checked against the caller's user ID and the request's filters. A cursor naming another user's event, one of the caller's events the current filters exclude, or one since pruned is a `400 VALIDATION_ERROR` instead of silently dropping a row. Keep the same filters while following `nextCursor`.
 
@@ -208,7 +210,7 @@ Starting a provider link (`POST /auth/oauth/{provider}/start`) needs no proof: i
 | Sign-in                                               | Check                                                                                     |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Unknown device on an unknown IP, password or provider | A code from the account's factor, then the device registers. Cancelling ends the sign-in. |
-| Finished with an authenticator code                   | The code counts as the `device-login` proof, so there is no second prompt.                |
+| Finished with an authenticator or recovery code       | The code counts as the `device-login` proof, so there is no second prompt.                |
 | Unknown device on a known IP                          | No prompt. It stays unregistered unless the session already has a proof.                  |
 | A provider sign-in that just created the account      | No prompt, and it stays unregistered. The check runs on the next sign-in.                 |
 | No factor available                                   | No prompt, and it stays unregistered.                                                     |
@@ -219,17 +221,44 @@ A device left unregistered still works. The next sign-in from it on a new IP get
 
 An account can only step up with its strongest factors:
 
-| Account                          | Accepted factor | Refused                             |
-| -------------------------------- | --------------- | ----------------------------------- |
-| Active authenticator app         | TOTP            | Email: `400 MFA_FACTOR_UNAVAILABLE` |
-| Verified email, no authenticator | Email           |                                     |
-| Neither                          | None            | Everything; the dialog says so      |
+| Account                          | Accepted factors                               | Refused                             |
+| -------------------------------- | ---------------------------------------------- | ----------------------------------- |
+| Active authenticator app         | TOTP, and a recovery code while any are unused | Email: `400 MFA_FACTOR_UNAVAILABLE` |
+| Verified email, no authenticator | Email                                          |                                     |
+| Neither                          | None                                           | Everything; the dialog says so      |
 
-The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Passkeys (#465) and recovery codes (#464) will join the stronger factors when they land.
+The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Running out of recovery codes never brings email back: such an account steps up with its authenticator or not at all. Passkeys (#465) will join the stronger factors when they land.
+
+A stored proof is checked against the factors it could have been made with, not only the ones still usable. A proof made with an account's last recovery code stays good for its 15 minutes, even though no code is left to offer.
 
 Disabling the authenticator app signs out every other session on the account, and each one writes `session.revoked` alongside the `mfa.totp_disabled` event. The session that disabled it stays signed in. Personal access tokens are unaffected.
 
-**A lost authenticator can't be removed with email.** Sign-in already needs the code, and until recovery codes ship, a signed-in session can't step up without it either, so that account needs support.
+**A lost authenticator can't be removed with email.** Someone who has lost it signs in and steps up with [recovery codes](#recovery-codes) instead. Without one, the account needs support.
+
+## Recovery Codes
+
+Recovery codes are the way back in when an authenticator app is lost. They stand in for the app's code at sign-in and at step-up, and never for anything weaker.
+
+- **Issued with the authenticator.** Confirming an authenticator app (`POST /auth/mfa/totp/confirm`) returns 10 codes along with it, in the same transaction, so the factor is never active with codes nobody saw. They are shown once, with Copy and Download, and cannot be read back. An account that enrolled before codes existed has none until it generates a set.
+- **Format.** 10 characters grouped `XXXXX-XXXXX`, from 32 symbols that leave out `0`, `1`, `I` and `O`, so 50 random bits each. Case, spaces and hyphens are ignored when one is typed.
+- **Storage.** Each row in `user_mfa_recovery_codes` holds an HMAC-SHA256 of the account id and the code, never the code. The key is derived from `MFA_TOTP_ENCRYPTION_KEY` with HKDF, so there is no extra secret to deploy. A fast keyed hash is enough for codes this random: guessing is limited online by the lockout below, and a copy of the table is useless without the key.
+- **Single use.** A code is spent by a conditional update on `used_at IS NULL`, so of two concurrent attempts with the same code, exactly one succeeds. A wrong code and a used one get the same answer.
+- **At sign-in.** The login MFA challenge lists `recovery_code` after `totp` while the account has unused codes. A wrong code counts towards the [username lockout](./api.md#authentication-security) exactly as a wrong authenticator code does, and a locked username never spends a code. The deprecated `totpCode` field only ever takes an authenticator code.
+- **At step-up.** `recovery_code` is a factor of `/auth/mfa/verify/*` on the same terms, with the same per-session limits as the authenticator.
+- **Every use is audited and emailed.** Spending a code writes `mfa.recovery_code_used` and sends `mfa_recovery_code_used`, which says how many are left. Both happen when the code is claimed, so a use is never lost even if the rest of the request fails.
+- **Status.** `GET /auth/mfa/recovery-codes/status` returns `{ remaining, createdAt }`. `createdAt` is null for an account that never had a set. The account page counts the codes left, warns at 2 or fewer, and warns more strongly at none.
+- **Regeneration.** `POST /auth/mfa/recovery-codes/regenerate` replaces every code, used or not, writes `mfa.recovery_codes_regenerated` and sends `mfa_recovery_codes_regenerated`. It needs a recent proof from the `mfa-management` scope, or from the `device-login` scope a sign-in leaves behind. It returns `409` without an active authenticator.
+- **Turning the authenticator off deletes the codes**, in the same transaction.
+
+### Using the Last Code
+
+Someone who has lost their authenticator and signs in with their last code has no factor left to step up with. The Security tab is behind a step-up too. So:
+
+1. The sign-in succeeds, and its response carries `recoveryCodesRemaining: 0`.
+2. The code is recorded as the session's `device-login` proof, so the new-device check passes without asking for the lost app.
+3. The sign-in page holds the redirect and asks the user to generate new codes, which that proof allows for its 15 minutes. It allows nothing else: changing the password or removing the authenticator still needs a management step-up, which one of the new codes provides.
+
+A user who skips the prompt, or reloads the page, can still regenerate from the Security tab while they have their authenticator. Without it, once the proof expires, the account needs support.
 
 ## Investigating Sign-in Activity
 
@@ -390,15 +419,17 @@ An account's owner is told about every security-relevant change, because someone
 
 Change emails go out through `SecurityNotificationService` ([security-notification.service.ts](../backend/src/app/features/auth/security-notification/security-notification.service.ts)):
 
-| Kind                            | Sent when                                                       | Also says                                                                 |
-| ------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `password_changed`              | A password is changed, reset or added                           | Which of the three happened                                               |
-| `mfa_enabled`                   | An authenticator app is confirmed                               |                                                                           |
-| `mfa_disabled`                  | An active authenticator app is removed                          |                                                                           |
-| `personal_access_token_created` | A personal access token is created                              | Its name, scopes and expiry                                               |
-| `login_method_linked`           | A provider is newly linked                                      | The provider                                                              |
-| `login_method_unlinked`         | A provider is actually removed                                  | The provider                                                              |
-| `email_changed`                 | An email change completes, sent to the address the account left | The redacted new address, and the [revert link](#undoing-an-email-change) |
+| Kind                             | Sent when                                                       | Also says                                                                 |
+| -------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `password_changed`               | A password is changed, reset or added                           | Which of the three happened                                               |
+| `mfa_enabled`                    | An authenticator app is confirmed                               |                                                                           |
+| `mfa_disabled`                   | An active authenticator app is removed                          |                                                                           |
+| `mfa_recovery_code_used`         | A recovery code is spent, at sign-in or step-up                 | How many codes are left, and to generate more when none are               |
+| `mfa_recovery_codes_regenerated` | Every recovery code is replaced                                 | That the old codes stopped working                                        |
+| `personal_access_token_created`  | A personal access token is created                              | Its name, scopes and expiry                                               |
+| `login_method_linked`            | A provider is newly linked                                      | The provider                                                              |
+| `login_method_unlinked`          | A provider is actually removed                                  | The provider                                                              |
+| `email_changed`                  | An email change completes, sent to the address the account left | The redacted new address, and the [revert link](#undoing-an-email-change) |
 
 Each one states the time, a coarse device such as "Chrome on Windows" from `parseUserAgent`, and the IP address, and advises changing the password and reviewing devices and personal access tokens. An account that can reset a password also gets the "This wasn't you? Lock your account" link from [Locking Your Own Account](#locking-your-own-account), and the link's `sourceEventId` is the change's audit event. A social-only account gets no lock link, because it could not recover from the lock.
 
@@ -417,7 +448,7 @@ An email is queued after the change has succeeded, and failing to queue one neve
 
 Password and email changes queue their email before the new session is issued, so a failure there cannot leave a committed change unannounced.
 
-Each inbox gets at most 3 emails of a kind per hour, so repeated toggling cannot flood it. An allowance rather than a one-email cooldown means an attacker's change straight after the owner's own still arrives. The first email of a kind always goes out, and if Redis is down the limit is skipped rather than the email. The key is `auth:security-email:<kind>:<sha256 of the address>`, so an account moving between addresses is not limited across them.
+Each inbox gets at most 3 emails of a kind per hour, so repeated toggling cannot flood it. `mfa_recovery_code_used` gets 10, one set's worth, so every code of a set is announced however quickly it is spent. An allowance rather than a one-email cooldown means an attacker's change straight after the owner's own still arrives. The first email of a kind always goes out, and if Redis is down the limit is skipped rather than the email. The key is `auth:security-email:<kind>:<sha256 of the address>`, so an account moving between addresses is not limited across them.
 
 ### Undoing an Email Change
 
@@ -619,7 +650,7 @@ To revoke a key because it leaked, skip the wait in step 3: promote the new key 
 
 ### Out of Scope
 
-- `MFA_TOTP_ENCRYPTION_KEY` is an encryption key, not a signing key. Rotating it means re-encrypting every stored authenticator secret, which has no tooling yet. Replacing it without that breaks every enrolled authenticator app.
+- `MFA_TOTP_ENCRYPTION_KEY` is an encryption key, not a signing key. Rotating it means re-encrypting every stored authenticator secret, which has no tooling yet. Replacing it without that breaks every enrolled authenticator app, and every [recovery code](#recovery-codes), whose hashing key is derived from it.
 - `AUTH_AUDIT_IDENTIFIER_SECRET` has no keyset. Replacing it breaks correlation between audit rows written before and after the change, as [Why Identifiers Are Hashed](#why-identifiers-are-hashed) explains.
 - There is no JWKS endpoint. No service other than the backend verifies these tokens.
 

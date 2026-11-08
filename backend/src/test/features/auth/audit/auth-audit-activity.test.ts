@@ -44,6 +44,8 @@ const ALL_EVENT_TYPES: AuthAuditEventType[] = [
   "email.change_reverted",
   "mfa.totp_enabled",
   "mfa.totp_disabled",
+  "mfa.recovery_code_used",
+  "mfa.recovery_codes_regenerated",
   "mfa.step_up_failed",
   "mfa.step_up_locked",
   "pat.created",

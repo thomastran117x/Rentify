@@ -15,7 +15,10 @@ import type {
 } from "@/features/email/email.service";
 import { peekRabbitMqMessages } from "../../support/live-rabbitmq";
 import { waitForRabbitMqPayloads } from "../../support/live-rabbitmq-assertions";
-import { completeEmailStepUp } from "../../support/mfa-step-up";
+import {
+  completeEmailStepUp,
+  completeRecoveryCodeStepUp,
+} from "../../support/mfa-step-up";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
@@ -107,6 +110,11 @@ describe("Security change emails integration", () => {
       body: JSON.stringify({ code: generateTotpCode(data.secret) }),
     });
     expect(confirm.status).toBe(200);
+    const confirmed = (await confirm.json()) as {
+      data: { recoveryCodes: string[] };
+    };
+
+    return confirmed.data.recoveryCodes;
   }
 
   async function linkGoogle() {
@@ -269,6 +277,46 @@ describe("Security change emails integration", () => {
 
     const disabled = await expectOneEmail("mfa_disabled", "mfa.totp_disabled");
     expect(disabled.input).toMatchObject({
+      to: RENTER_EMAIL,
+      selfLockToken: expect.any(String),
+    });
+  });
+
+  it("queues mfa_recovery_code_used, saying how many are left", async () => {
+    const recoveryCodes = await enrollAuthenticator();
+
+    await completeRecoveryCodeStepUp(
+      persistenceApp.app,
+      renter.headers(),
+      recoveryCodes[0]!,
+    );
+
+    const email = await expectOneEmail(
+      "mfa_recovery_code_used",
+      "mfa.recovery_code_used",
+    );
+    expect(email.input).toMatchObject({
+      to: RENTER_EMAIL,
+      remaining: 9,
+      selfLockToken: expect.any(String),
+    });
+  });
+
+  it("queues mfa_recovery_codes_regenerated when the codes are replaced", async () => {
+    await enrollAuthenticator();
+
+    const regenerate = await request("/auth/mfa/recovery-codes/regenerate", {
+      method: "POST",
+      headers: renter.headers(),
+      body: "{}",
+    });
+    expect(regenerate.status).toBe(200);
+
+    const email = await expectOneEmail(
+      "mfa_recovery_codes_regenerated",
+      "mfa.recovery_codes_regenerated",
+    );
+    expect(email.input).toMatchObject({
       to: RENTER_EMAIL,
       selfLockToken: expect.any(String),
     });

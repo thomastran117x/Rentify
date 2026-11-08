@@ -2,6 +2,7 @@ import yaml from "js-yaml";
 
 import { UUID_PATTERN_SOURCE } from "@/configuration/validation/uuid";
 import { AUTH_AUDIT_EVENT_TYPES } from "@/features/auth/audit/auth-audit.model";
+import { RECOVERY_CODE_ALPHABET } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 
 type HttpMethod = "get" | "post" | "put" | "delete" | "patch";
 
@@ -93,9 +94,10 @@ const OAUTH_CALLBACK_DESCRIPTION =
 const loginMfaRequiredExample = {
   mfaRequired: true,
   mfaChallengeToken: "opaque-mfa-challenge-token",
-  availableFactors: ["totp"],
+  availableFactors: ["totp", "recovery_code"],
   expiresInSeconds: 300,
 };
+const RECOVERY_CODE_SCHEMA_PATTERN = `^[${RECOVERY_CODE_ALPHABET}]{5}-[${RECOVERY_CODE_ALPHABET}]{5}$`;
 const totpCodeDeprecatedProperty = {
   type: "string",
   deprecated: true,
@@ -2023,7 +2025,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeLoginMfa",
       summary: "Finish a sign-in with a second factor",
       description:
-        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code.",
+        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: recovery_code appears only while the account has unused codes. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -3671,7 +3673,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "confirmMfaTotpEnrollment",
       summary: "Confirm authenticator (TOTP) enrollment",
       description:
-        "Confirms authenticator enrollment with a code from the authenticator app. Requires a recent MFA step-up verification for the management scope.",
+        "Confirms authenticator enrollment with a code from the authenticator app, and returns the account's 10 recovery codes. They are shown this once and cannot be read back. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3687,9 +3689,86 @@ function buildOperations(): OperationDefinition[] {
           200,
           "Authenticator app enabled.",
           "MfaTotpConfirmResult",
-          { confirmed: true },
+          {
+            confirmed: true,
+            recoveryCodes: [
+              "ABCDE-FGH23",
+              "JKLMN-PQR45",
+              "STUVW-XYZ67",
+              "BCDFG-HJK89",
+              "LMNPQ-RST23",
+              "UVWXY-ZAB45",
+              "CDEFG-HJK67",
+              "MNPQR-STU89",
+              "VWXYZ-ABC23",
+              "DEFGH-JKL45",
+            ],
+          },
         ),
-        ...commonErrors([400, 401, 403, 429, 500]),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/recovery-codes/status",
+      operationId: "getMfaRecoveryCodeStatus",
+      summary: "Get recovery code status",
+      description:
+        "Returns how many of the signed-in user's recovery codes are unused, and when the set was generated. `createdAt` is null for an account that has never had a set.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "MfaRecoveryCodeStatusResult",
+          { remaining: 10, createdAt: "2026-11-07T12:00:00.000Z" },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/recovery-codes/regenerate",
+      operationId: "regenerateMfaRecoveryCodes",
+      summary: "Replace every recovery code",
+      description:
+        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without an active authenticator app.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "New recovery codes generated. The old ones no longer work.",
+          "MfaRecoveryCodeRegenerateResult",
+          {
+            codes: [
+              "ABCDE-FGH23",
+              "JKLMN-PQR45",
+              "STUVW-XYZ67",
+              "BCDFG-HJK89",
+              "LMNPQ-RST23",
+              "UVWXY-ZAB45",
+              "CDEFG-HJK67",
+              "MNPQR-STU89",
+              "VWXYZ-ABC23",
+              "DEFGH-JKL45",
+            ],
+            remaining: 10,
+            createdAt: "2026-11-07T12:00:00.000Z",
+          },
+        ),
+        ...commonErrors([401, 403, 409, 429, 500]),
       },
     },
     {
@@ -11489,6 +11568,12 @@ function buildComponents(): Record<string, unknown> {
             description:
               "Present and true only when a first-time OAuth sign-in just created this account, so the client can surface the generated-username onboarding flow. Absent for returning sign-ins and all local flows.",
           },
+          recoveryCodesRemaining: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Present only when this sign-in spent a recovery code: how many unused ones are left. At 0, prompt the user to replace them while the sign-in's proof lasts.",
+          },
         },
       },
       SignupVerificationPendingResult: {
@@ -11532,7 +11617,7 @@ function buildComponents(): Record<string, unknown> {
           },
           availableFactors: {
             type: "array",
-            items: { type: "string", enum: ["totp"] },
+            items: { type: "string", enum: ["totp", "recovery_code"] },
             description:
               "The factors the sign-in can be finished with. New factors may be added.",
           },
@@ -11544,7 +11629,7 @@ function buildComponents(): Record<string, unknown> {
         required: ["mfaChallengeToken", "factor", "code"],
         properties: {
           mfaChallengeToken: { type: "string" },
-          factor: { type: "string", enum: ["totp"] },
+          factor: { type: "string", enum: ["totp", "recovery_code"] },
           code: { type: "string", description: "The authenticator code." },
           deviceId: {
             type: "string",
@@ -12571,11 +12656,11 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaVerificationFactor: {
         type: "string",
-        enum: ["email", "totp", "sms"],
+        enum: ["email", "totp", "sms", "recovery_code"],
       },
       MfaVerificationChallengeFactor: {
         type: "string",
-        enum: ["email", "totp"],
+        enum: ["email", "totp", "recovery_code"],
       },
       MfaVerificationOptionsResult: {
         type: "object",
@@ -12600,7 +12685,7 @@ function buildComponents(): Record<string, unknown> {
           },
           recommendedFactor: {
             type: "string",
-            enum: ["email", "totp", "sms"],
+            enum: ["email", "totp", "sms", "recovery_code"],
             nullable: true,
           },
         },
@@ -12630,7 +12715,7 @@ function buildComponents(): Record<string, unknown> {
             required: ["scope", "factor", "challengeId", "prompt"],
             properties: {
               scope: schemaRef("MfaVerificationScope"),
-              factor: { type: "string", const: "totp" },
+              factor: { type: "string", enum: ["totp", "recovery_code"] },
               challengeId: { type: "null" },
               prompt: { type: "boolean", const: true },
             },
@@ -12696,9 +12781,37 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaTotpConfirmResult: {
         type: "object",
-        required: ["confirmed"],
+        required: ["confirmed", "recoveryCodes"],
         properties: {
           confirmed: { type: "boolean", const: true },
+          recoveryCodes: {
+            type: "array",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
+        },
+      },
+      MfaRecoveryCodeStatusResult: {
+        type: "object",
+        required: ["remaining", "createdAt"],
+        properties: {
+          remaining: { type: "integer", minimum: 0, maximum: 10 },
+          createdAt: { type: "string", format: "date-time", nullable: true },
+        },
+      },
+      MfaRecoveryCodeRegenerateResult: {
+        type: "object",
+        required: ["codes", "remaining", "createdAt"],
+        properties: {
+          codes: {
+            type: "array",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
+          remaining: { type: "integer", minimum: 0, maximum: 10 },
+          createdAt: { type: "string", format: "date-time" },
         },
       },
       MfaTotpDisableRequest: {
