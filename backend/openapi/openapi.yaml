@@ -1645,7 +1645,7 @@ paths:
     post:
       operationId: changePassword
       summary: Change the current local password
-      description: Changes the current signed-in user's password and returns a refreshed authenticated session.
+      description: Changes the current signed-in user's password and returns a refreshed authenticated session. A wrong current password returns 401 and counts towards the same per-username lockout as a failed sign-in; the fifth within 15 minutes locks the account's password sign-in for 30 minutes and emails an unlock code. While it is locked, this operation returns 423 ACCOUNT_LOCKED even with the right current password, and password sign-in is refused too.
       tags:
         - auth
       security:
@@ -1711,6 +1711,26 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '423':
+          description: Password sign-in is locked after repeated wrong passwords.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                loginLockout:
+                  summary: Too many wrong current passwords; the emailed unlock code clears it.
+                  value:
+                    success: false
+                    message: This sign-in is locked. Use the code we emailed you to unlock it.
+                    data: null
+                    error:
+                      code: ACCOUNT_LOCKED
+                      details:
+                        email: owner1@rentify.local
+                        unlockRequired: true
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -9775,6 +9795,7 @@ paths:
                 - session.revoked
                 - device.new_detected
                 - password.changed
+                - password.change_failed
                 - password.reset
                 - password.set
                 - email.changed

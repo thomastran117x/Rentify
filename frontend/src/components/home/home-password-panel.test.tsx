@@ -222,6 +222,44 @@ describe("HomePasswordPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains the lock once wrong current passwords lock sign-in", async () => {
+    const user = userEvent.setup();
+    changePasswordMock.mockRejectedValue(
+      new ApiClientError(
+        "This sign-in is locked. Use the code we emailed you to unlock it.",
+        {
+          code: "ACCOUNT_LOCKED",
+          details: { email: "user@example.com", unlockRequired: true },
+          request: {
+            method: "POST",
+            path: "/auth/local/password/change",
+            requestUrl:
+              "http://localhost:8040/api/v1/auth/local/password/change",
+          },
+          status: 423,
+        },
+      ),
+    );
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "wrong-pass");
+    await user.type(screen.getByLabelText("New password"), "Rentify123!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "Rentify123!",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      await screen.findByText(/Too many incorrect passwords/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Current password is incorrect."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Current password")).toHaveValue("");
+  });
+
   it("preserves the vetted conflict message for password reuse", async () => {
     const user = userEvent.setup();
     changePasswordMock.mockRejectedValue(

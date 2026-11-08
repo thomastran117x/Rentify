@@ -30,6 +30,7 @@ const EVENT_TYPE_LABELS: Record<AuthAuditEventType, string> = {
   "session.revoked": "Session revoked",
   "device.new_detected": "New device",
   "password.changed": "Password changed",
+  "password.change_failed": "Password change failed",
   "password.reset": "Password reset",
   "password.set": "Password added",
   "email.changed": "Email changed",
@@ -84,6 +85,7 @@ export const EVENT_TYPE_GROUPS: Array<{
     label: "Security changes",
     types: [
       "password.changed",
+      "password.change_failed",
       "password.reset",
       "password.set",
       "email.changed",

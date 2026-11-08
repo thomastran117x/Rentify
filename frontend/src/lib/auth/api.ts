@@ -441,8 +441,14 @@ export const authApi = {
       input,
     );
   },
+  /**
+   * Never re-sent after a 401: a wrong current password answers 401 and
+   * counts towards the account lockout, so the usual refresh-and-retry would
+   * spend two attempts on every submit.
+   */
   changePassword(input: ChangePasswordInput): Promise<AuthResponseBody> {
-    return postAuthenticatedJson<AuthResponseBody, ChangePasswordInput>(
+    return authenticatedJsonOnce<AuthResponseBody, ChangePasswordInput>(
+      "POST",
       "/auth/local/password/change",
       {
         ...input,

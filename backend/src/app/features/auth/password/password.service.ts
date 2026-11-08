@@ -17,7 +17,10 @@ import {
   rejectIfPasswordMatchesCurrent,
   verifyPassword,
 } from "@/features/auth/password-hashing";
-import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
+import {
+  LoginLockoutService,
+  type LoginAttemptAuditBase,
+} from "@/features/auth/lockout/login-lockout.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
 import { LOCAL_PASSWORD_RESET_OTP_PURPOSE } from "@/features/auth/otp/otp-purposes";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
@@ -134,17 +137,50 @@ export class PasswordService {
     );
   }
 
+  /**
+   * A wrong current password counts towards the same per-username lockout as
+   * a failed sign-in, so a stolen session cannot be used to guess the
+   * password at leisure. While the lock holds, the change is refused before
+   * the password is checked: a right guess must not get through, or clear the
+   * lock, any more than it would at sign-in.
+   */
   async changePassword(input: ChangePasswordInput): Promise<AuthSessionResult> {
     const user = requireEligibleLocalPasswordUser(
       await this.usersRepository.findUserById(input.userId),
       "This account cannot change a password.",
     );
+    const username = user.profile.username;
+    const audit: LoginAttemptAuditBase = {
+      method: "password",
+      context: input.audit,
+    };
+
+    if (await this.loginLockoutService.isLocked(username)) {
+      await this.authAuditService.recordSafely({
+        ...audit,
+        eventType: "password.change_failed",
+        outcome: "blocked",
+        reasonCode: "locked",
+        userId: asUuid(user.id),
+      });
+      await this.loginLockoutService.throwLockedLogin(user);
+    }
+
     const isPasswordValid = await verifyPassword(
       input.currentPassword,
       user.passwordHash,
     );
 
     if (!isPasswordValid) {
+      // Throws `LockedError` instead when this is the attempt that sets the
+      // lock, recorded as `login.locked`.
+      await this.loginLockoutService.recordFailedLogin({
+        username,
+        user,
+        reasonCode: "bad_credentials",
+        audit,
+        failureEventType: "password.change_failed",
+      });
       throw new UnauthorizedError("Current password is incorrect.");
     }
 

@@ -2691,7 +2691,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "changePassword",
       summary: "Change the current local password",
       description:
-        "Changes the current signed-in user's password and returns a refreshed authenticated session.",
+        "Changes the current signed-in user's password and returns a refreshed authenticated session. A wrong current password returns 401 and counts towards the same per-username lockout as a failed sign-in; the fifth within 15 minutes locks the account's password sign-in for 30 minutes and emails an unlock code. While it is locked, this operation returns 423 ACCOUNT_LOCKED even with the right current password, and password sign-in is refused too.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -2712,6 +2712,22 @@ function buildOperations(): OperationDefinition[] {
           authSessionExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "423": errorResponseExamples(
+          "Password sign-in is locked after repeated wrong passwords.",
+          {
+            loginLockout: {
+              summary:
+                "Too many wrong current passwords; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+          },
+        ),
       },
     },
     {

@@ -63,9 +63,12 @@ network failures do not display request IDs. There is no separate trace ID.
 
 Local sign-in failures are tracked in Redis by normalized username. Five
 combined invalid-password or invalid-authenticator-code attempts within 15
-minutes lock that username for 30 minutes. While the lock is active, every
-local login attempt returns `423 ACCOUNT_LOCKED`, even when the password and
-authenticator code are correct, and no session is issued.
+minutes lock that username for 30 minutes. A wrong current password on
+`POST /auth/local/password/change` counts too, so a stolen session cannot guess
+the password at leisure. While the lock is active, every local login attempt
+returns `423 ACCOUNT_LOCKED`, even when the password and authenticator code are
+correct, and no session is issued. A password change returns the same `423`
+before checking the password. The session it was sent from stays signed in.
 
 When the password is correct but the account needs an authenticator code,
 the response is a login MFA challenge (see

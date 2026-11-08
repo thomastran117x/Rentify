@@ -162,6 +162,10 @@ export function labelForAuthAuditEvent(
         (row.reasonCode && FAILED_SIGN_IN_LABELS[row.reasonCode]) ??
         "Failed sign-in"
       );
+    case "password.change_failed":
+      return row.reasonCode === "locked"
+        ? "Password change blocked: account locked"
+        : "Failed password change: wrong current password";
     case "oauth.login.succeeded":
       return `Signed in with ${providerName(row.method)}`;
     case "oauth.login.failed":
