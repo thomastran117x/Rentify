@@ -176,7 +176,7 @@ function createDefaultPolicy(request: Request): RateLimitPolicy {
 function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   if (
     request.method === "POST" &&
-    (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|password\/set|username\/forgot|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
+    (/^\/auth\/local\/(login|signup|password\/forgot(?:\/resend)?|password\/reset|password\/set|password\/change|username\/forgot|email\/verify|email\/resend|unlock(?:\/resend)?|verify)$/.test(
       pathname,
     ) ||
       /^\/auth\/oauth\/(google|microsoft|apple)$/.test(pathname))
@@ -187,6 +187,14 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
   // The second step of a sign-in takes an authenticator code against a
   // challenge the first step issued, so it guesses as cheaply as the first.
   if (request.method === "POST" && pathname === "/auth/login/mfa") {
+    return true;
+  }
+
+  // Finishing an OAuth signup creates an account from a continuation token,
+  // so it is as cheap to hammer as the provider sign-in that issued it.
+  // (`password/change` is in the local regex above: from a stolen session it
+  // is a current-password oracle.)
+  if (request.method === "POST" && pathname === "/auth/oauth/signup/complete") {
     return true;
   }
 
@@ -237,10 +245,6 @@ function isUsernameSuggestionsRoute(
   pathname: string,
 ): boolean {
   return request.method === "GET" && pathname === "/auth/username/suggestions";
-}
-
-function isEmailAvailabilityRoute(request: Request, pathname: string): boolean {
-  return request.method === "GET" && pathname === "/auth/email/available";
 }
 
 function isAuthSessionRoute(request: Request, pathname: string): boolean {
@@ -377,22 +381,6 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     return createPolicy(request, {
       id: "username-availability",
       bucketKey: `${request.method}:username-availability`,
-      strategy: "sliding-window",
-      limit: 60,
-      windowSeconds: 60,
-      bucketCapacity: 60,
-      refillTokensPerSecond: 1,
-    });
-  }
-
-  if (isEmailAvailabilityRoute(request, pathname)) {
-    // Same budget as the username endpoint: both are spent by debounced typing
-    // on the same form. A separate policy id rather than a shared one so the
-    // two can be tuned — and read in metrics — independently, which matters
-    // more here because a taken verdict reveals that an address is registered.
-    return createPolicy(request, {
-      id: "email-availability",
-      bucketKey: `${request.method}:email-availability`,
       strategy: "sliding-window",
       limit: 60,
       windowSeconds: 60,

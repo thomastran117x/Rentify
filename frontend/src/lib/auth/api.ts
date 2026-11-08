@@ -31,7 +31,6 @@ import type {
   SignupVerificationPendingResult,
   UsernameAvailabilityResult,
   UsernameSuggestionsResult,
-  EmailAvailabilityResult,
 } from "@/lib/auth/types";
 import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
 
@@ -411,26 +410,6 @@ export const authApi = {
       options.signal,
     );
   },
-  /**
-   * Sent with optional auth, like the username check: a signed-in caller is
-   * exempted from their own address so it does not report as taken.
-   */
-  checkEmailAvailability(
-    email: string,
-    options: { signal?: AbortSignal } = {},
-  ): Promise<EmailAvailabilityResult> {
-    if (options.signal?.aborted) {
-      throw new DOMException("The operation was aborted.", "AbortError");
-    }
-
-    return optionalAuthJson<EmailAvailabilityResult>(
-      "GET",
-      buildPathWithQuery("/auth/email/available", { email }),
-      undefined,
-      undefined,
-      options.signal,
-    );
-  },
   resetPassword(input: ResetPasswordInput): Promise<AuthResponseBody> {
     cancelStoredSessionRefresh();
     return publicJson<AuthResponseBody, ResetPasswordInput>(
@@ -462,8 +441,14 @@ export const authApi = {
       input,
     );
   },
+  /**
+   * Never re-sent after a 401: a wrong current password answers 401 and
+   * counts towards the account lockout, so the usual refresh-and-retry would
+   * spend two attempts on every submit.
+   */
   changePassword(input: ChangePasswordInput): Promise<AuthResponseBody> {
-    return postAuthenticatedJson<AuthResponseBody, ChangePasswordInput>(
+    return authenticatedJsonOnce<AuthResponseBody, ChangePasswordInput>(
+      "POST",
       "/auth/local/password/change",
       {
         ...input,

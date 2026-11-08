@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import ConflictError from "@/errors/http/conflict.error";
+import LockedError from "@/errors/http/locked.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
@@ -154,10 +155,9 @@ function createHarness() {
         authRepository as never,
         otpService as never,
         publicOtpService,
-        {
-          hashIdentifier: String,
-          recordSafely: async () => undefined,
-        } as never,
+        // Shared, so a test sees the events the lockout writes on the
+        // service's behalf as well as the ones the service writes itself.
+        authAuditService as never,
       ),
       publicOtpService,
       authAuditService as never,
@@ -553,6 +553,128 @@ describe("PasswordService.changePassword", () => {
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
     expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("counts a wrong current password towards the sign-in lockout", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    const audit = { ipAddress: "203.0.113.9", requestId: "req-1" };
+
+    await expect(
+      harness.service.changePassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        currentPassword: "WrongPassword1!",
+        newPassword: NEW_PASSWORD,
+        audit,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+
+    expect(harness.store.get("auth:local-login-attempts:test-user")).toEqual({
+      failedAttempts: 1,
+    });
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      eventType: "password.change_failed",
+      outcome: "failure",
+      reasonCode: "bad_credentials",
+      method: "password",
+      userId: USER_1_ID,
+      context: audit,
+    });
+  }, 20_000);
+
+  it("locks password sign-in on the fifth wrong current password", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    harness.store.set("auth:local-login-attempts:test-user", {
+      failedAttempts: 4,
+    });
+
+    const attempt = harness.service.changePassword({
+      userId: USER_1_ID,
+      client: createClient(),
+      currentPassword: "WrongPassword1!",
+      newPassword: NEW_PASSWORD,
+    });
+
+    await expect(attempt).rejects.toBeInstanceOf(LockedError);
+    await expect(attempt).rejects.toMatchObject({
+      status: 423,
+      code: "ACCOUNT_LOCKED",
+      details: { email: "user@example.com", unlockRequired: true },
+    });
+    expect(harness.store.get("auth:local-login-attempts:test-user")).toEqual(
+      expect.objectContaining({
+        failedAttempts: 5,
+        lockedAt: expect.any(String),
+      }),
+    );
+    // The attempt that sets the lock is recorded as the lock, not as one more
+    // failure, exactly as at sign-in.
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "login.locked",
+        outcome: "blocked",
+        userId: USER_1_ID,
+        metadata: { triggered: true, failureReason: "bad_credentials" },
+      }),
+    );
+    expect(harness.authAuditService.recordSafely).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "password.change_failed" }),
+    );
+    expect(harness.emailService.sendLoginUnlockEmail).toHaveBeenCalledTimes(1);
+    expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("refuses a locked account before checking the password", async () => {
+    // Even the right password must not get through, or clear the lock.
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    harness.store.set("auth:local-login-attempts:test-user", {
+      failedAttempts: 5,
+      lockedAt: "2026-11-08T00:00:00.000Z",
+    });
+
+    await expect(
+      harness.service.changePassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        currentPassword: CURRENT_PASSWORD,
+        newPassword: NEW_PASSWORD,
+      }),
+    ).rejects.toBeInstanceOf(LockedError);
+
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "password.change_failed",
+        outcome: "blocked",
+        reasonCode: "locked",
+        userId: USER_1_ID,
+      }),
+    );
+    expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(harness.store.get("auth:local-login-attempts:test-user")).toEqual(
+      expect.objectContaining({ lockedAt: "2026-11-08T00:00:00.000Z" }),
+    );
+  }, 20_000);
+
+  it("clears earlier wrong attempts once the right password changes it", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+    harness.store.set("auth:local-login-attempts:test-user", {
+      failedAttempts: 3,
+    });
+
+    await harness.service.changePassword({
+      userId: USER_1_ID,
+      client: createClient(),
+      currentPassword: CURRENT_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(harness.store.has("auth:local-login-attempts:test-user")).toBe(
+      false,
+    );
   }, 20_000);
 
   it("rejects reusing the current password", async () => {

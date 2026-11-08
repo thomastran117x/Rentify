@@ -139,7 +139,6 @@ import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious
 import { AuthAuditAdminService } from "@/features/auth/audit/auth-audit-admin.service";
 import { AuthAuditRetentionService } from "@/features/auth/audit/auth-audit-retention.service";
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import { EmailAvailabilityController } from "@/features/auth/email-availability/email-availability.controller";
 import { EmailAvailabilityService } from "@/features/auth/email-availability/email-availability.service";
 import { EmailChangeController } from "@/features/auth/email-change/email-change.controller";
 import { EmailChangeRevertRepository } from "@/features/auth/email-change/email-change-revert.repository";
@@ -597,9 +596,6 @@ export const containerTokens = {
   ),
   emailAvailabilityService: createServiceToken<EmailAvailabilityService>(
     "EmailAvailabilityService",
-  ),
-  emailAvailabilityController: createServiceToken<EmailAvailabilityController>(
-    "EmailAvailabilityController",
   ),
   profileRepository: createServiceToken<ProfileRepository>("ProfileRepository"),
   profileService: createServiceToken<ProfileService>("ProfileService"),

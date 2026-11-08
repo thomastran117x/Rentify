@@ -452,40 +452,9 @@ describe("Identity bloom filter persistence integration", () => {
     }
   }, 120_000);
 
-  it("answers the availability endpoint for an address nobody holds", async () => {
-    await runEmailRebuild();
-
-    const response = await requestAvailability(
-      `http://rent.test${buildApiPath("/auth/email/available?email=nobody-at-all@example.com")}`,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body.data).toMatchObject({
-      email: "nobody-at-all@example.com",
-      available: true,
-      reason: null,
-    });
-  }, 120_000);
-
-  it("reports a seeded address as taken", async () => {
-    await runEmailRebuild();
-
-    const response = await requestAvailability(
-      `http://rent.test${buildApiPath("/auth/email/available?email=OWNER1@rentify.local")}`,
-    );
-
-    expect(response.status).toBe(200);
-    // Normalized on the way in, so casing is not significant.
-    expect(response.body.data).toMatchObject({
-      email: "owner1@rentify.local",
-      available: false,
-      reason: "taken",
-    });
-  }, 120_000);
-
-  it("loads the container-wired filter the availability endpoint reads", async () => {
-    // Through the instance the container actually hands the endpoint, rather
-    // than one this file constructed.
+  it("loads the container-wired email filter", async () => {
+    // Through the instance the container actually hands out, rather than one
+    // this file constructed.
     //
     // Rebuilt at the *environment* sizing rather than this file's smaller test
     // config: the fingerprint is derived from capacity and probe count, so a
@@ -531,9 +500,9 @@ describe("Identity bloom filter persistence integration", () => {
     }
   }, 120_000);
 
-  it("records a pending signup email so the endpoint can explain it", async () => {
-    // Without the reservation in the filter, the fast path would answer
-    // "reason: null" for an address whose signup is already in flight.
+  it("records a pending signup email in the filter", async () => {
+    // The filter has to stay a superset of every held address, reservations
+    // included, or a reader would treat an in-flight signup as untouched.
     const pendingSignupStore = persistenceApp.container.resolve(
       containerTokens.pendingSignupStore,
     );
@@ -560,15 +529,6 @@ describe("Identity bloom filter persistence integration", () => {
     } finally {
       await service.dispose();
     }
-
-    const response = await requestAvailability(
-      `http://rent.test${buildApiPath("/auth/email/available?email=pending-person@example.com")}`,
-    );
-
-    expect(response.body.data).toMatchObject({
-      available: true,
-      reason: "pending-verification",
-    });
   }, 120_000);
 
   async function waitFor(

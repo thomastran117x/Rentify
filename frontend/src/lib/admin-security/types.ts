@@ -22,6 +22,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "session.revoked",
   "device.new_detected",
   "password.changed",
+  "password.change_failed",
   "password.reset",
   "password.set",
   "email.changed",

@@ -10,7 +10,6 @@ function createService(
     pendingSignup?: PendingLocalSignupRecord | null;
     pendingEmailChangeOwnerId?: string | null;
     addressHeld?: boolean;
-    bloomVerdict?: "definitely-absent" | "possibly-present" | "unknown";
   } = {},
 ) {
   const usersRepository = {
@@ -29,16 +28,9 @@ function createService(
   const emailChangeRevertRepository = {
     isAddressHeld: jest.fn(async () => overrides.addressHeld ?? false),
   };
-  // Defaults to "unknown" so every case exercises the authoritative path unless
-  // it opts into the fast one.
-  const emailBloomService = {
-    check: jest.fn(() => overrides.bloomVerdict ?? "unknown"),
-    add: jest.fn(async () => undefined),
-  };
 
   const service = new EmailAvailabilityService(
     usersRepository as never,
-    emailBloomService as never,
     pendingSignupStore as never,
     emailChangeStore as never,
     emailChangeRevertRepository as never,
@@ -48,7 +40,6 @@ function createService(
     service,
     usersRepository,
     pendingSignupStore,
-    emailBloomService,
     emailChangeStore,
     emailChangeRevertRepository,
   };
@@ -194,83 +185,6 @@ describe("EmailAvailabilityService", () => {
       await expect(
         service.isEmailAvailable("casey@example.com"),
       ).resolves.toMatchObject({ available: false, reason: "taken" });
-    });
-  });
-
-  describe("resolveEmailAvailabilityHint", () => {
-    it("answers from the filter without touching the database", async () => {
-      const { service, usersRepository, pendingSignupStore } = createService({
-        bloomVerdict: "definitely-absent",
-      });
-
-      await expect(
-        service.resolveEmailAvailabilityHint("nobody@example.com"),
-      ).resolves.toEqual({
-        email: "nobody@example.com",
-        available: true,
-        reason: null,
-      });
-      expect(usersRepository.findUserIdByEmail).not.toHaveBeenCalled();
-      expect(pendingSignupStore.read).not.toHaveBeenCalled();
-    });
-
-    it("falls through when the filter cannot rule the address out", async () => {
-      // A false positive has to cost a query rather than a wrong answer.
-      const { service, usersRepository } = createService({
-        bloomVerdict: "possibly-present",
-        findUserIdByEmail: async () => "someone-else",
-      });
-
-      await expect(
-        service.resolveEmailAvailabilityHint("casey@example.com"),
-      ).resolves.toMatchObject({ available: false, reason: "taken" });
-      expect(usersRepository.findUserIdByEmail).toHaveBeenCalled();
-    });
-
-    it("falls through when the filter is unready or stale", async () => {
-      // `unknown` restores exactly the behaviour this filter replaced.
-      const { service, usersRepository } = createService({
-        bloomVerdict: "unknown",
-      });
-
-      await expect(
-        service.resolveEmailAvailabilityHint("casey@example.com"),
-      ).resolves.toMatchObject({ available: true, reason: null });
-      expect(usersRepository.findUserIdByEmail).toHaveBeenCalled();
-    });
-
-    it("checks the filter with the normalized address", async () => {
-      // The filter stores normalized values, so checking a raw one would miss.
-      const { service, emailBloomService } = createService({
-        bloomVerdict: "definitely-absent",
-      });
-
-      await service.resolveEmailAvailabilityHint(" Casey@Example.com ");
-
-      expect(emailBloomService.check).toHaveBeenCalledWith("casey@example.com");
-    });
-
-    it("does not report a pending signup as untouched", async () => {
-      // This is why pending reservations are in the filter at all: without
-      // them the fast path would answer `reason: null` for an address whose
-      // signup is already in flight.
-      const { service } = createService({
-        bloomVerdict: "possibly-present",
-        pendingSignup: {
-          username: "casey-doe",
-          email: "casey@example.com",
-          passwordHash: "hash",
-          dateOfBirth: "2012-06-15",
-          createdAt: new Date().toISOString(),
-        },
-      });
-
-      await expect(
-        service.resolveEmailAvailabilityHint("casey@example.com"),
-      ).resolves.toMatchObject({
-        available: true,
-        reason: "pending-verification",
-      });
     });
   });
 });

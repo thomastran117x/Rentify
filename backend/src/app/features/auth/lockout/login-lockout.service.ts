@@ -29,8 +29,9 @@ export type LoginAttemptAuditBase = Pick<
 
 /**
  * Throttles local credential guessing by locking an account after repeated
- * password or login-time authenticator failures, and owns the emailed code
- * that lifts the lock.
+ * password or login-time authenticator failures, including a wrong current
+ * password on a password change, and owns the emailed code that lifts the
+ * lock.
  *
  * Attempts are counted per username in the cache rather than on the user row:
  * an unknown username has no row to count against, and it must be locked out on
@@ -83,13 +84,19 @@ export class LoginLockoutService {
   /**
    * Counts the failure and records it, as `failureEventType`, or as the
    * `login.locked` it turned into when it was the attempt that set the lock.
+   *
+   * Not only sign-in: a wrong current password on a password change counts
+   * against the same username, as `password.change_failed`.
    */
   async recordFailedLogin(input: {
     username: string;
     user: AuthUserRecord | null;
     reasonCode: AuthAuditReasonCode;
     audit: LoginAttemptAuditBase;
-    failureEventType?: "login.failed" | "oauth.login.failed";
+    failureEventType?:
+      | "login.failed"
+      | "oauth.login.failed"
+      | "password.change_failed";
   }): Promise<void> {
     const updatedAttemptRecord = await this.recordFailedAttempt(input.username);
 

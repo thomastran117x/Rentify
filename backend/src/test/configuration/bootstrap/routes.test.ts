@@ -113,6 +113,31 @@ describe("mountRoutes", () => {
     expect(response.status).toBe(404);
   });
 
+  it("serves no public email availability check beside the username one", async () => {
+    // Removed on purpose: a "taken" answer for an email would reveal who has
+    // an account, which signup is built not to do. Usernames are public
+    // handles, so their check stays.
+    delete process.env.DISABLED_ROUTE_MODULES;
+    const app = createApp(
+      new Map([
+        [
+          containerTokens.usernameController,
+          { checkUsernameAvailability: respond({ ok: true }) },
+        ],
+      ]),
+    );
+
+    const usernameResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/username/available?username=x")}`,
+    );
+    const emailResponse = await app.request(
+      `http://rent.test${buildApiPath("/auth/email/available?email=a@b.co")}`,
+    );
+
+    expect(usernameResponse.status).toBe(200);
+    expect(emailResponse.status).toBe(404);
+  });
+
   it("disabling one module does not affect neighboring modules", async () => {
     process.env.DISABLED_ROUTE_MODULES = "auth-local";
     // The two handlers live on different controllers now, which is what makes

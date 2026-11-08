@@ -248,6 +248,17 @@ export function HomePasswordPanel({
           return;
         }
 
+        // Wrong current passwords count towards the same lockout as failed
+        // sign-ins. This session keeps working; password sign-in does not
+        // until the emailed code is used on the sign-in page.
+        if (error.status === 423 && mode === "change") {
+          setCurrentPassword("");
+          setMessage(
+            "Too many incorrect passwords. Password sign-in is locked for now, and we've emailed you a code to unlock it from the sign-in page.",
+          );
+          return;
+        }
+
         if (error.status === 409) {
           setMessage(
             getApiErrorMessage(error, {

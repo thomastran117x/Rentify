@@ -427,17 +427,6 @@ describe("Email change revert (POST /auth/email/change/revert) integration", () 
       expect((await revert(token)).status).toBe(200);
     });
 
-    it("reports the old address as taken", async () => {
-      const response = await request(
-        `/auth/email/available?email=${encodeURIComponent(RENTER_EMAIL)}`,
-      );
-
-      expect((await bodyOf(response)).data).toMatchObject({
-        available: false,
-        reason: "taken",
-      });
-    });
-
     it("sends no signup code to the old address", async () => {
       const response = await request("/auth/local/signup", {
         method: "POST",
@@ -495,11 +484,12 @@ describe("Email change revert (POST /auth/email/change/revert) integration", () 
         data: { expiresAt: new Date(Date.now() - 1_000) },
       });
 
-      const response = await request(
-        `/auth/email/available?email=${encodeURIComponent(RENTER_EMAIL)}`,
-      );
+      const repository =
+        persistenceApp.container.resolve<EmailChangeRevertRepository>(
+          containerTokens.emailChangeRevertRepository,
+        );
 
-      expect((await bodyOf(response)).data).toMatchObject({ available: true });
+      await expect(repository.isAddressHeld(RENTER_EMAIL)).resolves.toBe(false);
     });
 
     it("prunes only links that have expired", async () => {

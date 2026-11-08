@@ -63,9 +63,12 @@ network failures do not display request IDs. There is no separate trace ID.
 
 Local sign-in failures are tracked in Redis by normalized username. Five
 combined invalid-password or invalid-authenticator-code attempts within 15
-minutes lock that username for 30 minutes. While the lock is active, every
-local login attempt returns `423 ACCOUNT_LOCKED`, even when the password and
-authenticator code are correct, and no session is issued.
+minutes lock that username for 30 minutes. A wrong current password on
+`POST /auth/local/password/change` counts too, so a stolen session cannot guess
+the password at leisure. While the lock is active, every local login attempt
+returns `423 ACCOUNT_LOCKED`, even when the password and authenticator code are
+correct, and no session is issued. A password change returns the same `423`
+before checking the password. The session it was sent from stays signed in.
 
 When the password is correct but the account needs an authenticator code,
 the response is a login MFA challenge (see
@@ -81,6 +84,21 @@ record. Because the lock is keyed by username, another person who knows a
 username can temporarily lock out its owner. The emailed unlock code is the
 current mitigation. Per-IP credential-stuffing detection is tracked in
 [#379](https://github.com/thomastran117x/Rentify/issues/379).
+
+No public endpoint reports whether an email address is registered. Signup
+gives a new address and an already-registered one the same "check your inbox"
+response, so a live availability check would undo that. Only a signed-in
+caller changing their own address is told it is taken
+(`409 EMAIL_CHANGE_ADDRESS_UNAVAILABLE` from `POST /auth/email/change`), after
+step-up and under the `auth-sensitive` rate limit. Usernames are public
+profile handles, so `GET /auth/username/available` and
+`GET /auth/username/suggestions` stay public, each with its own rate limit
+(`username-availability` 60/min, `username-suggestions` 20/min).
+
+`POST /auth/local/password/change` and `POST /auth/oauth/signup/complete` use
+the `auth-sensitive` rate limit (10 a minute, shared with sign-in and the other
+credential routes) and return `429 TOO_MANY_REQUESTS` above it. A signed-in
+caller is keyed by user, an anonymous one by client IP.
 
 Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA

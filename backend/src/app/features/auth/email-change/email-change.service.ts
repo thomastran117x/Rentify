@@ -139,13 +139,13 @@ export class EmailChangeService {
       );
     }
 
-    // A reservation makes the address unavailable just as surely as a row does,
-    // and `resolveEmailAvailabilityHint` skips the authoritative lookup entirely
-    // on a filter miss. Without this the availability endpoint would report an
-    // address being actively claimed as free. The 6-hour rebuild only folds in
-    // the signup reservation prefix, so this bit is best-effort until the
-    // address becomes a row — acceptable, because every path that writes or
-    // mails re-checks authoritatively.
+    // Keeps the email filter a superset of every held address, reservations
+    // included. Nothing answers from it since the public availability check
+    // was removed, but a filter that misses claimed addresses would be wrong
+    // for any future reader. The 6-hour rebuild only folds in the signup
+    // reservation prefix, so this bit is best-effort until the address becomes
+    // a row — acceptable, because every path that writes or mails re-checks
+    // authoritatively.
     await this.emailBloomService.add(newEmail);
 
     await this.sendChangeCode(user, newEmail, code, ttlInSeconds);

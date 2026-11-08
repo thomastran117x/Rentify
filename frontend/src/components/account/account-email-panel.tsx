@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-context";
-import { EmailAvailabilityHint } from "@/components/auth/email-availability-hint";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { FieldErrorMessage } from "@/components/errors";
 import { isApiClientError, isApiRateLimitError } from "@/lib/api/types";
@@ -13,7 +12,6 @@ import {
   normalizeEmail,
   validateEmailFormat,
 } from "@/lib/auth/email";
-import { useEmailAvailability } from "@/lib/auth/use-email-availability";
 import {
   type MfaVerificationOptionsResult,
   type MfaVerificationScope,
@@ -97,11 +95,6 @@ export function AccountEmailPanel() {
   const verificationResolverRef = useRef<((value: boolean) => void) | null>(
     null,
   );
-
-  const availability = useEmailAvailability(newEmail, {
-    currentEmail,
-    enabled: step.kind === "editing",
-  });
 
   /**
    * The pending record lives in Redis on the server, so it is the authority on
@@ -286,6 +279,16 @@ export function AccountEmailPanel() {
         `We sent a 6-digit code to ${normalized}. Enter it below to finish the change.`,
       );
     } catch (error) {
+      // There is no live availability check, so this request is where a taken
+      // address is first reported. It belongs on the field, not in a banner.
+      if (
+        isApiClientError(error) &&
+        error.code === "EMAIL_CHANGE_ADDRESS_UNAVAILABLE"
+      ) {
+        setEmailError(error.message);
+        return;
+      }
+
       setMessageTone("error");
       setMessage(getEmailChangeErrorMessage(error, "change your email"));
     } finally {
@@ -436,7 +439,9 @@ export function AccountEmailPanel() {
                 maxLength={EMAIL_MAX_LENGTH}
                 value={newEmail}
                 onChange={(event) => setNewEmail(event.target.value)}
-                aria-describedby="account-email-availability"
+                aria-describedby={
+                  emailError ? "account-new-email-error" : undefined
+                }
                 aria-invalid={emailError ? true : undefined}
                 className={`h-12 w-full rounded-xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
                   emailError
@@ -451,10 +456,6 @@ export function AccountEmailPanel() {
                   tone="error"
                 />
               ) : null}
-              <EmailAvailabilityHint
-                id="account-email-availability"
-                availability={availability}
-              />
             </div>
 
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -466,7 +467,7 @@ export function AccountEmailPanel() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
-                disabled={pending || availability.status === "taken"}
+                disabled={pending}
                 className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 dark:disabled:bg-slate-700"
               >
                 {pending ? "Sending code..." : "Send verification code"}

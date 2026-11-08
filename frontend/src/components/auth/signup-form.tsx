@@ -38,12 +38,10 @@ import {
   getCurrentUtcDateOnly,
   validateDateOfBirth,
 } from "@/lib/auth/date-of-birth";
-import { useEmailAvailability } from "@/lib/auth/use-email-availability";
 import {
   getUsernameAvailabilityError,
   useUsernameAvailability,
 } from "@/lib/auth/use-username-availability";
-import { EmailAvailabilityHint } from "@/components/auth/email-availability-hint";
 import { UsernameAvailabilityHint } from "@/components/auth/username-availability-hint";
 import { UsernameSuggestions } from "@/components/auth/username-suggestions";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
@@ -295,11 +293,6 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
   });
   const usernameAvailabilityError =
     getUsernameAvailabilityError(usernameAvailability);
-  const emailAvailability = useEmailAvailability(email);
-  // Only a taken address blocks. `pending` is informational — signup accepts an
-  // address whose verification is unfinished — and `error` must never wedge the
-  // form, since the backend still enforces uniqueness on submit.
-  const emailTaken = emailAvailability.status === "taken";
 
   useEffect(() => {
     if (status === "authenticated" && !welcomeSession) {
@@ -343,12 +336,6 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
       confirmPassword,
     });
 
-    // The availability check already told the user this address is taken, so
-    // there is no point letting them fill in a second step that cannot submit.
-    if (emailTaken) {
-      nextErrors.email = "This email is already in use.";
-    }
-
     setErrors(nextErrors);
     setGeneralError(null);
 
@@ -386,10 +373,6 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
     // nothing to gain from a round trip that can only fail.
     if (usernameAvailabilityError) {
       nextErrors.username = usernameAvailabilityError;
-    }
-
-    if (emailTaken) {
-      nextErrors.email = "This email is already in use.";
     }
 
     setErrors(nextErrors);
@@ -573,26 +556,15 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                aria-invalid={Boolean(errors.email) || emailTaken}
+                aria-invalid={Boolean(errors.email)}
                 aria-describedby={
-                  errors.email
-                    ? "signup-email-error"
-                    : "signup-email-availability"
+                  errors.email ? "signup-email-error" : undefined
                 }
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className={theme.auth.fieldInput}
               />
             </AuthField>
-
-            {/* Suppressed while a format error is showing, so the field never
-                  carries two competing messages. */}
-            {errors.email ? null : (
-              <EmailAvailabilityHint
-                id="signup-email-availability"
-                availability={emailAvailability}
-              />
-            )}
           </div>
 
           <AuthPasswordField

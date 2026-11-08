@@ -2322,47 +2322,6 @@ function buildOperations(): OperationDefinition[] {
       },
     },
     {
-      method: "get",
-      path: "/auth/email/available",
-      operationId: "checkEmailAvailability",
-      summary: "Check whether an email can be used to sign up",
-      description:
-        "Reports whether an email address is free, so the signup form can tell the user before they submit. An address is unavailable when an account already holds it. An address with an unverified signup in flight is still reported as available, with reason `pending-verification`, because signup accepts it and the person who started it must be able to come back and finish. Signed-in callers are exempted from their own address, which is therefore reported as available.",
-      tags: ["auth"],
-      permissions: {
-        authMode: "public-or-session-bearer",
-        minimumRole: null,
-        patAllowed: false,
-        rateLimitPolicy: "email-availability",
-      },
-      parameters: [
-        queryParam(
-          "email",
-          {
-            type: "string",
-            format: "email",
-            maxLength: 255,
-          },
-          "The email address to check. Trimmed and lowercased before lookup.",
-          "taylor@example.com",
-          true,
-        ),
-      ],
-      responses: {
-        "200": successResponse(
-          200,
-          "Request completed successfully.",
-          "EmailAvailabilityResult",
-          {
-            email: "taylor@example.com",
-            available: false,
-            reason: "taken",
-          },
-        ),
-        ...commonErrors([400, 429, 500]),
-      },
-    },
-    {
       method: "post",
       path: "/auth/local/password/reset",
       operationId: "resetPassword",
@@ -2732,13 +2691,14 @@ function buildOperations(): OperationDefinition[] {
       operationId: "changePassword",
       summary: "Change the current local password",
       description:
-        "Changes the current signed-in user's password and returns a refreshed authenticated session.",
+        "Changes the current signed-in user's password and returns a refreshed authenticated session. A wrong current password returns 401 and counts towards the same per-username lockout as a failed sign-in; the fifth within 15 minutes locks the account's password sign-in for 30 minutes and emails an unlock code. While it is locked, this operation returns 423 ACCOUNT_LOCKED even with the right current password, and password sign-in is refused too.",
       tags: ["auth"],
       security: [{ bearerAuth: [] }],
       permissions: {
         authMode: "session-bearer",
         minimumRole: "user",
         patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
       },
       requestBody: requestBody("ChangePasswordRequest", {
         currentPassword: "Rentify123!",
@@ -2752,6 +2712,22 @@ function buildOperations(): OperationDefinition[] {
           authSessionExample,
         ),
         ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "423": errorResponseExamples(
+          "Password sign-in is locked after repeated wrong passwords.",
+          {
+            loginLockout: {
+              summary:
+                "Too many wrong current passwords; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+          },
+        ),
       },
     },
     {
@@ -13048,24 +13024,6 @@ function buildComponents(): Record<string, unknown> {
               maxLength: 50,
               pattern: "^[a-z]+-[a-z]+-[0-9]{4}$",
             },
-          },
-        },
-      },
-      EmailAvailabilityResult: {
-        type: "object",
-        required: ["email", "available", "reason"],
-        properties: {
-          email: {
-            type: "string",
-            description: "The normalized (trimmed, lowercased) email checked.",
-          },
-          available: { type: "boolean" },
-          reason: {
-            type: "string",
-            nullable: true,
-            enum: ["taken", "pending-verification", null],
-            description:
-              "`taken` when an account already holds the address, in which case `available` is false. `pending-verification` when an unverified signup has it in flight; `available` stays true because signup accepts the address. Null when nothing is known about it.",
           },
         },
       },

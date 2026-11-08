@@ -674,6 +674,72 @@ describe("Auth persistence integration", () => {
     expect(staleRefresh.status).toBe(401);
   }, 120_000);
 
+  it("locks password sign-in after repeated wrong current passwords", async () => {
+    const username = "renter-one";
+    const password = "Rentify123!";
+    const session = await login({ username, password });
+    expect(session.status).toBe(200);
+
+    const changePassword = (currentPassword: string) =>
+      persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({
+            currentPassword,
+            newPassword: "ChangedPassword1!",
+          }),
+        },
+      );
+
+    const statuses: number[] = [];
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      statuses.push((await changePassword(`WrongPassword${attempt}!`)).status);
+    }
+
+    // Four refusals, then the fifth sets the lock.
+    expect(statuses).toEqual([401, 401, 401, 401, 423]);
+
+    // The right password is refused too while the lock holds, on both paths.
+    const lockedChange = await changePassword(password);
+    expect(lockedChange.status).toBe(423);
+    await expect(lockedChange.json()).resolves.toMatchObject({
+      error: {
+        code: "ACCOUNT_LOCKED",
+        details: { email: "user1@rentify.local", unlockRequired: true },
+      },
+    });
+    const lockedLogin = await login({ username, password });
+    expect(lockedLogin.status).toBe(423);
+
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    const events = await persistenceApp.prisma.authAuditEvent.findMany({
+      where: {
+        userId: user.id,
+        eventType: { in: ["password.change_failed", "login.locked"] },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { eventType: true, outcome: true, reasonCode: true },
+    });
+    expect(events).toEqual([
+      ...Array(4).fill({
+        eventType: "password.change_failed",
+        outcome: "failure",
+        reasonCode: "bad_credentials",
+      }),
+      { eventType: "login.locked", outcome: "blocked", reasonCode: "locked" },
+      {
+        eventType: "password.change_failed",
+        outcome: "blocked",
+        reasonCode: "locked",
+      },
+      { eventType: "login.locked", outcome: "blocked", reasonCode: "locked" },
+    ]);
+  }, 120_000);
+
   it("sets a first password on a social-only account and enables local login", async () => {
     const username = "renter-one";
     const originalPassword = "Rentify123!";

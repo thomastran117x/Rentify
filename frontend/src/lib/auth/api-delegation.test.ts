@@ -220,6 +220,18 @@ describe("auth API request contracts", () => {
       "/auth/local/password/set",
       { newPassword: "new", deviceId: "device-1" },
     );
+    // A wrong current password counts towards the lockout, so a 401 is never
+    // re-sent after a refresh.
+    expect(authenticatedOnceMock).toHaveBeenCalledWith(
+      "POST",
+      "/auth/local/password/change",
+      { currentPassword: "old", newPassword: "new", deviceId: "device-1" },
+    );
+    expect(authenticatedMock).not.toHaveBeenCalledWith(
+      "POST",
+      "/auth/local/password/change",
+      expect.anything(),
+    );
     expect(tokenRevokeMock).toHaveBeenCalledWith("token-1");
     expect(refreshMock).toHaveBeenCalledOnce();
     expect(hintMock).toHaveBeenCalledOnce();
