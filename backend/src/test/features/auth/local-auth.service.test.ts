@@ -4,6 +4,7 @@ import BadRequestError from "@/errors/http/bad-request.error";
 import ConflictError from "@/errors/http/conflict.error";
 import TooManyRequestError from "@/errors/http/too-many-request.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { RequestValidationError } from "@/configuration/validation/request";
 import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import type {
   AuthSessionResult,
@@ -612,6 +613,44 @@ function createService(overrides?: {
 }
 
 describe("LocalAuthService", () => {
+  it.each([
+    ["a new address", null],
+    ["a registered address", "registered"],
+  ])(
+    "refuses a weak signup password the same way for %s",
+    async (_label, existing) => {
+      const findUserByEmail = jest.fn(async () =>
+        existing ? createUser() : null,
+      );
+      const service = createService({ findUserByEmail });
+
+      const error = await service
+        .localSignup({
+          client: createClient(),
+          username: "jordan-signup",
+          email: "jordan@example.com",
+          password: "Jordan-Signup-2026",
+          dateOfBirth: "2012-06-15",
+          firstName: "Jordan",
+          lastName: "Signup",
+          deviceId: DEVICE_1_ID,
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(RequestValidationError);
+      expect((error as RequestValidationError).details).toEqual([
+        {
+          path: "password",
+          message:
+            "Password must not contain your name, username or email address.",
+        },
+      ]);
+      // Refused before the address is looked up, so the answer cannot depend
+      // on whether it is registered.
+      expect(findUserByEmail).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns a pending verification response when signup email already exists but is unverified", async () => {
     const existingUser = {
       ...createUser(),

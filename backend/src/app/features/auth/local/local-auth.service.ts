@@ -37,6 +37,7 @@ import {
   DUMMY_PASSWORD_HASH,
 } from "@/features/auth/password-hashing";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
+import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
@@ -74,6 +75,7 @@ export class LocalAuthService {
     private readonly authAuditService: AuthAuditService,
     private readonly loginMfaService: LoginMfaService,
     private readonly emailChangeRevertRepository: EmailChangeRevertRepository,
+    private readonly passwordPolicy: PasswordPolicyService = new PasswordPolicyService(),
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -188,6 +190,20 @@ export class LocalAuthService {
   async localSignup(
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
+    // First, before anything is looked up: signup answers a registered address
+    // exactly like a new one, and a password refused only for new addresses
+    // would tell them apart.
+    await this.passwordPolicy.assertAcceptable(
+      input.password,
+      {
+        username: input.username,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+      "password",
+    );
+
     const existingUser = await this.usersRepository.findUserByEmail(
       input.email,
     );

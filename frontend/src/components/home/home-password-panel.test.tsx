@@ -124,7 +124,7 @@ describe("HomePasswordPanel", () => {
       within(requirements)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(Array(1).fill("pending"));
+    ).toEqual(Array(2).fill("pending"));
 
     await user.type(
       screen.getByLabelText("New password"),
@@ -135,7 +135,7 @@ describe("HomePasswordPanel", () => {
       within(requirements)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(Array(1).fill("met"));
+    ).toEqual(Array(2).fill("met"));
   });
 
   it("rejects a password the backend's unsafe-input rule would refuse", async () => {
@@ -224,6 +224,46 @@ describe("HomePasswordPanel", () => {
     expect(
       await screen.findByText("Current password is incorrect."),
     ).toBeInTheDocument();
+  });
+
+  it("shows the server's password reasons on the new password field", async () => {
+    const user = userEvent.setup();
+    changePasswordMock.mockRejectedValue(
+      new ApiClientError("Request body validation failed.", {
+        code: "VALIDATION_ERROR",
+        details: {
+          newPassword: [
+            "This password is too common or easy to guess. Choose something less predictable.",
+          ],
+        },
+        request: {
+          method: "POST",
+          path: "/auth/local/password/change",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/password/change",
+        },
+        status: 400,
+      }),
+    );
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    await user.type(screen.getByLabelText("New password"), "Password1234!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "Password1234!",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      await screen.findByText(
+        "This password is too common or easy to guess. Choose something less predictable.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "home-new-password-error home-new-password-requirements",
+    );
   });
 
   it("explains the lock once wrong current passwords lock sign-in", async () => {

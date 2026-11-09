@@ -179,6 +179,9 @@ async function fillProfileStep(
   });
 }
 
+const COMMON_PASSWORD_MESSAGE =
+  "This password is too common or easy to guess. Choose something less predictable.";
+
 describe("SignupForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -650,6 +653,57 @@ describe("SignupForm", () => {
       await screen.findByText("This email is already in use."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toHaveValue("person@example.com");
+  });
+
+  it("returns to the first step with the server's password reasons", async () => {
+    const user = userEvent.setup();
+    signupMock.mockRejectedValue(
+      new ApiClientError("Request body validation failed.", {
+        code: "VALIDATION_ERROR",
+        details: { password: [COMMON_PASSWORD_MESSAGE] },
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 400,
+      }),
+    );
+
+    render(<SignupForm />);
+    await completeAccountStep(user);
+    await fillProfileStep(user);
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Password")).toHaveAttribute(
+        "aria-describedby",
+        "signup-password-error signup-password-requirements",
+      ),
+    );
+    expect(screen.getAllByText(COMMON_PASSWORD_MESSAGE).length).toBeGreaterThan(
+      0,
+    );
+    // The first step is showing again: its container is no longer hidden.
+    expect(screen.getByLabelText("Password").closest(".hidden")).toBeNull();
+    expect(
+      screen.getByLabelText("First name").closest(".hidden"),
+    ).not.toBeNull();
+  });
+
+  it("checks the password against the names from the second step", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    await completeAccountStep(user, { password: "jane-loves-tea-time" });
+    await fillProfileStep(user, { firstName: "Jane" });
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(signupMock).not.toHaveBeenCalled();
   });
 
   it("confirms an available username as the user types", async () => {

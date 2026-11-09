@@ -39,6 +39,8 @@ import type { PasswordChangeKind } from "@/features/email/email.service";
 import AccountSuspendedError from "@/errors/http/account-suspended.error";
 import { assertAccountIsActive } from "@/features/auth/account-status/account-status.guard";
 import type { AccountStatusService } from "@/features/auth/account-status/account-status.service";
+import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
+import type { PasswordPersonalContext } from "@/features/auth/password/policy/personal-info";
 
 type PasswordEventType = "password.changed" | "password.reset" | "password.set";
 
@@ -47,6 +49,15 @@ const PASSWORD_CHANGE_KINDS: Record<PasswordEventType, PasswordChangeKind> = {
   "password.reset": "reset",
   "password.set": "set",
 };
+
+function personalContextOf(user: AuthUserRecord): PasswordPersonalContext {
+  return {
+    username: user.profile.username,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+  };
+}
 
 /**
  * Every way a local password is set: recovered by emailed code, changed with
@@ -69,6 +80,7 @@ export class PasswordService {
     private readonly authAuditService: AuthAuditService,
     private readonly accountStatusService: AccountStatusService,
     private readonly securityNotificationService: SecurityNotificationService,
+    private readonly passwordPolicy: PasswordPolicyService = new PasswordPolicyService(),
   ) {}
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{
@@ -90,6 +102,15 @@ export class PasswordService {
       purpose: LOCAL_PASSWORD_RESET_OTP_PURPOSE,
       subject: this.resolvePasswordResetOtpSubject(user, input.username),
       code: input.code,
+      // Only once the code is proven, so the account's name and email cannot
+      // be probed through the answer. A refused password leaves the code
+      // usable for a second try.
+      beforeConsume: () =>
+        this.passwordPolicy.assertAcceptable(
+          input.newPassword,
+          user ? personalContextOf(user) : { username: input.username },
+          "newPassword",
+        ),
     });
 
     const eligibleUser = requireEligibleLocalPasswordUser(
@@ -184,6 +205,11 @@ export class PasswordService {
       throw new UnauthorizedError("Current password is incorrect.");
     }
 
+    await this.passwordPolicy.assertAcceptable(
+      input.newPassword,
+      personalContextOf(user),
+      "newPassword",
+    );
     await rejectIfPasswordMatchesCurrent(input.newPassword, user.passwordHash);
 
     const passwordHash = await hashPassword(input.newPassword);
@@ -201,6 +227,11 @@ export class PasswordService {
       await this.usersRepository.findUserById(input.userId),
     );
 
+    await this.passwordPolicy.assertAcceptable(
+      input.newPassword,
+      personalContextOf(user),
+      "newPassword",
+    );
     const passwordHash = await hashPassword(input.newPassword);
     // The guard above is advisory: this conditional write is what actually
     // decides the race, so concurrent submissions cannot both rotate the token

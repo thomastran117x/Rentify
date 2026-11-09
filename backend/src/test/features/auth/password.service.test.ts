@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import ConflictError from "@/errors/http/conflict.error";
 import LockedError from "@/errors/http/locked.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import { RequestValidationError } from "@/configuration/validation/request";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import type {
   AccountStatus,
@@ -273,6 +274,7 @@ describe("PasswordService.resetPassword", () => {
       purpose: "local-password-reset",
       subject: "user@example.com",
       code: "123456",
+      beforeConsume: expect.any(Function),
     });
     expect(harness.authRepository.updatePasswordHash).toHaveBeenCalled();
     expect(harness.authRepository.rotateTokenVersion).toHaveBeenCalledWith(
@@ -463,6 +465,124 @@ describe("PasswordService.resetPassword", () => {
       }),
     ).resolves.toMatchObject({ accessToken: "access-token" });
   }, 20_000);
+});
+
+describe("PasswordService new-password policy", () => {
+  /** Runs the policy hook as the real `OtpService` does once a code matches. */
+  function verifyRunsHook(harness: ReturnType<typeof createHarness>) {
+    harness.otpService.verify.mockImplementation(
+      async (input?: { beforeConsume?: () => Promise<void> }) => {
+        await input?.beforeConsume?.();
+      },
+    );
+  }
+
+  async function rejection(promise: Promise<unknown>) {
+    const error = await promise.catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(RequestValidationError);
+    return (error as RequestValidationError).details;
+  }
+
+  it("refuses a reset to a password containing the account's details, before the code is spent", async () => {
+    const harness = createHarness();
+    verifyRunsHook(harness);
+    harness.authRepository.findUserByUsername.mockResolvedValue(
+      await localUser(),
+    );
+
+    // "Test" is the account's first name, not the username that was sent.
+    const details = await rejection(
+      harness.service.resetPassword({
+        client: createClient(),
+        username: "test-user",
+        code: "123456",
+        newPassword: "testing-the-waters",
+        deviceId: "device-1",
+      }),
+    );
+
+    expect(details).toEqual([
+      {
+        path: "newPassword",
+        message:
+          "Password must not contain your name, username or email address.",
+      },
+    ]);
+    expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it("checks an unknown username's reset against the name sent", async () => {
+    const harness = createHarness();
+    verifyRunsHook(harness);
+
+    await rejection(
+      harness.service.resetPassword({
+        client: createClient(),
+        username: "nobody-here",
+        code: "123456",
+        newPassword: "nobody-here-again",
+        deviceId: "device-1",
+      }),
+    );
+  });
+
+  it("refuses a common new password only after the current one is proven", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(await localUser());
+
+    await expect(
+      harness.service.changePassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        currentPassword: "WrongPassword1!",
+        newPassword: "password1234",
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+
+    const details = await rejection(
+      harness.service.changePassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        currentPassword: CURRENT_PASSWORD,
+        newPassword: "password1234",
+        deviceId: "device-1",
+      }),
+    );
+
+    expect(details).toEqual([
+      {
+        path: "newPassword",
+        message:
+          "This password is too common or easy to guess. Choose something less predictable.",
+      },
+    ]);
+    expect(harness.authRepository.updatePasswordHash).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("refuses a first password containing the email address", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(
+      createUser({
+        email: "jordan.example@example.com",
+        passwordHash: undefined,
+        oauthIdentities: [googleIdentity],
+      }),
+    );
+
+    await rejection(
+      harness.service.setPassword({
+        userId: USER_1_ID,
+        client: createClient(),
+        newPassword: "Jordan.Example.Rocks",
+        deviceId: "device-1",
+      }),
+    );
+    expect(
+      harness.authRepository.setPasswordHashIfUnset,
+    ).not.toHaveBeenCalled();
+  });
 });
 
 describe("PasswordService.changePassword", () => {

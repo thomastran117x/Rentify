@@ -1,18 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
   PASSWORD_REQUIREMENTS,
+  PERSONAL_INFO_PASSWORD_MESSAGE,
   PASSWORD_TOO_LONG_MESSAGE,
   PASSWORD_TOO_SHORT_MESSAGE,
   UNSAFE_AUTH_INPUT_MESSAGE,
+  containsPersonalInfo,
+  getApplicablePasswordRequirements,
   getPasswordStrengthError,
   passwordByteLength,
   passwordLength,
+  personalTokens,
 } from "./password";
 
-function metRequirementIds(password: string) {
-  return PASSWORD_REQUIREMENTS.filter((requirement) =>
-    requirement.test(password),
-  ).map((requirement) => requirement.id);
+const JORDAN = {
+  username: "renter-one",
+  email: "jordan.lee+rent@example.com",
+  firstName: "Jordan",
+  lastName: "Lee",
+};
+
+function metRequirementIds(password: string, context = {}) {
+  return getApplicablePasswordRequirements(context)
+    .filter((requirement) => requirement.test(password, context))
+    .map((requirement) => requirement.id);
 }
 
 describe("password length helpers", () => {
@@ -31,6 +42,47 @@ describe("PASSWORD_REQUIREMENTS", () => {
   it("needs 12 characters and nothing else", () => {
     expect(metRequirementIds("abcdefghijk")).toEqual([]);
     expect(metRequirementIds("abcdefghijkl")).toEqual(["length"]);
+  });
+
+  it("adds the personal row only when the form knows something", () => {
+    expect(getApplicablePasswordRequirements().map((r) => r.id)).toEqual([
+      "length",
+    ]);
+    expect(
+      getApplicablePasswordRequirements({ firstName: "Lee" }).map((r) => r.id),
+    ).toEqual(["length"]);
+    expect(getApplicablePasswordRequirements(JORDAN).map((r) => r.id)).toEqual([
+      "length",
+      "personal",
+    ]);
+    expect(PASSWORD_REQUIREMENTS).toHaveLength(2);
+  });
+
+  it("meets the personal row only once something unrelated is typed", () => {
+    expect(metRequirementIds("", JORDAN)).toEqual([]);
+    expect(metRequirementIds("tidal", JORDAN)).toEqual(["personal"]);
+    expect(metRequirementIds("tidal-harbor-jordan", JORDAN)).toEqual([
+      "length",
+    ]);
+  });
+});
+
+describe("containsPersonalInfo", () => {
+  it("mirrors the backend tokens", () => {
+    expect(personalTokens(JORDAN)).toEqual([
+      "renter-one",
+      "renterone",
+      "renter",
+      "jordan.lee+rent",
+      "jordanleerent",
+      "jordan",
+      "rent",
+    ]);
+  });
+
+  it("ignores case and separators but skips three-letter names", () => {
+    expect(containsPersonalInfo("Renter.One-2024!", JORDAN)).toBe(true);
+    expect(containsPersonalInfo("sleeping-dragon-tea", JORDAN)).toBe(false);
   });
 });
 
@@ -60,6 +112,13 @@ describe("getPasswordStrengthError", () => {
     expect(getPasswordStrengthError("<b>long enough</b>")).toBe(
       UNSAFE_AUTH_INPUT_MESSAGE,
     );
+  });
+
+  it("rejects a password containing the user's details", () => {
+    expect(getPasswordStrengthError("my-renter-one-pass", JORDAN)).toBe(
+      PERSONAL_INFO_PASSWORD_MESSAGE,
+    );
+    expect(getPasswordStrengthError("my-renter-one-pass")).toBeNull();
   });
 
   it("accepts a lowercase passphrase with no character mix", () => {

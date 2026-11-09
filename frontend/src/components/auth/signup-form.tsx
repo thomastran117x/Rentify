@@ -32,7 +32,11 @@ import {
 import { authApi } from "@/lib/auth/api";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { normalizeEmail, validateEmailFormat } from "@/lib/auth/email";
-import { getPasswordStrengthError } from "@/lib/auth/password";
+import {
+  type PasswordPersonalContext,
+  getPasswordStrengthError,
+} from "@/lib/auth/password";
+import { getValidationFieldMessage } from "@/lib/api/validation-details";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
 import {
   getCurrentUtcDateOnly,
@@ -90,7 +94,25 @@ interface ProfileStepValues {
   captchaToken: string;
 }
 
-function validateAccountStep(values: AccountStepValues): SignupErrors {
+/**
+ * The details a password must not contain. On the first step only the email
+ * is known; the names and username arrive on the second.
+ */
+function passwordContextOf(
+  values: Partial<AccountStepValues & ProfileStepValues>,
+): PasswordPersonalContext {
+  return {
+    email: values.email,
+    username: values.username,
+    firstName: values.firstName,
+    lastName: values.lastName,
+  };
+}
+
+function validateAccountStep(
+  values: AccountStepValues,
+  context: PasswordPersonalContext = passwordContextOf(values),
+): SignupErrors {
   const errors: SignupErrors = {};
 
   const emailError = validateEmailFormat(values.email);
@@ -104,7 +126,7 @@ function validateAccountStep(values: AccountStepValues): SignupErrors {
   } else {
     // The backend rejects anything `strongPasswordSchema` refuses, so check the
     // same rule here rather than spending a request on a guaranteed 400.
-    const passwordError = getPasswordStrengthError(values.password);
+    const passwordError = getPasswordStrengthError(values.password, context);
 
     if (passwordError) {
       errors.password = passwordError;
@@ -158,7 +180,7 @@ function validateSignup(
   values: AccountStepValues & ProfileStepValues,
 ): SignupErrors {
   return {
-    ...validateAccountStep(values),
+    ...validateAccountStep(values, passwordContextOf(values)),
     ...validateProfileStep(values),
   };
 }
@@ -177,6 +199,17 @@ function getSignupFailureResult(error: unknown): SignupFailureResult {
         : null;
 
     if (status === 400) {
+      // The server also refuses common and breached passwords, which only it
+      // can check, so its reasons go on the password field.
+      const passwordError = getValidationFieldMessage(error, "password");
+
+      if (passwordError) {
+        return {
+          generalError: passwordError,
+          fieldErrors: { password: passwordError },
+        };
+      }
+
       if (details?.field === "username") {
         return {
           generalError: message || "That username isn’t allowed.",
@@ -419,9 +452,10 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
         ...(failure.fieldErrors ?? {}),
       }));
 
-      // A rejected email lives on the first step, so go back to it rather than
-      // leaving the user on a step that shows nothing about the failure.
-      if (failure.fieldErrors?.email) {
+      // A rejected email or password lives on the first step, so go back to
+      // it rather than leaving the user on a step that shows nothing about
+      // the failure.
+      if (failure.fieldErrors?.email || failure.fieldErrors?.password) {
         setCurrentStep(0);
       }
 
@@ -581,6 +615,12 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
               <PasswordRequirementsChecklist
                 id="signup-password-requirements"
                 password={password}
+                context={passwordContextOf({
+                  email,
+                  username,
+                  firstName,
+                  lastName,
+                })}
                 invalid={Boolean(errors.password)}
               />
             }

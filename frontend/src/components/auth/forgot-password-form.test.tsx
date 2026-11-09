@@ -303,6 +303,73 @@ describe("ForgotPasswordForm", () => {
     expect(screen.getByText("Captcha token: empty")).toBeInTheDocument();
   });
 
+  it("puts the server's password reasons on the password field, not the code", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+    resetPasswordMock.mockRejectedValue(
+      clientError(400, "VALIDATION_ERROR", "Request body validation failed.", {
+        newPassword: [
+          "Password must not contain your name, username or email address.",
+        ],
+      }),
+    );
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(screen.getByLabelText("New password"), "jane-loves-tea");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "jane-loves-tea",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      await screen.findByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "forgot-password-new-password-error forgot-password-new-password-requirements",
+    );
+    expect(screen.getByLabelText("Reset code")).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("refuses a new password containing the username before sending it", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "person-of-interest",
+    );
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "person-of-interest",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      screen.getByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
+  });
+
   it("validates reset codes and both password fields", async () => {
     const user = userEvent.setup();
     writePersistedAuthPendingFlow({

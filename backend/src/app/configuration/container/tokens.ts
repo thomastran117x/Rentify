@@ -121,6 +121,7 @@ import { UsernameBloomSource } from "@/features/auth/identity-bloom/sources/user
 import { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import { PasswordController } from "@/features/auth/password/password.controller";
 import { PasswordService } from "@/features/auth/password/password.service";
+import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
 import { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
 import { AuthAuditActivityService } from "@/features/auth/audit/auth-audit-activity.service";
@@ -442,6 +443,9 @@ export const containerTokens = {
     createServiceToken<PendingSignupStore>("PendingSignupStore"),
   publicOtpService: createServiceToken<PublicOtpService>("PublicOtpService"),
   passwordService: createServiceToken<PasswordService>("PasswordService"),
+  passwordPolicyService: createServiceToken<PasswordPolicyService>(
+    "PasswordPolicyService",
+  ),
   passwordController:
     createServiceToken<PasswordController>("PasswordController"),
   authAuditRepository: createServiceToken<AuthAuditRepository>(

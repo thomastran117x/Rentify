@@ -714,6 +714,123 @@ describe("Auth persistence integration", () => {
     expect((await login({ username, password: newPassword })).status).toBe(200);
   });
 
+  describe("new-password policy", () => {
+    const COMMON_MESSAGE =
+      "This password is too common or easy to guess. Choose something less predictable.";
+    const PERSONAL_MESSAGE =
+      "Password must not contain your name, username or email address.";
+
+    it("refuses a signup password that contains the username", async () => {
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/signup")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            email: "policy-signup@rentify.local",
+            username: "policy-signup",
+            password: "my-policy-signup-pass",
+            dateOfBirth: "2012-06-15",
+            captchaToken: "captcha-ok-signup",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { password: [PERSONAL_MESSAGE] },
+        },
+      });
+    });
+
+    it("refuses a reset to the account's own name and keeps the code for a retry", async () => {
+      const username = "renter-one";
+      const email = "user1@rentify.local";
+      const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+        where: { email },
+        select: { firstName: true },
+      });
+      expect(user.firstName?.length).toBeGreaterThanOrEqual(4);
+
+      expect(
+        (
+          await persistenceApp.app.request(
+            `http://rent.test${buildApiPath("/auth/local/password/forgot")}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json", origin: ORIGIN },
+              body: JSON.stringify({
+                username,
+                captchaToken: "captcha-ok-forgot",
+              }),
+            },
+          )
+        ).status,
+      ).toBe(202);
+      const code = await readOtpCode(PASSWORD_RESET_OTP_PURPOSE, email);
+      const reset = (newPassword: string) =>
+        persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/auth/local/password/reset")}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", origin: ORIGIN },
+            body: JSON.stringify({
+              username,
+              code,
+              newPassword,
+              captchaToken: "captcha-ok-reset",
+            }),
+          },
+        );
+
+      const refused = await reset(`all-about-${user.firstName}-forever`);
+      expect(refused.status).toBe(400);
+      await expect(refused.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { newPassword: [PERSONAL_MESSAGE] },
+        },
+      });
+
+      // The same code still works once the password is acceptable.
+      expect((await reset("tidal-harbor-lantern")).status).toBe(200);
+      expect(
+        (await login({ username, password: "tidal-harbor-lantern" })).status,
+      ).toBe(200);
+    }, 120_000);
+
+    it("refuses a common password on change and keeps the old one", async () => {
+      const username = "renter-one";
+      const password = "Rentify123!";
+      const session = await login({ username, password });
+      expect(session.status).toBe(200);
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({
+            currentPassword: password,
+            newPassword: "Password1234!",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { newPassword: [COMMON_MESSAGE] },
+        },
+      });
+      expect((await login({ username, password })).status).toBe(200);
+    }, 120_000);
+  });
+
   it("changes a password from a real session and invalidates the old one", async () => {
     const username = "renter-one";
     const oldPassword = "Rentify123!";

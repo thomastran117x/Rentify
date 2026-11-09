@@ -37,6 +37,13 @@ export interface VerifyOtpInput {
   purpose: string;
   subject: string;
   code: string;
+  /**
+   * Runs once the code has matched and before it is spent. If it throws, the
+   * code stays valid, so the caller can refuse the rest of the request (a new
+   * password the policy rejects, say) without making the user wait for another
+   * email. The attempt still counts.
+   */
+  beforeConsume?: () => Promise<void>;
 }
 
 export interface PeekOtpInput {
@@ -222,6 +229,8 @@ export class OtpService {
         attemptsRemaining,
       });
     }
+
+    await input.beforeConsume?.();
 
     // Of two requests holding the right code, only the one whose delete
     // removed it may go on to use it.

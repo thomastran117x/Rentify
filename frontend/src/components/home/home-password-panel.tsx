@@ -8,7 +8,11 @@ import { authApi } from "@/lib/auth/api";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError } from "@/lib/auth/types";
-import { getPasswordStrengthError } from "@/lib/auth/password";
+import {
+  type PasswordPersonalContext,
+  getPasswordStrengthError,
+} from "@/lib/auth/password";
+import { getValidationFieldMessage } from "@/lib/api/validation-details";
 import {
   type MfaVerificationOptionsResult,
   type MfaVerificationScope,
@@ -37,6 +41,7 @@ function validatePasswordChange(
     confirmPassword: string;
   },
   mode: Mode,
+  context: PasswordPersonalContext,
 ): PasswordErrors {
   const errors: PasswordErrors = {};
 
@@ -47,7 +52,7 @@ function validatePasswordChange(
   if (!values.newPassword) {
     errors.newPassword = "New password is required.";
   } else {
-    const strengthError = getPasswordStrengthError(values.newPassword);
+    const strengthError = getPasswordStrengthError(values.newPassword, context);
 
     if (strengthError) {
       errors.newPassword = strengthError;
@@ -78,6 +83,11 @@ export function HomePasswordPanel({
   onPasswordSet,
 }: HomePasswordPanelProps) {
   const { status, setSession, session } = useAuth();
+  // The session has no names; the server checks those too.
+  const passwordContext: PasswordPersonalContext = {
+    username: session?.user.username,
+    email: session?.user.email,
+  };
   const [resolvedHasPassword, setResolvedHasPassword] = useState<
     boolean | null
   >(hasPassword ?? null);
@@ -184,6 +194,7 @@ export function HomePasswordPanel({
     const nextErrors = validatePasswordChange(
       { currentPassword, newPassword, confirmPassword },
       mode,
+      passwordContext,
     );
     setErrors(nextErrors);
     setMessage(null);
@@ -256,6 +267,20 @@ export function HomePasswordPanel({
           setMessage(
             "Too many incorrect passwords. Password sign-in is locked for now, and we've emailed you a code to unlock it from the sign-in page.",
           );
+          return;
+        }
+
+        // Common and breached passwords only the server can check.
+        const newPasswordError = getValidationFieldMessage(
+          error,
+          "newPassword",
+        );
+
+        if (newPasswordError) {
+          setErrors((current) => ({
+            ...current,
+            newPassword: newPasswordError,
+          }));
           return;
         }
 
@@ -398,6 +423,7 @@ export function HomePasswordPanel({
           <PasswordRequirementsChecklist
             id="home-new-password-requirements"
             password={newPassword}
+            context={passwordContext}
             invalid={Boolean(errors.newPassword)}
           />
         </div>

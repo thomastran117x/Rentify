@@ -52,6 +52,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authAuditService,
         containerTokens.loginMfaService,
         containerTokens.emailChangeRevertRepository,
+        containerTokens.passwordPolicyService,
       ],
       resolve: ({ resolve }) =>
         new LocalAuthService(
@@ -71,6 +72,7 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authAuditService),
           resolve(containerTokens.loginMfaService),
           resolve(containerTokens.emailChangeRevertRepository),
+          resolve(containerTokens.passwordPolicyService),
         ),
     });
     container.register({
