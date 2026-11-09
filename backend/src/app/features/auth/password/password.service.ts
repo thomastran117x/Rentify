@@ -41,6 +41,14 @@ import { assertAccountIsActive } from "@/features/auth/account-status/account-st
 import type { AccountStatusService } from "@/features/auth/account-status/account-status.service";
 import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
 import type { PasswordPersonalContext } from "@/features/auth/password/policy/personal-info";
+import type { PasswordIssue } from "@/features/auth/password/policy/password-rules";
+
+export type PasswordCheckResult = {
+  /** Whether submitting the password would be accepted. Warnings do not count. */
+  acceptable: boolean;
+  issues: PasswordIssue[];
+  warnings: PasswordIssue[];
+};
 
 type PasswordEventType = "password.changed" | "password.reset" | "password.set";
 
@@ -82,6 +90,27 @@ export class PasswordService {
     private readonly securityNotificationService: SecurityNotificationService,
     private readonly passwordPolicy: PasswordPolicyService = new PasswordPolicyService(),
   ) {}
+
+  /**
+   * The same verdict a submit would get, before it is made. A signed-in caller
+   * is checked against their own account, whatever the body says; anyone else
+   * against what they sent, as signup is.
+   */
+  async checkPassword(input: {
+    password: string;
+    userId?: string;
+    context: PasswordPersonalContext;
+  }): Promise<PasswordCheckResult> {
+    const user = input.userId
+      ? await this.usersRepository.findUserById(input.userId)
+      : null;
+    const { issues, warnings } = await this.passwordPolicy.evaluate(
+      input.password,
+      user ? personalContextOf(user) : input.context,
+    );
+
+    return { acceptable: issues.length === 0, issues, warnings };
+  }
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{
     accepted: true;

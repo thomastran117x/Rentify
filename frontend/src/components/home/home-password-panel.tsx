@@ -14,6 +14,11 @@ import {
 } from "@/lib/auth/password";
 import { getValidationFieldMessage } from "@/lib/api/validation-details";
 import {
+  getPasswordCheckError,
+  usePasswordCheck,
+} from "@/lib/auth/use-password-check";
+import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter";
+import {
   type MfaVerificationOptionsResult,
   type MfaVerificationScope,
   mfaVerificationApi,
@@ -97,6 +102,8 @@ export function HomePasswordPanel({
   const [errors, setErrors] = useState<PasswordErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const passwordCheck = usePasswordCheck(newPassword, passwordContext);
+  const passwordCheckError = getPasswordCheckError(passwordCheck);
   const [dialogOptions, setDialogOptions] =
     useState<MfaVerificationOptionsResult | null>(null);
   const verificationResolverRef = useRef<((value: boolean) => void) | null>(
@@ -196,6 +203,10 @@ export function HomePasswordPanel({
       mode,
       passwordContext,
     );
+
+    if (!nextErrors.newPassword && passwordCheckError) {
+      nextErrors.newPassword = passwordCheckError;
+    }
     setErrors(nextErrors);
     setMessage(null);
 
@@ -425,6 +436,13 @@ export function HomePasswordPanel({
             password={newPassword}
             context={passwordContext}
             invalid={Boolean(errors.newPassword)}
+          />
+          <PasswordStrengthMeter
+            id="home-new-password-strength"
+            password={newPassword}
+            context={passwordContext}
+            check={passwordCheck}
+            hideIssues={Boolean(errors.newPassword)}
           />
         </div>
 

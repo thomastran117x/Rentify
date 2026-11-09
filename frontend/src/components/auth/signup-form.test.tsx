@@ -28,7 +28,9 @@ const {
   getUsernameSuggestionsMock,
   clearCaptchaTokenMock,
   oauthSuccessSessionMock,
+  checkPasswordMock,
 } = vi.hoisted(() => ({
+  checkPasswordMock: vi.fn(),
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   signupMock: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("@/lib/auth/api", () => ({
     signup: signupMock,
     checkUsernameAvailability: checkUsernameAvailabilityMock,
     getUsernameSuggestions: getUsernameSuggestionsMock,
+    checkPassword: checkPasswordMock,
   },
 }));
 
@@ -186,6 +189,12 @@ describe("SignupForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    // Default: the server has nothing to add about any password.
+    checkPasswordMock.mockResolvedValue({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    });
     // Default: every username is free, so tests that are not about
     // availability are unaffected by the debounced background check.
     checkUsernameAvailabilityMock.mockResolvedValue({
@@ -689,6 +698,77 @@ describe("SignupForm", () => {
     expect(
       screen.getByLabelText("First name").closest(".hidden"),
     ).not.toBeNull();
+  });
+
+  it("shows the server's verdict while typing and will not continue past it", async () => {
+    checkPasswordMock.mockResolvedValue({
+      acceptable: false,
+      issues: [{ code: "common", message: COMMON_PASSWORD_MESSAGE }],
+      warnings: [],
+    });
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "qwertyuiop12345");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "qwertyuiop12345",
+    );
+
+    expect(
+      await screen.findByText(COMMON_PASSWORD_MESSAGE),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Strength: Too weak")).toBeInTheDocument();
+    // Sent as a POST body with what the form knows, never in a URL.
+    expect(checkPasswordMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        password: "qwertyuiop12345",
+        email: "person@example.com",
+      }),
+      expect.anything(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+    // The reason moves to the field error and is not repeated below it.
+    expect(screen.getAllByText(COMMON_PASSWORD_MESSAGE)).toHaveLength(1);
+  });
+
+  it("shows a breach warning but lets the user continue", async () => {
+    checkPasswordMock.mockResolvedValue({
+      acceptable: true,
+      issues: [],
+      warnings: [
+        {
+          code: "breached",
+          message:
+            "This password has appeared in a known data breach. Consider choosing a different one.",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(
+      screen.getByLabelText("Password"),
+      "Tidal-Harbor-Lantern-7",
+    );
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "Tidal-Harbor-Lantern-7",
+    );
+
+    expect(
+      await screen.findByText(/appeared in a known data breach/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Strength: Fair")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByLabelText("First name")).toBeInTheDocument();
   });
 
   it("checks the password against the names from the second step", async () => {

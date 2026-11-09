@@ -306,7 +306,7 @@ The check **fails open**. When the API takes longer than `breachCheck.timeoutMs`
 
 Existing passwords are not checked at sign-in. Flagging a breached password at sign-in, which would have to be carried through the login MFA challenge, is a follow-up.
 
-`frontend/src/lib/auth/password.ts` mirrors the shape and personal rules so the forms catch a bad password before it is sent, and the new-password fields show them as a checklist. The "doesn't contain your name, username or email" row appears once the form knows any of those. The forms show the server's reasons on the password field: signup returns to its first step to do so, and reset keeps them off the code field.
+`frontend/src/lib/auth/password.ts` mirrors the shape and personal rules so the forms catch a bad password before it is sent, and the new-password fields show them as a checklist. Under it, a strength meter gives a rough grade (Fair to Very strong, from length and the mix of kinds of character), and once the local rules pass, `usePasswordCheck` asks `POST /auth/password/check` 400 ms after the user stops typing. Its reasons appear under the meter, which then reads "Too weak"; a `warn`-mode breach appears as an amber warning and caps the meter at "Fair". A password the check has already refused cannot be submitted. A failed check blocks nothing, since the server checks again on submit. The "doesn't contain your name, username or email" row appears once the form knows any of those. The forms show the server's reasons on the password field: signup returns to its first step to do so, and reset keeps them off the code field.
 
 ## One-Time Codes
 

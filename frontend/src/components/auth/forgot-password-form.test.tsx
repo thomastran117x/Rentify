@@ -45,6 +45,11 @@ vi.mock("@/lib/auth/api", () => ({
     forgotPassword: forgotPasswordMock,
     resetPassword: resetPasswordMock,
     resendForgotPassword: resendForgotPasswordMock,
+    checkPassword: vi.fn(async () => ({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    })),
   },
 }));
 

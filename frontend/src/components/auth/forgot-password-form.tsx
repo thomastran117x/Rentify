@@ -17,6 +17,11 @@ import {
 import { authApi } from "@/lib/auth/api";
 import { getPasswordStrengthError } from "@/lib/auth/password";
 import { getValidationFieldMessage } from "@/lib/api/validation-details";
+import {
+  getPasswordCheckError,
+  usePasswordCheck,
+} from "@/lib/auth/use-password-check";
+import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
@@ -237,6 +242,12 @@ export function ForgotPasswordForm() {
   const requestComplete = resetFlow !== null;
   const authFlowRestorePending = persistedAuthFlow === undefined;
   const resetUsername = resetFlow?.username ?? username.trim().toLowerCase();
+  const passwordCheck = usePasswordCheck(
+    newPassword,
+    { username: resetUsername },
+    { enabled: requestComplete },
+  );
+  const passwordCheckError = getPasswordCheckError(passwordCheck);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -294,6 +305,10 @@ export function ForgotPasswordForm() {
 
     if (!captchaToken.trim()) {
       nextErrors.captchaToken = "Complete the verification to continue.";
+    }
+
+    if (!nextErrors.newPassword && passwordCheckError) {
+      nextErrors.newPassword = passwordCheckError;
     }
 
     setResetErrors(nextErrors);
@@ -518,12 +533,21 @@ export function ForgotPasswordForm() {
           errorId="forgot-password-new-password-error"
           requirementsId="forgot-password-new-password-requirements"
           requirements={
-            <PasswordRequirementsChecklist
-              id="forgot-password-new-password-requirements"
-              password={newPassword}
-              context={{ username: resetUsername }}
-              invalid={Boolean(resetErrors.newPassword)}
-            />
+            <>
+              <PasswordRequirementsChecklist
+                id="forgot-password-new-password-requirements"
+                password={newPassword}
+                context={{ username: resetUsername }}
+                invalid={Boolean(resetErrors.newPassword)}
+              />
+              <PasswordStrengthMeter
+                id="forgot-password-new-password-strength"
+                password={newPassword}
+                context={{ username: resetUsername }}
+                check={passwordCheck}
+                hideIssues={Boolean(resetErrors.newPassword)}
+              />
+            </>
           }
         />
 

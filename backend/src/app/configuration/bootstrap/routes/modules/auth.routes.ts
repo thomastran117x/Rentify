@@ -78,6 +78,15 @@ export const authLocalRouteModule: RouteModule = {
         "checkUsernameAvailability",
       ),
     );
+    // Not under /auth/local: the account page of a social-only account checks
+    // the first password it adds here too.
+    app.post(
+      "/auth/password/check",
+      resolveHandler<PasswordController>(
+        containerTokens.passwordController,
+        "checkPassword",
+      ),
+    );
     app.get(
       "/auth/username/suggestions",
       resolveHandler<UsernameController>(

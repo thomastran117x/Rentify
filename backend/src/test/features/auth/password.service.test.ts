@@ -585,6 +585,60 @@ describe("PasswordService new-password policy", () => {
   });
 });
 
+describe("PasswordService.checkPassword", () => {
+  it("checks an anonymous caller against the context sent", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.checkPassword({
+        password: "all-about-taylor",
+        context: { username: "taylor-renter" },
+      }),
+    ).resolves.toEqual({
+      acceptable: false,
+      issues: [
+        {
+          code: "contains_personal_info",
+          message:
+            "Password must not contain your name, username or email address.",
+        },
+      ],
+      warnings: [],
+    });
+    expect(harness.authRepository.findUserById).not.toHaveBeenCalled();
+  });
+
+  it("checks a signed-in caller against their own account instead", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(createUser());
+
+    // The body claims another name; the account's "test-user" is what counts.
+    await expect(
+      harness.service.checkPassword({
+        password: "all-about-test-user",
+        userId: USER_1_ID,
+        context: { username: "someone-else" },
+      }),
+    ).resolves.toMatchObject({
+      acceptable: false,
+      issues: [{ code: "contains_personal_info" }],
+    });
+    expect(harness.authRepository.findUserById).toHaveBeenCalledWith(USER_1_ID);
+  });
+
+  it("falls back to the context sent when the account is gone", async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.checkPassword({
+        password: "tidal-harbor-lantern",
+        userId: USER_1_ID,
+        context: {},
+      }),
+    ).resolves.toEqual({ acceptable: true, issues: [], warnings: [] });
+  });
+});
+
 describe("PasswordService.changePassword", () => {
   it("changes the password when the current one matches", async () => {
     const harness = createHarness();

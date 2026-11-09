@@ -4,6 +4,7 @@ import { UUID_PATTERN_SOURCE } from "@/configuration/validation/uuid";
 import { AUTH_AUDIT_EVENT_TYPES } from "@/features/auth/audit/auth-audit.model";
 import { RECOVERY_CODE_ALPHABET } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 import {
+  PASSWORD_ISSUE_CODES,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_LENGTH,
 } from "@/features/auth/password/policy/password-rules";
@@ -2286,6 +2287,48 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/password/check",
+      operationId: "checkPassword",
+      summary: "Check a new password before submitting it",
+      description:
+        "Reports what signup, reset, change or set would say about a new password, so a form can show it while the user types: too short or long, common, containing the user's details, or found in a known data breach. Only the first five hex characters of the password's SHA-1 are sent to Have I Been Pwned. A signed-in caller is checked against their own account's username, email and names, and any context in the body is ignored; anyone else against the context they send. `acceptable` is false when submitting would be refused. `warnings` holds advice that does not block it, such as a breach when the check is in `warn` mode. Changes nothing, and needs no captcha.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public-or-session-bearer",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "password-check",
+      },
+      requestBody: requestBody("CheckPasswordRequest", {
+        password: "password1234",
+        username: "taylor-renter",
+        email: "new-user@example.com",
+        firstName: "Taylor",
+        lastName: "Renter",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasswordCheckResult",
+          {
+            acceptable: false,
+            issues: [
+              {
+                code: "common",
+                message:
+                  "This password is too common or easy to guess. Choose something less predictable.",
+              },
+            ],
+            warnings: [],
+          },
+        ),
+        ...commonErrors([400, 403, 429, 500]),
       },
     },
     {
@@ -13000,6 +13043,71 @@ function buildComponents(): Record<string, unknown> {
           query: { type: "string" },
         },
         required: ["profiles", "pagination"],
+      },
+      CheckPasswordRequest: {
+        type: "object",
+        required: ["password"],
+        properties: {
+          password: {
+            type: "string",
+            minLength: 1,
+            maxLength: 1024,
+            description: "The password to check. Never stored or logged.",
+          },
+          username: {
+            type: "string",
+            maxLength: 255,
+            description: "Ignored when signed in.",
+          },
+          email: {
+            type: "string",
+            maxLength: 255,
+            description: "Ignored when signed in.",
+          },
+          firstName: {
+            type: "string",
+            maxLength: 255,
+            description: "Ignored when signed in.",
+          },
+          lastName: {
+            type: "string",
+            maxLength: 255,
+            description: "Ignored when signed in.",
+          },
+        },
+      },
+      PasswordIssue: {
+        type: "object",
+        required: ["code", "message"],
+        properties: {
+          code: {
+            type: "string",
+            enum: [...PASSWORD_ISSUE_CODES],
+          },
+          message: { type: "string" },
+        },
+      },
+      PasswordCheckResult: {
+        type: "object",
+        required: ["acceptable", "issues", "warnings"],
+        properties: {
+          acceptable: {
+            type: "boolean",
+            description:
+              "Whether submitting this password would be accepted. Warnings do not count.",
+          },
+          issues: {
+            type: "array",
+            items: schemaRef("PasswordIssue"),
+            description: "Every reason the password would be refused.",
+          },
+          warnings: {
+            type: "array",
+            items: schemaRef("PasswordIssue"),
+            description:
+              "Advice that does not block the password, such as a breach in `warn` mode.",
+          },
+        },
       },
       UsernameAvailabilityResult: {
         type: "object",

@@ -248,6 +248,21 @@ describe("resolveRateLimitPolicy", () => {
     });
   });
 
+  it("assigns a dedicated policy to the password check", () => {
+    const policy = resolveRateLimitPolicy(
+      policyRequest("http://rent.test/auth/password/check", {
+        method: "POST",
+      }),
+    );
+
+    expect(policy).toMatchObject({
+      id: "password-check",
+      strategy: "sliding-window",
+      limit: 60,
+      bucketKey: "POST:password-check",
+    });
+  });
+
   it("assigns a bounded policy to username suggestions", () => {
     const policy = resolveRateLimitPolicy(
       policyRequest("http://rent.test/auth/username/suggestions?limit=3"),

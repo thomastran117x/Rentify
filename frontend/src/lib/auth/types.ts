@@ -164,6 +164,36 @@ export interface ForgotPasswordAcceptedResult {
 
 export type AuthEmailAcceptedResult = ForgotPasswordAcceptedResult;
 
+export type PasswordIssueCode =
+  | "too_short"
+  | "too_long"
+  | "common"
+  | "contains_personal_info"
+  | "breached";
+
+export interface PasswordIssue {
+  code: PasswordIssueCode;
+  message: string;
+}
+
+/** `POST /auth/password/check`: what the server thinks of a new password. */
+export interface PasswordCheckResult {
+  /** True when submitting it would be accepted. Warnings do not count. */
+  acceptable: boolean;
+  issues: PasswordIssue[];
+  /** Advice that does not block the password, e.g. a breach in `warn` mode. */
+  warnings: PasswordIssue[];
+}
+
+export interface PasswordCheckInput {
+  password: string;
+  /** Ignored when signed in: the server uses the account's own details. */
+  username?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 export interface UsernameAvailabilityResult {
   /** The normalized (trimmed, lowercased) username that was checked. */
   username: string;

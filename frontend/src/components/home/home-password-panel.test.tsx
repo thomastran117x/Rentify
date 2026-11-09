@@ -9,7 +9,13 @@ const {
   changePasswordMock,
   setPasswordMock,
   linkedOAuthProvidersMock,
+  checkPasswordMock,
 } = vi.hoisted(() => ({
+  checkPasswordMock: vi.fn(async () => ({
+    acceptable: true,
+    issues: [] as Array<{ code: string; message: string }>,
+    warnings: [] as Array<{ code: string; message: string }>,
+  })),
   useAuthMock: vi.fn(),
   changePasswordMock: vi.fn(),
   setPasswordMock: vi.fn(),
@@ -25,6 +31,7 @@ vi.mock("@/lib/auth/api", () => ({
     changePassword: changePasswordMock,
     setPassword: setPasswordMock,
     linkedOAuthProviders: linkedOAuthProvidersMock,
+    checkPassword: checkPasswordMock,
   },
 }));
 
@@ -224,6 +231,44 @@ describe("HomePasswordPanel", () => {
     expect(
       await screen.findByText("Current password is incorrect."),
     ).toBeInTheDocument();
+  });
+
+  it("blocks a password the live check already refused, without calling the API", async () => {
+    checkPasswordMock.mockResolvedValueOnce({
+      acceptable: false,
+      issues: [
+        {
+          code: "breached",
+          message:
+            "This password has appeared in a known data breach. Choose a different one.",
+        },
+      ],
+      warnings: [],
+    });
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lanterns",
+    );
+    expect(
+      await screen.findByText(/appeared in a known data breach/),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "tidal-harbor-lanterns",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(changePasswordMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "home-new-password-error home-new-password-requirements",
+    );
   });
 
   it("shows the server's password reasons on the new password field", async () => {

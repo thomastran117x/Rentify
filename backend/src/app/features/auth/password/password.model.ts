@@ -47,6 +47,28 @@ export const setPasswordRequestSchema = z.object({
   newPassword: strongPasswordSchema,
 });
 
+const passwordCheckContextString = z.string().trim().max(255).optional();
+
+/**
+ * `POST /auth/password/check`. The password is any non-empty string: the
+ * point is to report what is wrong with it, not to refuse the request. The
+ * cap only bounds the work, well past bcrypt's 72 bytes.
+ */
+export const checkPasswordRequestSchema = z.object({
+  password: z
+    .string()
+    .min(1, "Password is required.")
+    .max(1024, "Password must be at most 1024 characters."),
+  username: passwordCheckContextString,
+  email: passwordCheckContextString,
+  firstName: passwordCheckContextString,
+  lastName: passwordCheckContextString,
+});
+
+export type CheckPasswordRequestBody = z.infer<
+  typeof checkPasswordRequestSchema
+>;
+
 export type ForgotPasswordRequestBody = z.infer<
   typeof forgotPasswordRequestSchema
 >;

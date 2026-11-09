@@ -37,6 +37,11 @@ import {
   getPasswordStrengthError,
 } from "@/lib/auth/password";
 import { getValidationFieldMessage } from "@/lib/api/validation-details";
+import {
+  getPasswordCheckError,
+  usePasswordCheck,
+} from "@/lib/auth/use-password-check";
+import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter";
 import { normalizeUsername, validateUsernameFormat } from "@/lib/auth/username";
 import {
   getCurrentUtcDateOnly,
@@ -326,6 +331,14 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
   });
   const usernameAvailabilityError =
     getUsernameAvailabilityError(usernameAvailability);
+  const passwordContext = passwordContextOf({
+    email,
+    username,
+    firstName,
+    lastName,
+  });
+  const passwordCheck = usePasswordCheck(password, passwordContext);
+  const passwordCheckError = getPasswordCheckError(passwordCheck);
 
   useEffect(() => {
     if (status === "authenticated" && !welcomeSession) {
@@ -369,6 +382,11 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
       confirmPassword,
     });
 
+    // The server already said no to this password; do not move on.
+    if (!nextErrors.password && passwordCheckError) {
+      nextErrors.password = passwordCheckError;
+    }
+
     setErrors(nextErrors);
     setGeneralError(null);
 
@@ -406,6 +424,10 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
     // nothing to gain from a round trip that can only fail.
     if (usernameAvailabilityError) {
       nextErrors.username = usernameAvailabilityError;
+    }
+
+    if (!nextErrors.password && passwordCheckError) {
+      nextErrors.password = passwordCheckError;
     }
 
     setErrors(nextErrors);
@@ -612,17 +634,21 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
             errorId="signup-password-error"
             requirementsId="signup-password-requirements"
             requirements={
-              <PasswordRequirementsChecklist
-                id="signup-password-requirements"
-                password={password}
-                context={passwordContextOf({
-                  email,
-                  username,
-                  firstName,
-                  lastName,
-                })}
-                invalid={Boolean(errors.password)}
-              />
+              <>
+                <PasswordRequirementsChecklist
+                  id="signup-password-requirements"
+                  password={password}
+                  context={passwordContext}
+                  invalid={Boolean(errors.password)}
+                />
+                <PasswordStrengthMeter
+                  id="signup-password-strength"
+                  password={password}
+                  context={passwordContext}
+                  check={passwordCheck}
+                  hideIssues={Boolean(errors.password)}
+                />
+              </>
             }
           />
 
