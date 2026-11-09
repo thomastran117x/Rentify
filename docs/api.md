@@ -102,6 +102,12 @@ the `auth-sensitive` rate limit (10 a minute, shared with sign-in and the other
 credential routes) and return `429 TOO_MANY_REQUESTS` above it. A signed-in
 caller is keyed by user, an anonymous one by client IP.
 
+New local passwords must be 12 characters to 72 UTF-8 bytes, with no
+character-class rules. A password outside that range returns
+`400 VALIDATION_ERROR` with the message under `password` (signup) or
+`newPassword` (reset, change, set). See
+[Password Policy](./auth-security.md#password-policy).
+
 Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
 step-up (`mfa-management` scope), returns only the caller's events newest

@@ -321,9 +321,7 @@ describe("ForgotPasswordForm", () => {
       screen.getByText("Enter the 6-digit reset code from your email."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      ),
+      screen.getByText("Password must be at least 12 characters."),
     ).toBeInTheDocument();
     expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
     expect(resetPasswordMock).not.toHaveBeenCalled();
@@ -332,11 +330,8 @@ describe("ForgotPasswordForm", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getByText("At least 8 characters").closest("li"),
+      within(requirements).getByText("At least 12 characters").closest("li"),
     ).toHaveAttribute("data-state", "unmet");
-    expect(
-      within(requirements).getByText("A lowercase letter").closest("li"),
-    ).toHaveAttribute("data-state", "met");
     expect(screen.getByLabelText("New password")).toHaveAttribute(
       "aria-describedby",
       "forgot-password-new-password-error forgot-password-new-password-requirements",

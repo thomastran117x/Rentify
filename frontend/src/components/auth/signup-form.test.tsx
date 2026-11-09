@@ -414,8 +414,8 @@ describe("SignupForm", () => {
   });
 
   it("rejects a password the backend would refuse", async () => {
-    // `strongPasswordSchema` needs 8+ chars with upper, lower, digit, and a
-    // special character, so checking only the length sent guaranteed 400s.
+    // `strongPasswordSchema` needs 12+ characters; letting a shorter one
+    // through would only send a guaranteed 400.
     const user = userEvent.setup();
     render(<SignupForm />);
 
@@ -425,9 +425,7 @@ describe("SignupForm", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      screen.getByText(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      ),
+      screen.getByText("Password must be at least 12 characters."),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
 
@@ -436,11 +434,8 @@ describe("SignupForm", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getByText("An uppercase letter").closest("li"),
+      within(requirements).getByText("At least 12 characters").closest("li"),
     ).toHaveAttribute("data-state", "unmet");
-    expect(
-      within(requirements).getByText("A number").closest("li"),
-    ).toHaveAttribute("data-state", "met");
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "aria-describedby",
       "signup-password-error signup-password-requirements",
@@ -454,17 +449,18 @@ describe("SignupForm", () => {
     const requirements = screen.getByRole("list", {
       name: "Password requirements",
     });
-    const lowercaseRow = within(requirements)
-      .getByText("A lowercase letter")
+    const lengthRow = within(requirements)
+      .getByText("At least 12 characters")
       .closest("li");
-    expect(lowercaseRow).toHaveAttribute("data-state", "pending");
+    expect(lengthRow).toHaveAttribute("data-state", "pending");
 
-    await user.type(screen.getByLabelText("Password"), "abc");
+    await user.type(screen.getByLabelText("Password"), "tidal harbo");
 
-    expect(lowercaseRow).toHaveAttribute("data-state", "met");
-    expect(
-      within(requirements).getByText("At least 8 characters").closest("li"),
-    ).toHaveAttribute("data-state", "pending");
+    expect(lengthRow).toHaveAttribute("data-state", "pending");
+
+    await user.type(screen.getByLabelText("Password"), "r");
+
+    expect(lengthRow).toHaveAttribute("data-state", "met");
   });
 
   it("submits the account step when Enter is pressed on the first step", async () => {

@@ -9,7 +9,7 @@ import {
   verifyPasswordAgainstFakeHash,
 } from "@/features/auth/password-hashing";
 
-const STRONG_PASSWORD = "Rentify123!";
+const STRONG_PASSWORD = "tidal-harbor-lantern";
 
 describe("isBcryptHash", () => {
   it.each(["$2a$12$abcdefghijklmnopqrstuv", "$2b$12$x", "$2y$10$x"])(
@@ -29,9 +29,19 @@ describe("assertValidPassword", () => {
     expect(() => assertValidPassword(STRONG_PASSWORD)).not.toThrow();
   });
 
-  it("rejects a weak password", () => {
-    expect(() => assertValidPassword("weak")).toThrow(
-      /at least 8 characters long/,
+  it("accepts a long password with no character-class mix", () => {
+    expect(() => assertValidPassword("all lowercase words")).not.toThrow();
+  });
+
+  it("rejects a password shorter than 12 characters", () => {
+    expect(() => assertValidPassword("Rentify123!")).toThrow(
+      /at least 12 characters/,
+    );
+  });
+
+  it("rejects a password over 72 bytes", () => {
+    expect(() => assertValidPassword("a".repeat(73))).toThrow(
+      /at most 72 bytes/,
     );
   });
 });
@@ -48,7 +58,7 @@ describe("hashPassword", () => {
 
   it("refuses to hash a weak password", async () => {
     await expect(hashPassword("weak")).rejects.toThrow(
-      /at least 8 characters long/,
+      /at least 12 characters/,
     );
   });
 });

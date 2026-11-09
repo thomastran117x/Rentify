@@ -5,6 +5,14 @@ import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import {
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_TOO_LONG_MESSAGE,
+  PASSWORD_TOO_SHORT_MESSAGE,
+  passwordByteLength,
+  passwordLength,
+} from "@/features/auth/password/policy/password-rules";
 
 export const UNSAFE_AUTH_INPUT_MESSAGE =
   "Input contains unsupported HTML or script content.";
@@ -38,8 +46,6 @@ export const optionalTrimmedString = safeTrimmedString.optional();
 export const appRoleSchema = z.enum(["user", "owner", "moderator", "admin"]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 export const DEFAULT_APP_ROLE: AppRole = "user";
-const STRONG_PASSWORD_MESSAGE =
-  "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.";
 
 export function normalizeAppRole(role: string | null | undefined): AppRole {
   const parsedRole = appRoleSchema.safeParse(role ?? DEFAULT_APP_ROLE);
@@ -70,21 +76,24 @@ export function normalizeAccountStatus(
   return parsedStatus.success ? parsedStatus.data : "suspended";
 }
 
-export function isStrongPassword(password: string): boolean {
-  return (
-    password.length >= 8 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /\d/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
-}
-
+/**
+ * A new local password. Only the shape is checked here; the common, personal
+ * and breached checks need the account, so the services run those.
+ */
 export const strongPasswordSchema = z
   .string()
-  .min(8, STRONG_PASSWORD_MESSAGE)
-  .refine((value) => !containsUnsafeAuthInput(value), UNSAFE_AUTH_INPUT_MESSAGE)
-  .refine(isStrongPassword, STRONG_PASSWORD_MESSAGE);
+  .refine(
+    (value) => passwordLength(value) >= PASSWORD_MIN_LENGTH,
+    PASSWORD_TOO_SHORT_MESSAGE,
+  )
+  .refine(
+    (value) => passwordByteLength(value) <= PASSWORD_MAX_BYTES,
+    PASSWORD_TOO_LONG_MESSAGE,
+  )
+  .refine(
+    (value) => !containsUnsafeAuthInput(value),
+    UNSAFE_AUTH_INPUT_MESSAGE,
+  );
 
 export const authUsernameSchema = usernameSchema.transform((value) =>
   value.trim().toLowerCase(),

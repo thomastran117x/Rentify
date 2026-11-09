@@ -3,6 +3,10 @@ import yaml from "js-yaml";
 import { UUID_PATTERN_SOURCE } from "@/configuration/validation/uuid";
 import { AUTH_AUDIT_EVENT_TYPES } from "@/features/auth/audit/auth-audit.model";
 import { RECOVERY_CODE_ALPHABET } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
+import {
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_LENGTH,
+} from "@/features/auth/password/policy/password-rules";
 
 type HttpMethod = "get" | "post" | "put" | "delete" | "patch";
 
@@ -1464,6 +1468,13 @@ function parameterRef(name: string): Record<string, string> {
   };
 }
 
+/** Every request field that sets a new local password. */
+const NEW_PASSWORD_PROPERTY = {
+  type: "string",
+  minLength: PASSWORD_MIN_LENGTH,
+  description: `At least ${PASSWORD_MIN_LENGTH} characters (counted as Unicode code points) and at most ${PASSWORD_MAX_BYTES} UTF-8 bytes, the most bcrypt reads. There are no character-class rules.`,
+};
+
 function requestBody(
   schemaName: string,
   example: unknown,
@@ -2125,7 +2136,7 @@ function buildOperations(): OperationDefinition[] {
       requestBody: requestBody("LocalSignupRequest", {
         username: "taylor-renter",
         email: "new-user@example.com",
-        password: "Rentify123!",
+        password: "tidal-harbor-lantern",
         dateOfBirth: "2012-06-15",
         captchaToken: "turnstile-token",
         firstName: "Taylor",
@@ -2338,7 +2349,7 @@ function buildOperations(): OperationDefinition[] {
       requestBody: requestBody("ResetPasswordRequest", {
         username: "owner-one",
         code: "123456",
-        newPassword: "Rentify123!",
+        newPassword: "tidal-harbor-lantern",
         deviceId: "device-1",
         captchaToken: "turnstile-token",
       }),
@@ -12129,7 +12140,7 @@ function buildComponents(): Record<string, unknown> {
               "Trimmed and lowercased before use. Must not contain a term disallowed by the username content policy.",
           },
           email: { type: "string", format: "email" },
-          password: { type: "string" },
+          password: NEW_PASSWORD_PROPERTY,
           dateOfBirth: {
             type: "string",
             format: "date",
@@ -12201,7 +12212,7 @@ function buildComponents(): Record<string, unknown> {
         properties: {
           username: { type: "string" },
           code: { type: "string", pattern: "^\\d{6}$" },
-          newPassword: { type: "string" },
+          newPassword: NEW_PASSWORD_PROPERTY,
           deviceId: { type: "string" },
           captchaToken: {
             type: "string",
@@ -12259,14 +12270,14 @@ function buildComponents(): Record<string, unknown> {
         required: ["currentPassword", "newPassword"],
         properties: {
           currentPassword: { type: "string" },
-          newPassword: { type: "string" },
+          newPassword: NEW_PASSWORD_PROPERTY,
         },
       },
       SetPasswordRequest: {
         type: "object",
         required: ["newPassword"],
         properties: {
-          newPassword: { type: "string" },
+          newPassword: NEW_PASSWORD_PROPERTY,
         },
       },
       OAuthStartRequest: {

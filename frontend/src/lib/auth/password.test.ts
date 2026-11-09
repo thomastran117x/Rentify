@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   PASSWORD_REQUIREMENTS,
-  STRONG_PASSWORD_MESSAGE,
+  PASSWORD_TOO_LONG_MESSAGE,
+  PASSWORD_TOO_SHORT_MESSAGE,
   UNSAFE_AUTH_INPUT_MESSAGE,
   getPasswordStrengthError,
-  isStrongPassword,
+  passwordByteLength,
+  passwordLength,
 } from "./password";
 
 function metRequirementIds(password: string) {
@@ -13,50 +15,54 @@ function metRequirementIds(password: string) {
   ).map((requirement) => requirement.id);
 }
 
+describe("password length helpers", () => {
+  it("counts code points and UTF-8 bytes like the backend", () => {
+    expect(passwordLength("😀😀")).toBe(2);
+    expect(passwordByteLength("😀")).toBe(4);
+    expect(passwordByteLength("é")).toBe(2);
+  });
+});
+
 describe("PASSWORD_REQUIREMENTS", () => {
   it("meets nothing for an empty password", () => {
     expect(metRequirementIds("")).toEqual([]);
   });
 
-  it("reports each character class on its own", () => {
-    expect(metRequirementIds("A")).toEqual(["uppercase"]);
-    expect(metRequirementIds("a")).toEqual(["lowercase"]);
-    expect(metRequirementIds("1")).toEqual(["number"]);
-    expect(metRequirementIds("!")).toEqual(["special"]);
-    expect(metRequirementIds("        ")).toEqual(["length", "special"]);
-  });
-
-  it("meets every requirement for a strong password", () => {
-    expect(metRequirementIds("Abcdefg1!")).toEqual([
-      "length",
-      "uppercase",
-      "lowercase",
-      "number",
-      "special",
-    ]);
-  });
-});
-
-describe("isStrongPassword", () => {
-  it("accepts only a password meeting every requirement", () => {
-    expect(isStrongPassword("Abcdefg1!")).toBe(true);
-    expect(isStrongPassword("Abcde1!")).toBe(false);
-    expect(isStrongPassword("abcdefg1!")).toBe(false);
-    expect(isStrongPassword("ABCDEFG1!")).toBe(false);
-    expect(isStrongPassword("Abcdefgh!")).toBe(false);
-    expect(isStrongPassword("Abcdefgh1")).toBe(false);
+  it("needs 12 characters and nothing else", () => {
+    expect(metRequirementIds("abcdefghijk")).toEqual([]);
+    expect(metRequirementIds("abcdefghijkl")).toEqual(["length"]);
   });
 });
 
 describe("getPasswordStrengthError", () => {
-  it("checks length, then unsafe input, then character classes", () => {
-    expect(getPasswordStrengthError("<b>")).toBe(STRONG_PASSWORD_MESSAGE);
-    expect(getPasswordStrengthError("<b>Abc1!</b>")).toBe(
+  it("rejects fewer than 12 characters", () => {
+    expect(getPasswordStrengthError("Rentify123!")).toBe(
+      PASSWORD_TOO_SHORT_MESSAGE,
+    );
+    expect(getPasswordStrengthError("😀".repeat(11))).toBe(
+      PASSWORD_TOO_SHORT_MESSAGE,
+    );
+  });
+
+  it("rejects more than 72 bytes, counting multi-byte characters", () => {
+    expect(getPasswordStrengthError("a".repeat(72))).toBeNull();
+    expect(getPasswordStrengthError("a".repeat(73))).toBe(
+      PASSWORD_TOO_LONG_MESSAGE,
+    );
+    expect(getPasswordStrengthError("😀".repeat(18))).toBeNull();
+    expect(getPasswordStrengthError("😀".repeat(19))).toBe(
+      PASSWORD_TOO_LONG_MESSAGE,
+    );
+  });
+
+  it("rejects unsafe markup once the length is met", () => {
+    expect(getPasswordStrengthError("<b>")).toBe(PASSWORD_TOO_SHORT_MESSAGE);
+    expect(getPasswordStrengthError("<b>long enough</b>")).toBe(
       UNSAFE_AUTH_INPUT_MESSAGE,
     );
-    expect(getPasswordStrengthError("password123")).toBe(
-      STRONG_PASSWORD_MESSAGE,
-    );
-    expect(getPasswordStrengthError("Abcdefg1!")).toBeNull();
+  });
+
+  it("accepts a lowercase passphrase with no character mix", () => {
+    expect(getPasswordStrengthError("tidal harbor lantern")).toBeNull();
   });
 });

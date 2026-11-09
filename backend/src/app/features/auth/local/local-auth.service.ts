@@ -12,7 +12,6 @@ import {
   type AuthSessionResult,
   type AuthUserProfile,
   type AuthUserRecord,
-  isStrongPassword,
 } from "@/features/auth/auth.model";
 import type {
   LocalAuthenticateInput,
@@ -33,19 +32,9 @@ import {
   type LoginAttemptAuditBase,
 } from "@/features/auth/lockout/login-lockout.service";
 import {
-  isEligibleForLocalPasswordManagement,
-  isLocalPasswordAccount,
-  requireEligibleLocalPasswordUser,
-  requirePasswordlessLinkedUser,
-  type LocalPasswordAuthUserRecord,
-} from "@/features/auth/local-account-eligibility";
-import {
   hashPassword,
-  isBcryptHash,
-  rejectIfPasswordMatchesCurrent,
   verifyPassword,
   DUMMY_PASSWORD_HASH,
-  verifyPasswordAgainstFakeHash,
 } from "@/features/auth/password-hashing";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { requireExistingUser } from "@/features/auth/require-existing-user";

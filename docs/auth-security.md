@@ -264,6 +264,20 @@ Someone who has lost their authenticator and signs in with their last code has n
 
 A user who skips the prompt, or reloads the page, can still regenerate from the Security tab while they have their authenticator. Without it, once the proof expires, the account needs support.
 
+## Password Policy
+
+Every path that sets a local password applies the same rules: signup (`POST /auth/local/signup`), reset (`POST /auth/local/password/reset`), change (`POST /auth/local/password/change`) and adding a first password to a social-only account (`POST /auth/local/password/set`). Existing passwords are not re-checked at sign-in, and accounts that only sign in through a provider are unaffected.
+
+| Rule      | Requirement                                                                                                                                 | Message                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Minimum   | 12 characters, counted as Unicode code points, so an emoji is one character                                                                 | Password must be at least 12 characters.                                                    |
+| Maximum   | 72 UTF-8 bytes. bcrypt ignores everything after the first 72 bytes, so two longer passwords sharing that prefix would be the same password. | Password must be at most 72 bytes. Shorten it, or use fewer accented or special characters. |
+| No markup | The shared unsafe-input rule                                                                                                                | Input contains unsupported HTML or script content.                                          |
+
+There are no character-class rules. Following NIST SP 800-63B, length matters more than a mix of upper case, digits and symbols, and composition rules push people towards predictable patterns such as `Password1!`.
+
+A rejected password returns `400 VALIDATION_ERROR` with the message under the field name, `password` for signup and `newPassword` for the others. The rules live in `backend/src/app/features/auth/password/policy/password-rules.ts`, and `frontend/src/lib/auth/password.ts` mirrors them so the forms catch a bad password before it is sent. The new-password fields show the rules as a checklist.
+
 ## One-Time Codes
 
 The six-digit codes sent by email cover signup verification, password reset, login unlock, email change, and the `email` step-up factor. They all go through `OtpService`, keyed by a purpose and a subject (an email address, or the session and scope for step-up).

@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import ConflictError from "@/errors/http/conflict.error";
-import { isStrongPassword } from "@/features/auth/auth.model";
+import { checkPasswordShape } from "@/features/auth/password/policy/password-rules";
 
 export const BCRYPT_SALT_ROUNDS = 12;
 /**
@@ -15,11 +15,15 @@ export function isBcryptHash(passwordHash: string): boolean {
   return /^\$2[aby]\$\d{2}\$/.test(passwordHash);
 }
 
+/**
+ * A last guard before a new password is hashed. The request schemas reject a
+ * bad shape first with a 400, so reaching this throw is a programming error.
+ */
 export function assertValidPassword(password: string): void {
-  if (!isStrongPassword(password)) {
-    throw new Error(
-      "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-    );
+  const [issue] = checkPasswordShape(password);
+
+  if (issue) {
+    throw new Error(issue.message);
   }
 }
 

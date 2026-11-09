@@ -851,7 +851,7 @@
               "example": {
                 "username": "taylor-renter",
                 "email": "new-user@example.com",
-                "password": "Rentify123!",
+                "password": "tidal-harbor-lantern",
                 "dateOfBirth": "2012-06-15",
                 "captchaToken": "turnstile-token",
                 "firstName": "Taylor",
@@ -1369,7 +1369,7 @@
               "example": {
                 "username": "owner-one",
                 "code": "123456",
-                "newPassword": "Rentify123!",
+                "newPassword": "tidal-harbor-lantern",
                 "deviceId": "device-1",
                 "captchaToken": "turnstile-token"
               }
@@ -32411,7 +32411,9 @@
             "format": "email"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "minLength": 12,
+            "description": "At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules."
           },
           "dateOfBirth": {
             "type": "string",
@@ -32554,7 +32556,9 @@
             "pattern": "^\\d{6}$"
           },
           "newPassword": {
-            "type": "string"
+            "type": "string",
+            "minLength": 12,
+            "description": "At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules."
           },
           "deviceId": {
             "type": "string"
@@ -32653,7 +32657,9 @@
             "type": "string"
           },
           "newPassword": {
-            "type": "string"
+            "type": "string",
+            "minLength": 12,
+            "description": "At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules."
           }
         }
       },
@@ -32664,7 +32670,9 @@
         ],
         "properties": {
           "newPassword": {
-            "type": "string"
+            "type": "string",
+            "minLength": 12,
+            "description": "At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules."
           }
         }
       },

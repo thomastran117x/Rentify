@@ -572,7 +572,7 @@ paths:
             example:
               username: taylor-renter
               email: new-user@example.com
-              password: Rentify123!
+              password: tidal-harbor-lantern
               dateOfBirth: '2012-06-15'
               captchaToken: turnstile-token
               firstName: Taylor
@@ -911,7 +911,7 @@ paths:
             example:
               username: owner-one
               code: '123456'
-              newPassword: Rentify123!
+              newPassword: tidal-harbor-lantern
               deviceId: device-1
               captchaToken: turnstile-token
       responses:
@@ -22119,6 +22119,8 @@ components:
           format: email
         password:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
         dateOfBirth:
           type: string
           format: date
@@ -22219,6 +22221,8 @@ components:
           pattern: ^\d{6}$
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
         deviceId:
           type: string
         captchaToken:
@@ -22286,6 +22290,8 @@ components:
           type: string
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
     SetPasswordRequest:
       type: object
       required:
@@ -22293,6 +22299,8 @@ components:
       properties:
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
     OAuthStartRequest:
       type: object
       required:
