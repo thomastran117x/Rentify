@@ -526,7 +526,14 @@ export function ForgotPasswordForm() {
           id="newPassword"
           label="New password"
           value={newPassword}
-          onChange={setNewPassword}
+          onChange={(value) => {
+            setNewPassword(value);
+            // The checklist and meter speak for the edited value now.
+            setResetErrors((current) => ({
+              ...current,
+              newPassword: undefined,
+            }));
+          }}
           autoComplete="new-password"
           placeholder="Create a password"
           error={resetErrors.newPassword}

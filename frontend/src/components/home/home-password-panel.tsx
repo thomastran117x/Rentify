@@ -414,7 +414,11 @@ export function HomePasswordPanel({
                 : "home-new-password-requirements"
             }
             value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
+            onChange={(event) => {
+              setNewPassword(event.target.value);
+              // The checklist and meter speak for the edited value now.
+              setErrors((current) => ({ ...current, newPassword: undefined }));
+            }}
             className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
               errors.newPassword
                 ? "border-rose-300 dark:border-rose-800 ring-4 ring-rose-100"

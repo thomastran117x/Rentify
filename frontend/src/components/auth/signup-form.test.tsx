@@ -736,6 +736,24 @@ describe("SignupForm", () => {
     expect(screen.getAllByText(COMMON_PASSWORD_MESSAGE)).toHaveLength(1);
   });
 
+  it("drops a password error once the password is edited", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a breach warning but lets the user continue", async () => {
     checkPasswordMock.mockResolvedValue({
       acceptable: true,

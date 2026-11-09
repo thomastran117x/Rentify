@@ -370,6 +370,13 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
     router.replace(nextPath);
   }
 
+  // A rejection belongs to the password it was given for. Once the user edits
+  // it, the live checklist and meter speak for the new value instead.
+  function handlePasswordChange(value: string) {
+    setPassword(value);
+    setErrors((current) => ({ ...current, password: undefined }));
+  }
+
   function goToStep(step: number) {
     setCurrentStep(step);
     setMaxStepReached((current) => Math.max(current, step));
@@ -627,7 +634,7 @@ export function SignupForm({ nextPath: requestedNextPath }: SignupFormProps) {
             id="password"
             label="Password"
             value={password}
-            onChange={setPassword}
+            onChange={handlePasswordChange}
             autoComplete="new-password"
             placeholder="Create a password"
             error={errors.password}

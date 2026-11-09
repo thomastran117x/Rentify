@@ -271,6 +271,24 @@ describe("HomePasswordPanel", () => {
     );
   });
 
+  it("drops a new-password error once the password is edited", async () => {
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("New password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the server's password reasons on the new password field", async () => {
     const user = userEvent.setup();
     changePasswordMock.mockRejectedValue(

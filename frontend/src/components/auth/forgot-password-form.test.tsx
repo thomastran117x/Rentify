@@ -347,6 +347,28 @@ describe("ForgotPasswordForm", () => {
     );
   });
 
+  it("drops a new-password error once the password is edited", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("New password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
   it("refuses a new password containing the username before sending it", async () => {
     const user = userEvent.setup();
     writePersistedAuthPendingFlow({
