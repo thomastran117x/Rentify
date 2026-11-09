@@ -67,7 +67,10 @@ const DEFAULT_AUTH_THRESHOLDS = {
     failedConfirmLockSeconds: 300,
   },
   refresh: { rotationGracePeriodSeconds: 5 },
-  passwords: { breachCheck: { mode: "enforce", timeoutMs: 1500 } },
+  passwords: {
+    breachCheck: { mode: "enforce", timeoutMs: 1500 },
+    hashCost: 12,
+  },
 };
 
 describe("EnvironmentManager", () => {
@@ -1526,6 +1529,7 @@ describe("EnvironmentManager", () => {
       AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS: "0",
       AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE: "WARN",
       AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS: "250",
+      AUTH_SECURITY_PASSWORD_HASH_COST: "13",
     });
     const manager = new EnvironmentManager();
     manager.load();
@@ -1557,7 +1561,10 @@ describe("EnvironmentManager", () => {
         failedConfirmLockSeconds: 600,
       },
       refresh: { rotationGracePeriodSeconds: 0 },
-      passwords: { breachCheck: { mode: "warn", timeoutMs: 250 } },
+      passwords: {
+        breachCheck: { mode: "warn", timeoutMs: 250 },
+        hashCost: 13,
+      },
     });
   });
 
@@ -1645,6 +1652,16 @@ describe("EnvironmentManager", () => {
       "AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS",
       "10001",
       "must be less than or equal to 10000.",
+    ],
+    [
+      "AUTH_SECURITY_PASSWORD_HASH_COST",
+      "9",
+      "must be greater than or equal to 10.",
+    ],
+    [
+      "AUTH_SECURITY_PASSWORD_HASH_COST",
+      "16",
+      "must be less than or equal to 15.",
     ],
     [
       "AUTH_SECURITY_REPEATED_LOCKOUTS_THRESHOLD",

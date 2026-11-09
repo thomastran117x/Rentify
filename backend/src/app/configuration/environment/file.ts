@@ -96,6 +96,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE",
   "authSecurity.passwords.breachCheck.timeoutMs":
     "AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS",
+  "authSecurity.passwords.hashCost": "AUTH_SECURITY_PASSWORD_HASH_COST",
   "authSecurity.lockout.failedAttemptTtlMinutes":
     "AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES",
   "authSecurity.lockout.lockMinutes": "AUTH_SECURITY_LOCKOUT_LOCK_MINUTES",

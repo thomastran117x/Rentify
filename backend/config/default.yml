@@ -133,6 +133,10 @@ authSecurity:
     breachCheck:
       mode: enforce
       timeoutMs: 1500
+    # bcrypt cost for new hashes, 10 to 15. Raising it rehashes each stored
+    # password at its owner's next successful sign-in; lowering it rehashes
+    # nothing.
+    hashCost: 12
 
 email:
   gmailUser: change-me@example.com

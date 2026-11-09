@@ -1124,16 +1124,22 @@ in Redis keeps the lifetime it was written with.
 [Password Policy](./auth-security.md#password-policy) for the rules
 themselves. Keys below are under `authSecurity.passwords`.
 
-| Key                     | Default   | Override                                         | Meaning                                                               |
-| ----------------------- | --------- | ------------------------------------------------ | --------------------------------------------------------------------- |
-| `breachCheck.mode`      | `enforce` | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE`       | `off`, `warn` (accept but tell the user) or `enforce` (refuse)        |
-| `breachCheck.timeoutMs` | `1500`    | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS` | How long to wait for the Have I Been Pwned range API before accepting |
+| Key                     | Default   | Override                                         | Meaning                                                                            |
+| ----------------------- | --------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `breachCheck.mode`      | `enforce` | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE`       | `off`, `warn` (accept but tell the user) or `enforce` (refuse)                     |
+| `breachCheck.timeoutMs` | `1500`    | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS` | How long to wait for the Have I Been Pwned range API before accepting              |
+| `hashCost`              | `12`      | `AUTH_SECURITY_PASSWORD_HASH_COST`               | bcrypt cost for new hashes; a stored hash below it is rehashed at the next sign-in |
 
 `breachCheck.mode` is case-insensitive; any other value is a startup error.
 `breachCheck.timeoutMs` is an integer from `200` to `10000`: every new password
 waits on the check, so an outage must not stall signups for long. A timeout or
 an unreachable API accepts the password and logs a warning. The API needs no
 key, and the backend must be able to reach `api.pwnedpasswords.com` over HTTPS.
+
+`hashCost` is an integer from `10` to `15`. Each step doubles the work of a
+hash, and so of every sign-in. Raising it rehashes each password at its owner's
+next successful sign-in, including one that signs in with an authenticator
+app. Lowering it rehashes nothing, since a stored hash is only ever upgraded.
 
 ## Feature flags
 

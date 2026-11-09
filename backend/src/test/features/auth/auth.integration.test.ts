@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { getRedisClient } from "@/configuration/resources/redis";
@@ -935,7 +936,10 @@ describe("Auth persistence integration", () => {
           .spyOn(environment, "getAuthSecurityConfig")
           .mockReturnValue({
             ...authSecurity,
-            passwords: { breachCheck: { mode: "warn", timeoutMs: 1_500 } },
+            passwords: {
+              ...authSecurity.passwords,
+              breachCheck: { mode: "warn", timeoutMs: 1_500 },
+            },
           });
         persistenceApp.stubs.breachedPasswordChecker.check.mockResolvedValueOnce(
           { status: "breached", count: 12 },
@@ -1003,6 +1007,29 @@ describe("Auth persistence integration", () => {
       expect((await login({ username, password })).status).toBe(200);
     }, 120_000);
   });
+
+  it("rehashes a password below the configured cost at the next sign-in", async () => {
+    const username = "renter-one";
+    const password = "Rentify123!";
+    const where = { email: "user1@rentify.local" };
+    await persistenceApp.prisma.user.update({
+      where,
+      data: { passwordHash: await bcrypt.hash(password, 10) },
+    });
+
+    expect((await login({ username, password })).status).toBe(200);
+
+    const { passwordHash } = await persistenceApp.prisma.user.findUniqueOrThrow(
+      {
+        where,
+        select: { passwordHash: true },
+      },
+    );
+    expect(passwordHash?.startsWith("$2b$12$")).toBe(true);
+    expect(await bcrypt.compare(password, passwordHash ?? "")).toBe(true);
+    // The rehash changes nothing else: the same password keeps working.
+    expect((await login({ username, password })).status).toBe(200);
+  }, 120_000);
 
   it("changes a password from a real session and invalidates the old one", async () => {
     const username = "renter-one";

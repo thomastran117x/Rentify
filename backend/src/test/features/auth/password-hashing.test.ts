@@ -1,6 +1,12 @@
+import bcrypt from "bcrypt";
+import { environment } from "@/configuration/environment";
 import ConflictError from "@/errors/http/conflict.error";
 import {
   DUMMY_PASSWORD_HASH,
+  getBcryptCost,
+  getDummyPasswordHash,
+  needsRehash,
+  rehashVerifiedPassword,
   assertValidPassword,
   hashPassword,
   isBcryptHash,
@@ -102,4 +108,89 @@ describe("rejectIfPasswordMatchesCurrent", () => {
       rejectIfPasswordMatchesCurrent("Different123!", passwordHash),
     ).resolves.toBeUndefined();
   }, 20_000);
+});
+
+function withHashCost(hashCost: number) {
+  const config = environment.getAuthSecurityConfig();
+
+  return jest.spyOn(environment, "getAuthSecurityConfig").mockReturnValue({
+    ...config,
+    passwords: { ...config.passwords, hashCost },
+  });
+}
+
+describe("getBcryptCost", () => {
+  it("reads the cost from a bcrypt hash", () => {
+    expect(getBcryptCost(DUMMY_PASSWORD_HASH)).toBe(12);
+    expect(getBcryptCost("$2a$04$abcdefghijklmnopqrstuv")).toBe(4);
+  });
+
+  it("returns null for anything else", () => {
+    expect(getBcryptCost("")).toBeNull();
+    expect(getBcryptCost("plaintext")).toBeNull();
+  });
+});
+
+describe("needsRehash", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("is true only below the configured cost", () => {
+    withHashCost(12);
+
+    expect(needsRehash("$2b$10$x")).toBe(true);
+    expect(needsRehash("$2b$11$x")).toBe(true);
+    expect(needsRehash("$2b$12$x")).toBe(false);
+    // Lowering the cost never downgrades a stored hash.
+    expect(needsRehash("$2b$13$x")).toBe(false);
+    expect(needsRehash("not-bcrypt")).toBe(false);
+  });
+
+  it("follows the configured cost", () => {
+    withHashCost(13);
+
+    expect(needsRehash("$2b$12$x")).toBe(true);
+  });
+});
+
+describe("rehashVerifiedPassword", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("rehashes a legacy password the new rules would refuse", async () => {
+    withHashCost(10);
+    const hash = await rehashVerifiedPassword("Rentify123!");
+
+    expect(getBcryptCost(hash)).toBe(10);
+    await expect(bcrypt.compare("Rentify123!", hash)).resolves.toBe(true);
+  });
+});
+
+describe("hashPassword cost", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("hashes at the configured cost", async () => {
+    withHashCost(10);
+
+    expect(getBcryptCost(await hashPassword(STRONG_PASSWORD))).toBe(10);
+  });
+});
+
+describe("getDummyPasswordHash", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("uses the fixed hash at the default cost", async () => {
+    withHashCost(12);
+
+    await expect(getDummyPasswordHash()).resolves.toBe(DUMMY_PASSWORD_HASH);
+  });
+
+  it("makes one at any other cost, once", async () => {
+    withHashCost(10);
+
+    const first = await getDummyPasswordHash();
+    expect(getBcryptCost(first)).toBe(10);
+    await expect(getDummyPasswordHash()).resolves.toBe(first);
+    await expect(verifyPasswordAgainstFakeHash(STRONG_PASSWORD)).resolves.toBe(
+      false,
+    );
+  });
 });

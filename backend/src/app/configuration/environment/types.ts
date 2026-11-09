@@ -341,6 +341,7 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_DETECTION_MODE?: string;
   AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE?: string;
   AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS?: string;
+  AUTH_SECURITY_PASSWORD_HASH_COST?: string;
   AUTH_SECURITY_REFRESH_REUSE_ENABLED?: string;
   AUTH_COOKIE_SECURE?: string;
   AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES?: string;
@@ -508,6 +509,11 @@ export interface AppEnvironment {
         /** Past this the check gives up and the password is accepted. */
         timeoutMs: number;
       };
+      /**
+       * The bcrypt cost new hashes are made at. A stored hash below it is
+       * rehashed at the next successful sign-in.
+       */
+      hashCost: number;
     };
   };
   email: {

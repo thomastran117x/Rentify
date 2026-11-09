@@ -304,6 +304,17 @@ Neither the password, its full hash nor the suffix leaves the server or is logge
 
 The check **fails open**. When the API takes longer than `breachCheck.timeoutMs` (1.5 seconds by default), cannot be reached or returns an error, the password is accepted, since every other rule has already passed, and the backend logs `Breached-password check unavailable; accepting password.` with the reason (`timeout`, `network` or `http`). An outage at a third party must not block signups, resets or changes. A match is logged at info level with the mode and nothing that identifies the password or the account. Passwords that a local rule already refuses are not sent at all.
 
+### Rehashing at Sign-In
+
+New hashes use bcrypt at `authSecurity.passwords.hashCost` (12 by default; see [Password checks](./backend-configuration.md#password-checks)). When a sign-in proves a password whose stored hash has a lower cost, the backend rehashes it at the configured cost:
+
+- It runs after the password, account status and email checks and before the login MFA step, because the password is not sent again with the authenticator code.
+- It skips the new-password rules. A password set under the old 8-character rule still upgrades.
+- The write is conditional on the stored hash still being the one that was verified, so a password changed or reset in between is never overwritten.
+- It is not a security change: the token version is not rotated, and nothing is audited or emailed. A failed write is logged at warn and the sign-in carries on.
+
+The timing-safe dummy hash that unknown usernames are compared against follows the configured cost too, so raising it does not make missing accounts answer faster.
+
 Existing passwords are not checked at sign-in. Flagging a breached password at sign-in, which would have to be carried through the login MFA challenge, is a follow-up.
 
 `frontend/src/lib/auth/password.ts` mirrors the shape and personal rules so the forms catch a bad password before it is sent, and the new-password fields show them as a checklist. Under it, a strength meter gives a rough grade (Fair to Very strong, from length and the mix of kinds of character), and once the local rules pass, `usePasswordCheck` asks `POST /auth/password/check` 400 ms after the user stops typing. Its reasons appear under the meter, which then reads "Too weak"; a `warn`-mode breach appears as an amber warning and caps the meter at "Fair". A password the check has already refused cannot be submitted. A failed check blocks nothing, since the server checks again on submit. The "doesn't contain your name, username or email" row appears once the form knows any of those. The forms show the server's reasons on the password field: signup returns to its first step to do so, and reset keeps them off the code field.

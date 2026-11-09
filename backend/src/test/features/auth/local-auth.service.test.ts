@@ -284,6 +284,11 @@ function createService(overrides?: {
     email: string,
   ) => "definitely-absent" | "possibly-present" | "unknown";
   emailBloomAdd?: (emails: string | string[]) => Promise<void>;
+  replacePasswordHashIfUnchanged?: (
+    userId: string,
+    currentHash: string,
+    passwordHash: string,
+  ) => Promise<boolean>;
 }) {
   const cacheJsonStore = new Map<
     string,
@@ -607,6 +612,10 @@ function createService(overrides?: {
     authAuditService as any,
     loginMfaService,
     { isAddressHeld: overrides?.isAddressHeld ?? (async () => false) } as any,
+    {
+      replacePasswordHashIfUnchanged:
+        overrides?.replacePasswordHashIfUnchanged ?? (async () => true),
+    },
   );
 
   return service;
@@ -818,6 +827,130 @@ describe("LocalAuthService", () => {
     });
 
     expect(verificationEmailSentTo).toBe("pending@example.com");
+  });
+
+  describe("rehash on sign-in", () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    async function signIn(
+      service: LocalAuthService,
+      user: AuthUserRecord,
+      password: string,
+    ) {
+      return service.localAuthenticate({
+        client: createClient(),
+        audit: AUDIT_CONTEXT,
+        username: user.profile.username,
+        password,
+        deviceId: DEVICE_1_ID,
+      });
+    }
+
+    function withHashCost(hashCost: number) {
+      const config = environment.getAuthSecurityConfig();
+
+      jest.spyOn(environment, "getAuthSecurityConfig").mockReturnValue({
+        ...config,
+        passwords: { ...config.passwords, hashCost },
+      });
+    }
+
+    it("rehashes a hash below the configured cost once the password checks out", async () => {
+      withHashCost(10);
+      const user = createUser();
+      user.passwordHash = await bcrypt.hash("Rentify123!", 4);
+      const replacePasswordHashIfUnchanged = jest.fn(async () => true);
+      const service = createService({
+        findUserByUsername: async () => user,
+        replacePasswordHashIfUnchanged,
+      });
+
+      // An 11-character password set under the old rule still upgrades.
+      await expect(signIn(service, user, "Rentify123!")).resolves.toMatchObject(
+        {
+          accessToken: expect.any(String),
+        },
+      );
+
+      expect(replacePasswordHashIfUnchanged).toHaveBeenCalledTimes(1);
+      const [userId, currentHash, newHash] = (
+        replacePasswordHashIfUnchanged.mock.calls as unknown as Array<
+          [string, string, string]
+        >
+      )[0]!;
+      expect(userId).toBe(user.id);
+      expect(currentHash).toBe(user.passwordHash);
+      expect(newHash.startsWith("$2b$10$")).toBe(true);
+      await expect(bcrypt.compare("Rentify123!", newHash)).resolves.toBe(true);
+    });
+
+    it("leaves a hash at the configured cost alone", async () => {
+      withHashCost(10);
+      const user = createUser();
+      user.passwordHash = await bcrypt.hash("Rentify123!", 10);
+      const replacePasswordHashIfUnchanged = jest.fn(async () => true);
+      const service = createService({
+        findUserByUsername: async () => user,
+        replacePasswordHashIfUnchanged,
+      });
+
+      await signIn(service, user, "Rentify123!");
+
+      expect(replacePasswordHashIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("does not rehash on a wrong password", async () => {
+      withHashCost(10);
+      const user = createUser();
+      user.passwordHash = await bcrypt.hash("Rentify123!", 4);
+      const replacePasswordHashIfUnchanged = jest.fn(async () => true);
+      const service = createService({
+        findUserByUsername: async () => user,
+        replacePasswordHashIfUnchanged,
+      });
+
+      await expect(signIn(service, user, "WrongPassword1!")).rejects.toThrow(
+        UnauthorizedError,
+      );
+      expect(replacePasswordHashIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it("still signs in when the rehash cannot be written", async () => {
+      withHashCost(10);
+      const user = createUser();
+      user.passwordHash = await bcrypt.hash("Rentify123!", 4);
+      const service = createService({
+        findUserByUsername: async () => user,
+        replacePasswordHashIfUnchanged: async () => {
+          throw new Error("database unavailable");
+        },
+      });
+
+      await expect(signIn(service, user, "Rentify123!")).resolves.toMatchObject(
+        {
+          accessToken: expect.any(String),
+        },
+      );
+    });
+
+    it("rehashes before the MFA step, which the password does not reach", async () => {
+      withHashCost(10);
+      const user = createUser();
+      user.passwordHash = await bcrypt.hash("Rentify123!", 4);
+      const replacePasswordHashIfUnchanged = jest.fn(async () => true);
+      jest
+        .spyOn(LoginMfaService.prototype, "evaluateFirstStep")
+        .mockRejectedValue(new Error("mfa challenge issued"));
+      const service = createService({
+        findUserByUsername: async () => user,
+        replacePasswordHashIfUnchanged,
+      });
+
+      await expect(signIn(service, user, "Rentify123!")).rejects.toThrow(
+        "mfa challenge issued",
+      );
+      expect(replacePasswordHashIfUnchanged).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("issues a long-lived refresh token when remember me is enabled", async () => {
