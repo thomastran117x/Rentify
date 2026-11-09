@@ -57,6 +57,39 @@ export interface AuthSecurityDetectionRuleConfig {
   threshold: number;
   windowMinutes: number;
 }
+/** Emailed one-time codes: lifetime, resend spacing and the guess budget. */
+export interface AuthSecurityOtpConfig {
+  ttlSeconds: number;
+  resendCooldownSeconds: number;
+  /** Guesses per purpose and subject, shared by every resend in the window. */
+  maxAttempts: number;
+  /** Caps on the routes that send codes without a session. */
+  publicLimits: {
+    windowSeconds: number;
+    perEmail: number;
+    perIp: number;
+    perDevice: number;
+  };
+}
+/** The per-username lock on password and login-time MFA failures. */
+export interface AuthSecurityLockoutConfig {
+  maxFailedAttempts: number;
+  /** Unlocked failures expire this long after the latest one. */
+  failedAttemptTtlMinutes: number;
+  lockMinutes: number;
+}
+/** Per-session limits on `/auth/mfa/verify/*`. */
+export interface AuthSecurityStepUpConfig {
+  challengeLimit: number;
+  challengeWindowSeconds: number;
+  confirmLimit: number;
+  confirmWindowSeconds: number;
+  /** Wrong codes that set the confirm lock. */
+  failedConfirmThreshold: number;
+  /** Wrong codes expire this long after the latest one. */
+  failedConfirmTtlSeconds: number;
+  failedConfirmLockSeconds: number;
+}
 export const MEDIA_MODERATION_PROVIDERS = [
   "none",
   "azure-content-safety",
@@ -290,6 +323,7 @@ export type RawEnvironmentValues = {
   PERSONAL_ACCESS_TOKEN_KEYS?: string;
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
+  OTP_HASH_SECRET?: string;
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
   AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
   AUTH_AUDIT_RETENTION_DAYS?: string;
@@ -307,6 +341,24 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_SUCCESS_AFTER_FAILURES_ENABLED?: string;
   AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD?: string;
   AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES?: string;
+  AUTH_SECURITY_OTP_TTL_SECONDS?: string;
+  AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS?: string;
+  AUTH_SECURITY_OTP_MAX_ATTEMPTS?: string;
+  AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS?: string;
+  AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL?: string;
+  AUTH_SECURITY_OTP_PUBLIC_PER_IP?: string;
+  AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE?: string;
+  AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS?: string;
+  AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES?: string;
+  AUTH_SECURITY_LOCKOUT_LOCK_MINUTES?: string;
+  AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT?: string;
+  AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS?: string;
+  AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT?: string;
+  AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS?: string;
+  AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD?: string;
+  AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS?: string;
+  AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS?: string;
+  AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
   TELNYX_API_KEY?: string;
@@ -399,6 +451,8 @@ export interface AppEnvironment {
     personalAccessTokenKeys: HmacSigningKey[];
     /** HMAC key for the hashed sign-in identifiers in the auth audit log. */
     authAuditIdentifierSecret: string;
+    /** HMAC key for the emailed one-time codes held in Redis. */
+    otpHashSecret: string;
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
     /**
@@ -430,6 +484,13 @@ export interface AppEnvironment {
       successAfterFailures: AuthSecurityDetectionRuleConfig;
       /** Refresh-token reuse; the window only dedupes repeat alerts. */
       refreshReuse: { enabled: boolean; windowMinutes: number };
+    };
+    otp: AuthSecurityOtpConfig;
+    lockout: AuthSecurityLockoutConfig;
+    stepUp: AuthSecurityStepUpConfig;
+    refresh: {
+      /** How long a just-rotated refresh token still returns its successor. */
+      rotationGracePeriodSeconds: number;
     };
   };
   email: {

@@ -231,6 +231,8 @@ An account can only step up with its strongest factors:
 
 The rule applies to the `mfa-management` and `device-login` scopes alike. Without it, step-up would only be as strong as the inbox. Running out of recovery codes never brings email back: such an account steps up with its authenticator or not at all. Passkeys (#465) will join the stronger factors when they land.
 
+An authenticator code is good for one use, at sign-in and at step-up alike. Accepting one records its 30-second step in `user_mfa_totp.last_used_counter` with a conditional update that matches only an older step. So of two requests racing with the same code, exactly one succeeds, and the other gets the answer a wrong code gets.
+
 A stored proof is checked against the factors it could have been made with, not only the ones still usable. A proof made with an account's last recovery code stays good for its 15 minutes, even though no code is left to offer.
 
 Disabling the authenticator app signs out every other session on the account, and each one writes `session.revoked` alongside the `mfa.totp_disabled` event. The session that disabled it stays signed in. Personal access tokens are unaffected.
@@ -261,6 +263,18 @@ Someone who has lost their authenticator and signs in with their last code has n
 3. The sign-in page holds the redirect and asks the user to generate new codes, which that proof allows for its 15 minutes. It allows nothing else: changing the password or removing the authenticator still needs a management step-up, which one of the new codes provides.
 
 A user who skips the prompt, or reloads the page, can still regenerate from the Security tab while they have their authenticator. Without it, once the proof expires, the account needs support.
+
+## One-Time Codes
+
+The six-digit codes sent by email cover signup verification, password reset, login unlock, email change, and the `email` step-up factor. They all go through `OtpService`, keyed by a purpose and a subject (an email address, or the session and scope for step-up).
+
+- **Storage.** Redis holds `{ codeHash }` at `auth:otp:<purpose>:<subject>`: an HMAC-SHA256 of `purpose|subject|code`, keyed by `OTP_HASH_SECRET`. Binding the purpose and subject means a stored hash is good for nothing else. A submitted code is compared with `timingSafeEqual`. A code lives 10 minutes by default.
+- **Attempts.** Each subject gets 5 attempts by default, counted at `auth:otp:<purpose>:<subject>:attempts`. An attempt is spent before the code is compared, so concurrent guesses cannot overrun the count. A wrong code returns `400` with `details.attemptsRemaining`. The last wrong one discards the code.
+- **Resending keeps the count.** A resend replaces the code but not the count. Once all of them are spent, no new code is issued until the count expires, which is one code lifetime after the last code was issued. A refused resend does not extend it. The public resends still answer `202`, so they reveal nothing. Email change answers `429 TOO_MANY_REQUESTS`, and step-up answers `429 MFA_CHALLENGE_RATE_LIMITED`. Both carry `details.retryAfterSeconds` and `details.reason: "otp-attempts-exhausted"`. The 60-second resend cooldown and the hourly per-email, per-IP and per-device caps on the public routes still apply on top. Every one of these numbers is configurable under `authSecurity.otp`; see [Auth security thresholds](./backend-configuration.md#auth-security-thresholds).
+- **Single use.** Of two requests holding the right code, only the one whose delete removes it succeeds.
+- **Previews outside production.** Local and test environments suppress mail to `@rentify.local`. So outside production, each code is also kept in plain text at `auth:otp-preview:<purpose>:<subject>`, for `GET /auth/email/change/dev/otp` and `GET /auth/mfa/verify/dev/otp`. Production never writes that key, and neither route is registered there.
+- **Rotating `OTP_HASH_SECRET`** voids every outstanding code, and nothing else. The secret is required, must be at least 32 characters, and in production must differ from every other auth secret.
+- **Codes from before hashing.** Codes issued before hashing was introduced held the code in plain text. They are refused and deleted when used. They live 10 minutes at most, so a user who held one simply asks for a new one.
 
 ## Investigating Sign-in Activity
 
@@ -298,7 +312,7 @@ A search's window ends when the request starts, so its own `admin.audit_viewed` 
 - `user` (`id`, `email`, `username`, `role`), `accountStatus` (`active`, `locked` or `suspended`) and `accountStatusChange`, the latest change's `reason`, `changedAt` and `changedBy` (`{ id, email, username }` of the admin, or null), or null when the status was never changed;
 - `lastLoginAt`, from `users.last_login_at`;
 - `failedSignIns.last24Hours` and `last7Days`, counting `login.failed` and `oauth.login.failed` events. The attempt that sets a lock is recorded as `login.locked`, so it is not counted;
-- `lockout`, read live from the same Redis record sign-in uses: `locked`, `failedAttempts`, `lockedAt`, and `lockedUntil`, which is 30 minutes after `lockedAt`. Failed attempts that have not locked the account expire 15 minutes after the last one, so `failedAttempts` can be lower than the 24-hour count;
+- `lockout`, read live from the same Redis record sign-in uses: `locked`, `failedAttempts`, `lockedAt`, and `lockedUntil`, which is `lockedAt` plus `authSecurity.lockout.lockMinutes` (30 by default). Failed attempts that have not locked the account expire 15 minutes after the last one, so `failedAttempts` can be lower than the 24-hour count;
 - `devices`, the account's registered devices with their last IP address;
 - `recentEvents`, the 20 newest events from the last 90 days, in the same shape as the search.
 
@@ -653,6 +667,7 @@ To revoke a key because it leaked, skip the wait in step 3: promote the new key 
 ### Out of Scope
 
 - `MFA_TOTP_ENCRYPTION_KEY` is an encryption key, not a signing key. Rotating it means re-encrypting every stored authenticator secret, which has no tooling yet. Replacing it without that breaks every enrolled authenticator app, and every [recovery code](#recovery-codes), whose hashing key is derived from it.
+- `OTP_HASH_SECRET` has no keyset either. Replacing it only voids the emailed codes outstanding at the time, as [One-Time Codes](#one-time-codes) explains.
 - `AUTH_AUDIT_IDENTIFIER_SECRET` has no keyset. Replacing it breaks correlation between audit rows written before and after the change, as [Why Identifiers Are Hashed](#why-identifiers-are-hashed) explains.
 - There is no JWKS endpoint. No service other than the backend verifies these tokens.
 

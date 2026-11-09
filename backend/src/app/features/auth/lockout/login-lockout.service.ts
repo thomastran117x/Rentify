@@ -1,3 +1,5 @@
+import { environment } from "@/configuration/environment";
+import type { AuthSecurityLockoutConfig } from "@/configuration/environment/types";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import type { CacheService } from "@/features/cache/cache.service";
@@ -16,10 +18,6 @@ import type {
 } from "@/features/auth/audit/auth-audit.model";
 import LockedError from "@/errors/http/locked.error";
 import { asUuid } from "@/configuration/validation/uuid";
-
-const MAX_FAILED_LOCAL_LOGIN_ATTEMPTS = 5;
-const LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS = 15 * 60;
-export const LOCAL_LOGIN_LOCK_TTL_IN_SECONDS = 30 * 60;
 
 /** The fields every audit event for one sign-in attempt shares. */
 export type LoginAttemptAuditBase = Pick<
@@ -45,6 +43,8 @@ export class LoginLockoutService {
     private readonly otpService: OtpService,
     private readonly publicOtpService: PublicOtpService,
     private readonly authAuditService: AuthAuditService,
+    private readonly getConfig: () => AuthSecurityLockoutConfig = () =>
+      environment.getAuthSecurityConfig().lockout,
   ) {}
 
   async getAttemptRecord(
@@ -58,10 +58,11 @@ export class LoginLockoutService {
   async recordFailedAttempt(
     username: string,
   ): Promise<LocalLoginAttemptRecord> {
+    const config = this.getConfig();
     const existingRecord = await this.getAttemptRecord(username);
     const nextFailedAttempts = (existingRecord?.failedAttempts ?? 0) + 1;
     const nextRecord: LocalLoginAttemptRecord =
-      nextFailedAttempts >= MAX_FAILED_LOCAL_LOGIN_ATTEMPTS
+      nextFailedAttempts >= config.maxFailedAttempts
         ? {
             failedAttempts: nextFailedAttempts,
             lockedAt: new Date().toISOString(),
@@ -74,11 +75,22 @@ export class LoginLockoutService {
       this.getKey(username),
       nextRecord,
       nextRecord.lockedAt
-        ? LOCAL_LOGIN_LOCK_TTL_IN_SECONDS
-        : LOCAL_LOGIN_ATTEMPT_TTL_IN_SECONDS,
+        ? config.lockMinutes * 60
+        : config.failedAttemptTtlMinutes * 60,
     );
 
     return nextRecord;
+  }
+
+  /** When a lock set at `lockedAt` lifts, under the current lock duration. */
+  lockedUntil(record: LocalLoginAttemptRecord): string | null {
+    if (!record.lockedAt) {
+      return null;
+    }
+
+    return new Date(
+      Date.parse(record.lockedAt) + this.getConfig().lockMinutes * 60 * 1000,
+    ).toISOString();
   }
 
   /**

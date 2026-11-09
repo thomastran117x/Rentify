@@ -68,7 +68,9 @@ connection strings:
   `ACCESS_TOKEN_PUBLIC_KEY` (`RS256`); `REFRESH_TOKEN_KEYS` or
   `REFRESH_TOKEN_SECRET`; `PERSONAL_ACCESS_TOKEN_KEYS` or
   `PERSONAL_ACCESS_TOKEN_SECRET`
-- `AUTH_AUDIT_IDENTIFIER_SECRET` and `MFA_TOTP_ENCRYPTION_KEY`
+- `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET` (the HMAC key for emailed
+  [one-time codes](./auth-security.md#one-time-codes), at least 32
+  characters), and `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
   secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
@@ -303,7 +305,8 @@ When `NODE_ENV` is `production`, startup fails when:
 - `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
   unset;
 - any two of these are equal: an `HS256` access secret, a refresh secret, a
-  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET`, and
+  `MFA_TOTP_ENCRYPTION_KEY`
   (the TOTP key is compared ignoring case). Every key in a keyset counts,
   previous keys included, so one leaked secret cannot forge two kinds of
   token. The error names both variables but not the value.
@@ -1064,6 +1067,56 @@ integers from `1` to `10000`. Every window and `blockMinutes` is an integer from
 `1` to `10080` (a week), so a typo cannot keep a counter, or an IP block, alive
 indefinitely. Detection needs Redis; without it, detection is skipped and
 sign-in carries on.
+
+## Auth security thresholds
+
+`authSecurity.otp`, `authSecurity.lockout`, `authSecurity.stepUp` and
+`authSecurity.refresh` set the limits on emailed one-time codes, the password
+lockout, step-up verification and refresh-token rotation. Every default is the
+value it had before it became configurable. See
+[One-Time Codes](./auth-security.md#one-time-codes) and
+[Authentication Security](./api.md#authentication-security) for how each one
+behaves. Keys below are under `authSecurity`.
+
+| Key                                  | Default | Override                                            | Meaning                                                                              |
+| ------------------------------------ | ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `otp.ttlSeconds`                     | `600`   | `AUTH_SECURITY_OTP_TTL_SECONDS`                     | How long an emailed code lives; its attempt count outlives the last issue by as much |
+| `otp.resendCooldownSeconds`          | `60`    | `AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS`         | Wait before another code can be sent to the same subject                             |
+| `otp.maxAttempts`                    | `5`     | `AUTH_SECURITY_OTP_MAX_ATTEMPTS`                    | Guesses per purpose and subject, shared by every resend in the window                |
+| `otp.publicLimits.windowSeconds`     | `3600`  | `AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS`           | Window of the caps on routes that send codes without a session                       |
+| `otp.publicLimits.perEmail`          | `5`     | `AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL`                | Requests per address and purpose in that window                                      |
+| `otp.publicLimits.perIp`             | `20`    | `AUTH_SECURITY_OTP_PUBLIC_PER_IP`                   | Requests per IP and purpose in that window                                           |
+| `otp.publicLimits.perDevice`         | `10`    | `AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE`               | Requests per device and purpose in that window                                       |
+| `lockout.maxFailedAttempts`          | `5`     | `AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS`         | Wrong passwords or login authenticator codes that lock a username                    |
+| `lockout.failedAttemptTtlMinutes`    | `15`    | `AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES`  | Failures that have not locked expire this long after the latest one                  |
+| `lockout.lockMinutes`                | `30`    | `AUTH_SECURITY_LOCKOUT_LOCK_MINUTES`                | How long the lock lasts; the emailed unlock code lifts it sooner                     |
+| `stepUp.challengeLimit`              | `5`     | `AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT`             | Step-up challenges per session, scope and factor within the window below             |
+| `stepUp.challengeWindowSeconds`      | `60`    | `AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS`    | Window for `challengeLimit`                                                          |
+| `stepUp.confirmLimit`                | `10`    | `AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT`               | Step-up confirmations per session, scope and factor within the window below          |
+| `stepUp.confirmWindowSeconds`        | `60`    | `AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS`      | Window for `confirmLimit`                                                            |
+| `stepUp.failedConfirmThreshold`      | `5`     | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD`    | Wrong step-up codes that lock confirmation for the session, scope and factor         |
+| `stepUp.failedConfirmTtlSeconds`     | `600`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS`  | Wrong step-up codes expire this long after the latest one                            |
+| `stepUp.failedConfirmLockSeconds`    | `300`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS` | How long that lock lasts                                                             |
+| `refresh.rotationGracePeriodSeconds` | `5`     | `AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS`      | How long a just-rotated refresh token still returns its successor, for racing tabs   |
+
+Every value is an integer:
+
+- `otp.ttlSeconds` is from `60` to `3600`. A code that lives longer is a weak
+  password, not a one-time code.
+- `otp.resendCooldownSeconds` is from `0` up to `otp.ttlSeconds`. A longer
+  cooldown is a startup error, because the code would expire before it could be
+  resent.
+- `otp.maxAttempts`, `lockout.maxFailedAttempts` and
+  `stepUp.failedConfirmThreshold` are from `1` to `100`. Anything larger would
+  make the lock pointless.
+- The public caps and the step-up limits are from `1` to `10000`.
+- Lockout durations are from `1` to `10080` minutes (a week). Step-up and
+  public windows are from `1` to `604800` seconds, also a week.
+- `refresh.rotationGracePeriodSeconds` is from `0` to `60`. A refresh token
+  replayed within the grace period is honoured, so it stays short.
+
+A change applies to codes, locks and windows created after it. Anything already
+in Redis keeps the lifetime it was written with.
 
 ## Feature flags
 

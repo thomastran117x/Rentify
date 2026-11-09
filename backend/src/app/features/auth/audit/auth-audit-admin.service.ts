@@ -30,10 +30,7 @@ import {
   type AuthAuditAdminRow,
 } from "@/features/auth/audit/auth-audit-admin.model";
 import type { DeviceRepository } from "@/features/auth/device/device.repository";
-import {
-  LOCAL_LOGIN_LOCK_TTL_IN_SECONDS,
-  type LoginLockoutService,
-} from "@/features/auth/lockout/login-lockout.service";
+import type { LoginLockoutService } from "@/features/auth/lockout/login-lockout.service";
 import type {
   UserSecurityProfile,
   UsersRepository,
@@ -234,17 +231,11 @@ export class AuthAuditAdminService {
       };
     }
 
-    const lockedUntil = record.lockedAt
-      ? new Date(
-          Date.parse(record.lockedAt) + LOCAL_LOGIN_LOCK_TTL_IN_SECONDS * 1000,
-        ).toISOString()
-      : null;
-
     return {
       locked: Boolean(record.lockedAt),
       failedAttempts: record.failedAttempts,
       lockedAt: record.lockedAt ?? null,
-      lockedUntil,
+      lockedUntil: this.loginLockoutService.lockedUntil(record),
     };
   }
 

@@ -20,6 +20,7 @@ function buildRequiredEnv(
     REFRESH_TOKEN_SECRET: "process-refresh-secret-value-with-32ch",
     PERSONAL_ACCESS_TOKEN_SECRET: "process-personal-token-secret-32chars",
     AUTH_AUDIT_IDENTIFIER_SECRET: "process-auth-audit-identifier-32chars",
+    OTP_HASH_SECRET: "process-otp-hash-secret-value-32chars",
     MFA_TOTP_ENCRYPTION_KEY:
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
@@ -37,6 +38,36 @@ function serializeEnv(values: NodeJS.ProcessEnv): string {
     .map(([key, value]) => `${key}=${value}`)
     .join("\n");
 }
+
+/** The thresholds that were constants before they were configurable. */
+const DEFAULT_AUTH_THRESHOLDS = {
+  otp: {
+    ttlSeconds: 600,
+    resendCooldownSeconds: 60,
+    maxAttempts: 5,
+    publicLimits: {
+      windowSeconds: 3600,
+      perEmail: 5,
+      perIp: 20,
+      perDevice: 10,
+    },
+  },
+  lockout: {
+    maxFailedAttempts: 5,
+    failedAttemptTtlMinutes: 15,
+    lockMinutes: 30,
+  },
+  stepUp: {
+    challengeLimit: 5,
+    challengeWindowSeconds: 60,
+    confirmLimit: 10,
+    confirmWindowSeconds: 60,
+    failedConfirmThreshold: 5,
+    failedConfirmTtlSeconds: 600,
+    failedConfirmLockSeconds: 300,
+  },
+  refresh: { rotationGracePeriodSeconds: 5 },
+};
 
 describe("EnvironmentManager", () => {
   let tempDirectory: string;
@@ -387,6 +418,19 @@ describe("EnvironmentManager", () => {
       ],
       [
         "AUTH_AUDIT_IDENTIFIER_SECRET",
+        "OTP_HASH_SECRET",
+        { OTP_HASH_SECRET: "process-auth-audit-identifier-32chars" },
+      ],
+      [
+        "OTP_HASH_SECRET",
+        "MFA_TOTP_ENCRYPTION_KEY",
+        {
+          OTP_HASH_SECRET: "CD".repeat(32),
+          MFA_TOTP_ENCRYPTION_KEY: "cd".repeat(32),
+        },
+      ],
+      [
+        "AUTH_AUDIT_IDENTIFIER_SECRET",
         "MFA_TOTP_ENCRYPTION_KEY",
         {
           AUTH_AUDIT_IDENTIFIER_SECRET: "AB".repeat(32),
@@ -701,6 +745,23 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv();
     expect(new EnvironmentManager().load().auth.authAuditIdentifierSecret).toBe(
       "process-auth-audit-identifier-32chars",
+    );
+  });
+
+  it("requires a long enough one-time code hash secret", () => {
+    process.env = buildRequiredEnv({ OTP_HASH_SECRET: undefined });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "OTP_HASH_SECRET is required.",
+    );
+
+    process.env = buildRequiredEnv({ OTP_HASH_SECRET: "short" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "OTP_HASH_SECRET must be at least 32 characters long.",
+    );
+
+    process.env = buildRequiredEnv();
+    expect(new EnvironmentManager().load().auth.otpHashSecret).toBe(
+      "process-otp-hash-secret-value-32chars",
     );
   });
 
@@ -1400,6 +1461,7 @@ describe("EnvironmentManager", () => {
         },
         refreshReuse: { enabled: true, windowMinutes: 60 },
       },
+      ...DEFAULT_AUTH_THRESHOLDS,
     });
 
     process.env = buildRequiredEnv({
@@ -1437,7 +1499,126 @@ describe("EnvironmentManager", () => {
         },
         refreshReuse: { enabled: false, windowMinutes: 1 },
       },
+      ...DEFAULT_AUTH_THRESHOLDS,
     });
+  });
+
+  it("lets every one-time code, lockout, step-up and refresh threshold be overridden", () => {
+    process.env = buildRequiredEnv({
+      AUTH_SECURITY_OTP_TTL_SECONDS: "300",
+      AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS: "0",
+      AUTH_SECURITY_OTP_MAX_ATTEMPTS: "3",
+      AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS: "1800",
+      AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL: "4",
+      AUTH_SECURITY_OTP_PUBLIC_PER_IP: "40",
+      AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE: "8",
+      AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS: "10",
+      AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES: "20",
+      AUTH_SECURITY_LOCKOUT_LOCK_MINUTES: "60",
+      AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT: "3",
+      AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS: "120",
+      AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT: "6",
+      AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS: "90",
+      AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD: "4",
+      AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS: "900",
+      AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS: "600",
+      AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS: "0",
+    });
+    const manager = new EnvironmentManager();
+    manager.load();
+
+    expect(manager.getAuthSecurityConfig()).toMatchObject({
+      otp: {
+        ttlSeconds: 300,
+        resendCooldownSeconds: 0,
+        maxAttempts: 3,
+        publicLimits: {
+          windowSeconds: 1800,
+          perEmail: 4,
+          perIp: 40,
+          perDevice: 8,
+        },
+      },
+      lockout: {
+        maxFailedAttempts: 10,
+        failedAttemptTtlMinutes: 20,
+        lockMinutes: 60,
+      },
+      stepUp: {
+        challengeLimit: 3,
+        challengeWindowSeconds: 120,
+        confirmLimit: 6,
+        confirmWindowSeconds: 90,
+        failedConfirmThreshold: 4,
+        failedConfirmTtlSeconds: 900,
+        failedConfirmLockSeconds: 600,
+      },
+      refresh: { rotationGracePeriodSeconds: 0 },
+    });
+  });
+
+  it("refuses a resend cooldown longer than the code it spaces", () => {
+    process.env = buildRequiredEnv({
+      AUTH_SECURITY_OTP_TTL_SECONDS: "120",
+      AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS: "121",
+    });
+
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS must not exceed AUTH_SECURITY_OTP_TTL_SECONDS",
+    );
+  });
+
+  it.each([
+    [
+      "AUTH_SECURITY_OTP_TTL_SECONDS",
+      "59",
+      "must be greater than or equal to 60.",
+    ],
+    [
+      "AUTH_SECURITY_OTP_TTL_SECONDS",
+      "3601",
+      "must be less than or equal to 3600.",
+    ],
+    [
+      "AUTH_SECURITY_OTP_MAX_ATTEMPTS",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    [
+      "AUTH_SECURITY_OTP_MAX_ATTEMPTS",
+      "101",
+      "must be less than or equal to 100.",
+    ],
+    [
+      "AUTH_SECURITY_OTP_PUBLIC_PER_IP",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    [
+      "AUTH_SECURITY_LOCKOUT_LOCK_MINUTES",
+      "10081",
+      "must be less than or equal to 10080.",
+    ],
+    ["AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS", "1.5", "must be an integer."],
+    [
+      "AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    [
+      "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
+      "61",
+      "must be less than or equal to 60.",
+    ],
+    [
+      "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
+      "-1",
+      "must be greater than or equal to 0.",
+    ],
+  ])("rejects %s=%s", (name, value, message) => {
+    process.env = buildRequiredEnv({ [name]: value });
+
+    expect(() => new EnvironmentManager().load()).toThrow(`${name} ${message}`);
   });
 
   it.each([

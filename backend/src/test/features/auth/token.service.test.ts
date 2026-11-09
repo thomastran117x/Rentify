@@ -10,6 +10,7 @@ import type {
   AccessTokenSigningKey,
   HmacSigningKey,
 } from "@/configuration/environment/types";
+import { environment } from "@/configuration/environment";
 import { testUuid } from "../../support/uuid";
 const MISSING_USER_ID = testUuid(9000, 791594);
 
@@ -841,6 +842,46 @@ describe("TokenService", () => {
     expect(RefreshTokenReuseDetectedError.prototype).toBeInstanceOf(
       UnauthorizedError,
     );
+  });
+
+  it("uses the configured rotation grace period", async () => {
+    const refreshConfig = environment.getAuthSecurityConfig().refresh;
+    refreshConfig.rotationGracePeriodSeconds = 2;
+
+    try {
+      jest.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+      const { service } = createService({ refreshTokenMode: "stateful" });
+      const claims = {
+        sub: USER_1_ID,
+        deviceId: "device-1",
+        sessionId: "session-grace",
+        tokenVersion: 2,
+      };
+      await service.createSession(
+        {
+          sessionId: "session-grace",
+          userId: USER_1_ID,
+          deviceId: "device-1",
+          tokenVersion: 2,
+        },
+        120,
+      );
+      const token = await service.createRefreshToken(claims, {
+        expiresInSeconds: 120,
+      });
+      await service.rotateRefreshToken(token, claims, {
+        expiresInSeconds: 120,
+      });
+
+      // Three seconds would still be inside the default five.
+      jest.spyOn(Date, "now").mockReturnValue(1_700_000_003_000);
+
+      await expect(
+        service.rotateRefreshToken(token, claims, { expiresInSeconds: 120 }),
+      ).rejects.toMatchObject({ name: "RefreshTokenReuseDetectedError" });
+    } finally {
+      refreshConfig.rotationGracePeriodSeconds = 5;
+    }
   });
 
   it("rotates the token version and revokes every user session on reuse in user mode", async () => {

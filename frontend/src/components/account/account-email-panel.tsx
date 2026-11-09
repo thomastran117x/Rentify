@@ -31,14 +31,30 @@ type Step =
  * on. The backend already writes user-facing text for the conflict cases, so
  * those are passed through rather than restated.
  */
+/** `details.reason` on the 429 a spent attempt budget answers with. */
+const OTP_ATTEMPTS_EXHAUSTED_REASON = "otp-attempts-exhausted";
+
 export function getEmailChangeErrorMessage(
   error: unknown,
   action: string,
 ): string {
   if (isApiRateLimitError(error)) {
-    const retryAfter = (
-      error.details as { retryAfterSeconds?: number } | undefined
-    )?.retryAfterSeconds;
+    const details = error.details as
+      | { retryAfterSeconds?: number; reason?: string }
+      | undefined;
+    const retryAfter = details?.retryAfterSeconds;
+
+    // A resend keeps the attempt count, so once it is spent no new code is
+    // issued until the count expires, which can be several minutes away.
+    if (details?.reason === OTP_ATTEMPTS_EXHAUSTED_REASON) {
+      const minutes = retryAfter ? Math.ceil(retryAfter / 60) : null;
+
+      return minutes
+        ? `Too many incorrect codes. You can request a new code in ${minutes} ${
+            minutes === 1 ? "minute" : "minutes"
+          }.`
+        : "Too many incorrect codes. Please try again later.";
+    }
 
     return retryAfter
       ? `A code was sent recently. Try again in ${retryAfter} seconds.`
@@ -63,7 +79,7 @@ export function getEmailChangeErrorMessage(
         ? `That code is not right. ${attemptsRemaining} ${
             attemptsRemaining === 1 ? "attempt" : "attempts"
           } left.`
-        : "That code is not right, and you have run out of attempts. Request a new code.";
+        : "That code is not right, and you have run out of attempts. You can request a new code once this one expires.";
     }
   }
 

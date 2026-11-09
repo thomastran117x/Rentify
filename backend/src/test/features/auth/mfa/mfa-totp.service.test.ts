@@ -85,9 +85,9 @@ function createMocks() {
     activate: jest
       .fn<Promise<boolean>, [string, Date, number, unknown[]]>()
       .mockResolvedValue(true),
-    updateLastUsedCounter: jest
-      .fn<Promise<void>, [string, number]>()
-      .mockResolvedValue(undefined),
+    claimCounter: jest
+      .fn<Promise<boolean>, [string, number]>()
+      .mockResolvedValue(true),
     deleteByUserId: jest
       .fn<Promise<void>, [string]>()
       .mockResolvedValue(undefined),
@@ -387,7 +387,7 @@ describe("MfaTotpService", () => {
         service.verifyCode(USER_ID_ID, "123456"),
       ).resolves.toBeUndefined();
 
-      expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
+      expect(mfaTotpRepository.claimCounter).toHaveBeenCalledWith(
         "record-id",
         56374060,
       );
@@ -430,7 +430,7 @@ describe("MfaTotpService", () => {
         message: "MFA verification failed.",
       });
 
-      expect(mfaTotpRepository.updateLastUsedCounter).not.toHaveBeenCalled();
+      expect(mfaTotpRepository.claimCounter).not.toHaveBeenCalled();
     });
 
     it("throws UnauthorizedError when counter is not newer than lastUsedCounter (replay attack)", async () => {
@@ -446,7 +446,7 @@ describe("MfaTotpService", () => {
         message: "MFA verification failed.",
       });
 
-      expect(mfaTotpRepository.updateLastUsedCounter).not.toHaveBeenCalled();
+      expect(mfaTotpRepository.claimCounter).not.toHaveBeenCalled();
     });
 
     it("accepts a code from a newer counter even when lastUsedCounter is set", async () => {
@@ -460,7 +460,29 @@ describe("MfaTotpService", () => {
         service.verifyCode(USER_ID_ID, "123456"),
       ).resolves.toBeUndefined();
 
-      expect(mfaTotpRepository.updateLastUsedCounter).toHaveBeenCalledWith(
+      expect(mfaTotpRepository.claimCounter).toHaveBeenCalledWith(
+        "record-id",
+        56374060,
+      );
+    });
+  });
+
+  describe("verifyCode under concurrency", () => {
+    it("rejects the code when a concurrent request claimed its counter first", async () => {
+      const { service, mfaTotpRepository, totpService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active", lastUsedCounter: BigInt(56374059) }),
+      );
+      totpService.verifyCode.mockReturnValue(56374060);
+      mfaTotpRepository.claimCounter.mockResolvedValue(false);
+
+      await expect(
+        service.verifyCode(USER_ID_ID, "123456"),
+      ).rejects.toMatchObject<Partial<UnauthorizedError>>({
+        message: "MFA verification failed.",
+      });
+
+      expect(mfaTotpRepository.claimCounter).toHaveBeenCalledWith(
         "record-id",
         56374060,
       );

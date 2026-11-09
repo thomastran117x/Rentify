@@ -1,5 +1,8 @@
+import type { AuthSecurityOtpConfig } from "@/configuration/environment/types";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
+import TooManyRequestError from "@/errors/http/too-many-request.error";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
+import { OTP_ATTEMPTS_EXHAUSTED_REASON } from "@/features/auth/otp/otp.service";
 import { PublicOtpService } from "@/features/auth/otp/public-otp.service";
 import { testUuid } from "../../support/uuid";
 
@@ -47,11 +50,11 @@ const cooldownError = Object.assign(new Error("Cooldown"), {
   name: "TooManyRequestError",
 });
 
-function createHarness() {
+function createHarness(limits?: AuthSecurityOtpConfig["publicLimits"]) {
   const store = new Map<string, unknown>();
   const cacheService = {
     getJson: jest.fn(async (key: string) => store.get(key) ?? null),
-    setJson: jest.fn(async (key: string, value: unknown) => {
+    setJson: jest.fn(async (key: string, value: unknown, _ttl?: number) => {
       store.set(key, value);
     }),
     delete: jest.fn(async (key: string) => {
@@ -77,6 +80,7 @@ function createHarness() {
       cacheService as never,
       otpService as never,
       emailService as never,
+      limits ? () => limits : undefined,
     ),
   };
 }
@@ -157,6 +161,34 @@ describe("PublicOtpService.consumeRateLimit", () => {
         flow: "resend-verification-email",
       }),
     ).resolves.toMatchObject({ allowed: false, scope: "device" });
+  });
+
+  it("follows the configured caps and window", async () => {
+    const harness = createHarness({
+      windowSeconds: 900,
+      perEmail: 2,
+      perIp: 50,
+      perDevice: 50,
+    });
+    const request = {
+      purpose: "local-password-reset",
+      subject: "user@example.com",
+      client: createClient(),
+      flow: "forgot-password",
+    };
+
+    await expect(
+      harness.service.consumeRateLimit(request),
+    ).resolves.toMatchObject({ allowed: true });
+    expect(harness.cacheService.setJson).toHaveBeenCalledWith(
+      "auth:otp-rate:local-password-reset:email:user@example.com",
+      { count: 1 },
+      900,
+    );
+    await harness.service.consumeRateLimit(request);
+    await expect(
+      harness.service.consumeRateLimit(request),
+    ).resolves.toMatchObject({ allowed: false, scope: "email" });
   });
 
   it("skips a scope with no value to count", async () => {
@@ -337,4 +369,34 @@ describe("PublicOtpService cooldown swallowing", () => {
       harness.service.sendLoginUnlockCode(createUser()),
     ).rejects.toThrow("redis down");
   });
+
+  it.each([
+    ["a cooldown", cooldownError, "otp-cooldown"],
+    [
+      "an exhausted attempt budget",
+      new TooManyRequestError("Too many incorrect codes.", {
+        retryAfterSeconds: 120,
+        reason: OTP_ATTEMPTS_EXHAUSTED_REASON,
+      }),
+      OTP_ATTEMPTS_EXHAUSTED_REASON,
+    ],
+  ])(
+    "answers %s with the usual acceptance and logs why",
+    async (_label, error, reason) => {
+      const harness = createHarness();
+      const logSuspicious = jest.spyOn(harness.service, "logSuspicious");
+      harness.otpService.issue.mockRejectedValueOnce(error);
+
+      await expect(
+        harness.service.sendPasswordResetCode(createUser()),
+      ).resolves.toBeUndefined();
+
+      expect(logSuspicious).toHaveBeenCalledWith(
+        expect.objectContaining({ flow: "password-reset", reason }),
+      );
+      expect(
+        harness.emailService.sendPasswordResetEmail,
+      ).not.toHaveBeenCalled();
+    },
+  );
 });

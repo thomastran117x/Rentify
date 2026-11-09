@@ -88,13 +88,27 @@ export class MfaTotpRepository extends BaseRepository {
     });
   }
 
-  async updateLastUsedCounter(id: string, counter: number): Promise<void> {
-    await this.executeAsync(() =>
-      this.prisma.userMfaTotp.update({
-        where: { id },
+  /**
+   * Records `counter` as used, only if it is newer than the last one. The
+   * comparison and the write are one statement, so of two requests racing
+   * with the same code exactly one gets true.
+   */
+  async claimCounter(id: string, counter: number): Promise<boolean> {
+    const result = await this.executeAsync(() =>
+      this.prisma.userMfaTotp.updateMany({
+        where: {
+          id,
+          status: "active",
+          OR: [
+            { lastUsedCounter: null },
+            { lastUsedCounter: { lt: BigInt(counter) } },
+          ],
+        },
         data: { lastUsedCounter: BigInt(counter) },
       }),
     );
+
+    return result.count === 1;
   }
 
   /**
