@@ -92,6 +92,10 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_THRESHOLD",
   "authSecurity.detection.successAfterFailures.windowMinutes":
     "AUTH_SECURITY_SUCCESS_AFTER_FAILURES_WINDOW_MINUTES",
+  "authSecurity.passwords.breachCheck.mode":
+    "AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE",
+  "authSecurity.passwords.breachCheck.timeoutMs":
+    "AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS",
   "authSecurity.lockout.failedAttemptTtlMinutes":
     "AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES",
   "authSecurity.lockout.lockMinutes": "AUTH_SECURITY_LOCKOUT_LOCK_MINUTES",
@@ -387,6 +391,7 @@ const STRING_FILE_KEYS = new Set([
   "oauth.microsoft.verifiedEmailPolicy",
   "rateLimiter.strategy",
   "authSecurity.detection.mode",
+  "authSecurity.passwords.breachCheck.mode",
   "redis.host",
   "sms.fromNumber",
   "sms.provider",

@@ -1118,6 +1118,23 @@ Every value is an integer:
 A change applies to codes, locks and windows created after it. Anything already
 in Redis keeps the lifetime it was written with.
 
+## Password checks
+
+`authSecurity.passwords` configures the checks on every new local password. See
+[Password Policy](./auth-security.md#password-policy) for the rules
+themselves. Keys below are under `authSecurity.passwords`.
+
+| Key                     | Default   | Override                                         | Meaning                                                               |
+| ----------------------- | --------- | ------------------------------------------------ | --------------------------------------------------------------------- |
+| `breachCheck.mode`      | `enforce` | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE`       | `off`, `warn` (accept but tell the user) or `enforce` (refuse)        |
+| `breachCheck.timeoutMs` | `1500`    | `AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS` | How long to wait for the Have I Been Pwned range API before accepting |
+
+`breachCheck.mode` is case-insensitive; any other value is a startup error.
+`breachCheck.timeoutMs` is an integer from `200` to `10000`: every new password
+waits on the check, so an outage must not stall signups for long. A timeout or
+an unreachable API accepts the password and logs a warning. The API needs no
+key, and the backend must be able to reach `api.pwnedpasswords.com` over HTTPS.
+
 ## Feature flags
 
 Feature defaults use canonical names in YAML:

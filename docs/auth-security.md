@@ -286,6 +286,26 @@ Where each path runs the checks matters:
 - **Reset** checks only once the emailed code has matched, so nobody can learn an account's name or email by guessing passwords at it. The check runs before the code is spent: a refused password leaves the code valid, and the user can try another password with it. The attempt still counts towards the code's limit. An unknown username is checked against the name sent.
 - **Change** checks after the current password is proven, and **set** after the account is confirmed to have no password.
 
+### Breached Passwords
+
+A password that passes every rule above is then checked against [Have I Been Pwned's Pwned Passwords](https://haveibeenpwned.com/Passwords) range API, without disclosing it:
+
+1. The backend hashes the password with SHA-1 and sends only the first five hex characters, `GET https://api.pwnedpasswords.com/range/{prefix}`, with `Add-Padding: true`.
+2. The API returns every hash suffix in that range with a breach count, padded with decoy rows whose count is `0`, so the response size reveals nothing either.
+3. The backend looks for the rest of the hash among them. A decoy never matches.
+
+Neither the password, its full hash nor the suffix leaves the server or is logged. What happens on a match depends on `authSecurity.passwords.breachCheck.mode` (see [Password checks](./backend-configuration.md#password-checks)):
+
+| Mode                | A breached password                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforce` (default) | Refused: "This password has appeared in a known data breach. Choose a different one."                                                                           |
+| `warn`              | Accepted, with the warning "This password has appeared in a known data breach. Consider choosing a different one." where the form can show it before submitting |
+| `off`               | Not checked                                                                                                                                                     |
+
+The check **fails open**. When the API takes longer than `breachCheck.timeoutMs` (1.5 seconds by default), cannot be reached or returns an error, the password is accepted, since every other rule has already passed, and the backend logs `Breached-password check unavailable; accepting password.` with the reason (`timeout`, `network` or `http`). An outage at a third party must not block signups, resets or changes. A match is logged at info level with the mode and nothing that identifies the password or the account. Passwords that a local rule already refuses are not sent at all.
+
+Existing passwords are not checked at sign-in. Flagging a breached password at sign-in, which would have to be carried through the login MFA challenge, is a follow-up.
+
 `frontend/src/lib/auth/password.ts` mirrors the shape and personal rules so the forms catch a bad password before it is sent, and the new-password fields show them as a checklist. The "doesn't contain your name, username or email" row appears once the form knows any of those. The forms show the server's reasons on the password field: signup returns to its first step to do so, and reset keeps them off the code field.
 
 ## One-Time Codes

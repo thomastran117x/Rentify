@@ -802,6 +802,63 @@ describe("Auth persistence integration", () => {
       ).toBe(200);
     }, 120_000);
 
+    it("refuses a breached password in enforce mode, sending the checker the password only", async () => {
+      const check = persistenceApp.stubs.breachedPasswordChecker.check;
+      check.mockResolvedValueOnce({ status: "breached", count: 3 });
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/signup")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            email: "breached-signup@rentify.local",
+            username: "breached-signup",
+            password: "tidal-harbor-lantern",
+            dateOfBirth: "2012-06-15",
+            captchaToken: "captcha-ok-signup",
+          }),
+        },
+      );
+
+      expect(check).toHaveBeenLastCalledWith("tidal-harbor-lantern");
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: {
+            password: [
+              "This password has appeared in a known data breach. Choose a different one.",
+            ],
+          },
+        },
+      });
+    });
+
+    it("accepts the password when the breach check is unavailable", async () => {
+      persistenceApp.stubs.breachedPasswordChecker.check.mockResolvedValueOnce({
+        status: "unavailable",
+        reason: "timeout",
+      });
+      const username = "renter-one";
+      const password = "Rentify123!";
+      const session = await login({ username, password });
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({
+            currentPassword: password,
+            newPassword: "quiet-meadow-compass",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+    }, 120_000);
+
     it("refuses a common password on change and keeps the old one", async () => {
       const username = "renter-one";
       const password = "Rentify123!";

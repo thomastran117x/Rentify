@@ -131,6 +131,10 @@ const authSecurityConfig = {
     failedConfirmLockSeconds: 300,
   },
   refresh: { rotationGracePeriodSeconds: 5 },
+  // Off, so no unit test reaches the network; the client's own tests mock it.
+  passwords: {
+    breachCheck: { mode: "off" as const, timeoutMs: 1500 },
+  },
 };
 
 const paypalConfig = {

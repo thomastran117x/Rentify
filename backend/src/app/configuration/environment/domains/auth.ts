@@ -12,6 +12,8 @@ import {
 } from "@/configuration/environment/shared";
 import {
   AUTH_SECURITY_DETECTION_MODES,
+  PASSWORD_BREACH_CHECK_MODES,
+  type PasswordBreachCheckMode,
   type AccessTokenSigningKey,
   type AppEnvironment,
   type AuthSecurityDetectionMode,
@@ -444,7 +446,42 @@ export function buildAuthSecurityConfig(
         MAX_REFRESH_GRACE_SECONDS,
       ),
     },
+    passwords: {
+      breachCheck: {
+        mode: parsePasswordBreachCheckMode(raw, errors),
+        timeoutMs: integer(
+          raw,
+          "AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS",
+          1_500,
+          errors,
+          MIN_BREACH_CHECK_TIMEOUT_MS,
+          MAX_BREACH_CHECK_TIMEOUT_MS,
+        ),
+      },
+    },
   };
+}
+
+// Every new password waits on the check, so it is bounded on both sides: too
+// short and it never succeeds, too long and an outage stalls every signup.
+const MIN_BREACH_CHECK_TIMEOUT_MS = 200;
+const MAX_BREACH_CHECK_TIMEOUT_MS = 10_000;
+
+function parsePasswordBreachCheckMode(
+  raw: RawEnvironmentValues,
+  errors: string[],
+): PasswordBreachCheckMode {
+  const value =
+    raw.AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE?.toLowerCase() ?? "enforce";
+
+  if ((PASSWORD_BREACH_CHECK_MODES as readonly string[]).includes(value)) {
+    return value as PasswordBreachCheckMode;
+  }
+
+  errors.push(
+    `AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE must be one of: ${PASSWORD_BREACH_CHECK_MODES.join(", ")}.`,
+  );
+  return "enforce";
 }
 
 // Guess budgets above this would make the lock or the code pointless.

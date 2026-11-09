@@ -1,5 +1,8 @@
 import { RequestValidationError } from "@/configuration/validation/request";
+import type { BreachCheckResult } from "@/features/auth/password/policy/breached-password.client";
 import {
+  BREACHED_PASSWORD_MESSAGE,
+  BREACHED_PASSWORD_WARNING,
   COMMON_PASSWORD_MESSAGE,
   PERSONAL_INFO_PASSWORD_MESSAGE,
   PasswordPolicyService,
@@ -77,5 +80,105 @@ describe("PasswordPolicyService.assertAcceptable", () => {
       { path: "newPassword", message: COMMON_PASSWORD_MESSAGE },
       { path: "newPassword", message: PERSONAL_INFO_PASSWORD_MESSAGE },
     ]);
+  });
+});
+
+describe("PasswordPolicyService breach check", () => {
+  function createBreachService(
+    mode: "off" | "warn" | "enforce",
+    result: BreachCheckResult,
+  ) {
+    const check = jest.fn(async (_password: string) => result);
+    const logger = { info: jest.fn(), warn: jest.fn() };
+    const service = new PasswordPolicyService({
+      isCommon: () => false,
+      breachChecker: { check },
+      getBreachCheckConfig: () => ({ mode }),
+      logger: logger as never,
+    });
+
+    return { service, check, logger };
+  }
+
+  it("does not ask when the check is off", async () => {
+    const { service, check } = createBreachService("off", {
+      status: "breached",
+      count: 9,
+    });
+
+    await expect(
+      service.evaluate("tidal-harbor-lantern", CONTEXT),
+    ).resolves.toEqual({ issues: [], warnings: [] });
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("does not ask about a password the local checks already refuse", async () => {
+    const { service, check } = createBreachService("enforce", {
+      status: "breached",
+      count: 9,
+    });
+
+    await service.evaluate("short", CONTEXT);
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("refuses a breached password in enforce mode", async () => {
+    const { service, check } = createBreachService("enforce", {
+      status: "breached",
+      count: 9,
+    });
+
+    await expect(
+      service.evaluate("tidal-harbor-lantern", CONTEXT),
+    ).resolves.toEqual({
+      issues: [{ code: "breached", message: BREACHED_PASSWORD_MESSAGE }],
+      warnings: [],
+    });
+    expect(check).toHaveBeenCalledWith("tidal-harbor-lantern");
+    await expect(
+      service.assertAcceptable("tidal-harbor-lantern", CONTEXT, "password"),
+    ).rejects.toBeInstanceOf(RequestValidationError);
+  });
+
+  it("only warns about a breached password in warn mode", async () => {
+    const { service } = createBreachService("warn", {
+      status: "breached",
+      count: 9,
+    });
+
+    await expect(
+      service.evaluate("tidal-harbor-lantern", CONTEXT),
+    ).resolves.toEqual({
+      issues: [],
+      warnings: [{ code: "breached", message: BREACHED_PASSWORD_WARNING }],
+    });
+    await expect(
+      service.assertAcceptable("tidal-harbor-lantern", CONTEXT, "password"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("accepts a clean password", async () => {
+    const { service } = createBreachService("enforce", { status: "clean" });
+
+    await expect(
+      service.evaluate("tidal-harbor-lantern", CONTEXT),
+    ).resolves.toEqual({ issues: [], warnings: [] });
+  });
+
+  it("fails open with a warning log when the check is unavailable", async () => {
+    const { service, logger } = createBreachService("enforce", {
+      status: "unavailable",
+      reason: "timeout",
+    });
+
+    await expect(
+      service.assertAcceptable("tidal-harbor-lantern", CONTEXT, "password"),
+    ).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Breached-password check unavailable; accepting password.",
+      { reason: "timeout" },
+    );
+    // The password itself is never logged.
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("tidal");
   });
 });

@@ -124,6 +124,15 @@ authSecurity:
     failedConfirmLockSeconds: 300
   refresh:
     rotationGracePeriodSeconds: 5
+  # New-password checks. breachCheck asks the Have I Been Pwned range API
+  # whether a password has appeared in a breach, sending only the first five
+  # hex characters of its SHA-1: off, warn (accept, but tell the user) or
+  # enforce (refuse). Past timeoutMs, or when the API cannot be reached, the
+  # password is accepted and a warning logged. See docs/auth-security.md.
+  passwords:
+    breachCheck:
+      mode: enforce
+      timeoutMs: 1500
 
 email:
   gmailUser: change-me@example.com

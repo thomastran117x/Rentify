@@ -38,6 +38,13 @@ export const AUTH_SECURITY_DETECTION_MODES = [
 export type AuthSecurityDetectionMode =
   (typeof AUTH_SECURITY_DETECTION_MODES)[number];
 /**
+ * What a new password found in a known breach gets: nothing (`off`), a
+ * warning that does not block it (`warn`), or a rejection (`enforce`).
+ */
+export const PASSWORD_BREACH_CHECK_MODES = ["off", "warn", "enforce"] as const;
+export type PasswordBreachCheckMode =
+  (typeof PASSWORD_BREACH_CHECK_MODES)[number];
+/**
  * Which claims prove a Microsoft account owns its email. `email_verified`
  * needs that claim; `email_verified_or_xms_edov` also accepts the optional
  * `xms_edov` (email domain owner verified) claim business tenants can emit.
@@ -332,6 +339,8 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_CREDENTIAL_STUFFING_THRESHOLD?: string;
   AUTH_SECURITY_CREDENTIAL_STUFFING_WINDOW_MINUTES?: string;
   AUTH_SECURITY_DETECTION_MODE?: string;
+  AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE?: string;
+  AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS?: string;
   AUTH_SECURITY_REFRESH_REUSE_ENABLED?: string;
   AUTH_COOKIE_SECURE?: string;
   AUTH_SECURITY_REFRESH_REUSE_WINDOW_MINUTES?: string;
@@ -491,6 +500,14 @@ export interface AppEnvironment {
     refresh: {
       /** How long a just-rotated refresh token still returns its successor. */
       rotationGracePeriodSeconds: number;
+    };
+    passwords: {
+      /** The k-anonymity breached-password check on every new password. */
+      breachCheck: {
+        mode: PasswordBreachCheckMode;
+        /** Past this the check gives up and the password is accepted. */
+        timeoutMs: number;
+      };
     };
   };
   email: {
