@@ -910,6 +910,48 @@ describe("Auth persistence integration", () => {
         ).toHaveBeenLastCalledWith("tidal-harbor-lantern");
       });
 
+      it("refuses markup that a signup with the same password would refuse", async () => {
+        const password = "<b>tidal-harbor-lantern</b>";
+        const unsafeMessage =
+          "Input contains unsupported HTML or script content.";
+
+        const response = await check({ password });
+
+        await expect(response.json()).resolves.toMatchObject({
+          data: {
+            acceptable: false,
+            issues: [{ code: "unsafe_input", message: unsafeMessage }],
+            warnings: [],
+          },
+        });
+        expect(
+          persistenceApp.stubs.breachedPasswordChecker.check,
+        ).not.toHaveBeenCalledWith(password);
+
+        const signup = await persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/auth/local/signup")}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", origin: ORIGIN },
+            body: JSON.stringify({
+              email: "policy-markup@rentify.local",
+              username: "policy-markup",
+              password,
+              dateOfBirth: "2012-06-15",
+              captchaToken: "captcha-ok-signup",
+            }),
+          },
+        );
+
+        expect(signup.status).toBe(400);
+        await expect(signup.json()).resolves.toMatchObject({
+          error: {
+            code: "VALIDATION_ERROR",
+            details: { password: [unsafeMessage] },
+          },
+        });
+      });
+
       it("checks a signed-in caller against their own account, not the body", async () => {
         const session = await login({
           username: "renter-one",

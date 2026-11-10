@@ -167,6 +167,7 @@ export type AuthEmailAcceptedResult = ForgotPasswordAcceptedResult;
 export type PasswordIssueCode =
   | "too_short"
   | "too_long"
+  | "unsafe_input"
   | "common"
   | "contains_personal_info"
   | "breached";

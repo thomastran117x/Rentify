@@ -50,6 +50,12 @@ describe("assertValidPassword", () => {
       /at most 72 bytes/,
     );
   });
+
+  it("rejects markup, as the request schema does", () => {
+    expect(() => assertValidPassword("<b>tidal-harbor-lantern</b>")).toThrow(
+      /unsupported HTML or script content/,
+    );
+  });
 });
 
 describe("hashPassword", () => {

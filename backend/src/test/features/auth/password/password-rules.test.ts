@@ -1,4 +1,5 @@
 import { strongPasswordSchema } from "@/features/auth/auth.model";
+import { UNSAFE_AUTH_INPUT_MESSAGE } from "@/features/auth/unsafe-input";
 import {
   PASSWORD_TOO_LONG_MESSAGE,
   PASSWORD_TOO_SHORT_MESSAGE,
@@ -58,6 +59,16 @@ describe("checkPasswordShape", () => {
     expect(checkPasswordShape("密".repeat(25))).toHaveLength(1);
   });
 
+  it("rejects markup, which every auth field refuses", () => {
+    expect(checkPasswordShape("<b>tidal-harbor-lantern</b>")).toEqual([
+      { code: "unsafe_input", message: UNSAFE_AUTH_INPUT_MESSAGE },
+    ]);
+    expect(checkPasswordShape("<b>x</b>")).toEqual([
+      { code: "too_short", message: PASSWORD_TOO_SHORT_MESSAGE },
+      { code: "unsafe_input", message: UNSAFE_AUTH_INPUT_MESSAGE },
+    ]);
+  });
+
   it("counts a short emoji password by characters, not bytes", () => {
     // 11 emoji are 44 bytes but only 11 characters, so still too short.
     expect(checkPasswordShape("😀".repeat(11))).toEqual([
@@ -81,7 +92,26 @@ describe("strongPasswordSchema", () => {
 
   it("still rejects unsafe markup", () => {
     expect(schemaMessages("<script>alert(1)</script>")).toEqual([
-      "Input contains unsupported HTML or script content.",
+      UNSAFE_AUTH_INPUT_MESSAGE,
     ]);
+  });
+
+  // `POST /auth/password/check` reports from `checkPasswordShape`; a submit is
+  // validated by the schema. They must agree, or the check would call a
+  // password acceptable that the submit then refuses.
+  it.each([
+    "tidal-harbor-lantern",
+    "Rentify123!",
+    "a".repeat(73),
+    "<b>tidal-harbor-lantern</b>",
+    "tidal &lt;harbor&gt; lantern",
+    "javascript:alert-the-harbor",
+    "Monday=fun-and-games",
+    "<b>x</b>",
+    "😀".repeat(19),
+  ])("agrees with checkPasswordShape on %s", (value) => {
+    expect(schemaMessages(value)).toEqual(
+      checkPasswordShape(value).map((issue) => issue.message),
+    );
   });
 });

@@ -8,6 +8,7 @@ import {
   PasswordPolicyService,
 } from "@/features/auth/password/policy/password-policy.service";
 import { PASSWORD_TOO_SHORT_MESSAGE } from "@/features/auth/password/policy/password-rules";
+import { UNSAFE_AUTH_INPUT_MESSAGE } from "@/features/auth/unsafe-input";
 
 const CONTEXT = { username: "renter-one", email: "user1@rentify.local" };
 
@@ -49,6 +50,17 @@ describe("PasswordPolicyService.evaluate", () => {
     });
     await expect(service.evaluate("short", CONTEXT)).resolves.toEqual({
       issues: [{ code: "too_short", message: PASSWORD_TOO_SHORT_MESSAGE }],
+      warnings: [],
+    });
+  });
+
+  it("refuses markup the submit schema would refuse", async () => {
+    const { service } = createService();
+
+    await expect(
+      service.evaluate("<b>tidal-harbor-lantern</b>", CONTEXT),
+    ).resolves.toEqual({
+      issues: [{ code: "unsafe_input", message: UNSAFE_AUTH_INPUT_MESSAGE }],
       warnings: [],
     });
   });
@@ -119,6 +131,7 @@ describe("PasswordPolicyService breach check", () => {
     });
 
     await service.evaluate("short", CONTEXT);
+    await service.evaluate("<b>tidal-harbor-lantern</b>", CONTEXT);
     expect(check).not.toHaveBeenCalled();
   });
 

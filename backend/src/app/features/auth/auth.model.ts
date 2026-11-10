@@ -5,23 +5,13 @@ import { usernameSchema } from "@/features/profile/profile.model";
 import { z } from "zod";
 import type { Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
+import { checkPasswordShape } from "@/features/auth/password/policy/password-rules";
 import {
-  PASSWORD_MAX_BYTES,
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_TOO_LONG_MESSAGE,
-  PASSWORD_TOO_SHORT_MESSAGE,
-  passwordByteLength,
-  passwordLength,
-} from "@/features/auth/password/policy/password-rules";
+  UNSAFE_AUTH_INPUT_MESSAGE,
+  containsUnsafeAuthInput,
+} from "@/features/auth/unsafe-input";
 
-export const UNSAFE_AUTH_INPUT_MESSAGE =
-  "Input contains unsupported HTML or script content.";
-const UNSAFE_AUTH_INPUT_PATTERN =
-  /<[^>]*>|&lt;|&gt;|javascript:|data:text\/html|on[a-z]+\s*=|<\/?script\b/i;
-
-export function containsUnsafeAuthInput(value: string): boolean {
-  return UNSAFE_AUTH_INPUT_PATTERN.test(value);
-}
+export { UNSAFE_AUTH_INPUT_MESSAGE, containsUnsafeAuthInput };
 
 export const safeTrimmedString = z
   .string()
@@ -78,22 +68,15 @@ export function normalizeAccountStatus(
 
 /**
  * A new local password. Only the shape is checked here; the common, personal
- * and breached checks need the account, so the services run those.
+ * and breached checks need the account, so the services run those. The rules
+ * come from `checkPasswordShape`, the same function `POST /auth/password/check`
+ * reports from, so the check can never accept what a submit refuses.
  */
-export const strongPasswordSchema = z
-  .string()
-  .refine(
-    (value) => passwordLength(value) >= PASSWORD_MIN_LENGTH,
-    PASSWORD_TOO_SHORT_MESSAGE,
-  )
-  .refine(
-    (value) => passwordByteLength(value) <= PASSWORD_MAX_BYTES,
-    PASSWORD_TOO_LONG_MESSAGE,
-  )
-  .refine(
-    (value) => !containsUnsafeAuthInput(value),
-    UNSAFE_AUTH_INPUT_MESSAGE,
-  );
+export const strongPasswordSchema = z.string().superRefine((value, context) => {
+  for (const issue of checkPasswordShape(value)) {
+    context.addIssue({ code: "custom", message: issue.message });
+  }
+});
 
 export const authUsernameSchema = usernameSchema.transform((value) =>
   value.trim().toLowerCase(),

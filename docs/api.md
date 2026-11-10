@@ -112,7 +112,8 @@ valid. See [Password Policy](./auth-security.md#password-policy).
 `POST /auth/password/check` gives the same verdict before submitting, so the
 forms can show it while the user types:
 `{ acceptable, issues: [{ code, message }], warnings: [...] }`. The codes are
-`too_short`, `too_long`, `common`, `contains_personal_info` and `breached`.
+`too_short`, `too_long`, `unsafe_input`, `common`, `contains_personal_info`
+and `breached`.
 `warnings` holds advice that does not block the password, such as a breach
 when the check is in `warn` mode. It is public, with optional auth: a
 signed-in caller is checked against their own account, and anyone else

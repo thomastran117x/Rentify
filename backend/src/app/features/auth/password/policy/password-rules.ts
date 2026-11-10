@@ -1,3 +1,8 @@
+import {
+  UNSAFE_AUTH_INPUT_MESSAGE,
+  containsUnsafeAuthInput,
+} from "@/features/auth/unsafe-input";
+
 /**
  * The shape rules every new local password must satisfy, shared by the request
  * schemas, the hashing guard and the password policy service.
@@ -15,6 +20,7 @@ export const PASSWORD_TOO_LONG_MESSAGE = `Password must be at most ${PASSWORD_MA
 export const PASSWORD_ISSUE_CODES = [
   "too_short",
   "too_long",
+  "unsafe_input",
   "common",
   "contains_personal_info",
   "breached",
@@ -45,6 +51,10 @@ export function checkPasswordShape(password: string): PasswordIssue[] {
 
   if (passwordByteLength(password) > PASSWORD_MAX_BYTES) {
     issues.push({ code: "too_long", message: PASSWORD_TOO_LONG_MESSAGE });
+  }
+
+  if (containsUnsafeAuthInput(password)) {
+    issues.push({ code: "unsafe_input", message: UNSAFE_AUTH_INPUT_MESSAGE });
   }
 
   return issues;
