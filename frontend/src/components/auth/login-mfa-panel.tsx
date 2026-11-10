@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { KeyRound } from "lucide-react";
 import { authApi } from "@/lib/auth/api";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import type { LoginMfaPendingFlow } from "@/lib/auth/pending-flow";
@@ -13,6 +14,11 @@ import {
   type AuthResponseBody,
   type LoginMfaFactor,
 } from "@/lib/auth/types";
+import {
+  getPasskeyAssertion,
+  PasskeyCeremonyError,
+  supportsPasskeys,
+} from "@/lib/auth/webauthn";
 import { theme } from "@/styles/theme";
 
 interface LoginMfaPanelProps {
@@ -37,6 +43,18 @@ const FACTOR_COPY: Record<
     incorrect: string;
   }
 > = {
+  passkey: {
+    title: "Use your passkey",
+    intro:
+      "Your password checked out. Confirm it's you with a passkey saved on this device, your phone, or a security key.",
+    label: "Passkey",
+    hint: "Your browser will ask you to choose a passkey.",
+    switchLabel: "Use a passkey",
+    placeholder: "",
+    incomplete: "",
+    incorrect:
+      "That passkey couldn't be verified. Try again, or use a different method.",
+  },
   totp: {
     title: "Enter your authenticator code",
     intro:
@@ -62,6 +80,9 @@ const FACTOR_COPY: Record<
       "That recovery code is incorrect or was already used. Check it and try again.",
   },
 };
+
+const PASSKEY_CANCELLED_MESSAGE =
+  "The passkey prompt closed before it finished. Try again, or use a different method.";
 
 function formatCode(value: string, factor: LoginMfaFactor): string {
   return factor === "recovery_code"
@@ -102,9 +123,9 @@ function getCodeError(error: unknown, factor: LoginMfaFactor): string | null {
 }
 
 /**
- * The second step of a sign-in for an account with an authenticator app. It
- * only ever holds the challenge token from the first step, and the switch to a
- * recovery code stays on this step.
+ * The second step of a sign-in for an account with a passkey or an
+ * authenticator app. It only ever holds the challenge token from the first
+ * step, and switching between factors stays on this step.
  */
 export function LoginMfaPanel({
   flow,
@@ -119,13 +140,77 @@ export function LoginMfaPanel({
   const [generalError, setGeneralError] = useState<string | null>(null);
   const copy = FACTOR_COPY[flow.factor];
   const isRecoveryCode = flow.factor === "recovery_code";
+  const isPasskey = flow.factor === "passkey";
+  const passkeysSupported = supportsPasskeys();
   const otherFactors = flow.availableFactors.filter(
-    (factor) => factor !== flow.factor,
+    (factor) =>
+      factor !== flow.factor && (factor !== "passkey" || passkeysSupported),
   );
+
+  function handleFailure(error: unknown) {
+    const nextCodeError = getCodeError(error, flow.factor);
+
+    if (nextCodeError) {
+      setCode("");
+      if (isPasskey) {
+        setGeneralError(nextCodeError);
+      } else {
+        setCodeError(nextCodeError);
+      }
+    } else if (
+      error instanceof ApiClientError &&
+      [400, 401, 403, 423].includes(error.status)
+    ) {
+      onFailure(error);
+    } else if (error instanceof PasskeyCeremonyError) {
+      setGeneralError(error.message);
+    } else {
+      setGeneralError(
+        getApiErrorMessage(error, {
+          action: isPasskey ? "check your passkey" : "check your code",
+          fallback: isPasskey
+            ? "We couldn't check your passkey right now. Please try again."
+            : "We couldn't check your code right now. Please try again.",
+        }),
+      );
+    }
+  }
+
+  async function handlePasskey() {
+    setGeneralError(null);
+    setPending(true);
+
+    try {
+      const { options } = await authApi.getLoginPasskeyOptions({
+        mfaChallengeToken: flow.mfaChallengeToken,
+      });
+      const result = await getPasskeyAssertion(options);
+
+      if (result.status === "cancelled") {
+        setGeneralError(PASSKEY_CANCELLED_MESSAGE);
+        return;
+      }
+
+      const session = await authApi.completeLoginMfa({
+        mfaChallengeToken: flow.mfaChallengeToken,
+        factor: "passkey",
+        credential: result.credential,
+      });
+      await onSuccess(session);
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGeneralError(null);
+
+    if (flow.factor === "passkey") {
+      return;
+    }
 
     if (!isCompleteCode(code, flow.factor)) {
       setCodeError(copy.incomplete);
@@ -143,25 +228,7 @@ export function LoginMfaPanel({
       });
       await onSuccess(session);
     } catch (error) {
-      const nextCodeError = getCodeError(error, flow.factor);
-
-      if (nextCodeError) {
-        setCode("");
-        setCodeError(nextCodeError);
-      } else if (
-        error instanceof ApiClientError &&
-        [400, 401, 403, 423].includes(error.status)
-      ) {
-        onFailure(error);
-      } else {
-        setGeneralError(
-          getApiErrorMessage(error, {
-            action: "check your code",
-            fallback:
-              "We couldn't check your code right now. Please try again.",
-          }),
-        );
-      }
+      handleFailure(error);
     } finally {
       setPending(false);
     }
@@ -174,71 +241,108 @@ export function LoginMfaPanel({
         <p className="mt-2 text-sm leading-6">{copy.intro}</p>
       </div>
 
-      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-        {generalError ? (
-          <div role="alert" className={theme.auth.errorPanel}>
-            {generalError}
-          </div>
-        ) : null}
+      {isPasskey ? (
+        <div className="space-y-5">
+          {generalError ? (
+            <div role="alert" className={theme.auth.errorPanel}>
+              {generalError}
+            </div>
+          ) : null}
 
-        <div className="space-y-2">
-          <label htmlFor="loginMfaCode" className={theme.auth.fieldLabel}>
-            {copy.label}
-          </label>
-
-          <input
-            key={flow.factor}
-            id="loginMfaCode"
-            name="loginMfaCode"
-            type="text"
-            inputMode={isRecoveryCode ? "text" : "numeric"}
-            autoComplete={isRecoveryCode ? "off" : "one-time-code"}
-            autoCapitalize={isRecoveryCode ? "characters" : undefined}
-            spellCheck={false}
-            autoFocus
-            maxLength={isRecoveryCode ? undefined : 6}
-            placeholder={copy.placeholder}
-            aria-invalid={Boolean(codeError)}
-            aria-describedby={
-              codeError ? "login-mfa-code-error" : "login-mfa-code-hint"
-            }
-            value={code}
-            onChange={(event) => {
-              setCodeError(null);
-              setCode(formatCode(event.target.value, flow.factor));
-            }}
-            className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center text-slate-900 dark:text-white outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
-              isRecoveryCode
-                ? "font-mono text-lg tracking-wider"
-                : "text-[22px] tracking-[0.35em]"
-            } ${
-              codeError
-                ? theme.auth.fieldError
-                : code.length > 0
-                  ? theme.auth.fieldActive
-                  : theme.auth.fieldDefault
-            }`}
-          />
-
-          {codeError ? (
-            <p id="login-mfa-code-error" className={theme.auth.fieldErrorText}>
-              {codeError}
-            </p>
+          {passkeysSupported ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handlePasskey()}
+                disabled={pending}
+                className={theme.auth.primaryButton}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" aria-hidden="true" />
+                  {pending ? "Waiting for your passkey..." : "Use passkey"}
+                </span>
+              </button>
+              <p className={theme.auth.fieldText}>{copy.hint}</p>
+            </>
           ) : (
-            <p id="login-mfa-code-hint" className={theme.auth.fieldText}>
-              {copy.hint}
-            </p>
+            <div role="status" className={theme.auth.errorPanel}>
+              This browser can&apos;t use passkeys.
+              {otherFactors.length > 0
+                ? " Use a different method below, or sign in from a browser that supports them."
+                : " Sign in from a browser that supports them."}
+            </div>
           )}
         </div>
+      ) : (
+        <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+          {generalError ? (
+            <div role="alert" className={theme.auth.errorPanel}>
+              {generalError}
+            </div>
+          ) : null}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className={theme.auth.primaryButton}
-        >
-          {pending ? "Verifying..." : "Verify and sign in"}
-        </button>
-      </form>
+          <div className="space-y-2">
+            <label htmlFor="loginMfaCode" className={theme.auth.fieldLabel}>
+              {copy.label}
+            </label>
+
+            <input
+              key={flow.factor}
+              id="loginMfaCode"
+              name="loginMfaCode"
+              type="text"
+              inputMode={isRecoveryCode ? "text" : "numeric"}
+              autoComplete={isRecoveryCode ? "off" : "one-time-code"}
+              autoCapitalize={isRecoveryCode ? "characters" : undefined}
+              spellCheck={false}
+              autoFocus
+              maxLength={isRecoveryCode ? undefined : 6}
+              placeholder={copy.placeholder}
+              aria-invalid={Boolean(codeError)}
+              aria-describedby={
+                codeError ? "login-mfa-code-error" : "login-mfa-code-hint"
+              }
+              value={code}
+              onChange={(event) => {
+                setCodeError(null);
+                setCode(formatCode(event.target.value, flow.factor));
+              }}
+              className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-center text-slate-900 dark:text-white outline-none transition duration-200 placeholder:tracking-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
+                isRecoveryCode
+                  ? "font-mono text-lg tracking-wider"
+                  : "text-[22px] tracking-[0.35em]"
+              } ${
+                codeError
+                  ? theme.auth.fieldError
+                  : code.length > 0
+                    ? theme.auth.fieldActive
+                    : theme.auth.fieldDefault
+              }`}
+            />
+
+            {codeError ? (
+              <p
+                id="login-mfa-code-error"
+                className={theme.auth.fieldErrorText}
+              >
+                {codeError}
+              </p>
+            ) : (
+              <p id="login-mfa-code-hint" className={theme.auth.fieldText}>
+                {copy.hint}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className={theme.auth.primaryButton}
+          >
+            {pending ? "Verifying..." : "Verify and sign in"}
+          </button>
+        </form>
+      )}
 
       {otherFactors.length > 0 ? (
         <div className="space-y-2">

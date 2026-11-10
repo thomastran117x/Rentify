@@ -21,6 +21,8 @@ vi.mock("@/lib/auth/api", () => ({
 vi.mock("@/lib/api/client", () => ({
   authenticatedJson: (method: string, path: string, body?: unknown) =>
     authenticatedMock(method, path, body),
+  authenticatedJsonOnce: (method: string, path: string, body?: unknown) =>
+    authenticatedMock(`${method} once`, path, body),
   buildPathWithQuery: buildPathMock,
 }));
 
@@ -67,6 +69,18 @@ describe("MFA API clients", () => {
     expect(authenticatedMock).toHaveBeenCalledWith(
       "DELETE",
       "/auth/mfa/totp/pending",
+    );
+  });
+
+  it("confirms a passkey step-up once, with the assertion instead of a code", () => {
+    const credential = { id: "Y3JlZA" } as never;
+
+    mfaVerificationApi.confirmPasskey("device-login", credential);
+
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "POST once",
+      "/auth/mfa/verify/confirm",
+      { scope: "device-login", factor: "passkey", credential },
     );
   });
 

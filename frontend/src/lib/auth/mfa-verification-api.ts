@@ -1,8 +1,26 @@
-import { buildPathWithQuery, authenticatedJson } from "@/lib/api/client";
+import {
+  authenticatedJson,
+  authenticatedJsonOnce,
+  buildPathWithQuery,
+} from "@/lib/api/client";
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from "@/lib/auth/webauthn";
 
 export type MfaVerificationScope = "mfa-management" | "device-login";
-export type MfaVerificationFactor = "email" | "totp" | "sms" | "recovery_code";
+export type MfaVerificationFactor =
+  | "email"
+  | "totp"
+  | "sms"
+  | "recovery_code"
+  | "passkey";
 export type MfaVerificationChallengeFactor = MfaVerificationFactor;
+/** The factors confirmed with a typed code, rather than a passkey. */
+export type MfaVerificationCodeFactor = Exclude<
+  MfaVerificationFactor,
+  "passkey"
+>;
 
 export interface MfaVerificationOptionsResult {
   scope: MfaVerificationScope;
@@ -34,10 +52,19 @@ export interface MfaVerificationPromptChallengeResult {
   prompt: true;
 }
 
+/** The options the browser's passkey prompt answers. */
+export interface MfaVerificationPasskeyChallengeResult {
+  scope: MfaVerificationScope;
+  factor: "passkey";
+  challengeId: null;
+  options: PublicKeyCredentialRequestOptionsJSON;
+}
+
 export type MfaVerificationChallengeResult =
   | MfaVerificationEmailChallengeResult
   | MfaVerificationSmsChallengeResult
-  | MfaVerificationPromptChallengeResult;
+  | MfaVerificationPromptChallengeResult
+  | MfaVerificationPasskeyChallengeResult;
 
 export interface MfaVerificationConfirmResult {
   verified: true;
@@ -75,20 +102,42 @@ export const mfaVerificationApi = {
 
   confirmChallenge(
     scope: MfaVerificationScope,
-    factor: MfaVerificationFactor,
+    factor: MfaVerificationCodeFactor,
     code: string,
   ): Promise<MfaVerificationConfirmResult> {
     return authenticatedJson<
       MfaVerificationConfirmResult,
       {
         scope: MfaVerificationScope;
-        factor: MfaVerificationFactor;
+        factor: MfaVerificationCodeFactor;
         code: string;
       }
     >("POST", "/auth/mfa/verify/confirm", {
       scope,
       factor,
       code,
+    });
+  },
+
+  /**
+   * Sent once: an assertion answers a single-use challenge, so the usual
+   * refresh-and-resend would only send a spent answer.
+   */
+  confirmPasskey(
+    scope: MfaVerificationScope,
+    credential: AuthenticationResponseJSON,
+  ): Promise<MfaVerificationConfirmResult> {
+    return authenticatedJsonOnce<
+      MfaVerificationConfirmResult,
+      {
+        scope: MfaVerificationScope;
+        factor: "passkey";
+        credential: AuthenticationResponseJSON;
+      }
+    >("POST", "/auth/mfa/verify/confirm", {
+      scope,
+      factor: "passkey",
+      credential,
     });
   },
 
