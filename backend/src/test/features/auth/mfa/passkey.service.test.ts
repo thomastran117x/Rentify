@@ -133,6 +133,11 @@ describe("PasskeyService registration", () => {
       },
       attestation: "none",
       timeout: 300_000,
+      pubKeyCredParams: [
+        { alg: -8, type: "public-key" },
+        { alg: -7, type: "public-key" },
+        { alg: -257, type: "public-key" },
+      ],
       authenticatorSelection: {
         residentKey: "preferred",
         userVerification: "preferred",

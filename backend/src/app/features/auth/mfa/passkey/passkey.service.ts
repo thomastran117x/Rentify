@@ -52,6 +52,14 @@ import type {
 
 type WebAuthnConfig = AppEnvironment["webauthn"];
 
+/**
+ * EdDSA, ES256 and RS256: what authenticators actually use. The library would
+ * offer ML-DSA-44 first wherever Node supports it, but Node's ML-DSA is still
+ * experimental, and a passkey made with it would stop working on a runtime
+ * without it.
+ */
+const SUPPORTED_ALGORITHM_IDS = [-8, -7, -257];
+
 interface PasskeyServiceOptions {
   passkeyRepository: PasskeyRepository;
   passkeyChallengeStore: PasskeyChallengeStore;
@@ -154,6 +162,7 @@ export class PasskeyService {
       userDisplayName: displayName,
       timeout: PASSKEY_CHALLENGE_TTL_SECONDS * 1000,
       attestationType: "none",
+      supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
       excludeCredentials: existing.map(toCredentialDescriptor),
       // Discoverable when the authenticator can, so the same passkey can sign
       // in without a password once that lands (#466).
