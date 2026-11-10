@@ -13,6 +13,7 @@ export const ROUTE_MODULE_IDS = [
   "auth-mfa-verification",
   "auth-mfa-totp",
   "auth-mfa-recovery",
+  "auth-mfa-passkey",
   "organizations-profile",
   "organizations-members",
   "organizations-invitations",

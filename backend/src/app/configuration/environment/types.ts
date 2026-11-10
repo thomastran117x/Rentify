@@ -387,6 +387,9 @@ export type RawEnvironmentValues = {
   USERNAME_BLOOM_REBUILD_INTERVAL_MS?: string;
   USERNAME_BLOOM_REBUILD_BATCH_SIZE?: string;
   USERNAME_BLOOM_REBUILD_LOCK_TTL_MS?: string;
+  WEBAUTHN_ORIGINS?: string;
+  WEBAUTHN_RP_ID?: string;
+  WEBAUTHN_RP_NAME?: string;
   EMAIL_BLOOM_ENABLED?: string;
   EMAIL_BLOOM_CAPACITY?: string;
   EMAIL_BLOOM_FALSE_POSITIVE_RATE?: string;
@@ -548,6 +551,18 @@ export interface AppEnvironment {
   };
   csrf: {
     allowedOrigins: string[];
+  };
+  /**
+   * The relying party passkeys are registered with. A passkey is bound to the
+   * RP ID for life, so changing it orphans every passkey already registered.
+   */
+  webauthn: {
+    /** A registrable domain: `localhost` locally, the site's domain elsewhere. */
+    rpId: string;
+    /** The name authenticators show next to a passkey. */
+    rpName: string;
+    /** Every origin an assertion may come from; each is on `rpId` or under it. */
+    origins: string[];
   };
   oauth: {
     /**

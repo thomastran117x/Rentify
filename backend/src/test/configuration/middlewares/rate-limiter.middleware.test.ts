@@ -219,6 +219,8 @@ describe("resolveRateLimitPolicy", () => {
     "/auth/email/change/revert",
     "/auth/local/password/change",
     "/auth/oauth/signup/complete",
+    "/auth/mfa/passkeys/register/options",
+    "/auth/mfa/passkeys/register/verify",
   ])("assigns the auth policy to %s", (path) => {
     const policy = resolveRateLimitPolicy(
       policyRequest(`http://rent.test${buildApiPath(path)}`, {

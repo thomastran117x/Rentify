@@ -12,6 +12,7 @@ import { authSecurityNotificationsRegistrationModule } from "@/configuration/con
 import { authDetectionRegistrationModule } from "@/configuration/container/registrations/modules/auth-detection";
 import { authPasswordRegistrationModule } from "@/configuration/container/registrations/modules/auth-password";
 import { authMfaRecoveryRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-recovery";
+import { authMfaPasskeyRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-passkey";
 import { authMfaTotpRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-totp";
 import { authMfaVerificationRegistrationModule } from "@/configuration/container/registrations/modules/auth-mfa-verification";
 import { authOauthRegistrationModule } from "@/configuration/container/registrations/modules/auth-oauth";
@@ -71,6 +72,7 @@ export const containerRegistrationModules: ContainerRegistrationModule[] = [
   feedbacksRegistrationModule,
   authOtpRegistrationModule,
   authMfaRecoveryRegistrationModule,
+  authMfaPasskeyRegistrationModule,
   authMfaTotpRegistrationModule,
   authMfaVerificationRegistrationModule,
   authAuditRegistrationModule,

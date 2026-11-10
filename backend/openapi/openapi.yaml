@@ -4108,6 +4108,483 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/passkeys/register/options:
+    post:
+      operationId: beginPasskeyRegistration
+      summary: Start adding a passkey
+      description: Returns WebAuthn creation options for a new passkey on the signed-in account, for `navigator.credentials.create()`. The challenge is bound to this session, is single-use and expires after 5 minutes; asking again replaces it. Passkeys the account already has are listed in `excludeCredentials`. Requires a recent MFA step-up for the `mfa-management` scope. Returns 409 once the account holds 10 passkeys.
+      tags:
+        - mfa
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        rateLimitPolicy: auth-sensitive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRegistrationOptionsRequest'
+            example: {}
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasskeyRegistrationOptionsResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  options:
+                    challenge: mJrB1Hn6rB6Q4b3V5cWw8f2xZ0nLq9aT1sYdKeUoIgE
+                    rp:
+                      name: Rentify
+                      id: rentify.example
+                    user:
+                      id: NGYwYjZkMWUtNmExYy00ZDU1LTliMGUtMmYxZDhjOWE3ZTMx
+                      name: owner-one
+                      displayName: Owner One
+                    pubKeyCredParams:
+                      - alg: -8
+                        type: public-key
+                      - alg: -7
+                        type: public-key
+                      - alg: -257
+                        type: public-key
+                    timeout: 300000
+                    attestation: none
+                    excludeCredentials:
+                      - id: x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL
+                        type: public-key
+                        transports:
+                          - internal
+                    authenticatorSelection:
+                      residentKey: preferred
+                      userVerification: preferred
+                      requireResidentKey: false
+                    extensions:
+                      credProps: true
+                    hints: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/passkeys/register/verify:
+    post:
+      operationId: finishPasskeyRegistration
+      summary: Finish adding a passkey
+      description: Verifies the authenticator's attestation against the challenge, origin and RP ID this session was issued, and stores the passkey. An expired, replayed or foreign answer returns 400 `PASSKEY_REGISTRATION_FAILED`; a passkey already registered, or one over the cap, returns 409. The owner is emailed and the addition is audited as `mfa.passkey_added`. Without a name the passkey is called `Passkey N`. Requires a recent MFA step-up for the `mfa-management` scope.
+      tags:
+        - mfa
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+        rateLimitPolicy: auth-sensitive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRegistrationVerifyRequest'
+            example:
+              credential:
+                id: Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ
+                rawId: Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ
+                type: public-key
+                authenticatorAttachment: platform
+                clientExtensionResults:
+                  credProps:
+                    rk: true
+                response:
+                  clientDataJSON: eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoibUpyQjFIbjZyQjZRNGIzVjVjV3c4ZjJ4WjBuTHE5YVQxc1lkS2VVb0lnRSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVudGlmeS5leGFtcGxlIn0
+                  attestationObject: o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NdAAAAAA
+                  transports:
+                    - internal
+                    - hybrid
+              name: Work laptop
+      responses:
+        '201':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasskeyRegistrationResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Passkey added.
+                data:
+                  passkey:
+                    id: 4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31
+                    name: Work laptop
+                    createdAt: '2026-11-10T09:00:00.000Z'
+                    lastUsedAt: null
+                    backedUp: true
+                    deviceType: multi_device
+                    transports:
+                      - internal
+                      - hybrid
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/passkeys:
+    get:
+      operationId: listPasskeys
+      summary: List passkeys
+      description: Lists the signed-in account's passkeys, oldest first. Public keys and credential IDs are never returned. Requires a recent MFA step-up for the `mfa-management` scope.
+      tags:
+        - mfa
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasskeyListResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  passkeys:
+                    - id: 4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31
+                      name: Work laptop
+                      createdAt: '2026-11-10T09:00:00.000Z'
+                      lastUsedAt: null
+                      backedUp: true
+                      deviceType: multi_device
+                      transports:
+                        - internal
+                        - hybrid
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/mfa/passkeys/{id}:
+    patch:
+      operationId: renamePasskey
+      summary: Rename a passkey
+      description: Renames one of the signed-in account's passkeys. Names are 1-64 characters with no control characters. Audited as `mfa.passkey_renamed`; no email is sent. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.
+      tags:
+        - mfa
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Passkey identifier.
+          schema:
+            type: string
+          example: 4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRenameRequest'
+            example:
+              name: Desk key
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasskeyRenameResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Passkey renamed.
+                data:
+                  passkey:
+                    id: 4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31
+                    name: Desk key
+                    createdAt: '2026-11-10T09:00:00.000Z'
+                    lastUsedAt: null
+                    backedUp: true
+                    deviceType: multi_device
+                    transports:
+                      - internal
+                      - hybrid
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: removePasskey
+      summary: Remove a passkey
+      description: Removes one of the signed-in account's passkeys. The owner is emailed and the removal is audited as `mfa.passkey_removed`. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.
+      tags:
+        - mfa
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Passkey identifier.
+          schema:
+            type: string
+          example: 4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31
+      responses:
+        '204':
+          description: Passkey removed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/mfa/totp/disable:
     post:
       operationId: disableMfaTotp
@@ -9863,6 +10340,9 @@ paths:
                 - mfa.totp_disabled
                 - mfa.recovery_code_used
                 - mfa.recovery_codes_regenerated
+                - mfa.passkey_added
+                - mfa.passkey_renamed
+                - mfa.passkey_removed
                 - mfa.step_up_failed
                 - mfa.step_up_locked
                 - pat.created
@@ -22980,6 +23460,215 @@ components:
         createdAt:
           type: string
           format: date-time
+    PasskeyRegistrationOptionsRequest:
+      type: object
+      additionalProperties: false
+    PasskeyRegistrationOptionsResult:
+      type: object
+      required:
+        - options
+      properties:
+        options:
+          type: object
+          description: '`PublicKeyCredentialCreationOptionsJSON`, as `startRegistration({ optionsJSON })` from `@simplewebauthn/browser` takes it.'
+          additionalProperties: true
+          required:
+            - challenge
+            - rp
+            - user
+            - pubKeyCredParams
+          properties:
+            challenge:
+              type: string
+            rp:
+              type: object
+              required:
+                - id
+                - name
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+            user:
+              type: object
+              required:
+                - id
+                - name
+                - displayName
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                displayName:
+                  type: string
+            pubKeyCredParams:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            timeout:
+              type: integer
+            attestation:
+              type: string
+              enum:
+                - none
+            excludeCredentials:
+              type: array
+              items:
+                $ref: '#/components/schemas/PasskeyCredentialDescriptor'
+            authenticatorSelection:
+              type: object
+              additionalProperties: true
+    PasskeyCredentialDescriptor:
+      type: object
+      required:
+        - id
+        - type
+      properties:
+        id:
+          type: string
+          description: Base64url credential ID.
+        type:
+          type: string
+          const: public-key
+        transports:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasskeyTransport'
+    PasskeyTransport:
+      type: string
+      enum:
+        - ble
+        - cable
+        - hybrid
+        - internal
+        - nfc
+        - smart-card
+        - usb
+    PasskeyRegistrationCredential:
+      type: object
+      description: '`RegistrationResponseJSON` from `startRegistration()`. Every binary field is base64url.'
+      required:
+        - id
+        - rawId
+        - type
+        - response
+      properties:
+        id:
+          type: string
+        rawId:
+          type: string
+        type:
+          type: string
+          const: public-key
+        authenticatorAttachment:
+          type: string
+          enum:
+            - platform
+            - cross-platform
+        clientExtensionResults:
+          type: object
+          additionalProperties: true
+        response:
+          type: object
+          required:
+            - clientDataJSON
+            - attestationObject
+          properties:
+            clientDataJSON:
+              type: string
+            attestationObject:
+              type: string
+            authenticatorData:
+              type: string
+            transports:
+              type: array
+              items:
+                type: string
+            publicKeyAlgorithm:
+              type: integer
+            publicKey:
+              type: string
+    PasskeyRegistrationVerifyRequest:
+      type: object
+      required:
+        - credential
+      properties:
+        credential:
+          $ref: '#/components/schemas/PasskeyRegistrationCredential'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+    PasskeySummary:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - lastUsedAt
+        - backedUp
+        - deviceType
+        - transports
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        backedUp:
+          type: boolean
+          description: Whether the authenticator reports the passkey as synced to a backup. Recorded only; no policy depends on it yet.
+        deviceType:
+          type: string
+          enum:
+            - single_device
+            - multi_device
+        transports:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasskeyTransport'
+    PasskeyRegistrationResult:
+      type: object
+      required:
+        - passkey
+      properties:
+        passkey:
+          $ref: '#/components/schemas/PasskeySummary'
+    PasskeyListResult:
+      type: object
+      required:
+        - passkeys
+      properties:
+        passkeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasskeySummary'
+    PasskeyRenameRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+    PasskeyRenameResult:
+      type: object
+      required:
+        - passkey
+      properties:
+        passkey:
+          $ref: '#/components/schemas/PasskeySummary'
     MfaTotpDisableRequest:
       type: object
       additionalProperties: false

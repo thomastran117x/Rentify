@@ -53,6 +53,16 @@ const JOBS: Array<[string, SecurityChangeEmailJob, string]> = [
     "New recovery codes were generated for your Rentify account",
   ],
   [
+    "an added passkey",
+    { kind: "passkey_added", input: { ...BASE, passkeyName: "Laptop" } },
+    "A passkey was added to your Rentify account",
+  ],
+  [
+    "a removed passkey",
+    { kind: "passkey_removed", input: { ...BASE, passkeyName: "Laptop" } },
+    "A passkey was removed from your Rentify account",
+  ],
+  [
     "a new personal access token",
     {
       kind: "personal_access_token_created",
@@ -220,6 +230,15 @@ describe("EmailDeliveryService security-change emails", () => {
     expect(message.text).toContain(
       "- Token name: CI If this was you, no action is needed.\n",
     );
+  });
+
+  it("names the passkey on one line, so its name cannot forge the email's text", async () => {
+    const message = await render({
+      kind: "passkey_removed",
+      input: { ...BASE, passkeyName: "  Old\n\nkey  " },
+    });
+
+    expect(message.text).toContain("- Passkey: Old key\n");
   });
 
   it("advises a reset, since a changed password locks the owner out of changing it", async () => {

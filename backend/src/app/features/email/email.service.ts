@@ -185,12 +185,19 @@ export interface SendMfaRecoveryCodeUsedEmailInput
   remaining: number;
 }
 
+export interface SendPasskeyEmailInput extends SecurityChangeEmailBase {
+  /** The name the account gave the passkey; any whitespace run is flattened. */
+  passkeyName: string;
+}
+
 export interface SecurityChangeEmailInputByKind {
   password_changed: SendPasswordChangedEmailInput;
   mfa_enabled: SecurityChangeEmailBase;
   mfa_disabled: SecurityChangeEmailBase;
   mfa_recovery_code_used: SendMfaRecoveryCodeUsedEmailInput;
   mfa_recovery_codes_regenerated: SecurityChangeEmailBase;
+  passkey_added: SendPasskeyEmailInput;
+  passkey_removed: SendPasskeyEmailInput;
   personal_access_token_created: SendPersonalAccessTokenCreatedEmailInput;
   login_method_linked: SendLoginMethodEmailInput;
   login_method_unlinked: SendLoginMethodEmailInput;

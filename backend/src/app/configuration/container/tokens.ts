@@ -11,6 +11,10 @@ import { OtpService } from "@/features/auth/otp/otp.service";
 import { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
 import { MfaRecoveryCodeRepository } from "@/features/auth/mfa/recovery/mfa-recovery-code.repository";
 import { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
+import { PasskeyChallengeStore } from "@/features/auth/mfa/passkey/passkey-challenge.store";
+import { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
+import { PasskeyRepository } from "@/features/auth/mfa/passkey/passkey.repository";
+import { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
@@ -389,6 +393,12 @@ export const containerTokens = {
   mfaRecoveryCodeController: createServiceToken<MfaRecoveryCodeController>(
     "MfaRecoveryCodeController",
   ),
+  passkeyRepository: createServiceToken<PasskeyRepository>("PasskeyRepository"),
+  passkeyChallengeStore: createServiceToken<PasskeyChallengeStore>(
+    "PasskeyChallengeStore",
+  ),
+  passkeyService: createServiceToken<PasskeyService>("PasskeyService"),
+  passkeyController: createServiceToken<PasskeyController>("PasskeyController"),
   mfaVerificationService: createServiceToken<MfaVerificationService>(
     "MfaVerificationService",
   ),

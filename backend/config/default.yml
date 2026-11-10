@@ -169,6 +169,12 @@ csrf:
     - "${config.frontendOrigin}"
     - http://127.0.0.1:3040
 
+# Passkeys. rpId and origins default to FRONTEND_URL's host and origin; set
+# them when the site is served from more than one origin. Changing rpId
+# orphans every passkey already registered.
+webauthn:
+  rpName: Rentify
+
 oauth:
   microsoft:
     tenant: consumers

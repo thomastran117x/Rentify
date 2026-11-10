@@ -203,6 +203,12 @@ export class EnvironmentManager {
     return [...this.get().csrf.allowedOrigins];
   }
 
+  getWebAuthnConfig(): AppEnvironment["webauthn"] {
+    const { rpId, rpName, origins } = this.get().webauthn;
+
+    return { rpId, rpName, origins: [...origins] };
+  }
+
   getGoogleOAuthConfig(): AppEnvironment["oauth"]["google"] {
     return this.get().oauth.google;
   }

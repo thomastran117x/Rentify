@@ -11,6 +11,7 @@ import type { UsernameController } from "@/features/auth/username/username.contr
 import type { LoginLockoutController } from "@/features/auth/lockout/login-lockout.controller";
 import type { PasswordController } from "@/features/auth/password/password.controller";
 import type { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
+import type { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -421,6 +422,47 @@ export const authMfaRecoveryRouteModule: RouteModule = {
       resolveHandler<MfaRecoveryCodeController>(
         containerTokens.mfaRecoveryCodeController,
         "regenerate",
+      ),
+    );
+  },
+};
+
+export const authMfaPasskeyRouteModule: RouteModule = {
+  id: "auth-mfa-passkey",
+  register(app, { resolveHandler }) {
+    app.post(
+      "/auth/mfa/passkeys/register/options",
+      resolveHandler<PasskeyController>(
+        containerTokens.passkeyController,
+        "beginRegistration",
+      ),
+    );
+    app.post(
+      "/auth/mfa/passkeys/register/verify",
+      resolveHandler<PasskeyController>(
+        containerTokens.passkeyController,
+        "finishRegistration",
+      ),
+    );
+    app.get(
+      "/auth/mfa/passkeys",
+      resolveHandler<PasskeyController>(
+        containerTokens.passkeyController,
+        "list",
+      ),
+    );
+    app.patch(
+      "/auth/mfa/passkeys/:id",
+      resolveHandler<PasskeyController>(
+        containerTokens.passkeyController,
+        "rename",
+      ),
+    );
+    app.delete(
+      "/auth/mfa/passkeys/:id",
+      resolveHandler<PasskeyController>(
+        containerTokens.passkeyController,
+        "remove",
       ),
     );
   },

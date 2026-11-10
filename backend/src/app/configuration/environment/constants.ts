@@ -240,6 +240,9 @@ export const RAW_ENVIRONMENT_VARIABLE_NAMES: EnvironmentVariableName[] = [
   "USERNAME_BLOOM_REBUILD_INTERVAL_MS",
   "USERNAME_BLOOM_REBUILD_BATCH_SIZE",
   "USERNAME_BLOOM_REBUILD_LOCK_TTL_MS",
+  "WEBAUTHN_ORIGINS",
+  "WEBAUTHN_RP_ID",
+  "WEBAUTHN_RP_NAME",
 ];
 
 // The image formats the upload pipeline can actually validate: each one has a

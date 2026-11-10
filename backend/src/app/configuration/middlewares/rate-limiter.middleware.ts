@@ -230,6 +230,15 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // Passkey registration issues a challenge and checks an attestation, both
+  // under step-up; the same bucket keeps it from being hammered.
+  if (
+    request.method === "POST" &&
+    /^\/auth\/mfa\/passkeys\/register\/(options|verify)$/.test(pathname)
+  ) {
+    return true;
+  }
+
   return false;
 }
 

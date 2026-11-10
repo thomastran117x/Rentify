@@ -959,6 +959,33 @@ when the frontend is served from a host `FRONTEND_URL` does not name. A stack
 using Cloudflare's testing keys gets whatever hostname their siteverify
 responses report, so add that hostname here too.
 
+## Passkeys (WebAuthn)
+
+`webauthn` names the relying party that [passkeys](./auth-security.md#passkeys) are registered with. A passkey is bound to its RP ID for good, so **changing `rpId` orphans every passkey already registered**: they stop working, and their owners fall back to their other factors.
+
+| Key       | Default                          | Override           | Meaning                                                                |
+| --------- | -------------------------------- | ------------------ | ---------------------------------------------------------------------- |
+| `rpId`    | the hostname of the first origin | `WEBAUTHN_RP_ID`   | The domain passkeys belong to                                          |
+| `rpName`  | `Rentify`                        | `WEBAUTHN_RP_NAME` | The name authenticators show next to a passkey                         |
+| `origins` | each origin in `FRONTEND_URL`    | `WEBAUTHN_ORIGINS` | Every origin a passkey may be registered or used from, comma-separated |
+
+For a site served from one origin, the defaults are right and nothing needs setting. Set `rpId` to the parent domain when the frontend is served from several subdomains, and list each of them in `origins`.
+
+| Environment | `rpId`                | `origins`                                        |
+| ----------- | --------------------- | ------------------------------------------------ |
+| Local       | `localhost` (derived) | `http://localhost:3040` (derived)                |
+| Staging     | `staging.rentify.app` | `https://staging.rentify.app`                    |
+| Production  | `rentify.app`         | `https://rentify.app`, `https://www.rentify.app` |
+
+The backend refuses to start when:
+
+- `rpId` is empty, has a scheme, port or path, or is an IP address. A browser never accepts an IP address as an RP ID.
+- An origin is not a bare `http(s)://host[:port]`.
+- An origin's host is neither `rpId` nor a subdomain of it.
+- In production, an origin other than `localhost` uses `http`.
+
+Unlike the CORS list, loopback origins are not widened to their `127.0.0.1` spelling. A page on `http://127.0.0.1:3040` cannot use a passkey for `localhost`, so open the local frontend as `http://localhost:3040` to test passkeys.
+
 ## OAuth sign-in
 
 `oauth` configures Google, Microsoft and Apple sign-in. Client secrets and the

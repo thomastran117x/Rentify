@@ -671,6 +671,61 @@ const personalAccessTokenSummaryExample = {
   createdAt: "2026-05-24T08:00:00.000Z",
   updatedAt: "2026-05-24T08:00:00.000Z",
 };
+const passkeySummaryExample = {
+  id: "4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31",
+  name: "Work laptop",
+  createdAt: "2026-11-10T09:00:00.000Z",
+  lastUsedAt: null,
+  backedUp: true,
+  deviceType: "multi_device",
+  transports: ["internal", "hybrid"],
+};
+const passkeyRegistrationOptionsExample = {
+  options: {
+    challenge: "mJrB1Hn6rB6Q4b3V5cWw8f2xZ0nLq9aT1sYdKeUoIgE",
+    rp: { name: "Rentify", id: "rentify.example" },
+    user: {
+      id: "NGYwYjZkMWUtNmExYy00ZDU1LTliMGUtMmYxZDhjOWE3ZTMx",
+      name: "owner-one",
+      displayName: "Owner One",
+    },
+    pubKeyCredParams: [
+      { alg: -8, type: "public-key" },
+      { alg: -7, type: "public-key" },
+      { alg: -257, type: "public-key" },
+    ],
+    timeout: 300000,
+    attestation: "none",
+    excludeCredentials: [
+      {
+        id: "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+        type: "public-key",
+        transports: ["internal"],
+      },
+    ],
+    authenticatorSelection: {
+      residentKey: "preferred",
+      userVerification: "preferred",
+      requireResidentKey: false,
+    },
+    extensions: { credProps: true },
+    hints: [],
+  },
+};
+const passkeyRegistrationCredentialExample = {
+  id: "Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ",
+  rawId: "Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ",
+  type: "public-key",
+  authenticatorAttachment: "platform",
+  clientExtensionResults: { credProps: { rk: true } },
+  response: {
+    clientDataJSON:
+      "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoibUpyQjFIbjZyQjZRNGIzVjVjV3c4ZjJ4WjBuTHE5YVQxc1lkS2VVb0lnRSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVudGlmeS5leGFtcGxlIn0",
+    attestationObject:
+      "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NdAAAAAA",
+    transports: ["internal", "hybrid"],
+  },
+};
 const personalAccessTokenCreateExample = {
   ...personalAccessTokenSummaryExample,
   token: "rpat_live_secret_token",
@@ -3799,6 +3854,137 @@ function buildOperations(): OperationDefinition[] {
           },
         ),
         ...commonErrors([401, 403, 409, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/passkeys/register/options",
+      operationId: "beginPasskeyRegistration",
+      summary: "Start adding a passkey",
+      description:
+        "Returns WebAuthn creation options for a new passkey on the signed-in account, for `navigator.credentials.create()`. The challenge is bound to this session, is single-use and expires after 5 minutes; asking again replaces it. Passkeys the account already has are listed in `excludeCredentials`. Requires a recent MFA step-up for the `mfa-management` scope. Returns 409 once the account holds 10 passkeys.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("PasskeyRegistrationOptionsRequest", {}),
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasskeyRegistrationOptionsResult",
+          passkeyRegistrationOptionsExample,
+        ),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/passkeys/register/verify",
+      operationId: "finishPasskeyRegistration",
+      summary: "Finish adding a passkey",
+      description:
+        "Verifies the authenticator's attestation against the challenge, origin and RP ID this session was issued, and stores the passkey. An expired, replayed or foreign answer returns 400 `PASSKEY_REGISTRATION_FAILED`; a passkey already registered, or one over the cap, returns 409. The owner is emailed and the addition is audited as `mfa.passkey_added`. Without a name the passkey is called `Passkey N`. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("PasskeyRegistrationVerifyRequest", {
+        credential: passkeyRegistrationCredentialExample,
+        name: "Work laptop",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Passkey added.",
+          "PasskeyRegistrationResult",
+          { passkey: passkeySummaryExample },
+        ),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/passkeys",
+      operationId: "listPasskeys",
+      summary: "List passkeys",
+      description:
+        "Lists the signed-in account's passkeys, oldest first. Public keys and credential IDs are never returned. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasskeyListResult",
+          { passkeys: [passkeySummaryExample] },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "patch",
+      path: "/auth/mfa/passkeys/:id",
+      operationId: "renamePasskey",
+      summary: "Rename a passkey",
+      description:
+        "Renames one of the signed-in account's passkeys. Names are 1-64 characters with no control characters. Audited as `mfa.passkey_renamed`; no email is sent. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Passkey identifier.", passkeySummaryExample.id),
+      ],
+      requestBody: requestBody("PasskeyRenameRequest", { name: "Desk key" }),
+      responses: {
+        "200": successResponse(200, "Passkey renamed.", "PasskeyRenameResult", {
+          passkey: { ...passkeySummaryExample, name: "Desk key" },
+        }),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "delete",
+      path: "/auth/mfa/passkeys/:id",
+      operationId: "removePasskey",
+      summary: "Remove a passkey",
+      description:
+        "Removes one of the signed-in account's passkeys. The owner is emailed and the removal is audited as `mfa.passkey_removed`. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Passkey identifier.", passkeySummaryExample.id),
+      ],
+      responses: {
+        "204": noContentResponse("Passkey removed."),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
       },
     },
     {
@@ -12842,6 +13028,179 @@ function buildComponents(): Record<string, unknown> {
           },
           remaining: { type: "integer", minimum: 0, maximum: 10 },
           createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      PasskeyRegistrationOptionsRequest: {
+        type: "object",
+        additionalProperties: false,
+      },
+      PasskeyRegistrationOptionsResult: {
+        type: "object",
+        required: ["options"],
+        properties: {
+          options: {
+            type: "object",
+            description:
+              "`PublicKeyCredentialCreationOptionsJSON`, as `startRegistration({ optionsJSON })` from `@simplewebauthn/browser` takes it.",
+            additionalProperties: true,
+            required: ["challenge", "rp", "user", "pubKeyCredParams"],
+            properties: {
+              challenge: { type: "string" },
+              rp: {
+                type: "object",
+                required: ["id", "name"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                },
+              },
+              user: {
+                type: "object",
+                required: ["id", "name", "displayName"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  displayName: { type: "string" },
+                },
+              },
+              pubKeyCredParams: {
+                type: "array",
+                items: { type: "object", additionalProperties: true },
+              },
+              timeout: { type: "integer" },
+              attestation: { type: "string", enum: ["none"] },
+              excludeCredentials: {
+                type: "array",
+                items: schemaRef("PasskeyCredentialDescriptor"),
+              },
+              authenticatorSelection: {
+                type: "object",
+                additionalProperties: true,
+              },
+            },
+          },
+        },
+      },
+      PasskeyCredentialDescriptor: {
+        type: "object",
+        required: ["id", "type"],
+        properties: {
+          id: { type: "string", description: "Base64url credential ID." },
+          type: { type: "string", const: "public-key" },
+          transports: {
+            type: "array",
+            items: schemaRef("PasskeyTransport"),
+          },
+        },
+      },
+      PasskeyTransport: {
+        type: "string",
+        enum: [
+          "ble",
+          "cable",
+          "hybrid",
+          "internal",
+          "nfc",
+          "smart-card",
+          "usb",
+        ],
+      },
+      PasskeyRegistrationCredential: {
+        type: "object",
+        description:
+          "`RegistrationResponseJSON` from `startRegistration()`. Every binary field is base64url.",
+        required: ["id", "rawId", "type", "response"],
+        properties: {
+          id: { type: "string" },
+          rawId: { type: "string" },
+          type: { type: "string", const: "public-key" },
+          authenticatorAttachment: {
+            type: "string",
+            enum: ["platform", "cross-platform"],
+          },
+          clientExtensionResults: {
+            type: "object",
+            additionalProperties: true,
+          },
+          response: {
+            type: "object",
+            required: ["clientDataJSON", "attestationObject"],
+            properties: {
+              clientDataJSON: { type: "string" },
+              attestationObject: { type: "string" },
+              authenticatorData: { type: "string" },
+              transports: { type: "array", items: { type: "string" } },
+              publicKeyAlgorithm: { type: "integer" },
+              publicKey: { type: "string" },
+            },
+          },
+        },
+      },
+      PasskeyRegistrationVerifyRequest: {
+        type: "object",
+        required: ["credential"],
+        properties: {
+          credential: schemaRef("PasskeyRegistrationCredential"),
+          name: { type: "string", minLength: 1, maxLength: 64 },
+        },
+      },
+      PasskeySummary: {
+        type: "object",
+        required: [
+          "id",
+          "name",
+          "createdAt",
+          "lastUsedAt",
+          "backedUp",
+          "deviceType",
+          "transports",
+        ],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          name: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          lastUsedAt: { type: "string", format: "date-time", nullable: true },
+          backedUp: {
+            type: "boolean",
+            description:
+              "Whether the authenticator reports the passkey as synced to a backup. Recorded only; no policy depends on it yet.",
+          },
+          deviceType: {
+            type: "string",
+            enum: ["single_device", "multi_device"],
+          },
+          transports: {
+            type: "array",
+            items: schemaRef("PasskeyTransport"),
+          },
+        },
+      },
+      PasskeyRegistrationResult: {
+        type: "object",
+        required: ["passkey"],
+        properties: {
+          passkey: schemaRef("PasskeySummary"),
+        },
+      },
+      PasskeyListResult: {
+        type: "object",
+        required: ["passkeys"],
+        properties: {
+          passkeys: { type: "array", items: schemaRef("PasskeySummary") },
+        },
+      },
+      PasskeyRenameRequest: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 64 },
+        },
+      },
+      PasskeyRenameResult: {
+        type: "object",
+        required: ["passkey"],
+        properties: {
+          passkey: schemaRef("PasskeySummary"),
         },
       },
       MfaTotpDisableRequest: {
