@@ -213,13 +213,13 @@ Starting a provider link (`POST /auth/oauth/{provider}/start`) needs no proof: i
 
 `POST /auth/device/verify` stops new-device alerts for a device and keeps it out of detection rule (c), so a stolen password or session must not be enough to call it. It accepts a recent proof from either scope: `device-login` from the sign-in check below, or `mfa-management` from anywhere else.
 
-| Sign-in                                               | Check                                                                                     |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Unknown device on an unknown IP, password or provider | A code from the account's factor, then the device registers. Cancelling ends the sign-in. |
-| Finished with an authenticator or recovery code       | The code counts as the `device-login` proof, so there is no second prompt.                |
-| Unknown device on a known IP                          | No prompt. It stays unregistered unless the session already has a proof.                  |
-| A provider sign-in that just created the account      | No prompt, and it stays unregistered. The check runs on the next sign-in.                 |
-| No factor available                                   | No prompt, and it stays unregistered.                                                     |
+| Sign-in                                                 | Check                                                                                     |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Unknown device on an unknown IP, password or provider   | A code from the account's factor, then the device registers. Cancelling ends the sign-in. |
+| Finished with a passkey, authenticator or recovery code | The code counts as the `device-login` proof, so there is no second prompt.                |
+| Unknown device on a known IP                            | No prompt. It stays unregistered unless the session already has a proof.                  |
+| A provider sign-in that just created the account        | No prompt, and it stays unregistered. The check runs on the next sign-in.                 |
+| No factor available                                     | No prompt, and it stays unregistered.                                                     |
 
 A device left unregistered still works. The next sign-in from it on a new IP gets the usual new-device alert and check.
 
@@ -251,7 +251,7 @@ Recovery codes are the way back in when a passkey or an authenticator app is los
 - **Format.** 10 characters grouped `XXXXX-XXXXX`, from 32 symbols that leave out `0`, `1`, `I` and `O`, so 50 random bits each. Case, spaces and hyphens are ignored when one is typed.
 - **Storage.** Each row in `user_mfa_recovery_codes` holds an HMAC-SHA256 of the account id and the code, never the code. The key is derived from `MFA_TOTP_ENCRYPTION_KEY` with HKDF, so there is no extra secret to deploy. A fast keyed hash is enough for codes this random: guessing is limited online by the lockout below, and a copy of the table is useless without the key.
 - **Single use.** A code is spent by a conditional update on `used_at IS NULL`, so of two concurrent attempts with the same code, exactly one succeeds. A wrong code and a used one get the same answer.
-- **At sign-in.** The login MFA challenge lists `recovery_code` after `totp` while the account has unused codes. A wrong code counts towards the [username lockout](./api.md#authentication-security) exactly as a wrong authenticator code does, and a locked username never spends a code. The deprecated `totpCode` field only ever takes an authenticator code.
+- **At sign-in.** The login MFA challenge lists `recovery_code` after `passkey` and `totp` while the account has unused codes. A wrong code counts towards the [username lockout](./api.md#authentication-security) exactly as a wrong authenticator code does, and a locked username never spends a code. The deprecated `totpCode` field only ever takes an authenticator code.
 - **At step-up.** `recovery_code` is a factor of `/auth/mfa/verify/*` on the same terms, with the same per-session limits as the authenticator.
 - **Every use is audited and emailed.** Spending a code writes `mfa.recovery_code_used` and sends `mfa_recovery_code_used`, which says how many are left. Both happen when the code is claimed, so a use is never lost even if the rest of the request fails.
 - **Status.** `GET /auth/mfa/recovery-codes/status` returns `{ remaining, createdAt }`. `createdAt` is null for an account that never had a set. The account page counts the codes left, warns at 2 or fewer, and warns more strongly at none.
@@ -286,6 +286,7 @@ The RP ID and allowed origins come from configuration; see [Passkeys (WebAuthn)]
 
 A passkey is a strong factor, like an authenticator app; see [Which Factors Count](#which-factors-count).
 
+- **At sign-in.** An account with a passkey gets the login MFA challenge even without an authenticator app, with `passkey` listed first. `POST /auth/login/mfa/passkey/options` issues request options bound to the sign-in's token, lasting no longer than the sign-in, and `POST /auth/login/mfa` takes the assertion as `credential`. A refused assertion counts towards the username lockout as a wrong code does, and a passkey sign-in counts as the new session's `device-login` proof. See [Signing In With a Passkey](./api.md#signing-in-with-a-passkey).
 - **At step-up.** `POST /auth/mfa/verify/challenge` with `factor: "passkey"` returns request options for `navigator.credentials.get()`, listing the account's passkeys in `allowCredentials` with `userVerification: "preferred"`. The challenge is bound to the account, session and scope. `POST /auth/mfa/verify/confirm` takes the assertion as `credential` instead of a `code`. A refused assertion answers `400 INVALID_MFA_CODE` and counts towards the same per-session limits as a wrong code.
 - **What a proof depends on.** The proof's security version includes whether the account has any passkey. Adding the first one or removing the last one voids existing proofs, as turning the authenticator on or off does, so the next protected action asks again. Renaming a passkey, or adding or removing one of several, does not.
 - **The user handle.** A passkey's user handle is the account ID's bytes, never anything personal. An assertion that carries a user handle for another account is refused.

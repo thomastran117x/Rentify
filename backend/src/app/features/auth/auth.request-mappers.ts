@@ -47,9 +47,13 @@ import type {
   SetPasswordRequestBody,
 } from "@/features/auth/password/password.model";
 import type {
+  BeginLoginPasskeyInput,
   CompleteLoginMfaInput,
+  LoginMfaAnswer,
+  LoginMfaPasskeyOptionsRequestBody,
   LoginMfaRequestBody,
 } from "@/features/auth/mfa/login/login-mfa.model";
+import type { PasskeyAssertionCredential } from "@/features/auth/mfa/passkey/passkey.model";
 import type {
   ResendUnlockLocalLoginInput,
   ResendUnlockLocalLoginRequestBody,
@@ -164,12 +168,32 @@ export function toCompleteLoginMfaInput(
   input: LoginMfaRequestBody,
 ): CompleteLoginMfaInput {
   const deviceId = resolveDeviceId(request, input.deviceId);
+  const answer: LoginMfaAnswer =
+    input.factor === "passkey"
+      ? {
+          factor: input.factor,
+          // Checked by the schema's outer shape; the library verifies the rest.
+          credential: input.credential as PasskeyAssertionCredential,
+        }
+      : { factor: input.factor, code: input.code };
 
   return {
+    ...answer,
     client: request.client,
     mfaChallengeToken: input.mfaChallengeToken,
-    factor: input.factor,
-    code: input.code,
+    deviceId,
+    audit: toAuthAuditContext(request, deviceId),
+  };
+}
+
+export function toBeginLoginPasskeyInput(
+  request: Request,
+  input: LoginMfaPasskeyOptionsRequestBody,
+): BeginLoginPasskeyInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
+  return {
+    mfaChallengeToken: input.mfaChallengeToken,
     deviceId,
     audit: toAuthAuditContext(request, deviceId),
   };

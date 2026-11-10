@@ -23,11 +23,20 @@ import type {
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import type { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
 import type {
+  BeginLoginPasskeyInput,
   CompleteLoginMfaInput,
+  LoginMfaAnswer,
   LoginMfaChallengeRecord,
   LoginMfaFactor,
   LoginMfaMethod,
 } from "@/features/auth/mfa/login/login-mfa.model";
+import {
+  hasStrongFactor,
+  type MfaFactorRepository,
+  type MfaFactorSummary,
+} from "@/features/auth/mfa/mfa-factor.repository";
+import type { PasskeyAssertionOptionsResult } from "@/features/auth/mfa/passkey/passkey.model";
+import type { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
 import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
 import type { MfaVerificationService } from "@/features/auth/mfa/verification/mfa-verification.service";
@@ -36,9 +45,19 @@ import type { AuthSessionService } from "@/features/auth/session/session.service
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 
 const INVALID_CODE_MESSAGES: Record<LoginMfaFactor, string> = {
+  passkey: "That passkey could not be verified.",
   totp: "The authenticator code is incorrect.",
   recovery_code: "That recovery code is incorrect or was already used.",
 };
+
+/** The factors a sign-in may be finished with, strongest first. */
+function loginFactorsFor(factors: MfaFactorSummary): LoginMfaFactor[] {
+  return [
+    ...(factors.passkeyCount > 0 ? (["passkey"] as const) : []),
+    ...(factors.totpActive ? (["totp"] as const) : []),
+    ...(factors.unusedRecoveryCodes > 0 ? (["recovery_code"] as const) : []),
+  ];
+}
 
 /**
  * What the second factor decided about a sign-in whose first factor passed.
@@ -85,14 +104,23 @@ export class LoginMfaService {
     private readonly loginLockoutService: LoginLockoutService,
     private readonly authAuditService: AuthAuditService,
     private readonly mfaRecoveryCodeService: MfaRecoveryCodeService,
+    private readonly mfaFactorRepository: Pick<
+      MfaFactorRepository,
+      "getSummary"
+    >,
+    private readonly passkeyService: Pick<
+      PasskeyService,
+      "beginAssertion" | "verifyAssertion"
+    >,
   ) {
     this.logger = loggerFactory.forClass(LoginMfaService, "service");
   }
 
   /**
    * Runs once the first factor (password or provider) has passed. Without a
-   * code, an account with an authenticator is refused with a challenge
-   * instead of a session; with one, the code is checked here and now.
+   * code, an account with a strong factor (a passkey or an authenticator) is
+   * refused with a challenge instead of a session; with an authenticator
+   * code, the code is checked here and now.
    */
   async evaluateFirstStep(
     input: EvaluateLoginMfaInput,
@@ -109,7 +137,9 @@ export class LoginMfaService {
       return { status: "not_required" };
     }
 
-    if (!(await this.mfaTotpService.isEnabled(userId))) {
+    const factors = await this.mfaFactorRepository.getSummary(userId);
+
+    if (!hasStrongFactor(factors)) {
       return { status: "not_required" };
     }
 
@@ -120,8 +150,7 @@ export class LoginMfaService {
         input.user,
         input.audit,
         this.failureEventType(input.method),
-        "totp",
-        input.totpCode,
+        { factor: "totp", code: input.totpCode },
       );
       return { status: "verified", factor: "totp" };
     }
@@ -148,11 +177,64 @@ export class LoginMfaService {
           rememberMe: input.rememberMe,
           tokenVersion: input.user.tokenVersion,
         },
-        (await this.mfaRecoveryCodeService.countUnused(userId)) > 0
-          ? ["totp", "recovery_code"]
-          : ["totp"],
+        loginFactorsFor(factors),
       ),
     );
+  }
+
+  /**
+   * Request options for finishing the sign-in with a passkey. The challenge
+   * is bound to the sign-in's token and lasts no longer than the sign-in
+   * itself; asking again replaces it, so a cancelled prompt can be retried.
+   */
+  async beginPasskey(
+    input: BeginLoginPasskeyInput,
+  ): Promise<PasskeyAssertionOptionsResult> {
+    const challenge = await this.loginMfaChallengeStore.read(
+      input.mfaChallengeToken,
+    );
+
+    if (!challenge) {
+      throw new LoginMfaChallengeInvalidError();
+    }
+
+    const audit: LoginAttemptAuditBase = {
+      method: challenge.method,
+      identifierHash: challenge.identifierHash,
+      context: input.audit,
+    };
+
+    if (challenge.deviceId !== input.deviceId) {
+      await this.recordFailure(challenge, audit, "token_invalid");
+      throw new LoginMfaChallengeInvalidError();
+    }
+
+    const user = await this.requireChallengeUser(
+      input.mfaChallengeToken,
+      challenge,
+      audit,
+    );
+    await this.refuseIfLocked(user, audit);
+
+    const remainingSeconds = Math.floor(
+      (Date.parse(challenge.createdAt) +
+        this.loginMfaChallengeStore.getTtlInSeconds() * 1000 -
+        Date.now()) /
+        1000,
+    );
+
+    if (remainingSeconds < 1) {
+      throw new LoginMfaChallengeInvalidError();
+    }
+
+    return {
+      options: await this.passkeyService.beginAssertion({
+        userId: challenge.userId,
+        purpose: "login",
+        binding: input.mfaChallengeToken,
+        ttlSeconds: remainingSeconds,
+      }),
+    };
   }
 
   async completeLoginMfa(
@@ -202,8 +284,8 @@ export class LoginMfaService {
           user,
           audit,
           this.failureEventType(challenge.method),
-          input.factor,
-          input.code,
+          input,
+          input.mfaChallengeToken,
         );
       } catch (error) {
         if (error instanceof LockedError) {
@@ -322,9 +404,11 @@ export class LoginMfaService {
   }
 
   /**
-   * A wrong code counts towards the username lockout and rethrows the
-   * rejection, whichever factor it was for; a right one clears the count the
-   * way a sign-in does.
+   * A wrong code, or a refused passkey assertion, counts towards the
+   * username lockout and rethrows the rejection, whichever factor it was for;
+   * a right one clears the count the way a sign-in does.
+   *
+   * `mfaChallengeToken` is what a passkey challenge was bound to.
    *
    * Returns how many recovery codes are left when one was spent.
    */
@@ -332,23 +416,36 @@ export class LoginMfaService {
     user: AuthUserRecord,
     audit: LoginAttemptAuditBase,
     failureEventType: "login.failed" | "oauth.login.failed",
-    factor: LoginMfaFactor,
-    code: string,
+    answer: LoginMfaAnswer,
+    mfaChallengeToken?: string,
   ): Promise<number | undefined> {
     const userId = asUuid(user.id);
     let recoveryCodesRemaining: number | undefined;
 
     try {
-      if (factor === "recovery_code") {
+      if (answer.factor === "passkey") {
+        // A passkey only ever answers the second step, never the first.
+        if (!mfaChallengeToken) {
+          throw new UnauthorizedError("MFA verification failed.");
+        }
+        await this.passkeyService.verifyAssertion({
+          userId,
+          purpose: "login",
+          binding: mfaChallengeToken,
+          credential: answer.credential,
+          method: audit.method,
+          context: audit.context,
+        });
+      } else if (answer.factor === "recovery_code") {
         recoveryCodesRemaining = await this.mfaRecoveryCodeService.redeem({
           userId,
-          code,
+          code: answer.code,
           stage: "login",
           method: audit.method,
           context: audit.context,
         });
       } else {
-        await this.mfaTotpService.verifyCode(userId, code);
+        await this.mfaTotpService.verifyCode(userId, answer.code);
       }
     } catch (error) {
       if (error instanceof UnauthorizedError) {

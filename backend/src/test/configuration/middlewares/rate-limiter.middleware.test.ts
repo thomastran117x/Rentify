@@ -214,6 +214,7 @@ describe("resolveRateLimitPolicy", () => {
 
   it.each([
     "/auth/login/mfa",
+    "/auth/login/mfa/passkey/options",
     "/auth/account/self-lock",
     "/auth/account/self-lock/session",
     "/auth/email/change/revert",

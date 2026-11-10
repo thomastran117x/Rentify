@@ -593,6 +593,14 @@ function createService(overrides?: {
     loginLockoutService,
     authAuditService as any,
     { countUnused: async () => 0 } as any,
+    {
+      getSummary: async (userId: string) => ({
+        totpActive: await mfaTotpService.isEnabled(userId),
+        passkeyCount: 0,
+        unusedRecoveryCodes: 0,
+      }),
+    },
+    { beginAssertion: jest.fn(), verifyAssertion: jest.fn() },
   );
 
   const service = new LocalAuthService(

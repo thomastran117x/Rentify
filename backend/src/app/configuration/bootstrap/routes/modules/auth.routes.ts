@@ -36,6 +36,13 @@ export const authLocalRouteModule: RouteModule = {
       ),
     );
     app.post(
+      "/auth/login/mfa/passkey/options",
+      resolveHandler<LoginMfaController>(
+        containerTokens.loginMfaController,
+        "beginPasskey",
+      ),
+    );
+    app.post(
       "/auth/local/signup",
       resolveHandler<LocalAuthController>(
         containerTokens.localAuthController,

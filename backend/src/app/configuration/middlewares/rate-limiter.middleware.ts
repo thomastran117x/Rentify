@@ -190,6 +190,14 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // Asking for passkey options is anonymous too, and writes a challenge.
+  if (
+    request.method === "POST" &&
+    pathname === "/auth/login/mfa/passkey/options"
+  ) {
+    return true;
+  }
+
   // Finishing an OAuth signup creates an account from a continuation token,
   // so it is as cheap to hammer as the provider sign-in that issued it.
   // (`password/change` is in the local regex above: from a stolen session it

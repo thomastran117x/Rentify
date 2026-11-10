@@ -373,7 +373,7 @@ paths:
     post:
       operationId: completeLoginMfa
       summary: Finish a sign-in with a second factor
-      description: 'Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: recovery_code appears only while the account has unused codes. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.'
+      description: 'Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: passkey appears while the account has a passkey, totp while it has an active authenticator, and recovery_code only while it has unused codes. For factor passkey, send the assertion as credential instead of a code, answering the options from POST /auth/login/mfa/passkey/options; a refused assertion returns 400 INVALID_MFA_CODE and is counted like a wrong code. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.'
       tags:
         - auth
       x-rentify-permissions:
@@ -511,6 +511,133 @@ paths:
                     data: null
                     error:
                       code: CONFLICT
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '423':
+          description: The sign-in is locked, or the account is on a security hold.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                loginLockout:
+                  summary: Too many failed attempts; the emailed unlock code clears it.
+                  value:
+                    success: false
+                    message: This sign-in is locked. Use the code we emailed you to unlock it.
+                    data: null
+                    error:
+                      code: ACCOUNT_LOCKED
+                      details:
+                        email: owner1@rentify.local
+                        unlockRequired: true
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                securityHold:
+                  summary: The account is on a security hold; a password reset recovers it.
+                  value:
+                    success: false
+                    message: This account is on a security hold. Reset your password to recover it.
+                    data: null
+                    error:
+                      code: ACCOUNT_LOCKED
+                      details:
+                        reason: security_hold
+                        recovery: password_reset
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/login/mfa/passkey/options:
+    post:
+      operationId: beginLoginMfaPasskey
+      summary: Get passkey options for a pending sign-in
+      description: For a sign-in that answered 401 with a login MFA challenge listing passkey, returns WebAuthn request options for navigator.credentials.get(). allowCredentials lists the account's passkeys and userVerification is preferred. The challenge is bound to the sign-in's token, is single-use, and lasts no longer than the sign-in itself (at most five minutes); asking again replaces it, so a cancelled prompt can be retried. Send the same deviceId as the first step. A sign-in that is unknown, expired, used, voided or from another device returns 401 MFA_CHALLENGE_INVALID; an account without a passkey returns 400 MFA_FACTOR_UNAVAILABLE; a locked username returns 423 ACCOUNT_LOCKED.
+      tags:
+        - auth
+      x-rentify-permissions:
+        authMode: public
+        minimumRole: null
+        patAllowed: false
+        csrf: Required for browser-origin requests to /auth/*.
+        rateLimitPolicy: auth-sensitive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginMfaPasskeyOptionsRequest'
+            example:
+              mfaChallengeToken: opaque-mfa-challenge-token
+              deviceId: device-1
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginMfaPasskeyOptionsResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  options:
+                    challenge: Gq2xV9cR4mT7bL1nW8yK3pH6sD0fJ5aE2uZ9oI4tY7w
+                    timeout: 240000
+                    rpId: rentify.example
+                    allowCredentials:
+                      - id: x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL
+                        type: public-key
+                        transports:
+                          - internal
+                          - hybrid
+                    userVerification: preferred
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: The sign-in cannot be finished; sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                challengeInvalid:
+                  summary: Unknown, expired, already used, voided, or from another device.
+                  value:
+                    success: false
+                    message: This sign-in has expired. Sign in again to continue.
+                    data: null
+                    error:
+                      code: MFA_CHALLENGE_INVALID
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '403':
+          description: The account is suspended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                accountSuspended:
+                  summary: The account is suspended; only an admin can reinstate it.
+                  value:
+                    success: false
+                    message: This account has been suspended. Contact support if you believe this is a mistake.
+                    data: null
+                    error:
+                      code: ACCOUNT_SUSPENDED
                     meta:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '423':
@@ -22026,33 +22153,68 @@ components:
           items:
             type: string
             enum:
+              - passkey
               - totp
               - recovery_code
-          description: The factors the sign-in can be finished with. New factors may be added.
+          description: The factors the sign-in can be finished with, strongest first. New factors may be added.
         expiresInSeconds:
           type: integer
           enum:
             - 300
-    LoginMfaRequest:
+    LoginMfaPasskeyOptionsRequest:
       type: object
       required:
         - mfaChallengeToken
-        - factor
-        - code
       properties:
         mfaChallengeToken:
           type: string
-        factor:
-          type: string
-          enum:
-            - totp
-            - recovery_code
-        code:
-          type: string
-          description: The authenticator code.
         deviceId:
           type: string
           description: Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.
+    LoginMfaPasskeyOptionsResult:
+      type: object
+      required:
+        - options
+      properties:
+        options:
+          $ref: '#/components/schemas/PasskeyAssertionOptions'
+    LoginMfaRequest:
+      oneOf:
+        - type: object
+          required:
+            - mfaChallengeToken
+            - factor
+            - code
+          properties:
+            mfaChallengeToken:
+              type: string
+            factor:
+              type: string
+              enum:
+                - totp
+                - recovery_code
+            code:
+              type: string
+              description: The authenticator or recovery code.
+            deviceId:
+              type: string
+              description: Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.
+        - type: object
+          required:
+            - mfaChallengeToken
+            - factor
+            - credential
+          properties:
+            mfaChallengeToken:
+              type: string
+            factor:
+              type: string
+              const: passkey
+            credential:
+              $ref: '#/components/schemas/PasskeyAssertionCredential'
+            deviceId:
+              type: string
+              description: Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.
     SessionVerificationResult:
       type: object
       additionalProperties: true

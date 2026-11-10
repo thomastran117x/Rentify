@@ -19,6 +19,7 @@ import {
 } from "../../support/persistence-test-app";
 import {
   SoftwareAuthenticator,
+  TEST_WEBAUTHN_ORIGIN,
   TEST_WEBAUTHN_RP_ID,
 } from "../../support/webauthn-authenticator";
 
@@ -943,6 +944,188 @@ describe("MFA passkeys integration", () => {
       expect(
         (await bodyOf<{ codes: string[] }>(response)).data.codes,
       ).toHaveLength(10);
+    });
+  });
+
+  describe("at sign-in", () => {
+    const ACCOUNT_USERNAME = "owner-one";
+    const ACCOUNT_PASSWORD = "Rentify123!";
+    const DEVICE_ID = "passkey-sign-in-device";
+    let authenticator: SoftwareAuthenticator;
+
+    function browserHeaders() {
+      return {
+        "content-type": "application/json",
+        origin: TEST_WEBAUTHN_ORIGIN,
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      };
+    }
+
+    /** The first step of a sign-in, which an account with a passkey must fail. */
+    async function startSignIn() {
+      const response = await request("/auth/local/login", {
+        method: "POST",
+        headers: browserHeaders(),
+        body: JSON.stringify({
+          username: ACCOUNT_USERNAME,
+          password: ACCOUNT_PASSWORD,
+          captchaToken: "captcha-ok-login",
+          deviceId: DEVICE_ID,
+        }),
+      });
+      expect(response.status).toBe(401);
+
+      return (await bodyOf(response)).error?.details as {
+        mfaChallengeToken: string;
+        availableFactors: string[];
+      };
+    }
+
+    async function passkeyOptions(mfaChallengeToken: string) {
+      const response = await request("/auth/login/mfa/passkey/options", {
+        method: "POST",
+        headers: browserHeaders(),
+        body: JSON.stringify({ mfaChallengeToken, deviceId: DEVICE_ID }),
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+
+      return (
+        await bodyOf<{
+          options: { challenge: string; allowCredentials: { id: string }[] };
+        }>(response)
+      ).data.options;
+    }
+
+    function finishSignIn(mfaChallengeToken: string, credential: unknown) {
+      return request("/auth/login/mfa", {
+        method: "POST",
+        headers: browserHeaders(),
+        body: JSON.stringify({
+          mfaChallengeToken,
+          factor: "passkey",
+          credential,
+          deviceId: DEVICE_ID,
+        }),
+      });
+    }
+
+    function failedSignIns() {
+      return persistenceApp.prisma.authAuditEvent.findMany({
+        where: {
+          userId: asUuid(session.userId),
+          eventType: "login.failed",
+          reasonCode: "mfa_invalid",
+        },
+      });
+    }
+
+    beforeEach(async () => {
+      authenticator = new SoftwareAuthenticator();
+      await completeEmailStepUp(persistenceApp.app, session.headers());
+      await register(authenticator);
+    });
+
+    it("finishes the sign-in with a passkey and counts it as the device check", async () => {
+      const { mfaChallengeToken, availableFactors } = await startSignIn();
+      expect(availableFactors).toEqual(["passkey", "recovery_code"]);
+
+      const options = await passkeyOptions(mfaChallengeToken);
+      expect(options.allowCredentials).toEqual([
+        expect.objectContaining({ id: authenticator.id }),
+      ]);
+      const response = await finishSignIn(
+        mfaChallengeToken,
+        authenticator.createAssertionResponse({ challenge: options.challenge }),
+      );
+
+      expect(response.status).toBe(200);
+      const { accessToken } = (await bodyOf<{ accessToken: string }>(response))
+        .data;
+      const deviceCheck = await request(
+        "/auth/mfa/verify/options?scope=device-login",
+        {
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+        },
+      );
+      expect(
+        (await bodyOf<{ verified: boolean }>(deviceCheck)).data.verified,
+      ).toBe(true);
+    });
+
+    it("refuses the answer to a challenge that was replaced", async () => {
+      const { mfaChallengeToken } = await startSignIn();
+      const first = await passkeyOptions(mfaChallengeToken);
+      const stale = authenticator.createAssertionResponse({
+        challenge: first.challenge,
+      });
+      await passkeyOptions(mfaChallengeToken);
+
+      const response = await finishSignIn(mfaChallengeToken, stale);
+
+      expect(response.status).toBe(400);
+      expect((await bodyOf(response)).error?.code).toBe("INVALID_MFA_CODE");
+      await expect(failedSignIns()).resolves.toHaveLength(1);
+    });
+
+    it("refuses an assertion made on another origin, counting it as a failure", async () => {
+      const { mfaChallengeToken } = await startSignIn();
+      const options = await passkeyOptions(mfaChallengeToken);
+
+      const response = await finishSignIn(
+        mfaChallengeToken,
+        authenticator.createAssertionResponse({
+          challenge: options.challenge,
+          origin: "https://rentify.example.evil",
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(failedSignIns()).resolves.toHaveLength(1);
+    });
+
+    it("refuses an answer once its challenge has expired", async () => {
+      const { mfaChallengeToken } = await startSignIn();
+      const options = await passkeyOptions(mfaChallengeToken);
+      await getRedisClient().del(
+        await getRedisClient().keys("auth:webauthn:login:*"),
+      );
+
+      const response = await finishSignIn(
+        mfaChallengeToken,
+        authenticator.createAssertionResponse({ challenge: options.challenge }),
+      );
+
+      expect(response.status).toBe(400);
+      expect((await bodyOf(response)).error?.code).toBe("INVALID_MFA_CODE");
+    });
+
+    it("gives no options to another device or an unknown sign-in", async () => {
+      const { mfaChallengeToken } = await startSignIn();
+
+      const otherDevice = await request("/auth/login/mfa/passkey/options", {
+        method: "POST",
+        headers: browserHeaders(),
+        body: JSON.stringify({ mfaChallengeToken, deviceId: "another-device" }),
+      });
+      const unknown = await request("/auth/login/mfa/passkey/options", {
+        method: "POST",
+        headers: browserHeaders(),
+        body: JSON.stringify({
+          mfaChallengeToken: "not-a-real-token",
+          deviceId: DEVICE_ID,
+        }),
+      });
+
+      for (const response of [otherDevice, unknown]) {
+        expect(response.status).toBe(401);
+        expect((await bodyOf(response)).error?.code).toBe(
+          "MFA_CHALLENGE_INVALID",
+        );
+      }
     });
   });
 });
