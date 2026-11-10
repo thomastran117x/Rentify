@@ -12,7 +12,6 @@ import {
   type AuthSessionResult,
   type AuthUserProfile,
   type AuthUserRecord,
-  isStrongPassword,
 } from "@/features/auth/auth.model";
 import type {
   LocalAuthenticateInput,
@@ -33,21 +32,15 @@ import {
   type LoginAttemptAuditBase,
 } from "@/features/auth/lockout/login-lockout.service";
 import {
-  isEligibleForLocalPasswordManagement,
-  isLocalPasswordAccount,
-  requireEligibleLocalPasswordUser,
-  requirePasswordlessLinkedUser,
-  type LocalPasswordAuthUserRecord,
-} from "@/features/auth/local-account-eligibility";
-import {
+  getDummyPasswordHash,
   hashPassword,
-  isBcryptHash,
-  rejectIfPasswordMatchesCurrent,
+  needsRehash,
+  rehashVerifiedPassword,
   verifyPassword,
-  DUMMY_PASSWORD_HASH,
-  verifyPasswordAgainstFakeHash,
 } from "@/features/auth/password-hashing";
+import type { PasswordRepository } from "@/features/auth/password/password.repository";
 import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
+import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
 import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
@@ -85,6 +78,11 @@ export class LocalAuthService {
     private readonly authAuditService: AuthAuditService,
     private readonly loginMfaService: LoginMfaService,
     private readonly emailChangeRevertRepository: EmailChangeRevertRepository,
+    private readonly passwordRepository: Pick<
+      PasswordRepository,
+      "replacePasswordHashIfUnchanged"
+    >,
+    private readonly passwordPolicy: PasswordPolicyService = new PasswordPolicyService(),
   ) {
     this.logger = loggerFactory.forClass(LocalAuthService, "service");
   }
@@ -109,7 +107,7 @@ export class LocalAuthService {
     const user = await this.usersRepository.findUserByUsername(input.username);
     const isPasswordValid = await verifyPassword(
       input.password,
-      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+      user?.passwordHash ?? (await getDummyPasswordHash()),
     );
     const loginAttemptRecord = await this.loginLockoutService.getAttemptRecord(
       input.username,
@@ -156,6 +154,10 @@ export class LocalAuthService {
       );
     }
 
+    // Here, before MFA, because a pending challenge throws and the password is
+    // not sent again when the code is.
+    await this.rehashIfOutdated(user, input.password);
+
     // A pending challenge throws, leaving the attempt record in place until
     // the code checks out too.
     const mfa = await this.loginMfaService.evaluateFirstStep({
@@ -196,9 +198,58 @@ export class LocalAuthService {
     return session;
   }
 
+  /**
+   * Upgrades a hash made at a lower bcrypt cost than the configured one, now
+   * that the password is known to be right. Never fails the sign-in, and is
+   * not a security change: no token rotation, audit event or email.
+   */
+  private async rehashIfOutdated(
+    user: AuthUserRecord,
+    password: string,
+  ): Promise<void> {
+    const currentHash = user.passwordHash;
+
+    if (!currentHash || !needsRehash(currentHash)) {
+      return;
+    }
+
+    try {
+      const replaced =
+        await this.passwordRepository.replacePasswordHashIfUnchanged(
+          asUuid(user.id),
+          currentHash,
+          await rehashVerifiedPassword(password),
+        );
+
+      this.logger.info("Rehashed a password at the configured cost.", {
+        userId: user.id,
+        replaced,
+      });
+    } catch (error) {
+      this.logger.warn("Could not rehash a password after sign-in.", {
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   async localSignup(
     input: LocalSignupInput,
   ): Promise<SignupVerificationPendingResult> {
+    // First, before anything is looked up: signup answers a registered address
+    // exactly like a new one, and a password refused only for new addresses
+    // would tell them apart.
+    await this.passwordPolicy.assertAcceptable(
+      input.password,
+      {
+        username: input.username,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+      "password",
+    );
+
     const existingUser = await this.usersRepository.findUserByEmail(
       input.email,
     );

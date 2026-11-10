@@ -16,6 +16,12 @@ import {
 } from "@/lib/auth/pending-flow";
 import { authApi } from "@/lib/auth/api";
 import { getPasswordStrengthError } from "@/lib/auth/password";
+import { getValidationFieldMessage } from "@/lib/api/validation-details";
+import {
+  getPasswordCheckError,
+  usePasswordCheck,
+} from "@/lib/auth/use-password-check";
+import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError, type AuthResponseBody } from "@/lib/auth/types";
 import { validateUsernameFormat } from "@/lib/auth/username";
@@ -55,6 +61,7 @@ function validateReset(values: {
   code: string;
   newPassword: string;
   confirmPassword: string;
+  username: string;
 }): ResetErrors {
   const errors: ResetErrors = {};
 
@@ -66,7 +73,11 @@ function validateReset(values: {
     errors.newPassword = "New password is required.";
   } else {
     // `resetPasswordSchema` uses the same `strongPasswordSchema` as signup.
-    const passwordError = getPasswordStrengthError(values.newPassword);
+    // Only the username is known here. The server also checks the account's
+    // name and email, once the code is proven.
+    const passwordError = getPasswordStrengthError(values.newPassword, {
+      username: values.username,
+    });
 
     if (passwordError) {
       errors.newPassword = passwordError;
@@ -136,6 +147,17 @@ function getResetFailureResult(error: unknown): {
     const retryDetails = details as { retryAfterSeconds?: number } | undefined;
 
     if (status === 400) {
+      // A refused password leaves the code valid, so the reasons belong on the
+      // password field, not the code field.
+      const passwordError = getValidationFieldMessage(error, "newPassword");
+
+      if (passwordError) {
+        return {
+          generalError: null,
+          fieldErrors: { newPassword: passwordError },
+        };
+      }
+
       switch (code) {
         case "CAPTCHA_REQUIRED":
         case "CAPTCHA_MISSING":
@@ -219,6 +241,13 @@ export function ForgotPasswordForm() {
       : null;
   const requestComplete = resetFlow !== null;
   const authFlowRestorePending = persistedAuthFlow === undefined;
+  const resetUsername = resetFlow?.username ?? username.trim().toLowerCase();
+  const passwordCheck = usePasswordCheck(
+    newPassword,
+    { username: resetUsername },
+    { enabled: requestComplete },
+  );
+  const passwordCheckError = getPasswordCheckError(passwordCheck);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -267,10 +296,19 @@ export function ForgotPasswordForm() {
   async function handleResetSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextErrors = validateReset({ code, newPassword, confirmPassword });
+    const nextErrors = validateReset({
+      code,
+      newPassword,
+      confirmPassword,
+      username: resetUsername,
+    });
 
     if (!captchaToken.trim()) {
       nextErrors.captchaToken = "Complete the verification to continue.";
+    }
+
+    if (!nextErrors.newPassword && passwordCheckError) {
+      nextErrors.newPassword = passwordCheckError;
     }
 
     setResetErrors(nextErrors);
@@ -285,7 +323,7 @@ export function ForgotPasswordForm() {
 
     try {
       const session: AuthResponseBody = await authApi.resetPassword({
-        username: resetFlow?.username ?? username.trim().toLowerCase(),
+        username: resetUsername,
         code: code.trim(),
         newPassword,
         captchaToken,
@@ -488,18 +526,35 @@ export function ForgotPasswordForm() {
           id="newPassword"
           label="New password"
           value={newPassword}
-          onChange={setNewPassword}
+          onChange={(value) => {
+            setNewPassword(value);
+            // The checklist and meter speak for the edited value now.
+            setResetErrors((current) => ({
+              ...current,
+              newPassword: undefined,
+            }));
+          }}
           autoComplete="new-password"
           placeholder="Create a password"
           error={resetErrors.newPassword}
           errorId="forgot-password-new-password-error"
           requirementsId="forgot-password-new-password-requirements"
           requirements={
-            <PasswordRequirementsChecklist
-              id="forgot-password-new-password-requirements"
-              password={newPassword}
-              invalid={Boolean(resetErrors.newPassword)}
-            />
+            <>
+              <PasswordRequirementsChecklist
+                id="forgot-password-new-password-requirements"
+                password={newPassword}
+                context={{ username: resetUsername }}
+                invalid={Boolean(resetErrors.newPassword)}
+              />
+              <PasswordStrengthMeter
+                id="forgot-password-new-password-strength"
+                password={newPassword}
+                context={{ username: resetUsername }}
+                check={passwordCheck}
+                hideIssues={Boolean(resetErrors.newPassword)}
+              />
+            </>
           }
         />
 

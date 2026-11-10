@@ -54,6 +54,7 @@ describe("YAML configuration files", () => {
             mode: "enforce",
             credentialStuffing: { enabled: false, blockMinutes: 30 },
           },
+          passwords: { breachCheck: { mode: "warn", timeoutMs: 800 } },
         },
         application: { frontendUrl: "${config.frontendOrigin}" },
         cors: {
@@ -75,6 +76,8 @@ describe("YAML configuration files", () => {
         AUTH_SECURITY_DETECTION_MODE: "enforce",
         AUTH_SECURITY_CREDENTIAL_STUFFING_ENABLED: "false",
         AUTH_SECURITY_CREDENTIAL_STUFFING_BLOCK_MINUTES: "30",
+        AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE: "warn",
+        AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS: "800",
         FRONTEND_URL: "https://one.test",
         CORS_ALLOWED_ORIGINS: "https://one.test,https://two.test",
         PAYPAL_CHECKOUT_METHODS: "paypal,card",

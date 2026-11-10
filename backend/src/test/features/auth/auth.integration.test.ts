@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { buildApiPath } from "@/configuration/http/api-path";
 import { containerTokens } from "@/configuration/bootstrap/container";
 import { getRedisClient } from "@/configuration/resources/redis";
@@ -713,6 +714,364 @@ describe("Auth persistence integration", () => {
     expect((await login({ username, password: oldPassword })).status).toBe(401);
     expect((await login({ username, password: newPassword })).status).toBe(200);
   });
+
+  describe("new-password policy", () => {
+    const COMMON_MESSAGE =
+      "This password is too common or easy to guess. Choose something less predictable.";
+    const PERSONAL_MESSAGE =
+      "Password must not contain your name, username or email address.";
+
+    it("refuses a signup password that contains the username", async () => {
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/signup")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            email: "policy-signup@rentify.local",
+            username: "policy-signup",
+            password: "my-policy-signup-pass",
+            dateOfBirth: "2012-06-15",
+            captchaToken: "captcha-ok-signup",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { password: [PERSONAL_MESSAGE] },
+        },
+      });
+    });
+
+    it("refuses a reset to the account's own name and keeps the code for a retry", async () => {
+      const username = "renter-one";
+      const email = "user1@rentify.local";
+      const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+        where: { email },
+        select: { firstName: true },
+      });
+      expect(user.firstName?.length).toBeGreaterThanOrEqual(4);
+
+      expect(
+        (
+          await persistenceApp.app.request(
+            `http://rent.test${buildApiPath("/auth/local/password/forgot")}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json", origin: ORIGIN },
+              body: JSON.stringify({
+                username,
+                captchaToken: "captcha-ok-forgot",
+              }),
+            },
+          )
+        ).status,
+      ).toBe(202);
+      const code = await readOtpCode(PASSWORD_RESET_OTP_PURPOSE, email);
+      const reset = (newPassword: string) =>
+        persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/auth/local/password/reset")}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", origin: ORIGIN },
+            body: JSON.stringify({
+              username,
+              code,
+              newPassword,
+              captchaToken: "captcha-ok-reset",
+            }),
+          },
+        );
+
+      const refused = await reset(`all-about-${user.firstName}-forever`);
+      expect(refused.status).toBe(400);
+      await expect(refused.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { newPassword: [PERSONAL_MESSAGE] },
+        },
+      });
+
+      // The same code still works once the password is acceptable.
+      expect((await reset("tidal-harbor-lantern")).status).toBe(200);
+      expect(
+        (await login({ username, password: "tidal-harbor-lantern" })).status,
+      ).toBe(200);
+    }, 120_000);
+
+    it("refuses a breached password in enforce mode, sending the checker the password only", async () => {
+      const check = persistenceApp.stubs.breachedPasswordChecker.check;
+      check.mockResolvedValueOnce({ status: "breached", count: 3 });
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/signup")}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({
+            email: "breached-signup@rentify.local",
+            username: "breached-signup",
+            password: "tidal-harbor-lantern",
+            dateOfBirth: "2012-06-15",
+            captchaToken: "captcha-ok-signup",
+          }),
+        },
+      );
+
+      expect(check).toHaveBeenLastCalledWith("tidal-harbor-lantern");
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: {
+            password: [
+              "This password has appeared in a known data breach. Choose a different one.",
+            ],
+          },
+        },
+      });
+    });
+
+    it("accepts the password when the breach check is unavailable", async () => {
+      persistenceApp.stubs.breachedPasswordChecker.check.mockResolvedValueOnce({
+        status: "unavailable",
+        reason: "timeout",
+      });
+      const username = "renter-one";
+      const password = "Rentify123!";
+      const session = await login({ username, password });
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({
+            currentPassword: password,
+            newPassword: "quiet-meadow-compass",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+    }, 120_000);
+
+    describe("POST /auth/password/check", () => {
+      const check = (body: unknown, headers?: Record<string, string>) =>
+        persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/auth/password/check")}`,
+          {
+            method: "POST",
+            headers: headers ?? {
+              "content-type": "application/json",
+              origin: ORIGIN,
+            },
+            body: JSON.stringify(body),
+          },
+        );
+
+      it("reports every reason against the context an anonymous caller sends", async () => {
+        const response = await check({
+          password: "Monkey123456!",
+          username: "taylor-renter",
+          firstName: "Monkey",
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({
+          success: true,
+          data: {
+            acceptable: false,
+            issues: [
+              { code: "common", message: COMMON_MESSAGE },
+              { code: "contains_personal_info", message: PERSONAL_MESSAGE },
+            ],
+            warnings: [],
+          },
+        });
+        // The breach check only runs once the local rules pass.
+        expect(
+          persistenceApp.stubs.breachedPasswordChecker.check,
+        ).not.toHaveBeenCalledWith("Monkey123456!");
+      });
+
+      it("accepts a good password and asks the breach checker about it", async () => {
+        const response = await check({ password: "tidal-harbor-lantern" });
+
+        await expect(response.json()).resolves.toMatchObject({
+          data: { acceptable: true, issues: [], warnings: [] },
+        });
+        expect(
+          persistenceApp.stubs.breachedPasswordChecker.check,
+        ).toHaveBeenLastCalledWith("tidal-harbor-lantern");
+      });
+
+      it("refuses markup that a signup with the same password would refuse", async () => {
+        const password = "<b>tidal-harbor-lantern</b>";
+        const unsafeMessage =
+          "Input contains unsupported HTML or script content.";
+
+        const response = await check({ password });
+
+        await expect(response.json()).resolves.toMatchObject({
+          data: {
+            acceptable: false,
+            issues: [{ code: "unsafe_input", message: unsafeMessage }],
+            warnings: [],
+          },
+        });
+        expect(
+          persistenceApp.stubs.breachedPasswordChecker.check,
+        ).not.toHaveBeenCalledWith(password);
+
+        const signup = await persistenceApp.app.request(
+          `http://rent.test${buildApiPath("/auth/local/signup")}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", origin: ORIGIN },
+            body: JSON.stringify({
+              email: "policy-markup@rentify.local",
+              username: "policy-markup",
+              password,
+              dateOfBirth: "2012-06-15",
+              captchaToken: "captcha-ok-signup",
+            }),
+          },
+        );
+
+        expect(signup.status).toBe(400);
+        await expect(signup.json()).resolves.toMatchObject({
+          error: {
+            code: "VALIDATION_ERROR",
+            details: { password: [unsafeMessage] },
+          },
+        });
+      });
+
+      it("checks a signed-in caller against their own account, not the body", async () => {
+        const session = await login({
+          username: "renter-one",
+          password: "Rentify123!",
+        });
+        expect(session.status).toBe(200);
+
+        const response = await check(
+          { password: "all-about-renter-one", username: "someone-else" },
+          sessionHeaders(session),
+        );
+
+        await expect(response.json()).resolves.toMatchObject({
+          data: {
+            acceptable: false,
+            issues: [{ code: "contains_personal_info" }],
+          },
+        });
+      }, 120_000);
+
+      it("only warns about a breached password in warn mode", async () => {
+        const authSecurity = environment.getAuthSecurityConfig();
+        const configSpy = jest
+          .spyOn(environment, "getAuthSecurityConfig")
+          .mockReturnValue({
+            ...authSecurity,
+            passwords: {
+              ...authSecurity.passwords,
+              breachCheck: { mode: "warn", timeoutMs: 1_500 },
+            },
+          });
+        persistenceApp.stubs.breachedPasswordChecker.check.mockResolvedValueOnce(
+          { status: "breached", count: 12 },
+        );
+
+        try {
+          const response = await check({ password: "tidal-harbor-lantern" });
+
+          await expect(response.json()).resolves.toMatchObject({
+            data: {
+              acceptable: true,
+              issues: [],
+              warnings: [
+                {
+                  code: "breached",
+                  message:
+                    "This password has appeared in a known data breach. Consider choosing a different one.",
+                },
+              ],
+            },
+          });
+        } finally {
+          configSpy.mockRestore();
+        }
+      });
+
+      it("rejects a request without a password", async () => {
+        const response = await check({ username: "taylor-renter" });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toMatchObject({
+          error: {
+            code: "VALIDATION_ERROR",
+            details: { password: expect.any(Array) },
+          },
+        });
+      });
+    });
+
+    it("refuses a common password on change and keeps the old one", async () => {
+      const username = "renter-one";
+      const password = "Rentify123!";
+      const session = await login({ username, password });
+      expect(session.status).toBe(200);
+
+      const response = await persistenceApp.app.request(
+        `http://rent.test${buildApiPath("/auth/local/password/change")}`,
+        {
+          method: "POST",
+          headers: sessionHeaders(session),
+          body: JSON.stringify({
+            currentPassword: password,
+            newPassword: "Password1234!",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { newPassword: [COMMON_MESSAGE] },
+        },
+      });
+      expect((await login({ username, password })).status).toBe(200);
+    }, 120_000);
+  });
+
+  it("rehashes a password below the configured cost at the next sign-in", async () => {
+    const username = "renter-one";
+    const password = "Rentify123!";
+    const where = { email: "user1@rentify.local" };
+    await persistenceApp.prisma.user.update({
+      where,
+      data: { passwordHash: await bcrypt.hash(password, 10) },
+    });
+
+    expect((await login({ username, password })).status).toBe(200);
+
+    const { passwordHash } = await persistenceApp.prisma.user.findUniqueOrThrow(
+      {
+        where,
+        select: { passwordHash: true },
+      },
+    );
+    expect(passwordHash?.startsWith("$2b$12$")).toBe(true);
+    expect(await bcrypt.compare(password, passwordHash ?? "")).toBe(true);
+    // The rehash changes nothing else: the same password keeps working.
+    expect((await login({ username, password })).status).toBe(200);
+  }, 120_000);
 
   it("changes a password from a real session and invalidates the old one", async () => {
     const username = "renter-one";

@@ -45,6 +45,11 @@ vi.mock("@/lib/auth/api", () => ({
     forgotPassword: forgotPasswordMock,
     resetPassword: resetPasswordMock,
     resendForgotPassword: resendForgotPasswordMock,
+    checkPassword: vi.fn(async () => ({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    })),
   },
 }));
 
@@ -303,6 +308,95 @@ describe("ForgotPasswordForm", () => {
     expect(screen.getByText("Captcha token: empty")).toBeInTheDocument();
   });
 
+  it("puts the server's password reasons on the password field, not the code", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+    resetPasswordMock.mockRejectedValue(
+      clientError(400, "VALIDATION_ERROR", "Request body validation failed.", {
+        newPassword: [
+          "Password must not contain your name, username or email address.",
+        ],
+      }),
+    );
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(screen.getByLabelText("New password"), "jane-loves-tea");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "jane-loves-tea",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      await screen.findByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "forgot-password-new-password-error forgot-password-new-password-requirements",
+    );
+    expect(screen.getByLabelText("Reset code")).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("drops a new-password error once the password is edited", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("New password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refuses a new password containing the username before sending it", async () => {
+    const user = userEvent.setup();
+    writePersistedAuthPendingFlow({
+      flow: "forgot-password-reset",
+      username: "person",
+    });
+
+    render(<ForgotPasswordForm />);
+    await screen.findByText("Check your inbox");
+    await user.type(screen.getByLabelText("Reset code"), "123456");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "person-of-interest",
+    );
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "person-of-interest",
+    );
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(
+      screen.getByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(resetPasswordMock).not.toHaveBeenCalled();
+  });
+
   it("validates reset codes and both password fields", async () => {
     const user = userEvent.setup();
     writePersistedAuthPendingFlow({
@@ -321,9 +415,7 @@ describe("ForgotPasswordForm", () => {
       screen.getByText("Enter the 6-digit reset code from your email."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      ),
+      screen.getByText("Password must be at least 12 characters."),
     ).toBeInTheDocument();
     expect(screen.getByText("Passwords do not match.")).toBeInTheDocument();
     expect(resetPasswordMock).not.toHaveBeenCalled();
@@ -332,11 +424,8 @@ describe("ForgotPasswordForm", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getByText("At least 8 characters").closest("li"),
+      within(requirements).getByText("At least 12 characters").closest("li"),
     ).toHaveAttribute("data-state", "unmet");
-    expect(
-      within(requirements).getByText("A lowercase letter").closest("li"),
-    ).toHaveAttribute("data-state", "met");
     expect(screen.getByLabelText("New password")).toHaveAttribute(
       "aria-describedby",
       "forgot-password-new-password-error forgot-password-new-password-requirements",

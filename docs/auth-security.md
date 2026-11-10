@@ -264,6 +264,61 @@ Someone who has lost their authenticator and signs in with their last code has n
 
 A user who skips the prompt, or reloads the page, can still regenerate from the Security tab while they have their authenticator. Without it, once the proof expires, the account needs support.
 
+## Password Policy
+
+Every path that sets a local password applies the same rules: signup (`POST /auth/local/signup`), reset (`POST /auth/local/password/reset`), change (`POST /auth/local/password/change`) and adding a first password to a social-only account (`POST /auth/local/password/set`). Existing passwords are not re-checked at sign-in, and accounts that only sign in through a provider are unaffected.
+
+| Rule         | Requirement                                                                                                                                                                                                                                                                                                                             | Message                                                                                     |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Minimum      | 12 characters, counted as Unicode code points, so an emoji is one character                                                                                                                                                                                                                                                             | Password must be at least 12 characters.                                                    |
+| Maximum      | 72 UTF-8 bytes. bcrypt ignores everything after the first 72 bytes, so two longer passwords sharing that prefix would be the same password.                                                                                                                                                                                             | Password must be at most 72 bytes. Shorten it, or use fewer accented or special characters. |
+| No markup    | The shared unsafe-input rule                                                                                                                                                                                                                                                                                                            | Input contains unsupported HTML or script content.                                          |
+| Not common   | Not on the bundled list of the 10,000 most common passwords, including an entry with digits or symbols added at either end (`Password1234!`, `monkey123456`). Trivial runs (`aaaaaaaaaaaa`, `abcdefghijkl`, `123456789012`) and a short unit repeated (`abcdabcdabcd`, `trustno1trustno1`) count as common too.                         | This password is too common or easy to guess. Choose something less predictable.            |
+| Not personal | Does not contain the username, the email's local part or a piece of it split on `.`, `_`, `-` or `+`, or the first or last name. Case and separators are ignored, so `Renter.One-2024` is caught for `renter-one`. Pieces shorter than four characters are skipped, so a name such as "Lee" does not rule out every word containing it. | Password must not contain your name, username or email address.                             |
+
+There are no character-class rules. Following NIST SP 800-63B, length matters more than a mix of upper case, digits and symbols, and composition rules push people towards predictable patterns such as `Password1!`.
+
+A rejected password returns `400 VALIDATION_ERROR` with every reason under the field name, `password` for signup and `newPassword` for the others. The shape rules live in `backend/src/app/features/auth/password/policy/password-rules.ts`. The common and personal checks need the account, so `PasswordPolicyService` runs them in the services rather than in the request schema. The list is `backend/resources/common-passwords.txt`, from SecLists under the MIT License.
+
+Where each path runs the checks matters:
+
+- **Signup** checks first, before the address is looked up. Signup answers a registered address exactly like a new one (see [Email enumeration](./api.md#authentication-security)), and a password refused only for new addresses would tell them apart. The context is what the request carries.
+- **Reset** checks only once the emailed code has matched, so nobody can learn an account's name or email by guessing passwords at it. The check runs before the code is spent: a refused password leaves the code valid, and the user can try another password with it. The attempt still counts towards the code's limit. An unknown username is checked against the name sent.
+- **Change** checks after the current password is proven, and **set** after the account is confirmed to have no password.
+
+### Breached Passwords
+
+A password that passes every rule above is then checked against [Have I Been Pwned's Pwned Passwords](https://haveibeenpwned.com/Passwords) range API, without disclosing it:
+
+1. The backend hashes the password with SHA-1 and sends only the first five hex characters, `GET https://api.pwnedpasswords.com/range/{prefix}`, with `Add-Padding: true`.
+2. The API returns every hash suffix in that range with a breach count, padded with decoy rows whose count is `0`, so the response size reveals nothing either.
+3. The backend looks for the rest of the hash among them. A decoy never matches.
+
+Neither the password, its full hash nor the suffix leaves the server or is logged. What happens on a match depends on `authSecurity.passwords.breachCheck.mode` (see [Password checks](./backend-configuration.md#password-checks)):
+
+| Mode                | A breached password                                                                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforce` (default) | Refused: "This password has appeared in a known data breach. Choose a different one."                                                                           |
+| `warn`              | Accepted, with the warning "This password has appeared in a known data breach. Consider choosing a different one." where the form can show it before submitting |
+| `off`               | Not checked                                                                                                                                                     |
+
+The check **fails open**. When the API takes longer than `breachCheck.timeoutMs` (1.5 seconds by default), cannot be reached or returns an error, the password is accepted, since every other rule has already passed, and the backend logs `Breached-password check unavailable; accepting password.` with the reason (`timeout`, `network` or `http`). An outage at a third party must not block signups, resets or changes. A match is logged at info level with the mode and nothing that identifies the password or the account. Passwords that a local rule already refuses are not sent at all.
+
+### Rehashing at Sign-In
+
+New hashes use bcrypt at `authSecurity.passwords.hashCost` (12 by default; see [Password checks](./backend-configuration.md#password-checks)). When a sign-in proves a password whose stored hash has a lower cost, the backend rehashes it at the configured cost:
+
+- It runs after the password, account status and email checks and before the login MFA step, because the password is not sent again with the authenticator code.
+- It skips the new-password rules. A password set under the old 8-character rule still upgrades.
+- The write is conditional on the stored hash still being the one that was verified, so a password changed or reset in between is never overwritten.
+- It is not a security change: the token version is not rotated, and nothing is audited or emailed. A failed write is logged at warn and the sign-in carries on.
+
+The timing-safe dummy hash that unknown usernames are compared against follows the configured cost too, so raising it does not make missing accounts answer faster.
+
+Existing passwords are not checked at sign-in. Flagging a breached password at sign-in, which would have to be carried through the login MFA challenge, is a follow-up.
+
+`frontend/src/lib/auth/password.ts` mirrors the shape and personal rules so the forms catch a bad password before it is sent, and the new-password fields show them as a checklist. Under it, a strength meter gives a rough grade (Fair to Very strong, from length and the mix of kinds of character), and once the local rules pass, `usePasswordCheck` asks `POST /auth/password/check` 400 ms after the user stops typing. Its reasons appear under the meter, which then reads "Too weak"; a `warn`-mode breach appears as an amber warning and caps the meter at "Fair". A password the check has already refused cannot be submitted. A failed check blocks nothing, since the server checks again on submit. The "doesn't contain your name, username or email" row appears once the form knows any of those. The forms show the server's reasons on the password field: signup returns to its first step to do so, and reset keeps them off the code field.
+
 ## One-Time Codes
 
 The six-digit codes sent by email cover signup verification, password reset, login unlock, email change, and the `email` step-up factor. They all go through `OtpService`, keyed by a purpose and a subject (an email address, or the session and scope for step-up).

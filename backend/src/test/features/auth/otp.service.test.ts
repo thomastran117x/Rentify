@@ -245,6 +245,51 @@ describe("OtpService", () => {
       });
     });
 
+    it("runs the hook only for the right code, before spending it", async () => {
+      const { service, cache } = createService();
+      const issued = await service.issue(input);
+      const beforeConsume = jest.fn(async () => {
+        expect(cache.entries.has(OTP_KEY)).toBe(true);
+      });
+
+      await expect(
+        service.verify({
+          ...input,
+          code: wrongCodeFor(issued.code),
+          beforeConsume,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestError);
+      expect(beforeConsume).not.toHaveBeenCalled();
+
+      await expect(
+        service.verify({ ...input, code: issued.code, beforeConsume }),
+      ).resolves.toBeUndefined();
+      expect(beforeConsume).toHaveBeenCalledTimes(1);
+      expect(cache.entries.has(OTP_KEY)).toBe(false);
+    });
+
+    it("keeps the code valid when the hook refuses, but counts the attempt", async () => {
+      const { service, cache } = createService();
+      const issued = await service.issue(input);
+      const refusal = new Error("password refused");
+
+      await expect(
+        service.verify({
+          ...input,
+          code: issued.code,
+          beforeConsume: async () => {
+            throw refusal;
+          },
+        }),
+      ).rejects.toBe(refusal);
+
+      expect(cache.entries.has(OTP_KEY)).toBe(true);
+      expect(cache.entries.get(ATTEMPTS_KEY)?.value).toBe("1");
+      await expect(
+        service.verify({ ...input, code: issued.code }),
+      ).resolves.toBeUndefined();
+    });
+
     it("counts a wrong code and keeps the code alive", async () => {
       const { service, cache } = createService();
       const issued = await service.issue(input);

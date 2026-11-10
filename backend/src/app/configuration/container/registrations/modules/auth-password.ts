@@ -3,6 +3,8 @@ import type { ContainerRegistrationModule } from "@/configuration/container/regi
 import { PasswordController } from "@/features/auth/password/password.controller";
 import { PasswordService } from "@/features/auth/password/password.service";
 import { PasswordRepository } from "@/features/auth/password/password.repository";
+import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
+import { PwnedPasswordsClient } from "@/features/auth/password/policy/breached-password.client";
 
 export const authPasswordRegistrationModule: ContainerRegistrationModule = {
   id: "auth-password",
@@ -12,6 +14,21 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
       lifetime: "singleton",
       dependencies: [],
       resolve: () => new PasswordRepository(),
+    });
+    container.register({
+      token: containerTokens.breachedPasswordChecker,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new PwnedPasswordsClient(),
+    });
+    container.register({
+      token: containerTokens.passwordPolicyService,
+      lifetime: "singleton",
+      dependencies: [containerTokens.breachedPasswordChecker],
+      resolve: ({ resolve }) =>
+        new PasswordPolicyService({
+          breachChecker: resolve(containerTokens.breachedPasswordChecker),
+        }),
     });
     container.register({
       token: containerTokens.passwordService,
@@ -27,6 +44,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authAuditService,
         containerTokens.accountStatusService,
         containerTokens.securityNotificationService,
+        containerTokens.passwordPolicyService,
       ],
       resolve: ({ resolve }) =>
         new PasswordService(
@@ -40,6 +58,7 @@ export const authPasswordRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.authAuditService),
           resolve(containerTokens.accountStatusService),
           resolve(containerTokens.securityNotificationService),
+          resolve(containerTokens.passwordPolicyService),
         ),
     });
     container.register({

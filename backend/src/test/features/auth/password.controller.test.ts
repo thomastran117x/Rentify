@@ -10,6 +10,7 @@ import {
   type AuthTestContext,
 } from "../../support/auth-controller-harness";
 import { testUuid } from "../../support/uuid";
+import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 
 const USER_9_ID = testUuid(9000, 994265);
 
@@ -32,6 +33,11 @@ function createController() {
     resetPassword: jest.fn(async () => createSessionResult()),
     changePassword: jest.fn(async () => createSessionResult()),
     setPassword: jest.fn(async () => createSessionResult()),
+    checkPassword: jest.fn(async () => ({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    })),
   };
   const captchaService = { verify: jest.fn(async () => ({ success: true })) };
   const mfaVerificationService = {} as MfaVerificationService;
@@ -204,6 +210,72 @@ describe("PasswordController recovery handlers", () => {
     ).rejects.toThrow();
     expect(passwordService.resetPassword).not.toHaveBeenCalled();
   });
+});
+
+describe("PasswordController.checkPassword", () => {
+  const mockGetOptionalJwtAuth = getOptionalJwtAuth as jest.Mock;
+
+  afterEach(() => {
+    mockGetOptionalJwtAuth.mockReset();
+  });
+
+  it("checks an anonymous caller against the context it sends", async () => {
+    const { controller, passwordService } = createController();
+    mockGetOptionalJwtAuth.mockResolvedValue(null);
+
+    const response = await invoke(
+      controller.checkPassword,
+      createContext({
+        body: {
+          password: "tidal-harbor-lantern",
+          username: " taylor ",
+          email: "taylor@example.com",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: { acceptable: true, issues: [], warnings: [] },
+    });
+    expect(passwordService.checkPassword).toHaveBeenCalledWith({
+      password: "tidal-harbor-lantern",
+      userId: undefined,
+      context: {
+        username: "taylor",
+        email: "taylor@example.com",
+        firstName: undefined,
+        lastName: undefined,
+      },
+    });
+  });
+
+  it("passes a signed-in caller's id so the service uses their account", async () => {
+    const { controller, passwordService } = createController();
+    mockGetOptionalJwtAuth.mockResolvedValue(createClaims({ sub: USER_9_ID }));
+
+    await invoke(
+      controller.checkPassword,
+      createContext({ body: { password: "tidal-harbor-lantern" } }),
+    );
+
+    expect(passwordService.checkPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_9_ID }),
+    );
+  });
+
+  it.each([{}, { password: "" }, { password: "x".repeat(1025) }])(
+    "rejects %j before reaching the service",
+    async (body) => {
+      const { controller, passwordService } = createController();
+      mockGetOptionalJwtAuth.mockResolvedValue(null);
+
+      await expect(
+        invoke(controller.checkPassword, createContext({ body })),
+      ).rejects.toThrow("Request body validation failed.");
+      expect(passwordService.checkPassword).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("PasswordController.changePassword", () => {

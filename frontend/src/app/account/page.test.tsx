@@ -125,6 +125,11 @@ vi.mock("@/components/account/account-email-panel", () => ({
 }));
 vi.mock("@/lib/auth/api", () => ({
   authApi: {
+    checkPassword: vi.fn(async () => ({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    })),
     linkedOAuthProviders: linkedProvidersMock,
     listPersonalAccessTokens: listTokensMock,
     listKnownDevices: listDevicesMock,

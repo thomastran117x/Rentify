@@ -19,17 +19,11 @@ describe("PasswordRequirementsChecklist", () => {
   it("lists every requirement as pending before anything is typed", () => {
     render(<PasswordRequirementsChecklist id="requirements" password="" />);
 
-    expect(rowStates()).toEqual({
-      "At least 8 characters": "pending",
-      "An uppercase letter": "pending",
-      "A lowercase letter": "pending",
-      "A number": "pending",
-      "A special character": "pending",
-    });
-    expect(screen.getAllByText("(not met)")).toHaveLength(5);
+    expect(rowStates()).toEqual({ "At least 12 characters": "pending" });
+    expect(screen.getAllByText("(not met)")).toHaveLength(1);
   });
 
-  it("ticks off only the requirements the password meets", () => {
+  it("stays pending below 12 characters", () => {
     render(
       <PasswordRequirementsChecklist
         id="requirements"
@@ -37,25 +31,22 @@ describe("PasswordRequirementsChecklist", () => {
       />,
     );
 
-    expect(rowStates()).toEqual({
-      "At least 8 characters": "met",
-      "An uppercase letter": "pending",
-      "A lowercase letter": "met",
-      "A number": "met",
-      "A special character": "pending",
-    });
+    expect(rowStates()).toEqual({ "At least 12 characters": "pending" });
   });
 
-  it("marks every requirement met for a strong password", () => {
+  it("marks the requirement met at 12 characters", () => {
     render(
-      <PasswordRequirementsChecklist id="requirements" password="Abcdefg1!" />,
+      <PasswordRequirementsChecklist
+        id="requirements"
+        password="tidal harbor"
+      />,
     );
 
-    expect(Object.values(rowStates())).toEqual(Array(5).fill("met"));
-    expect(screen.getAllByText("(met)")).toHaveLength(5);
+    expect(rowStates()).toEqual({ "At least 12 characters": "met" });
+    expect(screen.getAllByText("(met)")).toHaveLength(1);
   });
 
-  it("flags only the missing requirements once the password is invalid", () => {
+  it("flags the missing requirement once the password is invalid", () => {
     render(
       <PasswordRequirementsChecklist
         id="requirements"
@@ -64,12 +55,6 @@ describe("PasswordRequirementsChecklist", () => {
       />,
     );
 
-    expect(rowStates()).toEqual({
-      "At least 8 characters": "met",
-      "An uppercase letter": "unmet",
-      "A lowercase letter": "met",
-      "A number": "met",
-      "A special character": "unmet",
-    });
+    expect(rowStates()).toEqual({ "At least 12 characters": "unmet" });
   });
 });

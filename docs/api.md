@@ -102,6 +102,25 @@ the `auth-sensitive` rate limit (10 a minute, shared with sign-in and the other
 credential routes) and return `429 TOO_MANY_REQUESTS` above it. A signed-in
 caller is keyed by user, an anonymous one by client IP.
 
+New local passwords must be 12 characters to 72 UTF-8 bytes, with no
+character-class rules, and must not be a common password or contain the
+account's username, email local part or names. A refused password returns
+`400 VALIDATION_ERROR` with the reasons under `password` (signup) or
+`newPassword` (reset, change, set). A reset refused this way keeps its code
+valid. See [Password Policy](./auth-security.md#password-policy).
+
+`POST /auth/password/check` gives the same verdict before submitting, so the
+forms can show it while the user types:
+`{ acceptable, issues: [{ code, message }], warnings: [...] }`. The codes are
+`too_short`, `too_long`, `unsafe_input`, `common`, `contains_personal_info`
+and `breached`.
+`warnings` holds advice that does not block the password, such as a breach
+when the check is in `warn` mode. It is public, with optional auth: a
+signed-in caller is checked against their own account, and anyone else
+against the `username`, `email`, `firstName` and `lastName` they send. It
+changes nothing, needs no captcha, and has its own `password-check` rate limit
+(60/min). It is a POST so the password stays out of URLs and access logs.
+
 Users can review their own authentication history through
 `GET /auth/audit/me`. The endpoint needs a signed-in session with a recent MFA
 step-up (`mfa-management` scope), returns only the caller's events newest

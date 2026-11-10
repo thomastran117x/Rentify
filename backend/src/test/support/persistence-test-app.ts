@@ -1,3 +1,4 @@
+import type { BreachCheckResult } from "@/features/auth/password/policy/breached-password.client";
 import { randomUUID } from "node:crypto";
 import BadRequestError from "@/errors/http/bad-request.error";
 import PayloadTooLargeError from "@/errors/http/payload-too-large.error";
@@ -81,6 +82,10 @@ type CaptchaVerificationResult = {
 };
 
 export interface PersistenceTestStubs {
+  /** Never the real Have I Been Pwned API; clean unless a test says not. */
+  breachedPasswordChecker: {
+    check: jest.Mock<Promise<BreachCheckResult>, [string]>;
+  };
   captchaService: {
     verify: jest.Mock<
       Promise<CaptchaVerificationResult>,
@@ -877,6 +882,13 @@ function createPersistenceTestStubs(): PersistenceTestStubs {
   const realBlobNaming = () => (blobNaming ??= new BlobService());
 
   return {
+    breachedPasswordChecker: {
+      check: jest.fn(
+        async (_password: string): Promise<BreachCheckResult> => ({
+          status: "clean",
+        }),
+      ),
+    },
     captchaService: {
       verify: jest.fn(async ({ token }) => {
         const normalized = token?.trim();
@@ -1165,6 +1177,12 @@ function registerDefaultPersistenceOverrides(
   container: RootServiceContainer,
   stubs: PersistenceTestStubs,
 ): void {
+  container.register({
+    token: containerTokens.breachedPasswordChecker,
+    lifetime: "singleton",
+    dependencies: [],
+    resolve: () => stubs.breachedPasswordChecker,
+  });
   container.register({
     token: containerTokens.captchaService,
     lifetime: "singleton",

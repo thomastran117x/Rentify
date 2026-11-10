@@ -28,7 +28,9 @@ const {
   getUsernameSuggestionsMock,
   clearCaptchaTokenMock,
   oauthSuccessSessionMock,
+  checkPasswordMock,
 } = vi.hoisted(() => ({
+  checkPasswordMock: vi.fn(),
   useAuthMock: vi.fn(),
   useAuthCaptchaTokenMock: vi.fn(),
   signupMock: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("@/lib/auth/api", () => ({
     signup: signupMock,
     checkUsernameAvailability: checkUsernameAvailabilityMock,
     getUsernameSuggestions: getUsernameSuggestionsMock,
+    checkPassword: checkPasswordMock,
   },
 }));
 
@@ -179,10 +182,19 @@ async function fillProfileStep(
   });
 }
 
+const COMMON_PASSWORD_MESSAGE =
+  "This password is too common or easy to guess. Choose something less predictable.";
+
 describe("SignupForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRouterMocks();
+    // Default: the server has nothing to add about any password.
+    checkPasswordMock.mockResolvedValue({
+      acceptable: true,
+      issues: [],
+      warnings: [],
+    });
     // Default: every username is free, so tests that are not about
     // availability are unaffected by the debounced background check.
     checkUsernameAvailabilityMock.mockResolvedValue({
@@ -414,8 +426,8 @@ describe("SignupForm", () => {
   });
 
   it("rejects a password the backend would refuse", async () => {
-    // `strongPasswordSchema` needs 8+ chars with upper, lower, digit, and a
-    // special character, so checking only the length sent guaranteed 400s.
+    // `strongPasswordSchema` needs 12+ characters; letting a shorter one
+    // through would only send a guaranteed 400.
     const user = userEvent.setup();
     render(<SignupForm />);
 
@@ -425,9 +437,7 @@ describe("SignupForm", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      screen.getByText(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      ),
+      screen.getByText("Password must be at least 12 characters."),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
 
@@ -436,11 +446,8 @@ describe("SignupForm", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getByText("An uppercase letter").closest("li"),
+      within(requirements).getByText("At least 12 characters").closest("li"),
     ).toHaveAttribute("data-state", "unmet");
-    expect(
-      within(requirements).getByText("A number").closest("li"),
-    ).toHaveAttribute("data-state", "met");
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "aria-describedby",
       "signup-password-error signup-password-requirements",
@@ -454,17 +461,18 @@ describe("SignupForm", () => {
     const requirements = screen.getByRole("list", {
       name: "Password requirements",
     });
-    const lowercaseRow = within(requirements)
-      .getByText("A lowercase letter")
+    const lengthRow = within(requirements)
+      .getByText("At least 12 characters")
       .closest("li");
-    expect(lowercaseRow).toHaveAttribute("data-state", "pending");
+    expect(lengthRow).toHaveAttribute("data-state", "pending");
 
-    await user.type(screen.getByLabelText("Password"), "abc");
+    await user.type(screen.getByLabelText("Password"), "tidal harbo");
 
-    expect(lowercaseRow).toHaveAttribute("data-state", "met");
-    expect(
-      within(requirements).getByText("At least 8 characters").closest("li"),
-    ).toHaveAttribute("data-state", "pending");
+    expect(lengthRow).toHaveAttribute("data-state", "pending");
+
+    await user.type(screen.getByLabelText("Password"), "r");
+
+    expect(lengthRow).toHaveAttribute("data-state", "met");
   });
 
   it("submits the account step when Enter is pressed on the first step", async () => {
@@ -654,6 +662,146 @@ describe("SignupForm", () => {
       await screen.findByText("This email is already in use."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toHaveValue("person@example.com");
+  });
+
+  it("returns to the first step with the server's password reasons", async () => {
+    const user = userEvent.setup();
+    signupMock.mockRejectedValue(
+      new ApiClientError("Request body validation failed.", {
+        code: "VALIDATION_ERROR",
+        details: { password: [COMMON_PASSWORD_MESSAGE] },
+        request: {
+          method: "POST",
+          path: "/auth/local/signup",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/signup",
+        },
+        status: 400,
+      }),
+    );
+
+    render(<SignupForm />);
+    await completeAccountStep(user);
+    await fillProfileStep(user);
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Password")).toHaveAttribute(
+        "aria-describedby",
+        "signup-password-error signup-password-requirements",
+      ),
+    );
+    expect(screen.getAllByText(COMMON_PASSWORD_MESSAGE).length).toBeGreaterThan(
+      0,
+    );
+    // The first step is showing again: its container is no longer hidden.
+    expect(screen.getByLabelText("Password").closest(".hidden")).toBeNull();
+    expect(
+      screen.getByLabelText("First name").closest(".hidden"),
+    ).not.toBeNull();
+  });
+
+  it("shows the server's verdict while typing and will not continue past it", async () => {
+    checkPasswordMock.mockResolvedValue({
+      acceptable: false,
+      issues: [{ code: "common", message: COMMON_PASSWORD_MESSAGE }],
+      warnings: [],
+    });
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "qwertyuiop12345");
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "qwertyuiop12345",
+    );
+
+    expect(
+      await screen.findByText(COMMON_PASSWORD_MESSAGE),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Strength: Too weak")).toBeInTheDocument();
+    // Sent as a POST body with what the form knows, never in a URL.
+    expect(checkPasswordMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        password: "qwertyuiop12345",
+        email: "person@example.com",
+      }),
+      expect.anything(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+    // The reason moves to the field error and is not repeated below it.
+    expect(screen.getAllByText(COMMON_PASSWORD_MESSAGE)).toHaveLength(1);
+  });
+
+  it("drops a password error once the password is edited", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a breach warning but lets the user continue", async () => {
+    checkPasswordMock.mockResolvedValue({
+      acceptable: true,
+      issues: [],
+      warnings: [
+        {
+          code: "breached",
+          message:
+            "This password has appeared in a known data breach. Consider choosing a different one.",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(
+      screen.getByLabelText("Password"),
+      "Tidal-Harbor-Lantern-7",
+    );
+    await user.type(
+      screen.getByLabelText("Confirm password"),
+      "Tidal-Harbor-Lantern-7",
+    );
+
+    expect(
+      await screen.findByText(/appeared in a known data breach/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Strength: Fair")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByLabelText("First name")).toBeInTheDocument();
+  });
+
+  it("checks the password against the names from the second step", async () => {
+    const user = userEvent.setup();
+    render(<SignupForm />);
+    await completeAccountStep(user, { password: "jane-loves-tea-time" });
+    await fillProfileStep(user, { firstName: "Jane" });
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findByText(
+        "Password must not contain your name, username or email address.",
+      ),
+    ).toBeInTheDocument();
+    expect(signupMock).not.toHaveBeenCalled();
   });
 
   it("confirms an available username as the user types", async () => {

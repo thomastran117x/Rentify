@@ -80,13 +80,15 @@ test("a passwordless account is offered a set-password form", async ({
   await page.getByRole("button", { name: "Set password" }).click();
 
   await expect(
-    page.getByText(/must be at least 8 characters long and include uppercase/i),
+    page.getByText("Password must be at least 12 characters."),
   ).toBeVisible();
   expect(setCalls).toBe(0);
 
   // Mismatched confirmation is caught too.
-  await page.getByLabel("New password", { exact: true }).fill("Rentify456!");
-  await page.getByLabel("Confirm new password").fill("Rentify457!");
+  await page
+    .getByLabel("New password", { exact: true })
+    .fill("quiet-meadow-compass");
+  await page.getByLabel("Confirm new password").fill("quiet-meadow-compasses");
   await page.getByRole("button", { name: "Set password" }).click();
   await expect(page.getByText("Passwords do not match.")).toBeVisible();
   expect(setCalls).toBe(0);
@@ -101,8 +103,10 @@ test("a passwordless account is offered a set-password form", async ({
     { timeout: 20000 },
   );
 
-  await page.getByLabel("New password", { exact: true }).fill("Rentify456!");
-  await page.getByLabel("Confirm new password").fill("Rentify456!");
+  await page
+    .getByLabel("New password", { exact: true })
+    .fill("quiet-meadow-compass");
+  await page.getByLabel("Confirm new password").fill("quiet-meadow-compass");
   await page.getByRole("button", { name: "Set password" }).click();
 
   expect((await setCall).status()).toBe(409);

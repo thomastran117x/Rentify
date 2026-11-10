@@ -572,7 +572,7 @@ paths:
             example:
               username: taylor-renter
               email: new-user@example.com
-              password: Rentify123!
+              password: tidal-harbor-lantern
               dateOfBirth: '2012-06-15'
               captchaToken: turnstile-token
               firstName: Taylor
@@ -836,6 +836,65 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /auth/password/check:
+    post:
+      operationId: checkPassword
+      summary: Check a new password before submitting it
+      description: 'Reports what signup, reset, change or set would say about a new password, so a form can show it while the user types: too short or long, common, containing the user''s details, or found in a known data breach. Only the first five hex characters of the password''s SHA-1 are sent to Have I Been Pwned. A signed-in caller is checked against their own account''s username, email and names, and any context in the body is ignored; anyone else against the context they send. `acceptable` is false when submitting would be refused. `warnings` holds advice that does not block it, such as a breach when the check is in `warn` mode. Changes nothing, and needs no captcha.'
+      tags:
+        - auth
+      x-rentify-permissions:
+        authMode: public-or-session-bearer
+        minimumRole: null
+        patAllowed: false
+        csrf: Required for browser-origin requests to /auth/*.
+        rateLimitPolicy: password-check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckPasswordRequest'
+            example:
+              password: password1234
+              username: taylor-renter
+              email: new-user@example.com
+              firstName: Taylor
+              lastName: Renter
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PasswordCheckResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Request completed successfully.
+                data:
+                  acceptable: false
+                  issues:
+                    - code: common
+                      message: This password is too common or easy to guess. Choose something less predictable.
+                  warnings: []
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /auth/username/suggestions:
     get:
       operationId: suggestUsernames
@@ -911,7 +970,7 @@ paths:
             example:
               username: owner-one
               code: '123456'
-              newPassword: Rentify123!
+              newPassword: tidal-harbor-lantern
               deviceId: device-1
               captchaToken: turnstile-token
       responses:
@@ -22119,6 +22178,8 @@ components:
           format: email
         password:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
         dateOfBirth:
           type: string
           format: date
@@ -22219,6 +22280,8 @@ components:
           pattern: ^\d{6}$
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
         deviceId:
           type: string
         captchaToken:
@@ -22286,6 +22349,8 @@ components:
           type: string
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
     SetPasswordRequest:
       type: object
       required:
@@ -22293,6 +22358,8 @@ components:
       properties:
         newPassword:
           type: string
+          minLength: 12
+          description: At least 12 characters (counted as Unicode code points) and at most 72 UTF-8 bytes, the most bcrypt reads. There are no character-class rules.
     OAuthStartRequest:
       type: object
       required:
@@ -23132,6 +23199,69 @@ components:
       required:
         - profiles
         - pagination
+    CheckPasswordRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: The password to check. Never stored or logged.
+        username:
+          type: string
+          maxLength: 255
+          description: Ignored when signed in.
+        email:
+          type: string
+          maxLength: 255
+          description: Ignored when signed in.
+        firstName:
+          type: string
+          maxLength: 255
+          description: Ignored when signed in.
+        lastName:
+          type: string
+          maxLength: 255
+          description: Ignored when signed in.
+    PasswordIssue:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - too_short
+            - too_long
+            - unsafe_input
+            - common
+            - contains_personal_info
+            - breached
+        message:
+          type: string
+    PasswordCheckResult:
+      type: object
+      required:
+        - acceptable
+        - issues
+        - warnings
+      properties:
+        acceptable:
+          type: boolean
+          description: Whether submitting this password would be accepted. Warnings do not count.
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasswordIssue'
+          description: Every reason the password would be refused.
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasswordIssue'
+          description: Advice that does not block the password, such as a breach in `warn` mode.
     UsernameAvailabilityResult:
       type: object
       required:

@@ -35,6 +35,29 @@ describe("PasswordRepository", () => {
     });
   });
 
+  it("replaces a hash only while it is still the one that was verified", async () => {
+    const updateMany = jest
+      .fn()
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    const repository = new PasswordRepository({
+      user: { updateMany },
+    } as any);
+
+    await expect(
+      repository.replacePasswordHashIfUnchanged(USER_1_ID, "old", "rehashed"),
+    ).resolves.toBe(true);
+    // The password was changed in between: nothing is overwritten.
+    await expect(
+      repository.replacePasswordHashIfUnchanged(USER_1_ID, "old", "rehashed"),
+    ).resolves.toBe(false);
+
+    expect(updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: USER_1_ID, passwordHash: "old" },
+      data: { passwordHash: "rehashed" },
+    });
+  });
+
   it("updates a password hash unconditionally", async () => {
     const update = jest.fn(async () => undefined);
     const repository = new PasswordRepository({

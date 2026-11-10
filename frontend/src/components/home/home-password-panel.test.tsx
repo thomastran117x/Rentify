@@ -9,7 +9,13 @@ const {
   changePasswordMock,
   setPasswordMock,
   linkedOAuthProvidersMock,
+  checkPasswordMock,
 } = vi.hoisted(() => ({
+  checkPasswordMock: vi.fn(async () => ({
+    acceptable: true,
+    issues: [] as Array<{ code: string; message: string }>,
+    warnings: [] as Array<{ code: string; message: string }>,
+  })),
   useAuthMock: vi.fn(),
   changePasswordMock: vi.fn(),
   setPasswordMock: vi.fn(),
@@ -25,6 +31,7 @@ vi.mock("@/lib/auth/api", () => ({
     changePassword: changePasswordMock,
     setPassword: setPasswordMock,
     linkedOAuthProviders: linkedOAuthProvidersMock,
+    checkPassword: checkPasswordMock,
   },
 }));
 
@@ -96,9 +103,7 @@ describe("HomePasswordPanel", () => {
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(
-      screen.getByText(
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.",
-      ),
+      screen.getByText("Password must be at least 12 characters."),
     ).toBeInTheDocument();
     expect(changePasswordMock).not.toHaveBeenCalled();
 
@@ -106,11 +111,8 @@ describe("HomePasswordPanel", () => {
       name: "Password requirements",
     });
     expect(
-      within(requirements).getByText("A special character").closest("li"),
+      within(requirements).getByText("At least 12 characters").closest("li"),
     ).toHaveAttribute("data-state", "unmet");
-    expect(
-      within(requirements).getByText("At least 8 characters").closest("li"),
-    ).toHaveAttribute("data-state", "met");
     expect(screen.getByLabelText("New password")).toHaveAttribute(
       "aria-describedby",
       "home-new-password-error home-new-password-requirements",
@@ -129,15 +131,18 @@ describe("HomePasswordPanel", () => {
       within(requirements)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(Array(5).fill("pending"));
+    ).toEqual(Array(2).fill("pending"));
 
-    await user.type(screen.getByLabelText("New password"), "Abcdefg1!");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal harbor lantern",
+    );
 
     expect(
       within(requirements)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(Array(5).fill("met"));
+    ).toEqual(Array(2).fill("met"));
   });
 
   it("rejects a password the backend's unsafe-input rule would refuse", async () => {
@@ -174,17 +179,20 @@ describe("HomePasswordPanel", () => {
     render(<HomePasswordPanel hasPassword />);
 
     await user.type(screen.getByLabelText("Current password"), "current-pass");
-    await user.type(screen.getByLabelText("New password"), "Rentify123!");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lantern",
+    );
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "Rentify123!",
+      "tidal-harbor-lantern",
     );
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
     await waitFor(() => {
       expect(changePasswordMock).toHaveBeenCalledWith({
         currentPassword: "current-pass",
-        newPassword: "Rentify123!",
+        newPassword: "tidal-harbor-lantern",
       });
     });
     expect(setSession).toHaveBeenCalled();
@@ -210,16 +218,115 @@ describe("HomePasswordPanel", () => {
     render(<HomePasswordPanel hasPassword />);
 
     await user.type(screen.getByLabelText("Current password"), "wrong-pass");
-    await user.type(screen.getByLabelText("New password"), "Rentify123!");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lantern",
+    );
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "Rentify123!",
+      "tidal-harbor-lantern",
     );
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(
       await screen.findByText("Current password is incorrect."),
     ).toBeInTheDocument();
+  });
+
+  it("blocks a password the live check already refused, without calling the API", async () => {
+    checkPasswordMock.mockResolvedValueOnce({
+      acceptable: false,
+      issues: [
+        {
+          code: "breached",
+          message:
+            "This password has appeared in a known data breach. Choose a different one.",
+        },
+      ],
+      warnings: [],
+    });
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lanterns",
+    );
+    expect(
+      await screen.findByText(/appeared in a known data breach/),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "tidal-harbor-lanterns",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(changePasswordMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "home-new-password-error home-new-password-requirements",
+    );
+  });
+
+  it("drops a new-password error once the password is edited", async () => {
+    const user = userEvent.setup();
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    expect(
+      screen.getByText("Password must be at least 12 characters."),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("New password"), "-and-longer");
+
+    expect(
+      screen.queryByText("Password must be at least 12 characters."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the server's password reasons on the new password field", async () => {
+    const user = userEvent.setup();
+    changePasswordMock.mockRejectedValue(
+      new ApiClientError("Request body validation failed.", {
+        code: "VALIDATION_ERROR",
+        details: {
+          newPassword: [
+            "This password is too common or easy to guess. Choose something less predictable.",
+          ],
+        },
+        request: {
+          method: "POST",
+          path: "/auth/local/password/change",
+          requestUrl: "http://localhost:8040/api/v1/auth/local/password/change",
+        },
+        status: 400,
+      }),
+    );
+
+    render(<HomePasswordPanel hasPassword />);
+
+    await user.type(screen.getByLabelText("Current password"), "current-pass");
+    await user.type(screen.getByLabelText("New password"), "Password1234!");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "Password1234!",
+    );
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      await screen.findByText(
+        "This password is too common or easy to guess. Choose something less predictable.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toHaveAttribute(
+      "aria-describedby",
+      "home-new-password-error home-new-password-requirements",
+    );
   });
 
   it("explains the lock once wrong current passwords lock sign-in", async () => {
@@ -244,10 +351,13 @@ describe("HomePasswordPanel", () => {
     render(<HomePasswordPanel hasPassword />);
 
     await user.type(screen.getByLabelText("Current password"), "wrong-pass");
-    await user.type(screen.getByLabelText("New password"), "Rentify123!");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lantern",
+    );
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "Rentify123!",
+      "tidal-harbor-lantern",
     );
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
@@ -281,10 +391,13 @@ describe("HomePasswordPanel", () => {
     render(<HomePasswordPanel hasPassword />);
 
     await user.type(screen.getByLabelText("Current password"), "current-pass");
-    await user.type(screen.getByLabelText("New password"), "Rentify123!");
+    await user.type(
+      screen.getByLabelText("New password"),
+      "tidal-harbor-lantern",
+    );
     await user.type(
       screen.getByLabelText("Confirm new password"),
-      "Rentify123!",
+      "tidal-harbor-lantern",
     );
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
@@ -313,16 +426,19 @@ describe("HomePasswordPanel", () => {
 
       expect(screen.queryByLabelText("Current password")).toBeNull();
 
-      await user.type(screen.getByLabelText("New password"), "Rentify123!");
+      await user.type(
+        screen.getByLabelText("New password"),
+        "tidal-harbor-lantern",
+      );
       await user.type(
         screen.getByLabelText("Confirm new password"),
-        "Rentify123!",
+        "tidal-harbor-lantern",
       );
       await user.click(screen.getByRole("button", { name: "Set password" }));
 
       await waitFor(() => {
         expect(setPasswordMock).toHaveBeenCalledWith({
-          newPassword: "Rentify123!",
+          newPassword: "tidal-harbor-lantern",
         });
       });
       expect(changePasswordMock).not.toHaveBeenCalled();
@@ -338,10 +454,13 @@ describe("HomePasswordPanel", () => {
 
       render(<HomePasswordPanel hasPassword={false} />);
 
-      await user.type(screen.getByLabelText("New password"), "Rentify123!");
+      await user.type(
+        screen.getByLabelText("New password"),
+        "tidal-harbor-lantern",
+      );
       await user.type(
         screen.getByLabelText("Confirm new password"),
-        "Rentify124!",
+        "tidal-harbor-lanterns",
       );
       await user.click(screen.getByRole("button", { name: "Set password" }));
 
@@ -369,10 +488,13 @@ describe("HomePasswordPanel", () => {
 
       render(<HomePasswordPanel hasPassword={false} />);
 
-      await user.type(screen.getByLabelText("New password"), "Rentify123!");
+      await user.type(
+        screen.getByLabelText("New password"),
+        "tidal-harbor-lantern",
+      );
       await user.type(
         screen.getByLabelText("Confirm new password"),
-        "Rentify123!",
+        "tidal-harbor-lantern",
       );
       await user.click(screen.getByRole("button", { name: "Set password" }));
 

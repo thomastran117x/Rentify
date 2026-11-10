@@ -240,6 +240,10 @@ function isUsernameAvailabilityRoute(
   return request.method === "GET" && pathname === "/auth/username/available";
 }
 
+function isPasswordCheckRoute(request: Request, pathname: string): boolean {
+  return request.method === "POST" && pathname === "/auth/password/check";
+}
+
 function isUsernameSuggestionsRoute(
   request: Request,
   pathname: string,
@@ -381,6 +385,21 @@ export function resolveRateLimitPolicy(request: Request): RateLimitPolicy {
     return createPolicy(request, {
       id: "username-availability",
       bucketKey: `${request.method}:username-availability`,
+      strategy: "sliding-window",
+      limit: 60,
+      windowSeconds: 60,
+      bucketCapacity: 60,
+      refillTokensPerSecond: 1,
+    });
+  }
+
+  if (isPasswordCheckRoute(request, pathname)) {
+    // Debounced typing on the three new-password forms, as with username
+    // availability. Each call may reach Have I Been Pwned, so it has its own
+    // bucket rather than sharing one a busy signup form also spends.
+    return createPolicy(request, {
+      id: "password-check",
+      bucketKey: `${request.method}:password-check`,
       strategy: "sliding-window",
       limit: 60,
       windowSeconds: 60,

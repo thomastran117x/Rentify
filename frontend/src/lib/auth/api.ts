@@ -30,6 +30,8 @@ import type {
   SessionVerificationResult,
   SignupVerificationPendingResult,
   UsernameAvailabilityResult,
+  PasswordCheckInput,
+  PasswordCheckResult,
   UsernameSuggestionsResult,
 } from "@/lib/auth/types";
 import { personalAccessTokensApi } from "@/lib/personal-access-tokens/api";
@@ -390,6 +392,27 @@ export const authApi = {
       "GET",
       buildPathWithQuery("/auth/username/available", { username }),
       undefined,
+      undefined,
+      options.signal,
+    );
+  },
+  /**
+   * Always a POST, so the password never appears in a URL or access log.
+   * Sent with optional auth: a signed-in caller is checked against their own
+   * account rather than whatever the body says.
+   */
+  checkPassword(
+    input: PasswordCheckInput,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<PasswordCheckResult> {
+    if (options.signal?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
+
+    return optionalAuthJson<PasswordCheckResult, PasswordCheckInput>(
+      "POST",
+      "/auth/password/check",
+      input,
       undefined,
       options.signal,
     );

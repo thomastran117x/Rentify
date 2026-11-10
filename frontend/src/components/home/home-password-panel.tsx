@@ -8,7 +8,16 @@ import { authApi } from "@/lib/auth/api";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import { ApiClientError } from "@/lib/auth/types";
-import { getPasswordStrengthError } from "@/lib/auth/password";
+import {
+  type PasswordPersonalContext,
+  getPasswordStrengthError,
+} from "@/lib/auth/password";
+import { getValidationFieldMessage } from "@/lib/api/validation-details";
+import {
+  getPasswordCheckError,
+  usePasswordCheck,
+} from "@/lib/auth/use-password-check";
+import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter";
 import {
   type MfaVerificationOptionsResult,
   type MfaVerificationScope,
@@ -37,6 +46,7 @@ function validatePasswordChange(
     confirmPassword: string;
   },
   mode: Mode,
+  context: PasswordPersonalContext,
 ): PasswordErrors {
   const errors: PasswordErrors = {};
 
@@ -47,7 +57,7 @@ function validatePasswordChange(
   if (!values.newPassword) {
     errors.newPassword = "New password is required.";
   } else {
-    const strengthError = getPasswordStrengthError(values.newPassword);
+    const strengthError = getPasswordStrengthError(values.newPassword, context);
 
     if (strengthError) {
       errors.newPassword = strengthError;
@@ -78,6 +88,11 @@ export function HomePasswordPanel({
   onPasswordSet,
 }: HomePasswordPanelProps) {
   const { status, setSession, session } = useAuth();
+  // The session has no names; the server checks those too.
+  const passwordContext: PasswordPersonalContext = {
+    username: session?.user.username,
+    email: session?.user.email,
+  };
   const [resolvedHasPassword, setResolvedHasPassword] = useState<
     boolean | null
   >(hasPassword ?? null);
@@ -87,6 +102,8 @@ export function HomePasswordPanel({
   const [errors, setErrors] = useState<PasswordErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const passwordCheck = usePasswordCheck(newPassword, passwordContext);
+  const passwordCheckError = getPasswordCheckError(passwordCheck);
   const [dialogOptions, setDialogOptions] =
     useState<MfaVerificationOptionsResult | null>(null);
   const verificationResolverRef = useRef<((value: boolean) => void) | null>(
@@ -184,7 +201,12 @@ export function HomePasswordPanel({
     const nextErrors = validatePasswordChange(
       { currentPassword, newPassword, confirmPassword },
       mode,
+      passwordContext,
     );
+
+    if (!nextErrors.newPassword && passwordCheckError) {
+      nextErrors.newPassword = passwordCheckError;
+    }
     setErrors(nextErrors);
     setMessage(null);
 
@@ -256,6 +278,20 @@ export function HomePasswordPanel({
           setMessage(
             "Too many incorrect passwords. Password sign-in is locked for now, and we've emailed you a code to unlock it from the sign-in page.",
           );
+          return;
+        }
+
+        // Common and breached passwords only the server can check.
+        const newPasswordError = getValidationFieldMessage(
+          error,
+          "newPassword",
+        );
+
+        if (newPasswordError) {
+          setErrors((current) => ({
+            ...current,
+            newPassword: newPasswordError,
+          }));
           return;
         }
 
@@ -378,7 +414,11 @@ export function HomePasswordPanel({
                 : "home-new-password-requirements"
             }
             value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
+            onChange={(event) => {
+              setNewPassword(event.target.value);
+              // The checklist and meter speak for the edited value now.
+              setErrors((current) => ({ ...current, newPassword: undefined }));
+            }}
             className={`h-14 w-full rounded-2xl border bg-white dark:bg-slate-900 px-4 text-[15px] text-slate-900 dark:text-white outline-none transition ${
               errors.newPassword
                 ? "border-rose-300 dark:border-rose-800 ring-4 ring-rose-100"
@@ -398,7 +438,15 @@ export function HomePasswordPanel({
           <PasswordRequirementsChecklist
             id="home-new-password-requirements"
             password={newPassword}
+            context={passwordContext}
             invalid={Boolean(errors.newPassword)}
+          />
+          <PasswordStrengthMeter
+            id="home-new-password-strength"
+            password={newPassword}
+            context={passwordContext}
+            check={passwordCheck}
+            hideIssues={Boolean(errors.newPassword)}
           />
         </div>
 

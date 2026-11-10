@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { parseRequestBody } from "@/configuration/validation/request";
-import { accepted } from "@/configuration/http/responses";
+import { accepted, ok } from "@/configuration/http/responses";
+import { getOptionalJwtAuth } from "@/configuration/middlewares/jwt-middleware";
 import { writeAuthSessionResponse } from "@/features/auth/auth.response";
 import {
   toChangePasswordInput,
@@ -18,6 +19,7 @@ import type { MfaVerificationService } from "@/features/auth/mfa/verification/mf
 import { PasswordService } from "@/features/auth/password/password.service";
 import {
   changePasswordRequestSchema,
+  checkPasswordRequestSchema,
   forgotPasswordRequestSchema,
   resendForgotPasswordRequestSchema,
   resetPasswordRequestSchema,
@@ -30,6 +32,31 @@ export class PasswordController {
     private readonly captchaService: CaptchaService,
     private readonly mfaVerificationService: MfaVerificationService,
   ) {}
+
+  /**
+   * Public, so signup can use it, with optional auth so the account page is
+   * checked against the account. No captcha: it changes nothing, and the
+   * `password-check` rate limit bounds it.
+   */
+  checkPassword = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    const input = await parseRequestBody(request, checkPasswordRequestSchema);
+    const auth = await getOptionalJwtAuth(request);
+    const result = await this.passwordService.checkPassword({
+      password: input.password,
+      userId: auth?.sub,
+      context: {
+        username: input.username,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+    });
+
+    ok(response, result);
+  };
 
   forgotPassword = async (
     request: Request,
