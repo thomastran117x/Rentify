@@ -190,6 +190,22 @@ bypass and the step-up dialog starts appearing for real. That is the easiest way
 to exercise the dialog locally; to put the account back, either change the
 address back or add the new one to `MFA_BYPASS_EMAILS`.
 
+`totp-one`, `totp-two` and `passkey-one` are seeded off the list, so their
+sign-in and step-up are always the real ones; see
+[Signing In With an Authenticator App](./api.md#signing-in-with-an-authenticator-app).
+
+### Trying Passkeys Locally
+
+Passkeys belong to the RP ID `localhost`, so open the frontend as
+`http://localhost:3040`, not `127.0.0.1`: a browser never uses a `localhost`
+passkey from an IP address. Sign in as `passkey-one` (`Rentify123!`), step up
+by email, and add a passkey from **Account → Security → Passkeys**. Your
+browser's own passkey manager or a security key works, and so does Chrome
+DevTools' virtual authenticator (**More tools → WebAuthn → Enable virtual
+authenticator environment**, then **Add**), which needs no hardware. The
+relying party comes from `FRONTEND_URL`; see
+[Passkeys (WebAuthn)](./backend-configuration.md#passkeys-webauthn).
+
 ## Changing An Account Email
 
 The flow is deliberately two-sided: starting a change needs a recent

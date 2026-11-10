@@ -15,8 +15,17 @@ export interface MfaTotpBeginResult {
 
 export interface MfaTotpConfirmResult {
   confirmed: true;
-  /** Shown once. They cannot be read back. */
+  /**
+   * Shown once. They cannot be read back. Empty when the account already had
+   * a set from a passkey.
+   */
   recoveryCodes: string[];
+}
+
+export interface MfaTotpDisableResult {
+  disabled: true;
+  /** Only removing the account's last strong factor signs other sessions out. */
+  otherSessionsSignedOut: boolean;
 }
 
 export const mfaTotpApi = {
@@ -38,8 +47,8 @@ export const mfaTotpApi = {
     );
   },
 
-  disable(): Promise<{ disabled: true }> {
-    return postAuthenticatedJson<{ disabled: true }, Record<string, never>>(
+  disable(): Promise<MfaTotpDisableResult> {
+    return postAuthenticatedJson<MfaTotpDisableResult, Record<string, never>>(
       "/auth/mfa/totp/disable",
       {},
     );

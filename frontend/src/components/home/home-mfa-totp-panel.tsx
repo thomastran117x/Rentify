@@ -6,7 +6,6 @@ import { ScanLine } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { RecoveryCodesDisplay } from "@/components/auth/recovery-codes-display";
-import { HomeMfaRecoveryCodesSection } from "@/components/home/home-mfa-recovery-codes-section";
 import { isApiClientError } from "@/lib/api/types";
 import { getApiErrorMessage } from "@/lib/api/user-messages";
 import {
@@ -16,10 +15,6 @@ import {
   mfaVerificationApi,
 } from "@/lib/auth/mfa-verification-api";
 import { mfaTotpApi, type MfaTotpBeginResult } from "@/lib/auth/mfa-totp-api";
-import {
-  mfaRecoveryCodesApi,
-  type MfaRecoveryCodeStatusResult,
-} from "@/lib/auth/mfa-recovery-codes-api";
 
 type View = "loading" | "idle" | "setup" | "recovery-codes";
 
@@ -34,12 +29,17 @@ export function formatSecret(secret: string) {
   return secret.match(/.{1,4}/g)?.join(" ") ?? secret;
 }
 
-export function HomeMfaTotpPanel() {
+interface HomeMfaTotpPanelProps {
+  /** Called after the authenticator is turned on or off. */
+  onFactorsChanged?: () => void;
+}
+
+export function HomeMfaTotpPanel({
+  onFactorsChanged,
+}: HomeMfaTotpPanelProps = {}) {
   const { status, session } = useAuth();
   const [view, setView] = useState<View>("loading");
   const [enabled, setEnabled] = useState(false);
-  const [recoveryStatus, setRecoveryStatus] =
-    useState<MfaRecoveryCodeStatusResult | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [enrollment, setEnrollment] = useState<MfaTotpBeginResult | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -62,15 +62,9 @@ export function HomeMfaTotpPanel() {
 
     mfaTotpApi
       .getStatus()
-      .then(async (result) => {
-        // The authenticator's own controls still work without this.
-        const recovery = result.enabled
-          ? await mfaRecoveryCodesApi.getStatus().catch(() => null)
-          : null;
-
+      .then((result) => {
         if (!active) return;
         setEnabled(result.enabled);
-        setRecoveryStatus(recovery);
         setView("idle");
       })
       .catch((error) => {
@@ -250,6 +244,17 @@ export function HomeMfaTotpPanel() {
       setEnrollment(null);
       setQrDataUrl(null);
       setEnrollCode("");
+      onFactorsChanged?.();
+
+      // An account that already had codes, from a passkey, keeps them.
+      if (result.recoveryCodes.length === 0) {
+        setView("idle");
+        setMessage(
+          "Authenticator app enabled. Your existing recovery codes still work.",
+        );
+        return;
+      }
+
       setRecoveryCodes(result.recoveryCodes);
       setView("recovery-codes");
       setMessage(
@@ -303,8 +308,12 @@ export function HomeMfaTotpPanel() {
       }
 
       setEnabled(false);
-      setRecoveryStatus(null);
-      setMessage("Authenticator app disabled. Other sessions were signed out.");
+      setMessage(
+        result.otherSessionsSignedOut
+          ? "Authenticator app disabled. Other sessions were signed out."
+          : "Authenticator app disabled. Your passkeys still protect your account.",
+      );
+      onFactorsChanged?.();
     } catch (error) {
       setMessage(
         getApiErrorMessage(error, {
@@ -319,50 +328,12 @@ export function HomeMfaTotpPanel() {
     }
   }
 
-  async function handleRegenerateRecoveryCodes() {
-    setPending(true);
-    setMessage(null);
-
-    try {
-      const result = await runProtectedAction(
-        () => mfaRecoveryCodesApi.regenerate(),
-        "totp",
-      );
-
-      if (!result) {
-        return;
-      }
-
-      setRecoveryCodes(result.codes);
-      setRecoveryStatus({
-        remaining: result.remaining,
-        createdAt: result.createdAt,
-      });
-      setView("recovery-codes");
-    } catch (error) {
-      setMessage(
-        getApiErrorMessage(error, {
-          action: "generate new recovery codes",
-          fallback:
-            "We couldn't generate new recovery codes right now. Please try again.",
-          preserveClientMessage: true,
-        }),
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleRecoveryCodesSaved() {
+  function handleRecoveryCodesSaved() {
     setRecoveryCodes([]);
     setMessage(null);
     setView("idle");
-
-    if (!recoveryStatus) {
-      setRecoveryStatus(
-        await mfaRecoveryCodesApi.getStatus().catch(() => null),
-      );
-    }
+    // The recovery codes panel shows the fresh count.
+    onFactorsChanged?.();
   }
 
   if (status !== "authenticated") {
@@ -434,19 +405,12 @@ export function HomeMfaTotpPanel() {
                 </button>
               )}
             </div>
-            {enabled && recoveryStatus ? (
-              <HomeMfaRecoveryCodesSection
-                status={recoveryStatus}
-                pending={pending}
-                onRegenerate={() => void handleRegenerateRecoveryCodes()}
-              />
-            ) : null}
           </div>
         ) : view === "recovery-codes" ? (
           <div className="mt-6">
             <RecoveryCodesDisplay
               codes={recoveryCodes}
-              onDone={() => void handleRecoveryCodesSaved()}
+              onDone={handleRecoveryCodesSaved}
             />
           </div>
         ) : (

@@ -362,7 +362,11 @@ again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
 same and removes the authenticator afterwards. `totp-two`
 (`totp2@rentify.local`, `Rentify123!`) is the same kind of account, used by
 [login-recovery-code.spec.ts](../frontend/tests/e2e/login-recovery-code.spec.ts)
-to sign in with a recovery code.
+to sign in with a recovery code. `passkey-one` (`passkey1@rentify.local`,
+`Rentify123!`) starts with no second factor, for adding a passkey from
+**Account → Security → Passkeys**;
+[login-passkey.spec.ts](../frontend/tests/e2e/login-passkey.spec.ts) does that
+with a virtual authenticator, signs in and steps up with it, and removes it.
 
 ### Signing In With a Passkey
 

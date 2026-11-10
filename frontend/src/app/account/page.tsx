@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +22,8 @@ import {
 import { useAuth } from "@/components/auth/auth-context";
 import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog";
 import { useMfaStepUp } from "@/components/auth/use-mfa-step-up";
+import { HomeMfaPasskeysPanel } from "@/components/home/home-mfa-passkeys-panel";
+import { HomeMfaRecoveryCodesPanel } from "@/components/home/home-mfa-recovery-codes-panel";
 import { HomeMfaTotpPanel } from "@/components/home/home-mfa-totp-panel";
 import { AccountEmailPanel } from "@/components/account/account-email-panel";
 import { SessionManagementPanel } from "@/components/account/session-management-panel";
@@ -125,6 +127,13 @@ export default function AccountPage() {
   const router = useRouter();
   const { status, session } = useAuth();
   const { runWithStepUp, stepUpDialog } = useMfaStepUp();
+  // Bumped when a second factor is added or removed, so the panels that
+  // depend on the account's factors read them again.
+  const [mfaRevision, setMfaRevision] = useState(0);
+  const bumpMfaRevision = useCallback(
+    () => setMfaRevision((revision) => revision + 1),
+    [],
+  );
 
   // Tab state
   const [activeTab, setActiveTab] = useState<
@@ -1003,8 +1012,13 @@ export default function AccountPage() {
               </div>
             </div>
 
-            {/* Two-factor authentication */}
-            <HomeMfaTotpPanel />
+            {/* Two-factor authentication: passkeys first, as the strongest */}
+            <HomeMfaPasskeysPanel
+              refreshKey={mfaRevision}
+              onFactorsChanged={bumpMfaRevision}
+            />
+            <HomeMfaTotpPanel onFactorsChanged={bumpMfaRevision} />
+            <HomeMfaRecoveryCodesPanel refreshKey={mfaRevision} />
 
             {/* Phone number (SMS verification) */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">

@@ -273,6 +273,21 @@ const BASE_SEED_USERS: SeedUserFixture[] = [
     trustworthinessScore: 75,
   },
   {
+    // Also off auth.mfaBypassEmails, for the passkey Playwright spec, which
+    // registers a passkey with a virtual authenticator, signs in and steps up
+    // with it, and removes it again. Start with no factor, so its first
+    // step-up is by email.
+    id: createFixtureId(1000, 38),
+    email: "passkey1@rentify.local",
+    password: "Rentify123!",
+    username: "passkey-one",
+    firstName: "Paige",
+    lastName: "Keller",
+    role: "user",
+    emailVerified: true,
+    trustworthinessScore: 75,
+  },
+  {
     id: createFixtureId(1000, 14),
     email: "user8@rentify.local",
     password: "Rentify123!",

@@ -69,6 +69,14 @@ vi.mock("@/components/auth/mfa-verification-dialog", () => ({
 vi.mock("@/components/home/home-mfa-totp-panel", () => ({
   HomeMfaTotpPanel: () => <div>MFA panel</div>,
 }));
+
+vi.mock("@/components/home/home-mfa-passkeys-panel", () => ({
+  HomeMfaPasskeysPanel: () => <div>Passkeys panel</div>,
+}));
+
+vi.mock("@/components/home/home-mfa-recovery-codes-panel", () => ({
+  HomeMfaRecoveryCodesPanel: () => <div>Recovery codes panel</div>,
+}));
 vi.mock("@/components/home/home-password-panel", () => ({
   HomePasswordPanel: () => (
     <div>
