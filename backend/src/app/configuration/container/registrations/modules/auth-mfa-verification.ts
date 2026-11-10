@@ -24,6 +24,7 @@ export const authMfaVerificationRegistrationModule: ContainerRegistrationModule 
           containerTokens.emailService,
           containerTokens.mfaTotpService,
           containerTokens.mfaRecoveryCodeService,
+          containerTokens.passkeyService,
           containerTokens.authAuditService,
         ],
         resolve: ({ resolve }) =>
@@ -38,6 +39,7 @@ export const authMfaVerificationRegistrationModule: ContainerRegistrationModule 
             mfaRecoveryCodeService: resolve(
               containerTokens.mfaRecoveryCodeService,
             ),
+            passkeyService: resolve(containerTokens.passkeyService),
             authAuditService: resolve(containerTokens.authAuditService),
           }),
       });

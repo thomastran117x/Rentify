@@ -34,7 +34,7 @@ export class PasskeyController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    const actor = await this.requireActor(request);
+    const { actor } = await this.requireActor(request);
     await parseOptionalRequestBody(
       request,
       passkeyRegistrationOptionsRequestSchema,
@@ -48,7 +48,7 @@ export class PasskeyController {
     request: Request,
     response: Response,
   ): Promise<void> => {
-    const actor = await this.requireActor(request);
+    const { actor } = await this.requireActor(request);
     const input = await parseRequestBody(
       request,
       passkeyRegistrationVerifyRequestSchema,
@@ -61,17 +61,19 @@ export class PasskeyController {
       name: input.name,
     });
 
+    // It may carry the account's first recovery codes.
+    response.setHeader("cache-control", "no-store");
     created(response, result, { message: "Passkey added." });
   };
 
   list = async (request: Request, response: Response): Promise<void> => {
-    const actor = await this.requireActor(request);
+    const { actor } = await this.requireActor(request);
 
     ok(response, await this.passkeyService.list(actor.userId));
   };
 
   rename = async (request: Request, response: Response): Promise<void> => {
-    const actor = await this.requireActor(request);
+    const { actor } = await this.requireActor(request);
     const id = requireUuidRouteParam(request, "id");
     const input = await parseRequestBody(request, passkeyRenameRequestSchema);
     const passkey = await this.passkeyService.rename({
@@ -84,14 +86,16 @@ export class PasskeyController {
   };
 
   remove = async (request: Request, response: Response): Promise<void> => {
-    const actor = await this.requireActor(request);
+    const { actor, auth } = await this.requireActor(request);
     const id = requireUuidRouteParam(request, "id");
 
-    await this.passkeyService.remove({ ...actor, id });
+    await this.passkeyService.remove({ ...actor, auth, id });
     noContent(response);
   };
 
-  private async requireActor(request: Request): Promise<PasskeyActor> {
+  private async requireActor(
+    request: Request,
+  ): Promise<{ actor: PasskeyActor; auth: JwtAuthPrincipal }> {
     const auth: JwtAuthPrincipal = await requireRecentMfaVerification(
       request,
       this.mfaVerificationService,
@@ -105,9 +109,12 @@ export class PasskeyController {
     }
 
     return {
-      userId: auth.sub,
-      sessionId: auth.sessionId,
-      context: toAuthAuditContext(request, auth.deviceId),
+      auth,
+      actor: {
+        userId: auth.sub,
+        sessionId: auth.sessionId,
+        context: toAuthAuditContext(request, auth.deviceId),
+      },
     };
   }
 }

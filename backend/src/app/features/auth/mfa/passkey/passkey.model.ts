@@ -145,6 +145,11 @@ export interface PasskeyRegistrationOptionsResult {
 
 export interface PasskeyRegistrationResult {
   passkey: PasskeySummary;
+  /**
+   * Present when this was the account's first strong factor and it had no
+   * recovery codes: shown this once, never again.
+   */
+  recoveryCodes?: string[];
 }
 
 export interface PasskeyAssertionOptionsResult {

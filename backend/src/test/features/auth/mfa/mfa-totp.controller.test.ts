@@ -103,7 +103,7 @@ function createController() {
       uri: "otpauth://totp/test",
     })),
     confirmEnrollment: jest.fn(async () => ["ABCDE-FGH23"]),
-    disable: jest.fn(async () => undefined),
+    disable: jest.fn(async () => ({ otherSessionsSignedOut: true })),
     cancelEnrollment: jest.fn(async () => undefined),
   };
   const mfaVerificationService = {};
@@ -242,6 +242,32 @@ describe("MfaTotpController", () => {
     expect(payload.message).toBe(
       "Authenticator app disabled. Other sessions were signed out.",
     );
+    expect(payload.data).toEqual({
+      disabled: true,
+      otherSessionsSignedOut: true,
+    });
+  });
+
+  it("says nothing of other sessions when a passkey kept them signed in", async () => {
+    mockRequireRecentMfaVerification.mockResolvedValue(
+      createAuth({ sub: USER_3_ID, sessionId: "session-3" }),
+    );
+    const { controller, mfaTotpService } = createController();
+    mfaTotpService.disable.mockResolvedValueOnce({
+      otherSessionsSignedOut: false,
+    });
+
+    const response = await invoke(
+      controller.disable,
+      createContext({ body: {} }),
+    );
+    const payload = await response.json();
+
+    expect(payload.message).toBe("Authenticator app disabled.");
+    expect(payload.data).toEqual({
+      disabled: true,
+      otherSessionsSignedOut: false,
+    });
   });
 
   it("cancels pending enrollment after recent verification", async () => {

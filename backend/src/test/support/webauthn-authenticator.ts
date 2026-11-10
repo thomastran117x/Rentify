@@ -133,7 +133,7 @@ export class SoftwareAuthenticator {
    * given; synced passkeys always report 0.
    */
   createAssertionResponse(
-    options: CeremonyOptions & { counter?: number },
+    options: CeremonyOptions & { counter?: number; userHandle?: string },
   ): AuthenticationResponseJSON {
     if (options.counter !== undefined) {
       this.counter = options.counter;
@@ -165,6 +165,9 @@ export class SoftwareAuthenticator {
         clientDataJSON,
         authenticatorData: isoBase64URL.fromBuffer(authData),
         signature: isoBase64URL.fromBuffer(signature),
+        ...(options.userHandle === undefined
+          ? {}
+          : { userHandle: options.userHandle }),
       },
     };
   }

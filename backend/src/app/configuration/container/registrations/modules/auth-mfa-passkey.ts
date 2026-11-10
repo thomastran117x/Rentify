@@ -1,5 +1,6 @@
 import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
+import { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import { PasskeyChallengeStore } from "@/features/auth/mfa/passkey/passkey-challenge.store";
 import { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
 import { PasskeyRepository } from "@/features/auth/mfa/passkey/passkey.repository";
@@ -8,6 +9,12 @@ import { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
 export const authMfaPasskeyRegistrationModule: ContainerRegistrationModule = {
   id: "auth-mfa-passkey",
   register(container) {
+    container.register({
+      token: containerTokens.mfaFactorRepository,
+      lifetime: "singleton",
+      dependencies: [],
+      resolve: () => new MfaFactorRepository(),
+    });
     container.register({
       token: containerTokens.passkeyRepository,
       lifetime: "singleton",
@@ -28,6 +35,9 @@ export const authMfaPasskeyRegistrationModule: ContainerRegistrationModule = {
         containerTokens.passkeyRepository,
         containerTokens.passkeyChallengeStore,
         containerTokens.authUsersRepository,
+        containerTokens.mfaFactorRepository,
+        containerTokens.mfaRecoveryCodeService,
+        containerTokens.authSessionService,
         containerTokens.authAuditService,
         containerTokens.securityNotificationService,
       ],
@@ -36,6 +46,11 @@ export const authMfaPasskeyRegistrationModule: ContainerRegistrationModule = {
           passkeyRepository: resolve(containerTokens.passkeyRepository),
           passkeyChallengeStore: resolve(containerTokens.passkeyChallengeStore),
           usersRepository: resolve(containerTokens.authUsersRepository),
+          mfaFactorRepository: resolve(containerTokens.mfaFactorRepository),
+          mfaRecoveryCodeService: resolve(
+            containerTokens.mfaRecoveryCodeService,
+          ),
+          authSessionService: resolve(containerTokens.authSessionService),
           authAuditService: resolve(containerTokens.authAuditService),
           securityNotificationService: resolve(
             containerTokens.securityNotificationService,

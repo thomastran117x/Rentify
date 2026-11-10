@@ -1,13 +1,30 @@
 import type { UserWebAuthnCredential } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  hasStrongFactor,
+  lockAccountForMfaChange,
+  readStrongFactors,
+} from "@/features/auth/mfa/mfa-factor.repository";
+import type { NewRecoveryCodeRow } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
 import { MAX_PASSKEYS_PER_USER, type NewPasskeyRow } from "./passkey.model";
 
 export type { UserWebAuthnCredential };
 
 export type PasskeyCreateResult =
-  | { status: "created"; row: UserWebAuthnCredential }
+  | {
+      status: "created";
+      row: UserWebAuthnCredential;
+      /** Whether `recoveryCodes` were stored, because the account had none. */
+      recoveryCodesIssued: boolean;
+    }
   | { status: "limit_reached" };
+
+export interface PasskeyDeleteResult {
+  row: UserWebAuthnCredential;
+  /** No passkey and no authenticator is left, so the codes went too. */
+  lastStrongFactor: boolean;
+}
 
 /**
  * Every query is scoped by `userId`, so an id belonging to another account
@@ -51,17 +68,23 @@ export class PasskeyRepository extends BaseRepository {
 
   /**
    * Inserts the passkey unless the account already holds the most it may.
-   * The user row is read `FOR UPDATE` first, so two registrations finishing
-   * at once count one after the other and cannot both slip under the cap.
+   * The account row is locked first (see {@link lockAccountForMfaChange}), so
+   * two registrations finishing at once count one after the other and cannot
+   * both slip under the cap.
+   *
+   * `recoveryCodes` are stored with it when the account has never had a set,
+   * so a strong factor is never active with codes nobody was shown. An
+   * account that already has a set, used up or not, keeps it.
    *
    * A credential ID that is already registered, to any account, fails the
    * unique index; the caller reports it.
    */
-  async createWithinCap(row: NewPasskeyRow): Promise<PasskeyCreateResult> {
+  async createWithinCap(
+    row: NewPasskeyRow,
+    recoveryCodes: NewRecoveryCodeRow[],
+  ): Promise<PasskeyCreateResult> {
     return this.executeTransaction(async (transaction) => {
-      await transaction.$queryRaw`
-        SELECT id FROM users WHERE id = ${row.userId} FOR UPDATE
-      `;
+      await lockAccountForMfaChange(transaction, row.userId);
 
       const count = await transaction.userWebAuthnCredential.count({
         where: { userId: row.userId },
@@ -85,8 +108,24 @@ export class PasskeyRepository extends BaseRepository {
           name: row.name,
         },
       });
+      const existingCodes = await transaction.userMfaRecoveryCode.count({
+        where: { userId: row.userId },
+      });
 
-      return { status: "created", row: created };
+      if (existingCodes === 0) {
+        await transaction.userMfaRecoveryCode.createMany({
+          data: recoveryCodes.map((code) => ({
+            ...code,
+            createdAt: created.createdAt,
+          })),
+        });
+      }
+
+      return {
+        status: "created",
+        row: created,
+        recoveryCodesIssued: existingCodes === 0,
+      };
     });
   }
 
@@ -105,12 +144,18 @@ export class PasskeyRepository extends BaseRepository {
     return result.count === 1 ? this.findForUser(userId, id) : null;
   }
 
-  /** Returns the row that was removed, or null when there was none. */
+  /**
+   * Removes the passkey, and the recovery codes with it when it was the
+   * account's last strong factor: codes only ever stand in for one. Returns
+   * null when there was nothing to remove.
+   */
   async deleteForUser(
     userId: Uuid,
     id: string,
-  ): Promise<UserWebAuthnCredential | null> {
+  ): Promise<PasskeyDeleteResult | null> {
     return this.executeTransaction(async (transaction) => {
+      await lockAccountForMfaChange(transaction, userId);
+
       const row = await transaction.userWebAuthnCredential.findFirst({
         where: { userId, id },
       });
@@ -119,11 +164,19 @@ export class PasskeyRepository extends BaseRepository {
         return null;
       }
 
-      const deleted = await transaction.userWebAuthnCredential.deleteMany({
+      await transaction.userWebAuthnCredential.deleteMany({
         where: { userId, id },
       });
 
-      return deleted.count === 1 ? row : null;
+      const lastStrongFactor = !hasStrongFactor(
+        await readStrongFactors(transaction, userId),
+      );
+
+      if (lastStrongFactor) {
+        await transaction.userMfaRecoveryCode.deleteMany({ where: { userId } });
+      }
+
+      return { row, lastStrongFactor };
     });
   }
 

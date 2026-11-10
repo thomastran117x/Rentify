@@ -41,9 +41,9 @@ export interface RedeemRecoveryCodeInput {
 }
 
 /**
- * Recovery codes are the way back in when an authenticator is lost. A code is
- * only a second factor for an account that has an active authenticator, so
- * the set is created with it and removed with it.
+ * Recovery codes are the way back in when a passkey or authenticator is lost.
+ * A code is only a second factor for an account that has one of those, so
+ * the set is created with the first and removed with the last.
  *
  * Codes carry 50 random bits, so a fast keyed hash is enough: guessing is
  * limited online by the lockout and step-up limits, and a stolen table cannot
@@ -150,15 +150,16 @@ export class MfaRecoveryCodeService {
   }): Promise<MfaRecoveryCodeRegenerateResult> {
     const { codes, rows } = this.generateSet(input.userId);
     const createdAt = new Date();
-    const replaced = await this.mfaRecoveryCodeRepository.replaceForActiveTotp(
-      input.userId,
-      rows,
-      createdAt,
-    );
+    const replaced =
+      await this.mfaRecoveryCodeRepository.replaceForStrongFactor(
+        input.userId,
+        rows,
+        createdAt,
+      );
 
     if (!replaced) {
       throw new ConflictError(
-        "Turn on an authenticator app before generating recovery codes.",
+        "Add a passkey or an authenticator app before generating recovery codes.",
       );
     }
 

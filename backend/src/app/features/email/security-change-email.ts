@@ -64,7 +64,9 @@ export function composeSecurityChangeEmail(
         subject: "The authenticator app was removed from your Rentify account",
         heading: "Your authenticator app was removed",
         summary:
-          "The authenticator app was just removed from your Rentify account, and every other sign-in was ended. Signing in no longer needs a code from it.",
+          job.input.endedOtherSessions === false
+            ? "The authenticator app was just removed from your Rentify account. Signing in no longer needs a code from it, though your passkeys still work."
+            : "The authenticator app was just removed from your Rentify account, and every other sign-in was ended. Signing in no longer needs a code from it.",
         details: [],
       };
     case "mfa_recovery_code_used":
@@ -97,8 +99,9 @@ export function composeSecurityChangeEmail(
       return {
         subject: "A passkey was removed from your Rentify account",
         heading: "A passkey was removed",
-        summary:
-          "A passkey was just removed from your Rentify account, so it can no longer be used to confirm it's you.",
+        summary: job.input.endedOtherSessions
+          ? "A passkey was just removed from your Rentify account. It was the last one, and no authenticator app is set up, so every other sign-in was ended and your recovery codes stopped working."
+          : "A passkey was just removed from your Rentify account, so it can no longer be used to confirm it's you.",
         details: [`Passkey: ${flattenName(job.input.passkeyName)}`],
       };
     case "personal_access_token_created":

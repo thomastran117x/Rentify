@@ -14,13 +14,22 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
  */
 export function createInMemoryPasskeyRepository(
   initial: UserWebAuthnCredential[] = [],
+  /** Accounts with an active authenticator, which keeps their codes alive. */
+  totpActiveUserIds: string[] = [],
 ) {
   const rows = [...initial];
+  const recoveryCodeOwners = new Set<string>();
   const forUser = (userId: string) =>
     rows.filter((row) => row.userId === userId);
 
   return {
     rows,
+    recoveryCodeOwners,
+    factorSummary: jest.fn(async (userId: string) => ({
+      totpActive: totpActiveUserIds.includes(userId),
+      passkeyCount: forUser(userId).length,
+      unusedRecoveryCodes: recoveryCodeOwners.has(userId) ? 10 : 0,
+    })),
     listByUserId: jest.fn(async (userId: string) => forUser(userId)),
     countByUserId: jest.fn(async (userId: string) => forUser(userId).length),
     findForUser: jest.fn(
@@ -34,7 +43,7 @@ export function createInMemoryPasskeyRepository(
             row.userId === userId && sameBytes(row.credentialId, credentialId),
         ) ?? null,
     ),
-    createWithinCap: jest.fn(async (row: NewPasskeyRow) => {
+    createWithinCap: jest.fn(async (row: NewPasskeyRow, _codes: unknown[]) => {
       if (
         rows.some((existing) =>
           sameBytes(existing.credentialId, row.credentialId),
@@ -52,7 +61,9 @@ export function createInMemoryPasskeyRepository(
 
       const created = buildPasskeyRow(row);
       rows.push(created);
-      return { status: "created" as const, row: created };
+      const recoveryCodesIssued = !recoveryCodeOwners.has(row.userId);
+      recoveryCodeOwners.add(row.userId);
+      return { status: "created" as const, row: created, recoveryCodesIssued };
     }),
     rename: jest.fn(async (userId: string, id: string, name: string) => {
       const row = rows.find(
@@ -72,7 +83,12 @@ export function createInMemoryPasskeyRepository(
         return null;
       }
       const [removed] = rows.splice(index, 1);
-      return removed;
+      const lastStrongFactor =
+        forUser(userId).length === 0 && !totpActiveUserIds.includes(userId);
+      if (lastStrongFactor) {
+        recoveryCodeOwners.delete(userId);
+      }
+      return { row: removed, lastStrongFactor };
     }),
     claimSignCount: jest.fn(
       async (input: {

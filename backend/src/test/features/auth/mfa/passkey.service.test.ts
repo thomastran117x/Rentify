@@ -6,6 +6,7 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import { PasskeyChallengeStore } from "@/features/auth/mfa/passkey/passkey-challenge.store";
 import { MAX_PASSKEYS_PER_USER } from "@/features/auth/mfa/passkey/passkey.model";
 import { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
+import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import { createInMemoryCache } from "../../../support/in-memory-cache";
 import {
   buildPasskeyRow,
@@ -22,6 +23,15 @@ const USER_ID = testUuid(9000, 465101);
 const OTHER_USER_ID = testUuid(9000, 465102);
 const CONTEXT = { ipAddress: "127.0.0.1", requestId: "request-1" };
 const ACTOR = { userId: USER_ID, sessionId: "session-1", context: CONTEXT };
+const AUTH = {
+  authMethod: "jwt",
+  sub: USER_ID,
+  sessionId: "session-1",
+} as JwtAuthPrincipal;
+const RECOVERY_CODE_SET = {
+  codes: ["ABCDE-FGH23"],
+  rows: [{ id: "code-1", userId: USER_ID, codeHash: "a".repeat(64) }],
+};
 
 const USER = {
   id: USER_ID,
@@ -35,10 +45,14 @@ function createService(
   options: {
     rows?: ReturnType<typeof buildPasskeyRow>[];
     user?: unknown;
+    totpActive?: boolean;
   } = {},
 ) {
   const cache = createInMemoryCache();
-  const passkeyRepository = createInMemoryPasskeyRepository(options.rows);
+  const passkeyRepository = createInMemoryPasskeyRepository(
+    options.rows,
+    options.totpActive ? [USER_ID] : [],
+  );
   const passkeyChallengeStore = new PasskeyChallengeStore(cache as never);
   const usersRepository = {
     findUserById: jest.fn(async () =>
@@ -49,10 +63,19 @@ function createService(
   const securityNotificationService = {
     notify: jest.fn(async () => "sent" as const),
   };
+  const mfaRecoveryCodeService = {
+    generateSet: jest.fn(() => RECOVERY_CODE_SET),
+  };
+  const authSessionService = {
+    revokeManagedSessions: jest.fn(async () => ({}) as never),
+  };
   const service = new PasskeyService({
     passkeyRepository: passkeyRepository as never,
     passkeyChallengeStore,
     usersRepository: usersRepository as never,
+    mfaFactorRepository: { getSummary: passkeyRepository.factorSummary },
+    mfaRecoveryCodeService,
+    authSessionService,
     authAuditService: authAuditService as never,
     securityNotificationService: securityNotificationService as never,
     getConfig: () => ({
@@ -67,6 +90,7 @@ function createService(
     service,
     passkeyRepository,
     authAuditService,
+    authSessionService,
     securityNotificationService,
   };
 }
@@ -181,6 +205,11 @@ describe("PasskeyService registration", () => {
       ),
     ).toBe(true);
     expect(passkeyRepository.rows[0].signCount).toBe(1n);
+    expect(result.recoveryCodes).toEqual(RECOVERY_CODE_SET.codes);
+    expect(passkeyRepository.createWithinCap).toHaveBeenCalledWith(
+      expect.anything(),
+      RECOVERY_CODE_SET.rows,
+    );
 
     const notification = securityNotificationService.notify.mock
       .calls[0] as unknown[];
@@ -201,6 +230,7 @@ describe("PasskeyService registration", () => {
         passkeyId: result.passkey.id,
         deviceType: "single_device",
         backedUp: false,
+        recoveryCodesIssued: true,
         emailNotification: "sent",
       },
     });
@@ -229,6 +259,8 @@ describe("PasskeyService registration", () => {
     const second = await register(service);
 
     expect(second.passkey.name).toBe("Passkey 2");
+    // The account kept the set the first passkey came with.
+    expect(second.recoveryCodes).toBeUndefined();
   });
 
   it("refuses an answer with no challenge outstanding", async () => {
@@ -437,43 +469,140 @@ describe("PasskeyService management", () => {
     expect(authAuditService.recordSafely).not.toHaveBeenCalled();
   });
 
-  it("removes a passkey, then emails and audits it", async () => {
+  it("removes one of several passkeys without touching other sessions", async () => {
     const {
       service,
       passkeyRepository,
       securityNotificationService,
       authAuditService,
+      authSessionService,
     } = createService({
       rows: [
         buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID, name: "Old key" }),
+        buildPasskeyRow({ id: testUuid(9000, 465112), userId: USER_ID }),
       ],
     });
 
-    await service.remove({ ...ACTOR, id: PASSKEY_ID });
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
 
-    expect(passkeyRepository.rows).toHaveLength(0);
+    expect(passkeyRepository.rows).toHaveLength(1);
+    expect(authSessionService.revokeManagedSessions).not.toHaveBeenCalled();
     expect(securityNotificationService.notify).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "passkey_removed",
-        details: { passkeyName: "Old key" },
+        details: { passkeyName: "Old key", endedOtherSessions: false },
       }),
     );
     expect(authAuditService.recordSafely).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "mfa.passkey_removed",
-        metadata: { passkeyId: PASSKEY_ID, emailNotification: "sent" },
+        metadata: {
+          passkeyId: PASSKEY_ID,
+          lastStrongFactor: false,
+          otherSessionsSignedOut: false,
+          emailNotification: "sent",
+        },
       }),
     );
   });
 
-  it("cannot remove another account's passkey", async () => {
+  it("keeps other sessions when an authenticator still protects the account", async () => {
+    const { service, authSessionService } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+      totpActive: true,
+    });
+
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
+
+    expect(authSessionService.revokeManagedSessions).not.toHaveBeenCalled();
+  });
+
+  it("signs out other sessions before removing the last strong factor", async () => {
+    const {
+      service,
+      passkeyRepository,
+      authSessionService,
+      securityNotificationService,
+    } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+    });
+
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
+
+    expect(authSessionService.revokeManagedSessions).toHaveBeenCalledWith({
+      auth: AUTH,
+      scope: "others",
+      audit: CONTEXT,
+    });
+    expect(
+      authSessionService.revokeManagedSessions.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      passkeyRepository.deleteForUser.mock.invocationCallOrder[0]!,
+    );
+    expect(securityNotificationService.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ endedOtherSessions: true }),
+      }),
+    );
+  });
+
+  it("keeps the passkey when the sessions cannot be ended", async () => {
+    const { service, passkeyRepository, authSessionService } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+    });
+    authSessionService.revokeManagedSessions.mockRejectedValueOnce(
+      new Error("redis unavailable"),
+    );
+
+    await expect(
+      service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID }),
+    ).rejects.toThrow("redis unavailable");
+    expect(passkeyRepository.rows).toHaveLength(1);
+  });
+
+  it("ends other sessions after all when the authenticator went in between", async () => {
+    const { service, passkeyRepository, authSessionService } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+      totpActive: true,
+    });
+    passkeyRepository.deleteForUser.mockImplementationOnce(async () => ({
+      row: passkeyRepository.rows.splice(0, 1)[0]!,
+      lastStrongFactor: true,
+    }));
+
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
+
+    expect(authSessionService.revokeManagedSessions).toHaveBeenCalledTimes(1);
+    expect(
+      passkeyRepository.deleteForUser.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      authSessionService.revokeManagedSessions.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("reports a passkey removed by another request in between", async () => {
     const { service, passkeyRepository } = createService({
+      rows: [
+        buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID }),
+        buildPasskeyRow({ id: testUuid(9000, 465113), userId: USER_ID }),
+      ],
+    });
+    passkeyRepository.deleteForUser.mockResolvedValueOnce(null);
+
+    await expect(
+      service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID }),
+    ).rejects.toBeInstanceOf(ResourceNotFoundError);
+  });
+
+  it("cannot remove another account's passkey, or sign anyone out trying", async () => {
+    const { service, passkeyRepository, authSessionService } = createService({
       rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: OTHER_USER_ID })],
     });
 
     await expect(
-      service.remove({ ...ACTOR, id: PASSKEY_ID }),
+      service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
     expect(passkeyRepository.rows).toHaveLength(1);
+    expect(authSessionService.revokeManagedSessions).not.toHaveBeenCalled();
   });
 });

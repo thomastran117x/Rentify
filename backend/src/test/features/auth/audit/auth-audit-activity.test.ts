@@ -50,6 +50,7 @@ const ALL_EVENT_TYPES: AuthAuditEventType[] = [
   "mfa.passkey_added",
   "mfa.passkey_renamed",
   "mfa.passkey_removed",
+  "mfa.passkey_assertion_rejected",
   "mfa.step_up_failed",
   "mfa.step_up_locked",
   "pat.created",

@@ -8,6 +8,7 @@ import type {
 } from "@/features/email/email.model";
 import { waitForRabbitMqPayloads } from "../../support/live-rabbitmq-assertions";
 import { completeEmailStepUp } from "../../support/mfa-step-up";
+import { generateTotpCode } from "../../support/totp-client";
 import {
   createAuthenticatedRequestContext,
   createPersistenceTestApp,
@@ -97,6 +98,43 @@ describe("MFA passkeys integration", () => {
 
     return (await bodyOf<{ passkeys: PasskeySummaryBody[] }>(response)).data
       .passkeys;
+  }
+
+  /**
+   * A step-up with `authenticator`'s passkey. Adding an account's first
+   * passkey voids the email proof it was added under, so tests that go on
+   * managing passkeys step up with it first.
+   */
+  async function stepUpWithPasskey(authenticator: SoftwareAuthenticator) {
+    const challengeResponse = await request("/auth/mfa/verify/challenge", {
+      method: "POST",
+      headers: session.headers(),
+      body: JSON.stringify({ scope: "mfa-management", factor: "passkey" }),
+    });
+    expect(challengeResponse.status).toBe(200);
+    const { options } = (
+      await bodyOf<{ options: { challenge: string } }>(challengeResponse)
+    ).data;
+    const confirm = await request("/auth/mfa/verify/confirm", {
+      method: "POST",
+      headers: session.headers(),
+      body: JSON.stringify({
+        scope: "mfa-management",
+        factor: "passkey",
+        credential: authenticator.createAssertionResponse({
+          challenge: options.challenge,
+        }),
+      }),
+    });
+    expect(confirm.status).toBe(200);
+  }
+
+  /** Registers the account's first passkey and steps up with it. */
+  async function registerFirst(name?: string) {
+    const authenticator = new SoftwareAuthenticator();
+    const passkey = await register(authenticator, name);
+    await stepUpWithPasskey(authenticator);
+    return { authenticator, passkey };
   }
 
   function auditEvents(eventType: string) {
@@ -248,7 +286,11 @@ describe("MFA passkeys integration", () => {
         transports: ["internal"],
         lastUsedAt: null,
       });
-      await expect(listPasskeys()).resolves.toEqual([passkey]);
+      await expect(
+        persistenceApp.prisma.userWebAuthnCredential.count({
+          where: { userId: asUuid(session.userId) },
+        }),
+      ).resolves.toBe(1);
 
       const [event] = await auditEvents("mfa.passkey_added");
       expect(event).toMatchObject({
@@ -276,8 +318,7 @@ describe("MFA passkeys integration", () => {
     });
 
     it("lists existing passkeys as excluded on the next registration", async () => {
-      const authenticator = new SoftwareAuthenticator();
-      await register(authenticator);
+      const { authenticator } = await registerFirst();
 
       const response = await request("/auth/mfa/passkeys/register/options", {
         method: "POST",
@@ -295,6 +336,7 @@ describe("MFA passkeys integration", () => {
     });
 
     it("refuses a replayed attestation", async () => {
+      await registerFirst();
       const challenge = await registrationChallenge();
       const body = JSON.stringify({
         credential: new SoftwareAuthenticator().createRegistrationResponse({
@@ -318,7 +360,7 @@ describe("MFA passkeys integration", () => {
       expect((await bodyOf(replay)).error?.code).toBe(
         "PASSKEY_REGISTRATION_FAILED",
       );
-      await expect(listPasskeys()).resolves.toHaveLength(1);
+      await expect(listPasskeys()).resolves.toHaveLength(2);
     });
 
     it("refuses an expired challenge", async () => {
@@ -365,8 +407,7 @@ describe("MFA passkeys integration", () => {
     });
 
     it("refuses a passkey that is already registered", async () => {
-      const authenticator = new SoftwareAuthenticator();
-      await register(authenticator);
+      const { authenticator } = await registerFirst();
       const challenge = await registrationChallenge();
 
       const response = await request("/auth/mfa/passkeys/register/verify", {
@@ -398,7 +439,8 @@ describe("MFA passkeys integration", () => {
     });
 
     it("stops at the per-account cap", async () => {
-      for (let index = 0; index < MAX_PASSKEYS_PER_USER; index += 1) {
+      await registerFirst();
+      for (let index = 1; index < MAX_PASSKEYS_PER_USER; index += 1) {
         await insertPasskeyFor(session.userId, `Key ${index}`);
       }
 
@@ -418,7 +460,7 @@ describe("MFA passkeys integration", () => {
     });
 
     it("renames a passkey and audits it", async () => {
-      const passkey = await register(new SoftwareAuthenticator(), "Laptop");
+      const { passkey } = await registerFirst("Laptop");
 
       const response = await request(`/auth/mfa/passkeys/${passkey.id}`, {
         method: "PATCH",
@@ -437,7 +479,7 @@ describe("MFA passkeys integration", () => {
     });
 
     it("removes a passkey, audits it and emails the owner", async () => {
-      const passkey = await register(new SoftwareAuthenticator(), "Old key");
+      const { passkey } = await registerFirst("Old key");
 
       const response = await request(`/auth/mfa/passkeys/${passkey.id}`, {
         method: "DELETE",
@@ -445,7 +487,11 @@ describe("MFA passkeys integration", () => {
       });
 
       expect(response.status).toBe(204);
-      await expect(listPasskeys()).resolves.toEqual([]);
+      await expect(
+        persistenceApp.prisma.userWebAuthnCredential.count({
+          where: { userId: asUuid(session.userId) },
+        }),
+      ).resolves.toBe(0);
       const [event] = await auditEvents("mfa.passkey_removed");
       expect(event?.metadata).toMatchObject({
         passkeyId: passkey.id,
@@ -489,6 +535,414 @@ describe("MFA passkeys integration", () => {
       });
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe("as a step-up factor", () => {
+    let authenticator: SoftwareAuthenticator;
+
+    /** Asks for a passkey challenge and answers it; returns the confirm response. */
+    async function passkeyStepUp(
+      answer: (challenge: string) => unknown,
+      headers = session.headers(),
+    ) {
+      const challengeResponse = await request("/auth/mfa/verify/challenge", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ scope: "mfa-management", factor: "passkey" }),
+      });
+      expect(challengeResponse.status).toBe(200);
+      const { options } = (
+        await bodyOf<{ options: { challenge: string } }>(challengeResponse)
+      ).data;
+
+      return request("/auth/mfa/verify/confirm", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "passkey",
+          credential: answer(options.challenge),
+        }),
+      });
+    }
+
+    async function storedPasskey() {
+      return persistenceApp.prisma.userWebAuthnCredential.findFirstOrThrow({
+        where: { userId: asUuid(session.userId) },
+      });
+    }
+
+    beforeEach(async () => {
+      authenticator = new SoftwareAuthenticator();
+      await completeEmailStepUp(persistenceApp.app, session.headers());
+      await register(authenticator);
+    });
+
+    it("replaces email, and adding the first passkey asks for it at once", async () => {
+      const options = await request(
+        "/auth/mfa/verify/options?scope=mfa-management",
+        { headers: session.headers() },
+      );
+      expect(
+        (
+          await bodyOf<{
+            verified: boolean;
+            availableFactors: string[];
+            recommendedFactor: string;
+          }>(options)
+        ).data,
+      ).toMatchObject({
+        verified: false,
+        availableFactors: ["passkey", "recovery_code"],
+        recommendedFactor: "passkey",
+      });
+
+      const email = await request("/auth/mfa/verify/challenge", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({ scope: "mfa-management", factor: "email" }),
+      });
+      expect(email.status).toBe(400);
+      expect((await bodyOf(email)).error?.code).toBe("MFA_FACTOR_UNAVAILABLE");
+    });
+
+    it("steps up with an assertion and records the passkey's use", async () => {
+      const response = await passkeyStepUp((challenge) =>
+        authenticator.createAssertionResponse({ challenge }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(
+        (await bodyOf<{ verified: boolean; factor: string }>(response)).data,
+      ).toMatchObject({ verified: true, factor: "passkey" });
+      await expect(listPasskeys()).resolves.toEqual([
+        expect.objectContaining({ lastUsedAt: expect.any(String) }),
+      ]);
+      expect((await storedPasskey()).signCount).toBe(2n);
+    });
+
+    it("refuses a replayed assertion", async () => {
+      let first: unknown;
+      const accepted = await passkeyStepUp((challenge) => {
+        first = authenticator.createAssertionResponse({ challenge });
+        return first;
+      });
+      expect(accepted.status).toBe(200);
+
+      const replay = await request("/auth/mfa/verify/confirm", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "passkey",
+          credential: first,
+        }),
+      });
+
+      expect(replay.status).toBe(400);
+      expect((await bodyOf(replay)).error?.code).toBe("INVALID_MFA_CODE");
+    });
+
+    it("refuses an answer to an expired challenge", async () => {
+      const challengeResponse = await request("/auth/mfa/verify/challenge", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({ scope: "mfa-management", factor: "passkey" }),
+      });
+      const { options } = (
+        await bodyOf<{ options: { challenge: string } }>(challengeResponse)
+      ).data;
+      await getRedisClient().del(
+        await getRedisClient().keys("auth:webauthn:step-up:*"),
+      );
+
+      const confirm = await request("/auth/mfa/verify/confirm", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "passkey",
+          credential: authenticator.createAssertionResponse({
+            challenge: options.challenge,
+          }),
+        }),
+      });
+
+      expect(confirm.status).toBe(400);
+      expect((await bodyOf(confirm)).error?.code).toBe("INVALID_MFA_CODE");
+    });
+
+    it("refuses an assertion made on another origin", async () => {
+      const response = await passkeyStepUp((challenge) =>
+        authenticator.createAssertionResponse({
+          challenge,
+          origin: "https://rentify.example.evil",
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      expect((await storedPasskey()).lastUsedAt).toBeNull();
+    });
+
+    it("refuses and audits a counter that went backwards", async () => {
+      const response = await passkeyStepUp((challenge) =>
+        authenticator.createAssertionResponse({ challenge, counter: 1 }),
+      );
+
+      expect(response.status).toBe(400);
+      const [event] = await auditEvents("mfa.passkey_assertion_rejected");
+      expect(event).toMatchObject({
+        outcome: "failure",
+        reasonCode: "mfa_invalid",
+        sessionId: session.sessionId,
+        metadata: expect.objectContaining({
+          reason: "counter_regressed",
+          storedCounter: 1,
+          receivedCounter: 1,
+          stage: "step_up",
+        }),
+      });
+    });
+
+    it("accepts a synced passkey whose counter stays at zero", async () => {
+      const synced = new SoftwareAuthenticator({ synced: true });
+      const other = await createAuthenticatedRequestContext({
+        email: OTHER_ACCOUNT_EMAIL,
+      });
+      await completeEmailStepUp(persistenceApp.app, other.headers());
+      const challengeResponse = await request(
+        "/auth/mfa/passkeys/register/options",
+        { method: "POST", headers: other.headers(), body: "{}" },
+      );
+      const { options } = (
+        await bodyOf<{ options: { challenge: string } }>(challengeResponse)
+      ).data;
+      const registered = await request("/auth/mfa/passkeys/register/verify", {
+        method: "POST",
+        headers: other.headers(),
+        body: JSON.stringify({
+          credential: synced.createRegistrationResponse({
+            challenge: options.challenge,
+          }),
+        }),
+      });
+      expect(registered.status).toBe(201);
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const response = await passkeyStepUp(
+          (challenge) => synced.createAssertionResponse({ challenge }),
+          other.headers(),
+        );
+        expect(response.status).toBe(200);
+      }
+    });
+  });
+
+  describe("recovery codes and the last strong factor", () => {
+    async function recoveryStatus(headers = session.headers()) {
+      const response = await request("/auth/mfa/recovery-codes/status", {
+        headers,
+      });
+      expect(response.status).toBe(200);
+      return (
+        await bodyOf<{ remaining: number; createdAt: string | null }>(response)
+      ).data;
+    }
+
+    async function passkeyStepUpWith(authenticator: SoftwareAuthenticator) {
+      const challengeResponse = await request("/auth/mfa/verify/challenge", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({ scope: "mfa-management", factor: "passkey" }),
+      });
+      const { options } = (
+        await bodyOf<{ options: { challenge: string } }>(challengeResponse)
+      ).data;
+      const confirm = await request("/auth/mfa/verify/confirm", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          scope: "mfa-management",
+          factor: "passkey",
+          credential: authenticator.createAssertionResponse({
+            challenge: options.challenge,
+          }),
+        }),
+      });
+      expect(confirm.status).toBe(200);
+    }
+
+    /** Registers a passkey and returns the response body. */
+    async function registerReturningCodes(
+      authenticator: SoftwareAuthenticator,
+    ) {
+      const challenge = await registrationChallenge();
+      const response = await request("/auth/mfa/passkeys/register/verify", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({
+          credential: authenticator.createRegistrationResponse({ challenge }),
+        }),
+      });
+      expect(response.status).toBe(201);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      return (
+        await bodyOf<{ passkey: PasskeySummaryBody; recoveryCodes?: string[] }>(
+          response,
+        )
+      ).data;
+    }
+
+    async function otherSessionStatus(other: AuthenticatedRequestContext) {
+      return (
+        await request("/auth/mfa/totp/status", { headers: other.headers() })
+      ).status;
+    }
+
+    beforeEach(async () => {
+      await completeEmailStepUp(persistenceApp.app, session.headers());
+    });
+
+    it("issues codes with the first passkey, and none with the second", async () => {
+      const first = new SoftwareAuthenticator();
+      const { recoveryCodes } = await registerReturningCodes(first);
+
+      expect(recoveryCodes).toHaveLength(10);
+      await expect(recoveryStatus()).resolves.toMatchObject({ remaining: 10 });
+
+      await passkeyStepUpWith(first);
+      const second = await registerReturningCodes(new SoftwareAuthenticator());
+      expect(second.recoveryCodes).toBeUndefined();
+      const [event] = await auditEvents("mfa.passkey_added");
+      expect(event?.metadata).toMatchObject({ recoveryCodesIssued: true });
+    });
+
+    it("keeps the codes and other sessions when one of several is removed", async () => {
+      const first = new SoftwareAuthenticator();
+      const { passkey } = await registerReturningCodes(first);
+      await passkeyStepUpWith(first);
+      await registerReturningCodes(new SoftwareAuthenticator());
+      const other = await createAuthenticatedRequestContext({
+        email: ACCOUNT_EMAIL,
+      });
+
+      const response = await request(`/auth/mfa/passkeys/${passkey.id}`, {
+        method: "DELETE",
+        headers: session.headers(),
+      });
+
+      expect(response.status).toBe(204);
+      await expect(otherSessionStatus(other)).resolves.toBe(200);
+      await expect(recoveryStatus()).resolves.toMatchObject({ remaining: 10 });
+    });
+
+    it("ends other sessions and deletes the codes with the last strong factor", async () => {
+      const only = new SoftwareAuthenticator();
+      const { passkey } = await registerReturningCodes(only);
+      await passkeyStepUpWith(only);
+      const other = await createAuthenticatedRequestContext({
+        email: ACCOUNT_EMAIL,
+      });
+      await expect(otherSessionStatus(other)).resolves.toBe(200);
+
+      const response = await request(`/auth/mfa/passkeys/${passkey.id}`, {
+        method: "DELETE",
+        headers: session.headers(),
+      });
+
+      expect(response.status).toBe(204);
+      await expect(otherSessionStatus(other)).resolves.toBe(401);
+      await expect(recoveryStatus()).resolves.toEqual({
+        remaining: 0,
+        createdAt: null,
+      });
+      const [event] = await auditEvents("mfa.passkey_removed");
+      expect(event?.metadata).toMatchObject({
+        lastStrongFactor: true,
+        otherSessionsSignedOut: true,
+      });
+
+      const options = await request(
+        "/auth/mfa/verify/options?scope=mfa-management",
+        { headers: session.headers() },
+      );
+      expect(
+        (await bodyOf<{ availableFactors: string[] }>(options)).data
+          .availableFactors,
+      ).toEqual(["email"]);
+    });
+
+    it("gives no second set to an authenticator added after a passkey", async () => {
+      const passkey = new SoftwareAuthenticator();
+      await registerReturningCodes(passkey);
+      await passkeyStepUpWith(passkey);
+
+      const begin = await request("/auth/mfa/totp/begin", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({ accountName: ACCOUNT_EMAIL }),
+      });
+      const { secret } = (await bodyOf<{ secret: string }>(begin)).data;
+      const confirm = await request("/auth/mfa/totp/confirm", {
+        method: "POST",
+        headers: session.headers(),
+        body: JSON.stringify({ code: generateTotpCode(secret) }),
+      });
+      expect(confirm.status).toBe(200);
+      expect(
+        (await bodyOf<{ recoveryCodes: string[] }>(confirm)).data.recoveryCodes,
+      ).toEqual([]);
+      await expect(recoveryStatus()).resolves.toMatchObject({ remaining: 10 });
+    });
+
+    it("keeps the codes and other sessions when the authenticator goes and a passkey stays", async () => {
+      const passkey = new SoftwareAuthenticator();
+      await registerReturningCodes(passkey);
+      // Turned on directly, to stay under the auth-sensitive rate limit.
+      await persistenceApp.prisma.userMfaTotp.create({
+        data: {
+          id: newUuid(),
+          userId: session.userId,
+          secretEncrypted: "unused",
+          status: "active",
+          confirmedAt: new Date(),
+        },
+      });
+      await passkeyStepUpWith(passkey);
+      const other = await createAuthenticatedRequestContext({
+        email: ACCOUNT_EMAIL,
+      });
+      const disable = await request("/auth/mfa/totp/disable", {
+        method: "POST",
+        headers: session.headers(),
+        body: "{}",
+      });
+
+      expect(disable.status).toBe(200);
+      expect(await bodyOf(disable)).toMatchObject({
+        message: "Authenticator app disabled.",
+        data: { disabled: true, otherSessionsSignedOut: false },
+      });
+      await expect(otherSessionStatus(other)).resolves.toBe(200);
+      await expect(recoveryStatus()).resolves.toMatchObject({ remaining: 10 });
+    });
+
+    it("regenerates codes for an account whose only factor is a passkey", async () => {
+      const passkey = new SoftwareAuthenticator();
+      await registerReturningCodes(passkey);
+      await passkeyStepUpWith(passkey);
+
+      const response = await request("/auth/mfa/recovery-codes/regenerate", {
+        method: "POST",
+        headers: session.headers(),
+        body: "{}",
+      });
+
+      expect(response.status).toBe(200);
+      expect(
+        (await bodyOf<{ codes: string[] }>(response)).data.codes,
+      ).toHaveLength(10);
     });
   });
 });

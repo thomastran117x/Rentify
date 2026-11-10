@@ -30,6 +30,7 @@ function createSecurityContext(
       confirmedAt?: string;
     } | null;
     unusedRecoveryCodes: number;
+    passkeyCount: number;
   }> = {},
 ) {
   return {
@@ -41,6 +42,7 @@ function createSecurityContext(
     updatedAt: "2026-06-27T15:00:00.000Z",
     mfaTotp: null,
     unusedRecoveryCodes: 0,
+    passkeyCount: 0,
     ...overrides,
   };
 }
@@ -125,6 +127,10 @@ function createService(
   const authAuditService = {
     recordSafely: jest.fn(async (_input: Record<string, unknown>) => undefined),
   };
+  const passkeyService = {
+    beginAssertion: jest.fn(async () => ({ challenge: "passkey-challenge" })),
+    verifyAssertion: jest.fn(async () => ({ passkeyId: "passkey-1" })),
+  };
 
   const service = new MfaVerificationService({
     mfaVerificationRepository: authRepository as any,
@@ -133,6 +139,7 @@ function createService(
     emailService: emailService as any,
     mfaTotpService: mfaTotpService as any,
     mfaRecoveryCodeService: mfaRecoveryCodeService as any,
+    passkeyService: passkeyService as any,
     authAuditService: authAuditService as any,
     getLimits: overrides.limits ? () => overrides.limits! : undefined,
   });
@@ -145,6 +152,7 @@ function createService(
     emailService,
     mfaTotpService,
     mfaRecoveryCodeService,
+    passkeyService,
     authAuditService,
   };
 }
@@ -1130,5 +1138,226 @@ describe("MfaVerificationService", () => {
         scope: MFA_MANAGEMENT_SCOPE,
       }),
     ).rejects.toThrow("OTP preview is unavailable.");
+  });
+
+  describe("with a passkey", () => {
+    const client = {
+      source: "frontend-browser" as const,
+      device: { type: "desktop" as const, isMobile: false },
+    };
+    const ASSERTION = {
+      id: "Y3JlZA",
+      rawId: "Y3JlZA",
+      type: "public-key",
+      clientExtensionResults: {},
+      response: {
+        clientDataJSON: "Y2Q",
+        authenticatorData: "YWQ",
+        signature: "c2ln",
+      },
+    } as never;
+    const passkeyContext = (
+      overrides: Parameters<typeof createSecurityContext>[0] = {},
+    ) => createSecurityContext({ passkeyCount: 1, ...overrides });
+    const confirmPasskey = (
+      service: MfaVerificationService,
+      scope:
+        | typeof MFA_MANAGEMENT_SCOPE
+        | typeof MFA_DEVICE_LOGIN_SCOPE = MFA_MANAGEMENT_SCOPE,
+    ) =>
+      service.confirmChallenge({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        scope,
+        factor: "passkey",
+        credential: ASSERTION,
+        client,
+        audit: { requestId: "request-1" },
+      });
+
+    it("recommends the passkey ahead of everything else", async () => {
+      const { service } = createService({
+        securityContext: passkeyContext({
+          mfaTotp: {
+            status: "active",
+            updatedAt: "2026-06-27T15:20:00.000Z",
+            confirmedAt: "2026-06-27T15:10:00.000Z",
+          },
+          unusedRecoveryCodes: 4,
+        }),
+      });
+
+      await expect(
+        service.getOptions({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+        }),
+      ).resolves.toMatchObject({
+        availableFactors: ["passkey", "totp", "recovery_code"],
+        recommendedFactor: "passkey",
+      });
+    });
+
+    it("counts as a strong factor on its own, so email is refused", async () => {
+      const { service, otpService } = createService({
+        securityContext: passkeyContext({ unusedRecoveryCodes: 2 }),
+      });
+
+      await expect(
+        service.getOptions({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_DEVICE_LOGIN_SCOPE,
+        }),
+      ).resolves.toMatchObject({
+        availableFactors: ["passkey", "recovery_code"],
+      });
+      await expect(
+        service.issueChallenge({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "email",
+          client,
+        }),
+      ).rejects.toBeInstanceOf(MfaFactorUnavailableError);
+      expect(otpService.issue).not.toHaveBeenCalled();
+    });
+
+    it("issues request options bound to the session and scope", async () => {
+      const { service, passkeyService } = createService({
+        securityContext: passkeyContext(),
+      });
+
+      await expect(
+        service.issueChallenge({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "passkey",
+          client,
+        }),
+      ).resolves.toEqual({
+        scope: MFA_MANAGEMENT_SCOPE,
+        factor: "passkey",
+        challengeId: null,
+        options: { challenge: "passkey-challenge" },
+      });
+      expect(passkeyService.beginAssertion).toHaveBeenCalledWith({
+        userId: USER_1_ID,
+        purpose: "step-up",
+        binding: `${USER_1_ID}:session-1:${MFA_MANAGEMENT_SCOPE}`,
+      });
+    });
+
+    it("is unavailable to an account without one", async () => {
+      const { service, passkeyService } = createService();
+
+      await expect(
+        service.issueChallenge({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+          factor: "passkey",
+          client,
+        }),
+      ).rejects.toBeInstanceOf(MfaFactorUnavailableError);
+      expect(passkeyService.beginAssertion).not.toHaveBeenCalled();
+    });
+
+    it("records a proof made with a verified assertion", async () => {
+      const { service, passkeyService } = createService({
+        securityContext: passkeyContext(),
+      });
+
+      await expect(confirmPasskey(service)).resolves.toMatchObject({
+        verified: true,
+        factor: "passkey",
+        scope: MFA_MANAGEMENT_SCOPE,
+      });
+      expect(passkeyService.verifyAssertion).toHaveBeenCalledWith({
+        userId: USER_1_ID,
+        purpose: "step-up",
+        binding: `${USER_1_ID}:session-1:${MFA_MANAGEMENT_SCOPE}`,
+        credential: ASSERTION,
+        sessionId: "session-1",
+        context: { requestId: "request-1" },
+      });
+      await expect(
+        service.assertRecentVerification({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+        }),
+      ).resolves.toMatchObject({ factor: "passkey" });
+    });
+
+    it("counts a refused assertion as a failed attempt", async () => {
+      const { service, passkeyService, authAuditService } = createService({
+        securityContext: passkeyContext(),
+      });
+      passkeyService.verifyAssertion.mockRejectedValueOnce(
+        new UnauthorizedError("MFA verification failed."),
+      );
+
+      await expect(confirmPasskey(service)).rejects.toThrow(
+        new InvalidMfaCodeError("That passkey could not be verified."),
+      );
+      expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: "mfa.step_up_failed",
+          metadata: expect.objectContaining({ factor: "passkey" }),
+        }),
+      );
+    });
+
+    it("voids a proof once the first passkey is added, but not the second", async () => {
+      const { service, authRepository } = createService();
+      await service.confirmChallenge({
+        userId: USER_1_ID,
+        sessionId: "session-1",
+        scope: MFA_MANAGEMENT_SCOPE,
+        factor: "email",
+        code: "123456",
+        client,
+      });
+      const check = () =>
+        service.getOptions({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+        });
+
+      authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
+        passkeyContext(),
+      );
+      await expect(check()).resolves.toMatchObject({ verified: false });
+
+      await confirmPasskey(service);
+      authRepository.findMfaVerificationSecurityContextByUserId.mockResolvedValue(
+        passkeyContext({ passkeyCount: 2 }),
+      );
+      await expect(check()).resolves.toMatchObject({ verified: true });
+    });
+
+    it("bypasses with a passkey proof for a seeded account that has one", async () => {
+      const { service } = createService({
+        securityContext: passkeyContext({ email: "owner1@rentify.local" }),
+      });
+      jest.spyOn(environment, "isProduction").mockReturnValue(false);
+      jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+        ...environment.getTokenConfig(),
+        mfaBypassEmails: ["owner1@rentify.local"],
+      });
+
+      await expect(
+        service.assertRecentVerification({
+          userId: USER_1_ID,
+          sessionId: "session-1",
+          scope: MFA_MANAGEMENT_SCOPE,
+        }),
+      ).resolves.toMatchObject({ factor: "passkey" });
+    });
   });
 });

@@ -6,6 +6,7 @@ import UnauthorizedError from "@/errors/http/unauthorized.error";
 import type { MfaTotpRepository } from "./mfa-totp.repository";
 import type { TotpService } from "./totp.service";
 import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
+import type { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
@@ -21,10 +22,16 @@ interface MfaTotpServiceOptions {
   totpService: TotpService;
   mfaTotpRepository: MfaTotpRepository;
   mfaRecoveryCodeService: MfaRecoveryCodeService;
+  mfaFactorRepository: Pick<MfaFactorRepository, "getSummary">;
   encryptionKey: Buffer;
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
   securityNotificationService: SecurityNotificationService;
+}
+
+export interface MfaTotpDisableOutcome {
+  /** Whether other sessions were ended, which only removing the last strong factor does. */
+  otherSessionsSignedOut: boolean;
 }
 
 interface MfaTotpAuditInput {
@@ -36,6 +43,7 @@ export class MfaTotpService {
   private readonly totpService: TotpService;
   private readonly mfaTotpRepository: MfaTotpRepository;
   private readonly mfaRecoveryCodeService: MfaRecoveryCodeService;
+  private readonly mfaFactorRepository: Pick<MfaFactorRepository, "getSummary">;
   private readonly encryptionKey: Buffer;
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
@@ -45,6 +53,7 @@ export class MfaTotpService {
     this.totpService = options.totpService;
     this.mfaTotpRepository = options.mfaTotpRepository;
     this.mfaRecoveryCodeService = options.mfaRecoveryCodeService;
+    this.mfaFactorRepository = options.mfaFactorRepository;
     this.encryptionKey = options.encryptionKey;
     this.authAuditService = options.authAuditService;
     this.authSessionService = options.authSessionService;
@@ -107,7 +116,10 @@ export class MfaTotpService {
     return { secret, uri };
   }
 
-  /** Returns the recovery codes, which are shown this once and never again. */
+  /**
+   * Returns the recovery codes, which are shown this once and never again.
+   * The list is empty when the account already had a set from a passkey.
+   */
   async confirmEnrollment(
     userId: Uuid,
     code: string,
@@ -134,14 +146,15 @@ export class MfaTotpService {
     // Persist the confirmed counter as lastUsedCounter so the enrollment code
     // cannot be replayed against verifyCode before the first login MFA check.
     const recoveryCodes = this.mfaRecoveryCodeService.generateSet(userId);
-    const activated = await this.mfaTotpRepository.activate(
+    const activation = await this.mfaTotpRepository.activate(
       record.id,
+      userId,
       new Date(),
       matchedCounter,
       recoveryCodes.rows,
     );
 
-    if (!activated) {
+    if (!activation.activated) {
       throw new ConflictError("MFA is already enabled.");
     }
 
@@ -166,7 +179,7 @@ export class MfaTotpService {
       });
     }
 
-    return recoveryCodes.codes;
+    return activation.recoveryCodesIssued ? recoveryCodes.codes : [];
   }
 
   async verifyCode(userId: Uuid, code: string): Promise<void> {
@@ -202,35 +215,46 @@ export class MfaTotpService {
   }
 
   /**
-   * Removing the second factor ends every other session, since any of them
-   * could be the reason it is being removed. The sessions go first: if that
-   * fails the authenticator stays on and the caller can retry, whereas the
-   * other order would leave it off with the sessions alive and a retry that
-   * finds nothing to do.
+   * Removing the account's last strong factor ends every other session, since
+   * any of them could be the reason it is being removed. With a passkey left,
+   * the account is still protected and the sessions stay.
+   *
+   * The sessions go first: if that fails the authenticator stays on and the
+   * caller can retry, whereas the other order would leave it off with the
+   * sessions alive and a retry that finds nothing to do. A passkey removed in
+   * between makes this the last factor after all, and the sessions are ended
+   * once the delete reports it.
    */
   async disable(
     auth: JwtAuthPrincipal,
     context: AuthAuditContext,
-  ): Promise<void> {
+  ): Promise<MfaTotpDisableOutcome> {
     const userId = asUuid(auth.sub);
     const existing = await this.mfaTotpRepository.findByUserId(userId);
     const wasActive = existing?.status === "active";
+    let otherSessionsSignedOut = false;
 
-    if (wasActive) {
-      await this.authSessionService.revokeManagedSessions({
-        auth,
-        scope: "others",
-        audit: context,
-      });
+    if (
+      wasActive &&
+      (await this.mfaFactorRepository.getSummary(userId)).passkeyCount === 0
+    ) {
+      await this.revokeOtherSessions(auth, context);
+      otherSessionsSignedOut = true;
     }
 
-    await this.mfaTotpRepository.deleteByUserId(userId);
+    const { lastStrongFactor } =
+      await this.mfaTotpRepository.deleteByUserId(userId);
+
+    if (wasActive && lastStrongFactor && !otherSessionsSignedOut) {
+      await this.revokeOtherSessions(auth, context);
+      otherSessionsSignedOut = true;
+    }
 
     if (wasActive) {
       const eventId = newUuid();
       const emailNotification = await this.securityNotificationService.notify({
         kind: "mfa_disabled",
-        details: {},
+        details: { endedOtherSessions: otherSessionsSignedOut },
         userId,
         eventId,
         context,
@@ -243,9 +267,26 @@ export class MfaTotpService {
         userId,
         sessionId: auth.sessionId,
         context,
-        metadata: { emailNotification },
+        metadata: {
+          lastStrongFactor,
+          otherSessionsSignedOut,
+          emailNotification,
+        },
       });
     }
+
+    return { otherSessionsSignedOut };
+  }
+
+  private async revokeOtherSessions(
+    auth: JwtAuthPrincipal,
+    context: AuthAuditContext,
+  ): Promise<void> {
+    await this.authSessionService.revokeManagedSessions({
+      auth,
+      scope: "others",
+      audit: context,
+    });
   }
 
   // Cancels an in-progress enrollment by deleting the pending record.

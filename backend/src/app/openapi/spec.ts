@@ -3597,7 +3597,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "issueMfaVerificationChallenge",
       summary: "Issue an MFA step-up challenge",
       description:
-        "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP factors signal the client to prompt for an authenticator code. Rate limited per user, session, scope, and factor.",
+        "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP and recovery-code factors signal the client to prompt for a code; the passkey factor returns WebAuthn request options for `navigator.credentials.get()`, whose challenge is bound to this session and scope, single-use, and expires after 5 minutes. Asking again replaces it. Rate limited per user, session, scope, and factor.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3631,7 +3631,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "confirmMfaVerificationChallenge",
       summary: "Confirm an MFA step-up challenge",
       description:
-        "Verifies a step-up challenge code and persists a short-lived MFA proof for the scope. Rate limited, with a temporary lockout after repeated failed attempts.",
+        'Verifies a step-up code, or for `factor: "passkey"` an assertion in `credential`, and persists a short-lived MFA proof for the scope. An assertion is checked against the challenge, origin and RP ID it was issued for; a replayed, expired or foreign one, or one from a single-device passkey whose counter did not go up, returns 400 `INVALID_MFA_CODE` and counts as a failed attempt. Rate limited, with a temporary lockout after repeated failed attempts.',
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3823,7 +3823,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "regenerateMfaRecoveryCodes",
       summary: "Replace every recovery code",
       description:
-        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without an active authenticator app.",
+        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without a passkey or an active authenticator app.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3889,7 +3889,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "finishPasskeyRegistration",
       summary: "Finish adding a passkey",
       description:
-        "Verifies the authenticator's attestation against the challenge, origin and RP ID this session was issued, and stores the passkey. An expired, replayed or foreign answer returns 400 `PASSKEY_REGISTRATION_FAILED`; a passkey already registered, or one over the cap, returns 409. The owner is emailed and the addition is audited as `mfa.passkey_added`. Without a name the passkey is called `Passkey N`. Requires a recent MFA step-up for the `mfa-management` scope.",
+        "Verifies the authenticator's attestation against the challenge, origin and RP ID this session was issued, and stores the passkey. An expired, replayed or foreign answer returns 400 `PASSKEY_REGISTRATION_FAILED`; a passkey already registered, or one over the cap, returns 409. An account that has never had recovery codes gets its 10 in `recoveryCodes`, shown this once. Adding the first passkey changes the account's factors, so the next protected action asks for a step-up again. The owner is emailed and the addition is audited as `mfa.passkey_added`. Without a name the passkey is called `Passkey N`. Requires a recent MFA step-up for the `mfa-management` scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3970,7 +3970,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "removePasskey",
       summary: "Remove a passkey",
       description:
-        "Removes one of the signed-in account's passkeys. The owner is emailed and the removal is audited as `mfa.passkey_removed`. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
+        "Removes one of the signed-in account's passkeys. When it was the account's last strong factor (no other passkey and no active authenticator app), every other session is signed out and the recovery codes are deleted, so step-up falls back to email. The owner is emailed and the removal is audited as `mfa.passkey_removed`. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3993,7 +3993,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "disableMfaTotp",
       summary: "Disable authenticator (TOTP)",
       description:
-        "Disables the authenticator app for the signed-in user and signs out every other session. Requires a recent MFA step-up verification for the management scope.",
+        "Disables the authenticator app for the signed-in user. When it was the account's last strong factor (no passkey remains), every other session is signed out and the recovery codes are deleted; otherwise both stay, and `otherSessionsSignedOut` is false. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -4007,7 +4007,7 @@ function buildOperations(): OperationDefinition[] {
           200,
           "Authenticator app disabled. Other sessions were signed out.",
           "MfaTotpDisableResult",
-          { disabled: true },
+          { disabled: true, otherSessionsSignedOut: true },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
       },
@@ -12872,11 +12872,11 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaVerificationFactor: {
         type: "string",
-        enum: ["email", "totp", "sms", "recovery_code"],
+        enum: ["email", "totp", "sms", "recovery_code", "passkey"],
       },
       MfaVerificationChallengeFactor: {
         type: "string",
-        enum: ["email", "totp", "recovery_code"],
+        enum: ["email", "totp", "recovery_code", "passkey"],
       },
       MfaVerificationOptionsResult: {
         type: "object",
@@ -12901,7 +12901,7 @@ function buildComponents(): Record<string, unknown> {
           },
           recommendedFactor: {
             type: "string",
-            enum: ["email", "totp", "sms", "recovery_code"],
+            enum: ["email", "totp", "sms", "recovery_code", "passkey"],
             nullable: true,
           },
         },
@@ -12936,15 +12936,87 @@ function buildComponents(): Record<string, unknown> {
               prompt: { type: "boolean", const: true },
             },
           },
+          {
+            type: "object",
+            required: ["scope", "factor", "challengeId", "options"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "passkey" },
+              challengeId: { type: "null" },
+              options: schemaRef("PasskeyAssertionOptions"),
+            },
+          },
         ],
       },
       MfaVerificationConfirmRequest: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["scope", "factor", "code"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: {
+                type: "string",
+                enum: ["email", "totp", "recovery_code"],
+              },
+              code: { type: "string", minLength: 1 },
+            },
+          },
+          {
+            type: "object",
+            required: ["scope", "factor", "credential"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "passkey" },
+              credential: schemaRef("PasskeyAssertionCredential"),
+            },
+          },
+        ],
+      },
+      PasskeyAssertionOptions: {
         type: "object",
-        required: ["scope", "factor", "code"],
+        description:
+          "`PublicKeyCredentialRequestOptionsJSON`, as `startAuthentication({ optionsJSON })` from `@simplewebauthn/browser` takes it. `allowCredentials` lists the account's passkeys and `userVerification` is `preferred`.",
+        additionalProperties: true,
+        required: ["challenge", "rpId", "allowCredentials"],
         properties: {
-          scope: schemaRef("MfaVerificationScope"),
-          factor: schemaRef("MfaVerificationChallengeFactor"),
-          code: { type: "string", minLength: 1 },
+          challenge: { type: "string" },
+          rpId: { type: "string" },
+          timeout: { type: "integer" },
+          userVerification: { type: "string", enum: ["preferred"] },
+          allowCredentials: {
+            type: "array",
+            items: schemaRef("PasskeyCredentialDescriptor"),
+          },
+        },
+      },
+      PasskeyAssertionCredential: {
+        type: "object",
+        description:
+          "`AuthenticationResponseJSON` from `startAuthentication()`. Every binary field is base64url.",
+        required: ["id", "rawId", "type", "response"],
+        properties: {
+          id: { type: "string" },
+          rawId: { type: "string" },
+          type: { type: "string", const: "public-key" },
+          authenticatorAttachment: {
+            type: "string",
+            enum: ["platform", "cross-platform"],
+          },
+          clientExtensionResults: {
+            type: "object",
+            additionalProperties: true,
+          },
+          response: {
+            type: "object",
+            required: ["clientDataJSON", "authenticatorData", "signature"],
+            properties: {
+              clientDataJSON: { type: "string" },
+              authenticatorData: { type: "string" },
+              signature: { type: "string" },
+              userHandle: { type: "string" },
+            },
+          },
         },
       },
       MfaVerificationConfirmResult: {
@@ -13002,7 +13074,8 @@ function buildComponents(): Record<string, unknown> {
           confirmed: { type: "boolean", const: true },
           recoveryCodes: {
             type: "array",
-            minItems: 10,
+            description:
+              "The account's 10 recovery codes, shown this once. Empty when the account already had a set from a passkey.",
             maxItems: 10,
             items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
           },
@@ -13180,6 +13253,14 @@ function buildComponents(): Record<string, unknown> {
         required: ["passkey"],
         properties: {
           passkey: schemaRef("PasskeySummary"),
+          recoveryCodes: {
+            type: "array",
+            description:
+              "Present only when this was the account's first strong factor and it had no recovery codes: its 10 codes, shown this once.",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
         },
       },
       PasskeyListResult: {
@@ -13209,9 +13290,14 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaTotpDisableResult: {
         type: "object",
-        required: ["disabled"],
+        required: ["disabled", "otherSessionsSignedOut"],
         properties: {
           disabled: { type: "boolean", const: true },
+          otherSessionsSignedOut: {
+            type: "boolean",
+            description:
+              "Whether every other session was signed out, which only removing the last strong factor does.",
+          },
         },
       },
       MfaTotpPendingCancelResult: {

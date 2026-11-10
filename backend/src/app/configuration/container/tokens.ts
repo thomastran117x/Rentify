@@ -11,6 +11,7 @@ import { OtpService } from "@/features/auth/otp/otp.service";
 import { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
 import { MfaRecoveryCodeRepository } from "@/features/auth/mfa/recovery/mfa-recovery-code.repository";
 import { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
+import { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import { PasskeyChallengeStore } from "@/features/auth/mfa/passkey/passkey-challenge.store";
 import { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
 import { PasskeyRepository } from "@/features/auth/mfa/passkey/passkey.repository";
@@ -392,6 +393,9 @@ export const containerTokens = {
   ),
   mfaRecoveryCodeController: createServiceToken<MfaRecoveryCodeController>(
     "MfaRecoveryCodeController",
+  ),
+  mfaFactorRepository: createServiceToken<MfaFactorRepository>(
+    "MfaFactorRepository",
   ),
   passkeyRepository: createServiceToken<PasskeyRepository>("PasskeyRepository"),
   passkeyChallengeStore: createServiceToken<PasskeyChallengeStore>(

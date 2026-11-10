@@ -241,6 +241,29 @@ describe("EmailDeliveryService security-change emails", () => {
     expect(message.text).toContain("- Passkey: Old key\n");
   });
 
+  it("says other sign-ins stayed when a passkey still protects the account", async () => {
+    const kept = await render({
+      kind: "mfa_disabled",
+      input: { ...BASE, endedOtherSessions: false },
+    });
+    const ended = await render({ kind: "mfa_disabled", input: BASE });
+
+    expect(kept.text).toContain("your passkeys still work");
+    expect(kept.text).not.toContain("every other sign-in was ended");
+    // Jobs queued before the flag existed always ended the other sessions.
+    expect(ended.text).toContain("every other sign-in was ended");
+  });
+
+  it("says when removing the last passkey ended the other sign-ins", async () => {
+    const message = await render({
+      kind: "passkey_removed",
+      input: { ...BASE, passkeyName: "Laptop", endedOtherSessions: true },
+    });
+
+    expect(message.text).toContain("every other sign-in was ended");
+    expect(message.text).toContain("recovery codes stopped working");
+  });
+
   it("advises a reset, since a changed password locks the owner out of changing it", async () => {
     const message = await render({
       kind: "password_changed",

@@ -1,5 +1,10 @@
 import { BaseRepository } from "@/features/base/base.repository";
 import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  hasStrongFactor,
+  lockAccountForMfaChange,
+  readStrongFactors,
+} from "@/features/auth/mfa/mfa-factor.repository";
 import type { NewRecoveryCodeRow } from "./mfa-recovery-code.model";
 
 export class MfaRecoveryCodeRepository extends BaseRepository {
@@ -41,25 +46,20 @@ export class MfaRecoveryCodeRepository extends BaseRepository {
 
   /**
    * Replaces the whole set, or does nothing and returns false when the account
-   * has no active authenticator. The factor row is read `FOR UPDATE` so a
-   * concurrent regeneration waits its turn and a concurrent disable cannot
-   * leave codes behind on an account with no authenticator. Disable takes its
-   * locks in this same order.
+   * has no strong factor (an active authenticator or a passkey). The account
+   * row is locked first, as every factor change does, so a concurrent
+   * regeneration waits its turn and a concurrent removal of the last factor
+   * cannot leave codes behind.
    */
-  async replaceForActiveTotp(
+  async replaceForStrongFactor(
     userId: Uuid,
     rows: NewRecoveryCodeRow[],
     createdAt: Date,
   ): Promise<boolean> {
     return this.executeTransaction(async (transaction) => {
-      const factors = await transaction.$queryRaw<{ id: string }[]>`
-        SELECT id
-        FROM user_mfa_totp
-        WHERE user_id = ${userId} AND status = 'active'
-        FOR UPDATE
-      `;
+      await lockAccountForMfaChange(transaction, userId);
 
-      if (factors.length === 0) {
+      if (!hasStrongFactor(await readStrongFactors(transaction, userId))) {
         return false;
       }
 

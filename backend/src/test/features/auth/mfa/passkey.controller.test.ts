@@ -169,6 +169,7 @@ describe("PasskeyController", () => {
       name: "Laptop",
     });
     expect(response.status).toBe(201);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toMatchObject({
       message: "Passkey added.",
       data: { passkey: SUMMARY },
@@ -250,7 +251,11 @@ describe("PasskeyController", () => {
       createContext({ params: { id: PASSKEY_ID } }),
     );
 
-    expect(service.remove).toHaveBeenCalledWith({ ...ACTOR, id: PASSKEY_ID });
+    expect(service.remove).toHaveBeenCalledWith({
+      ...ACTOR,
+      auth: AUTH,
+      id: PASSKEY_ID,
+    });
     expect(response.status).toBe(204);
   });
 });

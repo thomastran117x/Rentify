@@ -207,6 +207,52 @@ describe("MfaVerificationController", () => {
     });
   });
 
+  it("confirms a passkey step-up with the assertion instead of a code", async () => {
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_3_ID }));
+    const { controller, mfaVerificationService } = createController();
+    const credential = {
+      id: "Y3JlZA",
+      rawId: "Y3JlZA",
+      type: "public-key",
+      clientExtensionResults: {},
+      response: {
+        clientDataJSON: "Y2Q",
+        authenticatorData: "YWQ",
+        signature: "c2ln",
+      },
+    };
+    const context = createContext({
+      body: { scope: "mfa-management", factor: "passkey", credential },
+    });
+
+    await invoke(controller.confirmChallenge, context);
+
+    expect(mfaVerificationService.confirmChallenge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        factor: "passkey",
+        credential,
+      }),
+    );
+    expect(
+      (mfaVerificationService.confirmChallenge.mock.calls[0] as unknown[])[0],
+    ).not.toHaveProperty("code");
+  });
+
+  it("refuses a passkey step-up without an assertion", async () => {
+    mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_3_ID }));
+    const { controller, mfaVerificationService } = createController();
+
+    await expect(
+      invoke(
+        controller.confirmChallenge,
+        createContext({
+          body: { scope: "mfa-management", factor: "passkey", code: "123456" },
+        }),
+      ),
+    ).rejects.toThrow("Request body validation failed.");
+    expect(mfaVerificationService.confirmChallenge).not.toHaveBeenCalled();
+  });
+
   it("previews the current email OTP for the authenticated session", async () => {
     mockRequireSessionAuth.mockResolvedValue(createAuth({ sub: USER_4_ID }));
     const { controller, mfaVerificationService } = createController();
