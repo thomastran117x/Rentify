@@ -31,6 +31,7 @@ import type {
   RevokeAuthSessionResult,
   RevokeAuthSessionsResult,
   RevokeAuthSessionsScope,
+  RevokeDeviceTrustResult,
   SessionVerificationResult,
   SignupVerificationPendingResult,
   UsernameAvailabilityResult,
@@ -50,6 +51,8 @@ interface LoginInput {
 type CompleteLoginMfaInput = {
   mfaChallengeToken: string;
   deviceId?: string;
+  /** Skip this step at later sign-ins from this browser, for a while. */
+  rememberDevice?: boolean;
 } & (
   | { factor: Exclude<LoginMfaFactor, "passkey">; code: string }
   | { factor: "passkey"; credential: AuthenticationResponseJSON }
@@ -534,6 +537,14 @@ export const authApi = {
       RevokeAuthSessionsResult,
       { scope: RevokeAuthSessionsScope }
     >("/auth/sessions/revoke-others", { scope });
+  },
+  /** "Stop trusting": the device's next sign-in asks for a code again. */
+  revokeDeviceTrust(deviceId: string): Promise<RevokeDeviceTrustResult> {
+    return authenticatedJson<RevokeDeviceTrustResult, { deviceId: string }>(
+      "DELETE",
+      "/auth/devices/trust",
+      { deviceId },
+    );
   },
   removeKnownDevice(deviceId: string): Promise<{ ok: true }> {
     return authenticatedJson<{ ok: true }, { deviceId: string }>(

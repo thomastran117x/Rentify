@@ -28,6 +28,19 @@ describe("readLoginMfaChallenge", () => {
     );
   });
 
+  it("reads how long the device can be remembered, when it makes sense", () => {
+    expect(
+      readLoginMfaChallenge(
+        clientError(401, { ...challenge, rememberDeviceDays: 30 }),
+      ),
+    ).toEqual({ ...challenge, rememberDeviceDays: 30 });
+    expect(
+      readLoginMfaChallenge(
+        clientError(401, { ...challenge, rememberDeviceDays: -1 }),
+      ),
+    ).toEqual(challenge);
+  });
+
   it.each([
     ["a wrong password", clientError(401, undefined)],
     ["a refusal without a challenge", clientError(401, { mfaRequired: true })],

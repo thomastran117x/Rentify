@@ -49,6 +49,8 @@ export interface LoginMfaPendingFlow {
   /** How the first step signed in, which decides what happens after. */
   method: "password" | "oauth";
   expiresAt: string;
+  /** Offered as "Remember this device for N days" when present. */
+  rememberDeviceDays?: number;
 }
 
 export type PersistedAuthPendingFlow =
@@ -85,6 +87,9 @@ export function createLoginMfaPendingFlow(
     factor: usable[0] ?? availableFactors[0] ?? "totp",
     method,
     expiresAt: new Date(now + challenge.expiresInSeconds * 1000).toISOString(),
+    ...(challenge.rememberDeviceDays
+      ? { rememberDeviceDays: challenge.rememberDeviceDays }
+      : {}),
   };
 }
 
@@ -195,6 +200,11 @@ export function parsePendingFlow(
           factor: value.factor,
           method: value.method,
           expiresAt: value.expiresAt,
+          ...(typeof value.rememberDeviceDays === "number" &&
+          Number.isInteger(value.rememberDeviceDays) &&
+          value.rememberDeviceDays > 0
+            ? { rememberDeviceDays: value.rememberDeviceDays }
+            : {}),
         };
       }
       return null;

@@ -87,6 +87,28 @@ describe("LoginMfaPanel with a passkey", () => {
     });
   });
 
+  it("remembers the device with a passkey too, when ticked", async () => {
+    const user = userEvent.setup();
+    auth.completeLoginMfa.mockResolvedValue({ accessToken: "access-token" });
+    renderPanel({ rememberDeviceDays: 30 });
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Remember this device for 30 days",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: /use passkey/i }));
+
+    await waitFor(() =>
+      expect(auth.completeLoginMfa).toHaveBeenCalledWith({
+        mfaChallengeToken: "challenge-token",
+        factor: "passkey",
+        credential: CREDENTIAL,
+        rememberDevice: true,
+      }),
+    );
+  });
+
   it("disables the button while the browser prompt is open", async () => {
     const user = userEvent.setup();
     let finish: (value: unknown) => void = () => undefined;
