@@ -98,7 +98,7 @@ export class DeviceService {
     deviceId?: string,
     audit?: AuthAuditContext,
   ): Promise<KnownDeviceStatus> {
-    const known = await this.findBoundDevice(user, client, deviceId);
+    const known = await this.findBoundDevice(user, client);
 
     if (known) {
       return known;
@@ -140,7 +140,7 @@ export class DeviceService {
     deviceId?: string,
     audit?: AuthAuditContext,
   ): Promise<KnownDeviceStatus> {
-    const known = await this.findBoundDevice(user, client, deviceId);
+    const known = await this.findBoundDevice(user, client);
 
     if (known) {
       return known;
@@ -182,7 +182,6 @@ export class DeviceService {
   private async findBoundDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
-    deviceId?: string,
   ): Promise<KnownDeviceStatus | null> {
     const bindingId = client.deviceBinding?.id;
 
@@ -201,8 +200,11 @@ export class DeviceService {
 
     await this.deviceRepository.touchKnownDevice(knownDevice.id, client.ip);
 
+    // The row's id, not this request's hint: a browser whose storage was
+    // cleared sends a new hint, but its sessions must stay under the id the
+    // device list shows, so removing that device signs them out.
     return {
-      deviceId,
+      deviceId: knownDevice.deviceId,
       known: true,
       knownByIp: Boolean(client.ip && knownDevice.lastIpAddress === client.ip),
     };

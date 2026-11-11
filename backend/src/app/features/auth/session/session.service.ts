@@ -413,10 +413,12 @@ export class AuthSessionService {
         input.deviceId,
         input.audit,
       );
+    // A known device is issued under its registered id, which may differ from
+    // the hint this request sent.
     const session = await this.issueTokensForUser(
       user,
       deviceStatus,
-      input.deviceId,
+      deviceStatus.deviceId ?? input.deviceId,
       Boolean(input.rememberMe),
       input.client,
     );
@@ -461,7 +463,13 @@ export class AuthSessionService {
       audit,
     );
 
-    return this.issueTokensForUser(user, deviceStatus, deviceId, false, client);
+    return this.issueTokensForUser(
+      user,
+      deviceStatus,
+      deviceStatus.deviceId ?? deviceId,
+      false,
+      client,
+    );
   }
 
   private async issueTokensForUser(

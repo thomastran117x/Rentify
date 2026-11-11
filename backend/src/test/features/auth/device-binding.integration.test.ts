@@ -8,6 +8,7 @@ import {
   DEVICE_BINDING_COOKIE_NAME,
   verifyDeviceBindingCookieValue,
 } from "@/features/auth/device/device-binding";
+import { completeEmailStepUp } from "../../support/mfa-step-up";
 import {
   createPersistenceTestApp,
   resetPersistenceState,
@@ -52,6 +53,15 @@ describe("Device binding integration", () => {
       `http://rent.test${buildApiPath(path)}`,
       init,
     );
+  }
+
+  function tokenDeviceId(accessToken: string): string | undefined {
+    const [, claims] = accessToken.split(".");
+    return (
+      JSON.parse(Buffer.from(claims!, "base64url").toString("utf8")) as {
+        deviceId?: string;
+      }
+    ).deviceId;
   }
 
   async function login(input: {
@@ -229,6 +239,43 @@ describe("Device binding integration", () => {
     expect(
       decodeURIComponent(readCookie(refreshed, DEVICE_BINDING_COOKIE_NAME)!),
     ).toBe(deviceCookie);
+  });
+
+  it("keeps a bound browser's sessions under its registered id when its hint changes", async () => {
+    const deviceCookie = await registerBoundDevice("198.51.100.70");
+
+    // Cleared storage: the same cookie, but a new client-chosen id.
+    const session = await login({
+      ip: "198.51.100.70",
+      deviceCookie,
+      deviceId: "regenerated-hint",
+    });
+    expect(session.device).toMatchObject({
+      deviceId: DEVICE_HINT,
+      known: true,
+    });
+    expect(tokenDeviceId(session.accessToken)).toBe(DEVICE_HINT);
+
+    // So removing the listed device signs that session out as well.
+    const remover = await login({ ip: "198.51.100.70", deviceCookie });
+    const removerHeaders = sessionHeaders(remover, {
+      ip: "198.51.100.70",
+      deviceCookie,
+    });
+    await completeEmailStepUp(persistenceApp.app, removerHeaders);
+    const removed = await request("/auth/devices/remove", {
+      method: "DELETE",
+      headers: removerHeaders,
+      body: JSON.stringify({ deviceId: DEVICE_HINT }),
+    });
+    expect(removed.status).toBe(200);
+
+    const refreshed = await request("/auth/refresh", {
+      method: "POST",
+      headers: sessionHeaders(session, { ip: "198.51.100.70", deviceCookie }),
+      body: JSON.stringify({}),
+    });
+    expect(refreshed.status).toBe(401);
   });
 
   it("keeps a client without cookies working, never known by device", async () => {

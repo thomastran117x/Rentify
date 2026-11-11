@@ -304,6 +304,21 @@ describe("DeviceService", () => {
     expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
   });
 
+  it("names a known device by its registered id when the hint changed", async () => {
+    const { service } = createService({
+      findByBindingId: async () =>
+        createKnownDevice({ bindingId: BINDING_ID, deviceId: "registered-id" }),
+    });
+
+    await expect(
+      service.evaluateSuccessfulAuthentication(
+        createUser(),
+        createClient(BOUND),
+        "new-hint-after-cleared-storage",
+      ),
+    ).resolves.toMatchObject({ deviceId: "registered-id", known: true });
+  });
+
   it("reports a known device seen last on another ip as not known by ip", async () => {
     const { service } = createService({
       findByBindingId: async () =>
