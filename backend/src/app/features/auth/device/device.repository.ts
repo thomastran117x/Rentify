@@ -22,6 +22,10 @@ export interface KnownDeviceRecord {
   lastIpAddress?: string;
   /** Set when the device registered with a verified device cookie. */
   bindingId?: string;
+  /** "Remember this device", until this time; see {@link trustedTokenVersion}. */
+  trustedUntil?: string;
+  /** Trust counts only while the account's token version still matches. */
+  trustedTokenVersion?: number;
   firstSeenAt: string;
   lastSeenAt: string;
   verifiedAt: string;
@@ -36,6 +40,8 @@ type DevicePersistence = {
   userAgent: string | null;
   lastIpAddress: string | null;
   bindingId: string | null;
+  trustedUntil: Date | null;
+  trustedTokenVersion: number | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   verifiedAt: Date;
@@ -162,6 +168,60 @@ export class DeviceRepository extends BaseRepository {
     );
   }
 
+  async setTrust(
+    id: Uuid,
+    trustedUntil: Date,
+    tokenVersion: number,
+  ): Promise<void> {
+    await this.executeAsync(() =>
+      this.prisma.device.update({
+        where: { id },
+        data: { trustedUntil, trustedTokenVersion: tokenVersion },
+      }),
+    );
+  }
+
+  /**
+   * Ends one device's trust. Null when the account has no such device; false
+   * when it has one that was not trusted.
+   */
+  async revokeTrust(userId: Uuid, deviceId: string): Promise<boolean | null> {
+    const device = await this.executeAsync(() =>
+      this.prisma.device.findUnique({
+        where: { userId_deviceId: { userId, deviceId } },
+        select: { id: true, trustedUntil: true },
+      }),
+    );
+
+    if (!device) {
+      return null;
+    }
+
+    if (!device.trustedUntil) {
+      return false;
+    }
+
+    await this.executeAsync(() =>
+      this.prisma.device.update({
+        where: { id: device.id },
+        data: { trustedUntil: null, trustedTokenVersion: null },
+      }),
+    );
+    return true;
+  }
+
+  /** Ends every device's trust on the account; returns how many had it. */
+  async revokeAllTrust(userId: Uuid): Promise<number> {
+    const result = await this.executeAsync(() =>
+      this.prisma.device.updateMany({
+        where: { userId, trustedUntil: { not: null } },
+        data: { trustedUntil: null, trustedTokenVersion: null },
+      }),
+    );
+
+    return result.count;
+  }
+
   async touchKnownIpAddress(userId: Uuid, ipAddress: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.device.updateMany({
@@ -226,6 +286,8 @@ export class DeviceRepository extends BaseRepository {
       userAgent: device.userAgent ?? undefined,
       lastIpAddress: device.lastIpAddress ?? undefined,
       bindingId: device.bindingId ?? undefined,
+      trustedUntil: device.trustedUntil?.toISOString(),
+      trustedTokenVersion: device.trustedTokenVersion ?? undefined,
       firstSeenAt: device.firstSeenAt.toISOString(),
       lastSeenAt: device.lastSeenAt.toISOString(),
       verifiedAt: device.verifiedAt.toISOString(),

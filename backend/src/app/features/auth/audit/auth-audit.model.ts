@@ -9,6 +9,7 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "login.succeeded",
   "login.failed",
   "login.mfa_challenged",
+  "login.mfa_skipped_trusted_device",
   "login.locked",
   "login.unlock_requested",
   "login.unlocked",
@@ -21,6 +22,8 @@ export const AUTH_AUDIT_EVENT_TYPES = [
   "session.refresh_reuse_detected",
   "session.revoked",
   "device.new_detected",
+  "device.trusted",
+  "device.trust_revoked",
   "password.changed",
   "password.change_failed",
   "password.reset",
@@ -149,6 +152,7 @@ export const SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES: Record<
     "login.succeeded",
     "login.failed",
     "login.mfa_challenged",
+    "login.mfa_skipped_trusted_device",
     "login.locked",
     "login.unlock_requested",
     "login.unlocked",
@@ -188,6 +192,8 @@ export const SECURITY_ACTIVITY_CATEGORY_EVENT_TYPES: Record<
     "session.revoked",
     "session.refresh_reuse_detected",
     "device.new_detected",
+    "device.trusted",
+    "device.trust_revoked",
   ],
 };
 

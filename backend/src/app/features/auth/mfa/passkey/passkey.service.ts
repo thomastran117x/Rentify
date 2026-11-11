@@ -27,6 +27,7 @@ import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service"
 import type { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
+import type { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type {
@@ -69,6 +70,7 @@ interface PasskeyServiceOptions {
   authSessionService: Pick<AuthSessionService, "revokeManagedSessions">;
   authAuditService: AuthAuditService;
   securityNotificationService: SecurityNotificationService;
+  deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
   /** Defaults to the `webauthn` config, read on each request. */
   getConfig?: () => WebAuthnConfig;
 }
@@ -229,6 +231,14 @@ export class PasskeyService {
       throw new PasskeyRegistrationFailedError();
     }
 
+    // Ended before the passkey is stored, for the reason given on
+    // `MfaTotpService.confirmEnrollment`.
+    await this.options.deviceTrustService.revokeAll(
+      actor.userId,
+      "passkey_added",
+      actor.context,
+    );
+
     const info = verification.registrationInfo;
     const existingCount = await this.options.passkeyRepository.countByUserId(
       actor.userId,
@@ -360,6 +370,12 @@ export class PasskeyService {
       actor.userId,
     );
     let otherSessionsSignedOut = false;
+
+    await this.options.deviceTrustService.revokeAll(
+      actor.userId,
+      "passkey_removed",
+      actor.context,
+    );
 
     if (!factors.totpActive && factors.passkeyCount <= 1) {
       await this.revokeOtherSessions(actor);

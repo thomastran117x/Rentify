@@ -101,6 +101,8 @@ const ADMIN_LABELS: Record<string, string> = {
 
 const STATIC_LABELS: Record<string, string> = {
   "login.mfa_challenged": "Sign-in asked for a verification code",
+  "login.mfa_skipped_trusted_device":
+    "Sign-in skipped the verification code on a remembered device",
   "login.locked": "Account locked after failed sign-ins",
   "login.unlock_requested": "Account unlock requested",
   "login.unlocked": "Account unlocked",
@@ -108,6 +110,8 @@ const STATIC_LABELS: Record<string, string> = {
   "session.refresh_reuse_detected": "Session ended: sign-in token reused",
   "session.revoked": "Session signed out remotely",
   "device.new_detected": "New device detected",
+  "device.trusted": "Device remembered: sign-ins skip the verification code",
+  "device.trust_revoked": "Remembered device forgotten",
   "password.changed": "Password changed",
   "password.reset": "Password reset",
   "password.set": "Password added",

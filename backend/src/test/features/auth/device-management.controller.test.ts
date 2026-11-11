@@ -35,6 +35,10 @@ function createController() {
       removed: true,
       deviceId: "device-99",
     })),
+    revokeDeviceTrust: jest.fn(async () => ({
+      revoked: true,
+      deviceId: "device-99",
+    })),
   };
   const mfaVerificationService = {} as MfaVerificationService;
 
@@ -134,6 +138,37 @@ describe("DeviceManagementController.devices", () => {
       invoke(controller.devices, createContext({ auth: createClaims() })),
     ).rejects.toThrow("step-up required");
     expect(deviceManagementService.devices).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeviceManagementController.revokeDeviceTrust", () => {
+  it("steps up, then ends the named device's trust", async () => {
+    const auth = createClaims({ sub: USER_12_ID });
+    mockRequireRecentMfaVerification.mockImplementation(
+      async (request: AuthTestContext["request"]) => {
+        request.auth = auth;
+        return auth;
+      },
+    );
+    const { controller, deviceManagementService } = createController();
+
+    const response = await invoke(
+      controller.revokeDeviceTrust,
+      createContext({ body: { deviceId: "device-99" } }),
+    );
+
+    expect(mockRequireRecentMfaVerification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "mfa-management",
+    );
+    expect(deviceManagementService.revokeDeviceTrust).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_12_ID, deviceId: "device-99" }),
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      message: "Device is no longer trusted.",
+      data: { revoked: true, deviceId: "device-99" },
+    });
   });
 });
 

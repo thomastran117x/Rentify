@@ -11,7 +11,10 @@ import type {
 } from "@/features/auth/auth.model";
 import { isLocalPasswordAccount } from "@/features/auth/local-account-eligibility";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
-import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
+import {
+  withTrustedDevice,
+  type LoginMfaService,
+} from "@/features/auth/mfa/login/login-mfa.service";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -376,6 +379,7 @@ export class OAuthAccountsService {
           identifierHash,
           context: input.audit,
         },
+        client: input.client,
         totpCode: input.totpCode,
         deviceId: input.deviceId,
         rememberMe: input.rememberMe,
@@ -399,7 +403,9 @@ export class OAuthAccountsService {
         session.sessionId,
         input.audit,
       );
-      return session;
+      return mfa.status === "trusted_device"
+        ? withTrustedDevice(session, mfa.trustedUntil)
+        : session;
     }
 
     // Signing in with a provider must not silently take over an address that

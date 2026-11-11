@@ -34,18 +34,23 @@ const mfaChallengeToken = requiredSafeTrimmedString(
   "MFA challenge token is required.",
 );
 
+/** "Remember this device": skip login MFA on this device until it lapses. */
+const rememberDevice = z.boolean().optional();
+
 export const loginMfaRequestSchema = z.discriminatedUnion("factor", [
   z.object({
     mfaChallengeToken,
     factor: z.literal("passkey"),
     credential: passkeyAssertionCredentialSchema,
     deviceId: optionalTrimmedString,
+    rememberDevice,
   }),
   z.object({
     mfaChallengeToken,
     factor: loginMfaCodeFactorSchema,
     code: z.string().trim().min(1, "Code is required."),
     deviceId: optionalTrimmedString,
+    rememberDevice,
   }),
 ]);
 
@@ -75,6 +80,11 @@ export interface LoginMfaRequiredDetails {
   mfaChallengeToken: string;
   availableFactors: LoginMfaFactor[];
   expiresInSeconds: number;
+  /**
+   * How long "Remember this device" lasts. It works only for a client that
+   * keeps the device cookie, which the response that carries this sets.
+   */
+  rememberDeviceDays: number;
 }
 
 /**
@@ -103,6 +113,7 @@ export type CompleteLoginMfaInput = LoginMfaAnswer & {
   client: ClientRequestContext;
   mfaChallengeToken: string;
   deviceId?: string;
+  rememberDevice?: boolean;
   audit: AuthAuditContext;
 };
 

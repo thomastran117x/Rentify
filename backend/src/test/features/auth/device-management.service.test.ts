@@ -6,6 +6,7 @@ import type {
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { testUuid } from "../../support/uuid";
 
+const NOW = new Date("2026-03-01T00:00:00.000Z");
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
 
@@ -87,17 +88,21 @@ function createHarness() {
     revokeSessionsForDevice: jest.fn(async () => ["session-1"]),
   };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
+  const deviceTrustService = { revoke: jest.fn(async () => true) };
 
   return {
     authRepository,
     deviceService,
     tokenService,
     authAuditService,
+    deviceTrustService,
     service: new DeviceManagementService(
       authRepository as never,
       deviceService as never,
       tokenService as never,
       authAuditService as never,
+      deviceTrustService,
+      () => NOW,
     ),
   };
 }
@@ -184,6 +189,8 @@ describe("DeviceManagementService.devices", () => {
           firstSeenAt: "2026-01-01T00:00:00.000Z",
           lastSeenAt: "2026-01-02T00:00:00.000Z",
           verifiedAt: "2026-01-01T00:00:00.000Z",
+          bound: false,
+          trusted: false,
         },
       ],
     });
@@ -191,6 +198,108 @@ describe("DeviceManagementService.devices", () => {
       USER_1_ID,
       "device-1",
     );
+  });
+
+  it("shows trust only while it is current for the account's token version", async () => {
+    const harness = createHarness();
+    const base = {
+      current: false,
+      type: "desktop",
+      firstSeenAt: "2026-01-01T00:00:00.000Z",
+      lastSeenAt: "2026-01-02T00:00:00.000Z",
+      verifiedAt: "2026-01-01T00:00:00.000Z",
+      bindingId: "binding",
+    };
+    harness.deviceService.listKnownDevices.mockResolvedValue([
+      {
+        ...base,
+        id: "trusted",
+        deviceId: "trusted",
+        trustedUntil: "2026-03-10T00:00:00.000Z",
+        trustedTokenVersion: 1,
+      },
+      {
+        ...base,
+        id: "expired",
+        deviceId: "expired",
+        trustedUntil: "2026-02-28T00:00:00.000Z",
+        trustedTokenVersion: 1,
+      },
+      // Trusted before a password change rotated the token version.
+      {
+        ...base,
+        id: "rotated",
+        deviceId: "rotated",
+        trustedUntil: "2026-03-10T00:00:00.000Z",
+        trustedTokenVersion: 0,
+      },
+    ] as never);
+
+    const { devices } = await harness.service.devices(createContext());
+
+    expect(
+      devices.map(({ deviceId, bound, trusted, trustedUntil }) => ({
+        deviceId,
+        bound,
+        trusted,
+        trustedUntil,
+      })),
+    ).toEqual([
+      {
+        deviceId: "trusted",
+        bound: true,
+        trusted: true,
+        trustedUntil: "2026-03-10T00:00:00.000Z",
+      },
+      {
+        deviceId: "expired",
+        bound: true,
+        trusted: false,
+        trustedUntil: undefined,
+      },
+      {
+        deviceId: "rotated",
+        bound: true,
+        trusted: false,
+        trustedUntil: undefined,
+      },
+    ]);
+  });
+
+  it("rejects a token whose account no longer exists", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserById.mockResolvedValue(null as never);
+
+    await expect(harness.service.devices(createContext())).rejects.toThrow();
+    expect(harness.deviceService.listKnownDevices).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeviceManagementService.revokeDeviceTrust", () => {
+  it("ends one device's trust and says whether it had any", async () => {
+    const harness = createHarness();
+    const audit = { requestId: "request-1" };
+
+    await expect(
+      harness.service.revokeDeviceTrust({
+        userId: USER_1_ID,
+        deviceId: "device-1",
+        audit,
+      }),
+    ).resolves.toEqual({ revoked: true, deviceId: "device-1" });
+    expect(harness.deviceTrustService.revoke).toHaveBeenCalledWith(
+      USER_1_ID,
+      "device-1",
+      audit,
+    );
+
+    harness.deviceTrustService.revoke.mockResolvedValue(false);
+    await expect(
+      harness.service.revokeDeviceTrust({
+        userId: USER_1_ID,
+        deviceId: "device-1",
+      }),
+    ).resolves.toEqual({ revoked: false, deviceId: "device-1" });
   });
 });
 

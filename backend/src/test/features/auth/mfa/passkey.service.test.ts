@@ -69,6 +69,7 @@ function createService(
   const authSessionService = {
     revokeManagedSessions: jest.fn(async () => ({}) as never),
   };
+  const deviceTrustService = { revokeAll: jest.fn(async () => 0) };
   const service = new PasskeyService({
     passkeyRepository: passkeyRepository as never,
     passkeyChallengeStore,
@@ -78,6 +79,7 @@ function createService(
     authSessionService,
     authAuditService: authAuditService as never,
     securityNotificationService: securityNotificationService as never,
+    deviceTrustService,
     getConfig: () => ({
       rpId: TEST_WEBAUTHN_RP_ID,
       rpName: "Rentify",
@@ -92,6 +94,7 @@ function createService(
     authAuditService,
     authSessionService,
     securityNotificationService,
+    deviceTrustService,
   };
 }
 
@@ -239,6 +242,23 @@ describe("PasskeyService registration", () => {
         emailNotification: "sent",
       },
     });
+  });
+
+  it("forgets remembered devices before storing a new passkey", async () => {
+    const { service, passkeyRepository, deviceTrustService } = createService();
+
+    await register(service);
+
+    expect(deviceTrustService.revokeAll).toHaveBeenCalledWith(
+      USER_ID,
+      "passkey_added",
+      CONTEXT,
+    );
+    expect(
+      deviceTrustService.revokeAll.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      passkeyRepository.createWithinCap.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("records a synced passkey and keeps a chosen name", async () => {
@@ -508,6 +528,26 @@ describe("PasskeyService management", () => {
           emailNotification: "sent",
         },
       }),
+    );
+  });
+
+  it("forgets remembered devices before removing a passkey", async () => {
+    const { service, passkeyRepository, deviceTrustService } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+      totpActive: true,
+    });
+
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
+
+    expect(deviceTrustService.revokeAll).toHaveBeenCalledWith(
+      USER_ID,
+      "passkey_removed",
+      CONTEXT,
+    );
+    expect(
+      deviceTrustService.revokeAll.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      passkeyRepository.deleteForUser.mock.invocationCallOrder[0]!,
     );
   });
 
