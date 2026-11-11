@@ -211,7 +211,7 @@ Starting a provider link (`POST /auth/oauth/{provider}/start`) needs no proof: i
 
 ### Marking a Device Known
 
-`POST /auth/device/verify` stops new-device alerts for a device and keeps it out of detection rule (c), so a stolen password or session must not be enough to call it. It accepts a recent proof from either scope: `device-login` from the sign-in check below, or `mfa-management` from anywhere else.
+`POST /auth/device/verify` stops new-device alerts for a device and keeps it out of detection rule (c), so a stolen password or session must not be enough to call it. It accepts a recent proof from either scope: `device-login` from the sign-in check below, or `mfa-management` from anywhere else. What it registers is the [device cookie](#device-binding) the request presents, not the device id the client sends.
 
 | Sign-in                                                 | Check                                                                                     |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -222,6 +222,24 @@ Starting a provider link (`POST /auth/oauth/{provider}/start`) needs no proof: i
 | No factor available                                     | No prompt, and it stays unregistered.                                                     |
 
 A device left unregistered still works. The next sign-in from it on a new IP gets the usual new-device alert and check.
+
+### Device Binding
+
+A device is known only by a cookie the server signs. The id a client sends (`deviceId` in a body, or the `x-device-id` header, which the web app keeps in `localStorage`) is a hint: it labels the device in the list, the alert email and the audit log, and ties a sign-in's two MFA steps together, but it never makes a device known. Before binding, anyone who knew or guessed a device's id could send it and skip the new-device alert, and with it detection rule (c).
+
+| Cookie                  | Over local http  | Value                                                   | Lifetime                                    |
+| ----------------------- | ---------------- | ------------------------------------------------------- | ------------------------------------------- |
+| `__Host-rentify_device` | `rentify_device` | A random 128-bit id, a dot, and HMAC-SHA256 over the id | 400 days, renewed by every session response |
+
+- **Issued** by any `/auth/*` response to a request that did not present a valid one, so a browser holds it before the sign-in that registers it. The id the server chooses counts only from the next request that presents it.
+- **Signed** with `DEVICE_BINDING_SECRET`. A cookie that does not verify is ignored and replaced. Because the server picks the id, an attacker cannot get a victim's id signed, even by signing in to their own account with the victim's `x-device-id`. Rotating the secret makes every browser a new device once.
+- **Registered** by `POST /auth/device/verify`, which stores the id in `devices.binding_id`. A later sign-in or refresh is known only when it presents a cookie whose id a row of the same account holds. Without one, the device is evaluated as new: a known IP still skips the alert, and anything else sends it.
+- **Kept** at sign-out. It names the browser, not a session, and one cookie serves every account that registers it.
+- **Recorded.** `device.new_detected` carries `metadata.deviceBinding`, `verified` when the request presented a valid cookie, `unverified` when the device id was only the client's hint. The alert's cooldown is per verified device when there is one, so a forged hint cannot spend another device's cooldown.
+
+Clients that keep no cookies, such as scripts or native apps, still sign in, refresh and finish MFA as before. They are never known by device and fall back to the known-IP rule. `POST /auth/device/verify` from such a client lists the device as a hint row, which never makes a sign-in known.
+
+**Rollout.** Devices registered before binding have no `binding_id`, so each browser's next sign-in is treated as new once: a new-device check, and an alert when the IP is new too. Recognising them by their old id would keep exactly the gap that binding closes.
 
 ### Which Factors Count
 
@@ -456,7 +474,7 @@ Each rule counts in a Redis sliding window (a sorted set scored by time, under `
 
 - **(a)** counts only the attempt that set the lock, not later refusals of the locked account. Only an `active` account that can reset a local password (a verified email and a password) is locked: a held account is left alone, a suspension is never downgraded, and an account that signs in only through a provider, or has never verified its email, is never held. Lockouts against its username can still be recorded, but it has no password to reset, so a hold would leave it waiting for an admin. Its firing is still recorded and flagged, with action `skipped`. The hold sends the usual `account_locked` email, and the user recovers by [resetting their password](#recovering-from-a-security-hold). The hold's reason is `Repeated sign-in lockouts`, and its `account.locked` event carries `metadata.rule` and the `sourceEventId` of the detection event.
 - **(b)** counts distinct names, so one person retrying their own password never fires it. It never locks an account. Attempts the rate limiter already refused never reach sign-in, so they are not counted: with the default 10 a minute, an address needs at least two minutes to reach 20.
-- **(c)** fires on `login.succeeded` or `oauth.login.succeeded`, and only when the same request (same `request_id`) also wrote `device.new_detected`. A sign-in writes that only for a device the account has not used, on an IP address it has not used either, so it is the "new device and new IP" success. Refreshing a session can also write `device.new_detected`, but records no sign-in success, so it never fires (c).
+- **(c)** fires on `login.succeeded` or `oauth.login.succeeded`, and only when the same request (same `request_id`) also wrote `device.new_detected`. A sign-in writes that only for a device the account has not used, on an IP address it has not used either, so it is the "new device and new IP" success. "Not used" goes by the [device cookie](#device-binding), so sending a known device's id without its cookie still fires (c). Refreshing a session can also write `device.new_detected`, but records no sign-in success, so it never fires (c).
 - **(d)** fires on the first reuse. `refreshReuse.windowMinutes` only stops a
   second email for the same account within the window. The separate
   `auth.refreshReuseResponse` setting controls the immediate credential

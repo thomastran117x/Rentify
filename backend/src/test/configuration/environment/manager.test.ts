@@ -21,6 +21,7 @@ function buildRequiredEnv(
     PERSONAL_ACCESS_TOKEN_SECRET: "process-personal-token-secret-32chars",
     AUTH_AUDIT_IDENTIFIER_SECRET: "process-auth-audit-identifier-32chars",
     OTP_HASH_SECRET: "process-otp-hash-secret-value-32chars",
+    DEVICE_BINDING_SECRET: "process-device-binding-secret-32chars",
     MFA_TOTP_ENCRYPTION_KEY:
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     GMAIL_USER: "process@example.com",
@@ -67,6 +68,7 @@ const DEFAULT_AUTH_THRESHOLDS = {
     failedConfirmLockSeconds: 300,
   },
   refresh: { rotationGracePeriodSeconds: 5 },
+  deviceTrust: { ttlDays: 30 },
   passwords: {
     breachCheck: { mode: "enforce", timeoutMs: 1500 },
     hashCost: 12,
@@ -427,6 +429,11 @@ describe("EnvironmentManager", () => {
       ],
       [
         "OTP_HASH_SECRET",
+        "DEVICE_BINDING_SECRET",
+        { DEVICE_BINDING_SECRET: "process-otp-hash-secret-value-32chars" },
+      ],
+      [
+        "OTP_HASH_SECRET",
         "MFA_TOTP_ENCRYPTION_KEY",
         {
           OTP_HASH_SECRET: "CD".repeat(32),
@@ -766,6 +773,23 @@ describe("EnvironmentManager", () => {
     process.env = buildRequiredEnv();
     expect(new EnvironmentManager().load().auth.otpHashSecret).toBe(
       "process-otp-hash-secret-value-32chars",
+    );
+  });
+
+  it("requires a long enough device binding secret", () => {
+    process.env = buildRequiredEnv({ DEVICE_BINDING_SECRET: undefined });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "DEVICE_BINDING_SECRET is required.",
+    );
+
+    process.env = buildRequiredEnv({ DEVICE_BINDING_SECRET: "short" });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "DEVICE_BINDING_SECRET must be at least 32 characters long.",
+    );
+
+    process.env = buildRequiredEnv();
+    expect(new EnvironmentManager().load().auth.deviceBindingSecret).toBe(
+      "process-device-binding-secret-32chars",
     );
   });
 
@@ -1527,6 +1551,7 @@ describe("EnvironmentManager", () => {
       AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS: "900",
       AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS: "600",
       AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS: "0",
+      AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS: "7",
       AUTH_SECURITY_PASSWORD_BREACH_CHECK_MODE: "WARN",
       AUTH_SECURITY_PASSWORD_BREACH_CHECK_TIMEOUT_MS: "250",
       AUTH_SECURITY_PASSWORD_HASH_COST: "13",
@@ -1561,6 +1586,7 @@ describe("EnvironmentManager", () => {
         failedConfirmLockSeconds: 600,
       },
       refresh: { rotationGracePeriodSeconds: 0 },
+      deviceTrust: { ttlDays: 7 },
       passwords: {
         breachCheck: { mode: "warn", timeoutMs: 250 },
         hashCost: 13,
@@ -1625,6 +1651,16 @@ describe("EnvironmentManager", () => {
       "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
       "-1",
       "must be greater than or equal to 0.",
+    ],
+    [
+      "AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS",
+      "0",
+      "must be greater than or equal to 1.",
+    ],
+    [
+      "AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS",
+      "91",
+      "must be less than or equal to 90.",
     ],
   ])("rejects %s=%s", (name, value, message) => {
     process.env = buildRequiredEnv({ [name]: value });

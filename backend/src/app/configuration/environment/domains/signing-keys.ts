@@ -535,6 +535,7 @@ export function validateProductionTokenSigning(
         },
       ],
       [{ label: "OTP_HASH_SECRET", secret: auth.otpHashSecret }],
+      [{ label: "DEVICE_BINDING_SECRET", secret: auth.deviceBindingSecret }],
       [
         {
           label: "MFA_TOTP_ENCRYPTION_KEY",

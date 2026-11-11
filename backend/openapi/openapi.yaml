@@ -14,6 +14,7 @@ info:
     Authentication notes:
     - Most protected routes use a bearer token in the `Authorization` header.
     - Browser refresh/logout flows use the `__Host-rentify_refresh` cookie (`refresh_token` over local http) and must echo the `__Host-rentify_csrf` (`csrf_token`) cookie in `x-csrf-token`.
+    - Any `/auth/*` response sets the httpOnly `__Host-rentify_device` cookie (`rentify_device` over local http) when the request did not present a valid one, and every session response renews a presented one. It holds a server-chosen id and an HMAC over it, and is never cleared on sign-out. A device is known, and new-device alerts are skipped for it, only when the request presents that cookie: `deviceId` and `x-device-id` only label a device. Clients that keep no cookies are never known by device.
     - Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.
     - `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.
     - `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.
@@ -198,7 +199,7 @@ paths:
     post:
       operationId: localLogin
       summary: Authenticate with username and password
-      description: 'Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.'
+      description: 'Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body. device.known is true only when the request presented the device cookie of a device this account registered; deviceId and x-device-id label the device but never make it known.'
       tags:
         - auth
       x-rentify-permissions:
@@ -3114,7 +3115,7 @@ paths:
     post:
       operationId: verifyDevice
       summary: Verify the current device
-      description: Marks the current device as verified for the signed-in session, which stops new-device alerts for it. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
+      description: Marks the current device as verified for the signed-in session, which stops new-device alerts for it. The device is bound to the device cookie the request presents; without one (a client that keeps no cookies) it is listed but never becomes known. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
       tags:
         - auth
       security:
@@ -22087,8 +22088,10 @@ components:
           properties:
             deviceId:
               type: string
+              description: The client's own device id (deviceId or x-device-id). A label only.
             known:
               type: boolean
+              description: True only when the request presented the device cookie of a device this account registered.
             knownByIp:
               type: boolean
         user:

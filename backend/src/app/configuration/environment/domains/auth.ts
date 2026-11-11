@@ -186,6 +186,7 @@ export function buildAuthConfig(
   personalAccessTokenKeys: HmacSigningKey[],
   authAuditIdentifierSecret: string,
   otpHashSecret: string,
+  deviceBindingSecret: string,
   mfaTotpEncryptionKey: string,
   nodeEnv: NodeEnvironment,
 ): AppEnvironment["auth"] {
@@ -232,6 +233,7 @@ export function buildAuthConfig(
     personalAccessTokenKeys,
     authAuditIdentifierSecret,
     otpHashSecret,
+    deviceBindingSecret,
     mfaTotpEncryptionKey,
     secureCookies: parseSecureCookies(raw, nodeEnv, errors),
   };
@@ -446,6 +448,16 @@ export function buildAuthSecurityConfig(
         MAX_REFRESH_GRACE_SECONDS,
       ),
     },
+    deviceTrust: {
+      ttlDays: integer(
+        raw,
+        "AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS",
+        30,
+        errors,
+        1,
+        MAX_DEVICE_TRUST_DAYS,
+      ),
+    },
     passwords: {
       breachCheck: {
         mode: parsePasswordBreachCheckMode(raw, errors),
@@ -502,6 +514,8 @@ const MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 // A replayed refresh token is honoured within the grace period, so it stays
 // short enough that a stolen token gains nothing from it.
 const MAX_REFRESH_GRACE_SECONDS = 60;
+// Trust outlives every session, so it is capped at the remember-me lifetime.
+const MAX_DEVICE_TRUST_DAYS = 90;
 // A code longer-lived than an hour is a weak password, not a one-time code.
 const MIN_OTP_TTL_SECONDS = 60;
 const MAX_OTP_TTL_SECONDS = 60 * 60;

@@ -8,6 +8,8 @@ interface RegisterKnownDeviceInput {
   platform?: string;
   userAgent?: string;
   ipAddress?: string;
+  /** The verified device cookie's id; omitted, the row stays a hint row. */
+  bindingId?: string;
 }
 
 export interface KnownDeviceRecord {
@@ -18,6 +20,8 @@ export interface KnownDeviceRecord {
   platform?: string;
   userAgent?: string;
   lastIpAddress?: string;
+  /** Set when the device registered with a verified device cookie. */
+  bindingId?: string;
   firstSeenAt: string;
   lastSeenAt: string;
   verifiedAt: string;
@@ -31,6 +35,7 @@ type DevicePersistence = {
   platform: string | null;
   userAgent: string | null;
   lastIpAddress: string | null;
+  bindingId: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   verifiedAt: Date;
@@ -62,16 +67,20 @@ export class DeviceRepository extends BaseRepository {
     return count > 0;
   }
 
-  async findKnownDevice(
+  /**
+   * The device a verified device cookie belongs to. This, not the
+   * client-chosen device id, is what makes a device known.
+   */
+  async findByBindingId(
     userId: Uuid,
-    deviceId: string,
+    bindingId: string,
   ): Promise<KnownDeviceRecord | null> {
     const device = await this.executeAsync(() =>
       this.prisma.device.findUnique({
         where: {
-          userId_deviceId: {
+          userId_bindingId: {
             userId,
-            deviceId,
+            bindingId,
           },
         },
       }),
@@ -80,10 +89,41 @@ export class DeviceRepository extends BaseRepository {
     return device ? this.mapDevice(device) : null;
   }
 
+  /**
+   * A bound registration updates the row that already holds the binding, so a
+   * browser whose hint changed (cleared storage) keeps one row. Otherwise it
+   * upserts by the hint and binds that row; a hint row a different browser
+   * bound before is rebound to this one, since only one can hold the hint.
+   */
   async registerKnownDevice(
     input: RegisterKnownDeviceInput,
   ): Promise<KnownDeviceRecord> {
     const now = new Date();
+    const details = {
+      type: input.type,
+      platform: input.platform ?? null,
+      userAgent: input.userAgent ?? null,
+      lastIpAddress: input.ipAddress ?? null,
+      lastSeenAt: now,
+      verifiedAt: now,
+    };
+
+    if (input.bindingId) {
+      const bound = await this.findByBindingId(input.userId, input.bindingId);
+
+      if (bound) {
+        const device = await this.executeAsync(() =>
+          this.prisma.device.update({
+            where: { id: bound.id },
+            data: details,
+          }),
+        );
+
+        return this.mapDevice(device);
+      }
+    }
+
+    const binding = input.bindingId ? { bindingId: input.bindingId } : {};
     const device = await this.executeAsync(() =>
       this.prisma.device.upsert({
         where: {
@@ -96,21 +136,13 @@ export class DeviceRepository extends BaseRepository {
           id: newUuid(),
           userId: input.userId,
           deviceId: input.deviceId,
-          type: input.type,
-          platform: input.platform ?? null,
-          userAgent: input.userAgent ?? null,
-          lastIpAddress: input.ipAddress ?? null,
+          ...details,
+          ...binding,
           firstSeenAt: now,
-          lastSeenAt: now,
-          verifiedAt: now,
         },
         update: {
-          type: input.type,
-          platform: input.platform ?? null,
-          userAgent: input.userAgent ?? null,
-          lastIpAddress: input.ipAddress ?? null,
-          lastSeenAt: now,
-          verifiedAt: now,
+          ...details,
+          ...binding,
         },
       }),
     );
@@ -118,19 +150,10 @@ export class DeviceRepository extends BaseRepository {
     return this.mapDevice(device);
   }
 
-  async touchKnownDevice(
-    userId: Uuid,
-    deviceId: string,
-    ipAddress?: string,
-  ): Promise<void> {
+  async touchKnownDevice(id: Uuid, ipAddress?: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.device.update({
-        where: {
-          userId_deviceId: {
-            userId,
-            deviceId,
-          },
-        },
+        where: { id },
         data: {
           lastSeenAt: new Date(),
           ...(ipAddress ? { lastIpAddress: ipAddress } : {}),
@@ -202,6 +225,7 @@ export class DeviceRepository extends BaseRepository {
       platform: device.platform ?? undefined,
       userAgent: device.userAgent ?? undefined,
       lastIpAddress: device.lastIpAddress ?? undefined,
+      bindingId: device.bindingId ?? undefined,
       firstSeenAt: device.firstSeenAt.toISOString(),
       lastSeenAt: device.lastSeenAt.toISOString(),
       verifiedAt: device.verifiedAt.toISOString(),

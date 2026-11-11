@@ -8,10 +8,22 @@ import {
   toAuthResponseBody,
   writeAuthSessionResponse,
 } from "@/features/auth/auth.response";
+import { signDeviceBindingId } from "@/features/auth/device/device-binding";
 import { createMockRequest, createMockResponse } from "../../support/mock-http";
 import { testUuid } from "../../support/uuid";
 
 const USER_1_ID = testUuid(9000, 994257);
+const BINDING_ID = "AAAAAAAAAAAAAAAAAAAAAA";
+
+function clientState(deviceBinding?: { id: string }) {
+  return {
+    client: {
+      source: "frontend-browser",
+      device: { type: "desktop", isMobile: false },
+      ...(deviceBinding ? { deviceBinding } : {}),
+    },
+  };
+}
 
 function createSessionResult(
   overrides: Partial<AuthSessionResult> = {},
@@ -204,6 +216,7 @@ describe("writeAuthSessionResponse", () => {
     jest.spyOn(environment, "isProduction").mockReturnValue(false);
     const request = createMockRequest({
       headers: { origin: "https://rent.test" },
+      state: clientState(),
     });
     const recorder = createMockResponse();
     (recorder.response as { req?: unknown }).req = request;
@@ -226,10 +239,31 @@ describe("writeAuthSessionResponse", () => {
       (recorder.json() as { data: Record<string, unknown> }).data.refreshToken,
     ).toBeUndefined();
     expect(recorder.headers()["set-cookie"]).toContain("refresh_token=");
+    // No device cookie was presented, so there is none to renew.
+    expect(recorder.headers()["set-cookie"]).not.toContain("rentify_device=");
+  });
+
+  it("renews the device cookie the request presented", () => {
+    jest.spyOn(environment, "isProduction").mockReturnValue(false);
+    const request = createMockRequest({
+      headers: { origin: "https://rent.test" },
+      state: clientState({ id: BINDING_ID }),
+    });
+    const recorder = createMockResponse();
+    (recorder.response as { req?: unknown }).req = request;
+
+    writeAuthSessionResponse(request, recorder.response, createSessionResult());
+
+    const header = String(recorder.headers()["set-cookie"]);
+    expect(header).toContain(
+      `rentify_device=${encodeURIComponent(signDeviceBindingId(BINDING_ID))}`,
+    );
+    expect(header).toMatch(/rentify_device=[^,]*Max-Age=34560000/);
+    expect(header).toMatch(/rentify_device=[^,]*HttpOnly/);
   });
 
   it("returns the refresh token and sets no cookies for an API caller", () => {
-    const request = createMockRequest();
+    const request = createMockRequest({ state: clientState() });
     const recorder = createMockResponse();
     (recorder.response as { req?: unknown }).req = request;
 

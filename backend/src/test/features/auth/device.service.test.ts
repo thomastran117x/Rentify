@@ -9,6 +9,9 @@ const DEVICE_1_ID = testUuid(9200, 895443);
 const KNOWN_DEVICE_1_ID = testUuid(9000, 135264);
 const KNOWN_DEVICE_2_ID = testUuid(9000, 135265);
 
+const BINDING_ID = "BBBBBBBBBBBBBBBBBBBBBB";
+const BOUND = { deviceBinding: { id: BINDING_ID } };
+
 const PROFILE_1_ID = testUuid(9000, 548259);
 const USER_1_ID = testUuid(9000, 994257);
 const BCRYPT_HASH = `$2b$10$${"a".repeat(53)}`;
@@ -83,15 +86,11 @@ function createKnownDevice(
 }
 
 function createService(overrides?: {
-  findKnownDevice?: (
+  findByBindingId?: (
     userId: string,
-    deviceId: string,
+    bindingId: string,
   ) => Promise<KnownDeviceRecord | null>;
-  touchKnownDevice?: (
-    userId: string,
-    deviceId: string,
-    ipAddress?: string,
-  ) => Promise<void>;
+  touchKnownDevice?: (id: string, ipAddress?: string) => Promise<void>;
   hasKnownIpAddress?: (userId: string, ipAddress: string) => Promise<boolean>;
   hasAnyKnownDevice?: (userId: string) => Promise<boolean>;
   touchKnownIpAddress?: (userId: string, ipAddress: string) => Promise<void>;
@@ -102,6 +101,7 @@ function createService(overrides?: {
     platform?: string;
     userAgent?: string;
     ipAddress?: string;
+    bindingId?: string;
   }) => Promise<KnownDeviceRecord>;
   listKnownDevices?: (userId: string) => Promise<KnownDeviceRecord[]>;
   removeKnownDevice?: (userId: string, deviceId: string) => Promise<boolean>;
@@ -120,7 +120,7 @@ function createService(overrides?: {
   issueSelfLockToken?: () => Promise<string>;
 }) {
   const deviceRepository = {
-    findKnownDevice: jest.fn(overrides?.findKnownDevice ?? (async () => null)),
+    findByBindingId: jest.fn(overrides?.findByBindingId ?? (async () => null)),
     touchKnownDevice: jest.fn(overrides?.touchKnownDevice ?? (async () => {})),
     hasKnownIpAddress: jest.fn(
       overrides?.hasKnownIpAddress ?? (async () => false),
@@ -196,12 +196,12 @@ describe("DeviceService", () => {
     jest.restoreAllMocks();
   });
 
-  it("registers a known device and returns a trusted device status", async () => {
+  it("registers and binds a device that presented a verified device cookie", async () => {
     const { service, deviceRepository } = createService();
 
     const result = await service.registerKnownDevice(
       createUser(),
-      createClient(),
+      createClient(BOUND),
       "device-9",
     );
 
@@ -217,7 +217,46 @@ describe("DeviceService", () => {
       platform: "macOS",
       userAgent: "test-agent",
       ipAddress: "127.0.0.1",
+      bindingId: BINDING_ID,
     });
+  });
+
+  it("records a hint row, which is not known, for a client without a device cookie", async () => {
+    const { service, deviceRepository } = createService();
+
+    const result = await service.registerKnownDevice(
+      createUser(),
+      createClient(),
+      "device-9",
+    );
+
+    expect(result).toEqual({
+      deviceId: "device-9",
+      known: false,
+      knownByIp: true,
+    });
+    expect(deviceRepository.registerKnownDevice).toHaveBeenCalledWith(
+      expect.not.objectContaining({ bindingId: expect.anything() }),
+    );
+  });
+
+  it("names the row after the binding when a bound client sends no hint", async () => {
+    const { service, deviceRepository } = createService();
+
+    const result = await service.registerKnownDevice(
+      createUser(),
+      createClient({ ...BOUND, ip: undefined }),
+      undefined,
+    );
+
+    expect(result).toEqual({
+      deviceId: undefined,
+      known: true,
+      knownByIp: false,
+    });
+    expect(deviceRepository.registerKnownDevice).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: BINDING_ID, bindingId: BINDING_ID }),
+    );
   });
 
   it("returns an unknown status when registering without a device id", async () => {
@@ -237,10 +276,56 @@ describe("DeviceService", () => {
     expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
   });
 
-  it("marks authentication as known when the exact device has been seen before", async () => {
+  it("marks authentication as known when its verified device cookie is registered", async () => {
     const { service, deviceRepository, emailService } = createService({
-      findKnownDevice: async () => createKnownDevice(),
+      findByBindingId: async () => createKnownDevice({ bindingId: BINDING_ID }),
     });
+
+    const result = await service.evaluateSuccessfulAuthentication(
+      createUser(),
+      createClient(BOUND),
+      DEVICE_1_ID,
+    );
+
+    expect(result).toEqual({
+      deviceId: DEVICE_1_ID,
+      known: true,
+      knownByIp: true,
+    });
+    expect(deviceRepository.findByBindingId).toHaveBeenCalledWith(
+      USER_1_ID,
+      BINDING_ID,
+    );
+    expect(deviceRepository.touchKnownDevice).toHaveBeenCalledWith(
+      KNOWN_DEVICE_1_ID,
+      "127.0.0.1",
+    );
+    expect(deviceRepository.hasKnownIpAddress).not.toHaveBeenCalled();
+    expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
+  });
+
+  it("reports a known device seen last on another ip as not known by ip", async () => {
+    const { service } = createService({
+      findByBindingId: async () =>
+        createKnownDevice({ bindingId: BINDING_ID, lastIpAddress: "10.0.0.9" }),
+    });
+
+    await expect(
+      service.evaluateExistingSessionDevice(
+        createUser(),
+        createClient(BOUND),
+        DEVICE_1_ID,
+      ),
+    ).resolves.toEqual({
+      deviceId: DEVICE_1_ID,
+      known: true,
+      knownByIp: false,
+    });
+  });
+
+  it("never treats a forged device id hint as known without the cookie", async () => {
+    const { service, deviceRepository, emailService, authAuditService } =
+      createService();
 
     const result = await service.evaluateSuccessfulAuthentication(
       createUser(),
@@ -250,16 +335,39 @@ describe("DeviceService", () => {
 
     expect(result).toEqual({
       deviceId: DEVICE_1_ID,
-      known: true,
-      knownByIp: true,
+      known: false,
+      knownByIp: false,
     });
-    expect(deviceRepository.touchKnownDevice).toHaveBeenCalledWith(
-      USER_1_ID,
-      DEVICE_1_ID,
-      "127.0.0.1",
+    expect(deviceRepository.findByBindingId).not.toHaveBeenCalled();
+    expect(emailService.sendNewDeviceEmail).toHaveBeenCalledTimes(1);
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "device.new_detected",
+        metadata: { emailNotification: "sent", deviceBinding: "unverified" },
+      }),
     );
-    expect(deviceRepository.hasKnownIpAddress).not.toHaveBeenCalled();
-    expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
+  });
+
+  it("treats a verified cookie no row of the account holds as a new device", async () => {
+    const { service, cache, authAuditService } = createService();
+
+    await service.evaluateSuccessfulAuthentication(
+      createUser(),
+      createClient(BOUND),
+      DEVICE_1_ID,
+    );
+
+    // Keyed by the binding, so a forged hint cannot spend this cooldown.
+    expect(cache.setIfNotExists).toHaveBeenCalledWith(
+      `auth:unknown-device:${USER_1_ID}:bound:${BINDING_ID}`,
+      "1",
+      3600,
+    );
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: { emailNotification: "sent", deviceBinding: "verified" },
+      }),
+    );
   });
 
   it("keeps authentication unknown when only the ip address has been seen before", async () => {
@@ -278,10 +386,7 @@ describe("DeviceService", () => {
       known: false,
       knownByIp: true,
     });
-    expect(deviceRepository.findKnownDevice).toHaveBeenCalledWith(
-      USER_1_ID,
-      "device-2",
-    );
+    expect(deviceRepository.findByBindingId).not.toHaveBeenCalled();
     expect(deviceRepository.hasKnownIpAddress).toHaveBeenCalledWith(
       USER_1_ID,
       "127.0.0.1",
@@ -378,7 +483,7 @@ describe("DeviceService", () => {
         userAgent: "test-agent",
         deviceId: "new-device",
       },
-      metadata: { emailNotification: "sent" },
+      metadata: { emailNotification: "sent", deviceBinding: "unverified" },
     });
   });
 
@@ -437,7 +542,9 @@ describe("DeviceService", () => {
       expect.not.objectContaining({ selfLockToken: expect.anything() }),
     );
     expect(authAuditService.recordSafely).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: { emailNotification: "sent" } }),
+      expect.objectContaining({
+        metadata: { emailNotification: "sent", deviceBinding: "unverified" },
+      }),
     );
   });
 
@@ -508,7 +615,10 @@ describe("DeviceService", () => {
     expect(authAuditService.recordSafely).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "device.new_detected",
-        metadata: { emailNotification: "suppressed" },
+        metadata: {
+          emailNotification: "suppressed",
+          deviceBinding: "unverified",
+        },
       }),
     );
   });

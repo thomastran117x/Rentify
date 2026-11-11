@@ -37,6 +37,7 @@ const tokenConfig = {
   ],
   authAuditIdentifierSecret: "test-auth-audit-identifier-secret-32",
   otpHashSecret: "test-otp-hash-secret-value-of-32-chars",
+  deviceBindingSecret: "test-device-binding-secret-value-32ch",
   mfaBypassEmails: [],
   mfaTotpEncryptionKey:
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -132,6 +133,7 @@ const authSecurityConfig = {
     failedConfirmLockSeconds: 300,
   },
   refresh: { rotationGracePeriodSeconds: 5 },
+  deviceTrust: { ttlDays: 30 },
   // Off, so no unit test reaches the network; the client's own tests mock it.
   passwords: {
     breachCheck: { mode: "off" as const, timeoutMs: 1500 },

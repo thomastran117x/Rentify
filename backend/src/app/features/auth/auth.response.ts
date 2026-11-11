@@ -13,6 +13,7 @@ import type {
   AuthResponseBody,
   AuthSessionResult,
 } from "@/features/auth/auth.model";
+import { writeDeviceBindingCookie } from "@/features/auth/device/device-binding";
 
 /**
  * Browser callers get their refresh token in an httpOnly cookie and never in the
@@ -130,7 +131,8 @@ export function clearBrowserSessionCookies(response: Response): void {
 
 /**
  * Writes an authenticated session response, setting the refresh and CSRF
- * cookies for browser clients.
+ * cookies for browser clients. A device cookie the request presented is
+ * renewed, so a browser that keeps signing in keeps its binding.
  */
 export function writeAuthSessionResponse(
   request: Request,
@@ -144,6 +146,10 @@ export function writeAuthSessionResponse(
 
   if (shouldSetRefreshCookie(request)) {
     setBrowserSessionCookies(response, body);
+  }
+
+  if (request.client.deviceBinding) {
+    writeDeviceBindingCookie(response, request.client.deviceBinding.id);
   }
 
   ok(response, responseBody, options);

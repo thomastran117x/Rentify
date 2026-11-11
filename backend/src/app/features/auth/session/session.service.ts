@@ -21,6 +21,7 @@ import type {
   SessionSummary,
 } from "@/features/auth/session/session.model";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { toPublicClientContext } from "@/features/auth/device/device-binding";
 import {
   RefreshTokenReuseDetectedError,
   TokenService,
@@ -102,7 +103,7 @@ export class AuthSessionService {
         deviceId: context.auth.deviceId,
         role: context.auth.role,
       },
-      client: context.client,
+      client: toPublicClientContext(context.client),
     };
   }
 
@@ -216,7 +217,7 @@ export class AuthSessionService {
         userId: asUuid(context.auth.sub),
         deviceId: context.auth.deviceId,
       },
-      client: context.client,
+      client: toPublicClientContext(context.client),
     };
   }
 

@@ -104,6 +104,11 @@ export function parseEnvironmentState(
     errors,
   );
   const otpHashSecret = readRequiredSecret(raw, "OTP_HASH_SECRET", errors);
+  const deviceBindingSecret = readRequiredSecret(
+    raw,
+    "DEVICE_BINDING_SECRET",
+    errors,
+  );
   const mfaTotpEncryptionKeyRaw = raw.MFA_TOTP_ENCRYPTION_KEY;
   if (!mfaTotpEncryptionKeyRaw) {
     errors.push("MFA_TOTP_ENCRYPTION_KEY is required.");
@@ -143,6 +148,7 @@ export function parseEnvironmentState(
       personalAccessTokenKeys,
       authAuditIdentifierSecret,
       otpHashSecret,
+      deviceBindingSecret,
       mfaTotpEncryptionKey,
       nodeEnv,
     ),
