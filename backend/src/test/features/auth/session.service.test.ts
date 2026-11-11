@@ -148,6 +148,28 @@ function createJwtPrincipal(
 }
 
 describe("AuthSessionService.authenticateVerifiedUser", () => {
+  it("issues a known device's session under its registered id, not the hint", async () => {
+    const harness = createHarness();
+    harness.deviceService.evaluateSuccessfulAuthentication.mockResolvedValue({
+      deviceId: "registered-id" as typeof DEVICE_1_ID,
+      known: true,
+      knownByIp: true,
+    });
+
+    await harness.service.authenticateVerifiedUser(createUser(), {
+      client: createClient(),
+      deviceId: "new-hint-after-cleared-storage",
+    });
+
+    expect(harness.tokenService.createAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "registered-id" }),
+    );
+    expect(harness.tokenService.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "registered-id" }),
+      expect.any(Number),
+    );
+  });
+
   it("evaluates the device as a login event", async () => {
     const harness = createHarness();
     const user = createUser();

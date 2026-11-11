@@ -14,6 +14,7 @@ info:
     Authentication notes:
     - Most protected routes use a bearer token in the `Authorization` header.
     - Browser refresh/logout flows use the `__Host-rentify_refresh` cookie (`refresh_token` over local http) and must echo the `__Host-rentify_csrf` (`csrf_token`) cookie in `x-csrf-token`.
+    - Any `/auth/*` response sets the httpOnly `__Host-rentify_device` cookie (`rentify_device` over local http) when the request did not present a valid one, and every session response renews a presented one. It holds a server-chosen id and an HMAC over it, and is never cleared on sign-out. A device is known, and new-device alerts are skipped for it, only when the request presents that cookie: `deviceId` and `x-device-id` only label a device. Clients that keep no cookies are never known by device.
     - Personal access token support is limited to the allowlisted routes documented in `x-rentify-permissions`.
     - `POST /payments/webhooks/paypal` uses PayPal's `paypal-transmission-*`, `paypal-cert-url`, and `paypal-auth-algo` headers instead of bearer authentication.
     - `POST /sms/webhooks/telnyx` uses `telnyx-signature-ed25519` and `telnyx-timestamp` headers instead of bearer authentication.
@@ -198,7 +199,7 @@ paths:
     post:
       operationId: localLogin
       summary: Authenticate with username and password
-      description: 'Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.'
+      description: 'Creates an authenticated session with local credentials. When the account has an authenticator app, a correct password returns 401 UNAUTHORIZED with details.mfaRequired, as it always has, and details now also carry a login MFA challenge: the client finishes with POST /auth/login/mfa and never sends the password again. Clients that instead resend the password with totpCode keep working. Five combined invalid password or authenticator-code attempts within 15 minutes lock the username for 30 minutes; issuing the challenge does not count. A locked username returns ACCOUNT_LOCKED with details.unlockRequired until it is unlocked through POST /auth/local/unlock or the lock expires. Once the password is proven, an account on a durable security hold returns ACCOUNT_LOCKED with details.reason security_hold, and a suspended account returns 403 ACCOUNT_SUSPENDED. Browser clients typically receive the refresh token as an HTTP-only cookie; API clients receive it in the response body. device.known is true only when the request presented the device cookie of a device this account registered; deviceId and x-device-id label the device but never make it known. A device remembered at POST /auth/login/mfa skips the authenticator step while its trust lasts, and the session''s device then carries trustedUntil.'
       tags:
         - auth
       x-rentify-permissions:
@@ -303,6 +304,7 @@ paths:
                           - totp
                           - recovery_code
                         expiresInSeconds: 300
+                        rememberDeviceDays: 30
                     meta:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
@@ -373,7 +375,7 @@ paths:
     post:
       operationId: completeLoginMfa
       summary: Finish a sign-in with a second factor
-      description: 'Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: passkey appears while the account has a passkey, totp while it has an active authenticator, and recovery_code only while it has unused codes. For factor passkey, send the assertion as credential instead of a code, answering the options from POST /auth/login/mfa/passkey/options; a refused assertion returns 400 INVALID_MFA_CODE and is counted like a wrong code. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.'
+      description: 'Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: passkey appears while the account has a passkey, totp while it has an active authenticator, and recovery_code only while it has unused codes. For factor passkey, send the assertion as credential instead of a code, answering the options from POST /auth/login/mfa/passkey/options; a refused assertion returns 400 INVALID_MFA_CODE and is counted like a wrong code. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining. With rememberDevice true and the device cookie the first step set, the device is remembered for details.rememberDeviceDays (AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS, 30 by default) and device.trustedUntil says until when: later sign-ins from it skip this step, never a step-up. A password change or reset, any authenticator or passkey change, signing out everywhere, a lock, removing the device, or DELETE /auth/devices/trust ends it sooner. A client without the cookie is not remembered and gets no trustedUntil.'
       tags:
         - auth
       x-rentify-permissions:
@@ -393,6 +395,7 @@ paths:
               factor: totp
               code: '123456'
               deviceId: device-1
+              rememberDevice: true
       responses:
         '200':
           description: Successful response.
@@ -2256,6 +2259,7 @@ paths:
                           - totp
                           - recovery_code
                         expiresInSeconds: 300
+                        rememberDeviceDays: 30
                     meta:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
@@ -2452,6 +2456,7 @@ paths:
                           - totp
                           - recovery_code
                         expiresInSeconds: 300
+                        rememberDeviceDays: 30
                     meta:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
@@ -2648,6 +2653,7 @@ paths:
                           - totp
                           - recovery_code
                         expiresInSeconds: 300
+                        rememberDeviceDays: 30
                     meta:
                       requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
@@ -3114,7 +3120,7 @@ paths:
     post:
       operationId: verifyDevice
       summary: Verify the current device
-      description: Marks the current device as verified for the signed-in session, which stops new-device alerts for it. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
+      description: Marks the current device as verified for the signed-in session, which stops new-device alerts for it. The device is bound to the device cookie the request presents; without one (a client that keeps no cookies) it is listed but never becomes known. Requires a recent MFA step-up for the `device-login` or `mfa-management` scope (401 `MFA_VERIFICATION_REQUIRED` otherwise).
       tags:
         - auth
       security:
@@ -3217,16 +3223,109 @@ paths:
                 message: Request completed successfully.
                 data:
                   devices:
-                    - id: device-1
-                      label: Chrome on macOS
-                      lastSeenAt: '2026-05-25T14:00:00.000Z'
-                      knownByIp: true
+                    - id: 6f8a1d2c-3b4e-4f50-9a61-7b8c9d0e1f23
                       current: true
+                      deviceId: device-1
+                      type: desktop
+                      platform: macOS
+                      userAgent: Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4)
+                      lastIpAddress: 203.0.113.24
+                      firstSeenAt: '2026-05-01T10:00:00.000Z'
+                      lastSeenAt: '2026-05-25T14:00:00.000Z'
+                      verifiedAt: '2026-05-01T10:02:00.000Z'
+                      bound: true
+                      trusted: true
+                      trustedUntil: '2026-06-24T14:00:00.000Z'
                 error: null
                 meta:
                   requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/devices/trust:
+    delete:
+      operationId: revokeDeviceTrust
+      summary: Stop trusting a remembered device
+      description: Ends "Remember this device" for one of the signed-in user's devices, so its next sign-in asks for the authenticator code again. The device stays registered. A device that was not trusted returns revoked false. Requires a recent `mfa-management` step-up (401 `MFA_VERIFICATION_REQUIRED` otherwise); a device the account does not have returns 400.
+      tags:
+        - auth
+      security:
+        - bearerAuth: []
+      x-rentify-permissions:
+        authMode: session-bearer
+        minimumRole: user
+        patAllowed: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveKnownDeviceRequest'
+            example:
+              deviceId: device-2
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RevokeDeviceTrustResult'
+                      meta:
+                        $ref: '#/components/schemas/RequestMeta'
+              example:
+                success: true
+                message: Device is no longer trusted.
+                data:
+                  revoked: true
+                  deviceId: device-2
+                error: null
+                meta:
+                  requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Not signed in, or the session needs a recent MFA step-up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+              examples:
+                unauthenticated:
+                  summary: The bearer token is missing or invalid.
+                  value:
+                    success: false
+                    message: Authorization header is required.
+                    data: null
+                    error:
+                      code: UNAUTHORIZED
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
+                mfaVerificationRequired:
+                  summary: Verify with a second factor, then retry.
+                  value:
+                    success: false
+                    message: Recent MFA verification is required.
+                    data: null
+                    error:
+                      code: MFA_VERIFICATION_REQUIRED
+                      details:
+                        scope: mfa-management
+                        availableFactors:
+                          - email
+                        recommendedFactor: email
+                        verifiedUntil: null
+                    meta:
+                      requestId: req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E
         '403':
           $ref: '#/components/responses/Forbidden'
         '429':
@@ -10446,6 +10545,7 @@ paths:
                 - login.succeeded
                 - login.failed
                 - login.mfa_challenged
+                - login.mfa_skipped_trusted_device
                 - login.locked
                 - login.unlock_requested
                 - login.unlocked
@@ -10458,6 +10558,8 @@ paths:
                 - session.refresh_reuse_detected
                 - session.revoked
                 - device.new_detected
+                - device.trusted
+                - device.trust_revoked
                 - password.changed
                 - password.change_failed
                 - password.reset
@@ -22087,10 +22189,16 @@ components:
           properties:
             deviceId:
               type: string
+              description: The client's own device id (deviceId or x-device-id). A label only.
             known:
               type: boolean
+              description: True only when the request presented the device cookie of a device this account registered.
             knownByIp:
               type: boolean
+            trustedUntil:
+              type: string
+              format: date-time
+              description: 'Present when this sign-in skipped, or just remembered the device for, login MFA: when that trust lapses.'
         user:
           $ref: '#/components/schemas/AuthResponseUser'
         isNewUser:
@@ -22140,6 +22248,7 @@ components:
         - mfaChallengeToken
         - availableFactors
         - expiresInSeconds
+        - rememberDeviceDays
       properties:
         mfaRequired:
           type: boolean
@@ -22161,6 +22270,11 @@ components:
           type: integer
           enum:
             - 300
+        rememberDeviceDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+          description: How long rememberDevice on POST /auth/login/mfa lasts. It needs the device cookie this response sets.
     LoginMfaPasskeyOptionsRequest:
       type: object
       required:
@@ -22199,6 +22313,9 @@ components:
             deviceId:
               type: string
               description: Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.
+            rememberDevice:
+              type: boolean
+              description: Skip this step at later sign-ins from this device, for rememberDeviceDays. Needs the device cookie; ignored without it.
         - type: object
           required:
             - mfaChallengeToken
@@ -22215,6 +22332,9 @@ components:
             deviceId:
               type: string
               description: Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.
+            rememberDevice:
+              type: boolean
+              description: Skip this step at later sign-ins from this device, for rememberDeviceDays. Needs the device cookie; ignored without it.
     SessionVerificationResult:
       type: object
       additionalProperties: true
@@ -22671,10 +22791,68 @@ components:
         devices:
           type: array
           items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/KnownDeviceSummary'
       required:
         - devices
+    KnownDeviceSummary:
+      type: object
+      required:
+        - id
+        - current
+        - deviceId
+        - type
+        - firstSeenAt
+        - lastSeenAt
+        - verifiedAt
+        - bound
+        - trusted
+      properties:
+        id:
+          type: string
+          format: uuid
+        current:
+          type: boolean
+        deviceId:
+          type: string
+          description: The client's own device id. A label only.
+        type:
+          type: string
+        platform:
+          type: string
+        userAgent:
+          type: string
+        lastIpAddress:
+          type: string
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        verifiedAt:
+          type: string
+          format: date-time
+        bound:
+          type: boolean
+          description: Registered with the device cookie, so a sign-in from it can be known. False for devices registered before device binding, or by a client without cookies.
+        trusted:
+          type: boolean
+          description: 'Remembered at login MFA, and still in force: sign-ins from it skip the code.'
+        trustedUntil:
+          type: string
+          format: date-time
+          description: Present only while trusted.
+    RevokeDeviceTrustResult:
+      type: object
+      required:
+        - revoked
+        - deviceId
+      properties:
+        revoked:
+          type: boolean
+          description: False when the device was not trusted.
+        deviceId:
+          type: string
     SessionSummary:
       type: object
       additionalProperties: false

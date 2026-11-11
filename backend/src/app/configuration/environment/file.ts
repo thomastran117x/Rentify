@@ -115,6 +115,7 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
   "authSecurity.otp.ttlSeconds": "AUTH_SECURITY_OTP_TTL_SECONDS",
   "authSecurity.refresh.rotationGracePeriodSeconds":
     "AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS",
+  "authSecurity.deviceTrust.ttlDays": "AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS",
   "authSecurity.stepUp.challengeLimit": "AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT",
   "authSecurity.stepUp.challengeWindowSeconds":
     "AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS",

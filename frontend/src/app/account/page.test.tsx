@@ -24,6 +24,7 @@ const {
   createTokenMock,
   unlinkProviderMock,
   removeDeviceMock,
+  revokeDeviceTrustMock,
   revokeTokenMock,
   checkUsernameAvailabilityMock,
 } = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ const {
   createTokenMock: vi.fn(),
   unlinkProviderMock: vi.fn(),
   removeDeviceMock: vi.fn(),
+  revokeDeviceTrustMock: vi.fn(),
   revokeTokenMock: vi.fn(),
   checkUsernameAvailabilityMock: vi.fn(),
 }));
@@ -144,6 +146,7 @@ vi.mock("@/lib/auth/api", () => ({
     createPersonalAccessToken: createTokenMock,
     unlinkOAuthProvider: unlinkProviderMock,
     removeKnownDevice: removeDeviceMock,
+    revokeDeviceTrust: revokeDeviceTrustMock,
     revokePersonalAccessToken: revokeTokenMock,
     checkUsernameAvailability: checkUsernameAvailabilityMock,
   },
@@ -493,6 +496,100 @@ describe("AccountPage", () => {
     expect(
       await screen.findByText(/Account deactivation is not yet available/),
     ).toBeInTheDocument();
+  });
+
+  it("shows a remembered device and stops trusting it", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({ hasPassword: true, providers: [] });
+    listTokensMock.mockResolvedValue({ tokens: [] });
+    listDevicesMock.mockResolvedValue({
+      devices: [
+        {
+          id: "device-1",
+          deviceId: "device-1",
+          platform: "web",
+          lastSeenAt: "2026-01-01T00:00:00.000Z",
+          current: true,
+          bound: true,
+          trusted: true,
+          trustedUntil: "2026-02-01T00:00:00.000Z",
+        },
+        {
+          id: "device-2",
+          deviceId: "device-2",
+          platform: "web",
+          lastSeenAt: "2026-01-01T00:00:00.000Z",
+          current: false,
+          bound: true,
+          trusted: false,
+        },
+      ],
+    });
+    let finish: (value: unknown) => void = () => undefined;
+    revokeDeviceTrustMock.mockReturnValue(
+      new Promise((next) => {
+        finish = next;
+      }),
+    );
+
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+
+    expect(await screen.findByText("Remembered")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Skips the verification code until/),
+    ).toBeInTheDocument();
+    // Only the remembered device offers it.
+    expect(
+      screen.getAllByRole("button", { name: "Stop trusting" }),
+    ).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Stop trusting" }));
+    expect(revokeDeviceTrustMock).toHaveBeenCalledWith("device-1");
+    expect(screen.getByRole("button", { name: "Updating..." })).toBeDisabled();
+
+    finish({ revoked: true, deviceId: "device-1" });
+    expect(
+      await screen.findByText(
+        "That device will ask for your verification code at its next sign-in.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Remembered")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Stop trusting" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says so when a device cannot stop being trusted", async () => {
+    const user = userEvent.setup();
+    linkedProvidersMock.mockResolvedValue({ hasPassword: true, providers: [] });
+    listTokensMock.mockResolvedValue({ tokens: [] });
+    listDevicesMock.mockResolvedValue({
+      devices: [
+        {
+          id: "device-1",
+          deviceId: "device-1",
+          lastSeenAt: "2026-01-01T00:00:00.000Z",
+          current: true,
+          trusted: true,
+          trustedUntil: "2026-02-01T00:00:00.000Z",
+        },
+      ],
+    });
+    revokeDeviceTrustMock.mockRejectedValue(new Error("network down"));
+
+    render(<AccountPage />);
+    await user.click(screen.getByRole("button", { name: "Security" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Stop trusting" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "We couldn't stop trusting that device right now. Please try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Remembered")).toBeInTheDocument();
   });
 
   it("unlinks providers, removes a non-current device, and revokes a token", async () => {

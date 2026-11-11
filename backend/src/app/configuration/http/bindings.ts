@@ -20,9 +20,19 @@ export interface ClientDeviceContext {
   platform?: string;
 }
 
+/**
+ * The device id from a signed device cookie the request presented. Unlike
+ * `ClientDeviceContext.id`, which the client chooses, it cannot be forged.
+ */
+export interface DeviceBinding {
+  id: string;
+}
+
 export interface ClientRequestContext {
   ip?: string;
   device: ClientDeviceContext;
+  /** Set only when the request presented a device cookie that verified. */
+  deviceBinding?: DeviceBinding;
   /** Which kind of caller this is. Observability only — see `client-source.ts`. */
   source: ClientSource;
   /** Normalized `Origin`/`Referer`, when the caller sent one. */

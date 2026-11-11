@@ -123,6 +123,7 @@ function createMocks() {
       unusedRecoveryCodes: 10,
     })),
   };
+  const deviceTrustService = { revokeAll: jest.fn(async () => 0) };
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
@@ -132,10 +133,12 @@ function createMocks() {
     authAuditService: authAuditService as never,
     authSessionService: authSessionService as never,
     securityNotificationService: securityNotificationService as never,
+    deviceTrustService,
   });
 
   return {
     service,
+    deviceTrustService,
     securityNotificationService,
     totpService,
     mfaTotpRepository,
@@ -310,6 +313,37 @@ describe("MfaTotpService", () => {
         context: { requestId: "request-1" },
         metadata: { emailNotification: "sent" },
       });
+    });
+
+    it("forgets remembered devices before the authenticator goes live", async () => {
+      const { service, mfaTotpRepository, deviceTrustService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+
+      await service.confirmEnrollment(USER_ID_ID, "123456", {
+        sessionId: "session-1",
+        context: { requestId: "request-1" },
+      });
+
+      expect(deviceTrustService.revokeAll).toHaveBeenCalledWith(
+        USER_ID_ID,
+        "mfa_enabled",
+        { requestId: "request-1" },
+      );
+      expect(
+        deviceTrustService.revokeAll.mock.invocationCallOrder[0],
+      ).toBeLessThan(mfaTotpRepository.activate.mock.invocationCallOrder[0]!);
+    });
+
+    it("leaves remembered devices alone when the code is wrong", async () => {
+      const { service, mfaTotpRepository, totpService, deviceTrustService } =
+        createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      totpService.verifyCode.mockReturnValue(null);
+
+      await expect(
+        service.confirmEnrollment(USER_ID_ID, "000000"),
+      ).rejects.toThrow("Verification code is incorrect.");
+      expect(deviceTrustService.revokeAll).not.toHaveBeenCalled();
     });
 
     it("shows no codes when the account already has a set from a passkey", async () => {
@@ -560,6 +594,35 @@ describe("MfaTotpService", () => {
           emailNotification: "sent",
         },
       });
+    });
+
+    it("forgets remembered devices before turning the authenticator off", async () => {
+      const { service, mfaTotpRepository, deviceTrustService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+
+      await service.disable(DISABLE_AUTH, { requestId: "request-2" });
+
+      expect(deviceTrustService.revokeAll).toHaveBeenCalledWith(
+        USER_ID_ID,
+        "mfa_disabled",
+        { requestId: "request-2" },
+      );
+      expect(
+        deviceTrustService.revokeAll.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mfaTotpRepository.deleteByUserId.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it("forgets no device when there was no authenticator to turn off", async () => {
+      const { service, mfaTotpRepository, deviceTrustService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(null);
+
+      await service.disable(DISABLE_AUTH, {});
+
+      expect(deviceTrustService.revokeAll).not.toHaveBeenCalled();
     });
 
     it("keeps other sessions when a passkey still protects the account", async () => {

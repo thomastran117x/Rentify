@@ -561,11 +561,19 @@ model Device {
   firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.DateTime(6)
   lastSeenAt    DateTime @default(now()) @map("last_seen_at") @db.DateTime(6)
   verifiedAt    DateTime @default(now()) @map("verified_at") @db.DateTime(6)
+  /// The server-minted id from the signed device cookie. Only a request that
+  /// presents that cookie can make this device known or trusted.
+  bindingId     String?  @map("binding_id") @db.VarChar(64)
+  /// "Remember this device": login MFA is skipped until this time.
+  trustedUntil  DateTime? @map("trusted_until") @db.DateTime(6)
+  /// The account's token version when trust was granted; a rotation ends it.
+  trustedTokenVersion Int? @map("trusted_token_version")
   createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(6)
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, deviceId])
+  @@unique([userId, bindingId])
   @@index([userId])
   @@map("devices")
 }

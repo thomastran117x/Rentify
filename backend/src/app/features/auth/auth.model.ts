@@ -193,6 +193,8 @@ export interface AuthSessionResult {
     deviceId?: string;
     known: boolean;
     knownByIp: boolean;
+    /** Set when login MFA is skipped on this device ("Remember this device"). */
+    trustedUntil?: string;
   };
   user: AuthUserProfile;
   /** Server-side session id, for the audit log. Never sent to the client. */
@@ -228,6 +230,8 @@ export interface AuthResponseBody {
     deviceId?: string;
     known: boolean;
     knownByIp: boolean;
+    /** Set when login MFA is skipped on this device ("Remember this device"). */
+    trustedUntil?: string;
   };
   user: AuthResponseUser;
   /**

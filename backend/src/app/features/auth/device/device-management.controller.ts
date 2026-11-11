@@ -56,6 +56,27 @@ export class DeviceManagementController {
     ok(response, result);
   };
 
+  revokeDeviceTrust = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    await requireRecentMfaVerification(
+      request,
+      this.mfaVerificationService,
+      MFA_MANAGEMENT_SCOPE,
+    );
+    const input = await parseRequestBody(
+      request,
+      removeKnownDeviceRequestSchema,
+    );
+    const result = await this.deviceManagementService.revokeDeviceTrust(
+      toRemoveKnownDeviceInput(request, input),
+    );
+    ok(response, result, {
+      message: "Device is no longer trusted.",
+    });
+  };
+
   removeKnownDevice = async (
     request: Request,
     response: Response,

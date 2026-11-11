@@ -21,6 +21,7 @@ import type {
   SessionSummary,
 } from "@/features/auth/session/session.model";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { toPublicClientContext } from "@/features/auth/device/device-binding";
 import {
   RefreshTokenReuseDetectedError,
   TokenService,
@@ -102,7 +103,7 @@ export class AuthSessionService {
         deviceId: context.auth.deviceId,
         role: context.auth.role,
       },
-      client: context.client,
+      client: toPublicClientContext(context.client),
     };
   }
 
@@ -216,7 +217,7 @@ export class AuthSessionService {
         userId: asUuid(context.auth.sub),
         deviceId: context.auth.deviceId,
       },
-      client: context.client,
+      client: toPublicClientContext(context.client),
     };
   }
 
@@ -412,10 +413,12 @@ export class AuthSessionService {
         input.deviceId,
         input.audit,
       );
+    // A known device is issued under its registered id, which may differ from
+    // the hint this request sent.
     const session = await this.issueTokensForUser(
       user,
       deviceStatus,
-      input.deviceId,
+      deviceStatus.deviceId ?? input.deviceId,
       Boolean(input.rememberMe),
       input.client,
     );
@@ -460,7 +463,13 @@ export class AuthSessionService {
       audit,
     );
 
-    return this.issueTokensForUser(user, deviceStatus, deviceId, false, client);
+    return this.issueTokensForUser(
+      user,
+      deviceStatus,
+      deviceStatus.deviceId ?? deviceId,
+      false,
+      client,
+    );
   }
 
   private async issueTokensForUser(

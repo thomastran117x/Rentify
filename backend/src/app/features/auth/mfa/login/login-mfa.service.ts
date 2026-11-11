@@ -4,6 +4,7 @@ import LockedError from "@/errors/http/locked.error";
 import LoginMfaRequiredError from "@/errors/http/login-mfa-required.error";
 import LoginMfaChallengeInvalidError from "@/errors/http/login-mfa-challenge-invalid.error";
 import UnauthorizedError from "@/errors/http/unauthorized.error";
+import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { loggerFactory, type Logger } from "@/configuration/logging";
 import { asUuid } from "@/configuration/validation/uuid";
 import type {
@@ -16,6 +17,7 @@ import {
 } from "@/features/auth/account-status/account-status.guard";
 import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
 import type { AuthAuditReasonCode } from "@/features/auth/audit/auth-audit.model";
+import type { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 import type {
   LoginAttemptAuditBase,
   LoginLockoutService,
@@ -62,17 +64,33 @@ function loginFactorsFor(factors: MfaFactorSummary): LoginMfaFactor[] {
 /**
  * What the second factor decided about a sign-in whose first factor passed.
  * `verified` carries the factor so the caller can record it against the
- * session it then issues. A sign-in that still needs a code never gets here:
- * it is refused with a {@link LoginMfaRequiredError} carrying the challenge.
+ * session it then issues. `trusted_device` skipped it for a remembered
+ * device, and records no proof, so a step-up on the session still asks. A
+ * sign-in that still needs a code never gets here: it is refused with a
+ * {@link LoginMfaRequiredError} carrying the challenge.
  */
 export type LoginMfaOutcome =
   | { status: "not_required" }
-  | { status: "verified"; factor: LoginMfaFactor };
+  | { status: "verified"; factor: LoginMfaFactor }
+  | { status: "trusted_device"; trustedUntil: string };
+
+/** The session with its device marked trusted until `trustedUntil`. */
+export function withTrustedDevice(
+  session: AuthSessionResult,
+  trustedUntil: string,
+): AuthSessionResult {
+  return {
+    ...session,
+    device: { ...session.device, known: true, trustedUntil },
+  };
+}
 
 export interface EvaluateLoginMfaInput {
   user: AuthUserRecord;
   method: LoginMfaMethod;
   audit: LoginAttemptAuditBase;
+  /** Carries the device cookie that a remembered device is known by. */
+  client: ClientRequestContext;
   /** The deprecated one-request form; omitted by clients that use challenges. */
   totpCode?: string;
   deviceId?: string;
@@ -112,6 +130,10 @@ export class LoginMfaService {
       PasskeyService,
       "beginAssertion" | "verifyAssertion"
     >,
+    private readonly deviceTrustService: Pick<
+      DeviceTrustService,
+      "findTrust" | "trustSafely" | "ttlDays"
+    >,
   ) {
     this.logger = loggerFactory.forClass(LoginMfaService, "service");
   }
@@ -120,7 +142,8 @@ export class LoginMfaService {
    * Runs once the first factor (password or provider) has passed. Without a
    * code, an account with a strong factor (a passkey or an authenticator) is
    * refused with a challenge instead of a session; with an authenticator
-   * code, the code is checked here and now.
+   * code, the code is checked here and now. A device the user chose to
+   * remember skips both, but never the username lock.
    */
   async evaluateFirstStep(
     input: EvaluateLoginMfaInput,
@@ -145,6 +168,22 @@ export class LoginMfaService {
 
     await this.refuseIfLocked(input.user, input.audit);
 
+    const trust = await this.deviceTrustService.findTrust(
+      input.user,
+      input.client,
+    );
+
+    if (trust) {
+      await this.authAuditService.recordSafely({
+        ...input.audit,
+        eventType: "login.mfa_skipped_trusted_device",
+        outcome: "success",
+        userId,
+        metadata: { trustedUntil: trust.trustedUntil },
+      });
+      return { status: "trusted_device", trustedUntil: trust.trustedUntil };
+    }
+
     if (input.totpCode) {
       await this.verifyCode(
         input.user,
@@ -166,8 +205,8 @@ export class LoginMfaService {
       userId,
     });
 
-    throw new LoginMfaRequiredError(
-      await this.loginMfaChallengeStore.issue(
+    throw new LoginMfaRequiredError({
+      ...(await this.loginMfaChallengeStore.issue(
         {
           userId,
           method: input.method,
@@ -178,8 +217,9 @@ export class LoginMfaService {
           tokenVersion: input.user.tokenVersion,
         },
         loginFactorsFor(factors),
-      ),
-    );
+      )),
+      rememberDeviceDays: this.deviceTrustService.ttlDays(),
+    });
   }
 
   /**
@@ -323,9 +363,22 @@ export class LoginMfaService {
         sessionId: session.sessionId,
       });
 
+      // After the session, so a failure costs only the next sign-in's code.
+      const trust = input.rememberDevice
+        ? await this.deviceTrustService.trustSafely(
+            user,
+            input.client,
+            challenge.deviceId,
+            input.audit,
+          )
+        : null;
+      const result = trust
+        ? withTrustedDevice(session, trust.trustedUntil)
+        : session;
+
       return recoveryCodesRemaining === undefined
-        ? session
-        : { ...session, recoveryCodesRemaining };
+        ? result
+        : { ...result, recoveryCodesRemaining };
     } finally {
       await completionLock.release();
     }

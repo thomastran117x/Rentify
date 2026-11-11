@@ -13,6 +13,7 @@ import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
+import type { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -27,6 +28,7 @@ interface MfaTotpServiceOptions {
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
   securityNotificationService: SecurityNotificationService;
+  deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
 }
 
 export interface MfaTotpDisableOutcome {
@@ -48,6 +50,7 @@ export class MfaTotpService {
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
   private readonly securityNotificationService: SecurityNotificationService;
+  private readonly deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
@@ -58,6 +61,7 @@ export class MfaTotpService {
     this.authAuditService = options.authAuditService;
     this.authSessionService = options.authSessionService;
     this.securityNotificationService = options.securityNotificationService;
+    this.deviceTrustService = options.deviceTrustService;
   }
 
   async beginEnrollment(
@@ -142,6 +146,14 @@ export class MfaTotpService {
     if (matchedCounter === null) {
       throw new BadRequestError("Verification code is incorrect.");
     }
+
+    // A remembered device skipped a factor set that no longer applies. Ended
+    // first, so a failure leaves the authenticator off and the setup retryable.
+    await this.deviceTrustService.revokeAll(
+      userId,
+      "mfa_enabled",
+      audit?.context,
+    );
 
     // Persist the confirmed counter as lastUsedCounter so the enrollment code
     // cannot be replayed against verifyCode before the first login MFA check.
@@ -233,6 +245,10 @@ export class MfaTotpService {
     const existing = await this.mfaTotpRepository.findByUserId(userId);
     const wasActive = existing?.status === "active";
     let otherSessionsSignedOut = false;
+
+    if (wasActive) {
+      await this.deviceTrustService.revokeAll(userId, "mfa_disabled", context);
+    }
 
     if (
       wasActive &&

@@ -1041,14 +1041,22 @@ describe("Postings persistence integration", () => {
     const reviews = await readData<{ reviews: unknown[] }>(reviewsResponse);
     expect(Array.isArray(reviews.reviews)).toBe(true);
 
+    // Seeded bookings are shifted to start a few days from now and span about
+    // four months, so a fixed date eventually lands on one of them. A year
+    // out is always clear of them.
+    const blockStart = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    blockStart.setUTCDate(1);
+    blockStart.setUTCHours(15, 0, 0, 0);
+    const blockEnd = new Date(blockStart.getTime() + 4 * 24 * 60 * 60 * 1000);
+
     const calendarResponse = await request(
-      `/postings/${postingId}/availability-calendar?year=2027&month=3`,
+      `/postings/${postingId}/availability-calendar?year=${blockStart.getUTCFullYear()}&month=${blockStart.getUTCMonth() + 1}`,
     );
     expect(calendarResponse.status).toBe(200);
 
     const blockBody = {
-      startAt: "2027-03-01T15:00:00.000Z",
-      endAt: "2027-03-05T15:00:00.000Z",
+      startAt: blockStart.toISOString(),
+      endAt: blockEnd.toISOString(),
       note: "Owner maintenance",
     };
     const createBlockResponse = await request(

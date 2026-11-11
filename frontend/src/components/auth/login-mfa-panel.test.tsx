@@ -82,6 +82,77 @@ describe("LoginMfaPanel", () => {
     );
   });
 
+  describe("remember this device", () => {
+    it("is not offered without a duration from the backend", () => {
+      renderPanel();
+
+      expect(
+        screen.queryByRole("checkbox", { name: /Remember this device/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("sends rememberDevice only once it is ticked", async () => {
+      const user = userEvent.setup();
+      completeLoginMfaMock.mockResolvedValue({ accessToken: "access" });
+      renderPanel({ rememberDeviceDays: 30 });
+
+      const checkbox = screen.getByRole("checkbox", {
+        name: "Remember this device for 30 days",
+      });
+      expect(checkbox).not.toBeChecked();
+      await user.click(checkbox);
+      await user.type(screen.getByLabelText("Authenticator code"), "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      await waitFor(() =>
+        expect(completeLoginMfaMock).toHaveBeenCalledWith({
+          mfaChallengeToken: "challenge-token",
+          factor: "totp",
+          code: "123456",
+          rememberDevice: true,
+        }),
+      );
+    });
+
+    it("leaves rememberDevice out when it is not ticked", async () => {
+      const user = userEvent.setup();
+      completeLoginMfaMock.mockResolvedValue({ accessToken: "access" });
+      renderPanel({ rememberDeviceDays: 30 });
+
+      await user.type(screen.getByLabelText("Authenticator code"), "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      await waitFor(() =>
+        expect(completeLoginMfaMock).toHaveBeenCalledWith({
+          mfaChallengeToken: "challenge-token",
+          factor: "totp",
+          code: "123456",
+        }),
+      );
+    });
+
+    it("cannot be changed while the code is being checked", async () => {
+      const user = userEvent.setup();
+      completeLoginMfaMock.mockReturnValue(new Promise(() => undefined));
+      renderPanel({ rememberDeviceDays: 7 });
+
+      await user.type(screen.getByLabelText("Authenticator code"), "123456");
+      await user.click(
+        screen.getByRole("button", { name: "Verify and sign in" }),
+      );
+
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Remember this device for 7 days",
+        }),
+      ).toBeDisabled();
+    });
+  });
+
   describe("with a recovery code", () => {
     const recoveryFlow: Partial<LoginMfaPendingFlow> = {
       availableFactors: ["totp", "recovery_code"],

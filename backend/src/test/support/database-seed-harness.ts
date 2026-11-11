@@ -31,6 +31,8 @@ export function applyDatabaseSeedTestEnvironment(
     "seed-test-auth-audit-identifier-32";
   process.env.OTP_HASH_SECRET =
     process.env.OTP_HASH_SECRET ?? "seed-test-otp-hash-secret-value-32";
+  process.env.DEVICE_BINDING_SECRET =
+    process.env.DEVICE_BINDING_SECRET ?? "seed-test-device-binding-secret-32";
   process.env.GMAIL_USER = process.env.GMAIL_USER ?? "seed-test@example.com";
   process.env.GMAIL_APP_PASSWORD =
     process.env.GMAIL_APP_PASSWORD ?? "seed-test-password";

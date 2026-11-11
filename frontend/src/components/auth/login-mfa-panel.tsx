@@ -138,7 +138,10 @@ export function LoginMfaPanel({
   const [pending, setPending] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [rememberDevice, setRememberDevice] = useState(false);
   const copy = FACTOR_COPY[flow.factor];
+  // Sent only when ticked, so a backend without the option never sees it.
+  const remember = rememberDevice ? { rememberDevice: true } : {};
   const isRecoveryCode = flow.factor === "recovery_code";
   const isPasskey = flow.factor === "passkey";
   const passkeysSupported = supportsPasskeys();
@@ -195,6 +198,7 @@ export function LoginMfaPanel({
         mfaChallengeToken: flow.mfaChallengeToken,
         factor: "passkey",
         credential: result.credential,
+        ...remember,
       });
       await onSuccess(session);
     } catch (error) {
@@ -225,6 +229,7 @@ export function LoginMfaPanel({
         mfaChallengeToken: flow.mfaChallengeToken,
         factor: flow.factor,
         code,
+        ...remember,
       });
       await onSuccess(session);
     } catch (error) {
@@ -233,6 +238,37 @@ export function LoginMfaPanel({
       setPending(false);
     }
   }
+
+  const rememberDeviceField = flow.rememberDeviceDays ? (
+    <label className="flex items-start gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3">
+      <input
+        type="checkbox"
+        name="rememberDevice"
+        checked={rememberDevice}
+        onChange={(event) => setRememberDevice(event.target.checked)}
+        disabled={pending}
+        aria-labelledby="login-mfa-remember-label"
+        aria-describedby="login-mfa-remember-hint"
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-slate-700 accent-slate-950 dark:accent-white"
+      />
+      <span>
+        <span
+          id="login-mfa-remember-label"
+          className="block text-sm font-medium text-slate-900 dark:text-white"
+        >
+          Remember this device for {flow.rememberDeviceDays} days
+        </span>
+        <span
+          id="login-mfa-remember-hint"
+          className="mt-0.5 block text-xs leading-5 text-slate-500 dark:text-slate-400"
+        >
+          Skip this step when you sign in on this browser. Only tick this on a
+          device you trust: changing your password or your sign-in methods turns
+          it off.
+        </span>
+      </span>
+    </label>
+  ) : null;
 
   return (
     <div className="space-y-5">
@@ -251,6 +287,7 @@ export function LoginMfaPanel({
 
           {passkeysSupported ? (
             <>
+              {rememberDeviceField}
               <button
                 type="button"
                 onClick={() => void handlePasskey()}
@@ -333,6 +370,8 @@ export function LoginMfaPanel({
               </p>
             )}
           </div>
+
+          {rememberDeviceField}
 
           <button
             type="submit"

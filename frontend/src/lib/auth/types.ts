@@ -48,6 +48,11 @@ export interface AuthResponseBody {
     deviceId?: string;
     known: boolean;
     knownByIp: boolean;
+    /**
+     * Set when this sign-in skipped, or just remembered the device for, the
+     * second factor: when that ends.
+     */
+    trustedUntil?: string;
   };
   user: AuthResponseUser;
   /**
@@ -109,6 +114,11 @@ export interface LoginMfaChallenge {
   mfaChallengeToken: string;
   availableFactors: LoginMfaFactor[];
   expiresInSeconds: number;
+  /**
+   * How long "Remember this device" lasts. Absent from a backend that cannot
+   * remember devices, and then the option is not offered.
+   */
+  rememberDeviceDays?: number;
 }
 
 export type OAuthAuthenticateResult =
@@ -145,7 +155,14 @@ export function readLoginMfaChallenge(
     mfaChallengeToken: details.mfaChallengeToken,
     availableFactors: details.availableFactors,
     expiresInSeconds: details.expiresInSeconds,
+    ...(isPositiveInteger(details.rememberDeviceDays)
+      ? { rememberDeviceDays: details.rememberDeviceDays }
+      : {}),
   };
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 export function isOAuthSignupRequired(
@@ -247,7 +264,17 @@ export interface KnownDeviceRecord {
   lastSeenAt?: string;
   knownByIp?: boolean;
   current?: boolean;
+  /** Registered with the device cookie, so a sign-in from it is recognised. */
+  bound?: boolean;
+  /** "Remember this device" is in force: sign-ins here skip the code. */
+  trusted?: boolean;
+  trustedUntil?: string;
   [key: string]: unknown;
+}
+
+export interface RevokeDeviceTrustResult {
+  revoked: boolean;
+  deviceId: string;
 }
 
 export interface KnownDevicesResult {

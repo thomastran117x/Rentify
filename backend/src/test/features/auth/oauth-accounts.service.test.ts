@@ -565,9 +565,28 @@ describe("OAuthAccountsService sign-in", () => {
         identifierHash: `hash:${googleProfile.email}`,
         context: undefined,
       },
+      client: oauthInput.client,
       totpCode: "123456",
       deviceId: "device-1",
       rememberMe: true,
+    });
+  });
+
+  it("marks the session's device trusted when the login MFA service skipped the code", async () => {
+    const harness = createHarness();
+    harness.authRepository.findUserByOAuthIdentity.mockResolvedValue(
+      createUser({ oauthIdentities: [googleIdentity] }),
+    );
+    harness.loginMfaService.evaluateFirstStep.mockResolvedValue({
+      status: "trusted_device",
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    } as never);
+
+    const session = await harness.service.googleAuthenticate(oauthInput);
+
+    expect("device" in session && session.device).toMatchObject({
+      known: true,
+      trustedUntil: "2026-12-01T00:00:00.000Z",
     });
   });
 
@@ -581,6 +600,7 @@ describe("OAuthAccountsService sign-in", () => {
       mfaChallengeToken: "challenge-token",
       availableFactors: ["totp"],
       expiresInSeconds: 300,
+      rememberDeviceDays: 30,
     });
     harness.loginMfaService.evaluateFirstStep.mockRejectedValue(challenge);
 

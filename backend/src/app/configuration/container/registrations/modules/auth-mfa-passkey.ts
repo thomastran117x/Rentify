@@ -40,6 +40,7 @@ export const authMfaPasskeyRegistrationModule: ContainerRegistrationModule = {
         containerTokens.authSessionService,
         containerTokens.authAuditService,
         containerTokens.securityNotificationService,
+        containerTokens.deviceTrustService,
       ],
       resolve: ({ resolve }) =>
         new PasskeyService({
@@ -55,6 +56,7 @@ export const authMfaPasskeyRegistrationModule: ContainerRegistrationModule = {
           securityNotificationService: resolve(
             containerTokens.securityNotificationService,
           ),
+          deviceTrustService: resolve(containerTokens.deviceTrustService),
         }),
     });
     container.register({

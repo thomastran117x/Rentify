@@ -6,6 +6,10 @@ import { clientContextMiddleware } from "../middlewares/client-context.middlewar
 import { containerScopeMiddleware } from "../middlewares/container-scope.middleware";
 import { createCorsMiddleware } from "../middlewares/cors.middleware";
 import { csrfMiddleware } from "../middlewares/csrf.middleware";
+import {
+  deviceBindingIssueMiddleware,
+  deviceBindingMiddleware,
+} from "../middlewares/device-binding.middleware";
 import { handleApplicationError } from "../middlewares/error-handler.middleware";
 import { httpLoggingMiddleware } from "../middlewares/http-logging.middleware";
 import { idempotencyMiddleware } from "../middlewares/idempotency.middleware";
@@ -59,12 +63,15 @@ export function createApplication(): Express {
   api.use(createCorsMiddleware());
   api.use(requestIdMiddleware);
   api.use(clientContextMiddleware);
+  api.use(deviceBindingMiddleware);
   api.use(containerScopeMiddleware);
   api.use(requestLoggerMiddleware);
   api.use(requestTimeoutMiddleware);
   api.use(requestBodyPolicyMiddleware);
   api.use(requestSanitizationMiddleware);
   api.use("/auth", csrfMiddleware);
+  // After CSRF, so a refused request is not handed a device cookie.
+  api.use("/auth", deviceBindingIssueMiddleware);
   api.use("/auth", idempotencyMiddleware);
   api.use("/payments", idempotencyMiddleware);
   api.use("/booking-requests/:id/payment-session", idempotencyMiddleware);
