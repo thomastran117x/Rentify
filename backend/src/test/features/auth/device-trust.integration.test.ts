@@ -368,6 +368,43 @@ describe("Trusted device integration", () => {
     await expectSignInAsksForCode(deviceCookie);
   });
 
+  it("does not hand a remembered device's trust to a new cookie", async () => {
+    const { deviceCookie: rememberedCookie } = await rememberDevice();
+
+    // The device cookie alone is deleted; the hint survives. The new cookie
+    // finishes MFA without "Remember this device" and registers the device.
+    const first = await signIn();
+    const newCookie = readCookie(first, DEVICE_BINDING_COOKIE_NAME)!;
+    const { error } = await bodyOf(first);
+    const finished = await withFreshCode((code) =>
+      request("/auth/login/mfa", {
+        method: "POST",
+        headers: browserHeaders(newCookie),
+        body: JSON.stringify({
+          mfaChallengeToken: (error?.details as { mfaChallengeToken: string })
+            .mfaChallengeToken,
+          factor: "totp",
+          code,
+          deviceId: DEVICE_HINT,
+        }),
+      }),
+    );
+    expect(finished.status).toBe(200);
+    const session = toSession(
+      finished,
+      (await bodyOf<SessionBody>(finished)).data,
+    );
+    const verified = await request("/auth/device/verify", {
+      method: "POST",
+      headers: sessionHeaders(session, newCookie),
+    });
+    expect(verified.status).toBe(200);
+
+    // Neither the new cookie nor the old one skips the code now.
+    await expectSignInAsksForCode(newCookie);
+    await expectSignInAsksForCode(rememberedCookie);
+  });
+
   it("remembers nothing for a client that keeps no cookies", async () => {
     const first = await signIn();
     const { error } = await bodyOf(first);

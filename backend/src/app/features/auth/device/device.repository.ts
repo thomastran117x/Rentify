@@ -98,8 +98,10 @@ export class DeviceRepository extends BaseRepository {
   /**
    * A bound registration updates the row that already holds the binding, so a
    * browser whose hint changed (cleared storage) keeps one row. Otherwise it
-   * upserts by the hint and binds that row; a hint row a different browser
+   * upserts by the hint and binds that row; a hint row a different cookie
    * bound before is rebound to this one, since only one can hold the hint.
+   * Rebinding clears the row's trust: trust belongs to the cookie it was
+   * granted to, and a new one earns it only through "Remember this device".
    */
   async registerKnownDevice(
     input: RegisterKnownDeviceInput,
@@ -129,7 +131,13 @@ export class DeviceRepository extends BaseRepository {
       }
     }
 
-    const binding = input.bindingId ? { bindingId: input.bindingId } : {};
+    const binding = input.bindingId
+      ? {
+          bindingId: input.bindingId,
+          trustedUntil: null,
+          trustedTokenVersion: null,
+        }
+      : {};
     const device = await this.executeAsync(() =>
       this.prisma.device.upsert({
         where: {

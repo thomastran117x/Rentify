@@ -263,6 +263,7 @@ An account with a passkey or an authenticator app answers a code at every sign-i
 
   Any factor change counts, not only turning MFA on or off: a remembered device skipped a set of factors that no longer applies.
 
+- **Trust stays with its cookie.** When a device row is registered by a different cookie (the old one was deleted but the device id survived), its trust is cleared: the new cookie earns it only by ticking the box itself.
 - **Clients without cookies** (scripts, native apps) cannot be trusted. `rememberDevice` is ignored for them, the response carries no `device.trustedUntil`, and every sign-in asks for a code.
 - **The device list** shows `bound`, `trusted` and `trustedUntil` for each device. `trusted` is judged against the account's current token version, so it is false as soon as a rotation ends the trust.
 

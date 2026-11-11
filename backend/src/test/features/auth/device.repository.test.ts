@@ -122,7 +122,12 @@ describe("DeviceRepository.registerKnownDevice", () => {
       expect.objectContaining({
         where: { userId_deviceId: { userId: USER_ID, deviceId: "hint-1" } },
         create: expect.objectContaining({ bindingId: BINDING_ID }),
-        update: expect.objectContaining({ bindingId: BINDING_ID }),
+        // Trust granted to another cookie does not carry over.
+        update: expect.objectContaining({
+          bindingId: BINDING_ID,
+          trustedUntil: null,
+          trustedTokenVersion: null,
+        }),
       }),
     );
   });
