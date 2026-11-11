@@ -102,6 +102,8 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
         containerTokens.loginLockoutService,
         containerTokens.authAuditService,
         containerTokens.mfaRecoveryCodeService,
+        containerTokens.mfaFactorRepository,
+        containerTokens.passkeyService,
       ],
       resolve: ({ resolve }) =>
         new LoginMfaService(
@@ -113,6 +115,8 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.loginLockoutService),
           resolve(containerTokens.authAuditService),
           resolve(containerTokens.mfaRecoveryCodeService),
+          resolve(containerTokens.mfaFactorRepository),
+          resolve(containerTokens.passkeyService),
         ),
     });
     container.register({

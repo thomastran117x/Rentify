@@ -81,16 +81,22 @@ function createMocks() {
         [string, { secretEncrypted: string; expiresAt: Date }, Date]
       >()
       .mockResolvedValue(1),
-    // Now takes (id, confirmedAt, lastUsedCounter, recoveryCodeRows)
+    // Takes (id, userId, confirmedAt, lastUsedCounter, recoveryCodeRows)
     activate: jest
-      .fn<Promise<boolean>, [string, Date, number, unknown[]]>()
-      .mockResolvedValue(true),
+      .fn<
+        Promise<
+          | { activated: false }
+          | { activated: true; recoveryCodesIssued: boolean }
+        >,
+        [string, string, Date, number, unknown[]]
+      >()
+      .mockResolvedValue({ activated: true, recoveryCodesIssued: true }),
     claimCounter: jest
       .fn<Promise<boolean>, [string, number]>()
       .mockResolvedValue(true),
     deleteByUserId: jest
-      .fn<Promise<void>, [string]>()
-      .mockResolvedValue(undefined),
+      .fn<Promise<{ lastStrongFactor: boolean }>, [string]>()
+      .mockResolvedValue({ lastStrongFactor: true }),
     deleteByUserIdIfPending: jest
       .fn<Promise<void>, [string]>()
       .mockResolvedValue(undefined),
@@ -110,10 +116,18 @@ function createMocks() {
   const securityNotificationService = {
     notify: jest.fn(async (_input: { eventId: string }) => "sent"),
   };
+  const mfaFactorRepository = {
+    getSummary: jest.fn(async () => ({
+      totpActive: true,
+      passkeyCount: 0,
+      unusedRecoveryCodes: 10,
+    })),
+  };
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
     mfaRecoveryCodeService: mfaRecoveryCodeService as never,
+    mfaFactorRepository,
     encryptionKey: TEST_ENCRYPTION_KEY,
     authAuditService: authAuditService as never,
     authSessionService: authSessionService as never,
@@ -125,6 +139,7 @@ function createMocks() {
     securityNotificationService,
     totpService,
     mfaTotpRepository,
+    mfaFactorRepository,
     authAuditService,
     authSessionService,
   };
@@ -272,6 +287,7 @@ describe("MfaTotpService", () => {
       // the rows, so the factor never goes live without its codes.
       expect(mfaTotpRepository.activate).toHaveBeenCalledWith(
         "record-id",
+        USER_ID_ID,
         expect.any(Date),
         56374060,
         RECOVERY_CODE_SET.rows,
@@ -296,11 +312,28 @@ describe("MfaTotpService", () => {
       });
     });
 
+    it("shows no codes when the account already has a set from a passkey", async () => {
+      const { service, mfaTotpRepository, securityNotificationService } =
+        createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      mfaTotpRepository.activate.mockResolvedValue({
+        activated: true,
+        recoveryCodesIssued: false,
+      });
+
+      await expect(
+        service.confirmEnrollment(USER_ID_ID, "123456"),
+      ).resolves.toEqual([]);
+      expect(securityNotificationService.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "mfa_enabled" }),
+      );
+    });
+
     it("refuses a confirmation that lost the race, showing no codes", async () => {
       const { service, mfaTotpRepository, securityNotificationService } =
         createMocks();
       mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
-      mfaTotpRepository.activate.mockResolvedValue(false);
+      mfaTotpRepository.activate.mockResolvedValue({ activated: false });
 
       await expect(
         service.confirmEnrollment(USER_ID_ID, "123456"),
@@ -501,13 +534,15 @@ describe("MfaTotpService", () => {
         makeRecord({ status: "active" }),
       );
 
-      await service.disable(DISABLE_AUTH, {});
+      await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
+        otherSessionsSignedOut: true,
+      });
 
       expect(mfaTotpRepository.deleteByUserId).toHaveBeenCalledWith(USER_ID_ID);
       expect(securityNotificationService.notify).toHaveBeenCalledTimes(1);
       expect(securityNotificationService.notify).toHaveBeenCalledWith({
         kind: "mfa_disabled",
-        details: {},
+        details: { endedOtherSessions: true },
         userId: USER_ID_ID,
         eventId: expect.any(String),
         context: {},
@@ -519,8 +554,76 @@ describe("MfaTotpService", () => {
         userId: USER_ID_ID,
         sessionId: "session-1",
         context: {},
-        metadata: { emailNotification: "sent" },
+        metadata: {
+          lastStrongFactor: true,
+          otherSessionsSignedOut: true,
+          emailNotification: "sent",
+        },
       });
+    });
+
+    it("keeps other sessions when a passkey still protects the account", async () => {
+      const {
+        service,
+        mfaTotpRepository,
+        mfaFactorRepository,
+        authSessionService,
+        securityNotificationService,
+      } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+      mfaFactorRepository.getSummary.mockResolvedValue({
+        totpActive: true,
+        passkeyCount: 2,
+        unusedRecoveryCodes: 10,
+      });
+      mfaTotpRepository.deleteByUserId.mockResolvedValue({
+        lastStrongFactor: false,
+      });
+
+      await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
+        otherSessionsSignedOut: false,
+      });
+
+      expect(authSessionService.revokeManagedSessions).not.toHaveBeenCalled();
+      expect(securityNotificationService.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "mfa_disabled",
+          details: { endedOtherSessions: false },
+        }),
+      );
+    });
+
+    it("ends other sessions after all when the last passkey went in between", async () => {
+      const {
+        service,
+        mfaTotpRepository,
+        mfaFactorRepository,
+        authSessionService,
+      } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+      mfaFactorRepository.getSummary.mockResolvedValue({
+        totpActive: true,
+        passkeyCount: 1,
+        unusedRecoveryCodes: 10,
+      });
+      mfaTotpRepository.deleteByUserId.mockResolvedValue({
+        lastStrongFactor: true,
+      });
+
+      await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
+        otherSessionsSignedOut: true,
+      });
+
+      expect(authSessionService.revokeManagedSessions).toHaveBeenCalledTimes(1);
+      expect(
+        mfaTotpRepository.deleteByUserId.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        authSessionService.revokeManagedSessions.mock.invocationCallOrder[0]!,
+      );
     });
 
     it("sends nothing when only a pending enrollment is removed", async () => {
@@ -595,9 +698,13 @@ describe("MfaTotpService", () => {
 
     it("is idempotent — does not throw when no record exists", async () => {
       const { service, mfaTotpRepository, authAuditService } = createMocks();
-      mfaTotpRepository.deleteByUserId.mockResolvedValue(undefined);
+      mfaTotpRepository.deleteByUserId.mockResolvedValue({
+        lastStrongFactor: true,
+      });
 
-      await expect(service.disable(DISABLE_AUTH, {})).resolves.toBeUndefined();
+      await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
+        otherSessionsSignedOut: false,
+      });
       expect(authAuditService.recordSafely).not.toHaveBeenCalled();
     });
   });

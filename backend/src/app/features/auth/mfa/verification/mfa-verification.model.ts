@@ -1,5 +1,10 @@
 import { z } from "zod";
+import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/server";
 import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  passkeyAssertionCredentialSchema,
+  type PasskeyAssertionCredential,
+} from "@/features/auth/mfa/passkey/passkey.model";
 
 export const MFA_MANAGEMENT_SCOPE = "mfa-management" as const;
 export const MFA_DEVICE_LOGIN_SCOPE = "device-login" as const;
@@ -15,8 +20,16 @@ export const mfaVerificationFactorSchema = z.enum([
   "totp",
   "sms",
   "recovery_code",
+  "passkey",
 ]);
 export const mfaVerificationChallengeFactorSchema = z.enum([
+  "email",
+  "totp",
+  "recovery_code",
+  "passkey",
+]);
+/** The factors confirmed with a typed code, rather than a passkey assertion. */
+export const mfaVerificationCodeFactorSchema = z.enum([
   "email",
   "totp",
   "recovery_code",
@@ -27,17 +40,35 @@ export const mfaVerificationChallengeRequestSchema = z.object({
   factor: mfaVerificationChallengeFactorSchema,
 });
 
-export const mfaVerificationConfirmRequestSchema = z.object({
-  scope: mfaVerificationScopeSchema,
-  factor: mfaVerificationChallengeFactorSchema,
-  code: z.string().trim().min(1, "Code is required."),
-});
+export const mfaVerificationConfirmRequestSchema = z.discriminatedUnion(
+  "factor",
+  [
+    z.object({
+      scope: mfaVerificationScopeSchema,
+      factor: z.literal("passkey"),
+      credential: passkeyAssertionCredentialSchema,
+    }),
+    z.object({
+      scope: mfaVerificationScopeSchema,
+      factor: mfaVerificationCodeFactorSchema,
+      code: z.string().trim().min(1, "Code is required."),
+    }),
+  ],
+);
 
 export type MfaVerificationScope = z.infer<typeof mfaVerificationScopeSchema>;
 export type MfaVerificationFactor = z.infer<typeof mfaVerificationFactorSchema>;
 export type MfaVerificationChallengeFactor = z.infer<
   typeof mfaVerificationChallengeFactorSchema
 >;
+export type MfaVerificationCodeFactor = z.infer<
+  typeof mfaVerificationCodeFactorSchema
+>;
+
+/** What a confirm carries: a typed code, or a passkey assertion. */
+export type MfaVerificationAnswer =
+  | { factor: MfaVerificationCodeFactor; code: string }
+  | { factor: "passkey"; credential: PasskeyAssertionCredential };
 
 export interface MfaVerificationProofRecord {
   userId: Uuid;
@@ -72,9 +103,18 @@ export interface MfaVerificationPromptChallengeResult {
   prompt: true;
 }
 
+/** The options `navigator.credentials.get()` answers, for one of the account's passkeys. */
+export interface MfaVerificationPasskeyChallengeResult {
+  scope: MfaVerificationScope;
+  factor: "passkey";
+  challengeId: null;
+  options: PublicKeyCredentialRequestOptionsJSON;
+}
+
 export type MfaVerificationChallengeResult =
   | MfaVerificationEmailChallengeResult
-  | MfaVerificationPromptChallengeResult;
+  | MfaVerificationPromptChallengeResult
+  | MfaVerificationPasskeyChallengeResult;
 
 export interface MfaVerificationConfirmResult {
   verified: true;

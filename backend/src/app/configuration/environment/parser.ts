@@ -38,6 +38,7 @@ import {
   validateInfrastructureConfig,
 } from "@/configuration/environment/domains/infrastructure";
 import { buildFeaturesConfig } from "@/configuration/environment/domains/features";
+import { buildWebAuthnConfig } from "@/configuration/environment/domains/webauthn";
 import {
   buildPostingsCacheConfig,
   buildRateLimiterConfig,
@@ -152,6 +153,7 @@ export function parseEnvironmentState(
     captcha: buildCaptchaConfig(raw),
     cors: buildCorsConfig(raw),
     csrf: buildCsrfConfig(raw),
+    webauthn: buildWebAuthnConfig(raw, errors, nodeEnv),
     oauth: buildOauthConfig(raw, errors),
     redis: buildRedisConfig(raw, errors),
     rateLimiter: buildRateLimiterConfig(raw, errors, rateLimiterStrategy),

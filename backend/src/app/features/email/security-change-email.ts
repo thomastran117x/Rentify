@@ -64,7 +64,9 @@ export function composeSecurityChangeEmail(
         subject: "The authenticator app was removed from your Rentify account",
         heading: "Your authenticator app was removed",
         summary:
-          "The authenticator app was just removed from your Rentify account, and every other sign-in was ended. Signing in no longer needs a code from it.",
+          job.input.endedOtherSessions === false
+            ? "The authenticator app was just removed from your Rentify account. Signing in no longer needs a code from it, though your passkeys still work."
+            : "The authenticator app was just removed from your Rentify account, and every other sign-in was ended. Signing in no longer needs a code from it.",
         details: [],
       };
     case "mfa_recovery_code_used":
@@ -84,6 +86,23 @@ export function composeSecurityChangeEmail(
         summary:
           "New recovery codes were just generated for your Rentify account, and all of the old ones stopped working.",
         details: [],
+      };
+    case "passkey_added":
+      return {
+        subject: "A passkey was added to your Rentify account",
+        heading: "A passkey was added",
+        summary:
+          "A passkey was just added to your Rentify account. It can now be used to confirm it's you when you sign in or make a security change.",
+        details: [`Passkey: ${flattenName(job.input.passkeyName)}`],
+      };
+    case "passkey_removed":
+      return {
+        subject: "A passkey was removed from your Rentify account",
+        heading: "A passkey was removed",
+        summary: job.input.endedOtherSessions
+          ? "A passkey was just removed from your Rentify account. It was the last one, and no authenticator app is set up, so every other sign-in was ended and your recovery codes stopped working."
+          : "A passkey was just removed from your Rentify account, so it can no longer be used to confirm it's you.",
+        details: [`Passkey: ${flattenName(job.input.passkeyName)}`],
       };
     case "personal_access_token_created":
       return {
@@ -127,6 +146,14 @@ export function composeSecurityChangeEmail(
         details: [],
       };
   }
+}
+
+/**
+ * A name the account holder chose. Validation already refuses control
+ * characters, but a name from an older row must not forge lines either.
+ */
+function flattenName(name: string): string {
+  return name.replace(/\s+/g, " ").trim();
 }
 
 /** When and where the change came from, for every kind. */

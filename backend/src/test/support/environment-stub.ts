@@ -1,6 +1,7 @@
 import { SUPPORTED_IMAGE_CONTENT_TYPES } from "@/configuration/environment/constants";
 import { buildOauthConfig } from "@/configuration/environment/domains/auth";
 import { buildBlobStorageConfig } from "@/configuration/environment/domains/infrastructure";
+import { buildWebAuthnConfig } from "@/configuration/environment/domains/webauthn";
 import { normalizeRawEnvironment } from "@/configuration/environment/shared";
 
 const tokenConfig = {
@@ -545,6 +546,14 @@ export const environment = {
     return readOriginList(
       process.env.CSRF_ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS,
       readApplicationConfig().frontendUrl,
+    );
+  },
+  getWebAuthnConfig() {
+    // Read on every call, so a test can point it at another origin.
+    return buildWebAuthnConfig(
+      normalizeRawEnvironment(process.env),
+      [],
+      "test",
     );
   },
   getGoogleOAuthConfig() {

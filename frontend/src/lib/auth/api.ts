@@ -10,6 +10,10 @@ import {
 } from "@/lib/api/client";
 import { getDeviceId } from "@/lib/auth/device";
 import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from "@/lib/auth/webauthn";
+import type {
   AuthEmailAcceptedResult,
   AuthResponseBody,
   AuthSessionListResult,
@@ -43,10 +47,16 @@ interface LoginInput {
   rememberMe?: boolean;
   deviceId?: string;
 }
-interface CompleteLoginMfaInput {
+type CompleteLoginMfaInput = {
   mfaChallengeToken: string;
-  factor: LoginMfaFactor;
-  code: string;
+  deviceId?: string;
+} & (
+  | { factor: Exclude<LoginMfaFactor, "passkey">; code: string }
+  | { factor: "passkey"; credential: AuthenticationResponseJSON }
+);
+
+interface LoginPasskeyOptionsInput {
+  mfaChallengeToken: string;
   deviceId?: string;
 }
 
@@ -210,6 +220,18 @@ export const authApi = {
         deviceId: input.deviceId ?? getDeviceId(),
       },
     );
+  },
+  /** Options for the browser's passkey prompt, for a sign-in waiting on its second step. */
+  getLoginPasskeyOptions(
+    input: LoginPasskeyOptionsInput,
+  ): Promise<{ options: PublicKeyCredentialRequestOptionsJSON }> {
+    return publicJson<
+      { options: PublicKeyCredentialRequestOptionsJSON },
+      LoginPasskeyOptionsInput
+    >("POST", "/auth/login/mfa/passkey/options", {
+      ...input,
+      deviceId: input.deviceId ?? getDeviceId(),
+    });
   },
   logout(): Promise<{ loggedOut: true }> {
     cancelStoredSessionRefresh();

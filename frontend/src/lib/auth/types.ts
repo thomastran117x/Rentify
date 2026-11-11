@@ -91,17 +91,17 @@ export interface OAuthFlowStart {
 }
 
 /**
- * The second factors a sign-in can be finished with, and the only list of
- * them. Passkeys join it without changing the challenge's shape; a factor this
- * client does not list is dropped from a challenge.
+ * The second factors a sign-in can be finished with, strongest first, and the
+ * only list of them. A factor this client does not list is dropped from a
+ * challenge.
  */
-export const LOGIN_MFA_FACTORS = ["totp", "recovery_code"] as const;
+export const LOGIN_MFA_FACTORS = ["passkey", "totp", "recovery_code"] as const;
 
 export type LoginMfaFactor = (typeof LOGIN_MFA_FACTORS)[number];
 
 /**
  * The challenge a correct password or provider sign-in carries, instead of a
- * session, when the account has an authenticator app. The token is the only
+ * session, when the account has a passkey or an authenticator app. The token is the only
  * thing kept between the two steps; the password is never sent again.
  */
 export interface LoginMfaChallenge {

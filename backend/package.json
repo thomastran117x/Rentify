@@ -82,6 +82,7 @@
     "@azure/storage-blob": "^12.31.0",
     "@prisma/adapter-mariadb": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@simplewebauthn/server": "14.0.3",
     "@socket.io/redis-adapter": "^8.3.0",
     "@socket.io/redis-emitter": "^5.1.0",
     "amqplib": "^2.0.1",
@@ -116,11 +117,10 @@
   },
   "allowScripts": {
     "@parcel/watcher": false,
-    "@prisma/engines@7.10.0": true,
+    "@prisma/engines@7.10.1": true,
     "bcrypt@6.0.0": true,
-    "esbuild@0.27.7": true,
-    "esbuild@0.28.1": true,
-    "prisma@7.10.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@7.10.1": true,
     "unrs-resolver@1.12.2": true
   }
 }

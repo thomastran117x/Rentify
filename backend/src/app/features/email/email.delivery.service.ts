@@ -235,6 +235,8 @@ export class EmailDeliveryService {
       case "mfa_disabled":
       case "mfa_recovery_code_used":
       case "mfa_recovery_codes_regenerated":
+      case "passkey_added":
+      case "passkey_removed":
       case "personal_access_token_created":
       case "login_method_linked":
       case "login_method_unlinked":

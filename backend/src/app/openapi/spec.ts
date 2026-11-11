@@ -671,6 +671,61 @@ const personalAccessTokenSummaryExample = {
   createdAt: "2026-05-24T08:00:00.000Z",
   updatedAt: "2026-05-24T08:00:00.000Z",
 };
+const passkeySummaryExample = {
+  id: "4f0b6d1e-6a1c-4d55-9b0e-2f1d8c9a7e31",
+  name: "Work laptop",
+  createdAt: "2026-11-10T09:00:00.000Z",
+  lastUsedAt: null,
+  backedUp: true,
+  deviceType: "multi_device",
+  transports: ["internal", "hybrid"],
+};
+const passkeyRegistrationOptionsExample = {
+  options: {
+    challenge: "mJrB1Hn6rB6Q4b3V5cWw8f2xZ0nLq9aT1sYdKeUoIgE",
+    rp: { name: "Rentify", id: "rentify.example" },
+    user: {
+      id: "NGYwYjZkMWUtNmExYy00ZDU1LTliMGUtMmYxZDhjOWE3ZTMx",
+      name: "owner-one",
+      displayName: "Owner One",
+    },
+    pubKeyCredParams: [
+      { alg: -8, type: "public-key" },
+      { alg: -7, type: "public-key" },
+      { alg: -257, type: "public-key" },
+    ],
+    timeout: 300000,
+    attestation: "none",
+    excludeCredentials: [
+      {
+        id: "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+        type: "public-key",
+        transports: ["internal"],
+      },
+    ],
+    authenticatorSelection: {
+      residentKey: "preferred",
+      userVerification: "preferred",
+      requireResidentKey: false,
+    },
+    extensions: { credProps: true },
+    hints: [],
+  },
+};
+const passkeyRegistrationCredentialExample = {
+  id: "Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ",
+  rawId: "Hn3sQ8wV1yK0pT6eR4uZ2bN7mC5xL9aJ",
+  type: "public-key",
+  authenticatorAttachment: "platform",
+  clientExtensionResults: { credProps: { rk: true } },
+  response: {
+    clientDataJSON:
+      "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoibUpyQjFIbjZyQjZRNGIzVjVjV3c4ZjJ4WjBuTHE5YVQxc1lkS2VVb0lnRSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVudGlmeS5leGFtcGxlIn0",
+    attestationObject:
+      "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NdAAAAAA",
+    transports: ["internal", "hybrid"],
+  },
+};
 const personalAccessTokenCreateExample = {
   ...personalAccessTokenSummaryExample,
   token: "rpat_live_secret_token",
@@ -2037,7 +2092,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "completeLoginMfa",
       summary: "Finish a sign-in with a second factor",
       description:
-        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: recovery_code appears only while the account has unused codes. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.",
+        "Completes a password or social sign-in that answered 401 with details.mfaRequired and a login MFA challenge. The challenge lasts five minutes, belongs to the user, sign-in method and device that started it, and is used up by the sign-in it completes. Send the same deviceId as the first step; a challenge presented from another device, an expired or used one, or one voided by a password change returns 401 MFA_CHALLENGE_INVALID and the client must sign in again. A wrong code returns 400 INVALID_MFA_CODE and counts towards the same per-username lockout as a wrong password; the wrong code that sets the lock also voids the challenge. A locked username returns 423 ACCOUNT_LOCKED even with a correct code. The factor must be one the challenge listed: passkey appears while the account has a passkey, totp while it has an active authenticator, and recovery_code only while it has unused codes. For factor passkey, send the assertion as credential instead of a code, answering the options from POST /auth/login/mfa/passkey/options; a refused assertion returns 400 INVALID_MFA_CODE and is counted like a wrong code. A recovery code works once, is counted the same way when wrong, and a sign-in that spends one returns recoveryCodesRemaining.",
       tags: ["auth"],
       permissions: {
         authMode: "public",
@@ -2100,6 +2155,80 @@ function buildOperations(): OperationDefinition[] {
             },
           },
         ),
+        "423": errorResponseExamples(
+          "The sign-in is locked, or the account is on a security hold.",
+          {
+            loginLockout: {
+              summary:
+                "Too many failed attempts; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+            securityHold: securityHoldErrorExample,
+          },
+        ),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/login/mfa/passkey/options",
+      operationId: "beginLoginMfaPasskey",
+      summary: "Get passkey options for a pending sign-in",
+      description:
+        "For a sign-in that answered 401 with a login MFA challenge listing passkey, returns WebAuthn request options for navigator.credentials.get(). allowCredentials lists the account's passkeys and userVerification is preferred. The challenge is bound to the sign-in's token, is single-use, and lasts no longer than the sign-in itself (at most five minutes); asking again replaces it, so a cancelled prompt can be retried. Send the same deviceId as the first step. A sign-in that is unknown, expired, used, voided or from another device returns 401 MFA_CHALLENGE_INVALID; an account without a passkey returns 400 MFA_FACTOR_UNAVAILABLE; a locked username returns 423 ACCOUNT_LOCKED.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("LoginMfaPasskeyOptionsRequest", {
+        mfaChallengeToken: "opaque-mfa-challenge-token",
+        deviceId: "device-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "LoginMfaPasskeyOptionsResult",
+          {
+            options: {
+              challenge: "Gq2xV9cR4mT7bL1nW8yK3pH6sD0fJ5aE2uZ9oI4tY7w",
+              timeout: 240000,
+              rpId: "rentify.example",
+              allowCredentials: [
+                {
+                  id: "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+                  type: "public-key",
+                  transports: ["internal", "hybrid"],
+                },
+              ],
+              userVerification: "preferred",
+            },
+          },
+        ),
+        ...commonErrors([400, 429, 500]),
+        "401": errorResponseExamples(
+          "The sign-in cannot be finished; sign in again.",
+          {
+            challengeInvalid: {
+              summary:
+                "Unknown, expired, already used, voided, or from another device.",
+              message: "This sign-in has expired. Sign in again to continue.",
+              code: "MFA_CHALLENGE_INVALID",
+            },
+          },
+        ),
+        "403": errorResponseExamples("The account is suspended.", {
+          accountSuspended: accountSuspendedErrorExample,
+        }),
         "423": errorResponseExamples(
           "The sign-in is locked, or the account is on a security hold.",
           {
@@ -3542,7 +3671,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "issueMfaVerificationChallenge",
       summary: "Issue an MFA step-up challenge",
       description:
-        "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP factors signal the client to prompt for an authenticator code. Rate limited per user, session, scope, and factor.",
+        "Starts a step-up challenge for the requested scope and factor. Email factors send a one-time code; TOTP and recovery-code factors signal the client to prompt for a code; the passkey factor returns WebAuthn request options for `navigator.credentials.get()`, whose challenge is bound to this session and scope, single-use, and expires after 5 minutes. Asking again replaces it. Rate limited per user, session, scope, and factor.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3576,7 +3705,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "confirmMfaVerificationChallenge",
       summary: "Confirm an MFA step-up challenge",
       description:
-        "Verifies a step-up challenge code and persists a short-lived MFA proof for the scope. Rate limited, with a temporary lockout after repeated failed attempts.",
+        'Verifies a step-up code, or for `factor: "passkey"` an assertion in `credential`, and persists a short-lived MFA proof for the scope. An assertion is checked against the challenge, origin and RP ID it was issued for; a replayed, expired or foreign one, or one from a single-device passkey whose counter did not go up, returns 400 `INVALID_MFA_CODE` and counts as a failed attempt. Rate limited, with a temporary lockout after repeated failed attempts.',
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3768,7 +3897,7 @@ function buildOperations(): OperationDefinition[] {
       operationId: "regenerateMfaRecoveryCodes",
       summary: "Replace every recovery code",
       description:
-        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without an active authenticator app.",
+        "Replaces the signed-in user's recovery codes with 10 new ones, which are shown this once and cannot be read back. Every old code stops working. Needs a recent MFA step-up verification, from the management scope or from the device-login scope a sign-in records, so someone who just signed in with their last code can still replace them. Returns 409 without a passkey or an active authenticator app.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3803,11 +3932,142 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/auth/mfa/passkeys/register/options",
+      operationId: "beginPasskeyRegistration",
+      summary: "Start adding a passkey",
+      description:
+        "Returns WebAuthn creation options for a new passkey on the signed-in account, for `navigator.credentials.create()`. The challenge is bound to this session, is single-use and expires after 5 minutes; asking again replaces it. Passkeys the account already has are listed in `excludeCredentials`. Requires a recent MFA step-up for the `mfa-management` scope. Returns 409 once the account holds 10 passkeys.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("PasskeyRegistrationOptionsRequest", {}),
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasskeyRegistrationOptionsResult",
+          passkeyRegistrationOptionsExample,
+        ),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/mfa/passkeys/register/verify",
+      operationId: "finishPasskeyRegistration",
+      summary: "Finish adding a passkey",
+      description:
+        "Verifies the authenticator's attestation against the challenge, origin and RP ID this session was issued, and stores the passkey. An expired, replayed or foreign answer returns 400 `PASSKEY_REGISTRATION_FAILED`; a passkey already registered, or one over the cap, returns 409. An account that has never had recovery codes gets its 10 in `recoveryCodes`, shown this once. Adding the first passkey changes the account's factors, so the next protected action asks for a step-up again. The owner is emailed and the addition is audited as `mfa.passkey_added`. Without a name the passkey is called `Passkey N`. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("PasskeyRegistrationVerifyRequest", {
+        credential: passkeyRegistrationCredentialExample,
+        name: "Work laptop",
+      }),
+      responses: {
+        "201": successResponse(
+          201,
+          "Passkey added.",
+          "PasskeyRegistrationResult",
+          { passkey: passkeySummaryExample },
+        ),
+        ...commonErrors([400, 401, 403, 409, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "get",
+      path: "/auth/mfa/passkeys",
+      operationId: "listPasskeys",
+      summary: "List passkeys",
+      description:
+        "Lists the signed-in account's passkeys, oldest first. Public keys and credential IDs are never returned. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasskeyListResult",
+          { passkeys: [passkeySummaryExample] },
+        ),
+        ...commonErrors([401, 403, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "patch",
+      path: "/auth/mfa/passkeys/:id",
+      operationId: "renamePasskey",
+      summary: "Rename a passkey",
+      description:
+        "Renames one of the signed-in account's passkeys. Names are 1-64 characters with no control characters. Audited as `mfa.passkey_renamed`; no email is sent. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Passkey identifier.", passkeySummaryExample.id),
+      ],
+      requestBody: requestBody("PasskeyRenameRequest", { name: "Desk key" }),
+      responses: {
+        "200": successResponse(200, "Passkey renamed.", "PasskeyRenameResult", {
+          passkey: { ...passkeySummaryExample, name: "Desk key" },
+        }),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "delete",
+      path: "/auth/mfa/passkeys/:id",
+      operationId: "removePasskey",
+      summary: "Remove a passkey",
+      description:
+        "Removes one of the signed-in account's passkeys. When it was the account's last strong factor (no other passkey and no active authenticator app), every other session is signed out and the recovery codes are deleted, so step-up falls back to email. The owner is emailed and the removal is audited as `mfa.passkey_removed`. Another account's passkey returns 404. Requires a recent MFA step-up for the `mfa-management` scope.",
+      tags: ["mfa"],
+      security: [{ bearerAuth: [] }],
+      permissions: {
+        authMode: "session-bearer",
+        minimumRole: "user",
+        patAllowed: false,
+      },
+      parameters: [
+        routePathParam("id", "Passkey identifier.", passkeySummaryExample.id),
+      ],
+      responses: {
+        "204": noContentResponse("Passkey removed."),
+        ...commonErrors([400, 401, 403, 404, 429, 500]),
+        "401": stepUpRequiredResponse(),
+      },
+    },
+    {
+      method: "post",
       path: "/auth/mfa/totp/disable",
       operationId: "disableMfaTotp",
       summary: "Disable authenticator (TOTP)",
       description:
-        "Disables the authenticator app for the signed-in user and signs out every other session. Requires a recent MFA step-up verification for the management scope.",
+        "Disables the authenticator app for the signed-in user. When it was the account's last strong factor (no passkey remains), every other session is signed out and the recovery codes are deleted; otherwise both stay, and `otherSessionsSignedOut` is false. Requires a recent MFA step-up verification for the management scope.",
       tags: ["mfa"],
       security: [{ bearerAuth: [] }],
       permissions: {
@@ -3821,7 +4081,7 @@ function buildOperations(): OperationDefinition[] {
           200,
           "Authenticator app disabled. Other sessions were signed out.",
           "MfaTotpDisableResult",
-          { disabled: true },
+          { disabled: true, otherSessionsSignedOut: true },
         ),
         ...commonErrors([400, 401, 403, 429, 500]),
       },
@@ -11647,26 +11907,69 @@ function buildComponents(): Record<string, unknown> {
           },
           availableFactors: {
             type: "array",
-            items: { type: "string", enum: ["totp", "recovery_code"] },
+            items: {
+              type: "string",
+              enum: ["passkey", "totp", "recovery_code"],
+            },
             description:
-              "The factors the sign-in can be finished with. New factors may be added.",
+              "The factors the sign-in can be finished with, strongest first. New factors may be added.",
           },
           expiresInSeconds: { type: "integer", enum: [300] },
         },
       },
-      LoginMfaRequest: {
+      LoginMfaPasskeyOptionsRequest: {
         type: "object",
-        required: ["mfaChallengeToken", "factor", "code"],
+        required: ["mfaChallengeToken"],
         properties: {
           mfaChallengeToken: { type: "string" },
-          factor: { type: "string", enum: ["totp", "recovery_code"] },
-          code: { type: "string", description: "The authenticator code." },
           deviceId: {
             type: "string",
             description:
               "Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.",
           },
         },
+      },
+      LoginMfaPasskeyOptionsResult: {
+        type: "object",
+        required: ["options"],
+        properties: {
+          options: schemaRef("PasskeyAssertionOptions"),
+        },
+      },
+      LoginMfaRequest: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["mfaChallengeToken", "factor", "code"],
+            properties: {
+              mfaChallengeToken: { type: "string" },
+              factor: { type: "string", enum: ["totp", "recovery_code"] },
+              code: {
+                type: "string",
+                description: "The authenticator or recovery code.",
+              },
+              deviceId: {
+                type: "string",
+                description:
+                  "Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.",
+              },
+            },
+          },
+          {
+            type: "object",
+            required: ["mfaChallengeToken", "factor", "credential"],
+            properties: {
+              mfaChallengeToken: { type: "string" },
+              factor: { type: "string", const: "passkey" },
+              credential: schemaRef("PasskeyAssertionCredential"),
+              deviceId: {
+                type: "string",
+                description:
+                  "Must match the device that started the sign-in; defaults to the fingerprinted device like the first step.",
+              },
+            },
+          },
+        ],
       },
       SessionVerificationResult: {
         type: "object",
@@ -12686,11 +12989,11 @@ function buildComponents(): Record<string, unknown> {
       },
       MfaVerificationFactor: {
         type: "string",
-        enum: ["email", "totp", "sms", "recovery_code"],
+        enum: ["email", "totp", "sms", "recovery_code", "passkey"],
       },
       MfaVerificationChallengeFactor: {
         type: "string",
-        enum: ["email", "totp", "recovery_code"],
+        enum: ["email", "totp", "recovery_code", "passkey"],
       },
       MfaVerificationOptionsResult: {
         type: "object",
@@ -12715,7 +13018,7 @@ function buildComponents(): Record<string, unknown> {
           },
           recommendedFactor: {
             type: "string",
-            enum: ["email", "totp", "sms", "recovery_code"],
+            enum: ["email", "totp", "sms", "recovery_code", "passkey"],
             nullable: true,
           },
         },
@@ -12750,15 +13053,87 @@ function buildComponents(): Record<string, unknown> {
               prompt: { type: "boolean", const: true },
             },
           },
+          {
+            type: "object",
+            required: ["scope", "factor", "challengeId", "options"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "passkey" },
+              challengeId: { type: "null" },
+              options: schemaRef("PasskeyAssertionOptions"),
+            },
+          },
         ],
       },
       MfaVerificationConfirmRequest: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["scope", "factor", "code"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: {
+                type: "string",
+                enum: ["email", "totp", "recovery_code"],
+              },
+              code: { type: "string", minLength: 1 },
+            },
+          },
+          {
+            type: "object",
+            required: ["scope", "factor", "credential"],
+            properties: {
+              scope: schemaRef("MfaVerificationScope"),
+              factor: { type: "string", const: "passkey" },
+              credential: schemaRef("PasskeyAssertionCredential"),
+            },
+          },
+        ],
+      },
+      PasskeyAssertionOptions: {
         type: "object",
-        required: ["scope", "factor", "code"],
+        description:
+          "`PublicKeyCredentialRequestOptionsJSON`, as `startAuthentication({ optionsJSON })` from `@simplewebauthn/browser` takes it. `allowCredentials` lists the account's passkeys and `userVerification` is `preferred`.",
+        additionalProperties: true,
+        required: ["challenge", "rpId", "allowCredentials"],
         properties: {
-          scope: schemaRef("MfaVerificationScope"),
-          factor: schemaRef("MfaVerificationChallengeFactor"),
-          code: { type: "string", minLength: 1 },
+          challenge: { type: "string" },
+          rpId: { type: "string" },
+          timeout: { type: "integer" },
+          userVerification: { type: "string", enum: ["preferred"] },
+          allowCredentials: {
+            type: "array",
+            items: schemaRef("PasskeyCredentialDescriptor"),
+          },
+        },
+      },
+      PasskeyAssertionCredential: {
+        type: "object",
+        description:
+          "`AuthenticationResponseJSON` from `startAuthentication()`. Every binary field is base64url.",
+        required: ["id", "rawId", "type", "response"],
+        properties: {
+          id: { type: "string" },
+          rawId: { type: "string" },
+          type: { type: "string", const: "public-key" },
+          authenticatorAttachment: {
+            type: "string",
+            enum: ["platform", "cross-platform"],
+          },
+          clientExtensionResults: {
+            type: "object",
+            additionalProperties: true,
+          },
+          response: {
+            type: "object",
+            required: ["clientDataJSON", "authenticatorData", "signature"],
+            properties: {
+              clientDataJSON: { type: "string" },
+              authenticatorData: { type: "string" },
+              signature: { type: "string" },
+              userHandle: { type: "string" },
+            },
+          },
         },
       },
       MfaVerificationConfirmResult: {
@@ -12816,7 +13191,8 @@ function buildComponents(): Record<string, unknown> {
           confirmed: { type: "boolean", const: true },
           recoveryCodes: {
             type: "array",
-            minItems: 10,
+            description:
+              "The account's 10 recovery codes, shown this once. Empty when the account already had a set from a passkey.",
             maxItems: 10,
             items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
           },
@@ -12844,15 +13220,201 @@ function buildComponents(): Record<string, unknown> {
           createdAt: { type: "string", format: "date-time" },
         },
       },
+      PasskeyRegistrationOptionsRequest: {
+        type: "object",
+        additionalProperties: false,
+      },
+      PasskeyRegistrationOptionsResult: {
+        type: "object",
+        required: ["options"],
+        properties: {
+          options: {
+            type: "object",
+            description:
+              "`PublicKeyCredentialCreationOptionsJSON`, as `startRegistration({ optionsJSON })` from `@simplewebauthn/browser` takes it.",
+            additionalProperties: true,
+            required: ["challenge", "rp", "user", "pubKeyCredParams"],
+            properties: {
+              challenge: { type: "string" },
+              rp: {
+                type: "object",
+                required: ["id", "name"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                },
+              },
+              user: {
+                type: "object",
+                required: ["id", "name", "displayName"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  displayName: { type: "string" },
+                },
+              },
+              pubKeyCredParams: {
+                type: "array",
+                items: { type: "object", additionalProperties: true },
+              },
+              timeout: { type: "integer" },
+              attestation: { type: "string", enum: ["none"] },
+              excludeCredentials: {
+                type: "array",
+                items: schemaRef("PasskeyCredentialDescriptor"),
+              },
+              authenticatorSelection: {
+                type: "object",
+                additionalProperties: true,
+              },
+            },
+          },
+        },
+      },
+      PasskeyCredentialDescriptor: {
+        type: "object",
+        required: ["id", "type"],
+        properties: {
+          id: { type: "string", description: "Base64url credential ID." },
+          type: { type: "string", const: "public-key" },
+          transports: {
+            type: "array",
+            items: schemaRef("PasskeyTransport"),
+          },
+        },
+      },
+      PasskeyTransport: {
+        type: "string",
+        enum: [
+          "ble",
+          "cable",
+          "hybrid",
+          "internal",
+          "nfc",
+          "smart-card",
+          "usb",
+        ],
+      },
+      PasskeyRegistrationCredential: {
+        type: "object",
+        description:
+          "`RegistrationResponseJSON` from `startRegistration()`. Every binary field is base64url.",
+        required: ["id", "rawId", "type", "response"],
+        properties: {
+          id: { type: "string" },
+          rawId: { type: "string" },
+          type: { type: "string", const: "public-key" },
+          authenticatorAttachment: {
+            type: "string",
+            enum: ["platform", "cross-platform"],
+          },
+          clientExtensionResults: {
+            type: "object",
+            additionalProperties: true,
+          },
+          response: {
+            type: "object",
+            required: ["clientDataJSON", "attestationObject"],
+            properties: {
+              clientDataJSON: { type: "string" },
+              attestationObject: { type: "string" },
+              authenticatorData: { type: "string" },
+              transports: { type: "array", items: { type: "string" } },
+              publicKeyAlgorithm: { type: "integer" },
+              publicKey: { type: "string" },
+            },
+          },
+        },
+      },
+      PasskeyRegistrationVerifyRequest: {
+        type: "object",
+        required: ["credential"],
+        properties: {
+          credential: schemaRef("PasskeyRegistrationCredential"),
+          name: { type: "string", minLength: 1, maxLength: 64 },
+        },
+      },
+      PasskeySummary: {
+        type: "object",
+        required: [
+          "id",
+          "name",
+          "createdAt",
+          "lastUsedAt",
+          "backedUp",
+          "deviceType",
+          "transports",
+        ],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          name: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          lastUsedAt: { type: "string", format: "date-time", nullable: true },
+          backedUp: {
+            type: "boolean",
+            description:
+              "Whether the authenticator reports the passkey as synced to a backup. Recorded only; no policy depends on it yet.",
+          },
+          deviceType: {
+            type: "string",
+            enum: ["single_device", "multi_device"],
+          },
+          transports: {
+            type: "array",
+            items: schemaRef("PasskeyTransport"),
+          },
+        },
+      },
+      PasskeyRegistrationResult: {
+        type: "object",
+        required: ["passkey"],
+        properties: {
+          passkey: schemaRef("PasskeySummary"),
+          recoveryCodes: {
+            type: "array",
+            description:
+              "Present only when this was the account's first strong factor and it had no recovery codes: its 10 codes, shown this once.",
+            minItems: 10,
+            maxItems: 10,
+            items: { type: "string", pattern: RECOVERY_CODE_SCHEMA_PATTERN },
+          },
+        },
+      },
+      PasskeyListResult: {
+        type: "object",
+        required: ["passkeys"],
+        properties: {
+          passkeys: { type: "array", items: schemaRef("PasskeySummary") },
+        },
+      },
+      PasskeyRenameRequest: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 64 },
+        },
+      },
+      PasskeyRenameResult: {
+        type: "object",
+        required: ["passkey"],
+        properties: {
+          passkey: schemaRef("PasskeySummary"),
+        },
+      },
       MfaTotpDisableRequest: {
         type: "object",
         additionalProperties: false,
       },
       MfaTotpDisableResult: {
         type: "object",
-        required: ["disabled"],
+        required: ["disabled", "otherSessionsSignedOut"],
         properties: {
           disabled: { type: "boolean", const: true },
+          otherSessionsSignedOut: {
+            type: "boolean",
+            description:
+              "Whether every other session was signed out, which only removing the last strong factor does.",
+          },
         },
       },
       MfaTotpPendingCancelResult: {

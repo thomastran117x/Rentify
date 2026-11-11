@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  Fingerprint,
   KeyRound,
   Mail,
   MessageSquare,
@@ -23,6 +24,11 @@ import {
   formatRecoveryCodeInput,
   isCompleteRecoveryCode,
 } from "@/lib/auth/recovery-code";
+import {
+  getPasskeyAssertion,
+  PasskeyCeremonyError,
+  supportsPasskeys,
+} from "@/lib/auth/webauthn";
 
 interface MfaVerificationDialogProps {
   open: boolean;
@@ -41,11 +47,15 @@ interface MfaVerificationDialogProps {
 }
 
 const FACTOR_LABELS: Record<MfaVerificationChallengeFactor, string> = {
+  passkey: "Passkey",
   email: "Email",
   sms: "SMS",
   totp: "Authenticator",
   recovery_code: "Recovery code",
 };
+
+const PASSKEY_CANCELLED_MESSAGE =
+  "The passkey prompt closed before it finished. Try again, or use another method.";
 
 function FactorIcon({
   factor,
@@ -60,6 +70,8 @@ function FactorIcon({
     return <MessageSquare className={className} aria-hidden="true" />;
   if (factor === "recovery_code")
     return <KeyRound className={className} aria-hidden="true" />;
+  if (factor === "passkey")
+    return <Fingerprint className={className} aria-hidden="true" />;
   return <Smartphone className={className} aria-hidden="true" />;
 }
 
@@ -96,30 +108,44 @@ export function isChallengeFactor(
     factor === "email" ||
     factor === "totp" ||
     factor === "sms" ||
-    factor === "recovery_code"
+    factor === "recovery_code" ||
+    factor === "passkey"
   );
+}
+
+/**
+ * The factors this dialog offers. A passkey is left out on a browser that
+ * cannot use one, unless it is the only factor, so the dialog can say why.
+ */
+export function offeredFactors(
+  options: MfaVerificationOptionsResult,
+): MfaVerificationChallengeFactor[] {
+  const factors = options.availableFactors.filter(isChallengeFactor);
+  const usable = supportsPasskeys()
+    ? factors
+    : factors.filter((factor) => factor !== "passkey");
+
+  return usable.length > 0 ? usable : factors;
 }
 
 export function selectInitialFactor(
   options: MfaVerificationOptionsResult,
   preferredFactor?: MfaVerificationFactor | null,
 ): MfaVerificationChallengeFactor | null {
-  if (
-    isChallengeFactor(preferredFactor) &&
-    options.availableFactors.includes(preferredFactor)
-  ) {
+  const offered = offeredFactors(options);
+
+  if (isChallengeFactor(preferredFactor) && offered.includes(preferredFactor)) {
     return preferredFactor;
   }
 
   if (
     isChallengeFactor(options.recommendedFactor) &&
-    options.availableFactors.includes(options.recommendedFactor)
+    offered.includes(options.recommendedFactor)
   ) {
     return options.recommendedFactor;
   }
 
-  const firstAvailable = options.availableFactors.find(isChallengeFactor);
-  return firstAvailable ?? null;
+  return offered[0] ?? null;
 }
 
 export function MfaVerificationDialog({
@@ -244,7 +270,7 @@ export function MfaVerificationDialog({
     return () => window.clearInterval(interval);
   }, [cooldownUntil, open]);
 
-  const challengeFactors = options.availableFactors.filter(isChallengeFactor);
+  const challengeFactors = offeredFactors(options);
   const unavailable = challengeFactors.length === 0 || !selectedFactor;
   const cooldownActive =
     cooldownUntil !== null && new Date(cooldownUntil).getTime() > nowMs;
@@ -252,9 +278,12 @@ export function MfaVerificationDialog({
     ? Math.max(0, Math.ceil((new Date(cooldownUntil).getTime() - nowMs) / 1000))
     : 0;
 
-  // For email/SMS: two-step. For TOTP and recovery codes: show code immediately.
+  // For email/SMS: two-step. For TOTP and recovery codes: show code
+  // immediately. A passkey has no code: the browser prompt answers it.
+  const isPasskey = selectedFactor === "passkey";
+  const passkeysSupported = supportsPasskeys();
   const needsChallenge = selectedFactor === "email" || selectedFactor === "sms";
-  const showCodeInput = !needsChallenge || challengeSent;
+  const showCodeInput = !isPasskey && (!needsChallenge || challengeSent);
   const isRecoveryCode = selectedFactor === "recovery_code";
   const codeComplete = isCompleteCode(code, selectedFactor);
 
@@ -340,8 +369,49 @@ export function MfaVerificationDialog({
     }
   }
 
+  async function handlePasskey() {
+    setLoadingConfirm(true);
+    setErrorMessage(null);
+
+    try {
+      const challenge = await mfaVerificationApi.issueChallenge(
+        scope,
+        "passkey",
+      );
+
+      if (challenge.factor !== "passkey") {
+        return;
+      }
+
+      const result = await getPasskeyAssertion(challenge.options);
+
+      if (result.status === "cancelled") {
+        setErrorMessage(PASSKEY_CANCELLED_MESSAGE);
+        return;
+      }
+
+      onVerified(
+        await mfaVerificationApi.confirmPasskey(scope, result.credential),
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiClientError &&
+        error.code === "MFA_FACTOR_UNAVAILABLE"
+      ) {
+        await refreshOptions("passkey");
+      }
+      setErrorMessage(
+        error instanceof PasskeyCeremonyError
+          ? error.message
+          : readDialogError(error, "check your passkey"),
+      );
+    } finally {
+      setLoadingConfirm(false);
+    }
+  }
+
   async function handleConfirm() {
-    if (!selectedFactor) {
+    if (!selectedFactor || selectedFactor === "passkey") {
       return;
     }
 
@@ -476,6 +546,37 @@ export function MfaVerificationDialog({
           </div>
         ) : (
           <div className="mt-6 space-y-4">
+            {/* Passkey: the browser prompt is the whole step */}
+            {isPasskey &&
+              (passkeysSupported ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    Use a passkey saved on this device, your phone, or a
+                    security key.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handlePasskey()}
+                    disabled={loadingConfirm}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                  >
+                    <Fingerprint
+                      className="h-4 w-4 opacity-70"
+                      aria-hidden="true"
+                    />
+                    {loadingConfirm
+                      ? "Waiting for your passkey..."
+                      : "Use passkey"}
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-4 text-sm text-amber-900 dark:text-amber-200">
+                  This browser can&apos;t use passkeys, and this account has no
+                  other way to verify here. Try again from a browser that
+                  supports passkeys.
+                </div>
+              ))}
+
             {/* Email / SMS: two-step */}
             {needsChallenge && !showCodeInput && (
               <div className="space-y-4">

@@ -7,31 +7,63 @@ import {
 } from "@/features/auth/auth.model";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import type { Uuid } from "@/configuration/validation/uuid";
+import {
+  passkeyAssertionCredentialSchema,
+  type PasskeyAssertionCredential,
+} from "@/features/auth/mfa/passkey/passkey.model";
 
 /**
- * The second factors a sign-in can be finished with. A challenge lists the
- * ones this account can use. Passkeys join this list without changing the
- * shape of the challenge.
+ * The second factors a sign-in can be finished with, strongest first. A
+ * challenge lists the ones this account can use.
  */
-export const LOGIN_MFA_FACTORS = ["totp", "recovery_code"] as const;
+export const LOGIN_MFA_FACTORS = ["passkey", "totp", "recovery_code"] as const;
 
 export const loginMfaFactorSchema = z.enum(LOGIN_MFA_FACTORS);
 
 export type LoginMfaFactor = z.infer<typeof loginMfaFactorSchema>;
 
+/** The factors a sign-in is finished with by typing a code. */
+export const loginMfaCodeFactorSchema = z.enum(["totp", "recovery_code"]);
+
+export type LoginMfaCodeFactor = z.infer<typeof loginMfaCodeFactorSchema>;
+
 /** How the first step proved who the user is. */
 export type LoginMfaMethod = "password" | OAuthProvider;
 
-export const loginMfaRequestSchema = z.object({
-  mfaChallengeToken: requiredSafeTrimmedString(
-    "MFA challenge token is required.",
-  ),
-  factor: loginMfaFactorSchema,
-  code: z.string().trim().min(1, "Code is required."),
+const mfaChallengeToken = requiredSafeTrimmedString(
+  "MFA challenge token is required.",
+);
+
+export const loginMfaRequestSchema = z.discriminatedUnion("factor", [
+  z.object({
+    mfaChallengeToken,
+    factor: z.literal("passkey"),
+    credential: passkeyAssertionCredentialSchema,
+    deviceId: optionalTrimmedString,
+  }),
+  z.object({
+    mfaChallengeToken,
+    factor: loginMfaCodeFactorSchema,
+    code: z.string().trim().min(1, "Code is required."),
+    deviceId: optionalTrimmedString,
+  }),
+]);
+
+export type LoginMfaRequestBody = z.infer<typeof loginMfaRequestSchema>;
+
+export const loginMfaPasskeyOptionsRequestSchema = z.object({
+  mfaChallengeToken,
   deviceId: optionalTrimmedString,
 });
 
-export type LoginMfaRequestBody = z.infer<typeof loginMfaRequestSchema>;
+export type LoginMfaPasskeyOptionsRequestBody = z.infer<
+  typeof loginMfaPasskeyOptionsRequestSchema
+>;
+
+/** What the second step carries: a typed code, or a passkey assertion. */
+export type LoginMfaAnswer =
+  | { factor: LoginMfaCodeFactor; code: string }
+  | { factor: "passkey"; credential: PasskeyAssertionCredential };
 
 /**
  * The `details` of the `401` the first step answers with, instead of a
@@ -67,11 +99,15 @@ export interface LoginMfaChallengeRecord {
 
 export type NewLoginMfaChallenge = Omit<LoginMfaChallengeRecord, "createdAt">;
 
-export interface CompleteLoginMfaInput {
+export type CompleteLoginMfaInput = LoginMfaAnswer & {
   client: ClientRequestContext;
   mfaChallengeToken: string;
-  factor: LoginMfaFactor;
-  code: string;
+  deviceId?: string;
+  audit: AuthAuditContext;
+};
+
+export interface BeginLoginPasskeyInput {
+  mfaChallengeToken: string;
   deviceId?: string;
   audit: AuthAuditContext;
 }

@@ -17,6 +17,7 @@ jest.mock("@/configuration/http/request", () => ({
 function createController() {
   const loginMfaService = {
     completeLoginMfa: jest.fn(async () => createSessionResult()),
+    beginPasskey: jest.fn(async () => ({ options: { challenge: "c" } })),
   };
 
   return {
@@ -61,6 +62,36 @@ describe("LoginMfaController.completeLoginMfa", () => {
     });
   });
 
+  it("maps a passkey assertion instead of a code", async () => {
+    const { controller, loginMfaService } = createController();
+    const credential = {
+      id: "Y3JlZA",
+      rawId: "Y3JlZA",
+      type: "public-key",
+      clientExtensionResults: {},
+      response: {
+        clientDataJSON: "Y2Q",
+        authenticatorData: "YWQ",
+        signature: "c2ln",
+      },
+    };
+
+    await invoke(
+      controller.completeLoginMfa,
+      createContext({
+        body: {
+          mfaChallengeToken: "challenge-token",
+          factor: "passkey",
+          credential,
+        },
+      }),
+    );
+
+    expect(loginMfaService.completeLoginMfa).toHaveBeenCalledWith(
+      expect.objectContaining({ factor: "passkey", credential }),
+    );
+  });
+
   it("prefers the device id in the body", async () => {
     const { controller, loginMfaService } = createController();
 
@@ -98,5 +129,36 @@ describe("LoginMfaController.completeLoginMfa", () => {
       invoke(controller.completeLoginMfa, createContext({ body })),
     ).rejects.toBeInstanceOf(RequestValidationError);
     expect(loginMfaService.completeLoginMfa).not.toHaveBeenCalled();
+  });
+});
+
+describe("LoginMfaController.beginPasskey", () => {
+  it("returns uncached options for the pending sign-in", async () => {
+    const { controller, loginMfaService } = createController();
+
+    const context = createContext({
+      body: { mfaChallengeToken: " challenge-token " },
+    });
+
+    const response = await invoke(controller.beginPasskey, context);
+
+    expect(loginMfaService.beginPasskey).toHaveBeenCalledWith({
+      mfaChallengeToken: "challenge-token",
+      deviceId: "device-1",
+      audit: expect.objectContaining({ deviceId: "device-1" }),
+    });
+    expect(context.recorder.headers()["cache-control"]).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      data: { options: { challenge: "c" } },
+    });
+  });
+
+  it("refuses a request without a sign-in token", async () => {
+    const { controller, loginMfaService } = createController();
+
+    await expect(
+      invoke(controller.beginPasskey, createContext({ body: {} })),
+    ).rejects.toBeInstanceOf(RequestValidationError);
+    expect(loginMfaService.beginPasskey).not.toHaveBeenCalled();
   });
 });

@@ -300,8 +300,9 @@ fallback can be removed once one remember-me refresh-token lifetime (90 days,
 
 ### Signing In With an Authenticator App
 
-When the account has an authenticator app, a correct password (or a verified
-Google, Microsoft or Apple sign-in) is refused with the same
+When the account has an authenticator app or a [passkey](#signing-in-with-a-passkey),
+a correct password (or a verified Google, Microsoft or Apple sign-in) is
+refused with the same
 `401 UNAUTHORIZED` and `details.mfaRequired` it has always returned. The
 details now also carry a login MFA challenge:
 
@@ -323,8 +324,9 @@ details now also carry a login MFA challenge:
 
 The client finishes with `POST /auth/login/mfa`, sending
 `{ "mfaChallengeToken", "factor", "code", "deviceId" }`, where `factor` is one
-the challenge listed. `recovery_code` is listed while the account has unused
-[recovery codes](./auth-security.md#recovery-codes). That returns the usual
+the challenge listed, strongest first: `passkey` while the account has one,
+`totp` while it has an active authenticator, and `recovery_code` while it has
+unused [recovery codes](./auth-security.md#recovery-codes). That returns the usual
 session response; a sign-in that spent a recovery code also carries
 `recoveryCodesRemaining`, and at `0` the client should prompt for new codes. The client never sends the password or the
 provider token again. A client written before the challenge existed can still
@@ -360,7 +362,41 @@ again. [login-totp.spec.ts](../frontend/tests/e2e/login-totp.spec.ts) does the
 same and removes the authenticator afterwards. `totp-two`
 (`totp2@rentify.local`, `Rentify123!`) is the same kind of account, used by
 [login-recovery-code.spec.ts](../frontend/tests/e2e/login-recovery-code.spec.ts)
-to sign in with a recovery code.
+to sign in with a recovery code. `passkey-one` (`passkey1@rentify.local`,
+`Rentify123!`) starts with no second factor, for adding a passkey from
+**Account → Security → Passkeys**;
+[login-passkey.spec.ts](../frontend/tests/e2e/login-passkey.spec.ts) does that
+with a virtual authenticator, signs in and steps up with it, and removes it.
+
+### Signing In With a Passkey
+
+An account with a [passkey](./auth-security.md#passkeys) gets the same login
+MFA challenge, with `passkey` first in `availableFactors`. To use it:
+
+1. `POST /auth/login/mfa/passkey/options` with
+   `{ "mfaChallengeToken", "deviceId" }` returns `{ options }` for
+   `navigator.credentials.get()` (`startAuthentication({ optionsJSON })` in
+   `@simplewebauthn/browser`). `allowCredentials` lists the account's passkeys.
+2. `POST /auth/login/mfa` with
+   `{ "mfaChallengeToken", "factor": "passkey", "credential", "deviceId" }`,
+   where `credential` is the assertion the browser returned.
+
+- **The passkey challenge** is bound to the sign-in's token, works once, and
+  lasts no longer than the sign-in itself. Asking for options again replaces
+  it, so a cancelled browser prompt can be retried; the answer to a replaced
+  challenge is refused.
+- **Options** answer `401 MFA_CHALLENGE_INVALID` for a sign-in that is unknown,
+  expired, used, voided or from another device, `400 MFA_FACTOR_UNAVAILABLE`
+  for an account without a passkey, and `423 ACCOUNT_LOCKED` for a locked
+  username. They share the `auth-sensitive` rate limit with sign-in.
+- **A refused assertion** (another origin, an expired or replayed challenge,
+  a bad signature, or a counter that did not go up on a single-device passkey)
+  returns `400 INVALID_MFA_CODE` and counts towards the username lockout
+  exactly as a wrong code does.
+- **New devices.** A passkey sign-in counts as the `device-login` step-up for
+  the new session, as a code does.
+
+The deprecated `totpCode` field only ever takes an authenticator code.
 
 ### OAuth Sign-In
 

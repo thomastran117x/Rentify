@@ -190,6 +190,14 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // Asking for passkey options is anonymous too, and writes a challenge.
+  if (
+    request.method === "POST" &&
+    pathname === "/auth/login/mfa/passkey/options"
+  ) {
+    return true;
+  }
+
   // Finishing an OAuth signup creates an account from a continuation token,
   // so it is as cheap to hammer as the provider sign-in that issued it.
   // (`password/change` is in the local regex above: from a stolen session it
@@ -226,6 +234,15 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     /^\/auth\/mfa\/(totp\/(begin|confirm|disable)|verify\/(challenge|confirm))$/.test(
       pathname,
     )
+  ) {
+    return true;
+  }
+
+  // Passkey registration issues a challenge and checks an attestation, both
+  // under step-up; the same bucket keeps it from being hammered.
+  if (
+    request.method === "POST" &&
+    /^\/auth\/mfa\/passkeys\/register\/(options|verify)$/.test(pathname)
   ) {
     return true;
   }

@@ -117,6 +117,11 @@ const STATIC_LABELS: Record<string, string> = {
   "mfa.totp_disabled": "Authenticator app turned off",
   "mfa.recovery_code_used": "Recovery code used",
   "mfa.recovery_codes_regenerated": "New recovery codes generated",
+  "mfa.passkey_added": "Passkey added",
+  "mfa.passkey_renamed": "Passkey renamed",
+  "mfa.passkey_removed": "Passkey removed",
+  "mfa.passkey_assertion_rejected":
+    "Passkey refused: it may have been copied to another device",
   "mfa.step_up_failed": "Failed identity check",
   "mfa.step_up_locked": "Identity check blocked: too many attempts",
   "pat.created": "Personal access token created",

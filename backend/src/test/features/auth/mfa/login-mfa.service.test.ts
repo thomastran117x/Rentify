@@ -68,7 +68,7 @@ function createChallenge(
 }
 
 function createInput(
-  overrides: Partial<CompleteLoginMfaInput> = {},
+  overrides: Record<string, unknown> = {},
 ): CompleteLoginMfaInput {
   return {
     client: {
@@ -81,13 +81,14 @@ function createInput(
     deviceId: "device-1",
     audit: AUDIT_CONTEXT,
     ...overrides,
-  };
+  } as CompleteLoginMfaInput;
 }
 
 function createHarness(
   options: {
     challenge?: LoginMfaChallengeRecord | null;
     user?: AuthUserRecord | null;
+    passkeyCount?: number;
   } = {},
 ) {
   const challenges = new Map<string, LoginMfaChallengeRecord>();
@@ -109,6 +110,7 @@ function createHarness(
     delete: jest.fn(async (token: string) => {
       challenges.delete(token);
     }),
+    getTtlInSeconds: jest.fn(() => 300),
   };
   const usersRepository = {
     findUserById: jest.fn(async () =>
@@ -140,6 +142,18 @@ function createHarness(
     countUnused: jest.fn(async () => 0),
     redeem: jest.fn(async () => 9),
   };
+  const mfaFactorRepository = {
+    getSummary: jest.fn(async (userId: string) => ({
+      totpActive: await mfaTotpService.isEnabled(),
+      passkeyCount: options.passkeyCount ?? 0,
+      unusedRecoveryCodes: await mfaRecoveryCodeService.countUnused(),
+      userId,
+    })),
+  };
+  const passkeyService = {
+    beginAssertion: jest.fn(async () => ({ challenge: "passkey-challenge" })),
+    verifyAssertion: jest.fn(async () => ({ passkeyId: "passkey-1" })),
+  };
 
   return {
     challenges,
@@ -153,6 +167,8 @@ function createHarness(
     loginLockoutService,
     authAuditService,
     mfaRecoveryCodeService,
+    mfaFactorRepository,
+    passkeyService,
     service: new LoginMfaService(
       usersRepository as never,
       loginMfaChallengeStore as never,
@@ -162,6 +178,8 @@ function createHarness(
       loginLockoutService as never,
       authAuditService as never,
       mfaRecoveryCodeService as never,
+      mfaFactorRepository,
+      passkeyService,
     ),
   };
 }
@@ -730,5 +748,199 @@ describe("LoginMfaService.recordVerifiedSignIn", () => {
       sessionId: "session-1",
       factor: "totp",
     });
+  });
+});
+
+describe("LoginMfaService with a passkey", () => {
+  const ASSERTION = {
+    id: "Y3JlZA",
+    rawId: "Y3JlZA",
+    type: "public-key",
+    clientExtensionResults: {},
+    response: {
+      clientDataJSON: "Y2Q",
+      authenticatorData: "YWQ",
+      signature: "c2ln",
+    },
+  };
+  const freshChallenge = () =>
+    createChallenge({ createdAt: new Date(Date.now() - 60_000).toISOString() });
+
+  function beginInput(overrides: { deviceId?: string } = {}) {
+    return {
+      mfaChallengeToken: TOKEN,
+      deviceId: "device-1",
+      audit: AUDIT_CONTEXT,
+      ...overrides,
+    };
+  }
+
+  it("asks a passkey-only account for a second factor at sign-in", async () => {
+    const harness = createHarness({ passkeyCount: 1 });
+    harness.mfaTotpService.isEnabled.mockResolvedValue(false);
+    harness.mfaRecoveryCodeService.countUnused.mockResolvedValue(10);
+
+    await expect(
+      harness.service.evaluateFirstStep({
+        user: createUser(),
+        method: "password",
+        audit: { method: "password", context: AUDIT_CONTEXT },
+        deviceId: "device-1",
+      }),
+    ).rejects.toBeInstanceOf(LoginMfaRequiredError);
+    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(
+      expect.anything(),
+      ["passkey", "recovery_code"],
+    );
+  });
+
+  it("lists the passkey ahead of the authenticator", async () => {
+    const harness = createHarness({ passkeyCount: 2 });
+
+    await expect(
+      harness.service.evaluateFirstStep({
+        user: createUser(),
+        method: "google",
+        audit: { method: "google", context: AUDIT_CONTEXT },
+      }),
+    ).rejects.toBeInstanceOf(LoginMfaRequiredError);
+    expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(
+      expect.anything(),
+      ["passkey", "totp"],
+    );
+  });
+
+  it("issues options bound to the sign-in, lasting no longer than it", async () => {
+    const harness = createHarness({ challenge: freshChallenge() });
+
+    const result = await harness.service.beginPasskey(beginInput());
+
+    expect(result).toEqual({ options: { challenge: "passkey-challenge" } });
+    const [call] = harness.passkeyService.beginAssertion.mock
+      .calls as unknown as [
+      [
+        {
+          userId: string;
+          purpose: string;
+          binding: string;
+          ttlSeconds: number;
+        },
+      ],
+    ];
+    expect(call[0]).toMatchObject({
+      userId: USER_1_ID,
+      purpose: "login",
+      binding: TOKEN,
+    });
+    expect(call[0].ttlSeconds).toBeGreaterThan(230);
+    expect(call[0].ttlSeconds).toBeLessThanOrEqual(240);
+  });
+
+  it("refuses options for an unknown or expired sign-in", async () => {
+    const harness = createHarness({ challenge: null });
+
+    await expect(
+      harness.service.beginPasskey(beginInput()),
+    ).rejects.toBeInstanceOf(LoginMfaChallengeInvalidError);
+    expect(harness.passkeyService.beginAssertion).not.toHaveBeenCalled();
+  });
+
+  it("refuses options for a sign-in whose time is up", async () => {
+    const harness = createHarness({
+      challenge: createChallenge({
+        createdAt: new Date(Date.now() - 301_000).toISOString(),
+      }),
+    });
+
+    await expect(
+      harness.service.beginPasskey(beginInput()),
+    ).rejects.toBeInstanceOf(LoginMfaChallengeInvalidError);
+  });
+
+  it("refuses options from another device and audits it", async () => {
+    const harness = createHarness({ challenge: freshChallenge() });
+
+    await expect(
+      harness.service.beginPasskey(beginInput({ deviceId: "device-2" })),
+    ).rejects.toBeInstanceOf(LoginMfaChallengeInvalidError);
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "login.failed",
+        reasonCode: "token_invalid",
+      }),
+    );
+    expect(harness.challenges.has(TOKEN)).toBe(true);
+  });
+
+  it("refuses options to a locked username", async () => {
+    const harness = createHarness({ challenge: freshChallenge() });
+    harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+    await expect(
+      harness.service.beginPasskey(beginInput()),
+    ).rejects.toBeInstanceOf(LockedError);
+    expect(harness.passkeyService.beginAssertion).not.toHaveBeenCalled();
+  });
+
+  it("voids the sign-in when the account signed out everywhere since", async () => {
+    const harness = createHarness({
+      challenge: freshChallenge(),
+      user: createUser({ tokenVersion: 2 }),
+    });
+
+    await expect(
+      harness.service.beginPasskey(beginInput()),
+    ).rejects.toBeInstanceOf(LoginMfaChallengeInvalidError);
+    expect(harness.challenges.has(TOKEN)).toBe(false);
+  });
+
+  it("finishes a sign-in with a verified assertion", async () => {
+    const harness = createHarness({ passkeyCount: 1 });
+
+    const result = await harness.service.completeLoginMfa(
+      createInput({
+        factor: "passkey",
+        code: undefined,
+        credential: ASSERTION,
+      }),
+    );
+
+    expect(result).toBe(harness.session);
+    expect(harness.passkeyService.verifyAssertion).toHaveBeenCalledWith({
+      userId: USER_1_ID,
+      purpose: "login",
+      binding: TOKEN,
+      credential: ASSERTION,
+      method: "password",
+      context: AUDIT_CONTEXT,
+    });
+    expect(harness.mfaTotpService.verifyCode).not.toHaveBeenCalled();
+    expect(
+      harness.mfaVerificationService.recordLoginProof,
+    ).toHaveBeenCalledWith(expect.objectContaining({ factor: "passkey" }));
+    expect(harness.loginLockoutService.clearAttemptRecord).toHaveBeenCalled();
+  });
+
+  it("counts a refused assertion against the username lockout", async () => {
+    const harness = createHarness({ passkeyCount: 1 });
+    harness.passkeyService.verifyAssertion.mockRejectedValue(
+      new UnauthorizedError("MFA verification failed."),
+    );
+
+    await expect(
+      harness.service.completeLoginMfa(
+        createInput({
+          factor: "passkey",
+          code: undefined,
+          credential: ASSERTION,
+        }),
+      ),
+    ).rejects.toThrow(
+      new InvalidMfaCodeError("That passkey could not be verified."),
+    );
+    expect(harness.loginLockoutService.recordFailedLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ reasonCode: "mfa_invalid" }),
+    );
+    expect(harness.challenges.has(TOKEN)).toBe(true);
   });
 });

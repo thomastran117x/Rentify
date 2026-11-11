@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockSupportsPasskeys = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock("@/lib/auth/webauthn", () => ({
+  supportsPasskeys: mockSupportsPasskeys,
+}));
 import {
   clearPersistedAuthPendingFlow,
   clearPersistedAuthPendingFlowByType,
@@ -223,7 +229,7 @@ describe("pending auth flow storage", () => {
           {
             mfaRequired: true,
             mfaChallengeToken: "challenge-token",
-            availableFactors: ["passkey", "totp"] as never,
+            availableFactors: ["webauthn-hybrid", "totp"] as never,
             expiresInSeconds: 300,
           },
           "oauth",
@@ -234,6 +240,59 @@ describe("pending auth flow storage", () => {
         factor: "totp",
         method: "oauth",
       });
+    });
+
+    it("starts on a passkey where the browser can use one", () => {
+      mockSupportsPasskeys.mockReturnValue(true);
+
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["passkey", "totp"],
+            expiresInSeconds: 300,
+          },
+          "password",
+          now,
+        ),
+      ).toMatchObject({
+        availableFactors: ["passkey", "totp"],
+        factor: "passkey",
+      });
+    });
+
+    it("keeps the passkey listed but starts elsewhere where the browser cannot use one", () => {
+      mockSupportsPasskeys.mockReturnValue(false);
+
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["passkey", "recovery_code"],
+            expiresInSeconds: 300,
+          },
+          "password",
+          now,
+        ),
+      ).toMatchObject({
+        availableFactors: ["passkey", "recovery_code"],
+        factor: "recovery_code",
+      });
+      expect(
+        createLoginMfaPendingFlow(
+          {
+            mfaRequired: true,
+            mfaChallengeToken: "challenge-token",
+            availableFactors: ["passkey"],
+            expiresInSeconds: 300,
+          },
+          "password",
+          now,
+        ).factor,
+      ).toBe("passkey");
+      mockSupportsPasskeys.mockReturnValue(true);
     });
 
     it("round-trips through storage", () => {

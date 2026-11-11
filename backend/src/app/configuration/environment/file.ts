@@ -316,6 +316,9 @@ const FILE_KEY_TO_ENVIRONMENT_VARIABLE = {
     "POSTINGS_SEARCH_RELAY_POLL_INTERVAL_MS",
   "workers.sms.maxAttempts": "SMS_MAX_ATTEMPTS",
   "workers.sms.prefetch": "SMS_WORKER_PREFETCH",
+  "webauthn.origins": "WEBAUTHN_ORIGINS",
+  "webauthn.rpId": "WEBAUTHN_RP_ID",
+  "webauthn.rpName": "WEBAUTHN_RP_NAME",
 } as const satisfies Record<string, EnvironmentVariableName>;
 
 const KNOWN_FILE_KEYS = new Set<string>(
@@ -336,6 +339,7 @@ const ARRAY_FILE_KEYS = new Set([
   "oauth.microsoft.clientIds",
   "paypal.checkoutMethods",
   "routeModules.disabledIds",
+  "webauthn.origins",
 ]);
 
 const OPTIONAL_FILE_KEYS = new Set([
@@ -352,6 +356,7 @@ const OPTIONAL_FILE_KEYS = new Set([
   "sms.telnyx.messagingProfileId",
   "sms.telnyx.publicKey",
   "sms.webhookPublicUrl",
+  "webauthn.rpId",
 ]);
 
 const STRING_FILE_KEYS = new Set([
@@ -402,6 +407,8 @@ const STRING_FILE_KEYS = new Set([
   "paypal.clientId",
   "paypal.environment",
   "paypal.webhookId",
+  "webauthn.rpId",
+  "webauthn.rpName",
 ]);
 
 function isMapping(value: unknown): value is ConfigurationDocument {

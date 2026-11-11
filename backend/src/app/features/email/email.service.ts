@@ -185,12 +185,32 @@ export interface SendMfaRecoveryCodeUsedEmailInput
   remaining: number;
 }
 
+export interface SendPasskeyEmailInput extends SecurityChangeEmailBase {
+  /** The name the account gave the passkey; any whitespace run is flattened. */
+  passkeyName: string;
+}
+
+/**
+ * Removing a second factor ends the other sessions only when it was the
+ * account's last strong one. Jobs queued before the flag existed always ended
+ * them, so a missing flag reads as true.
+ */
+export interface SendFactorRemovedEmailInput extends SecurityChangeEmailBase {
+  endedOtherSessions?: boolean;
+}
+
+export interface SendPasskeyRemovedEmailInput
+  extends SendPasskeyEmailInput,
+    SendFactorRemovedEmailInput {}
+
 export interface SecurityChangeEmailInputByKind {
   password_changed: SendPasswordChangedEmailInput;
   mfa_enabled: SecurityChangeEmailBase;
-  mfa_disabled: SecurityChangeEmailBase;
+  mfa_disabled: SendFactorRemovedEmailInput;
   mfa_recovery_code_used: SendMfaRecoveryCodeUsedEmailInput;
   mfa_recovery_codes_regenerated: SecurityChangeEmailBase;
+  passkey_added: SendPasskeyEmailInput;
+  passkey_removed: SendPasskeyRemovedEmailInput;
   personal_access_token_created: SendPersonalAccessTokenCreatedEmailInput;
   login_method_linked: SendLoginMethodEmailInput;
   login_method_unlinked: SendLoginMethodEmailInput;

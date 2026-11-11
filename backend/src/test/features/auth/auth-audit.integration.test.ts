@@ -8,7 +8,7 @@ import {
 } from "@/features/auth/auth.cookies";
 import { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
 import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
-import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
+import { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import type { OtpService } from "@/features/auth/otp/otp.service";
 import {
   createAuthenticatedRequestContext,
@@ -226,7 +226,12 @@ describe("Auth audit events persistence integration", () => {
   });
 
   it("records the MFA challenge as its own event", async () => {
-    jest.spyOn(MfaTotpService.prototype, "isEnabled").mockResolvedValue(true);
+    // Any strong factor puts a sign-in through the login MFA step.
+    jest.spyOn(MfaFactorRepository.prototype, "getSummary").mockResolvedValue({
+      totpActive: true,
+      passkeyCount: 0,
+      unusedRecoveryCodes: 0,
+    });
 
     expect(
       (await login({ username: USERNAME, password: PASSWORD })).status,

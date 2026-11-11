@@ -14,6 +14,7 @@ import {
   mfaVerificationScopeSchema,
 } from "./mfa-verification.model";
 import type { MfaVerificationService } from "./mfa-verification.service";
+import type { PasskeyAssertionCredential } from "@/features/auth/mfa/passkey/passkey.model";
 import { asUuid } from "@/configuration/validation/uuid";
 import { toAuthAuditContext } from "@/features/auth/audit/auth-audit-context";
 
@@ -65,12 +66,19 @@ export class MfaVerificationController {
       request,
       mfaVerificationConfirmRequestSchema,
     );
+    const answer =
+      input.factor === "passkey"
+        ? {
+            factor: input.factor,
+            // Checked by the schema's outer shape; the library verifies the rest.
+            credential: input.credential as PasskeyAssertionCredential,
+          }
+        : { factor: input.factor, code: input.code };
     const result = await this.mfaVerificationService.confirmChallenge({
       userId: asUuid(auth.sub),
       sessionId,
       scope: input.scope,
-      factor: input.factor,
-      code: input.code,
+      ...answer,
       client: request.client,
       audit: toAuthAuditContext(request, auth.deviceId),
     });

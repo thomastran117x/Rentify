@@ -99,16 +99,18 @@ export class MfaTotpController {
       MFA_MANAGEMENT_SCOPE,
     );
     await parseRequestBody(request, disableRequestSchema);
-    await this.mfaTotpService.disable(
+    const { otherSessionsSignedOut } = await this.mfaTotpService.disable(
       auth,
       toAuthAuditContext(request, auth.deviceId),
     );
     this.logMfaChangeEvent(request, auth.sub, auth.sessionId, "TOTP disabled");
     ok(
       response,
-      { disabled: true as const },
+      { disabled: true as const, otherSessionsSignedOut },
       {
-        message: "Authenticator app disabled. Other sessions were signed out.",
+        message: otherSessionsSignedOut
+          ? "Authenticator app disabled. Other sessions were signed out."
+          : "Authenticator app disabled.",
       },
     );
   };

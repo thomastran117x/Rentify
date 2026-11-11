@@ -13,8 +13,6 @@ const {
   disableMock,
   getOptionsMock,
   qrCodeMock,
-  getRecoveryStatusMock,
-  regenerateMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   getStatusMock: vi.fn(),
@@ -24,8 +22,6 @@ const {
   disableMock: vi.fn(),
   getOptionsMock: vi.fn(),
   qrCodeMock: vi.fn(async () => "data:image/png;base64,test"),
-  getRecoveryStatusMock: vi.fn(),
-  regenerateMock: vi.fn(),
 }));
 
 vi.mock("@/components/auth/auth-context", () => ({
@@ -39,16 +35,6 @@ vi.mock("@/lib/auth/mfa-totp-api", () => ({
     confirmEnrollment: confirmEnrollmentMock,
     cancelEnrollment: cancelEnrollmentMock,
     disable: disableMock,
-  },
-}));
-
-vi.mock("@/lib/auth/mfa-recovery-codes-api", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/lib/auth/mfa-recovery-codes-api")
-  >()),
-  mfaRecoveryCodesApi: {
-    getStatus: getRecoveryStatusMock,
-    regenerate: regenerateMock,
   },
 }));
 
@@ -116,10 +102,6 @@ describe("HomeMfaTotpPanel", () => {
       },
     });
     getStatusMock.mockResolvedValue({ enabled: false });
-    getRecoveryStatusMock.mockResolvedValue({
-      remaining: 10,
-      createdAt: "2026-11-07T12:00:00.000Z",
-    });
     getOptionsMock.mockResolvedValue({
       scope: "mfa-management",
       verified: false,
@@ -234,7 +216,8 @@ describe("HomeMfaTotpPanel", () => {
       recoveryCodes: ["ABCDE-FGH23", "JKLMN-PQR45"],
     });
 
-    render(<HomeMfaTotpPanel />);
+    const onFactorsChanged = vi.fn();
+    render(<HomeMfaTotpPanel onFactorsChanged={onFactorsChanged} />);
     await user.click(await screen.findByRole("button", { name: "Set up" }));
     expect(await screen.findByText("ABCD EFGH IJKL MNOP")).toBeInTheDocument();
     const input = screen.getByPlaceholderText("000000");
@@ -253,145 +236,33 @@ describe("HomeMfaTotpPanel", () => {
 
     expect(await screen.findByText("Enabled")).toBeInTheDocument();
     expect(screen.queryByText("ABCDE-FGH23")).not.toBeInTheDocument();
-    expect(
-      await screen.findByText("10 recovery codes left"),
-    ).toBeInTheDocument();
+    // Once when it was turned on, once when the codes were put away.
+    expect(onFactorsChanged).toHaveBeenCalledTimes(2);
   });
 
-  describe("recovery codes", () => {
-    function renderEnabled(status: {
-      remaining: number;
-      createdAt: string | null;
-    }) {
-      getStatusMock.mockResolvedValue({ enabled: true });
-      getRecoveryStatusMock.mockResolvedValue(status);
-      render(<HomeMfaTotpPanel />);
-    }
-
-    const createdAt = "2026-11-07T12:00:00.000Z";
-
-    it("does not ask about them without an authenticator", async () => {
-      render(<HomeMfaTotpPanel />);
-
-      expect(await screen.findByText("Not enabled")).toBeInTheDocument();
-      expect(getRecoveryStatusMock).not.toHaveBeenCalled();
+  it("shows no codes when the account already had a set from a passkey", async () => {
+    const user = userEvent.setup();
+    beginEnrollmentMock.mockResolvedValue({
+      secret: "ABCDEFGHIJKLMNOP",
+      uri: "otpauth://totp/Test",
     });
-
-    it("warns at two or fewer", async () => {
-      renderEnabled({ remaining: 2, createdAt });
-
-      expect(
-        await screen.findByText("Only 2 recovery codes left"),
-      ).toBeInTheDocument();
+    confirmEnrollmentMock.mockResolvedValue({
+      confirmed: true,
+      recoveryCodes: [],
     });
+    render(<HomeMfaTotpPanel />);
 
-    it("uses the singular for the last code", async () => {
-      renderEnabled({ remaining: 1, createdAt });
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    await user.type(screen.getByPlaceholderText("000000"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify and enable" }));
 
-      expect(
-        await screen.findByText("Only 1 recovery code left"),
-      ).toBeInTheDocument();
-    });
-
-    it("stays calm above that", async () => {
-      renderEnabled({ remaining: 3, createdAt });
-
-      expect(
-        await screen.findByText("3 recovery codes left"),
-      ).toBeInTheDocument();
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    });
-
-    it("says so when every code is used", async () => {
-      renderEnabled({ remaining: 0, createdAt });
-
-      expect(
-        await screen.findByText("You've used all your recovery codes"),
-      ).toBeInTheDocument();
-    });
-
-    it("offers a first set to an account enrolled before they existed", async () => {
-      const user = userEvent.setup();
-      regenerateMock.mockResolvedValue({
-        codes: ["ABCDE-FGH23"],
-        remaining: 10,
-        createdAt,
-      });
-      renderEnabled({ remaining: 0, createdAt: null });
-
-      await user.click(
-        await screen.findByRole("button", {
-          name: "Generate recovery codes",
-        }),
-      );
-
-      expect(await screen.findByText("ABCDE-FGH23")).toBeInTheDocument();
-    });
-
-    it("steps up, then shows the new codes and the fresh count", async () => {
-      const user = userEvent.setup();
-      regenerateMock
-        .mockRejectedValueOnce(createVerificationRequiredError(["totp"]))
-        .mockResolvedValueOnce({
-          codes: ["ABCDE-FGH23"],
-          remaining: 10,
-          createdAt,
-        });
-      renderEnabled({ remaining: 1, createdAt });
-
-      await user.click(
-        await screen.findByRole("button", { name: "Generate new codes" }),
-      );
-      await user.click(
-        await screen.findByRole("button", { name: "Approve verification" }),
-      );
-
-      expect(await screen.findByText("ABCDE-FGH23")).toBeInTheDocument();
-      await user.click(
-        screen.getByRole("button", { name: "I've saved these codes" }),
-      );
-      expect(
-        await screen.findByText("10 recovery codes left"),
-      ).toBeInTheDocument();
-    });
-
-    it("reports a failed regeneration and keeps the current status", async () => {
-      const user = userEvent.setup();
-      regenerateMock.mockRejectedValue(new Error("offline"));
-      renderEnabled({ remaining: 1, createdAt });
-
-      await user.click(
-        await screen.findByRole("button", { name: "Generate new codes" }),
-      );
-
-      expect(
-        await screen.findByText(/couldn't generate new recovery codes/i),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Only 1 recovery code left")).toBeInTheDocument();
-    });
-
-    it("leaves the authenticator usable when the status cannot be read", async () => {
-      getRecoveryStatusMock.mockRejectedValue(new Error("offline"));
-      getStatusMock.mockResolvedValue({ enabled: true });
-      render(<HomeMfaTotpPanel />);
-
-      expect(await screen.findByText("Enabled")).toBeInTheDocument();
-      expect(screen.queryByText(/recovery code/i)).not.toBeInTheDocument();
-    });
-
-    it("forgets the status when the authenticator is turned off", async () => {
-      const user = userEvent.setup();
-      disableMock.mockResolvedValue({ disabled: true });
-      renderEnabled({ remaining: 5, createdAt });
-
-      expect(
-        await screen.findByText("5 recovery codes left"),
-      ).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Disable" }));
-
-      expect(await screen.findByText("Not enabled")).toBeInTheDocument();
-      expect(screen.queryByText(/recovery code/i)).not.toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(/your existing recovery codes still work/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Enabled")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "I've saved these codes" }),
+    ).toBeNull();
   });
 
   it("cancels enrollment even when server cleanup fails", async () => {
@@ -413,8 +284,9 @@ describe("HomeMfaTotpPanel", () => {
     getStatusMock.mockResolvedValue({ enabled: true });
     disableMock
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce({ enabled: false });
-    render(<HomeMfaTotpPanel />);
+      .mockResolvedValueOnce({ disabled: true, otherSessionsSignedOut: true });
+    const onFactorsChanged = vi.fn();
+    render(<HomeMfaTotpPanel onFactorsChanged={onFactorsChanged} />);
 
     await user.click(await screen.findByRole("button", { name: "Disable" }));
     expect(
@@ -427,6 +299,25 @@ describe("HomeMfaTotpPanel", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Not enabled")).toBeInTheDocument();
+    expect(onFactorsChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("says other sessions stayed when a passkey still protects the account", async () => {
+    const user = userEvent.setup();
+    getStatusMock.mockResolvedValue({ enabled: true });
+    disableMock.mockResolvedValue({
+      disabled: true,
+      otherSessionsSignedOut: false,
+    });
+    render(<HomeMfaTotpPanel />);
+
+    await user.click(await screen.findByRole("button", { name: "Disable" }));
+
+    expect(
+      await screen.findByText(
+        "Authenticator app disabled. Your passkeys still protect your account.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("uses fetched options when verification-required details are absent", async () => {

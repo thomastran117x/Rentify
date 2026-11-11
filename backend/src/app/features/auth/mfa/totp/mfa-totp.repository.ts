@@ -2,8 +2,21 @@ import type { UserMfaTotp } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { newUuid, type Uuid } from "@/configuration/validation/uuid";
 import type { NewRecoveryCodeRow } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
+import {
+  hasStrongFactor,
+  lockAccountForMfaChange,
+  readStrongFactors,
+} from "@/features/auth/mfa/mfa-factor.repository";
 
 export type { UserMfaTotp };
+
+export type MfaTotpActivateResult =
+  | { activated: false }
+  | {
+      activated: true;
+      /** Whether `recoveryCodes` were stored, because the account had none. */
+      recoveryCodesIssued: boolean;
+    };
 
 export class MfaTotpRepository extends BaseRepository {
   async findByUserId(userId: Uuid): Promise<UserMfaTotp | null> {
@@ -55,17 +68,21 @@ export class MfaTotpRepository extends BaseRepository {
 
   /**
    * Turns the factor on together with its recovery codes, so an authenticator
-   * can never be active with codes nobody was shown. Conditional on the record
-   * still being pending: false means a concurrent confirmation got there first
-   * and these codes were not stored.
+   * can never be active with codes nobody was shown. An account that already
+   * has a set, from a passkey, keeps it and gets no second one. Conditional on
+   * the record still being pending: `activated: false` means a concurrent
+   * confirmation got there first and nothing was stored.
    */
   async activate(
     id: string,
+    userId: Uuid,
     confirmedAt: Date,
     lastUsedCounter: number,
     recoveryCodes: NewRecoveryCodeRow[],
-  ): Promise<boolean> {
+  ): Promise<MfaTotpActivateResult> {
     return this.executeTransaction(async (transaction) => {
+      await lockAccountForMfaChange(transaction, userId);
+
       const activated = await transaction.userMfaTotp.updateMany({
         where: { id, status: "pending" },
         data: {
@@ -77,14 +94,23 @@ export class MfaTotpRepository extends BaseRepository {
       });
 
       if (activated.count !== 1) {
-        return false;
+        return { activated: false };
       }
 
-      await transaction.userMfaRecoveryCode.createMany({
-        data: recoveryCodes.map((row) => ({ ...row, createdAt: confirmedAt })),
+      const existingCodes = await transaction.userMfaRecoveryCode.count({
+        where: { userId },
       });
 
-      return true;
+      if (existingCodes === 0) {
+        await transaction.userMfaRecoveryCode.createMany({
+          data: recoveryCodes.map((row) => ({
+            ...row,
+            createdAt: confirmedAt,
+          })),
+        });
+      }
+
+      return { activated: true, recoveryCodesIssued: existingCodes === 0 };
     });
   }
 
@@ -112,13 +138,24 @@ export class MfaTotpRepository extends BaseRepository {
   }
 
   /**
-   * Recovery codes only mean anything alongside an authenticator, so they go
-   * with it. The factor row goes first, the lock order regeneration uses.
+   * Removes the authenticator. Recovery codes only stand in for a strong
+   * factor, so they go too unless a passkey is left. Returns whether this
+   * left the account with no strong factor.
    */
-  async deleteByUserId(userId: Uuid): Promise<void> {
-    await this.executeTransaction(async (transaction) => {
+  async deleteByUserId(userId: Uuid): Promise<{ lastStrongFactor: boolean }> {
+    return this.executeTransaction(async (transaction) => {
+      await lockAccountForMfaChange(transaction, userId);
       await transaction.userMfaTotp.deleteMany({ where: { userId } });
-      await transaction.userMfaRecoveryCode.deleteMany({ where: { userId } });
+
+      const lastStrongFactor = !hasStrongFactor(
+        await readStrongFactors(transaction, userId),
+      );
+
+      if (lastStrongFactor) {
+        await transaction.userMfaRecoveryCode.deleteMany({ where: { userId } });
+      }
+
+      return { lastStrongFactor };
     });
   }
 

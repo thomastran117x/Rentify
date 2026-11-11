@@ -15,6 +15,7 @@ export type MfaVerificationSecurityContext = {
     confirmedAt?: string;
   } | null;
   unusedRecoveryCodes: number;
+  passkeyCount: number;
 };
 
 export class MfaVerificationRepository extends BaseRepository {
@@ -41,7 +42,10 @@ export class MfaVerificationRepository extends BaseRepository {
             },
           },
           _count: {
-            select: { mfaRecoveryCodes: { where: { usedAt: null } } },
+            select: {
+              mfaRecoveryCodes: { where: { usedAt: null } },
+              webAuthnCredentials: true,
+            },
           },
         },
       }),
@@ -66,6 +70,7 @@ export class MfaVerificationRepository extends BaseRepository {
           }
         : null,
       unusedRecoveryCodes: user._count.mfaRecoveryCodes,
+      passkeyCount: user._count.webAuthnCredentials,
     };
   }
 }

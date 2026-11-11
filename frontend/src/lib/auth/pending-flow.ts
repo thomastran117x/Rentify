@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import type { MfaVerificationChallengeFactor } from "@/lib/auth/mfa-verification-api";
 import { safeNextPath } from "@/lib/auth/next-path";
+import { supportsPasskeys } from "@/lib/auth/webauthn";
 import {
   LOGIN_MFA_FACTORS,
   type LoginMfaChallenge,
@@ -71,12 +72,17 @@ export function createLoginMfaPendingFlow(
   now = Date.now(),
 ): LoginMfaPendingFlow {
   const availableFactors = challenge.availableFactors.filter(isLoginMfaFactor);
+  // Start on the strongest factor this browser can use; a passkey stays listed
+  // so the step can say why it is not offered here.
+  const usable = supportsPasskeys()
+    ? availableFactors
+    : availableFactors.filter((factor) => factor !== "passkey");
 
   return {
     flow: "login-mfa",
     mfaChallengeToken: challenge.mfaChallengeToken,
     availableFactors,
-    factor: availableFactors[0] ?? "totp",
+    factor: usable[0] ?? availableFactors[0] ?? "totp",
     method,
     expiresAt: new Date(now + challenge.expiresInSeconds * 1000).toISOString(),
   };

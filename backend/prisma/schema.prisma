@@ -70,6 +70,7 @@ model User {
   organizationReviewReplies OrganizationReview[] @relation("OrganizationReviewResponder")
   mfaTotp                UserMfaTotp?
   mfaRecoveryCodes       UserMfaRecoveryCode[]
+  webAuthnCredentials    UserWebAuthnCredential[]
   media                  Media[]
   authAuditEvents        AuthAuditEvent[] @relation("AuthAuditEventUser")
   emailChangeReverts     EmailChangeRevert[]
@@ -457,6 +458,31 @@ model UserMfaRecoveryCode {
 
   @@unique([userId, codeHash])
   @@map("user_mfa_recovery_codes")
+}
+
+/// A passkey registered as a second factor. The public key and counter are
+/// what an assertion is checked against; nothing secret is stored.
+model UserWebAuthnCredential {
+  id           String                 @id @db.VarChar(36)
+  userId       String                 @map("user_id") @db.VarChar(36)
+  /// The authenticator's raw credential ID, at most 1023 bytes by spec.
+  credentialId Bytes                  @unique @map("credential_id") @db.VarBinary(1023)
+  /// COSE-encoded public key.
+  publicKey    Bytes                  @map("public_key") @db.Blob
+  /// The authenticator's signature counter; 0 for those that do not keep one.
+  signCount    BigInt                 @default(0) @map("sign_count")
+  transports   Json?
+  aaguid       String                 @db.Char(36)
+  /// Whether the passkey is synced to a backup. Stored, not yet used by policy.
+  backedUp     Boolean                @map("backed_up")
+  deviceType   UserWebAuthnDeviceType @map("device_type")
+  name         String                 @db.VarChar(64)
+  createdAt    DateTime               @default(now()) @map("created_at") @db.DateTime(6)
+  lastUsedAt   DateTime?              @map("last_used_at") @db.DateTime(6)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_webauthn_credentials")
 }
 
 model PersonalAccessToken {
@@ -1806,4 +1832,11 @@ enum PaymentLedgerEntryType {
 enum UserMfaTotpStatus {
   pending
   active
+}
+
+/// From the authenticator's backup-eligible flag: a multi-device passkey can
+/// be synced, so its counter cannot be relied on.
+enum UserWebAuthnDeviceType {
+  single_device
+  multi_device
 }

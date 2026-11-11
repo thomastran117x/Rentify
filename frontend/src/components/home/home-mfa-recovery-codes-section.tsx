@@ -25,7 +25,7 @@ function describeStatus({ remaining, createdAt }: MfaRecoveryCodeStatusResult) {
       tone: "warning" as const,
       title: "No recovery codes yet",
       detail:
-        "Without them, losing your authenticator app could lock you out of your account.",
+        "Without them, losing your passkeys or authenticator app could lock you out of your account.",
       action: "Generate recovery codes",
     };
   }
@@ -35,7 +35,7 @@ function describeStatus({ remaining, createdAt }: MfaRecoveryCodeStatusResult) {
       tone: "danger" as const,
       title: "You've used all your recovery codes",
       detail:
-        "Generate new ones now, or losing your authenticator app could lock you out of your account.",
+        "Generate new ones now, or losing your passkeys or authenticator app could lock you out of your account.",
       action: "Generate new codes",
     };
   }
@@ -56,7 +56,7 @@ function describeStatus({ remaining, createdAt }: MfaRecoveryCodeStatusResult) {
     tone: "neutral" as const,
     title: count,
     detail:
-      "Each one signs you in once if you lose your authenticator app. A new set replaces every code you have now.",
+      "Each one signs you in once if you lose your passkeys or authenticator app. A new set replaces every code you have now.",
     action: "Generate new codes",
   };
 }

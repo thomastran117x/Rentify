@@ -19,7 +19,7 @@ function createHarness(hashKey = randomBytes(32)) {
     claim: jest.fn(async () => true),
     countUnused: jest.fn(async () => 7),
     findSetCreatedAt: jest.fn<Promise<Date | null>, [string]>(async () => null),
-    replaceForActiveTotp: jest.fn(async () => true),
+    replaceForStrongFactor: jest.fn(async () => true),
   };
   const authAuditService = { recordSafely: jest.fn(async () => undefined) };
   const securityNotificationService = {
@@ -76,7 +76,7 @@ describe("MfaRecoveryCodeService", () => {
         expect(normalizeRecoveryCode(code)).not.toBeNull();
       }
       expect(rows).toHaveLength(RECOVERY_CODE_COUNT);
-      expect(repository.replaceForActiveTotp).not.toHaveBeenCalled();
+      expect(repository.replaceForStrongFactor).not.toHaveBeenCalled();
     });
 
     it("stores a keyed hash, never the code", () => {
@@ -232,7 +232,7 @@ describe("MfaRecoveryCodeService", () => {
 
       expect(result.codes).toHaveLength(RECOVERY_CODE_COUNT);
       expect(result.remaining).toBe(RECOVERY_CODE_COUNT);
-      expect(repository.replaceForActiveTotp).toHaveBeenCalledTimes(1);
+      expect(repository.replaceForStrongFactor).toHaveBeenCalledTimes(1);
       expect(securityNotificationService.notify).toHaveBeenCalledWith({
         kind: "mfa_recovery_codes_regenerated",
         details: {},
@@ -254,14 +254,14 @@ describe("MfaRecoveryCodeService", () => {
       });
     });
 
-    it("refuses an account with no active authenticator", async () => {
+    it("refuses an account with no passkey or authenticator", async () => {
       const {
         service,
         repository,
         authAuditService,
         securityNotificationService,
       } = createHarness();
-      repository.replaceForActiveTotp.mockResolvedValue(false);
+      repository.replaceForStrongFactor.mockResolvedValue(false);
 
       await expect(
         service.regenerate({ userId: USER_ID }),

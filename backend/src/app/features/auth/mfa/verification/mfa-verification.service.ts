@@ -20,12 +20,14 @@ import type { CacheService } from "@/features/cache/cache.service";
 import type { EmailService } from "@/features/email/email.service";
 import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
+import type { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
 import { isMfaBypassEligible } from "@/features/auth/mfa/mfa-bypass";
 import {
   MFA_DEVICE_LOGIN_SCOPE,
   MFA_MANAGEMENT_SCOPE,
   MFA_PROOF_TTL_MINUTES,
   MFA_STEP_UP_OTP_PURPOSE,
+  type MfaVerificationAnswer,
   type MfaVerificationChallengeFactor,
   type MfaVerificationChallengeResult,
   type MfaVerificationConfirmResult,
@@ -46,6 +48,7 @@ interface MfaVerificationServiceOptions {
   emailService: EmailService;
   mfaTotpService: MfaTotpService;
   mfaRecoveryCodeService: MfaRecoveryCodeService;
+  passkeyService: Pick<PasskeyService, "beginAssertion" | "verifyAssertion">;
   authAuditService: AuthAuditService;
   /** Defaults to `authSecurity.stepUp`, read on each request. */
   getLimits?: () => AuthSecurityStepUpConfig;
@@ -76,6 +79,7 @@ interface VerifiedFactorState {
 }
 
 const MFA_PROOF_TTL_MS = MFA_PROOF_TTL_MINUTES * 60 * 1000;
+const INVALID_PASSKEY_MESSAGE = "That passkey could not be verified.";
 export class MfaVerificationService {
   private readonly logger: Logger;
   private readonly getLimits: () => AuthSecurityStepUpConfig;
@@ -142,6 +146,26 @@ export class MfaVerificationService {
       ...input,
       factor,
     });
+
+    if (factor === "passkey") {
+      const options = await this.options.passkeyService.beginAssertion({
+        userId: input.userId,
+        purpose: "step-up",
+        binding: this.getPasskeyBinding(
+          input.userId,
+          input.sessionId,
+          input.scope,
+        ),
+      });
+
+      this.logSecurityEvent("MFA step-up challenge issued", {
+        ...input,
+        factor,
+        result: "issued",
+      });
+
+      return { scope: input.scope, factor, challengeId: null, options };
+    }
 
     if (factor === "email") {
       const otpSubject = this.getOtpSubject(
@@ -221,11 +245,10 @@ export class MfaVerificationService {
   }
 
   async confirmChallenge(
-    input: VerificationRequestContext & {
-      factor: MfaVerificationFactor;
-      code: string;
-      client: ClientRequestContext;
-    },
+    input: VerificationRequestContext &
+      MfaVerificationAnswer & {
+        client: ClientRequestContext;
+      },
   ): Promise<MfaVerificationConfirmResult> {
     const factorState = await this.resolveFactorState(
       input.userId,
@@ -244,7 +267,20 @@ export class MfaVerificationService {
     });
 
     try {
-      if (factor === "email") {
+      if (input.factor === "passkey") {
+        await this.options.passkeyService.verifyAssertion({
+          userId: input.userId,
+          purpose: "step-up",
+          binding: this.getPasskeyBinding(
+            input.userId,
+            input.sessionId,
+            input.scope,
+          ),
+          credential: input.credential,
+          sessionId: input.sessionId,
+          context: input.audit,
+        });
+      } else if (input.factor === "email") {
         await this.options.otpService.verify({
           purpose: MFA_STEP_UP_OTP_PURPOSE,
           subject: this.getOtpSubject(
@@ -255,7 +291,7 @@ export class MfaVerificationService {
           ),
           code: input.code,
         });
-      } else if (factor === "recovery_code") {
+      } else if (input.factor === "recovery_code") {
         await this.options.mfaRecoveryCodeService.redeem({
           userId: input.userId,
           code: input.code,
@@ -284,7 +320,9 @@ export class MfaVerificationService {
           factor,
           result: "invalid-code",
         });
-        throw new InvalidMfaCodeError();
+        throw new InvalidMfaCodeError(
+          factor === "passkey" ? INVALID_PASSKEY_MESSAGE : undefined,
+        );
       }
 
       throw error;
@@ -444,24 +482,34 @@ export class MfaVerificationService {
     const activeTotpAvailable = securityContext.mfaTotp?.status === "active";
 
     // Step-up is only as strong as its weakest accepted factor, so an account
-    // with a stronger factor cannot fall back to its inbox, even once its
-    // recovery codes run out. Email is for accounts with nothing stronger.
-    // Passkeys (#465) join the stronger list when they land.
-    const availableFactors: MfaVerificationFactor[] = activeTotpAvailable
-      ? securityContext.unusedRecoveryCodes > 0
-        ? ["totp", "recovery_code"]
-        : ["totp"]
-      : securityContext.emailVerified
-        ? ["email"]
-        : [];
+    // with a stronger factor (a passkey or an authenticator) cannot fall back
+    // to its inbox, even once its recovery codes run out. Email is for
+    // accounts with nothing stronger. A passkey comes first: it is the one
+    // factor a lookalike site cannot collect.
+    const strongFactors: MfaVerificationFactor[] = [
+      ...(securityContext.passkeyCount > 0 ? (["passkey"] as const) : []),
+      ...(activeTotpAvailable ? (["totp"] as const) : []),
+    ];
+    const availableFactors: MfaVerificationFactor[] =
+      strongFactors.length > 0
+        ? [
+            ...strongFactors,
+            ...(securityContext.unusedRecoveryCodes > 0
+              ? (["recovery_code"] as const)
+              : []),
+          ]
+        : securityContext.emailVerified
+          ? ["email"]
+          : [];
     const recommendedFactor = availableFactors[0] ?? null;
 
     return {
       securityContext,
       availableFactors,
-      acceptedProofFactors: activeTotpAvailable
-        ? ["totp", "recovery_code"]
-        : availableFactors,
+      acceptedProofFactors:
+        strongFactors.length > 0
+          ? [...strongFactors, "recovery_code"]
+          : availableFactors,
       recommendedFactor,
       securityVersion: this.deriveSecurityVersion(securityContext),
       activeTotpAvailable,
@@ -513,6 +561,12 @@ export class MfaVerificationService {
                   confirmedAt: context.mfaTotp.confirmedAt,
                 }
               : null,
+          // Only present once the account has a passkey, so accounts without
+          // one keep the version (and their proofs) they had before passkeys.
+          // Adding the first or removing the last invalidates a proof, just as
+          // turning the authenticator on or off does; managing one of several
+          // does not.
+          ...(context.passkeyCount > 0 ? { passkeysEnabled: true } : {}),
         }),
       )
       .digest("hex");
@@ -557,8 +611,11 @@ export class MfaVerificationService {
     scope: MfaVerificationScope;
     factorState: VerifiedFactorState;
   }): MfaVerificationProofRecord {
+    const recommended = input.factorState.recommendedFactor;
     const factor =
-      input.factorState.recommendedFactor === "totp" ? "totp" : "email";
+      recommended === "passkey" || recommended === "totp"
+        ? recommended
+        : "email";
 
     return {
       userId: input.userId,
@@ -826,6 +883,14 @@ export class MfaVerificationService {
 
   private getProofKey(sessionId: string, scope: MfaVerificationScope): string {
     return `auth:mfa-proof:${sessionId}:${scope}`;
+  }
+
+  private getPasskeyBinding(
+    userId: Uuid,
+    sessionId: string,
+    scope: MfaVerificationScope,
+  ): string {
+    return `${userId}:${sessionId}:${scope}`;
   }
 
   private getOtpSubject(
