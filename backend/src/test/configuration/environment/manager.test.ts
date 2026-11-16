@@ -779,7 +779,7 @@ describe("EnvironmentManager", () => {
   it("requires a long enough device binding secret", () => {
     process.env = buildRequiredEnv({ DEVICE_BINDING_SECRET: undefined });
     expect(() => new EnvironmentManager().load()).toThrow(
-      "DEVICE_BINDING_SECRET is required.",
+      "DEVICE_BINDING_SECRET is required (or set DEVICE_BINDING_KEYS).",
     );
 
     process.env = buildRequiredEnv({ DEVICE_BINDING_SECRET: "short" });
@@ -788,8 +788,52 @@ describe("EnvironmentManager", () => {
     );
 
     process.env = buildRequiredEnv();
-    expect(new EnvironmentManager().load().auth.deviceBindingSecret).toBe(
-      "process-device-binding-secret-32chars",
+    expect(new EnvironmentManager().load().auth.deviceBindingKeys).toEqual([
+      {
+        kid: "default",
+        status: "current",
+        secret: "process-device-binding-secret-32chars",
+      },
+    ]);
+  });
+
+  it("reads a device binding keyset for rotation", () => {
+    process.env = buildRequiredEnv({
+      DEVICE_BINDING_SECRET: undefined,
+      DEVICE_BINDING_KEYS: JSON.stringify([
+        {
+          kid: "2026-11",
+          status: "current",
+          secret: "device-binding-new-secret-of-32-chars",
+        },
+        {
+          kid: "default",
+          status: "previous",
+          secret: "process-device-binding-secret-32chars",
+        },
+      ]),
+    });
+
+    expect(
+      new EnvironmentManager()
+        .load()
+        .auth.deviceBindingKeys.map(({ kid, status }) => ({ kid, status })),
+    ).toEqual([
+      { kid: "2026-11", status: "current" },
+      { kid: "default", status: "previous" },
+    ]);
+
+    process.env = buildRequiredEnv({
+      DEVICE_BINDING_KEYS: JSON.stringify([
+        {
+          kid: "2026-11",
+          status: "current",
+          secret: "device-binding-new-secret-of-32-chars",
+        },
+      ]),
+    });
+    expect(() => new EnvironmentManager().load()).toThrow(
+      "Set either DEVICE_BINDING_KEYS or DEVICE_BINDING_SECRET, not both.",
     );
   });
 

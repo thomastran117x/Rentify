@@ -16,6 +16,18 @@ import { createMockRequest, createMockResponse } from "../../support/mock-http";
 const SECRET = "device-binding-test-secret-of-32-chars";
 const OTHER_SECRET = "another-device-binding-secret-32-chars";
 
+const DEFAULT_ONLY = [
+  { kid: "default", status: "current" as const, secret: SECRET },
+];
+const OTHER_ONLY = [
+  { kid: "default", status: "current" as const, secret: OTHER_SECRET },
+];
+/** Mid-rotation: a new current key, the old one kept to verify. */
+const ROTATED = [
+  { kid: "2026-11", status: "current" as const, secret: OTHER_SECRET },
+  { kid: "default", status: "previous" as const, secret: SECRET },
+];
+
 afterEach(() => {
   jest.restoreAllMocks();
 });
@@ -33,31 +45,72 @@ describe("device binding cookie values", () => {
     const id = createDeviceBindingId();
 
     expect(
-      verifyDeviceBindingCookieValue(signDeviceBindingId(id, SECRET), SECRET),
-    ).toBe(id);
+      verifyDeviceBindingCookieValue(
+        signDeviceBindingId(id, DEFAULT_ONLY),
+        DEFAULT_ONLY,
+      ),
+    ).toEqual({ id, stale: false });
   });
 
-  it("refuses a value signed with another secret", () => {
+  it("leaves the default kid out, so cookies keep their pre-keyset form", () => {
+    const id = createDeviceBindingId();
+
+    expect(signDeviceBindingId(id, DEFAULT_ONLY).split(".")).toHaveLength(2);
+    expect(signDeviceBindingId(id, ROTATED).split(".")).toEqual([
+      id,
+      "2026-11",
+      expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+    ]);
+  });
+
+  it("verifies a cookie from before a rotation, and flags it for re-issue", () => {
+    const id = createDeviceBindingId();
+    const beforeRotation = signDeviceBindingId(id, DEFAULT_ONLY);
+
+    expect(verifyDeviceBindingCookieValue(beforeRotation, ROTATED)).toEqual({
+      id,
+      stale: true,
+    });
+    expect(
+      verifyDeviceBindingCookieValue(signDeviceBindingId(id, ROTATED), ROTATED),
+    ).toEqual({ id, stale: false });
+  });
+
+  it("refuses a cookie once its key is removed from the set", () => {
+    const id = createDeviceBindingId();
+
+    expect(
+      verifyDeviceBindingCookieValue(signDeviceBindingId(id, DEFAULT_ONLY), [
+        ROTATED[0]!,
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("refuses a value signed with another secret, or under another kid", () => {
     const id = createDeviceBindingId();
 
     expect(
       verifyDeviceBindingCookieValue(
-        signDeviceBindingId(id, OTHER_SECRET),
-        SECRET,
+        signDeviceBindingId(id, OTHER_ONLY),
+        DEFAULT_ONLY,
       ),
+    ).toBeUndefined();
+    const [, , signature] = signDeviceBindingId(id, ROTATED).split(".");
+    expect(
+      verifyDeviceBindingCookieValue(`${id}.default.${signature}`, ROTATED),
     ).toBeUndefined();
   });
 
   it("refuses an id swapped under another id's signature", () => {
     const [, signature] = signDeviceBindingId(
       createDeviceBindingId(),
-      SECRET,
+      DEFAULT_ONLY,
     ).split(".");
 
     expect(
       verifyDeviceBindingCookieValue(
         `${createDeviceBindingId()}.${signature}`,
-        SECRET,
+        DEFAULT_ONLY,
       ),
     ).toBeUndefined();
   });
@@ -68,18 +121,31 @@ describe("device binding cookie values", () => {
     ["a bare id, as a client-chosen device id would be", "device-1"],
     ["a malformed id", "not-an-id.signature"],
     ["a truncated signature", `${"A".repeat(22)}.${"A".repeat(42)}`],
-    ["extra segments", `${"A".repeat(22)}.${"A".repeat(43)}.extra`],
+    ["an unknown kid", `${"A".repeat(22)}.unknown.${"A".repeat(43)}`],
+    ["a malformed kid", `${"A".repeat(22)}.bad kid.${"A".repeat(43)}`],
+    ["extra segments", `${"A".repeat(22)}.a.${"A".repeat(43)}.extra`],
   ])("refuses %s", (_label, value) => {
-    expect(verifyDeviceBindingCookieValue(value, SECRET)).toBeUndefined();
+    expect(verifyDeviceBindingCookieValue(value, DEFAULT_ONLY)).toBeUndefined();
   });
 
-  it("signs with the configured secret by default", () => {
+  it("signs and verifies with the configured keyset by default", () => {
     const id = createDeviceBindingId();
 
-    expect(verifyDeviceBindingCookieValue(signDeviceBindingId(id))).toBe(id);
+    expect(verifyDeviceBindingCookieValue(signDeviceBindingId(id))).toEqual({
+      id,
+      stale: false,
+    });
     expect(
-      verifyDeviceBindingCookieValue(signDeviceBindingId(id), OTHER_SECRET),
+      verifyDeviceBindingCookieValue(signDeviceBindingId(id), OTHER_ONLY),
     ).toBeUndefined();
+  });
+
+  it("refuses to sign without a current key", () => {
+    expect(() =>
+      signDeviceBindingId(createDeviceBindingId(), [
+        { kid: "old", status: "previous", secret: SECRET },
+      ]),
+    ).toThrow("The device binding keyset needs a current key.");
   });
 });
 
@@ -102,6 +168,26 @@ describe("readDeviceBinding", () => {
     });
 
     expect(readDeviceBinding(request)).toEqual({ id });
+  });
+
+  it("flags a cookie signed with a key being rotated out", () => {
+    const id = createDeviceBindingId();
+    const oldCookie = signDeviceBindingId(id);
+    jest.spyOn(environment, "getTokenConfig").mockReturnValue({
+      ...environment.getTokenConfig(),
+      deviceBindingKeys: [
+        { kid: "2026-11", status: "current", secret: OTHER_SECRET },
+        {
+          ...environment.getTokenConfig().deviceBindingKeys[0]!,
+          status: "previous",
+        },
+      ],
+    });
+    const request = createMockRequest({
+      headers: { cookie: `${DEVICE_BINDING_COOKIE_NAME}=${oldCookie}` },
+    });
+
+    expect(readDeviceBinding(request)).toEqual({ id, stale: true });
   });
 
   it("ignores a forged cookie", () => {

@@ -29,15 +29,21 @@ export const deviceBindingMiddleware: RequestHandler = (
  * Mounted on `/auth`: a request without a valid device cookie is handed a new
  * one, so the browser holds it before the sign-in it later verifies. The new
  * id is not attached to this request, since nothing yet proves the client
- * keeps cookies; it counts from the next request that presents it.
+ * keeps cookies; it counts from the next request that presents it. A cookie
+ * signed with a key being rotated out is re-issued under the current key,
+ * keeping its id, so the device stays known when the old key is removed.
  */
 export const deviceBindingIssueMiddleware: RequestHandler = (
   request,
   response,
   next,
 ) => {
-  if (!request.client.deviceBinding) {
+  const binding = request.client.deviceBinding;
+
+  if (!binding) {
     writeDeviceBindingCookie(response, createDeviceBindingId());
+  } else if (binding.stale) {
+    writeDeviceBindingCookie(response, binding.id);
   }
 
   next();

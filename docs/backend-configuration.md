@@ -67,13 +67,12 @@ connection strings:
   `ACCESS_TOKEN_SECRET` (`HS256`) or `ACCESS_TOKEN_PRIVATE_KEY` and
   `ACCESS_TOKEN_PUBLIC_KEY` (`RS256`); `REFRESH_TOKEN_KEYS` or
   `REFRESH_TOKEN_SECRET`; `PERSONAL_ACCESS_TOKEN_KEYS` or
-  `PERSONAL_ACCESS_TOKEN_SECRET`
+  `PERSONAL_ACCESS_TOKEN_SECRET`; `DEVICE_BINDING_KEYS` or
+  `DEVICE_BINDING_SECRET` (the HMAC key for the
+  [device cookie](./auth-security.md#device-binding))
 - `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET` (the HMAC key for emailed
   [one-time codes](./auth-security.md#one-time-codes), at least 32
-  characters), `DEVICE_BINDING_SECRET` (the HMAC key for the
-  [device cookie](./auth-security.md#device-binding), at least 32 characters;
-  rotating it makes every browser a new device once), and
-  `MFA_TOTP_ENCRYPTION_KEY`
+  characters), and `MFA_TOTP_ENCRYPTION_KEY`
 - `GMAIL_APP_PASSWORD`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`, OAuth client
   secrets, `PAYPAL_CLIENT_SECRET`, and `TELNYX_API_KEY`
 
@@ -190,8 +189,9 @@ The API logs a startup warning in two cases:
 
 ## Token signing keys
 
-Three signing purposes each have a keyset: access JWTs, refresh tokens, and
-the HMAC that hashes personal access tokens (PATs). A keyset has one `current`
+Four signing purposes each have a keyset: access JWTs, refresh tokens, the
+HMAC that hashes personal access tokens (PATs), and the HMAC that signs the
+[device cookie](./auth-security.md#device-binding). A keyset has one `current`
 key, which signs, and any number of `next` and `previous` keys, which only
 verify: a `next` key is staged for promotion, and a `previous` key is being
 retired. Every
@@ -211,8 +211,8 @@ Each one becomes the set's only key, as the current key under kid `default`.
   the non-secret `auth.accessTokenAlgorithm` YAML setting, or the
   `ACCESS_TOKEN_ALGORITHM` override, to `RS256` to use them. Both must be
   PEM-encoded RSA keys of at least 2048 bits from the same pair.
-- `REFRESH_TOKEN_SECRET` and `PERSONAL_ACCESS_TOKEN_SECRET`, each at least 32
-  characters.
+- `REFRESH_TOKEN_SECRET`, `PERSONAL_ACCESS_TOKEN_SECRET` and
+  `DEVICE_BINDING_SECRET`, each at least 32 characters.
 
 PEM values may contain literal newlines or `\n` escape sequences, which is
 useful in environment variables. For example, an RS256 deployment can use:
@@ -308,8 +308,8 @@ When `NODE_ENV` is `production`, startup fails when:
 - `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
   unset;
 - any two of these are equal: an `HS256` access secret, a refresh secret, a
-  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET`,
-  `DEVICE_BINDING_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
+  PAT secret, a device binding secret, `AUTH_AUDIT_IDENTIFIER_SECRET`,
+  `OTP_HASH_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
   (the TOTP key is compared ignoring case). Every key in a keyset counts,
   previous keys included, so one leaked secret cannot forge two kinds of
   token. The error names both variables but not the value.

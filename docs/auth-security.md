@@ -235,7 +235,7 @@ A device is known only by a cookie the server signs. The id a client sends (`dev
 | `__Host-rentify_device` | `rentify_device` | A random 128-bit id, a dot, and HMAC-SHA256 over the id | 400 days, renewed by every session response |
 
 - **Issued** by any `/auth/*` response to a request that did not present a valid one, so a browser holds it before the sign-in that registers it. The id the server chooses counts only from the next request that presents it.
-- **Signed** with `DEVICE_BINDING_SECRET`. A cookie that does not verify is ignored and replaced. Because the server picks the id, an attacker cannot get a victim's id signed, even by signing in to their own account with the victim's `x-device-id`. Rotating the secret makes every browser a new device once.
+- **Signed** with the `DEVICE_BINDING_KEYS` keyset (or the single `DEVICE_BINDING_SECRET`, which is the keyset's `default` key). A cookie that does not verify is ignored and replaced. Because the server picks the id, an attacker cannot get a victim's id signed, even by signing in to their own account with the victim's `x-device-id`. A cookie carries its key's kid (left out for `default`), and any key in the set verifies it. A cookie signed with a `next` or `previous` key is re-issued under the current key at the browser's next `/auth` request and keeps its id, so a rotation under the [runbook](#signing-key-rotation) drops no device.
 - **Registered** by `POST /auth/device/verify`, which stores the id in `devices.binding_id`. A later sign-in or refresh is known only when it presents a cookie whose id a row of the same account holds. Without one, the device is evaluated as new: a known IP still skips the alert, and anything else sends it.
 - **Canonical.** A known device's sessions are issued under the id its row was registered with, not the hint the request sent. A browser whose storage was cleared keeps one identity, the list still marks it as this device, and removing it signs those sessions out.
 - **Kept** at sign-out. It names the browser, not a session, and one cookie serves every account that registers it.
@@ -762,9 +762,9 @@ Rotating `AUTH_AUDIT_IDENTIFIER_SECRET` breaks correlation between rows written 
 
 ## Signing Key Rotation
 
-Access JWTs, refresh tokens and personal access token (PAT) hashes each have a keyset: one `current` key that signs, and any number of `next` keys (staged for promotion) and `previous` keys (being retired) that only verify. Every token records the kid of the key that signed it, so a rotation logs nobody out. The format, and how each kind of token finds its key, are in [Token signing keys](./backend-configuration.md#token-signing-keys).
+Access JWTs, refresh tokens, personal access token (PAT) hashes and the [device cookie](#device-binding) each have a keyset: one `current` key that signs, and any number of `next` keys (staged for promotion) and `previous` keys (being retired) that only verify. Every token records the kid of the key that signed it, so a rotation logs nobody out. The format, and how each kind of token finds its key, are in [Token signing keys](./backend-configuration.md#token-signing-keys).
 
-Rotate one purpose at a time. The steps are the same for `ACCESS_TOKEN_KEYS`, `REFRESH_TOKEN_KEYS` and `PERSONAL_ACCESS_TOKEN_KEYS`, and every backend process, workers included, needs the same keyset at each step.
+Rotate one purpose at a time. The steps are the same for `ACCESS_TOKEN_KEYS`, `REFRESH_TOKEN_KEYS`, `PERSONAL_ACCESS_TOKEN_KEYS` and `DEVICE_BINDING_KEYS`, and every backend process, workers included, needs the same keyset at each step. For `DEVICE_BINDING_KEYS`, the wait in step 3 is how long browsers take to come back: a device cookie moves to the new key at the browser's next `/auth` request (a sign-in or a session refresh), so wait out the remember-me lifetime before removing the old key. A browser that has not returned by then is treated as a new device once, and loses any "Remember this device" trust.
 
 ### Runbook
 

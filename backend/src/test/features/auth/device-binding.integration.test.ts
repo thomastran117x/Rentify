@@ -164,7 +164,8 @@ describe("Device binding integration", () => {
 
     expect(session.device.known).toBe(false);
     expect(
-      verifyDeviceBindingCookieValue(decodeURIComponent(session.deviceCookie!)),
+      verifyDeviceBindingCookieValue(decodeURIComponent(session.deviceCookie!))
+        ?.id,
     ).toMatch(/^[A-Za-z0-9_-]{22}$/);
   });
 
@@ -173,7 +174,9 @@ describe("Device binding integration", () => {
     const device = await persistenceApp.prisma.device.findFirstOrThrow({
       where: { deviceId: DEVICE_HINT },
     });
-    expect(device.bindingId).toBe(verifyDeviceBindingCookieValue(deviceCookie));
+    expect(device.bindingId).toBe(
+      verifyDeviceBindingCookieValue(deviceCookie)?.id,
+    );
     await persistenceApp.prisma.authAuditEvent.deleteMany({});
 
     const again = await login({ ip: "203.0.113.20", deviceCookie });
@@ -236,7 +239,8 @@ describe("Device binding integration", () => {
     expect(forged.device.known).toBe(false);
     // The forged cookie is replaced with a fresh binding.
     expect(
-      verifyDeviceBindingCookieValue(decodeURIComponent(forged.deviceCookie!)),
+      verifyDeviceBindingCookieValue(decodeURIComponent(forged.deviceCookie!))
+        ?.id,
     ).not.toBe(id);
   });
 
@@ -362,7 +366,7 @@ describe("Device binding integration", () => {
       where: { deviceId: "legacy-laptop" },
     });
     expect(device.bindingId).toBe(
-      verifyDeviceBindingCookieValue(decodeURIComponent(deviceCookie)),
+      verifyDeviceBindingCookieValue(decodeURIComponent(deviceCookie))?.id,
     );
     await expect(newDeviceEvents()).resolves.toHaveLength(0);
   });

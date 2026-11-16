@@ -29,7 +29,7 @@ function readIssuedId(header: unknown): string | undefined {
     String(header),
   );
   return match
-    ? verifyDeviceBindingCookieValue(decodeURIComponent(match[1]!))
+    ? verifyDeviceBindingCookieValue(decodeURIComponent(match[1]!))?.id
     : undefined;
 }
 
@@ -76,6 +76,18 @@ describe("deviceBindingIssueMiddleware", () => {
     );
     // Not counted until a request presents it.
     expect(request.client.deviceBinding).toBeUndefined();
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("re-issues a binding signed with a key being rotated out, keeping its id", () => {
+    const request = requestWithCookie();
+    request.client.deviceBinding = { id: BINDING_ID, stale: true };
+    const recorder = createMockResponse();
+    const next = jest.fn();
+
+    deviceBindingIssueMiddleware(request, recorder.response, next);
+
+    expect(readIssuedId(recorder.headers()["set-cookie"])).toBe(BINDING_ID);
     expect(next).toHaveBeenCalledWith();
   });
 

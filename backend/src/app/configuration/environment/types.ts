@@ -332,6 +332,7 @@ export type RawEnvironmentValues = {
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
   OTP_HASH_SECRET?: string;
   DEVICE_BINDING_SECRET?: string;
+  DEVICE_BINDING_KEYS?: string;
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
   AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
   AUTH_AUDIT_RETENTION_DAYS?: string;
@@ -468,8 +469,8 @@ export interface AppEnvironment {
     authAuditIdentifierSecret: string;
     /** HMAC key for the emailed one-time codes held in Redis. */
     otpHashSecret: string;
-    /** HMAC key that signs the device-binding cookie. */
-    deviceBindingSecret: string;
+    /** HMAC keyset that signs the device-binding cookie; see signing keys. */
+    deviceBindingKeys: HmacSigningKey[];
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
     /**

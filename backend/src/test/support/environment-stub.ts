@@ -37,7 +37,13 @@ const tokenConfig = {
   ],
   authAuditIdentifierSecret: "test-auth-audit-identifier-secret-32",
   otpHashSecret: "test-otp-hash-secret-value-of-32-chars",
-  deviceBindingSecret: "test-device-binding-secret-value-32ch",
+  deviceBindingKeys: [
+    {
+      kid: "default",
+      status: "current" as const,
+      secret: "test-device-binding-secret-value-32ch",
+    },
+  ],
   mfaBypassEmails: [],
   mfaTotpEncryptionKey:
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

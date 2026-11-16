@@ -186,7 +186,7 @@ export function buildAuthConfig(
   personalAccessTokenKeys: HmacSigningKey[],
   authAuditIdentifierSecret: string,
   otpHashSecret: string,
-  deviceBindingSecret: string,
+  deviceBindingKeys: HmacSigningKey[],
   mfaTotpEncryptionKey: string,
   nodeEnv: NodeEnvironment,
 ): AppEnvironment["auth"] {
@@ -233,7 +233,7 @@ export function buildAuthConfig(
     personalAccessTokenKeys,
     authAuditIdentifierSecret,
     otpHashSecret,
-    deviceBindingSecret,
+    deviceBindingKeys,
     mfaTotpEncryptionKey,
     secureCookies: parseSecureCookies(raw, nodeEnv, errors),
   };

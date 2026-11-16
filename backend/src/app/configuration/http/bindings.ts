@@ -26,6 +26,8 @@ export interface ClientDeviceContext {
  */
 export interface DeviceBinding {
   id: string;
+  /** Signed by a key being rotated out; the cookie is re-issued. */
+  stale?: true;
 }
 
 export interface ClientRequestContext {
