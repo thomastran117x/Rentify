@@ -278,6 +278,76 @@ describe("Device binding integration", () => {
     expect(refreshed.status).toBe(401);
   });
 
+  it("keeps a pre-binding session's device known on refresh, then binds it", async () => {
+    // A session and device registered before device binding: the row has the
+    // client's id and no binding.
+    const login = await request("/auth/local/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": "legacy-laptop",
+        "x-forwarded-for": "198.51.100.80",
+      },
+      body: JSON.stringify({ ...RENTER_ONE, captchaToken: "captcha-ok-login" }),
+    });
+    expect(login.status).toBe(200);
+    const { refreshToken } = (
+      (await login.json()) as { data: { refreshToken: string } }
+    ).data;
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: "user1@rentify.local" },
+    });
+    await persistenceApp.prisma.device.create({
+      data: {
+        id: "00000000-0000-4000-8000-00000000d0d0",
+        userId: user.id,
+        deviceId: "legacy-laptop",
+        type: "desktop",
+        lastIpAddress: "198.51.100.80",
+      },
+    });
+    await persistenceApp.prisma.authAuditEvent.deleteMany({});
+
+    // A refresh from a new network, before the client holds a device cookie.
+    const first = await request("/auth/refresh", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": "legacy-laptop",
+        "x-forwarded-for": "203.0.113.80",
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+    expect(first.status).toBe(200);
+    const firstBody = (await first.json()) as {
+      data: { refreshToken: string; device: { known: boolean } };
+    };
+    expect(firstBody.data.device.known).toBe(true);
+    await expect(newDeviceEvents()).resolves.toHaveLength(0);
+
+    // The next refresh presents the cookie that response handed out, and the
+    // row is bound to it.
+    const deviceCookie = readCookie(first, DEVICE_BINDING_COOKIE_NAME)!;
+    const second = await request("/auth/refresh", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": "legacy-laptop",
+        "x-forwarded-for": "203.0.113.81",
+        cookie: `${DEVICE_BINDING_COOKIE_NAME}=${deviceCookie}`,
+      },
+      body: JSON.stringify({ refreshToken: firstBody.data.refreshToken }),
+    });
+    expect(second.status).toBe(200);
+    const device = await persistenceApp.prisma.device.findFirstOrThrow({
+      where: { deviceId: "legacy-laptop" },
+    });
+    expect(device.bindingId).toBe(
+      verifyDeviceBindingCookieValue(decodeURIComponent(deviceCookie)),
+    );
+    await expect(newDeviceEvents()).resolves.toHaveLength(0);
+  });
+
   it("keeps a client without cookies working, never known by device", async () => {
     const response = await request("/auth/local/login", {
       method: "POST",

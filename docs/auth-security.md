@@ -243,7 +243,7 @@ A device is known only by a cookie the server signs. The id a client sends (`dev
 
 Clients that keep no cookies, such as scripts or native apps, still sign in, refresh and finish MFA as before. They are never known by device and fall back to the known-IP rule. `POST /auth/device/verify` from such a client lists the device as a hint row, which never makes a sign-in known.
 
-**Rollout.** Devices registered before binding have no `binding_id`, so each browser's next sign-in is treated as new once: a new-device check, and an alert when the IP is new too. Recognising them by their old id would keep exactly the gap that binding closes.
+**Refreshes and the rollout.** A device registered before binding, or by a client that keeps no cookies, has no `binding_id`. Its session can still vouch for it: on a refresh, the device id inside the session's own signed refresh token names the row, so the refresh is known and sends no alert. If the browser now presents a device cookie, the refresh binds the row to it, which moves a pre-binding session onto the cookie with no new check. A device id sent with the request never vouches for anything, and a row that is already bound needs its cookie, as a sign-in does. A sign-in, as opposed to a refresh, still needs the cookie, so a browser that signs in again before refreshing is treated as new once: the new-device check, and an alert when the IP is new too. Someone holding a stolen refresh token could bind a pre-binding row to their own cookie this way, but a stolen refresh token already gives them the session.
 
 ### Trusted Devices
 

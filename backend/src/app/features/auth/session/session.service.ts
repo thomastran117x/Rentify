@@ -122,6 +122,7 @@ export class AuthSessionService {
       input.client,
       deviceId,
       input.audit,
+      claims.deviceId,
     );
     if (!claims.sessionId) {
       await this.tokenService.revokeRefreshToken(input.refreshToken);

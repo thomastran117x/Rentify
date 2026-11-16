@@ -91,6 +91,10 @@ function createService(overrides?: {
     bindingId: string,
   ) => Promise<KnownDeviceRecord | null>;
   touchKnownDevice?: (id: string, ipAddress?: string) => Promise<void>;
+  findByDeviceId?: (
+    userId: string,
+    deviceId: string,
+  ) => Promise<KnownDeviceRecord | null>;
   hasKnownIpAddress?: (userId: string, ipAddress: string) => Promise<boolean>;
   hasAnyKnownDevice?: (userId: string) => Promise<boolean>;
   touchKnownIpAddress?: (userId: string, ipAddress: string) => Promise<void>;
@@ -122,6 +126,8 @@ function createService(overrides?: {
   const deviceRepository = {
     findByBindingId: jest.fn(overrides?.findByBindingId ?? (async () => null)),
     touchKnownDevice: jest.fn(overrides?.touchKnownDevice ?? (async () => {})),
+    findByDeviceId: jest.fn(overrides?.findByDeviceId ?? (async () => null)),
+    bindUnboundDevice: jest.fn(async () => true),
     hasKnownIpAddress: jest.fn(
       overrides?.hasKnownIpAddress ?? (async () => false),
     ),
@@ -561,6 +567,89 @@ describe("DeviceService", () => {
         metadata: { emailNotification: "sent", deviceBinding: "unverified" },
       }),
     );
+  });
+
+  describe("a session vouching for an unbound device", () => {
+    it("keeps a pre-binding session's device known on a refresh from a new ip", async () => {
+      const { service, deviceRepository, emailService } = createService({
+        findByDeviceId: async () =>
+          createKnownDevice({ lastIpAddress: "10.0.0.1" }),
+      });
+
+      await expect(
+        service.evaluateExistingSessionDevice(
+          createUser(),
+          createClient(),
+          DEVICE_1_ID,
+          undefined,
+          DEVICE_1_ID,
+        ),
+      ).resolves.toEqual({
+        deviceId: DEVICE_1_ID,
+        known: true,
+        knownByIp: false,
+      });
+      expect(deviceRepository.findByDeviceId).toHaveBeenCalledWith(
+        USER_1_ID,
+        DEVICE_1_ID,
+      );
+      expect(deviceRepository.bindUnboundDevice).not.toHaveBeenCalled();
+      expect(deviceRepository.touchKnownDevice).toHaveBeenCalledWith(
+        KNOWN_DEVICE_1_ID,
+        "127.0.0.1",
+      );
+      expect(emailService.sendNewDeviceEmail).not.toHaveBeenCalled();
+    });
+
+    it("binds the row to the cookie the browser now presents", async () => {
+      const { service, deviceRepository } = createService({
+        findByDeviceId: async () => createKnownDevice(),
+      });
+
+      await service.evaluateExistingSessionDevice(
+        createUser(),
+        createClient(BOUND),
+        DEVICE_1_ID,
+        undefined,
+        DEVICE_1_ID,
+      );
+
+      expect(deviceRepository.bindUnboundDevice).toHaveBeenCalledWith(
+        KNOWN_DEVICE_1_ID,
+        BINDING_ID,
+      );
+    });
+
+    it("does not vouch for a row that is already bound", async () => {
+      const { service, deviceRepository, emailService } = createService({
+        findByDeviceId: async () =>
+          createKnownDevice({ bindingId: "other-binding" }),
+      });
+
+      await expect(
+        service.evaluateExistingSessionDevice(
+          createUser(),
+          createClient(),
+          DEVICE_1_ID,
+          undefined,
+          DEVICE_1_ID,
+        ),
+      ).resolves.toMatchObject({ known: false });
+      expect(deviceRepository.bindUnboundDevice).not.toHaveBeenCalled();
+      expect(emailService.sendNewDeviceEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it("never looks without a device id from the session's own token", async () => {
+      const { service, deviceRepository } = createService();
+
+      await service.evaluateExistingSessionDevice(
+        createUser(),
+        createClient(),
+        DEVICE_1_ID,
+      );
+
+      expect(deviceRepository.findByDeviceId).not.toHaveBeenCalled();
+    });
   });
 
   it("does not auto-register unseen devices during existing-session evaluation", async () => {

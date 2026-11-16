@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { testUuid } from "../../support/uuid";
 
@@ -148,6 +149,76 @@ describe("DeviceRepository.registerKnownDevice", () => {
     ];
     expect(call.create).not.toHaveProperty("bindingId");
     expect(call.update).not.toHaveProperty("bindingId");
+  });
+});
+
+describe("DeviceRepository.findByDeviceId", () => {
+  it("looks a device up by its account and client device id", async () => {
+    const findUnique = jest.fn(async () => deviceRow());
+    const repository = new DeviceRepository({ device: { findUnique } } as any);
+
+    await expect(
+      repository.findByDeviceId(USER_ID, "hint-1"),
+    ).resolves.toMatchObject({ id: ROW_ID, deviceId: "hint-1" });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { userId_deviceId: { userId: USER_ID, deviceId: "hint-1" } },
+    });
+
+    findUnique.mockResolvedValue(null as never);
+    await expect(
+      repository.findByDeviceId(USER_ID, "missing"),
+    ).resolves.toBeNull();
+  });
+});
+
+describe("DeviceRepository.bindUnboundDevice", () => {
+  it("binds only a row that has no binding yet", async () => {
+    const updateMany = jest.fn(async () => ({ count: 1 }));
+    const repository = new DeviceRepository({ device: { updateMany } } as any);
+
+    await expect(
+      repository.bindUnboundDevice(ROW_ID, BINDING_ID),
+    ).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: ROW_ID, bindingId: null },
+      data: { bindingId: BINDING_ID },
+    });
+
+    updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repository.bindUnboundDevice(ROW_ID, BINDING_ID),
+    ).resolves.toBe(false);
+  });
+
+  it("reports false when the account already holds the binding", async () => {
+    const repository = new DeviceRepository({
+      device: {
+        updateMany: jest.fn(async () => {
+          throw new Prisma.PrismaClientKnownRequestError("duplicate", {
+            code: "P2002",
+            clientVersion: "test",
+          });
+        }),
+      },
+    } as any);
+
+    await expect(
+      repository.bindUnboundDevice(ROW_ID, BINDING_ID),
+    ).resolves.toBe(false);
+  });
+
+  it("rethrows any other failure", async () => {
+    const repository = new DeviceRepository({
+      device: {
+        updateMany: jest.fn(async () => {
+          throw new Error("db down");
+        }),
+      },
+    } as any);
+
+    await expect(
+      repository.bindUnboundDevice(ROW_ID, BINDING_ID),
+    ).rejects.toThrow("db down");
   });
 });
 

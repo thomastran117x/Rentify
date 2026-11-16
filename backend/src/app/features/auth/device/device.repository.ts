@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/features/base/base.repository";
 import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 
@@ -164,6 +165,42 @@ export class DeviceRepository extends BaseRepository {
     return this.mapDevice(device);
   }
 
+  /** The account's device registered under a client device id. */
+  async findByDeviceId(
+    userId: Uuid,
+    deviceId: string,
+  ): Promise<KnownDeviceRecord | null> {
+    const device = await this.executeAsync(() =>
+      this.prisma.device.findUnique({
+        where: { userId_deviceId: { userId, deviceId } },
+      }),
+    );
+
+    return device ? this.mapDevice(device) : null;
+  }
+
+  /**
+   * Binds a row that has no binding yet. A no-op, reported as false, when the
+   * row was bound meanwhile or the account already holds this binding.
+   */
+  async bindUnboundDevice(id: Uuid, bindingId: string): Promise<boolean> {
+    try {
+      const result = await this.executeAsync(() =>
+        this.prisma.device.updateMany({
+          where: { id, bindingId: null },
+          data: { bindingId },
+        }),
+      );
+
+      return result.count === 1;
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async touchKnownDevice(id: Uuid, ipAddress?: string): Promise<void> {
     await this.executeAsync(() =>
       this.prisma.device.update({
@@ -301,4 +338,11 @@ export class DeviceRepository extends BaseRepository {
       verifiedAt: device.verifiedAt.toISOString(),
     };
   }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
 }

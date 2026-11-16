@@ -595,6 +595,25 @@ describe("AuthSessionService.refresh", () => {
     expect(harness.tokenService.rotateRefreshToken).not.toHaveBeenCalled();
   });
 
+  it("lets only the token's own device id vouch for the session's device", async () => {
+    const harness = createHarness();
+
+    await harness.service.refresh({
+      client: createClient(),
+      refreshToken: "incoming-refresh-token",
+    });
+
+    expect(
+      harness.deviceService.evaluateExistingSessionDevice,
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      DEVICE_1_ID,
+      undefined,
+      DEVICE_1_ID,
+    );
+  });
+
   it("falls back to the request device when the token carries none", async () => {
     const harness = createHarness();
     harness.tokenService.verifyRefreshToken.mockResolvedValue({
@@ -610,6 +629,16 @@ describe("AuthSessionService.refresh", () => {
 
     expect(harness.tokenService.createAccessToken).toHaveBeenCalledWith(
       expect.objectContaining({ deviceId: DEVICE_1_ID }),
+    );
+    // The request's own id is only a hint, never a voucher.
+    expect(
+      harness.deviceService.evaluateExistingSessionDevice,
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      DEVICE_1_ID,
+      undefined,
+      undefined,
     );
   });
 

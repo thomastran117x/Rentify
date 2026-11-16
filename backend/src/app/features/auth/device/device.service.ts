@@ -132,15 +132,22 @@ export class DeviceService {
   /**
    * A refresh or reissue of a session that already exists. As
    * {@link evaluateSuccessfulAuthentication}, except an account with no
-   * registered device yet is not alerted.
+   * registered device yet is not alerted, and a session can vouch for an
+   * unbound device (see {@link findSessionDevice}).
+   *
+   * `sessionDeviceId` is the device id from the session's own signed token,
+   * never one the request sent.
    */
   async evaluateExistingSessionDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
     audit?: AuthAuditContext,
+    sessionDeviceId?: string,
   ): Promise<KnownDeviceStatus> {
-    const known = await this.findBoundDevice(user, client);
+    const known =
+      (await this.findBoundDevice(user, client)) ??
+      (await this.findSessionDevice(user, client, sessionDeviceId));
 
     if (known) {
       return known;
@@ -207,6 +214,47 @@ export class DeviceService {
       deviceId: knownDevice.deviceId,
       known: true,
       knownByIp: Boolean(client.ip && knownDevice.lastIpAddress === client.ip),
+    };
+  }
+
+  /**
+   * A device registered before device binding, or by a client that keeps no
+   * cookies, has no binding, so only its session can vouch for it: the
+   * session's signed device id names the row. Its refreshes stay known, and a
+   * browser that now presents a device cookie has the row bound to it, which
+   * moves a pre-binding session onto the cookie without another check. A row
+   * that is already bound needs its cookie, as a sign-in does.
+   */
+  private async findSessionDevice(
+    user: AuthUserRecord,
+    client: ClientRequestContext,
+    sessionDeviceId: string | undefined,
+  ): Promise<KnownDeviceStatus | null> {
+    if (!sessionDeviceId) {
+      return null;
+    }
+
+    const device = await this.deviceRepository.findByDeviceId(
+      asUuid(user.id),
+      sessionDeviceId,
+    );
+
+    if (!device || device.bindingId) {
+      return null;
+    }
+
+    if (client.deviceBinding) {
+      await this.deviceRepository.bindUnboundDevice(
+        device.id,
+        client.deviceBinding.id,
+      );
+    }
+    await this.deviceRepository.touchKnownDevice(device.id, client.ip);
+
+    return {
+      deviceId: device.deviceId,
+      known: true,
+      knownByIp: Boolean(client.ip && device.lastIpAddress === client.ip),
     };
   }
 
