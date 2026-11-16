@@ -8,6 +8,7 @@ import {
   REFRESH_TOKEN_COOKIE_NAME,
 } from "@/features/auth/auth.cookies";
 import { SuspiciousActivityDetector } from "@/features/auth/detection/suspicious-activity.detector";
+import { DEVICE_BINDING_COOKIE_NAME } from "@/features/auth/device/device-binding";
 import type { SuspiciousActivityDetectionConfig } from "@/features/auth/detection/suspicious-activity.model";
 import type { EmailJobPayload } from "@/features/email/email.model";
 import {
@@ -505,6 +506,102 @@ describe("Suspicious sign-in detection integration", () => {
         channel: "email_link",
         sourceEventId: suspicious.id,
       });
+    });
+  });
+
+  describe("rule (c) and device binding", () => {
+    /** Registers the device by its cookie and returns that cookie. */
+    async function registerDevice(ip: string): Promise<string> {
+      const first = await login({
+        username: RENTER_ONE.username,
+        password: PASSWORD,
+        ip,
+        deviceId: "victim-laptop",
+      });
+      expect(first.status).toBe(200);
+      const accessToken = (
+        (await first.json()) as { data: { accessToken: string } }
+      ).data.accessToken;
+      const deviceCookie = decodeURIComponent(
+        readCookieValue(
+          first.headers.getSetCookie().join(", "),
+          DEVICE_BINDING_COOKIE_NAME,
+        )!,
+      );
+      const verify = await request("/auth/device/verify", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          origin: ORIGIN,
+          "x-device-id": "victim-laptop",
+          "x-forwarded-for": ip,
+          cookie: `${DEVICE_BINDING_COOKIE_NAME}=${deviceCookie}`,
+        },
+      });
+      expect(verify.status).toBe(200);
+      return deviceCookie;
+    }
+
+    async function failThreeTimes(): Promise<void> {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await login({
+          username: RENTER_ONE.username,
+          password: WRONG_PASSWORD,
+          ip: "198.51.100.75",
+        });
+      }
+    }
+
+    it("fires for a known device's id sent without its cookie", async () => {
+      await registerDevice("198.51.100.74");
+      await failThreeTimes();
+
+      const forged = await login({
+        username: RENTER_ONE.username,
+        password: PASSWORD,
+        ip: "203.0.113.175",
+        deviceId: "victim-laptop",
+      });
+      expect(forged.status).toBe(200);
+
+      await expect(
+        waitForSuspiciousEvent("success_after_failures"),
+      ).resolves.toBeDefined();
+    });
+
+    it("stays quiet for the device that presents its cookie", async () => {
+      const deviceCookie = await registerDevice("198.51.100.76");
+      await failThreeTimes();
+
+      const genuine = await request("/auth/local/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          "x-device-id": "victim-laptop",
+          "x-forwarded-for": "203.0.113.176",
+          cookie: `${DEVICE_BINDING_COOKIE_NAME}=${deviceCookie}`,
+        },
+        body: JSON.stringify({
+          username: RENTER_ONE.username,
+          password: PASSWORD,
+          captchaToken: "captcha-ok-login",
+        }),
+      });
+      expect(genuine.status).toBe(200);
+      await expect(genuine.json()).resolves.toMatchObject({
+        data: { device: { known: true } },
+      });
+
+      // Detection runs after the response; give it the time a firing takes.
+      await delay(1_000);
+      expect(
+        (await suspiciousEvents()).filter(
+          (event) =>
+            (event.metadata as { rule?: string } | null)?.rule ===
+            "success_after_failures",
+        ),
+      ).toHaveLength(0);
     });
   });
 

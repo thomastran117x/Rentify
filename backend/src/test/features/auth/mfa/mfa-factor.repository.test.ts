@@ -1,6 +1,7 @@
 import {
   hasStrongFactor,
   MfaFactorRepository,
+  recordStrongFactorChange,
 } from "@/features/auth/mfa/mfa-factor.repository";
 import { testUuid } from "../../../support/uuid";
 
@@ -62,5 +63,46 @@ describe("MfaFactorRepository", () => {
     expect(hasStrongFactor({ totpActive: false, passkeyCount: 0 })).toBe(false);
     expect(hasStrongFactor({ totpActive: true, passkeyCount: 0 })).toBe(true);
     expect(hasStrongFactor({ totpActive: false, passkeyCount: 1 })).toBe(true);
+  });
+});
+
+describe("recordStrongFactorChange", () => {
+  it("bumps the factor version, counts trust in force and clears every device's trust", async () => {
+    const now = new Date("2026-11-15T00:00:00.000Z");
+    const transaction = {
+      user: {
+        update: jest.fn(async () => ({ tokenVersion: 3, mfaFactorVersion: 5 })),
+      },
+      device: {
+        count: jest.fn(async () => 2),
+        updateMany: jest.fn(async () => ({ count: 4 })),
+      },
+    };
+
+    await expect(
+      recordStrongFactorChange(transaction as never, USER_ID, now),
+    ).resolves.toBe(2);
+    expect(transaction.user.update).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { mfaFactorVersion: { increment: 1 } },
+      select: { tokenVersion: true, mfaFactorVersion: true },
+    });
+    // Only trust at the versions before this change was still in force.
+    expect(transaction.device.count).toHaveBeenCalledWith({
+      where: {
+        userId: USER_ID,
+        trustedUntil: { gt: now },
+        trustedTokenVersion: 3,
+        trustedMfaVersion: 4,
+      },
+    });
+    expect(transaction.device.updateMany).toHaveBeenCalledWith({
+      where: { userId: USER_ID, trustedUntil: { not: null } },
+      data: {
+        trustedUntil: null,
+        trustedTokenVersion: null,
+        trustedMfaVersion: null,
+      },
+    });
   });
 });

@@ -43,7 +43,10 @@ import { toAuthUserProfile } from "@/features/auth/user-profile-mapper";
 import { PasswordPolicyService } from "@/features/auth/password/policy/password-policy.service";
 import { requireExistingUser } from "@/features/auth/require-existing-user";
 import { redactEmail } from "@/features/auth/redact-email";
-import type { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
+import {
+  withTrustedDevice,
+  type LoginMfaService,
+} from "@/features/auth/mfa/login/login-mfa.service";
 import {
   assertAccountIsActive,
   toBlockedAccountReasonCode,
@@ -164,13 +167,14 @@ export class LocalAuthService {
       user,
       method: "password",
       audit,
+      client: input.client,
       totpCode: input.totpCode,
       deviceId: input.deviceId,
       rememberMe: input.rememberMe,
     });
 
     // A verified code has already cleared it.
-    if (mfa.status === "not_required") {
+    if (mfa.status !== "verified") {
       await this.loginLockoutService.clearAttemptRecord(input.username);
     }
 
@@ -195,7 +199,9 @@ export class LocalAuthService {
       sessionId: session.sessionId,
     });
 
-    return session;
+    return mfa.status === "trusted_device"
+      ? withTrustedDevice(session, mfa.trustedUntil)
+      : session;
   }
 
   /**

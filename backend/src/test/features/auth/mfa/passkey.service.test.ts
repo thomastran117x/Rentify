@@ -69,6 +69,9 @@ function createService(
   const authSessionService = {
     revokeManagedSessions: jest.fn(async () => ({}) as never),
   };
+  const deviceTrustService = {
+    recordFactorChangeRevocation: jest.fn(async () => undefined),
+  };
   const service = new PasskeyService({
     passkeyRepository: passkeyRepository as never,
     passkeyChallengeStore,
@@ -78,6 +81,7 @@ function createService(
     authSessionService,
     authAuditService: authAuditService as never,
     securityNotificationService: securityNotificationService as never,
+    deviceTrustService,
     getConfig: () => ({
       rpId: TEST_WEBAUTHN_RP_ID,
       rpName: "Rentify",
@@ -92,6 +96,7 @@ function createService(
     authAuditService,
     authSessionService,
     securityNotificationService,
+    deviceTrustService,
   };
 }
 
@@ -239,6 +244,45 @@ describe("PasskeyService registration", () => {
         emailNotification: "sent",
       },
     });
+  });
+
+  it("audits the remembered devices storing a passkey forgot", async () => {
+    const { service, passkeyRepository, deviceTrustService } = createService();
+    passkeyRepository.trustRevokedByChange = 3;
+
+    await register(service);
+
+    expect(
+      deviceTrustService.recordFactorChangeRevocation,
+    ).toHaveBeenCalledWith(USER_ID, "passkey_added", 3, CONTEXT);
+  });
+
+  it("leaves remembered devices alone when no passkey was stored", async () => {
+    const { service, passkeyRepository, deviceTrustService } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await register(service, authenticator);
+    deviceTrustService.recordFactorChangeRevocation.mockClear();
+
+    // A duplicate fails on the unique index, and an add over the cap stores
+    // nothing: neither is a factor change.
+    await expect(register(service, authenticator)).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    const { options } = await service.beginRegistration(ACTOR);
+    passkeyRepository.createWithinCap.mockResolvedValueOnce({
+      status: "limit_reached",
+    });
+    await expect(
+      service.finishRegistration({
+        ...ACTOR,
+        credential: new SoftwareAuthenticator().createRegistrationResponse({
+          challenge: options.challenge,
+        }) as never,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(
+      deviceTrustService.recordFactorChangeRevocation,
+    ).not.toHaveBeenCalled();
   });
 
   it("records a synced passkey and keeps a chosen name", async () => {
@@ -511,6 +555,20 @@ describe("PasskeyService management", () => {
     );
   });
 
+  it("audits the remembered devices removing a passkey forgot", async () => {
+    const { service, passkeyRepository, deviceTrustService } = createService({
+      rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
+      totpActive: true,
+    });
+    passkeyRepository.trustRevokedByChange = 1;
+
+    await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });
+
+    expect(
+      deviceTrustService.recordFactorChangeRevocation,
+    ).toHaveBeenCalledWith(USER_ID, "passkey_removed", 1, CONTEXT);
+  });
+
   it("keeps other sessions when an authenticator still protects the account", async () => {
     const { service, authSessionService } = createService({
       rows: [buildPasskeyRow({ id: PASSKEY_ID, userId: USER_ID })],
@@ -573,6 +631,7 @@ describe("PasskeyService management", () => {
     passkeyRepository.deleteForUser.mockImplementationOnce(async () => ({
       row: passkeyRepository.rows.splice(0, 1)[0]!,
       lastStrongFactor: true,
+      trustRevoked: 0,
     }));
 
     await service.remove({ ...ACTOR, auth: AUTH, id: PASSKEY_ID });

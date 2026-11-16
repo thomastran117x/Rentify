@@ -29,7 +29,7 @@ export class LoginMfaChallengeStore {
   async issue(
     challenge: NewLoginMfaChallenge,
     availableFactors: LoginMfaFactor[],
-  ): Promise<LoginMfaRequiredDetails> {
+  ): Promise<Omit<LoginMfaRequiredDetails, "rememberDeviceDays">> {
     const token = randomBytes(32).toString("base64url");
     const record: LoginMfaChallengeRecord = {
       ...challenge,

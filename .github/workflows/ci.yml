@@ -186,6 +186,7 @@ jobs:
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
       AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       OTP_HASH_SECRET: ci-otp-hash-secret-value-of-32-chars
+      DEVICE_BINDING_SECRET: ci-device-binding-secret-of-32-chars
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
@@ -241,6 +242,7 @@ jobs:
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
       AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       OTP_HASH_SECRET: ci-otp-hash-secret-value-of-32-chars
+      DEVICE_BINDING_SECRET: ci-device-binding-secret-of-32-chars
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id
@@ -339,6 +341,7 @@ jobs:
       PERSONAL_ACCESS_TOKEN_SECRET: ci-personal-access-token-secret-32
       AUTH_AUDIT_IDENTIFIER_SECRET: ci-auth-audit-identifier-secret-32
       OTP_HASH_SECRET: ci-otp-hash-secret-value-of-32-chars
+      DEVICE_BINDING_SECRET: ci-device-binding-secret-of-32-chars
       PAYPAL_CLIENT_ID: ci-paypal-client-id
       PAYPAL_CLIENT_SECRET: ci-paypal-client-secret
       PAYPAL_WEBHOOK_ID: ci-paypal-webhook-id

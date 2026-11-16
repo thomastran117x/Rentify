@@ -152,6 +152,11 @@ export interface AuthUserRecord {
   email: string;
   passwordHash?: string;
   tokenVersion: number;
+  /**
+   * Bumped by every passkey or authenticator change; device trust is pinned
+   * to it. Absent means 0, as for a record built outside the repository.
+   */
+  mfaFactorVersion?: number;
   firstName?: string;
   lastName?: string;
   role: AppRole;
@@ -193,6 +198,8 @@ export interface AuthSessionResult {
     deviceId?: string;
     known: boolean;
     knownByIp: boolean;
+    /** Set when login MFA is skipped on this device ("Remember this device"). */
+    trustedUntil?: string;
   };
   user: AuthUserProfile;
   /** Server-side session id, for the audit log. Never sent to the client. */
@@ -228,6 +235,8 @@ export interface AuthResponseBody {
     deviceId?: string;
     known: boolean;
     knownByIp: boolean;
+    /** Set when login MFA is skipped on this device ("Remember this device"). */
+    trustedUntil?: string;
   };
   user: AuthResponseUser;
   /**

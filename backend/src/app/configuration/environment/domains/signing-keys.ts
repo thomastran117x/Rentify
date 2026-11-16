@@ -56,6 +56,10 @@ export const PERSONAL_ACCESS_TOKEN_KEYSET: KeysetNames = {
   keysName: "PERSONAL_ACCESS_TOKEN_KEYS",
   legacyName: "PERSONAL_ACCESS_TOKEN_SECRET",
 };
+export const DEVICE_BINDING_KEYSET: KeysetNames = {
+  keysName: "DEVICE_BINDING_KEYS",
+  legacyName: "DEVICE_BINDING_SECRET",
+};
 
 /** A secret named for error messages, which never carry the value itself. */
 export interface LabelledSecret {
@@ -535,6 +539,7 @@ export function validateProductionTokenSigning(
         },
       ],
       [{ label: "OTP_HASH_SECRET", secret: auth.otpHashSecret }],
+      labelledSecrets(raw, auth.deviceBindingKeys, DEVICE_BINDING_KEYSET),
       [
         {
           label: "MFA_TOTP_ENCRYPTION_KEY",

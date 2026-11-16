@@ -331,6 +331,8 @@ export type RawEnvironmentValues = {
   PERSONAL_ACCESS_TOKEN_SECRET?: string;
   AUTH_AUDIT_IDENTIFIER_SECRET?: string;
   OTP_HASH_SECRET?: string;
+  DEVICE_BINDING_SECRET?: string;
+  DEVICE_BINDING_KEYS?: string;
   AUTH_AUDIT_PRUNE_BATCH_SIZE?: string;
   AUTH_AUDIT_PRUNE_INTERVAL_MINUTES?: string;
   AUTH_AUDIT_RETENTION_DAYS?: string;
@@ -369,6 +371,7 @@ export type RawEnvironmentValues = {
   AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS?: string;
   AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS?: string;
   AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS?: string;
+  AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS?: string;
   REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS?: string;
   REFRESH_TOKEN_TTL_SECONDS?: string;
   TELNYX_API_KEY?: string;
@@ -466,6 +469,8 @@ export interface AppEnvironment {
     authAuditIdentifierSecret: string;
     /** HMAC key for the emailed one-time codes held in Redis. */
     otpHashSecret: string;
+    /** HMAC keyset that signs the device-binding cookie; see signing keys. */
+    deviceBindingKeys: HmacSigningKey[];
     mfaBypassEmails: string[];
     mfaTotpEncryptionKey: string;
     /**
@@ -504,6 +509,10 @@ export interface AppEnvironment {
     refresh: {
       /** How long a just-rotated refresh token still returns its successor. */
       rotationGracePeriodSeconds: number;
+    };
+    deviceTrust: {
+      /** How long "Remember this device" skips login MFA. */
+      ttlDays: number;
     };
     passwords: {
       /** The k-anonymity breached-password check on every new password. */

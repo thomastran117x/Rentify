@@ -133,6 +133,8 @@ describe("AuthAuditActivityService.listForUser", () => {
         "session.revoked",
         "session.refresh_reuse_detected",
         "device.new_detected",
+        "device.trusted",
+        "device.trust_revoked",
       ],
       afterId,
       limit: 6,

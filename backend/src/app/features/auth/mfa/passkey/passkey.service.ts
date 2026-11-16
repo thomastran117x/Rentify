@@ -27,6 +27,7 @@ import type { AuthAuditService } from "@/features/auth/audit/auth-audit.service"
 import type { MfaFactorRepository } from "@/features/auth/mfa/mfa-factor.repository";
 import type { MfaRecoveryCodeService } from "@/features/auth/mfa/recovery/mfa-recovery-code.service";
 import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
+import type { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { UsersRepository } from "@/features/auth/users/users.repository";
 import type {
@@ -69,6 +70,7 @@ interface PasskeyServiceOptions {
   authSessionService: Pick<AuthSessionService, "revokeManagedSessions">;
   authAuditService: AuthAuditService;
   securityNotificationService: SecurityNotificationService;
+  deviceTrustService: Pick<DeviceTrustService, "recordFactorChangeRevocation">;
   /** Defaults to the `webauthn` config, read on each request. */
   getConfig?: () => WebAuthnConfig;
 }
@@ -270,6 +272,14 @@ export class PasskeyService {
       throw this.limitReachedError();
     }
 
+    // Only a passkey that was stored ended any trust, in its transaction.
+    await this.options.deviceTrustService.recordFactorChangeRevocation(
+      actor.userId,
+      "passkey_added",
+      result.trustRevoked,
+      actor.context,
+    );
+
     const passkey = toPasskeySummary(result.row);
     const eventId = newUuid();
     const emailNotification =
@@ -374,6 +384,13 @@ export class PasskeyService {
     if (!removed) {
       throw new ResourceNotFoundError("Passkey not found.");
     }
+
+    await this.options.deviceTrustService.recordFactorChangeRevocation(
+      actor.userId,
+      "passkey_removed",
+      removed.trustRevoked,
+      actor.context,
+    );
 
     if (removed.lastStrongFactor && !otherSessionsSignedOut) {
       await this.revokeOtherSessions(actor);

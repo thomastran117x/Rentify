@@ -182,6 +182,7 @@ export function toCompleteLoginMfaInput(
     client: request.client,
     mfaChallengeToken: input.mfaChallengeToken,
     deviceId,
+    rememberDevice: input.rememberDevice,
     audit: toAuthAuditContext(request, deviceId),
   };
 }

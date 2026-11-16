@@ -86,17 +86,28 @@ function createMocks() {
       .fn<
         Promise<
           | { activated: false }
-          | { activated: true; recoveryCodesIssued: boolean }
+          | {
+              activated: true;
+              recoveryCodesIssued: boolean;
+              trustRevoked: number;
+            }
         >,
         [string, string, Date, number, unknown[]]
       >()
-      .mockResolvedValue({ activated: true, recoveryCodesIssued: true }),
+      .mockResolvedValue({
+        activated: true,
+        recoveryCodesIssued: true,
+        trustRevoked: 0,
+      }),
     claimCounter: jest
       .fn<Promise<boolean>, [string, number]>()
       .mockResolvedValue(true),
     deleteByUserId: jest
-      .fn<Promise<{ lastStrongFactor: boolean }>, [string]>()
-      .mockResolvedValue({ lastStrongFactor: true }),
+      .fn<
+        Promise<{ lastStrongFactor: boolean; trustRevoked: number }>,
+        [string]
+      >()
+      .mockResolvedValue({ lastStrongFactor: true, trustRevoked: 0 }),
     deleteByUserIdIfPending: jest
       .fn<Promise<void>, [string]>()
       .mockResolvedValue(undefined),
@@ -123,6 +134,9 @@ function createMocks() {
       unusedRecoveryCodes: 10,
     })),
   };
+  const deviceTrustService = {
+    recordFactorChangeRevocation: jest.fn(async () => undefined),
+  };
   const service = new MfaTotpService({
     totpService,
     mfaTotpRepository: mfaTotpRepository as any,
@@ -132,10 +146,12 @@ function createMocks() {
     authAuditService: authAuditService as never,
     authSessionService: authSessionService as never,
     securityNotificationService: securityNotificationService as never,
+    deviceTrustService,
   });
 
   return {
     service,
+    deviceTrustService,
     securityNotificationService,
     totpService,
     mfaTotpRepository,
@@ -312,6 +328,46 @@ describe("MfaTotpService", () => {
       });
     });
 
+    it("audits the remembered devices the activation forgot", async () => {
+      const { service, mfaTotpRepository, deviceTrustService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      mfaTotpRepository.activate.mockResolvedValue({
+        activated: true,
+        recoveryCodesIssued: true,
+        trustRevoked: 2,
+      });
+
+      await service.confirmEnrollment(USER_ID_ID, "123456", {
+        sessionId: "session-1",
+        context: { requestId: "request-1" },
+      });
+
+      expect(
+        deviceTrustService.recordFactorChangeRevocation,
+      ).toHaveBeenCalledWith(USER_ID_ID, "mfa_enabled", 2, {
+        requestId: "request-1",
+      });
+    });
+
+    it("records no revocation when the code is wrong or the race was lost", async () => {
+      const { service, mfaTotpRepository, totpService, deviceTrustService } =
+        createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(makeRecord());
+      totpService.verifyCode.mockReturnValueOnce(null);
+
+      await expect(
+        service.confirmEnrollment(USER_ID_ID, "000000"),
+      ).rejects.toThrow("Verification code is incorrect.");
+
+      mfaTotpRepository.activate.mockResolvedValue({ activated: false });
+      await expect(
+        service.confirmEnrollment(USER_ID_ID, "123456"),
+      ).rejects.toBeInstanceOf(ConflictError);
+      expect(
+        deviceTrustService.recordFactorChangeRevocation,
+      ).not.toHaveBeenCalled();
+    });
+
     it("shows no codes when the account already has a set from a passkey", async () => {
       const { service, mfaTotpRepository, securityNotificationService } =
         createMocks();
@@ -319,6 +375,7 @@ describe("MfaTotpService", () => {
       mfaTotpRepository.activate.mockResolvedValue({
         activated: true,
         recoveryCodesIssued: false,
+        trustRevoked: 0,
       });
 
       await expect(
@@ -562,6 +619,25 @@ describe("MfaTotpService", () => {
       });
     });
 
+    it("audits the remembered devices turning the authenticator off forgot", async () => {
+      const { service, mfaTotpRepository, deviceTrustService } = createMocks();
+      mfaTotpRepository.findByUserId.mockResolvedValue(
+        makeRecord({ status: "active" }),
+      );
+      mfaTotpRepository.deleteByUserId.mockResolvedValue({
+        lastStrongFactor: true,
+        trustRevoked: 1,
+      });
+
+      await service.disable(DISABLE_AUTH, { requestId: "request-2" });
+
+      expect(
+        deviceTrustService.recordFactorChangeRevocation,
+      ).toHaveBeenCalledWith(USER_ID_ID, "mfa_disabled", 1, {
+        requestId: "request-2",
+      });
+    });
+
     it("keeps other sessions when a passkey still protects the account", async () => {
       const {
         service,
@@ -580,6 +656,7 @@ describe("MfaTotpService", () => {
       });
       mfaTotpRepository.deleteByUserId.mockResolvedValue({
         lastStrongFactor: false,
+        trustRevoked: 0,
       });
 
       await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
@@ -612,6 +689,7 @@ describe("MfaTotpService", () => {
       });
       mfaTotpRepository.deleteByUserId.mockResolvedValue({
         lastStrongFactor: true,
+        trustRevoked: 0,
       });
 
       await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({
@@ -700,6 +778,7 @@ describe("MfaTotpService", () => {
       const { service, mfaTotpRepository, authAuditService } = createMocks();
       mfaTotpRepository.deleteByUserId.mockResolvedValue({
         lastStrongFactor: true,
+        trustRevoked: 0,
       });
 
       await expect(service.disable(DISABLE_AUTH, {})).resolves.toEqual({

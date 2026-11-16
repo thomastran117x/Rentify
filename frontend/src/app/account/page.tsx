@@ -195,6 +195,9 @@ export default function AccountPage() {
   const [pendingDeviceRemove, setPendingDeviceRemove] = useState<string | null>(
     null,
   );
+  const [pendingDeviceTrustRevoke, setPendingDeviceTrustRevoke] = useState<
+    string | null
+  >(null);
   const [confirmDeviceRemove, setConfirmDeviceRemove] = useState<string | null>(
     null,
   );
@@ -491,6 +494,35 @@ export default function AccountPage() {
       );
     } finally {
       setPendingDeviceRemove(null);
+    }
+  }
+
+  async function handleRevokeDeviceTrust(deviceId: string) {
+    setPendingDeviceTrustRevoke(deviceId);
+    setDevicesMessage(null);
+
+    try {
+      await authApi.revokeDeviceTrust(deviceId);
+      setDevices((current) =>
+        current.map((device) =>
+          device.deviceId === deviceId
+            ? { ...device, trusted: false, trustedUntil: undefined }
+            : device,
+        ),
+      );
+      setDevicesMessage(
+        "That device will ask for your verification code at its next sign-in.",
+      );
+    } catch (error) {
+      setDevicesMessage(
+        getApiErrorMessage(error, {
+          action: "stop trusting that device",
+          fallback:
+            "We couldn't stop trusting that device right now. Please try again.",
+        }),
+      );
+    } finally {
+      setPendingDeviceTrustRevoke(null);
     }
   }
 
@@ -1116,6 +1148,11 @@ export default function AccountPage() {
                               This device
                             </span>
                           )}
+                          {device.trusted && (
+                            <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+                              Remembered
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                           {device.lastIpAddress
@@ -1123,6 +1160,12 @@ export default function AccountPage() {
                             : ""}
                           Last seen {formatDateTime(device.lastSeenAt)}
                         </p>
+                        {device.trusted && device.trustedUntil ? (
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            Skips the verification code until{" "}
+                            {formatDateTime(device.trustedUntil)}
+                          </p>
+                        ) : null}
                       </div>
                       {confirmDeviceRemove === device.deviceId ? (
                         <div className="flex shrink-0 items-center gap-2">
@@ -1151,19 +1194,37 @@ export default function AccountPage() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setConfirmDeviceRemove(device.deviceId)
-                          }
-                          disabled={
-                            Boolean(device.current) ||
-                            pendingDeviceRemove === device.deviceId
-                          }
-                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Remove
-                        </button>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          {device.trusted ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleRevokeDeviceTrust(device.deviceId)
+                              }
+                              disabled={
+                                pendingDeviceTrustRevoke === device.deviceId
+                              }
+                              className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {pendingDeviceTrustRevoke === device.deviceId
+                                ? "Updating..."
+                                : "Stop trusting"}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirmDeviceRemove(device.deviceId)
+                            }
+                            disabled={
+                              Boolean(device.current) ||
+                              pendingDeviceRemove === device.deviceId
+                            }
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))

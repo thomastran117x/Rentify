@@ -48,6 +48,17 @@ export class DeviceService {
       DEFAULT_UNKNOWN_DEVICE_ALERT_COOLDOWN_SECONDS;
   }
 
+  /**
+   * Records the device as verified. Only a request that presented a verified
+   * device cookie binds the row; without one (a client that keeps no cookies)
+   * the row is a hint row, listed and signed out like any other, which never
+   * makes a sign-in known.
+   *
+   * A device id is required: it is what the row, the session's claims and
+   * revocation all match on, so a client that sends none registers nothing.
+   * The id returned is the row's, which is an earlier one when the browser's
+   * cookie was registered under it before its storage was cleared.
+   */
   async registerKnownDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
@@ -61,49 +72,39 @@ export class DeviceService {
       };
     }
 
-    await this.deviceRepository.registerKnownDevice({
+    const bindingId = client.deviceBinding?.id;
+    const device = await this.deviceRepository.registerKnownDevice({
       userId: asUuid(user.id),
       deviceId,
       type: client.device.type,
       platform: client.device.platform,
       userAgent: client.device.userAgent,
       ipAddress: client.ip,
+      ...(bindingId ? { bindingId } : {}),
     });
 
     return {
-      deviceId,
-      known: true,
+      deviceId: device.deviceId,
+      known: Boolean(bindingId),
       knownByIp: Boolean(client.ip),
     };
   }
 
+  /**
+   * A sign-in. The device is known only by its verified device cookie: the
+   * `deviceId` hint labels it, but a forged one matches nothing. Otherwise a
+   * known IP is enough to skip the alert, and anything else sends it.
+   */
   async evaluateSuccessfulAuthentication(
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
     audit?: AuthAuditContext,
   ): Promise<KnownDeviceStatus> {
-    if (deviceId) {
-      const knownDevice = await this.deviceRepository.findKnownDevice(
-        asUuid(user.id),
-        deviceId,
-      );
+    const known = await this.findBoundDevice(user, client);
 
-      if (knownDevice) {
-        await this.deviceRepository.touchKnownDevice(
-          asUuid(user.id),
-          deviceId,
-          client.ip,
-        );
-
-        return {
-          deviceId,
-          known: true,
-          knownByIp: Boolean(
-            client.ip && knownDevice.lastIpAddress === client.ip,
-          ),
-        };
-      }
+    if (known) {
+      return known;
     }
 
     if (!client.ip) {
@@ -114,14 +115,7 @@ export class DeviceService {
       };
     }
 
-    const knownByIp = await this.deviceRepository.hasKnownIpAddress(
-      asUuid(user.id),
-      client.ip,
-    );
-
-    if (knownByIp) {
-      await this.deviceRepository.touchKnownIpAddress(user.id, client.ip);
-
+    if (await this.touchIfKnownIp(user, client.ip)) {
       return {
         deviceId,
         known: false,
@@ -129,12 +123,7 @@ export class DeviceService {
       };
     }
 
-    await this.notifyUnknownDevice(
-      user,
-      client,
-      deviceId ?? "unknown-device",
-      audit,
-    );
+    await this.notifyUnknownDevice(user, client, deviceId, audit);
 
     return {
       deviceId,
@@ -143,33 +132,28 @@ export class DeviceService {
     };
   }
 
+  /**
+   * A refresh or reissue of a session that already exists. As
+   * {@link evaluateSuccessfulAuthentication}, except an account with no
+   * registered device yet is not alerted, and a session can vouch for an
+   * unbound device (see {@link findSessionDevice}).
+   *
+   * `sessionDeviceId` is the device id from the session's own signed token,
+   * never one the request sent.
+   */
   async evaluateExistingSessionDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
     audit?: AuthAuditContext,
+    sessionDeviceId?: string,
   ): Promise<KnownDeviceStatus> {
-    if (deviceId) {
-      const knownDevice = await this.deviceRepository.findKnownDevice(
-        asUuid(user.id),
-        deviceId,
-      );
+    const known =
+      (await this.findBoundDevice(user, client)) ??
+      (await this.findSessionDevice(user, client, sessionDeviceId));
 
-      if (knownDevice) {
-        await this.deviceRepository.touchKnownDevice(
-          asUuid(user.id),
-          deviceId,
-          client.ip,
-        );
-
-        return {
-          deviceId,
-          known: true,
-          knownByIp: Boolean(
-            client.ip && knownDevice.lastIpAddress === client.ip,
-          ),
-        };
-      }
+    if (known) {
+      return known;
     }
 
     if (!client.ip) {
@@ -180,14 +164,7 @@ export class DeviceService {
       };
     }
 
-    const knownByIp = await this.deviceRepository.hasKnownIpAddress(
-      asUuid(user.id),
-      client.ip,
-    );
-
-    if (knownByIp) {
-      await this.deviceRepository.touchKnownIpAddress(user.id, client.ip);
-
+    if (await this.touchIfKnownIp(user, client.ip)) {
       return {
         deviceId,
         known: false,
@@ -203,18 +180,101 @@ export class DeviceService {
       };
     }
 
-    await this.notifyUnknownDevice(
-      user,
-      client,
-      deviceId ?? "unknown-device",
-      audit,
-    );
+    await this.notifyUnknownDevice(user, client, deviceId, audit);
 
     return {
       deviceId,
       known: false,
       knownByIp: false,
     };
+  }
+
+  private async findBoundDevice(
+    user: AuthUserRecord,
+    client: ClientRequestContext,
+  ): Promise<KnownDeviceStatus | null> {
+    const bindingId = client.deviceBinding?.id;
+
+    if (!bindingId) {
+      return null;
+    }
+
+    const knownDevice = await this.deviceRepository.findByBindingId(
+      asUuid(user.id),
+      bindingId,
+    );
+
+    if (!knownDevice) {
+      return null;
+    }
+
+    await this.deviceRepository.touchKnownDevice(knownDevice.id, client.ip);
+
+    // The row's id, not this request's hint: a browser whose storage was
+    // cleared sends a new hint, but its sessions must stay under the id the
+    // device list shows, so removing that device signs them out.
+    return {
+      deviceId: knownDevice.deviceId,
+      known: true,
+      knownByIp: Boolean(client.ip && knownDevice.lastIpAddress === client.ip),
+    };
+  }
+
+  /**
+   * A device registered before device binding, or by a client that keeps no
+   * cookies, has no binding, so only its session can vouch for it: the
+   * session's signed device id names the row. Its refreshes stay known, and a
+   * browser that now presents a device cookie has the row bound to it, which
+   * moves a pre-binding session onto the cookie without another check. A row
+   * that is already bound needs its cookie, as a sign-in does.
+   */
+  private async findSessionDevice(
+    user: AuthUserRecord,
+    client: ClientRequestContext,
+    sessionDeviceId: string | undefined,
+  ): Promise<KnownDeviceStatus | null> {
+    if (!sessionDeviceId) {
+      return null;
+    }
+
+    const device = await this.deviceRepository.findByDeviceId(
+      asUuid(user.id),
+      sessionDeviceId,
+    );
+
+    if (!device || device.bindingId) {
+      return null;
+    }
+
+    if (client.deviceBinding) {
+      await this.deviceRepository.bindUnboundDevice(
+        device.id,
+        client.deviceBinding.id,
+      );
+    }
+    await this.deviceRepository.touchKnownDevice(device.id, client.ip);
+
+    return {
+      deviceId: device.deviceId,
+      known: true,
+      knownByIp: Boolean(client.ip && device.lastIpAddress === client.ip),
+    };
+  }
+
+  private async touchIfKnownIp(
+    user: AuthUserRecord,
+    ipAddress: string,
+  ): Promise<boolean> {
+    const knownByIp = await this.deviceRepository.hasKnownIpAddress(
+      asUuid(user.id),
+      ipAddress,
+    );
+
+    if (knownByIp) {
+      await this.deviceRepository.touchKnownIpAddress(user.id, ipAddress);
+    }
+
+    return knownByIp;
   }
 
   async listKnownDevices(
@@ -246,13 +306,21 @@ export class DeviceService {
     }
   }
 
+  /**
+   * The cooldown is per verified device when there is one, so a forged hint
+   * cannot spend another device's cooldown and silence its alert.
+   */
   private async notifyUnknownDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
-    deviceId: string,
+    deviceId: string | undefined,
     audit?: AuthAuditContext,
   ): Promise<void> {
-    const notificationKey = `auth:unknown-device:${user.id}:${deviceId}`;
+    const deviceLabel = deviceId ?? "unknown-device";
+    const cooldownSubject = client.deviceBinding
+      ? `bound:${client.deviceBinding.id}`
+      : deviceLabel;
+    const notificationKey = `auth:unknown-device:${user.id}:${cooldownSubject}`;
     const shouldSend = await this.cache.setIfNotExists(
       notificationKey,
       "1",
@@ -260,7 +328,13 @@ export class DeviceService {
     );
 
     if (!shouldSend) {
-      await this.recordNewDevice(user, client, deviceId, "suppressed", audit);
+      await this.recordNewDevice(
+        user,
+        client,
+        deviceLabel,
+        "suppressed",
+        audit,
+      );
       return;
     }
 
@@ -276,14 +350,21 @@ export class DeviceService {
     await this.emailService.sendNewDeviceEmail({
       to: user.email,
       firstName: user.firstName,
-      deviceLabel: deviceId,
+      deviceLabel,
       ipAddress: client.ip,
       platform: client.device.platform,
       userAgent: client.device.userAgent,
       detectedAt: new Date(),
       ...(selfLockToken ? { selfLockToken } : {}),
     });
-    await this.recordNewDevice(user, client, deviceId, "sent", audit, eventId);
+    await this.recordNewDevice(
+      user,
+      client,
+      deviceLabel,
+      "sent",
+      audit,
+      eventId,
+    );
   }
 
   private async recordNewDevice(
@@ -304,7 +385,12 @@ export class DeviceService {
         userAgent: client.device.userAgent,
         deviceId,
       },
-      metadata: { emailNotification },
+      // Whether the device presented a verified device cookie. A device id
+      // that arrived only as the client's hint is recorded as unverified.
+      metadata: {
+        emailNotification,
+        deviceBinding: client.deviceBinding ? "verified" : "unverified",
+      },
     });
   }
 }

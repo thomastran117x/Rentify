@@ -13,6 +13,7 @@ import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
 import type { JwtAuthPrincipal } from "@/features/auth/auth.principal";
 import type { AuthSessionService } from "@/features/auth/session/session.service";
 import type { SecurityNotificationService } from "@/features/auth/security-notification/security-notification.service";
+import type { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
@@ -27,6 +28,7 @@ interface MfaTotpServiceOptions {
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
   securityNotificationService: SecurityNotificationService;
+  deviceTrustService: Pick<DeviceTrustService, "recordFactorChangeRevocation">;
 }
 
 export interface MfaTotpDisableOutcome {
@@ -48,6 +50,10 @@ export class MfaTotpService {
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
   private readonly securityNotificationService: SecurityNotificationService;
+  private readonly deviceTrustService: Pick<
+    DeviceTrustService,
+    "recordFactorChangeRevocation"
+  >;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
@@ -58,6 +64,7 @@ export class MfaTotpService {
     this.authAuditService = options.authAuditService;
     this.authSessionService = options.authSessionService;
     this.securityNotificationService = options.securityNotificationService;
+    this.deviceTrustService = options.deviceTrustService;
   }
 
   async beginEnrollment(
@@ -158,6 +165,14 @@ export class MfaTotpService {
       throw new ConflictError("MFA is already enabled.");
     }
 
+    // The activation ended every device's trust in the same transaction.
+    await this.deviceTrustService.recordFactorChangeRevocation(
+      userId,
+      "mfa_enabled",
+      activation.trustRevoked,
+      audit?.context,
+    );
+
     const eventId = newUuid();
     const emailNotification = await this.securityNotificationService.notify({
       kind: "mfa_enabled",
@@ -242,8 +257,14 @@ export class MfaTotpService {
       otherSessionsSignedOut = true;
     }
 
-    const { lastStrongFactor } =
+    const { lastStrongFactor, trustRevoked } =
       await this.mfaTotpRepository.deleteByUserId(userId);
+    await this.deviceTrustService.recordFactorChangeRevocation(
+      userId,
+      "mfa_disabled",
+      trustRevoked,
+      context,
+    );
 
     if (wasActive && lastStrongFactor && !otherSessionsSignedOut) {
       await this.revokeOtherSessions(auth, context);

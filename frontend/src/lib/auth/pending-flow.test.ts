@@ -301,6 +301,33 @@ describe("pending auth flow storage", () => {
       expect(readPersistedAuthPendingFlow()).toEqual(flow);
     });
 
+    it("carries how long the device can be remembered, through storage", () => {
+      const remembered = createLoginMfaPendingFlow(
+        {
+          mfaRequired: true,
+          mfaChallengeToken: "challenge-token",
+          availableFactors: ["totp"],
+          expiresInSeconds: 300,
+          rememberDeviceDays: 30,
+        },
+        "password",
+        now,
+      );
+
+      expect(remembered).toEqual({ ...flow, rememberDeviceDays: 30 });
+      writePersistedAuthPendingFlow(remembered);
+      expect(readPersistedAuthPendingFlow()).toEqual(remembered);
+    });
+
+    it("drops a stored duration that is not a positive whole number", () => {
+      expect(parsePendingFlow({ ...flow, rememberDeviceDays: "30" })).toEqual(
+        flow,
+      );
+      expect(parsePendingFlow({ ...flow, rememberDeviceDays: 0 })).toEqual(
+        flow,
+      );
+    });
+
     it("keeps a switch to a recovery code across a refresh", () => {
       const recoveryFlow = {
         ...flow,

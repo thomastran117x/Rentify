@@ -348,6 +348,16 @@ ignore it and send the credentials again with `totpCode`.
   `device-login` step-up for the new session, so the new-device check does
   not ask for a second code. See
   [Marking a Device Known](./auth-security.md#marking-a-device-known).
+- **Remember this device.** Add `"rememberDevice": true` to skip this step at
+  later sign-ins from the same browser for `rememberDeviceDays` (from the
+  challenge, 30 by default). It needs the httpOnly device cookie the first
+  step's response set, so send credentials with both requests. The session's
+  `device.trustedUntil` says until when, and a later sign-in that skipped the
+  step carries it too. Step-up is never skipped. Without the cookie the flag
+  is ignored. See
+  [Trusted Devices](./auth-security.md#trusted-devices) for what ends it, and
+  `DELETE /auth/devices/trust` with `{ "deviceId" }` (after an
+  `mfa-management` step-up) to end it for one device.
 
 `totpCode` on `/auth/local/login` and `/auth/oauth/*` is **deprecated**. It is
 still accepted for API clients that send the code together with the first

@@ -10,6 +10,7 @@ import {
   parseRefreshTokenMode,
 } from "@/configuration/environment/domains/auth";
 import {
+  DEVICE_BINDING_KEYSET,
   PERSONAL_ACCESS_TOKEN_KEYSET,
   REFRESH_TOKEN_KEYSET,
   parseAccessTokenKeys,
@@ -104,6 +105,7 @@ export function parseEnvironmentState(
     errors,
   );
   const otpHashSecret = readRequiredSecret(raw, "OTP_HASH_SECRET", errors);
+  const deviceBindingKeys = parseHmacKeys(raw, errors, DEVICE_BINDING_KEYSET);
   const mfaTotpEncryptionKeyRaw = raw.MFA_TOTP_ENCRYPTION_KEY;
   if (!mfaTotpEncryptionKeyRaw) {
     errors.push("MFA_TOTP_ENCRYPTION_KEY is required.");
@@ -143,6 +145,7 @@ export function parseEnvironmentState(
       personalAccessTokenKeys,
       authAuditIdentifierSecret,
       otpHashSecret,
+      deviceBindingKeys,
       mfaTotpEncryptionKey,
       nodeEnv,
     ),

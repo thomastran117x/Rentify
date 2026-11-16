@@ -5,6 +5,7 @@ import { FeatureFlagService } from "@/features/feature-flags/feature-flag.servic
 import { CaptchaService } from "@/features/auth/captcha/captcha.service";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 import { OtpService } from "@/features/auth/otp/otp.service";
@@ -425,6 +426,8 @@ export const containerTokens = {
   oauthController: createServiceToken<OAuthController>("OAuthController"),
   deviceRepository: createServiceToken<DeviceRepository>("DeviceRepository"),
   deviceService: createServiceToken<DeviceService>("DeviceService"),
+  deviceTrustService:
+    createServiceToken<DeviceTrustService>("DeviceTrustService"),
   deviceManagementService: createServiceToken<DeviceManagementService>(
     "DeviceManagementService",
   ),

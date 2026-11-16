@@ -309,6 +309,13 @@ export const authDevicesRouteModule: RouteModule = {
       ),
     );
     app.delete(
+      "/auth/devices/trust",
+      resolveHandler<DeviceManagementController>(
+        containerTokens.deviceManagementController,
+        "revokeDeviceTrust",
+      ),
+    );
+    app.delete(
       "/auth/devices/remove",
       resolveHandler<DeviceManagementController>(
         containerTokens.deviceManagementController,

@@ -2,6 +2,7 @@ import { containerTokens } from "@/configuration/container/tokens";
 import type { ContainerRegistrationModule } from "@/configuration/container/registrations/types";
 import { DeviceRepository } from "@/features/auth/device/device.repository";
 import { DeviceService } from "@/features/auth/device/device.service";
+import { DeviceTrustService } from "@/features/auth/device/device-trust.service";
 import { DeviceManagementController } from "@/features/auth/device/device-management.controller";
 import { DeviceManagementService } from "@/features/auth/device/device-management.service";
 
@@ -34,6 +35,19 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
         }),
     });
     container.register({
+      token: containerTokens.deviceTrustService,
+      lifetime: "singleton",
+      dependencies: [
+        containerTokens.deviceRepository,
+        containerTokens.authAuditService,
+      ],
+      resolve: ({ resolve }) =>
+        new DeviceTrustService({
+          deviceRepository: resolve(containerTokens.deviceRepository),
+          authAuditService: resolve(containerTokens.authAuditService),
+        }),
+    });
+    container.register({
       token: containerTokens.deviceManagementService,
       lifetime: "scoped",
       dependencies: [
@@ -41,6 +55,7 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
         containerTokens.deviceService,
         containerTokens.tokenService,
         containerTokens.authAuditService,
+        containerTokens.deviceTrustService,
       ],
       resolve: ({ resolve }) =>
         new DeviceManagementService(
@@ -48,6 +63,7 @@ export const authDeviceRegistrationModule: ContainerRegistrationModule = {
           resolve(containerTokens.deviceService),
           resolve(containerTokens.tokenService),
           resolve(containerTokens.authAuditService),
+          resolve(containerTokens.deviceTrustService),
         ),
     });
     container.register({

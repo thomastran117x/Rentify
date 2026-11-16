@@ -67,6 +67,12 @@ function createChallenge(
   };
 }
 
+const BOUND_CLIENT = {
+  ip: "203.0.113.10",
+  device: { id: "device-1", type: "desktop", isMobile: false },
+  deviceBinding: { id: "EEEEEEEEEEEEEEEEEEEEEE" },
+} as ClientRequestContext;
+
 function createInput(
   overrides: Record<string, unknown> = {},
 ): CompleteLoginMfaInput {
@@ -154,6 +160,17 @@ function createHarness(
     beginAssertion: jest.fn(async () => ({ challenge: "passkey-challenge" })),
     verifyAssertion: jest.fn(async () => ({ passkeyId: "passkey-1" })),
   };
+  const deviceTrustService = {
+    findTrust: jest.fn(
+      async (): Promise<{ trustedUntil: string } | null> => null,
+    ),
+    trustSafely: jest.fn(
+      async (): Promise<{ trustedUntil: string } | null> => ({
+        trustedUntil: "2026-12-01T00:00:00.000Z",
+      }),
+    ),
+    ttlDays: jest.fn(() => 30),
+  };
 
   return {
     challenges,
@@ -169,6 +186,7 @@ function createHarness(
     mfaRecoveryCodeService,
     mfaFactorRepository,
     passkeyService,
+    deviceTrustService,
     service: new LoginMfaService(
       usersRepository as never,
       loginMfaChallengeStore as never,
@@ -180,11 +198,76 @@ function createHarness(
       mfaRecoveryCodeService as never,
       mfaFactorRepository,
       passkeyService,
+      deviceTrustService,
     ),
   };
 }
 
 describe("LoginMfaService.completeLoginMfa", () => {
+  it("remembers the device when asked, after issuing the session", async () => {
+    const harness = createHarness();
+    const input = createInput({ client: BOUND_CLIENT, rememberDevice: true });
+
+    const result = await harness.service.completeLoginMfa(input);
+
+    expect(harness.deviceTrustService.trustSafely).toHaveBeenCalledWith(
+      createUser(),
+      BOUND_CLIENT,
+      "device-1",
+      AUDIT_CONTEXT,
+    );
+    expect(
+      harness.authSessionService.authenticateVerifiedUser.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      harness.deviceTrustService.trustSafely.mock.invocationCallOrder[0]!,
+    );
+    expect(result.device).toEqual({
+      ...harness.session.device,
+      known: true,
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    });
+  });
+
+  it("returns the plain session when the device cannot be remembered", async () => {
+    const harness = createHarness();
+    harness.deviceTrustService.trustSafely.mockResolvedValue(null);
+
+    const result = await harness.service.completeLoginMfa(
+      createInput({ rememberDevice: true }),
+    );
+
+    expect(result).toEqual(harness.session);
+  });
+
+  it("remembers nothing unless asked", async () => {
+    const harness = createHarness();
+
+    await harness.service.completeLoginMfa(
+      createInput({ client: BOUND_CLIENT }),
+    );
+
+    expect(harness.deviceTrustService.trustSafely).not.toHaveBeenCalled();
+  });
+
+  it("keeps the recovery code count on a remembered sign-in", async () => {
+    const harness = createHarness();
+
+    const result = await harness.service.completeLoginMfa(
+      createInput({
+        client: BOUND_CLIENT,
+        rememberDevice: true,
+        factor: "recovery_code",
+        code: "ABCDE-FGHIJ",
+      }),
+    );
+
+    expect(result).toMatchObject({
+      recoveryCodesRemaining: 9,
+      device: { trustedUntil: "2026-12-01T00:00:00.000Z" },
+    });
+  });
+
   it("completes a password sign-in with the session the first step held back", async () => {
     const harness = createHarness();
 
@@ -556,6 +639,7 @@ describe("LoginMfaService.evaluateFirstStep", () => {
       user: createUser(),
       method: "password",
       audit,
+      client: BOUND_CLIENT,
       deviceId: "device-1",
       rememberMe: true,
       ...overrides,
@@ -597,6 +681,43 @@ describe("LoginMfaService.evaluateFirstStep", () => {
     expect(harness.loginLockoutService.isLocked).not.toHaveBeenCalled();
   });
 
+  it("skips the code on a remembered device and records why", async () => {
+    const harness = createHarness();
+    harness.deviceTrustService.findTrust.mockResolvedValue({
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    });
+
+    await expect(evaluate(harness, { totpCode: "000000" })).resolves.toEqual({
+      status: "trusted_device",
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    });
+    expect(harness.deviceTrustService.findTrust).toHaveBeenCalledWith(
+      createUser(),
+      BOUND_CLIENT,
+    );
+    // Neither a challenge nor the code sent along with the password.
+    expect(harness.loginMfaChallengeStore.issue).not.toHaveBeenCalled();
+    expect(harness.mfaTotpService.verifyCode).not.toHaveBeenCalled();
+    expect(harness.authAuditService.recordSafely).toHaveBeenCalledWith({
+      ...audit,
+      eventType: "login.mfa_skipped_trusted_device",
+      outcome: "success",
+      userId: USER_1_ID,
+      metadata: { trustedUntil: "2026-12-01T00:00:00.000Z" },
+    });
+  });
+
+  it("still refuses a locked username on a remembered device", async () => {
+    const harness = createHarness();
+    harness.deviceTrustService.findTrust.mockResolvedValue({
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    });
+    harness.loginLockoutService.isLocked.mockResolvedValue(true);
+
+    await expect(evaluate(harness)).rejects.toBeInstanceOf(LockedError);
+    expect(harness.deviceTrustService.findTrust).not.toHaveBeenCalled();
+  });
+
   it("refuses with a challenge and records it as a successful first step", async () => {
     const harness = createHarness();
 
@@ -615,6 +736,7 @@ describe("LoginMfaService.evaluateFirstStep", () => {
         mfaChallengeToken: "new-challenge-token",
         availableFactors: ["totp"],
         expiresInSeconds: 300,
+        rememberDeviceDays: 30,
       },
     });
     expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(
@@ -785,6 +907,7 @@ describe("LoginMfaService with a passkey", () => {
         user: createUser(),
         method: "password",
         audit: { method: "password", context: AUDIT_CONTEXT },
+        client: BOUND_CLIENT,
         deviceId: "device-1",
       }),
     ).rejects.toBeInstanceOf(LoginMfaRequiredError);
@@ -802,6 +925,7 @@ describe("LoginMfaService with a passkey", () => {
         user: createUser(),
         method: "google",
         audit: { method: "google", context: AUDIT_CONTEXT },
+        client: BOUND_CLIENT,
       }),
     ).rejects.toBeInstanceOf(LoginMfaRequiredError);
     expect(harness.loginMfaChallengeStore.issue).toHaveBeenCalledWith(

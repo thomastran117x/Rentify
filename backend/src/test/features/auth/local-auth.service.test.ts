@@ -88,6 +88,7 @@ const AUDIT_CONTEXT = {
 };
 
 function createService(overrides?: {
+  findDeviceTrust?: () => Promise<{ trustedUntil: string } | null>;
   recordAuditEvent?: (input: RecordAuthAuditEventInput) => Promise<void>;
   authAuditService?: AuthAuditService;
   findUserByEmail?: (email: string) => Promise<AuthUserRecord | null>;
@@ -601,6 +602,11 @@ function createService(overrides?: {
       }),
     },
     { beginAssertion: jest.fn(), verifyAssertion: jest.fn() },
+    {
+      findTrust: overrides?.findDeviceTrust ?? (async () => null),
+      trustSafely: async () => null,
+      ttlDays: () => 30,
+    },
   );
 
   const service = new LocalAuthService(
@@ -1239,6 +1245,41 @@ describe("LocalAuthService", () => {
     );
     expect(cacheDelete).not.toHaveBeenCalled();
     expect(evaluateSuccessfulAuthentication).not.toHaveBeenCalled();
+  });
+
+  it("skips the code on a remembered device and clears the failure record", async () => {
+    const user = {
+      ...createUser(),
+      passwordHash: FAST_TEST_PASSWORD_HASH,
+    };
+    const cacheDelete = jest.fn(async () => true);
+    const verifyTotpCode = jest.fn(async () => undefined);
+    const service = createService({
+      findUserByUsername: async () => user,
+      mfaIsEnabled: async () => true,
+      verifyTotpCode,
+      cacheDelete,
+      findDeviceTrust: async () => ({
+        trustedUntil: "2026-12-01T00:00:00.000Z",
+      }),
+    });
+
+    const session = await service.localAuthenticate({
+      client: createClient(),
+      audit: AUDIT_CONTEXT,
+      username: user.profile.username,
+      password: "CorrectHorseBatteryStaple1!",
+      deviceId: DEVICE_1_ID,
+    });
+
+    expect(session.device).toMatchObject({
+      known: true,
+      trustedUntil: "2026-12-01T00:00:00.000Z",
+    });
+    expect(verifyTotpCode).not.toHaveBeenCalled();
+    expect(cacheDelete).toHaveBeenCalledWith(
+      "auth:local-login-attempts:test-user",
+    );
   });
 
   it("locks on the fifth combined failure when the supplied login TOTP is invalid", async () => {

@@ -67,6 +67,7 @@ type AuthUserPersistence = {
   email: string;
   passwordHash: string | null;
   tokenVersion: number;
+  mfaFactorVersion: number;
   firstName: string | null;
   lastName: string | null;
   role: string;
@@ -593,6 +594,7 @@ export class UsersRepository extends BaseRepository {
       email: user.email,
       passwordHash: user.passwordHash ?? undefined,
       tokenVersion: user.tokenVersion,
+      mfaFactorVersion: user.mfaFactorVersion,
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
       role: normalizeAppRole(user.role),

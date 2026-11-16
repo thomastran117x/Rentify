@@ -41,6 +41,12 @@ export interface KnownDeviceSummary {
   firstSeenAt: string;
   lastSeenAt: string;
   verifiedAt: string;
+  /** Registered with a verified device cookie, so a sign-in can know it. */
+  bound: boolean;
+  /** "Remember this device" is in force: sign-ins here skip login MFA. */
+  trusted: boolean;
+  /** When the trust lapses; present only while {@link trusted}. */
+  trustedUntil?: string;
 }
 
 export interface KnownDeviceListResult {
@@ -49,5 +55,11 @@ export interface KnownDeviceListResult {
 
 export interface RemoveKnownDeviceResult {
   removed: true;
+  deviceId: string;
+}
+
+export interface RevokeDeviceTrustResult {
+  /** False when the device was not trusted, which is not an error. */
+  revoked: boolean;
   deviceId: string;
 }

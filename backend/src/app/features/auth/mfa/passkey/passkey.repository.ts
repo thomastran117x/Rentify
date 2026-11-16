@@ -4,6 +4,7 @@ import type { Uuid } from "@/configuration/validation/uuid";
 import {
   hasStrongFactor,
   lockAccountForMfaChange,
+  recordStrongFactorChange,
   readStrongFactors,
 } from "@/features/auth/mfa/mfa-factor.repository";
 import type { NewRecoveryCodeRow } from "@/features/auth/mfa/recovery/mfa-recovery-code.model";
@@ -17,6 +18,8 @@ export type PasskeyCreateResult =
       row: UserWebAuthnCredential;
       /** Whether `recoveryCodes` were stored, because the account had none. */
       recoveryCodesIssued: boolean;
+      /** Devices whose "Remember this device" trust the change ended. */
+      trustRevoked: number;
     }
   | { status: "limit_reached" };
 
@@ -24,6 +27,8 @@ export interface PasskeyDeleteResult {
   row: UserWebAuthnCredential;
   /** No passkey and no authenticator is left, so the codes went too. */
   lastStrongFactor: boolean;
+  /** Devices whose "Remember this device" trust the change ended. */
+  trustRevoked: number;
 }
 
 /**
@@ -125,6 +130,7 @@ export class PasskeyRepository extends BaseRepository {
         status: "created",
         row: created,
         recoveryCodesIssued: existingCodes === 0,
+        trustRevoked: await recordStrongFactorChange(transaction, row.userId),
       };
     });
   }
@@ -167,6 +173,7 @@ export class PasskeyRepository extends BaseRepository {
       await transaction.userWebAuthnCredential.deleteMany({
         where: { userId, id },
       });
+      const trustRevoked = await recordStrongFactorChange(transaction, userId);
 
       const lastStrongFactor = !hasStrongFactor(
         await readStrongFactors(transaction, userId),
@@ -176,7 +183,7 @@ export class PasskeyRepository extends BaseRepository {
         await transaction.userMfaRecoveryCode.deleteMany({ where: { userId } });
       }
 
-      return { row, lastStrongFactor };
+      return { row, lastStrongFactor, trustRevoked };
     });
   }
 

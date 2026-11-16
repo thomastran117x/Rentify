@@ -3,6 +3,7 @@ import {
   test,
   type APIRequestContext,
   type APIResponse,
+  type Page,
 } from "@playwright/test";
 import { ensureCaptchaToken } from "./helpers/auth";
 import { generateTotpCode } from "./helpers/totp";
@@ -156,7 +157,37 @@ async function enrollAuthenticator(
   return secret;
 }
 
-test.describe.configure({ mode: "serial", timeout: 180_000 });
+/**
+ * A code for a time step newer than any used so far. Replay protection refuses
+ * anything but a newer step, so this waits for the step to turn over and then
+ * answers with the next one.
+ */
+async function nextUnusedCode(secret: string): Promise<string> {
+  await new Promise((resolve) =>
+    setTimeout(resolve, TOTP_STEP_MS - (Date.now() % TOTP_STEP_MS) + 500),
+  );
+  return generateTotpCode(secret, Date.now() + TOTP_STEP_MS);
+}
+
+async function submitPassword(page: Page) {
+  await page.goto("/login?next=%2Faccount");
+  await ensureCaptchaToken(page);
+  await page
+    .getByRole("textbox", { name: /^Username/i })
+    .fill(ACCOUNT.username);
+  await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+async function logOut(page: Page) {
+  await page.locator('[aria-label$="account menu"]').click();
+  await Promise.all([
+    page.waitForURL("**/login**"),
+    page.getByRole("button", { name: "Log out", exact: true }).click(),
+  ]);
+}
+
+test.describe.configure({ mode: "serial", timeout: 240_000 });
 
 let apiSession: ApiSession | null = null;
 let enrolledSecret: string | null = null;
@@ -241,5 +272,73 @@ test("signs in with a password and an authenticator code", async ({
   // The code that signed in also covers the new-device check, so no second
   // verification dialog asks for it again.
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(consoleErrors.filter((text) => !/401|400/.test(text))).toEqual([]);
+});
+
+test("remembers this device, then signs in again without a code", async ({
+  page,
+  request,
+}) => {
+  if (!apiSession || !enrolledSecret) {
+    apiSession = await apiLogin(request);
+    enrolledSecret = await enrollAuthenticator(request, apiSession);
+  }
+  const secret = enrolledSecret;
+  const session = apiSession;
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  // A first sign-in on this browser asks for the code, and offers to
+  // remember the device.
+  await submitPassword(page);
+  await expect(page.getByLabel("Authenticator code")).toBeVisible();
+  const remember = page.getByRole("checkbox", {
+    name: "Remember this device for 30 days",
+  });
+  await expect(remember).not.toBeChecked();
+  await remember.check();
+  await page
+    .getByLabel("Authenticator code")
+    .fill(await nextUnusedCode(secret));
+  await page.getByRole("button", { name: "Verify and sign in" }).click();
+  await page.waitForURL((url) => url.pathname === "/account", {
+    timeout: 15_000,
+  });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Signed out and back in, the remembered browser skips the code step.
+  await logOut(page);
+  await submitPassword(page);
+  await page.waitForURL((url) => url.pathname === "/account", {
+    timeout: 15_000,
+  });
+  await expect(page.getByLabel("Authenticator code")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Once the device is no longer trusted, its next sign-in asks again.
+  await authenticatorStepUp(request, session, secret);
+  const devices = await request.get(`${API_BASE}/auth/devices`, {
+    headers: authHeaders(session),
+  });
+  expect(devices.ok(), `devices: ${devices.status()}`).toBe(true);
+  const trusted = (
+    (await devices.json()) as {
+      data: { devices: Array<{ deviceId: string; trusted: boolean }> };
+    }
+  ).data.devices.filter((device) => device.trusted);
+  expect(trusted).toHaveLength(1);
+  const revoked = await request.delete(`${API_BASE}/auth/devices/trust`, {
+    headers: authHeaders(session),
+    data: { deviceId: trusted[0]!.deviceId },
+  });
+  expect(revoked.ok(), `revoke trust: ${revoked.status()}`).toBe(true);
+
+  await logOut(page);
+  await submitPassword(page);
+  await expect(page.getByLabel("Authenticator code")).toBeVisible();
   expect(consoleErrors.filter((text) => !/401|400/.test(text))).toEqual([]);
 });

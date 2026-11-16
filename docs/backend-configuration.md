@@ -67,7 +67,9 @@ connection strings:
   `ACCESS_TOKEN_SECRET` (`HS256`) or `ACCESS_TOKEN_PRIVATE_KEY` and
   `ACCESS_TOKEN_PUBLIC_KEY` (`RS256`); `REFRESH_TOKEN_KEYS` or
   `REFRESH_TOKEN_SECRET`; `PERSONAL_ACCESS_TOKEN_KEYS` or
-  `PERSONAL_ACCESS_TOKEN_SECRET`
+  `PERSONAL_ACCESS_TOKEN_SECRET`; `DEVICE_BINDING_KEYS` or
+  `DEVICE_BINDING_SECRET` (the HMAC key for the
+  [device cookie](./auth-security.md#device-binding))
 - `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET` (the HMAC key for emailed
   [one-time codes](./auth-security.md#one-time-codes), at least 32
   characters), and `MFA_TOTP_ENCRYPTION_KEY`
@@ -187,8 +189,9 @@ The API logs a startup warning in two cases:
 
 ## Token signing keys
 
-Three signing purposes each have a keyset: access JWTs, refresh tokens, and
-the HMAC that hashes personal access tokens (PATs). A keyset has one `current`
+Four signing purposes each have a keyset: access JWTs, refresh tokens, the
+HMAC that hashes personal access tokens (PATs), and the HMAC that signs the
+[device cookie](./auth-security.md#device-binding). A keyset has one `current`
 key, which signs, and any number of `next` and `previous` keys, which only
 verify: a `next` key is staged for promotion, and a `previous` key is being
 retired. Every
@@ -208,8 +211,8 @@ Each one becomes the set's only key, as the current key under kid `default`.
   the non-secret `auth.accessTokenAlgorithm` YAML setting, or the
   `ACCESS_TOKEN_ALGORITHM` override, to `RS256` to use them. Both must be
   PEM-encoded RSA keys of at least 2048 bits from the same pair.
-- `REFRESH_TOKEN_SECRET` and `PERSONAL_ACCESS_TOKEN_SECRET`, each at least 32
-  characters.
+- `REFRESH_TOKEN_SECRET`, `PERSONAL_ACCESS_TOKEN_SECRET` and
+  `DEVICE_BINDING_SECRET`, each at least 32 characters.
 
 PEM values may contain literal newlines or `\n` escape sequences, which is
 useful in environment variables. For example, an RS256 deployment can use:
@@ -305,8 +308,8 @@ When `NODE_ENV` is `production`, startup fails when:
 - `auth.issuer` (`TOKEN_ISSUER`) or `auth.audience` (`TOKEN_AUDIENCE`) is
   unset;
 - any two of these are equal: an `HS256` access secret, a refresh secret, a
-  PAT secret, `AUTH_AUDIT_IDENTIFIER_SECRET`, `OTP_HASH_SECRET`, and
-  `MFA_TOTP_ENCRYPTION_KEY`
+  PAT secret, a device binding secret, `AUTH_AUDIT_IDENTIFIER_SECRET`,
+  `OTP_HASH_SECRET`, and `MFA_TOTP_ENCRYPTION_KEY`
   (the TOTP key is compared ignoring case). Every key in a keyset counts,
   previous keys included, so one leaked secret cannot forge two kinds of
   token. The error names both variables but not the value.
@@ -1105,26 +1108,27 @@ value it had before it became configurable. See
 [Authentication Security](./api.md#authentication-security) for how each one
 behaves. Keys below are under `authSecurity`.
 
-| Key                                  | Default | Override                                            | Meaning                                                                              |
-| ------------------------------------ | ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `otp.ttlSeconds`                     | `600`   | `AUTH_SECURITY_OTP_TTL_SECONDS`                     | How long an emailed code lives; its attempt count outlives the last issue by as much |
-| `otp.resendCooldownSeconds`          | `60`    | `AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS`         | Wait before another code can be sent to the same subject                             |
-| `otp.maxAttempts`                    | `5`     | `AUTH_SECURITY_OTP_MAX_ATTEMPTS`                    | Guesses per purpose and subject, shared by every resend in the window                |
-| `otp.publicLimits.windowSeconds`     | `3600`  | `AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS`           | Window of the caps on routes that send codes without a session                       |
-| `otp.publicLimits.perEmail`          | `5`     | `AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL`                | Requests per address and purpose in that window                                      |
-| `otp.publicLimits.perIp`             | `20`    | `AUTH_SECURITY_OTP_PUBLIC_PER_IP`                   | Requests per IP and purpose in that window                                           |
-| `otp.publicLimits.perDevice`         | `10`    | `AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE`               | Requests per device and purpose in that window                                       |
-| `lockout.maxFailedAttempts`          | `5`     | `AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS`         | Wrong passwords or login authenticator codes that lock a username                    |
-| `lockout.failedAttemptTtlMinutes`    | `15`    | `AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES`  | Failures that have not locked expire this long after the latest one                  |
-| `lockout.lockMinutes`                | `30`    | `AUTH_SECURITY_LOCKOUT_LOCK_MINUTES`                | How long the lock lasts; the emailed unlock code lifts it sooner                     |
-| `stepUp.challengeLimit`              | `5`     | `AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT`             | Step-up challenges per session, scope and factor within the window below             |
-| `stepUp.challengeWindowSeconds`      | `60`    | `AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS`    | Window for `challengeLimit`                                                          |
-| `stepUp.confirmLimit`                | `10`    | `AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT`               | Step-up confirmations per session, scope and factor within the window below          |
-| `stepUp.confirmWindowSeconds`        | `60`    | `AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS`      | Window for `confirmLimit`                                                            |
-| `stepUp.failedConfirmThreshold`      | `5`     | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD`    | Wrong step-up codes that lock confirmation for the session, scope and factor         |
-| `stepUp.failedConfirmTtlSeconds`     | `600`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS`  | Wrong step-up codes expire this long after the latest one                            |
-| `stepUp.failedConfirmLockSeconds`    | `300`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS` | How long that lock lasts                                                             |
-| `refresh.rotationGracePeriodSeconds` | `5`     | `AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS`      | How long a just-rotated refresh token still returns its successor, for racing tabs   |
+| Key                                  | Default | Override                                            | Meaning                                                                                                    |
+| ------------------------------------ | ------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `otp.ttlSeconds`                     | `600`   | `AUTH_SECURITY_OTP_TTL_SECONDS`                     | How long an emailed code lives; its attempt count outlives the last issue by as much                       |
+| `otp.resendCooldownSeconds`          | `60`    | `AUTH_SECURITY_OTP_RESEND_COOLDOWN_SECONDS`         | Wait before another code can be sent to the same subject                                                   |
+| `otp.maxAttempts`                    | `5`     | `AUTH_SECURITY_OTP_MAX_ATTEMPTS`                    | Guesses per purpose and subject, shared by every resend in the window                                      |
+| `otp.publicLimits.windowSeconds`     | `3600`  | `AUTH_SECURITY_OTP_PUBLIC_WINDOW_SECONDS`           | Window of the caps on routes that send codes without a session                                             |
+| `otp.publicLimits.perEmail`          | `5`     | `AUTH_SECURITY_OTP_PUBLIC_PER_EMAIL`                | Requests per address and purpose in that window                                                            |
+| `otp.publicLimits.perIp`             | `20`    | `AUTH_SECURITY_OTP_PUBLIC_PER_IP`                   | Requests per IP and purpose in that window                                                                 |
+| `otp.publicLimits.perDevice`         | `10`    | `AUTH_SECURITY_OTP_PUBLIC_PER_DEVICE`               | Requests per device and purpose in that window                                                             |
+| `lockout.maxFailedAttempts`          | `5`     | `AUTH_SECURITY_LOCKOUT_MAX_FAILED_ATTEMPTS`         | Wrong passwords or login authenticator codes that lock a username                                          |
+| `lockout.failedAttemptTtlMinutes`    | `15`    | `AUTH_SECURITY_LOCKOUT_FAILED_ATTEMPT_TTL_MINUTES`  | Failures that have not locked expire this long after the latest one                                        |
+| `lockout.lockMinutes`                | `30`    | `AUTH_SECURITY_LOCKOUT_LOCK_MINUTES`                | How long the lock lasts; the emailed unlock code lifts it sooner                                           |
+| `stepUp.challengeLimit`              | `5`     | `AUTH_SECURITY_STEP_UP_CHALLENGE_LIMIT`             | Step-up challenges per session, scope and factor within the window below                                   |
+| `stepUp.challengeWindowSeconds`      | `60`    | `AUTH_SECURITY_STEP_UP_CHALLENGE_WINDOW_SECONDS`    | Window for `challengeLimit`                                                                                |
+| `stepUp.confirmLimit`                | `10`    | `AUTH_SECURITY_STEP_UP_CONFIRM_LIMIT`               | Step-up confirmations per session, scope and factor within the window below                                |
+| `stepUp.confirmWindowSeconds`        | `60`    | `AUTH_SECURITY_STEP_UP_CONFIRM_WINDOW_SECONDS`      | Window for `confirmLimit`                                                                                  |
+| `stepUp.failedConfirmThreshold`      | `5`     | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_THRESHOLD`    | Wrong step-up codes that lock confirmation for the session, scope and factor                               |
+| `stepUp.failedConfirmTtlSeconds`     | `600`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_TTL_SECONDS`  | Wrong step-up codes expire this long after the latest one                                                  |
+| `stepUp.failedConfirmLockSeconds`    | `300`   | `AUTH_SECURITY_STEP_UP_FAILED_CONFIRM_LOCK_SECONDS` | How long that lock lasts                                                                                   |
+| `refresh.rotationGracePeriodSeconds` | `5`     | `AUTH_SECURITY_REFRESH_ROTATION_GRACE_SECONDS`      | How long a just-rotated refresh token still returns its successor, for racing tabs                         |
+| `deviceTrust.ttlDays`                | `30`    | `AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS`               | How long "Remember this device" skips login MFA; see [Trusted Devices](./auth-security.md#trusted-devices) |
 
 Every value is an integer:
 
@@ -1141,6 +1145,8 @@ Every value is an integer:
   public windows are from `1` to `604800` seconds, also a week.
 - `refresh.rotationGracePeriodSeconds` is from `0` to `60`. A refresh token
   replayed within the grace period is honoured, so it stays short.
+- `deviceTrust.ttlDays` is from `1` to `90`, the remember-me session lifetime.
+  A change applies to devices remembered after it.
 
 A change applies to codes, locks and windows created after it. Anything already
 in Redis keeps the lifetime it was written with.

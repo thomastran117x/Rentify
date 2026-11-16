@@ -182,6 +182,7 @@ describe("auth API request contracts", () => {
     authApi.revokeSessions("others");
     authApi.listKnownDevices();
     authApi.removeKnownDevice("device-2");
+    authApi.revokeDeviceTrust("device-3");
     authApi.listPersonalAccessTokens();
     authApi.createPersonalAccessToken({
       name: "CLI",
@@ -199,6 +200,11 @@ describe("auth API request contracts", () => {
       "DELETE",
       "/auth/devices/remove",
       { deviceId: "device-2" },
+    );
+    expect(authenticatedMock).toHaveBeenCalledWith(
+      "DELETE",
+      "/auth/devices/trust",
+      { deviceId: "device-3" },
     );
     expect(authenticatedMock).toHaveBeenCalledWith("GET", "/auth/sessions");
     expect(authenticatedMock).toHaveBeenCalledWith(

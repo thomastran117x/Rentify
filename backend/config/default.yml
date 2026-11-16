@@ -124,6 +124,11 @@ authSecurity:
     failedConfirmLockSeconds: 300
   refresh:
     rotationGracePeriodSeconds: 5
+  # How long "Remember this device" at the login MFA step skips the code, 1 to
+  # 90 days. A password change, any MFA change, signing out everywhere or a
+  # lock ends it sooner. See docs/auth-security.md#trusted-devices.
+  deviceTrust:
+    ttlDays: 30
   # New-password checks. breachCheck asks the Have I Been Pwned range API
   # whether a password has appeared in a breach, sending only the first five
   # hex characters of its SHA-1: off, warn (accept, but tell the user) or

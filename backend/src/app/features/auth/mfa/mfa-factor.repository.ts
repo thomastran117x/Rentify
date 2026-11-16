@@ -40,6 +40,44 @@ export async function lockAccountForMfaChange(
   `;
 }
 
+/**
+ * Records a change to the account's strong factors, inside the transaction
+ * that makes it: the factor version is bumped and every device's "Remember
+ * this device" trust is cleared. Trust is pinned to the version, so a grant
+ * that lands concurrently, against the old factor set, is already void.
+ * Returns how many devices had trust in force, for the audit log.
+ */
+export async function recordStrongFactorChange(
+  transaction: TransactionClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const user = await transaction.user.update({
+    where: { id: userId },
+    data: { mfaFactorVersion: { increment: 1 } },
+    select: { tokenVersion: true, mfaFactorVersion: true },
+  });
+  const trustedDevices = await transaction.device.count({
+    where: {
+      userId,
+      trustedUntil: { gt: now },
+      trustedTokenVersion: user.tokenVersion,
+      trustedMfaVersion: user.mfaFactorVersion - 1,
+    },
+  });
+
+  await transaction.device.updateMany({
+    where: { userId, trustedUntil: { not: null } },
+    data: {
+      trustedUntil: null,
+      trustedTokenVersion: null,
+      trustedMfaVersion: null,
+    },
+  });
+
+  return trustedDevices;
+}
+
 export async function readStrongFactors(
   transaction: TransactionClient,
   userId: string,
