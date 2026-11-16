@@ -205,6 +205,25 @@ describe("Device binding integration", () => {
     expect(event?.metadata).toMatchObject({ deviceBinding: "unverified" });
   });
 
+  it("registers one device when two tabs verify the same cookie at once", async () => {
+    const first = await login({ ip: "198.51.100.35" });
+    const deviceCookie = decodeURIComponent(first.deviceCookie!);
+    const headers = sessionHeaders(first, {
+      ip: "198.51.100.35",
+      deviceCookie,
+    });
+
+    const responses = await Promise.all([
+      request("/auth/device/verify", { method: "POST", headers }),
+      request("/auth/device/verify", { method: "POST", headers }),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    await expect(
+      persistenceApp.prisma.device.count({ where: { deviceId: DEVICE_HINT } }),
+    ).resolves.toBe(1);
+  });
+
   it("refuses a device cookie with a forged signature", async () => {
     const deviceCookie = await registerBoundDevice("198.51.100.40");
     const [id] = deviceCookie.split(".");

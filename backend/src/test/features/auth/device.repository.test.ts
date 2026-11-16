@@ -133,6 +133,63 @@ describe("DeviceRepository.registerKnownDevice", () => {
     );
   });
 
+  it("updates the winner's row when a concurrent registration took the binding", async () => {
+    const duplicate = new Prisma.PrismaClientKnownRequestError("duplicate", {
+      code: "P2002",
+      clientVersion: "test",
+    });
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(deviceRow({ bindingId: BINDING_ID }));
+    const upsert = jest.fn().mockRejectedValueOnce(duplicate);
+    const update = jest.fn(async () => deviceRow({ bindingId: BINDING_ID }));
+    const repository = new DeviceRepository({
+      device: { findUnique, upsert, update },
+    } as any);
+
+    await expect(
+      repository.registerKnownDevice({
+        ...REGISTRATION,
+        bindingId: BINDING_ID,
+      }),
+    ).resolves.toMatchObject({ bindingId: BINDING_ID });
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: ROW_ID } }),
+    );
+  });
+
+  it("gives up after one retry, and on any other failure", async () => {
+    const duplicate = new Prisma.PrismaClientKnownRequestError("duplicate", {
+      code: "P2002",
+      clientVersion: "test",
+    });
+    const repository = new DeviceRepository({
+      device: {
+        findUnique: jest.fn(async () => null),
+        upsert: jest.fn(async () => {
+          throw duplicate;
+        }),
+      },
+    } as any);
+
+    await expect(
+      repository.registerKnownDevice({ ...REGISTRATION, bindingId: BINDING_ID }),
+    ).rejects.toBe(duplicate);
+
+    const failing = new DeviceRepository({
+      device: {
+        upsert: jest.fn(async () => {
+          throw new Error("db down");
+        }),
+      },
+    } as any);
+    await expect(failing.registerKnownDevice(REGISTRATION)).rejects.toThrow(
+      "db down",
+    );
+  });
+
   it("leaves the binding untouched for a registration without one", async () => {
     const findUnique = jest.fn();
     const upsert = jest.fn(async () => deviceRow());

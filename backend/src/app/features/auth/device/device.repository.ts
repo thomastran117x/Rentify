@@ -107,6 +107,22 @@ export class DeviceRepository extends BaseRepository {
   async registerKnownDevice(
     input: RegisterKnownDeviceInput,
   ): Promise<KnownDeviceRecord> {
+    try {
+      return await this.registerKnownDeviceOnce(input);
+    } catch (error) {
+      // Two requests from one browser (two tabs, or verify beside "Remember
+      // this device") can both miss the lookup and both insert. The loser
+      // hits a unique key, and its second pass finds the winner's row.
+      if (isUniqueConstraintError(error)) {
+        return this.registerKnownDeviceOnce(input);
+      }
+      throw error;
+    }
+  }
+
+  private async registerKnownDeviceOnce(
+    input: RegisterKnownDeviceInput,
+  ): Promise<KnownDeviceRecord> {
     const now = new Date();
     const details = {
       type: input.type,
