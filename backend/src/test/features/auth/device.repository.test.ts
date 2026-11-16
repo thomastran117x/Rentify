@@ -175,7 +175,10 @@ describe("DeviceRepository.registerKnownDevice", () => {
     } as any);
 
     await expect(
-      repository.registerKnownDevice({ ...REGISTRATION, bindingId: BINDING_ID }),
+      repository.registerKnownDevice({
+        ...REGISTRATION,
+        bindingId: BINDING_ID,
+      }),
     ).rejects.toBe(duplicate);
 
     const failing = new DeviceRepository({
