@@ -11888,7 +11888,7 @@ function buildComponents(): Record<string, unknown> {
               deviceId: {
                 type: "string",
                 description:
-                  "The client's own device id (deviceId or x-device-id). A label only.",
+                  "The device's registered id when it is known, which may be an earlier client id than this request sent (a browser whose storage was cleared keeps its registered id). Otherwise the client's own id (deviceId or x-device-id). Sessions, the device list and device removal all use this id.",
               },
               known: {
                 type: "boolean",

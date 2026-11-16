@@ -156,14 +156,11 @@ describe("DeviceTrustService.trust", () => {
     });
   });
 
-  it("names the row after the binding when there is no hint", async () => {
+  it("trusts nothing without a device id for the row and sessions to share", async () => {
     const { service, deviceRepository } = createService();
 
-    await service.trust(USER, client(), undefined);
-
-    expect(deviceRepository.registerKnownDevice).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: BINDING_ID }),
-    );
+    await expect(service.trust(USER, client(), undefined)).resolves.toBeNull();
+    expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
   });
 
   it("trusts nothing for a client without a device cookie", async () => {

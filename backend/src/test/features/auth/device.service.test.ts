@@ -246,7 +246,7 @@ describe("DeviceService", () => {
     );
   });
 
-  it("names the row after the binding when a bound client sends no hint", async () => {
+  it("registers nothing for a client that sends no device id, cookie or not", async () => {
     const { service, deviceRepository } = createService();
 
     const result = await service.registerKnownDevice(
@@ -257,12 +257,25 @@ describe("DeviceService", () => {
 
     expect(result).toEqual({
       deviceId: undefined,
-      known: true,
+      known: false,
       knownByIp: false,
     });
-    expect(deviceRepository.registerKnownDevice).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: BINDING_ID, bindingId: BINDING_ID }),
-    );
+    expect(deviceRepository.registerKnownDevice).not.toHaveBeenCalled();
+  });
+
+  it("reports the row's id when the cookie was registered under an earlier one", async () => {
+    const { service } = createService({
+      registerKnownDevice: async () =>
+        createKnownDevice({ deviceId: "registered-id", bindingId: BINDING_ID }),
+    });
+
+    await expect(
+      service.registerKnownDevice(
+        createUser(),
+        createClient(BOUND),
+        "new-hint-after-cleared-storage",
+      ),
+    ).resolves.toMatchObject({ deviceId: "registered-id", known: true });
   });
 
   it("returns an unknown status when registering without a device id", async () => {

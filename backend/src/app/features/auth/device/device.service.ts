@@ -53,16 +53,18 @@ export class DeviceService {
    * device cookie binds the row; without one (a client that keeps no cookies)
    * the row is a hint row, listed and signed out like any other, which never
    * makes a sign-in known.
+   *
+   * A device id is required: it is what the row, the session's claims and
+   * revocation all match on, so a client that sends none registers nothing.
+   * The id returned is the row's, which is an earlier one when the browser's
+   * cookie was registered under it before its storage was cleared.
    */
   async registerKnownDevice(
     user: AuthUserRecord,
     client: ClientRequestContext,
     deviceId?: string,
   ): Promise<KnownDeviceStatus> {
-    const bindingId = client.deviceBinding?.id;
-    const rowDeviceId = deviceId ?? bindingId;
-
-    if (!rowDeviceId) {
+    if (!deviceId) {
       return {
         deviceId,
         known: false,
@@ -70,9 +72,10 @@ export class DeviceService {
       };
     }
 
-    await this.deviceRepository.registerKnownDevice({
+    const bindingId = client.deviceBinding?.id;
+    const device = await this.deviceRepository.registerKnownDevice({
       userId: asUuid(user.id),
-      deviceId: rowDeviceId,
+      deviceId,
       type: client.device.type,
       platform: client.device.platform,
       userAgent: client.device.userAgent,
@@ -81,7 +84,7 @@ export class DeviceService {
     });
 
     return {
-      deviceId,
+      deviceId: device.deviceId,
       known: Boolean(bindingId),
       knownByIp: Boolean(client.ip),
     };

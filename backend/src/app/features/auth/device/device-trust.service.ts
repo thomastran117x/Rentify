@@ -117,8 +117,8 @@ export class DeviceTrustService {
 
   /**
    * Registers the device by its cookie and trusts it for the configured TTL.
-   * A client that presented no device cookie gets nothing: there would be no
-   * way to recognise it again.
+   * A client that presented no device cookie, or sent no device id for the
+   * row and its sessions to share, gets nothing.
    */
   async trust(
     user: AuthUserRecord,
@@ -128,14 +128,14 @@ export class DeviceTrustService {
   ): Promise<DeviceTrustGrant | null> {
     const bindingId = client.deviceBinding?.id;
 
-    if (!bindingId) {
+    if (!bindingId || !deviceId) {
       return null;
     }
 
     const userId = asUuid(user.id);
     const device = await this.deviceRepository.registerKnownDevice({
       userId,
-      deviceId: deviceId ?? bindingId,
+      deviceId,
       type: client.device.type,
       platform: client.device.platform,
       userAgent: client.device.userAgent,
