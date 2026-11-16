@@ -5,6 +5,7 @@ import type { NewRecoveryCodeRow } from "@/features/auth/mfa/recovery/mfa-recove
 import {
   hasStrongFactor,
   lockAccountForMfaChange,
+  recordStrongFactorChange,
   readStrongFactors,
 } from "@/features/auth/mfa/mfa-factor.repository";
 
@@ -16,6 +17,8 @@ export type MfaTotpActivateResult =
       activated: true;
       /** Whether `recoveryCodes` were stored, because the account had none. */
       recoveryCodesIssued: boolean;
+      /** Devices whose "Remember this device" trust the change ended. */
+      trustRevoked: number;
     };
 
 export class MfaTotpRepository extends BaseRepository {
@@ -110,7 +113,11 @@ export class MfaTotpRepository extends BaseRepository {
         });
       }
 
-      return { activated: true, recoveryCodesIssued: existingCodes === 0 };
+      return {
+        activated: true,
+        recoveryCodesIssued: existingCodes === 0,
+        trustRevoked: await recordStrongFactorChange(transaction, userId),
+      };
     });
   }
 
@@ -140,12 +147,22 @@ export class MfaTotpRepository extends BaseRepository {
   /**
    * Removes the authenticator. Recovery codes only stand in for a strong
    * factor, so they go too unless a passkey is left. Returns whether this
-   * left the account with no strong factor.
+   * left the account with no strong factor, and how many devices' trust an
+   * active authenticator's removal ended.
    */
-  async deleteByUserId(userId: Uuid): Promise<{ lastStrongFactor: boolean }> {
+  async deleteByUserId(
+    userId: Uuid,
+  ): Promise<{ lastStrongFactor: boolean; trustRevoked: number }> {
     return this.executeTransaction(async (transaction) => {
       await lockAccountForMfaChange(transaction, userId);
+      const removedActive = await transaction.userMfaTotp.deleteMany({
+        where: { userId, status: "active" },
+      });
       await transaction.userMfaTotp.deleteMany({ where: { userId } });
+      const trustRevoked =
+        removedActive.count > 0
+          ? await recordStrongFactorChange(transaction, userId)
+          : 0;
 
       const lastStrongFactor = !hasStrongFactor(
         await readStrongFactors(transaction, userId),
@@ -155,7 +172,7 @@ export class MfaTotpRepository extends BaseRepository {
         await transaction.userMfaRecoveryCode.deleteMany({ where: { userId } });
       }
 
-      return { lastStrongFactor };
+      return { lastStrongFactor, trustRevoked };
     });
   }
 

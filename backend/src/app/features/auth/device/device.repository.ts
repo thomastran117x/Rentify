@@ -11,6 +11,12 @@ interface RegisterKnownDeviceInput {
   ipAddress?: string;
   /** The verified device cookie's id; omitted, the row stays a hint row. */
   bindingId?: string;
+  /** "Remember this device", written with the registration in one update. */
+  trust?: {
+    trustedUntil: Date;
+    tokenVersion: number;
+    mfaFactorVersion: number;
+  };
 }
 
 export interface KnownDeviceRecord {
@@ -27,6 +33,8 @@ export interface KnownDeviceRecord {
   trustedUntil?: string;
   /** Trust counts only while the account's token version still matches. */
   trustedTokenVersion?: number;
+  /** ...and while its MFA factor version still matches. */
+  trustedMfaVersion?: number;
   firstSeenAt: string;
   lastSeenAt: string;
   verifiedAt: string;
@@ -43,6 +51,7 @@ type DevicePersistence = {
   bindingId: string | null;
   trustedUntil: Date | null;
   trustedTokenVersion: number | null;
+  trustedMfaVersion: number | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   verifiedAt: Date;
@@ -132,6 +141,13 @@ export class DeviceRepository extends BaseRepository {
       lastSeenAt: now,
       verifiedAt: now,
     };
+    const trust = input.trust
+      ? {
+          trustedUntil: input.trust.trustedUntil,
+          trustedTokenVersion: input.trust.tokenVersion,
+          trustedMfaVersion: input.trust.mfaFactorVersion,
+        }
+      : {};
 
     if (input.bindingId) {
       const bound = await this.findByBindingId(input.userId, input.bindingId);
@@ -140,7 +156,7 @@ export class DeviceRepository extends BaseRepository {
         const device = await this.executeAsync(() =>
           this.prisma.device.update({
             where: { id: bound.id },
-            data: details,
+            data: { ...details, ...trust },
           }),
         );
 
@@ -148,13 +164,17 @@ export class DeviceRepository extends BaseRepository {
       }
     }
 
+    // Rebinding a row clears trust granted to another cookie; a grant in this
+    // same registration then sets it afresh.
     const binding = input.bindingId
       ? {
           bindingId: input.bindingId,
           trustedUntil: null,
           trustedTokenVersion: null,
+          trustedMfaVersion: null,
+          ...trust,
         }
-      : {};
+      : trust;
     const device = await this.executeAsync(() =>
       this.prisma.device.upsert({
         where: {
@@ -229,58 +249,31 @@ export class DeviceRepository extends BaseRepository {
     );
   }
 
-  async setTrust(
-    id: Uuid,
-    trustedUntil: Date,
-    tokenVersion: number,
-  ): Promise<void> {
-    await this.executeAsync(() =>
-      this.prisma.device.update({
-        where: { id },
-        data: { trustedUntil, trustedTokenVersion: tokenVersion },
-      }),
-    );
-  }
-
   /**
-   * Ends one device's trust. Null when the account has no such device; false
-   * when it has one that was not trusted.
+   * Clears one device's trust, stale or not, and returns the device as it was
+   * before, or null when the account has no such device. The caller decides
+   * whether that trust was still in force.
    */
-  async revokeTrust(userId: Uuid, deviceId: string): Promise<boolean | null> {
-    const device = await this.executeAsync(() =>
-      this.prisma.device.findUnique({
-        where: { userId_deviceId: { userId, deviceId } },
-        select: { id: true, trustedUntil: true },
-      }),
-    );
+  async revokeTrust(
+    userId: Uuid,
+    deviceId: string,
+  ): Promise<KnownDeviceRecord | null> {
+    const device = await this.findByDeviceId(userId, deviceId);
 
-    if (!device) {
-      return null;
+    if (device?.trustedUntil) {
+      await this.executeAsync(() =>
+        this.prisma.device.update({
+          where: { id: device.id },
+          data: {
+            trustedUntil: null,
+            trustedTokenVersion: null,
+            trustedMfaVersion: null,
+          },
+        }),
+      );
     }
 
-    if (!device.trustedUntil) {
-      return false;
-    }
-
-    await this.executeAsync(() =>
-      this.prisma.device.update({
-        where: { id: device.id },
-        data: { trustedUntil: null, trustedTokenVersion: null },
-      }),
-    );
-    return true;
-  }
-
-  /** Ends every device's trust on the account; returns how many had it. */
-  async revokeAllTrust(userId: Uuid): Promise<number> {
-    const result = await this.executeAsync(() =>
-      this.prisma.device.updateMany({
-        where: { userId, trustedUntil: { not: null } },
-        data: { trustedUntil: null, trustedTokenVersion: null },
-      }),
-    );
-
-    return result.count;
+    return device;
   }
 
   async touchKnownIpAddress(userId: Uuid, ipAddress: string): Promise<void> {
@@ -349,6 +342,7 @@ export class DeviceRepository extends BaseRepository {
       bindingId: device.bindingId ?? undefined,
       trustedUntil: device.trustedUntil?.toISOString(),
       trustedTokenVersion: device.trustedTokenVersion ?? undefined,
+      trustedMfaVersion: device.trustedMfaVersion ?? undefined,
       firstSeenAt: device.firstSeenAt.toISOString(),
       lastSeenAt: device.lastSeenAt.toISOString(),
       verifiedAt: device.verifiedAt.toISOString(),

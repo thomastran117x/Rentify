@@ -217,6 +217,7 @@ describe("DeviceManagementService.devices", () => {
         deviceId: "trusted",
         trustedUntil: "2026-03-10T00:00:00.000Z",
         trustedTokenVersion: 1,
+        trustedMfaVersion: 0,
       },
       {
         ...base,
@@ -224,6 +225,7 @@ describe("DeviceManagementService.devices", () => {
         deviceId: "expired",
         trustedUntil: "2026-02-28T00:00:00.000Z",
         trustedTokenVersion: 1,
+        trustedMfaVersion: 0,
       },
       // Trusted before a password change rotated the token version.
       {
@@ -232,6 +234,7 @@ describe("DeviceManagementService.devices", () => {
         deviceId: "rotated",
         trustedUntil: "2026-03-10T00:00:00.000Z",
         trustedTokenVersion: 0,
+        trustedMfaVersion: 0,
       },
     ] as never);
 
@@ -287,8 +290,9 @@ describe("DeviceManagementService.revokeDeviceTrust", () => {
         audit,
       }),
     ).resolves.toEqual({ revoked: true, deviceId: "device-1" });
+    // Trust in force is judged against the account, so it is read first.
     expect(harness.deviceTrustService.revoke).toHaveBeenCalledWith(
-      USER_1_ID,
+      createUser(),
       "device-1",
       audit,
     );

@@ -41,10 +41,19 @@ function createPrismaMock() {
   const userMfaTotp = {
     findFirst: jest.fn(async (): Promise<unknown> => null),
   };
+  const user = {
+    update: jest.fn(async () => ({ tokenVersion: 1, mfaFactorVersion: 4 })),
+  };
+  const device = {
+    count: jest.fn(async () => 0),
+    updateMany: jest.fn(async () => ({ count: 0 })),
+  };
   const transaction = {
     userWebAuthnCredential,
     userMfaRecoveryCode,
     userMfaTotp,
+    user,
+    device,
     $queryRaw: jest.fn(async () => [{ id: USER_ID }]),
   };
   const $transaction = jest.fn(
@@ -56,6 +65,8 @@ function createPrismaMock() {
     userWebAuthnCredential,
     userMfaRecoveryCode,
     userMfaTotp,
+    user,
+    device,
     transaction,
     $transaction,
   };
@@ -119,7 +130,28 @@ describe("PasskeyRepository", () => {
       status: "created",
       row: { ...NEW_ROW, signCount: 7n, createdAt: CREATED_AT },
       recoveryCodesIssued: true,
+      trustRevoked: 0,
     });
+    // The same transaction bumps the factor version and clears device trust.
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { mfaFactorVersion: { increment: 1 } },
+      select: { tokenVersion: true, mfaFactorVersion: true },
+    });
+    expect(prisma.device.updateMany).toHaveBeenCalled();
+  });
+
+  it("records no factor change for an add over the cap", async () => {
+    const { prisma, repository } = createRepository();
+    prisma.userWebAuthnCredential.count.mockResolvedValue(
+      MAX_PASSKEYS_PER_USER,
+    );
+
+    await expect(
+      repository.createWithinCap(NEW_ROW, CODE_ROWS),
+    ).resolves.toEqual({ status: "limit_reached" });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.device.updateMany).not.toHaveBeenCalled();
   });
 
   it("keeps an account's existing codes, used up or not", async () => {
@@ -169,7 +201,12 @@ describe("PasskeyRepository", () => {
 
     await expect(
       repository.deleteForUser(USER_ID, PASSKEY_ID),
-    ).resolves.toEqual({ row: { id: PASSKEY_ID }, lastStrongFactor: true });
+    ).resolves.toEqual({
+      row: { id: PASSKEY_ID },
+      lastStrongFactor: true,
+      trustRevoked: 0,
+    });
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
     expect(prisma.transaction.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.userWebAuthnCredential.deleteMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, id: PASSKEY_ID },

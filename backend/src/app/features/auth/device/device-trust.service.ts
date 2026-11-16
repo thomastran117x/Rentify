@@ -1,7 +1,7 @@
 import { environment } from "@/configuration/environment";
 import type { ClientRequestContext } from "@/configuration/http/bindings";
 import { loggerFactory } from "@/configuration/logging";
-import { asUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid } from "@/configuration/validation/uuid";
 import BadRequestError from "@/errors/http/bad-request.error";
 import type { AuthUserRecord } from "@/features/auth/auth.model";
 import type { AuthAuditContext } from "@/features/auth/audit/auth-audit.model";
@@ -14,9 +14,9 @@ import type {
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Why every device's trust was ended. Changes that rotate the token version
- * (a password change or reset, signing out everywhere, a lock) end it without
- * a call, so they are not listed here.
+ * Why a factor change ended every device's trust. Changes that rotate the
+ * token version (a password change or reset, signing out everywhere, a lock)
+ * end it without an event, so they are not listed here.
  */
 export type DeviceTrustRevocationReason =
   | "mfa_enabled"
@@ -28,14 +28,21 @@ export interface DeviceTrustGrant {
   trustedUntil: string;
 }
 
+/** The account state trust is pinned to. */
+export type DeviceTrustAccount = Pick<
+  AuthUserRecord,
+  "tokenVersion" | "mfaFactorVersion"
+>;
+
+type TrustFields = Pick<
+  KnownDeviceRecord,
+  "trustedUntil" | "trustedTokenVersion" | "trustedMfaVersion"
+>;
+
 interface DeviceTrustServiceOptions {
   deviceRepository: Pick<
     DeviceRepository,
-    | "findByBindingId"
-    | "registerKnownDevice"
-    | "setTrust"
-    | "revokeTrust"
-    | "revokeAllTrust"
+    "findByBindingId" | "registerKnownDevice" | "revokeTrust"
   >;
   authAuditService: Pick<AuthAuditService, "recordSafely">;
   getTtlDays?: () => number;
@@ -43,19 +50,22 @@ interface DeviceTrustServiceOptions {
 }
 
 /**
- * Whether a device record is trusted right now for an account at the given
- * token version. Any rotation of the version (a password change, signing out
- * everywhere, a lock) ends trust without touching the row.
+ * Whether a device record is trusted right now for the account. Trust is
+ * pinned to the account's token version and MFA factor version, so rotating
+ * either (a password change, signing out everywhere, a lock, any passkey or
+ * authenticator change) ends it without touching the row, and a grant that
+ * raced such a change is void.
  */
-export function isDeviceTrustActive(
-  device: Pick<KnownDeviceRecord, "trustedUntil" | "trustedTokenVersion">,
-  tokenVersion: number,
+export function isDeviceTrustActive<T extends TrustFields>(
+  device: T,
+  account: DeviceTrustAccount,
   now: Date,
-): boolean {
+): device is T & { trustedUntil: string } {
   return (
     device.trustedUntil !== undefined &&
     Date.parse(device.trustedUntil) > now.getTime() &&
-    device.trustedTokenVersion === tokenVersion
+    device.trustedTokenVersion === account.tokenVersion &&
+    device.trustedMfaVersion === (account.mfaFactorVersion ?? 0)
   );
 }
 
@@ -105,20 +115,17 @@ export class DeviceTrustService {
       bindingId,
     );
 
-    if (
-      !device?.trustedUntil ||
-      !isDeviceTrustActive(device, user.tokenVersion, this.now())
-    ) {
-      return null;
-    }
-
-    return { trustedUntil: device.trustedUntil };
+    return device && isDeviceTrustActive(device, user, this.now())
+      ? { trustedUntil: device.trustedUntil }
+      : null;
   }
 
   /**
-   * Registers the device by its cookie and trusts it for the configured TTL.
-   * A client that presented no device cookie, or sent no device id for the
-   * row and its sessions to share, gets nothing.
+   * Registers the device by its cookie and trusts it for the configured TTL,
+   * in one write, at the account versions `user` was read with. A factor
+   * change after that read makes the grant void rather than racing it. A
+   * client that presented no device cookie, or sent no device id for the row
+   * and its sessions to share, gets nothing.
    */
   async trust(
     user: AuthUserRecord,
@@ -133,7 +140,11 @@ export class DeviceTrustService {
     }
 
     const userId = asUuid(user.id);
-    const device = await this.deviceRepository.registerKnownDevice({
+    const trustedUntil = new Date(
+      this.now().getTime() + this.getTtlDays() * DAY_IN_MS,
+    );
+
+    await this.deviceRepository.registerKnownDevice({
       userId,
       deviceId,
       type: client.device.type,
@@ -141,16 +152,12 @@ export class DeviceTrustService {
       userAgent: client.device.userAgent,
       ipAddress: client.ip,
       bindingId,
+      trust: {
+        trustedUntil,
+        tokenVersion: user.tokenVersion,
+        mfaFactorVersion: user.mfaFactorVersion ?? 0,
+      },
     });
-    const trustedUntil = new Date(
-      this.now().getTime() + this.getTtlDays() * DAY_IN_MS,
-    );
-
-    await this.deviceRepository.setTrust(
-      device.id,
-      trustedUntil,
-      user.tokenVersion,
-    );
     await this.authAuditService.recordSafely({
       eventType: "device.trusted",
       outcome: "success",
@@ -183,17 +190,24 @@ export class DeviceTrustService {
     }
   }
 
-  /** "Stop trusting" from the device list. */
+  /**
+   * "Stop trusting" from the device list. Stale trust (lapsed, or ended by a
+   * token or factor version change) is cleared too, but only trust that was
+   * still in force counts as revoked and is audited.
+   */
   async revoke(
-    userId: Uuid,
+    user: AuthUserRecord,
     deviceId: string,
     audit?: AuthAuditContext,
   ): Promise<boolean> {
-    const revoked = await this.deviceRepository.revokeTrust(userId, deviceId);
+    const userId = asUuid(user.id);
+    const previous = await this.deviceRepository.revokeTrust(userId, deviceId);
 
-    if (revoked === null) {
+    if (!previous) {
       throw new BadRequestError("Known device could not be found.");
     }
+
+    const revoked = isDeviceTrustActive(previous, user, this.now());
 
     if (revoked) {
       await this.authAuditService.recordSafely({
@@ -209,27 +223,26 @@ export class DeviceTrustService {
   }
 
   /**
-   * Ends trust on every device of the account. Callers run it before the
-   * change it accompanies, so a failure leaves that change undone and
-   * retryable rather than done with trust left behind.
+   * Audits trust a passkey or authenticator change ended. The change cleared
+   * it in its own transaction (see `recordStrongFactorChange`); `count` is
+   * how many devices had trust in force.
    */
-  async revokeAll(
-    userId: Uuid,
+  async recordFactorChangeRevocation(
+    userId: string,
     reason: DeviceTrustRevocationReason,
+    count: number,
     audit?: AuthAuditContext,
-  ): Promise<number> {
-    const count = await this.deviceRepository.revokeAllTrust(userId);
-
-    if (count > 0) {
-      await this.authAuditService.recordSafely({
-        eventType: "device.trust_revoked",
-        outcome: "success",
-        userId,
-        context: audit,
-        metadata: { reason, scope: "all", count },
-      });
+  ): Promise<void> {
+    if (count < 1) {
+      return;
     }
 
-    return count;
+    await this.authAuditService.recordSafely({
+      eventType: "device.trust_revoked",
+      outcome: "success",
+      userId: asUuid(userId),
+      context: audit,
+      metadata: { reason, scope: "all", count },
+    });
   }
 }

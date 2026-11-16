@@ -22,9 +22,18 @@ export function createInMemoryPasskeyRepository(
   const forUser = (userId: string) =>
     rows.filter((row) => row.userId === userId);
 
+  const state = { trustRevokedByChange: 0 };
+
   return {
     rows,
     recoveryCodeOwners,
+    /** What a factor change reports as the trust it ended. */
+    get trustRevokedByChange(): number {
+      return state.trustRevokedByChange;
+    },
+    set trustRevokedByChange(count: number) {
+      state.trustRevokedByChange = count;
+    },
     factorSummary: jest.fn(async (userId: string) => ({
       totpActive: totpActiveUserIds.includes(userId),
       passkeyCount: forUser(userId).length,
@@ -63,7 +72,12 @@ export function createInMemoryPasskeyRepository(
       rows.push(created);
       const recoveryCodesIssued = !recoveryCodeOwners.has(row.userId);
       recoveryCodeOwners.add(row.userId);
-      return { status: "created" as const, row: created, recoveryCodesIssued };
+      return {
+        status: "created" as const,
+        row: created,
+        recoveryCodesIssued,
+        trustRevoked: state.trustRevokedByChange,
+      };
     }),
     rename: jest.fn(async (userId: string, id: string, name: string) => {
       const row = rows.find(
@@ -88,7 +102,11 @@ export function createInMemoryPasskeyRepository(
       if (lastStrongFactor) {
         recoveryCodeOwners.delete(userId);
       }
-      return { row: removed, lastStrongFactor };
+      return {
+        row: removed,
+        lastStrongFactor,
+        trustRevoked: state.trustRevokedByChange,
+      };
     }),
     claimSignCount: jest.fn(
       async (input: {

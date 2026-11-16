@@ -354,6 +354,26 @@ describe("Trusted device integration", () => {
     await expectSignInAsksForCode(deviceCookie);
   });
 
+  it("voids a grant that lands against the factor set a change replaced", async () => {
+    const { deviceCookie } = await rememberDevice();
+    const user = await persistenceApp.prisma.user.findUniqueOrThrow({
+      where: { email: ACCOUNT.email },
+    });
+
+    // A remember that raced a factor change: written after the change's
+    // transaction, but carrying the factor version it read before it.
+    await persistenceApp.prisma.user.update({
+      where: { id: user.id },
+      data: { mfaFactorVersion: { increment: 1 } },
+    });
+    const device = await persistenceApp.prisma.device.findFirstOrThrow({
+      where: { deviceId: DEVICE_HINT },
+    });
+    expect(device.trustedMfaVersion).toBe(user.mfaFactorVersion);
+
+    await expectSignInAsksForCode(deviceCookie);
+  });
+
   it("ends trust when the device is removed", async () => {
     const { deviceCookie, session } = await rememberDevice();
     await stepUp(session);

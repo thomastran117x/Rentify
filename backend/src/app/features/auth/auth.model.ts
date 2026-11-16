@@ -152,6 +152,11 @@ export interface AuthUserRecord {
   email: string;
   passwordHash?: string;
   tokenVersion: number;
+  /**
+   * Bumped by every passkey or authenticator change; device trust is pinned
+   * to it. Absent means 0, as for a record built outside the repository.
+   */
+  mfaFactorVersion?: number;
   firstName?: string;
   lastName?: string;
   role: AppRole;

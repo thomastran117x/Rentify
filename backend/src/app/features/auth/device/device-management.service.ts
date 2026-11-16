@@ -59,9 +59,11 @@ export class DeviceManagementService {
   }
 
   /**
-   * Trust is judged against the account's current token version, so a device
-   * whose trust a password change or sign-out-everywhere ended shows as not
-   * trusted even though its row still holds the old values.
+   * Trust is judged against the account's current token and MFA factor
+   * versions, so a device whose trust a password change, sign-out-everywhere
+   * or factor change ended shows as not trusted even though its row may still
+   * hold the old values. The factor version is not in the token, so this
+   * reads the account.
    */
   async devices(context: AuthRequestContext): Promise<KnownDeviceListResult> {
     const user = await requireExistingUser(
@@ -76,7 +78,7 @@ export class DeviceManagementService {
 
     return {
       devices: knownDevices.map((device) => {
-        const trusted = isDeviceTrustActive(device, user.tokenVersion, now);
+        const trusted = isDeviceTrustActive(device, user, now);
 
         return {
           id: device.id,
@@ -101,8 +103,9 @@ export class DeviceManagementService {
   async revokeDeviceTrust(
     input: RemoveKnownDeviceInput,
   ): Promise<RevokeDeviceTrustResult> {
+    const user = await requireExistingUser(this.usersRepository, input.userId);
     const revoked = await this.deviceTrustService.revoke(
-      input.userId,
+      user,
       input.deviceId,
       input.audit,
     );

@@ -37,7 +37,9 @@ function createService() {
     },
     authSessionService: { revokeManagedSessions: jest.fn() },
     authAuditService: authAuditService as never,
-    deviceTrustService: { revokeAll: jest.fn(async () => 0) },
+    deviceTrustService: {
+      recordFactorChangeRevocation: jest.fn(async () => undefined),
+    },
     securityNotificationService: {
       notify: jest.fn(async () => "sent" as const),
     } as never,

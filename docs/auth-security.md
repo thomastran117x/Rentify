@@ -253,16 +253,16 @@ An account with a passkey or an authenticator app answers a code at every sign-i
 - **Lifetime.** `authSecurity.deviceTrust.ttlDays` (`AUTH_SECURITY_DEVICE_TRUST_TTL_DAYS`), 30 days by default and 1 to 90. The challenge carries it as `rememberDeviceDays` so the checkbox can say how long. A sign-in that skips the code does not extend it, so the code comes back once the period ends.
 - **Revocation.** Trust ends sooner when any of these happens:
 
-  | Trigger                                                                              | How                                                                   |
-  | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-  | A password change or reset                                                           | Rotates the token version, which trust is pinned to                   |
-  | Signing out everywhere                                                               | Rotates the token version                                             |
-  | A lock, suspension, refresh-token reuse with the `user` response, or an email change | Rotates the token version                                             |
-  | Turning the authenticator on or off, adding or removing a passkey                    | Clears every device's trust first, and records `device.trust_revoked` |
-  | Removing the device                                                                  | Deletes the row                                                       |
-  | **Stop trusting** in the device list (`DELETE /auth/devices/trust`)                  | Clears that device's trust, and records `device.trust_revoked`        |
+  | Trigger                                                                              | How                                                                                                                                         |
+  | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+  | A password change or reset                                                           | Rotates the token version, which trust is pinned to                                                                                         |
+  | Signing out everywhere                                                               | Rotates the token version                                                                                                                   |
+  | A lock, suspension, refresh-token reuse with the `user` response, or an email change | Rotates the token version                                                                                                                   |
+  | Turning the authenticator on or off, adding or removing a passkey                    | Bumps `users.mfa_factor_version` and clears every device's trust in the same transaction as the change, then records `device.trust_revoked` |
+  | Removing the device                                                                  | Deletes the row                                                                                                                             |
+  | **Stop trusting** in the device list (`DELETE /auth/devices/trust`)                  | Clears that device's trust, and records `device.trust_revoked` if it was still in force                                                     |
 
-  Any factor change counts, not only turning MFA on or off: a remembered device skipped a set of factors that no longer applies.
+  Any factor change counts, not only turning MFA on or off: a remembered device skipped a set of factors that no longer applies. Trust is pinned to the factor version as well as the token version, so a remember that races a factor change (granted against the old factors, written after the change) is void from the start. A failed change (a duplicate passkey, or one over the cap) changes no factor and leaves trust alone. `device.trust_revoked` counts only trust that was still in force; lapsed or already-ended trust is cleared without being counted.
 
 - **Trust stays with its cookie.** When a device row is registered by a different cookie (the old one was deleted but the device id survived), its trust is cleared: the new cookie earns it only by ticking the box itself.
 - **Clients without cookies** (scripts, native apps) cannot be trusted. `rememberDevice` is ignored for them, the response carries no `device.trustedUntil`, and every sign-in asks for a code.

@@ -28,7 +28,7 @@ interface MfaTotpServiceOptions {
   authAuditService: AuthAuditService;
   authSessionService: AuthSessionService;
   securityNotificationService: SecurityNotificationService;
-  deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
+  deviceTrustService: Pick<DeviceTrustService, "recordFactorChangeRevocation">;
 }
 
 export interface MfaTotpDisableOutcome {
@@ -50,7 +50,10 @@ export class MfaTotpService {
   private readonly authAuditService: AuthAuditService;
   private readonly authSessionService: AuthSessionService;
   private readonly securityNotificationService: SecurityNotificationService;
-  private readonly deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
+  private readonly deviceTrustService: Pick<
+    DeviceTrustService,
+    "recordFactorChangeRevocation"
+  >;
 
   constructor(options: MfaTotpServiceOptions) {
     this.totpService = options.totpService;
@@ -147,14 +150,6 @@ export class MfaTotpService {
       throw new BadRequestError("Verification code is incorrect.");
     }
 
-    // A remembered device skipped a factor set that no longer applies. Ended
-    // first, so a failure leaves the authenticator off and the setup retryable.
-    await this.deviceTrustService.revokeAll(
-      userId,
-      "mfa_enabled",
-      audit?.context,
-    );
-
     // Persist the confirmed counter as lastUsedCounter so the enrollment code
     // cannot be replayed against verifyCode before the first login MFA check.
     const recoveryCodes = this.mfaRecoveryCodeService.generateSet(userId);
@@ -169,6 +164,14 @@ export class MfaTotpService {
     if (!activation.activated) {
       throw new ConflictError("MFA is already enabled.");
     }
+
+    // The activation ended every device's trust in the same transaction.
+    await this.deviceTrustService.recordFactorChangeRevocation(
+      userId,
+      "mfa_enabled",
+      activation.trustRevoked,
+      audit?.context,
+    );
 
     const eventId = newUuid();
     const emailNotification = await this.securityNotificationService.notify({
@@ -246,10 +249,6 @@ export class MfaTotpService {
     const wasActive = existing?.status === "active";
     let otherSessionsSignedOut = false;
 
-    if (wasActive) {
-      await this.deviceTrustService.revokeAll(userId, "mfa_disabled", context);
-    }
-
     if (
       wasActive &&
       (await this.mfaFactorRepository.getSummary(userId)).passkeyCount === 0
@@ -258,8 +257,14 @@ export class MfaTotpService {
       otherSessionsSignedOut = true;
     }
 
-    const { lastStrongFactor } =
+    const { lastStrongFactor, trustRevoked } =
       await this.mfaTotpRepository.deleteByUserId(userId);
+    await this.deviceTrustService.recordFactorChangeRevocation(
+      userId,
+      "mfa_disabled",
+      trustRevoked,
+      context,
+    );
 
     if (wasActive && lastStrongFactor && !otherSessionsSignedOut) {
       await this.revokeOtherSessions(auth, context);

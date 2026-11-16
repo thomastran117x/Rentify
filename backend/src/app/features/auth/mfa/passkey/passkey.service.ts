@@ -70,7 +70,7 @@ interface PasskeyServiceOptions {
   authSessionService: Pick<AuthSessionService, "revokeManagedSessions">;
   authAuditService: AuthAuditService;
   securityNotificationService: SecurityNotificationService;
-  deviceTrustService: Pick<DeviceTrustService, "revokeAll">;
+  deviceTrustService: Pick<DeviceTrustService, "recordFactorChangeRevocation">;
   /** Defaults to the `webauthn` config, read on each request. */
   getConfig?: () => WebAuthnConfig;
 }
@@ -231,14 +231,6 @@ export class PasskeyService {
       throw new PasskeyRegistrationFailedError();
     }
 
-    // Ended before the passkey is stored, for the reason given on
-    // `MfaTotpService.confirmEnrollment`.
-    await this.options.deviceTrustService.revokeAll(
-      actor.userId,
-      "passkey_added",
-      actor.context,
-    );
-
     const info = verification.registrationInfo;
     const existingCount = await this.options.passkeyRepository.countByUserId(
       actor.userId,
@@ -279,6 +271,14 @@ export class PasskeyService {
     if (result.status === "limit_reached") {
       throw this.limitReachedError();
     }
+
+    // Only a passkey that was stored ended any trust, in its transaction.
+    await this.options.deviceTrustService.recordFactorChangeRevocation(
+      actor.userId,
+      "passkey_added",
+      result.trustRevoked,
+      actor.context,
+    );
 
     const passkey = toPasskeySummary(result.row);
     const eventId = newUuid();
@@ -371,12 +371,6 @@ export class PasskeyService {
     );
     let otherSessionsSignedOut = false;
 
-    await this.options.deviceTrustService.revokeAll(
-      actor.userId,
-      "passkey_removed",
-      actor.context,
-    );
-
     if (!factors.totpActive && factors.passkeyCount <= 1) {
       await this.revokeOtherSessions(actor);
       otherSessionsSignedOut = true;
@@ -390,6 +384,13 @@ export class PasskeyService {
     if (!removed) {
       throw new ResourceNotFoundError("Passkey not found.");
     }
+
+    await this.options.deviceTrustService.recordFactorChangeRevocation(
+      actor.userId,
+      "passkey_removed",
+      removed.trustRevoked,
+      actor.context,
+    );
 
     if (removed.lastStrongFactor && !otherSessionsSignedOut) {
       await this.revokeOtherSessions(actor);
