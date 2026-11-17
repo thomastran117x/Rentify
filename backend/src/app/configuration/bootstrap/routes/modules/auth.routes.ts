@@ -12,6 +12,7 @@ import type { LoginLockoutController } from "@/features/auth/lockout/login-locko
 import type { PasswordController } from "@/features/auth/password/password.controller";
 import type { MfaRecoveryCodeController } from "@/features/auth/mfa/recovery/mfa-recovery-code.controller";
 import type { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
+import type { PasskeyLoginController } from "@/features/auth/passkey-login/passkey-login.controller";
 import type { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import type { MfaVerificationController } from "@/features/auth/mfa/verification/mfa-verification.controller";
 import type { PersonalAccessTokenController } from "@/features/auth/personal-access-token/personal-access-token.controller";
@@ -40,6 +41,21 @@ export const authLocalRouteModule: RouteModule = {
       resolveHandler<LoginMfaController>(
         containerTokens.loginMfaController,
         "beginPasskey",
+      ),
+    );
+    // Signing in with a passkey alone (#466): no username, no password.
+    app.post(
+      "/auth/passkey/login/options",
+      resolveHandler<PasskeyLoginController>(
+        containerTokens.passkeyLoginController,
+        "beginOptions",
+      ),
+    );
+    app.post(
+      "/auth/passkey/login/verify",
+      resolveHandler<PasskeyLoginController>(
+        containerTokens.passkeyLoginController,
+        "verify",
       ),
     );
     app.post(

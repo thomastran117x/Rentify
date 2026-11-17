@@ -1,7 +1,10 @@
 import { environment } from "@/configuration/environment";
 import { loggerFactory } from "@/configuration/logging";
 import type { AuthAuditRepository } from "@/features/auth/audit/auth-audit.repository";
-import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
+import {
+  hashAuthIdentifier,
+  hashPasskeyCredentialId,
+} from "@/features/auth/audit/auth-audit-identifier";
 import type {
   AuthAuditListener,
   RecordAuthAuditEventInput,
@@ -31,10 +34,23 @@ export class AuthAuditService {
   }
 
   hashIdentifier(value: string): string {
-    return hashAuthIdentifier(
-      value,
+    return hashAuthIdentifier(value, this.getIdentifierSecret());
+  }
+
+  /**
+   * The identifier of a passkey sign-in that names no account: a keyed hash
+   * of the credential ID, so repeated tries with one credential correlate
+   * without the ID being stored. Prefixed so it can never equal a username's
+   * hash, and not normalized, since base64url is case-sensitive.
+   */
+  hashPasskeyCredentialId(credentialId: string): string {
+    return hashPasskeyCredentialId(credentialId, this.getIdentifierSecret());
+  }
+
+  private getIdentifierSecret(): string {
+    return (
       this.identifierSecret ??
-        environment.getTokenConfig().authAuditIdentifierSecret,
+      environment.getTokenConfig().authAuditIdentifierSecret
     );
   }
 

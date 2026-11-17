@@ -7,12 +7,15 @@ import {
   type VerifiedAuthenticationResponse,
   type VerifiedRegistrationResponse,
 } from "@simplewebauthn/server";
-import { isoBase64URL } from "@simplewebauthn/server/helpers";
+import {
+  decodeClientDataJSON,
+  isoBase64URL,
+} from "@simplewebauthn/server/helpers";
 import { Prisma } from "@/generated/prisma/client";
 import { environment } from "@/configuration/environment";
 import type { AppEnvironment } from "@/configuration/environment/types";
 import { loggerFactory, type Logger } from "@/configuration/logging";
-import { newUuid, type Uuid } from "@/configuration/validation/uuid";
+import { asUuid, newUuid, type Uuid } from "@/configuration/validation/uuid";
 import ConflictError from "@/errors/http/conflict.error";
 import MfaFactorUnavailableError from "@/errors/http/mfa-factor-unavailable.error";
 import PasskeyRegistrationFailedError from "@/errors/http/passkey-registration-failed.error";
@@ -102,13 +105,40 @@ export interface VerifyPasskeyAssertionInput {
 }
 
 /** Why an assertion failed; logged and audited, never told to the client. */
-type AssertionFailure =
+export type PasskeyAssertionFailure =
   | "challenge_missing"
   | "unknown_credential"
   | "user_handle_mismatch"
   | "verification_failed"
   | "counter_regressed"
   | "counter_race";
+
+/**
+ * What a passkey sign-in's assertion decided. A refusal names the account
+ * when the passkey belongs to one, so the sign-in can count it towards that
+ * account's lockout, and leaves `userId` out when no account could be found.
+ */
+export type DiscoverableAssertionResult =
+  | { status: "verified"; userId: Uuid; passkeyId: string }
+  | {
+      status: "rejected";
+      reason: PasskeyAssertionFailure;
+      userId?: Uuid;
+      passkeyId?: string;
+    };
+
+/** Who an assertion is checked for, for the audit trail of a refusal. */
+interface AssertionCheckContext {
+  userId: Uuid;
+  stage: "login" | "step_up";
+  sessionId?: string;
+  method?: AuthAuditMethod;
+  context?: AuthAuditContext;
+}
+
+type AssertionCheckResult =
+  | { ok: true }
+  | { ok: false; reason: PasskeyAssertionFailure; detail?: string };
 
 /**
  * Passkeys as a second factor: registering one, listing, renaming and
@@ -470,13 +500,7 @@ export class PasskeyService {
    * Checks an assertion against the challenge issued for `binding`, which it
    * spends whatever the outcome. Throws {@link UnauthorizedError} without
    * saying why, so a caller counts every failure the way it counts a wrong
-   * code.
-   *
-   * The library's own counter check is turned off (it is given 0) because it
-   * would also refuse a synced passkey, whose counter means nothing. Instead
-   * the counter is checked here, after the signature: a single-device passkey
-   * whose counter did not go up may have been cloned, so the assertion is
-   * refused and audited as `mfa.passkey_assertion_rejected`.
+   * code. The signature and counter checks are in {@link checkAssertion}.
    */
   async verifyAssertion(
     input: VerifyPasskeyAssertionInput,
@@ -508,13 +532,135 @@ export class PasskeyService {
       return this.rejectAssertion(input, "user_handle_mismatch", row);
     }
 
+    const check = await this.checkAssertion(
+      row,
+      input.credential,
+      challenge.challenge,
+      false,
+      {
+        userId: input.userId,
+        stage: input.purpose === "login" ? "login" : "step_up",
+        sessionId: input.sessionId,
+        method: input.method,
+        context: input.context,
+      },
+    );
+
+    if (!check.ok) {
+      return this.rejectAssertion(input, check.reason, row, check.detail);
+    }
+
+    return { passkeyId: row.id };
+  }
+
+  /**
+   * Request options for signing in with a passkey alone, before anyone is
+   * known. There is no `allowCredentials`, so the browser offers the passkeys
+   * it holds for this site, and user verification is required, because the
+   * passkey is the whole sign-in. The challenge is its own binding: it is
+   * unguessable, and the answer carries it back in `clientDataJSON`.
+   */
+  async beginDiscoverableAssertion(): Promise<PublicKeyCredentialRequestOptionsJSON> {
+    const options = await generateAuthenticationOptions({
+      rpID: this.getConfig().rpId,
+      userVerification: "required",
+      timeout: PASSKEY_CHALLENGE_TTL_SECONDS * 1000,
+    });
+
+    await this.options.passkeyChallengeStore.issue(
+      "passkey-login",
+      options.challenge,
+      { challenge: options.challenge },
+    );
+
+    return options;
+  }
+
+  /**
+   * Checks a passkey sign-in's assertion against a challenge from
+   * {@link beginDiscoverableAssertion}, which it spends. The passkey names the
+   * account: it must be registered, and its user handle must be that
+   * account's. User verification is required; the signature, counter and
+   * replay checks are those of {@link verifyAssertion}.
+   *
+   * A refusal is returned rather than thrown, so the sign-in decides what to
+   * record and what to count before it answers.
+   */
+  async verifyDiscoverableAssertion(input: {
+    credential: PasskeyAssertionCredential;
+    context?: AuthAuditContext;
+  }): Promise<DiscoverableAssertionResult> {
+    const challengeValue = readChallenge(input.credential);
+    const challenge = challengeValue
+      ? await this.options.passkeyChallengeStore.consume(
+          "passkey-login",
+          challengeValue,
+        )
+      : null;
+
+    if (!challenge || challenge.challenge !== challengeValue) {
+      return this.rejectDiscoverable("challenge_missing");
+    }
+
+    const row = await this.options.passkeyRepository.findByCredentialId(
+      isoBase64URL.toBuffer(input.credential.rawId),
+    );
+
+    if (!row) {
+      return this.rejectDiscoverable("unknown_credential");
+    }
+
+    const userId = asUuid(row.userId);
+
+    // Required here: with no account to start from, the user handle is what
+    // the authenticator says the passkey belongs to.
+    if (
+      input.credential.response.userHandle !==
+      isoBase64URL.fromBuffer(userHandleFor(userId))
+    ) {
+      return this.rejectDiscoverable("user_handle_mismatch", row);
+    }
+
+    const check = await this.checkAssertion(
+      row,
+      input.credential,
+      challenge.challenge,
+      true,
+      { userId, stage: "login", method: "passkey", context: input.context },
+    );
+
+    if (!check.ok) {
+      return this.rejectDiscoverable(check.reason, row, check.detail);
+    }
+
+    return { status: "verified", userId, passkeyId: row.id };
+  }
+
+  /**
+   * The checks every assertion gets once its challenge and passkey are known:
+   * the library's (challenge, origin, RP ID, signature and, when asked, user
+   * verification), then the counter, then claiming the use.
+   *
+   * The library's own counter check is turned off (it is given 0) because it
+   * would also refuse a synced passkey, whose counter means nothing. Instead
+   * the counter is checked here, after the signature: a single-device passkey
+   * whose counter did not go up may have been cloned, so the assertion is
+   * refused and audited as `mfa.passkey_assertion_rejected`.
+   */
+  private async checkAssertion(
+    row: UserWebAuthnCredential,
+    credential: PasskeyAssertionCredential,
+    expectedChallenge: string,
+    requireUserVerification: boolean,
+    audit: AssertionCheckContext,
+  ): Promise<AssertionCheckResult> {
     const config = this.getConfig();
     let verification: VerifiedAuthenticationResponse;
 
     try {
       verification = await verifyAuthenticationResponse({
-        response: input.credential,
-        expectedChallenge: challenge.challenge,
+        response: credential,
+        expectedChallenge,
         expectedOrigin: config.origins,
         expectedRPID: config.rpId,
         credential: {
@@ -523,19 +669,18 @@ export class PasskeyService {
           counter: 0,
           transports: readTransports(row),
         },
-        requireUserVerification: false,
+        requireUserVerification,
       });
     } catch (error) {
-      return this.rejectAssertion(
-        input,
-        "verification_failed",
-        row,
-        error instanceof Error ? error.message : "unknown",
-      );
+      return {
+        ok: false,
+        reason: "verification_failed",
+        detail: error instanceof Error ? error.message : "unknown",
+      };
     }
 
     if (!verification.verified) {
-      return this.rejectAssertion(input, "verification_failed", row);
+      return { ok: false, reason: "verification_failed" };
     }
 
     const { newCounter, credentialBackedUp } = verification.authenticationInfo;
@@ -548,19 +693,19 @@ export class PasskeyService {
         eventType: "mfa.passkey_assertion_rejected",
         outcome: "failure",
         reasonCode: "mfa_invalid",
-        userId: input.userId,
-        sessionId: input.sessionId,
-        method: input.method,
-        context: input.context,
+        userId: audit.userId,
+        sessionId: audit.sessionId,
+        method: audit.method,
+        context: audit.context,
         metadata: {
           passkeyId: row.id,
-          stage: input.purpose === "login" ? "login" : "step_up",
+          stage: audit.stage,
           reason: "counter_regressed",
           storedCounter,
           receivedCounter: newCounter,
         },
       });
-      return this.rejectAssertion(input, "counter_regressed", row);
+      return { ok: false, reason: "counter_regressed" };
     }
 
     const claimed = await this.options.passkeyRepository.claimSignCount({
@@ -572,16 +717,34 @@ export class PasskeyService {
       usedAt: new Date(),
     });
 
-    if (!claimed) {
-      return this.rejectAssertion(input, "counter_race", row);
-    }
+    return claimed ? { ok: true } : { ok: false, reason: "counter_race" };
+  }
 
-    return { passkeyId: row.id };
+  private rejectDiscoverable(
+    reason: PasskeyAssertionFailure,
+    row?: UserWebAuthnCredential,
+    detail?: string,
+  ): DiscoverableAssertionResult {
+    this.logger.warn("Passkey sign-in assertion refused.", {
+      userId: row?.userId,
+      passkeyId: row?.id,
+      reason,
+      detail,
+    });
+
+    return row
+      ? {
+          status: "rejected",
+          reason,
+          userId: asUuid(row.userId),
+          passkeyId: row.id,
+        }
+      : { status: "rejected", reason };
   }
 
   private rejectAssertion(
     input: VerifyPasskeyAssertionInput,
-    reason: AssertionFailure,
+    reason: PasskeyAssertionFailure,
     row?: UserWebAuthnCredential,
     detail?: string,
   ): never {
@@ -614,6 +777,23 @@ export class PasskeyService {
     return new ConflictError(
       `An account can hold at most ${MAX_PASSKEYS_PER_USER} passkeys. Remove one before adding another.`,
     );
+  }
+}
+
+/**
+ * The challenge an assertion answers, as its `clientDataJSON` carries it, or
+ * null when that cannot be read. The library checks the same field again.
+ */
+function readChallenge(credential: PasskeyAssertionCredential): string | null {
+  try {
+    const { challenge } = decodeClientDataJSON(
+      credential.response.clientDataJSON,
+    );
+    return typeof challenge === "string" && challenge.length > 0
+      ? challenge
+      : null;
+  } catch {
+    return null;
   }
 }
 

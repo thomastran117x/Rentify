@@ -33,7 +33,9 @@ export interface PasskeyDeleteResult {
 
 /**
  * Every query is scoped by `userId`, so an id belonging to another account
- * reads as missing and can never be renamed, removed or used.
+ * reads as missing and can never be renamed, removed or used. The one
+ * exception is {@link PasskeyRepository.findByCredentialId}, for a sign-in
+ * that has no account yet.
  */
 export class PasskeyRepository extends BaseRepository {
   async listByUserId(userId: Uuid): Promise<UserWebAuthnCredential[]> {
@@ -67,6 +69,21 @@ export class PasskeyRepository extends BaseRepository {
     return this.executeAsync(() =>
       this.prisma.userWebAuthnCredential.findFirst({
         where: { userId, credentialId },
+      }),
+    );
+  }
+
+  /**
+   * The passkey with this credential ID, whichever account holds it. Only a
+   * passkey sign-in, which starts without an account, looks one up this way;
+   * the ID is unique across accounts.
+   */
+  async findByCredentialId(
+    credentialId: Uint8Array<ArrayBuffer>,
+  ): Promise<UserWebAuthnCredential | null> {
+    return this.executeAsync(() =>
+      this.prisma.userWebAuthnCredential.findUnique({
+        where: { credentialId },
       }),
     );
   }

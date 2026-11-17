@@ -17,6 +17,8 @@ import { PasskeyChallengeStore } from "@/features/auth/mfa/passkey/passkey-chall
 import { PasskeyController } from "@/features/auth/mfa/passkey/passkey.controller";
 import { PasskeyRepository } from "@/features/auth/mfa/passkey/passkey.repository";
 import { PasskeyService } from "@/features/auth/mfa/passkey/passkey.service";
+import { PasskeyLoginController } from "@/features/auth/passkey-login/passkey-login.controller";
+import { PasskeyLoginService } from "@/features/auth/passkey-login/passkey-login.service";
 import { MfaTotpController } from "@/features/auth/mfa/totp/mfa-totp.controller";
 import { MfaTotpRepository } from "@/features/auth/mfa/totp/mfa-totp.repository";
 import { MfaTotpService } from "@/features/auth/mfa/totp/mfa-totp.service";
@@ -532,6 +534,12 @@ export const containerTokens = {
   loginMfaService: createServiceToken<LoginMfaService>("LoginMfaService"),
   loginMfaController:
     createServiceToken<LoginMfaController>("LoginMfaController"),
+  passkeyLoginService: createServiceToken<PasskeyLoginService>(
+    "PasskeyLoginService",
+  ),
+  passkeyLoginController: createServiceToken<PasskeyLoginController>(
+    "PasskeyLoginController",
+  ),
   personalAccessTokenController:
     createServiceToken<PersonalAccessTokenController>(
       "PersonalAccessTokenController",

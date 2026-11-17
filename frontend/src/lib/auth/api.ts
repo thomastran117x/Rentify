@@ -63,6 +63,12 @@ interface LoginPasskeyOptionsInput {
   deviceId?: string;
 }
 
+interface PasskeyLoginInput {
+  credential: AuthenticationResponseJSON;
+  rememberMe?: boolean;
+  deviceId?: string;
+}
+
 interface SignupInput {
   firstName: string;
   lastName: string;
@@ -235,6 +241,30 @@ export const authApi = {
       ...input,
       deviceId: input.deviceId ?? getDeviceId(),
     });
+  },
+  /** Options for signing in with a passkey alone: no username, no password. */
+  getPasskeyLoginOptions(): Promise<{
+    options: PublicKeyCredentialRequestOptionsJSON;
+  }> {
+    return publicJson<
+      { options: PublicKeyCredentialRequestOptionsJSON },
+      Record<string, never>
+    >("POST", "/auth/passkey/login/options", {});
+  },
+  /**
+   * Finishes a passkey sign-in with the browser's assertion. Sent once: the
+   * challenge it answers works once, so it is never retried.
+   */
+  loginWithPasskey(input: PasskeyLoginInput): Promise<AuthResponseBody> {
+    cancelStoredSessionRefresh();
+    return publicJson<AuthResponseBody, PasskeyLoginInput>(
+      "POST",
+      "/auth/passkey/login/verify",
+      {
+        ...input,
+        deviceId: input.deviceId ?? getDeviceId(),
+      },
+    );
   },
   logout(): Promise<{ loggedOut: true }> {
     cancelStoredSessionRefresh();

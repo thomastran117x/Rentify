@@ -55,6 +55,10 @@ import type {
 } from "@/features/auth/mfa/login/login-mfa.model";
 import type { PasskeyAssertionCredential } from "@/features/auth/mfa/passkey/passkey.model";
 import type {
+  PasskeyLoginInput,
+  PasskeyLoginVerifyRequestBody,
+} from "@/features/auth/passkey-login/passkey-login.model";
+import type {
   ResendUnlockLocalLoginInput,
   ResendUnlockLocalLoginRequestBody,
   UnlockLocalLoginInput,
@@ -196,6 +200,22 @@ export function toBeginLoginPasskeyInput(
   return {
     mfaChallengeToken: input.mfaChallengeToken,
     deviceId,
+    audit: toAuthAuditContext(request, deviceId),
+  };
+}
+
+export function toPasskeyLoginInput(
+  request: Request,
+  input: PasskeyLoginVerifyRequestBody,
+): PasskeyLoginInput {
+  const deviceId = resolveDeviceId(request, input.deviceId);
+
+  return {
+    // Checked by the schema's outer shape; the library verifies the rest.
+    credential: input.credential as PasskeyAssertionCredential,
+    rememberMe: input.rememberMe,
+    deviceId,
+    client: request.client,
     audit: toAuthAuditContext(request, deviceId),
   };
 }

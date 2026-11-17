@@ -198,6 +198,12 @@ function isAuthSensitiveRoute(request: Request, pathname: string): boolean {
     return true;
   }
 
+  // Signing in with a passkey alone is a sign-in like the password one, and
+  // shares its bucket and the credential-stuffing IP block.
+  if (request.method === "POST" && pathname === "/auth/passkey/login/verify") {
+    return true;
+  }
+
   // Finishing an OAuth signup creates an account from a continuation token,
   // so it is as cheap to hammer as the provider sign-in that issued it.
   // (`password/change` is in the local regex above: from a stolen session it
@@ -277,6 +283,9 @@ function isAuthSessionRoute(request: Request, pathname: string): boolean {
     // does not spend two of that bucket's ten attempts.
     (request.method === "POST" &&
       /^\/auth\/oauth\/(google|microsoft|apple)\/start$/.test(pathname)) ||
+    // Likewise passkey sign-in options, which the sign-in page asks for on
+    // every visit to offer passkeys in the username field's autofill.
+    (request.method === "POST" && pathname === "/auth/passkey/login/options") ||
     /^\/auth\/oauth\/[^/]+\/link$/.test(pathname) ||
     (request.method === "DELETE" && /^\/auth\/oauth\/[^/]+$/.test(pathname))
   );

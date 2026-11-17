@@ -184,6 +184,19 @@ describe("labelForAuthAuditEvent", () => {
     ["login.succeeded", null, "password", "Signed in with password"],
     ["login.succeeded", null, null, "Signed in with password"],
     ["login.succeeded", null, "google", "Signed in with Google"],
+    ["login.succeeded", null, "passkey", "Signed in with a passkey"],
+    [
+      "login.failed",
+      "bad_credentials",
+      "passkey",
+      "Failed sign-in: passkey not accepted",
+    ],
+    [
+      "login.failed",
+      "account_suspended",
+      "passkey",
+      "Sign-in blocked: account suspended",
+    ],
     [
       "login.failed",
       "bad_credentials",

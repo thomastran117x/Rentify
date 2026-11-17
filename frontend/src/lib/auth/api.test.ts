@@ -225,6 +225,56 @@ describe("authApi", () => {
     );
   });
 
+  it("asks for passkey sign-in options naming no one, then sends the assertion once", async () => {
+    const credential = {
+      id: "Y3JlZA",
+      rawId: "Y3JlZA",
+      type: "public-key" as const,
+      clientExtensionResults: {},
+      response: {
+        clientDataJSON: "Y2Q",
+        authenticatorData: "YWQ",
+        signature: "c2ln",
+        userHandle: "dXNlcg",
+      },
+    };
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            message: "ok",
+            data: { options: { challenge: "c" } },
+            error: null,
+            meta: { requestId: "request-1" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { authApi } = await import("./api");
+    await expect(authApi.getPasskeyLoginOptions()).resolves.toEqual({
+      options: { challenge: "c" },
+    });
+    await authApi.loginWithPasskey({ credential });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8040/api/v1/auth/passkey/login/options",
+      expect.objectContaining({ method: "POST", body: "{}" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8040/api/v1/auth/passkey/login/verify",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ credential, deviceId: "device-1" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces the login MFA challenge carried by the 401 a sign-in answers with", async () => {
     const challenge = {
       mfaRequired: true,

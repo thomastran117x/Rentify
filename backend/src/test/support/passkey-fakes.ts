@@ -52,6 +52,10 @@ export function createInMemoryPasskeyRepository(
             row.userId === userId && sameBytes(row.credentialId, credentialId),
         ) ?? null,
     ),
+    findByCredentialId: jest.fn(
+      async (credentialId: Uint8Array) =>
+        rows.find((row) => sameBytes(row.credentialId, credentialId)) ?? null,
+    ),
     createWithinCap: jest.fn(async (row: NewPasskeyRow, _codes: unknown[]) => {
       if (
         rows.some((existing) =>

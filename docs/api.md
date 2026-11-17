@@ -408,6 +408,41 @@ MFA challenge, with `passkey` first in `availableFactors`. To use it:
 
 The deprecated `totpCode` field only ever takes an authenticator code.
 
+### Signing In With a Passkey Alone
+
+A discoverable passkey that verifies its user can sign in on its own, with no
+username, password or second step (see
+[Signing In With a Passkey Alone](./auth-security.md#signing-in-with-a-passkey-alone)):
+
+1. `POST /auth/passkey/login/options` with `{}` returns `{ options }` for
+   `navigator.credentials.get()`. There is no `allowCredentials`, so the
+   browser offers its passkeys for the site, and `userVerification` is
+   `required`. Pass the options to `startAuthentication({ optionsJSON })`, or
+   to `startAuthentication({ optionsJSON, useBrowserAutofill: true })` for
+   autofill on a field with `autocomplete="username webauthn"`.
+2. `POST /auth/passkey/login/verify` with
+   `{ "credential", "rememberMe", "deviceId" }` answers like
+   `POST /auth/local/login`: the session, with the refresh token as a cookie
+   for browsers.
+
+- **No captcha.** Options use the `auth-session` rate limit, since the sign-in
+  page asks for them on every visit; verifying shares `auth-sensitive` with
+  sign-in.
+- **The challenge** works once and lasts five minutes. Ask for new options to
+  try again, or before restarting an autofill request that has waited that
+  long. An options body that names anyone (a username, say) answers `400`.
+- **Refusals** that would say whether a passkey or account exists all answer
+  `401 PASSKEY_LOGIN_FAILED`: an expired, used or unknown challenge, an
+  unregistered passkey, a missing or wrong user handle, no user verification,
+  a bad signature, or a counter that went backwards. A refusal for a
+  registered passkey counts towards its username's lockout.
+- **Account state**, as at `POST /auth/local/login`: a locked username answers
+  `423 ACCOUNT_LOCKED` even for a good passkey; once it checks out, a security
+  hold answers `423`, a suspension `403 ACCOUNT_SUSPENDED`, and an unverified
+  email `401 UNAUTHORIZED`.
+- **New devices.** The passkey counts as the `device-login` step-up for the
+  new session, so the new-device check passes without a prompt.
+
 ### OAuth Sign-In
 
 Every Google, Microsoft and Apple sign-in, and every provider link, starts on

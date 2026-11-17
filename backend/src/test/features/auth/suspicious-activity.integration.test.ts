@@ -19,6 +19,8 @@ import {
   type PersistenceTestApp,
 } from "../../support/persistence-test-app";
 import { waitForRabbitMqPayload } from "../../support/live-rabbitmq-assertions";
+import { SoftwareAuthenticator } from "../../support/webauthn-authenticator";
+import { newUuid } from "@/configuration/validation/uuid";
 
 const ORIGIN = "http://localhost:3040";
 const PASSWORD = "Rentify123!";
@@ -453,6 +455,68 @@ describe("Suspicious sign-in detection integration", () => {
   });
 
   describe("rule (c): success after failures", () => {
+    it("fires for a passkey sign-in from a new device as for a password one", async () => {
+      const user = await persistenceApp.prisma.user.findFirstOrThrow({
+        where: { email: RENTER_ONE.email },
+      });
+      const authenticator = new SoftwareAuthenticator();
+      await persistenceApp.prisma.userWebAuthnCredential.create({
+        data: {
+          id: newUuid(),
+          userId: user.id,
+          credentialId: authenticator.credentialId,
+          publicKey: authenticator.cosePublicKey,
+          signCount: BigInt(authenticator.counter),
+          aaguid: "00000000-0000-0000-0000-000000000000",
+          backedUp: false,
+          deviceType: "single_device",
+          name: "Laptop",
+        },
+      });
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await login({
+          username: RENTER_ONE.username,
+          password: WRONG_PASSWORD,
+          ip: "198.51.100.80",
+        });
+      }
+      const headers = {
+        "content-type": "application/json",
+        origin: ORIGIN,
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "x-device-id": "never-seen-passkey-device",
+        "x-forwarded-for": "203.0.113.180",
+      };
+      const optionsResponse = await request("/auth/passkey/login/options", {
+        method: "POST",
+        headers,
+        body: "{}",
+      });
+      const { challenge } = (
+        (await optionsResponse.json()) as {
+          data: { options: { challenge: string } };
+        }
+      ).data.options;
+
+      const success = await request("/auth/passkey/login/verify", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          credential: authenticator.createAssertionResponse({
+            challenge,
+            userHandle: SoftwareAuthenticator.userHandleFor(user.id),
+          }),
+        }),
+      });
+      expect(success.status).toBe(200);
+
+      const suspicious = await waitForSuspiciousEvent("success_after_failures");
+      expect(suspicious.metadata).toMatchObject({
+        action: "email_sent",
+        count: 3,
+      });
+    });
+
     it("sends one suspicious_login email whose lock link works", async () => {
       for (let attempt = 0; attempt < 3; attempt += 1) {
         await login({

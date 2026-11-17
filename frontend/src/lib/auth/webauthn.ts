@@ -2,8 +2,10 @@
 
 import {
   browserSupportsWebAuthn,
+  browserSupportsWebAuthnAutofill,
   startAuthentication,
   startRegistration,
+  WebAuthnAbortService,
   WebAuthnError,
   type AuthenticationResponseJSON,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -105,9 +107,40 @@ export function createPasskey(
   return runCeremony(() => startRegistration({ optionsJSON }));
 }
 
-/** Asks the browser to sign the given challenge with one of the account's passkeys. */
+/**
+ * Whether the browser can offer passkeys in a field's autofill (WebAuthn
+ * conditional mediation), for a field with `autocomplete="username webauthn"`.
+ */
+export async function supportsPasskeyAutofill(): Promise<boolean> {
+  if (!supportsPasskeys()) {
+    return false;
+  }
+
+  try {
+    return await browserSupportsWebAuthnAutofill();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Asks the browser to sign the given challenge with one of the account's
+ * passkeys, or, with `autofill`, with whichever passkey the user picks from
+ * the username field's autofill. An autofill request waits until a passkey
+ * is picked, and starting any other prompt cancels it.
+ */
 export function getPasskeyAssertion(
   optionsJSON: PublicKeyCredentialRequestOptionsJSON,
+  { autofill = false }: { autofill?: boolean } = {},
 ): Promise<PasskeyCeremonyResult<AuthenticationResponseJSON>> {
-  return runCeremony(() => startAuthentication({ optionsJSON }));
+  return runCeremony(() =>
+    startAuthentication(
+      autofill ? { optionsJSON, useBrowserAutofill: true } : { optionsJSON },
+    ),
+  );
+}
+
+/** Cancels whichever passkey prompt or autofill request is waiting. */
+export function cancelPasskeyCeremony(): void {
+  WebAuthnAbortService.cancelCeremony();
 }

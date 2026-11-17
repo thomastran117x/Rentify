@@ -27,6 +27,9 @@ const ACCOUNT = {
 
 type Scope = "mfa-management" | "device-login";
 
+/** localStorage key that lets the sign-in page offer passkey autofill. */
+const AUTOFILL_FLAG = "e2e.passkey-autofill";
+
 interface Harness {
   context: BrowserContext;
   page: Page;
@@ -51,6 +54,20 @@ async function createHarness(browser: Browser): Promise<Harness> {
     });
     await route.fulfill({ response });
   });
+
+  // The virtual authenticator answers a passkey autofill request at once,
+  // where a person would first pick the passkey, so autofill would sign the
+  // account straight back in after every logout. It stays off unless a step
+  // turns it on with the AUTOFILL_FLAG.
+  await context.addInitScript((flag) => {
+    const credential = window.PublicKeyCredential;
+    const original =
+      credential?.isConditionalMediationAvailable?.bind(credential);
+    if (credential && original) {
+      credential.isConditionalMediationAvailable = async () =>
+        window.localStorage.getItem(flag) === "on" ? original() : false;
+    }
+  }, AUTOFILL_FLAG);
 
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
@@ -114,7 +131,7 @@ async function submitPassword(page: Page) {
     .getByRole("textbox", { name: /^Username/i })
     .fill(ACCOUNT.username);
   await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
 async function logOut(page: Page) {
@@ -289,6 +306,42 @@ test("adds a passkey, signs in and steps up with it, then removes it", async ({
   });
   // The passkey that signed in also covers the new-device check.
   await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Sign out, and back in with the passkey alone: no username, no password,
+  // and no second step, since the passkey verified its user.
+  await logOut(page);
+  await page.goto(`/login?next=${encodeURIComponent("/account")}`);
+  await expect(
+    page.getByRole("textbox", { name: /^Username/i }),
+  ).toHaveAttribute("autocomplete", "username webauthn");
+  await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await page.waitForURL((url) => url.pathname === "/account", {
+    timeout: 15_000,
+  });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // With autofill on, the sign-in page offers the passkey in the username
+  // field; the virtual authenticator picks it at once, so signing out lands
+  // signed in again, on the home page the logout's sign-in page leads to.
+  await page.evaluate(
+    (flag) => window.localStorage.setItem(flag, "on"),
+    AUTOFILL_FLAG,
+  );
+  const autofillSignIn = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/auth/passkey/login/verify") &&
+      response.status() === 200,
+  );
+  await logOut(page);
+  await autofillSignIn;
+  await expect(page.locator('[aria-label$="account menu"]')).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.evaluate(
+    (flag) => window.localStorage.removeItem(flag),
+    AUTOFILL_FLAG,
+  );
+  await page.goto("/account");
 
   // The Security tab's step-up starts on the passkey too.
   await page.getByRole("button", { name: "Security", exact: true }).click();

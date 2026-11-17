@@ -206,6 +206,12 @@ authenticator environment**, then **Add**), which needs no hardware. The
 relying party comes from `FRONTEND_URL`; see
 [Passkeys (WebAuthn)](./backend-configuration.md#passkeys-webauthn).
 
+To sign in with the passkey alone, sign out and press **Sign in with a
+passkey** on `/login`, or focus the username field and pick the passkey from
+its autofill. In DevTools, give the virtual authenticator **Supports resident
+keys** and **Supports user verification**: the passkey must be discoverable to
+be offered without a username, and must verify its user to sign in alone.
+
 ## Changing An Account Email
 
 The flow is deliberately two-sided: starting a change needs a recent

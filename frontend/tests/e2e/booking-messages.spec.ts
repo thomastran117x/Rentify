@@ -27,7 +27,7 @@ async function login(page: Page, nextPath = "/bookings", username = USERNAME) {
   await ensureCaptchaToken(page);
   await page.getByRole("textbox", { name: /^Username/i }).fill(username);
   await page.getByLabel(/^Password/i).fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).not.toHaveURL(/\/login/);
 }
 

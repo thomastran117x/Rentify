@@ -8,12 +8,20 @@ const PASSKEY_CHALLENGE_CACHE_PREFIX = "auth:webauthn";
 /**
  * What a challenge was issued for. Each purpose has its own key space, so a
  * challenge issued to register a passkey can never answer a sign-in.
+ *
+ * `login` finishes a sign-in whose first step passed; `passkey-login` is a
+ * sign-in with a passkey alone, issued before anyone is known.
  */
-export type PasskeyChallengePurpose = "register" | "step-up" | "login";
+export type PasskeyChallengePurpose =
+  | "register"
+  | "step-up"
+  | "login"
+  | "passkey-login";
 
 export interface PasskeyChallengeRecord {
   challenge: string;
-  userId: Uuid;
+  /** Absent for `passkey-login`, where the passkey names the account. */
+  userId?: Uuid;
   createdAt: string;
 }
 
@@ -32,12 +40,12 @@ export class PasskeyChallengeStore {
   async issue(
     purpose: PasskeyChallengePurpose,
     binding: string,
-    input: { challenge: string; userId: Uuid },
+    input: { challenge: string; userId?: Uuid },
     ttlSeconds: number = PASSKEY_CHALLENGE_TTL_SECONDS,
   ): Promise<void> {
     const record: PasskeyChallengeRecord = {
       challenge: input.challenge,
-      userId: input.userId,
+      ...(input.userId ? { userId: input.userId } : {}),
       createdAt: new Date().toISOString(),
     };
 
