@@ -25,6 +25,7 @@ function createPrismaMock() {
   const userWebAuthnCredential = {
     findMany: jest.fn(async () => []),
     findFirst: jest.fn(async (): Promise<unknown> => ({ id: PASSKEY_ID })),
+    findUnique: jest.fn(async (): Promise<unknown> => ({ id: PASSKEY_ID })),
     count: jest.fn(async () => 0),
     create: jest.fn(async (args: { data: Record<string, unknown> }) => ({
       ...args.data,
@@ -104,6 +105,17 @@ describe("PasskeyRepository", () => {
     });
     expect(prisma.userWebAuthnCredential.findFirst).toHaveBeenNthCalledWith(2, {
       where: { userId: USER_ID, credentialId: NEW_ROW.credentialId },
+    });
+  });
+
+  it("finds a passkey by its credential ID alone, for a sign-in with no account yet", async () => {
+    const { prisma, repository } = createRepository();
+
+    await expect(
+      repository.findByCredentialId(NEW_ROW.credentialId),
+    ).resolves.toEqual({ id: PASSKEY_ID });
+    expect(prisma.userWebAuthnCredential.findUnique).toHaveBeenCalledWith({
+      where: { credentialId: NEW_ROW.credentialId },
     });
   });
 

@@ -419,3 +419,253 @@ describe("PasskeyService assertions", () => {
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });
+
+describe("PasskeyService discoverable sign-in assertions", () => {
+  async function discoverableChallenge(service: PasskeyService) {
+    return (await service.beginDiscoverableAssertion()).challenge;
+  }
+
+  function signIn(service: PasskeyService, credential: unknown) {
+    return service.verifyDiscoverableAssertion({
+      credential: credential as never,
+      context: CONTEXT,
+    });
+  }
+
+  const userHandle = isoBase64URL.fromUTF8String(USER_ID);
+
+  it("names no passkeys, requires user verification and lasts five minutes", async () => {
+    const { service, cache } = createService();
+    await registerFor(service, new SoftwareAuthenticator());
+    cache.ttls.clear();
+
+    const options = await service.beginDiscoverableAssertion();
+
+    expect(options).toMatchObject({
+      rpId: TEST_WEBAUTHN_RP_ID,
+      userVerification: "required",
+      timeout: 300_000,
+    });
+    expect(options.allowCredentials ?? []).toEqual([]);
+    expect([...cache.ttls.values()]).toEqual([300]);
+  });
+
+  it("signs in the account the passkey belongs to and records its use", async () => {
+    const { service, passkeyRepository } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+
+    const result = await signIn(
+      service,
+      authenticator.createAssertionResponse({
+        challenge: await discoverableChallenge(service),
+        userHandle,
+      }),
+    );
+
+    expect(result).toEqual({
+      status: "verified",
+      userId: USER_ID,
+      passkeyId: passkeyRepository.rows[0]!.id,
+    });
+    expect(passkeyRepository.rows[0]!.lastUsedAt).toBeInstanceOf(Date);
+  });
+
+  it("accepts each challenge once", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+    const value = await discoverableChallenge(service);
+
+    await signIn(
+      service,
+      authenticator.createAssertionResponse({ challenge: value, userHandle }),
+    );
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({ challenge: value, userHandle }),
+      ),
+    ).resolves.toEqual({ status: "rejected", reason: "challenge_missing" });
+  });
+
+  it("never accepts a challenge issued for another purpose", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await challenge(service),
+          userHandle,
+        }),
+      ),
+    ).resolves.toEqual({ status: "rejected", reason: "challenge_missing" });
+  });
+
+  it("refuses an answer whose client data cannot be read", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+    await discoverableChallenge(service);
+    const credential = authenticator.createAssertionResponse({
+      challenge: "unused",
+      userHandle,
+    });
+
+    await expect(
+      signIn(service, {
+        ...credential,
+        response: { ...credential.response, clientDataJSON: "bm90LWpzb24" },
+      }),
+    ).resolves.toEqual({ status: "rejected", reason: "challenge_missing" });
+  });
+
+  it("names no account for a passkey that is not registered", async () => {
+    const { service } = createService();
+    await registerFor(service, new SoftwareAuthenticator());
+
+    await expect(
+      signIn(
+        service,
+        new SoftwareAuthenticator().createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          userHandle,
+        }),
+      ),
+    ).resolves.toEqual({ status: "rejected", reason: "unknown_credential" });
+  });
+
+  it.each([
+    ["is missing", undefined],
+    ["names another account", isoBase64URL.fromUTF8String(OTHER_USER_ID)],
+  ])("refuses a passkey whose user handle %s", async (_label, handle) => {
+    const { service, passkeyRepository } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          userHandle: handle,
+        }),
+      ),
+    ).resolves.toEqual({
+      status: "rejected",
+      reason: "user_handle_mismatch",
+      userId: USER_ID,
+      passkeyId: passkeyRepository.rows[0]!.id,
+    });
+  });
+
+  it("refuses a passkey that did not verify its user", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator({ userVerified: false });
+    await registerFor(service, authenticator);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          userHandle,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      reason: "verification_failed",
+      userId: USER_ID,
+    });
+  });
+
+  it("refuses an answer from another origin", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          origin: "https://phish.example",
+          userHandle,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      reason: "verification_failed",
+    });
+  });
+
+  it("refuses and audits a single-device passkey whose counter went back", async () => {
+    const { service, authAuditService } = createService();
+    const authenticator = new SoftwareAuthenticator({ initialCounter: 5 });
+    await registerFor(service, authenticator);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          counter: 3,
+          userHandle,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      reason: "counter_regressed",
+    });
+    expect(authAuditService.recordSafely).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "mfa.passkey_assertion_rejected",
+        userId: USER_ID,
+        method: "passkey",
+        metadata: expect.objectContaining({
+          stage: "login",
+          reason: "counter_regressed",
+        }),
+      }),
+    );
+  });
+
+  it("signs in with a synced passkey whose counter stays at zero", async () => {
+    const { service } = createService();
+    const authenticator = new SoftwareAuthenticator({ synced: true });
+    await registerFor(service, authenticator);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(
+        signIn(
+          service,
+          authenticator.createAssertionResponse({
+            challenge: await discoverableChallenge(service),
+            userHandle,
+          }),
+        ),
+      ).resolves.toMatchObject({ status: "verified" });
+    }
+  });
+
+  it("refuses an assertion that lost a race for the counter", async () => {
+    const { service, passkeyRepository } = createService();
+    const authenticator = new SoftwareAuthenticator();
+    await registerFor(service, authenticator);
+    passkeyRepository.claimSignCount.mockResolvedValueOnce(false);
+
+    await expect(
+      signIn(
+        service,
+        authenticator.createAssertionResponse({
+          challenge: await discoverableChallenge(service),
+          userHandle,
+        }),
+      ),
+    ).resolves.toMatchObject({ status: "rejected", reason: "counter_race" });
+  });
+});

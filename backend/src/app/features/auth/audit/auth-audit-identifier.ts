@@ -20,3 +20,17 @@ export function hashAuthIdentifier(value: string, secret: string): string {
     .update(normalizeAuthIdentifier(value))
     .digest("hex");
 }
+
+/**
+ * A keyed hash of a passkey credential ID (base64url), for a sign-in that
+ * could not be tied to an account. The prefix keeps it apart from every
+ * username's hash, and the ID is hashed as sent: base64url is case-sensitive.
+ */
+export function hashPasskeyCredentialId(
+  credentialId: string,
+  secret: string,
+): string {
+  return createHmac("sha256", secret)
+    .update(`passkey-credential:${credentialId}`)
+    .digest("hex");
+}

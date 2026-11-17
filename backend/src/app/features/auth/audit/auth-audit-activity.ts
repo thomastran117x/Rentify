@@ -163,10 +163,17 @@ export function labelForAuthAuditEvent(
 
   switch (row.eventType) {
     case "login.succeeded":
+      if (row.method === "passkey") {
+        return "Signed in with a passkey";
+      }
       return row.method === "password" || !row.method
         ? "Signed in with password"
         : `Signed in with ${providerName(row.method)}`;
     case "login.failed":
+      // A refused passkey is the passkey sign-in's bad credential.
+      if (row.method === "passkey" && row.reasonCode === "bad_credentials") {
+        return "Failed sign-in: passkey not accepted";
+      }
       return (
         (row.reasonCode && FAILED_SIGN_IN_LABELS[row.reasonCode]) ??
         "Failed sign-in"

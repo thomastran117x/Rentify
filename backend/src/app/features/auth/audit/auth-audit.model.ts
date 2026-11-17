@@ -77,6 +77,7 @@ export const AUTH_AUDIT_METHODS = [
   "google",
   "microsoft",
   "apple",
+  "passkey",
   "refresh",
   "pat",
 ] as const;

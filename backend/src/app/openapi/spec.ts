@@ -2260,6 +2260,118 @@ function buildOperations(): OperationDefinition[] {
     },
     {
       method: "post",
+      path: "/auth/passkey/login/options",
+      operationId: "beginPasskeyLogin",
+      summary: "Get passkey options for signing in without a password",
+      description:
+        "Returns WebAuthn request options for navigator.credentials.get() to sign in with a passkey alone, with no username or password. allowCredentials is left out, so the browser offers the discoverable passkeys it holds for this site, and userVerification is required: the passkey's biometric or PIN is the second factor. The challenge is single-use and lasts five minutes; ask again for a new one, for example before restarting a passkey autofill request. No captcha is needed. Finish with POST /auth/passkey/login/verify.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-session",
+      },
+      requestBody: requestBody("PasskeyLoginOptionsRequest", {}),
+      responses: {
+        "200": successResponse(
+          200,
+          "Request completed successfully.",
+          "PasskeyLoginOptionsResult",
+          {
+            options: {
+              challenge: "Gq2xV9cR4mT7bL1nW8yK3pH6sD0fJ5aE2uZ9oI4tY7w",
+              timeout: 300000,
+              rpId: "rentify.example",
+              userVerification: "required",
+            },
+          },
+        ),
+        ...commonErrors([400, 429, 500]),
+      },
+    },
+    {
+      method: "post",
+      path: "/auth/passkey/login/verify",
+      operationId: "verifyPasskeyLogin",
+      summary: "Sign in with a passkey alone",
+      description:
+        "Creates an authenticated session from an assertion answering POST /auth/passkey/login/options. The passkey names the account through its user handle, and must have verified the user. There is no authenticator-code step, whatever factors the account has. Otherwise this is a password sign-in: a username locked by failed attempts returns 423 ACCOUNT_LOCKED even for a good passkey, a refused assertion counts towards that lockout like a wrong password, and only once the passkey checks out does an account on a security hold return ACCOUNT_LOCKED with details.reason security_hold, a suspended account 403 ACCOUNT_SUSPENDED, and an unverified email 401 UNAUTHORIZED. The device is evaluated as at any sign-in, with the new-device email, and the passkey counts as the device-login proof. Every other refusal (an expired, used or unknown challenge, a passkey that is not registered, a missing or mismatched user handle, no user verification, a bad signature, or a counter that went backwards on a single-device passkey) returns the same 401 PASSKEY_LOGIN_FAILED, which never says whether a passkey or account exists; ask for new options to try again. Browser clients receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+      tags: ["auth"],
+      permissions: {
+        authMode: "public",
+        minimumRole: null,
+        patAllowed: false,
+        csrf: "Required for browser-origin requests to /auth/*.",
+        rateLimitPolicy: "auth-sensitive",
+      },
+      requestBody: requestBody("PasskeyLoginVerifyRequest", {
+        credential: {
+          id: "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+          rawId: "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+          type: "public-key",
+          clientExtensionResults: {},
+          response: {
+            clientDataJSON: "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+            authenticatorData:
+              "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAQ",
+            signature: "MEUCIQDxk3Nn0h2vJ4pB9o",
+            userHandle: "MDE5M2E0YjItN2M4ZC03ZTAxLTlmMmEtM2I0YzVkNmU3Zjgw",
+          },
+        },
+        rememberMe: true,
+        deviceId: "device-1",
+      }),
+      responses: {
+        "200": successResponse(
+          200,
+          "Authenticated successfully.",
+          "AuthSessionResponseData",
+          authSessionExample,
+        ),
+        ...commonErrors([400, 429, 500]),
+        "401": errorResponseExamples(
+          "The passkey could not sign in, or the email is not verified.",
+          {
+            passkeyLoginFailed: {
+              summary:
+                "Expired or unknown challenge, unregistered passkey, or a refused assertion.",
+              message:
+                "We couldn't sign you in with that passkey. Try again, or sign in with your username and password.",
+              code: "PASSKEY_LOGIN_FAILED",
+            },
+            emailUnverified: {
+              summary: "The passkey checked out, but the email is unverified.",
+              message: "Please verify your email address before signing in.",
+              code: "UNAUTHORIZED",
+            },
+          },
+        ),
+        "403": errorResponseExamples("The account is suspended.", {
+          accountSuspended: accountSuspendedErrorExample,
+        }),
+        "423": errorResponseExamples(
+          "The sign-in is locked, or the account is on a security hold.",
+          {
+            loginLockout: {
+              summary:
+                "Too many failed attempts; the emailed unlock code clears it.",
+              message:
+                "This sign-in is locked. Use the code we emailed you to unlock it.",
+              code: "ACCOUNT_LOCKED",
+              details: {
+                email: "owner1@rentify.local",
+                unlockRequired: true,
+              },
+            },
+            securityHold: securityHoldErrorExample,
+          },
+        ),
+      },
+    },
+    {
+      method: "post",
       path: "/auth/local/signup",
       operationId: "localSignup",
       summary: "Create a new local account",
@@ -11996,6 +12108,47 @@ function buildComponents(): Record<string, unknown> {
           options: schemaRef("PasskeyAssertionOptions"),
         },
       },
+      PasskeyLoginOptionsRequest: {
+        type: "object",
+        additionalProperties: false,
+      },
+      PasskeyLoginOptionsResult: {
+        type: "object",
+        required: ["options"],
+        properties: {
+          options: schemaRef("PasskeyLoginAssertionOptions"),
+        },
+      },
+      PasskeyLoginAssertionOptions: {
+        type: "object",
+        description:
+          "`PublicKeyCredentialRequestOptionsJSON`, as `startAuthentication({ optionsJSON })` from `@simplewebauthn/browser` takes it, also with `useBrowserAutofill: true`. There is no `allowCredentials`, so the browser offers its discoverable passkeys for this site, and `userVerification` is `required`.",
+        additionalProperties: true,
+        required: ["challenge", "rpId", "userVerification"],
+        properties: {
+          challenge: { type: "string" },
+          rpId: { type: "string" },
+          timeout: { type: "integer" },
+          userVerification: { type: "string", enum: ["required"] },
+        },
+      },
+      PasskeyLoginVerifyRequest: {
+        type: "object",
+        required: ["credential"],
+        properties: {
+          credential: schemaRef("PasskeyAssertionCredential"),
+          rememberMe: {
+            type: "boolean",
+            description:
+              "Keep the session for the longer remember-me lifetime, as at POST /auth/local/login.",
+          },
+          deviceId: {
+            type: "string",
+            description:
+              "Labels the device; defaults to the fingerprinted device. It never makes a device known.",
+          },
+        },
+      },
       LoginMfaRequest: {
         oneOf: [
           {
@@ -12113,6 +12266,7 @@ function buildComponents(): Record<string, unknown> {
               "google",
               "microsoft",
               "apple",
+              "passkey",
               "refresh",
               "pat",
             ],
@@ -12213,6 +12367,7 @@ function buildComponents(): Record<string, unknown> {
               "google",
               "microsoft",
               "apple",
+              "passkey",
               "refresh",
               "pat",
             ],

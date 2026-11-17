@@ -6,6 +6,8 @@ import { LocalAuthService } from "@/features/auth/local/local-auth.service";
 import { LoginMfaChallengeStore } from "@/features/auth/mfa/login/login-mfa-challenge.store";
 import { LoginMfaController } from "@/features/auth/mfa/login/login-mfa.controller";
 import { LoginMfaService } from "@/features/auth/mfa/login/login-mfa.service";
+import { PasskeyLoginController } from "@/features/auth/passkey-login/passkey-login.controller";
+import { PasskeyLoginService } from "@/features/auth/passkey-login/passkey-login.service";
 
 export const authLocalRegistrationModule: ContainerRegistrationModule = {
   id: "auth-local",
@@ -127,6 +129,36 @@ export const authLocalRegistrationModule: ContainerRegistrationModule = {
       dependencies: [containerTokens.loginMfaService],
       resolve: ({ resolve }) =>
         new LoginMfaController(resolve(containerTokens.loginMfaService)),
+    });
+    container.register({
+      token: containerTokens.passkeyLoginService,
+      lifetime: "scoped",
+      dependencies: [
+        containerTokens.passkeyService,
+        containerTokens.authUsersRepository,
+        containerTokens.loginLockoutService,
+        containerTokens.authSessionService,
+        containerTokens.loginMfaService,
+        containerTokens.authAuditService,
+      ],
+      resolve: ({ resolve }) =>
+        new PasskeyLoginService({
+          passkeyService: resolve(containerTokens.passkeyService),
+          usersRepository: resolve(containerTokens.authUsersRepository),
+          loginLockoutService: resolve(containerTokens.loginLockoutService),
+          authSessionService: resolve(containerTokens.authSessionService),
+          loginMfaService: resolve(containerTokens.loginMfaService),
+          authAuditService: resolve(containerTokens.authAuditService),
+        }),
+    });
+    container.register({
+      token: containerTokens.passkeyLoginController,
+      lifetime: "scoped",
+      dependencies: [containerTokens.passkeyLoginService],
+      resolve: ({ resolve }) =>
+        new PasskeyLoginController(
+          resolve(containerTokens.passkeyLoginService),
+        ),
     });
   },
 };

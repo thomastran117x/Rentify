@@ -88,6 +88,19 @@ export class SoftwareAuthenticator {
     return isoBase64URL.fromBuffer(this.credentialId);
   }
 
+  /**
+   * The COSE public key, as a verified registration stores it, so a test can
+   * insert this passkey's row directly instead of registering it.
+   */
+  get cosePublicKey(): Uint8Array<ArrayBuffer> {
+    return Uint8Array.from(this.publicKeyCose);
+  }
+
+  /** The user handle a discoverable passkey for `userId` returns. */
+  static userHandleFor(userId: string): string {
+    return isoBase64URL.fromUTF8String(userId);
+  }
+
   /** The response `navigator.credentials.create()` would give for `challenge`. */
   createRegistrationResponse(
     options: CeremonyOptions & { transports?: string[] },

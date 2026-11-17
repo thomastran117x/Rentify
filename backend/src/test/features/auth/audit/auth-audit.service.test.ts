@@ -1,5 +1,8 @@
 import { AuthAuditService } from "@/features/auth/audit/auth-audit.service";
-import { hashAuthIdentifier } from "@/features/auth/audit/auth-audit-identifier";
+import {
+  hashAuthIdentifier,
+  hashPasskeyCredentialId,
+} from "@/features/auth/audit/auth-audit-identifier";
 import type { RecordAuthAuditEventInput } from "@/features/auth/audit/auth-audit.model";
 import { testUuid } from "../../../support/uuid";
 
@@ -59,6 +62,14 @@ describe("AuthAuditService", () => {
 
     expect(service.hashIdentifier(" Owner-One")).toBe(
       hashAuthIdentifier("owner-one", SECRET),
+    );
+  });
+
+  it("hashes passkey credential IDs with the configured secret", () => {
+    const { service } = createService();
+
+    expect(service.hashPasskeyCredentialId("AbC")).toBe(
+      hashPasskeyCredentialId("AbC", SECRET),
     );
   });
 

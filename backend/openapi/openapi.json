@@ -1021,6 +1021,310 @@
         }
       }
     },
+    "/auth/passkey/login/options": {
+      "post": {
+        "operationId": "beginPasskeyLogin",
+        "summary": "Get passkey options for signing in without a password",
+        "description": "Returns WebAuthn request options for navigator.credentials.get() to sign in with a passkey alone, with no username or password. allowCredentials is left out, so the browser offers the discoverable passkeys it holds for this site, and userVerification is required: the passkey's biometric or PIN is the second factor. The challenge is single-use and lasts five minutes; ask again for a new one, for example before restarting a passkey autofill request. No captcha is needed. Finish with POST /auth/passkey/login/verify.",
+        "tags": [
+          "auth"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public",
+          "minimumRole": null,
+          "patAllowed": false,
+          "csrf": "Required for browser-origin requests to /auth/*.",
+          "rateLimitPolicy": "auth-session"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginOptionsRequest"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PasskeyLoginOptionsResult"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Request completed successfully.",
+                  "data": {
+                    "options": {
+                      "challenge": "Gq2xV9cR4mT7bL1nW8yK3pH6sD0fJ5aE2uZ9oI4tY7w",
+                      "timeout": 300000,
+                      "rpId": "rentify.example",
+                      "userVerification": "required"
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/passkey/login/verify": {
+      "post": {
+        "operationId": "verifyPasskeyLogin",
+        "summary": "Sign in with a passkey alone",
+        "description": "Creates an authenticated session from an assertion answering POST /auth/passkey/login/options. The passkey names the account through its user handle, and must have verified the user. There is no authenticator-code step, whatever factors the account has. Otherwise this is a password sign-in: a username locked by failed attempts returns 423 ACCOUNT_LOCKED even for a good passkey, a refused assertion counts towards that lockout like a wrong password, and only once the passkey checks out does an account on a security hold return ACCOUNT_LOCKED with details.reason security_hold, a suspended account 403 ACCOUNT_SUSPENDED, and an unverified email 401 UNAUTHORIZED. The device is evaluated as at any sign-in, with the new-device email, and the passkey counts as the device-login proof. Every other refusal (an expired, used or unknown challenge, a passkey that is not registered, a missing or mismatched user handle, no user verification, a bad signature, or a counter that went backwards on a single-device passkey) returns the same 401 PASSKEY_LOGIN_FAILED, which never says whether a passkey or account exists; ask for new options to try again. Browser clients receive the refresh token as an HTTP-only cookie; API clients receive it in the response body.",
+        "tags": [
+          "auth"
+        ],
+        "x-rentify-permissions": {
+          "authMode": "public",
+          "minimumRole": null,
+          "patAllowed": false,
+          "csrf": "Required for browser-origin requests to /auth/*.",
+          "rateLimitPolicy": "auth-sensitive"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginVerifyRequest"
+              },
+              "example": {
+                "credential": {
+                  "id": "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+                  "rawId": "x2nNw6mC7eI1b3H0p5yJ8sQ4tU9vZ0aL",
+                  "type": "public-key",
+                  "clientExtensionResults": {},
+                  "response": {
+                    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+                    "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAQ",
+                    "signature": "MEUCIQDxk3Nn0h2vJ4pB9o",
+                    "userHandle": "MDE5M2E0YjItN2M4ZC03ZTAxLTlmMmEtM2I0YzVkNmU3Zjgw"
+                  }
+                },
+                "rememberMe": true,
+                "deviceId": "device-1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AuthSessionResponseData"
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/RequestMeta"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Authenticated successfully.",
+                  "data": {
+                    "accessToken": "access-token-1",
+                    "refreshToken": "refresh-token-1",
+                    "device": {
+                      "deviceId": "device-1",
+                      "known": true,
+                      "knownByIp": true
+                    },
+                    "user": {
+                      "id": "user-1",
+                      "email": "owner1@rentify.local",
+                      "username": "owner-one",
+                      "avatarUrl": "https://cdn.rentify.local/avatars/owner-1.png",
+                      "avatarVariants": null,
+                      "role": "owner",
+                      "activeOrganization": {
+                        "id": "org-1",
+                        "name": "Owner One Organization",
+                        "role": "primary_manager"
+                      },
+                      "organizationMembershipCount": 1
+                    }
+                  },
+                  "error": null,
+                  "meta": {
+                    "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "The passkey could not sign in, or the email is not verified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "passkeyLoginFailed": {
+                    "summary": "Expired or unknown challenge, unregistered passkey, or a refused assertion.",
+                    "value": {
+                      "success": false,
+                      "message": "We couldn't sign you in with that passkey. Try again, or sign in with your username and password.",
+                      "data": null,
+                      "error": {
+                        "code": "PASSKEY_LOGIN_FAILED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "emailUnverified": {
+                    "summary": "The passkey checked out, but the email is unverified.",
+                    "value": {
+                      "success": false,
+                      "message": "Please verify your email address before signing in.",
+                      "data": null,
+                      "error": {
+                        "code": "UNAUTHORIZED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account is suspended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "accountSuspended": {
+                    "summary": "The account is suspended; only an admin can reinstate it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account has been suspended. Contact support if you believe this is a mistake.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_SUSPENDED"
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The sign-in is locked, or the account is on a security hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                },
+                "examples": {
+                  "loginLockout": {
+                    "summary": "Too many failed attempts; the emailed unlock code clears it.",
+                    "value": {
+                      "success": false,
+                      "message": "This sign-in is locked. Use the code we emailed you to unlock it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "email": "owner1@rentify.local",
+                          "unlockRequired": true
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  },
+                  "securityHold": {
+                    "summary": "The account is on a security hold; a password reset recovers it.",
+                    "value": {
+                      "success": false,
+                      "message": "This account is on a security hold. Reset your password to recover it.",
+                      "data": null,
+                      "error": {
+                        "code": "ACCOUNT_LOCKED",
+                        "details": {
+                          "reason": "security_hold",
+                          "recovery": "password_reset"
+                        }
+                      },
+                      "meta": {
+                        "requestId": "req_01HZY9ZX8D3G7ZP5QJ7S3C4D5E"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/auth/local/signup": {
       "post": {
         "operationId": "localSignup",
@@ -32785,6 +33089,67 @@
           }
         }
       },
+      "PasskeyLoginOptionsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "PasskeyLoginOptionsResult": {
+        "type": "object",
+        "required": [
+          "options"
+        ],
+        "properties": {
+          "options": {
+            "$ref": "#/components/schemas/PasskeyLoginAssertionOptions"
+          }
+        }
+      },
+      "PasskeyLoginAssertionOptions": {
+        "type": "object",
+        "description": "`PublicKeyCredentialRequestOptionsJSON`, as `startAuthentication({ optionsJSON })` from `@simplewebauthn/browser` takes it, also with `useBrowserAutofill: true`. There is no `allowCredentials`, so the browser offers its discoverable passkeys for this site, and `userVerification` is `required`.",
+        "additionalProperties": true,
+        "required": [
+          "challenge",
+          "rpId",
+          "userVerification"
+        ],
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "rpId": {
+            "type": "string"
+          },
+          "timeout": {
+            "type": "integer"
+          },
+          "userVerification": {
+            "type": "string",
+            "enum": [
+              "required"
+            ]
+          }
+        }
+      },
+      "PasskeyLoginVerifyRequest": {
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "properties": {
+          "credential": {
+            "$ref": "#/components/schemas/PasskeyAssertionCredential"
+          },
+          "rememberMe": {
+            "type": "boolean",
+            "description": "Keep the session for the longer remember-me lifetime, as at POST /auth/local/login."
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "Labels the device; defaults to the fingerprinted device. It never makes a device known."
+          }
+        }
+      },
       "LoginMfaRequest": {
         "oneOf": [
           {
@@ -32962,6 +33327,7 @@
               "google",
               "microsoft",
               "apple",
+              "passkey",
               "refresh",
               "pat"
             ]
@@ -33087,6 +33453,7 @@
               "google",
               "microsoft",
               "apple",
+              "passkey",
               "refresh",
               "pat"
             ]

@@ -61,6 +61,22 @@ describe("PasskeyChallengeStore", () => {
     });
   });
 
+  it("stores a passkey sign-in challenge without an account", async () => {
+    const { cache, store } = createStore();
+
+    await store.issue("passkey-login", "abc", { challenge: "abc" });
+
+    const [value] = [...cache.values.values()];
+    expect(JSON.parse(value!)).toEqual({
+      challenge: "abc",
+      createdAt: expect.any(String),
+    });
+    await expect(store.consume("login", "abc")).resolves.toBeNull();
+    await expect(store.consume("passkey-login", "abc")).resolves.toMatchObject({
+      challenge: "abc",
+    });
+  });
+
   it("never stores a TTL below one second", async () => {
     const { cache, store } = createStore();
 

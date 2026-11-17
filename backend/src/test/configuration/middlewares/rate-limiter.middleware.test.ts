@@ -222,6 +222,7 @@ describe("resolveRateLimitPolicy", () => {
     "/auth/oauth/signup/complete",
     "/auth/mfa/passkeys/register/options",
     "/auth/mfa/passkeys/register/verify",
+    "/auth/passkey/login/verify",
   ])("assigns the auth policy to %s", (path) => {
     const policy = resolveRateLimitPolicy(
       policyRequest(`http://rent.test${buildApiPath(path)}`, {
@@ -342,6 +343,21 @@ describe("resolveRateLimitPolicy", () => {
       bucketKey: "POST:auth-session",
     });
     expect(callbackPolicy).toMatchObject({ id: "auth-sensitive" });
+  });
+
+  it("keeps passkey sign-in options, asked for on every visit, out of the sign-in bucket", () => {
+    const policy = resolveRateLimitPolicy(
+      policyRequest(
+        `http://rent.test${buildApiPath("/auth/passkey/login/options")}`,
+        { method: "POST" },
+      ),
+    );
+
+    expect(policy).toMatchObject({
+      id: "auth-session",
+      limit: 15,
+      bucketKey: "POST:auth-session",
+    });
   });
 
   it("assigns the auth-session policy to oauth link and delete routes", () => {

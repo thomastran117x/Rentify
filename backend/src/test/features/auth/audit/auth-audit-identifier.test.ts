@@ -1,5 +1,6 @@
 import {
   hashAuthIdentifier,
+  hashPasskeyCredentialId,
   normalizeAuthIdentifier,
 } from "@/features/auth/audit/auth-audit-identifier";
 
@@ -28,5 +29,15 @@ describe("auth audit identifier hashing", () => {
     expect(
       hashAuthIdentifier("owner-one", "another-auth-audit-secret-value-32"),
     ).not.toBe(hash);
+  });
+
+  it("hashes a passkey credential ID as sent, apart from any username", () => {
+    const hash = hashPasskeyCredentialId("AbC-_9", SECRET);
+
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashPasskeyCredentialId("AbC-_9", SECRET)).toBe(hash);
+    // base64url is case-sensitive, so case is not folded.
+    expect(hashPasskeyCredentialId("abc-_9", SECRET)).not.toBe(hash);
+    expect(hashAuthIdentifier("AbC-_9", SECRET)).not.toBe(hash);
   });
 });
