@@ -176,7 +176,7 @@ async function submitPassword(page: Page) {
     .getByRole("textbox", { name: /^Username/i })
     .fill(ACCOUNT.username);
   await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
 async function logOut(page: Page) {
@@ -240,7 +240,7 @@ test("signs in with a password and an authenticator code", async ({
     .getByRole("textbox", { name: /^Username/i })
     .fill(ACCOUNT.username);
   await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
   // The password checked out, but no session exists until the code does.
   const codeField = page.getByLabel("Authenticator code");

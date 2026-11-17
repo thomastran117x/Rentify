@@ -22,6 +22,8 @@ const browser = vi.hoisted(() => {
   return {
     WebAuthnError,
     browserSupportsWebAuthn: vi.fn(() => true),
+    browserSupportsWebAuthnAutofill: vi.fn(async () => true),
+    WebAuthnAbortService: { cancelCeremony: vi.fn() },
     startAuthentication: vi.fn(),
     startRegistration: vi.fn(),
   };
@@ -30,9 +32,11 @@ const browser = vi.hoisted(() => {
 vi.mock("@simplewebauthn/browser", () => browser);
 
 import {
+  cancelPasskeyCeremony,
   createPasskey,
   getPasskeyAssertion,
   PasskeyCeremonyError,
+  supportsPasskeyAutofill,
   supportsPasskeys,
 } from "./webauthn";
 
@@ -118,6 +122,36 @@ describe("webauthn", () => {
 
     await expect(failure).rejects.toBeInstanceOf(PasskeyCeremonyError);
     await expect(failure).rejects.toThrow(message);
+  });
+
+  it("reports autofill support only where WebAuthn and conditional mediation both are", async () => {
+    await expect(supportsPasskeyAutofill()).resolves.toBe(true);
+
+    browser.browserSupportsWebAuthnAutofill.mockRejectedValueOnce(
+      new Error("unsupported"),
+    );
+    await expect(supportsPasskeyAutofill()).resolves.toBe(false);
+
+    browser.browserSupportsWebAuthn.mockReturnValue(false);
+    await expect(supportsPasskeyAutofill()).resolves.toBe(false);
+  });
+
+  it("asks for an autofill assertion when told to, and cancels a waiting one", async () => {
+    browser.startAuthentication.mockResolvedValue({ id: "assertion" });
+
+    await expect(
+      getPasskeyAssertion(REQUEST_OPTIONS, { autofill: true }),
+    ).resolves.toEqual({
+      status: "completed",
+      credential: { id: "assertion" },
+    });
+    expect(browser.startAuthentication).toHaveBeenCalledWith({
+      optionsJSON: REQUEST_OPTIONS,
+      useBrowserAutofill: true,
+    });
+
+    cancelPasskeyCeremony();
+    expect(browser.WebAuthnAbortService.cancelCeremony).toHaveBeenCalled();
   });
 
   it("refuses up front on a browser without WebAuthn", async () => {

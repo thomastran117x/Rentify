@@ -88,7 +88,7 @@ async function submitPassword(page: Page, nextPath: string) {
     .getByRole("textbox", { name: /^Username/i })
     .fill(ACCOUNT.username);
   await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
 
 async function logOut(page: Page) {

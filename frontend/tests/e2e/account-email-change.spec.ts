@@ -30,7 +30,7 @@ async function login(page: Page) {
       .getByRole("textbox", { name: /^Username/i })
       .fill(ACCOUNT.username);
     await page.getByLabel(/^Password/i).fill(ACCOUNT.password);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     try {
       await page.waitForURL(/\/account/, { timeout: 15000 });

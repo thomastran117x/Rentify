@@ -5,6 +5,7 @@ import {
   Activity,
   Ban,
   CircleX,
+  Fingerprint,
   Globe,
   KeyRound,
   RefreshCw,
@@ -77,6 +78,7 @@ const METHOD_ICONS: Record<SecurityActivityMethod, LucideIcon> = {
   google: Globe,
   microsoft: Globe,
   apple: Globe,
+  passkey: Fingerprint,
   refresh: RefreshCw,
   pat: Terminal,
 };
@@ -86,6 +88,7 @@ const METHOD_NAMES: Record<SecurityActivityMethod, string> = {
   google: "Google",
   microsoft: "Microsoft",
   apple: "Apple",
+  passkey: "Passkey",
   refresh: "Session refresh",
   pat: "Personal access token",
 };

@@ -132,7 +132,7 @@ export async function login(
   await ensureCaptchaToken(page);
   await page.getByRole("textbox", { name: /^Username/i }).fill(username);
   await page.getByLabel(/^Password/i).fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
   if (waitForNavigation) {
     const expectedPath = nextPath.split("?")[0];

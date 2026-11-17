@@ -10,7 +10,7 @@ async function login(page: Page) {
     await ensureCaptchaToken(page);
     await page.getByRole("textbox", { name: /^Username/i }).fill(USERNAME);
     await page.getByLabel(/^Password/i).fill(PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     try {
       await page.waitForURL(/\/account/, { timeout: 15000 });

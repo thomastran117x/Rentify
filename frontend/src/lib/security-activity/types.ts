@@ -10,6 +10,7 @@ export type SecurityActivityMethod =
   | "google"
   | "microsoft"
   | "apple"
+  | "passkey"
   | "refresh"
   | "pat";
 

@@ -38,6 +38,8 @@ import { MfaVerificationDialog } from "@/components/auth/mfa-verification-dialog
 import { AccountRecoveryDialog } from "@/components/auth/account-recovery-dialog";
 import { getAccountStatusBlock } from "@/lib/auth/account-status-errors";
 import { OAuthWelcomeModal } from "@/components/auth/oauth-welcome-modal";
+import { usePasskeySignIn } from "@/components/auth/use-passkey-sign-in";
+import { PasskeyCeremonyError } from "@/lib/auth/webauthn";
 import {
   mfaVerificationApi,
   type MfaVerificationChallengeFactor,
@@ -84,7 +86,14 @@ type LoginFailureResult = {
 
 const LOGIN_MFA_EXPIRED_MESSAGE = "Your sign-in expired. Please sign in again.";
 
+export const PASSKEY_LOGIN_FAILED_MESSAGE =
+  "We couldn't sign you in with that passkey. Try again, or use your username and password.";
+
 function getLoginFailureResult(error: unknown): LoginFailureResult {
+  if (error instanceof PasskeyCeremonyError) {
+    return { generalError: error.message };
+  }
+
   // Checked first: a security hold is also a 423, but it is cleared by a
   // password reset, not by the emailed unlock code.
   const statusBlock = getAccountStatusBlock(error);
@@ -143,6 +152,10 @@ function getLoginFailureResult(error: unknown): LoginFailureResult {
     if (status === 401) {
       if (code === "MFA_CHALLENGE_INVALID") {
         return { generalError: LOGIN_MFA_EXPIRED_MESSAGE };
+      }
+
+      if (code === "PASSKEY_LOGIN_FAILED") {
+        return { generalError: PASSKEY_LOGIN_FAILED_MESSAGE };
       }
 
       return {
@@ -255,6 +268,22 @@ export function LoginForm({
   const loginMfaPendingFlow =
     persistedAuthFlow?.flow === "login-mfa" ? persistedAuthFlow : null;
   const activeUnlockEmail = unlockEmail ?? unlockPendingFlow?.email ?? null;
+  const passkeySignIn = usePasskeySignIn({
+    // Only while the username field is on screen, which passkey autofill
+    // attaches to.
+    enabled:
+      status === "anonymous" &&
+      !authFlowRestorePending &&
+      !loginMfaPendingFlow &&
+      !activeUnlockEmail,
+    onSession: (session) => {
+      setGeneralError(null);
+      setPasswordResetRequired(false);
+      setUnlockEmail(null);
+      return completeLogin(session);
+    },
+    onFailure: showLoginFailure,
+  });
 
   useEffect(() => {
     if (initialRecoveryOpen) {
@@ -819,7 +848,7 @@ export function LoginForm({
             id="username"
             name="username"
             type="text"
-            autoComplete="username"
+            autoComplete="username webauthn"
             placeholder="your-username"
             aria-invalid={Boolean(errors.username)}
             aria-describedby={
@@ -861,12 +890,44 @@ export function LoginForm({
 
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || passkeySignIn.pending}
           className={theme.auth.primaryButton}
         >
           {pending ? "Signing in..." : "Sign in"}
         </button>
       </form>
+
+      {passkeySignIn.supported ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={theme.auth.dividerLine} />
+            <span className={theme.auth.dividerText}>Or</span>
+            <div className={theme.auth.dividerLine} />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setGeneralError(null);
+              setPasswordResetRequired(false);
+              void passkeySignIn.signIn();
+            }}
+            disabled={pending || passkeySignIn.pending}
+            className={theme.auth.secondaryButton}
+          >
+            {passkeySignIn.pending
+              ? "Waiting for your passkey..."
+              : "Sign in with a passkey"}
+          </button>
+          {passkeySignIn.notice ? (
+            <p
+              role="status"
+              className="text-sm text-slate-600 dark:text-slate-300"
+            >
+              {passkeySignIn.notice}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
